@@ -1,0 +1,22 @@
+minimum_cumulusci_version: '3.90.0'
+project:
+    name: aiAgentStudio
+    package:
+        name: aiAgentStudio
+        api_version: '63.0'
+    git:
+        default_branch: 'main'
+    source_format: sfdx
+
+tasks:
+    robot:
+        options:
+            suites: robot/aiAgentStudio/tests
+            options:
+                outputdir: robot/aiAgentStudio/results
+
+    robot_testdoc:
+        options:
+            path: robot/aiAgentStudio/tests
+            output: robot/aiAgentStudio/doc/aiAgentStudio_tests.html
+
