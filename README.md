@@ -71,6 +71,11 @@ Effective agent configuration is an iterative process of defining capabilities, 
 
 ---
 
+## Execution Flow (Conceptual)
+
+![28ba2bd8-a3c1-49c2-a506-05f27d9b4d12.svg](28ba2bd8-a3c1-49c2-a506-05f27d9b4d12.svg)
+---
+
 ## Getting Started / Setup
 
 Follow these steps to deploy and configure the framework:
