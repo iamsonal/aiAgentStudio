@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customSettingsType>Hierarchy</customSettingsType>
+    <description>Stores global default configurations and operational parameters for the AI Agent Framework. These settings apply when not explicitly overridden by more specific configurations on LLM Configuration or AI Agent Definition records. Configure framework-wide behaviors like default retry attempts, history limits, and token estimation. Create one record (the default) to hold these settings.</description>
+    <enableFeeds>false</enableFeeds>
+    <label>AI Agent Framework Settings</label>
+    <visibility>Public</visibility>
+</CustomObject>

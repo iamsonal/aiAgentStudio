@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EnableOrchestrationLogging__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Check to record highly detailed step-by-step technical logs for this specific chat session. Use only for active debugging as it impacts performance.</description>
+    <inlineHelpText>Turn this on ONLY when debugging issues with this specific chat session. It creates many log records and slows processing. Leave off normally.</inlineHelpText>
+    <label>Enable Detailed Debug Logging</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

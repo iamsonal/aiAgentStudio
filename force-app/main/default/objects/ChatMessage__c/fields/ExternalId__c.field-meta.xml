@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExternalId__c</fullName>
+    <caseSensitive>false</caseSensitive>
+    <description>A framework-generated unique identifier (UUID) for this specific message record.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Used for tracking, potential idempotency checks during message saving, or referencing messages externally.</inlineHelpText>
+    <label>External Id</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

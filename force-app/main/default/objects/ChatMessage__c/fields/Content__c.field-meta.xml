@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Content__c</fullName>
+    <description>The primary textual content of the message.</description>
+    <inlineHelpText>Contains the user&apos;s input, the assistant&apos;s textual reply, or the summary/error message returned by a tool execution (from ToolResult.resultMessageForLLM). Can be empty for assistant messages that only make tool calls.</inlineHelpText>
+    <label>Content</label>
+    <length>131072</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

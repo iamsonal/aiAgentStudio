@@ -1,0 +1,218 @@
+<template>
+    <lightning-card title={cardTitle} icon-name="utility:einstein">
+        <div slot="actions" class="slds-grid slds-grid_vertical-align-center">
+            <lightning-combobox
+                label="Select Session"
+                variant="label-hidden"
+                placeholder={sessionSelectorPlaceholder}
+                options={allSessionOptions}
+                value={selectedSessionValue}
+                onchange={handleSessionChange}
+                dropdown-alignment="auto"
+                class="slds-m-right_x-small"
+                disabled={isSessionControlDisabled}
+                title="Select an existing session or start a new one"
+            >
+            </lightning-combobox>
+
+            <template if:true={loadingState.sessions}>
+                <div class="slds-is-relative slds-m-left_xx-small">
+                    <lightning-spinner alternative-text="Loading sessions..." size="small"></lightning-spinner>
+                </div>
+            </template>
+        </div>
+
+        <div class="slds-card__body slds-card__body_inner">
+            <div class="slds-grid slds-grid_vertical">
+                <div class="slds-col slds-size_12-of-12 chat-container slds-scrollable_y" onscroll={handleScroll}>
+                    <template if:true={criticalError}>
+                        <div
+                            class="slds-notify slds-notify_alert slds-theme_alert-texture slds-m-bottom_small"
+                            role="alert"
+                        >
+                            <lightning-icon
+                                icon-name="utility:warning"
+                                alternative-text="Error!"
+                                variant="inverse"
+                                size="small"
+                                class="slds-m-right_small"
+                            ></lightning-icon>
+                            <h2>{criticalError}</h2>
+                        </div>
+                    </template>
+
+                    <div class="slds-p-around_small slds-text-align_center">
+                        <template if:true={showLoadMoreButton}>
+                            <lightning-button
+                                label="Load More"
+                                title="Load older messages"
+                                onclick={handleLoadMoreHistory}
+                                disabled={isLoadingMoreHistory}
+                                variant="neutral"
+                                class="slds-m-bottom_small"
+                            >
+                            </lightning-button>
+                            <template if:true={isLoadingMoreHistory}>
+                                <div class="slds-is-relative slds-p-top_x-small">
+                                    <lightning-spinner size="small" alternative-text="Loading..."></lightning-spinner>
+                                </div>
+                            </template>
+                        </template>
+
+                        <template if:true={loadingState.history}>
+                            <div class="slds-is-relative slds-p-vertical_medium">
+                                <lightning-spinner
+                                    alternative-text="Loading history..."
+                                    size="medium"
+                                ></lightning-spinner>
+                            </div>
+                        </template>
+                    </div>
+
+                    <ul class="slds-chat-list" lwc:ref="chatList">
+                        <template for:each={chatMessages} for:item="message">
+                            <li key={message.displayKey} class={message.listItemClass} data-key={message.displayKey}>
+                                <div class="slds-chat-message">
+                                    <template if:true={message.isInbound}>
+                                        <div class="slds-chat-avatar">
+                                            <span class="slds-avatar slds-avatar_circle slds-avatar_small">
+                                                <lightning-icon
+                                                    icon-name={message.avatarIcon}
+                                                    alternative-text={message.roleLabel}
+                                                    size="small"
+                                                >
+                                                </lightning-icon>
+                                            </span>
+                                        </div>
+                                    </template>
+
+                                    <div class="slds-chat-message__body">
+                                        <div class={message.textBubbleClass}>
+                                            <template if:true={message.prefix}>
+                                                <span class={message.prefixClass}>{message.prefix}</span>
+                                            </template>
+                                            <div class="slds-chat-message__text-content">
+                                                <lightning-formatted-rich-text
+                                                    value={message.content}
+                                                ></lightning-formatted-rich-text>
+                                            </div>
+                                        </div>
+
+                                        <template if:true={message.toolInfoAvailable}>
+                                            <div class="slds-m-top_x-small slds-m-bottom_x-small">
+                                                <lightning-accordion allow-multiple-sections-open>
+                                                    <lightning-accordion-section
+                                                        name={message.displayKey}
+                                                        label="Tool Details"
+                                                        class="slds-chat-accordion"
+                                                    >
+                                                        <template if:true={message.toolFunctionName}>
+                                                            <p class="slds-m-bottom_x-small">
+                                                                <strong>Tool Called:</strong> {message.toolFunctionName}
+                                                            </p>
+                                                        </template>
+                                                        <template if:true={message._parsedToolCallsData}>
+                                                            <p class="slds-m-bottom_xx-small">
+                                                                <strong>Request Payload:</strong>
+                                                            </p>
+                                                            <pre
+                                                                class="slds-code slds-box slds-box_small slds-m-bottom_small"
+                                                            >
+{message.formattedToolCallsJson}</pre
+                                                            >
+                                                        </template>
+                                                        <template if:true={message._parsedToolResultData}>
+                                                            <p class="slds-m-bottom_xx-small">
+                                                                <strong>Result Data:</strong>
+                                                            </p>
+                                                            <pre class="slds-code slds-box slds-box_small">
+{message.formattedToolResultJson}</pre
+                                                            >
+                                                        </template>
+                                                    </lightning-accordion-section>
+                                                </lightning-accordion>
+                                            </div>
+                                        </template>
+
+                                        <div class="slds-chat-message__meta" aria-label={message.ariaLabelMeta}>
+                                            <span class="slds-text-body_small slds-chat-meta-text"
+                                                >{message.roleLabel} • {message.formattedTimestamp}</span
+                                            >
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+                        </template>
+
+                        <template if:true={loadingState.sending}>
+                            <li class="slds-chat-listitem slds-chat-listitem_inbound">
+                                <div class="slds-chat-message">
+                                    <div class="slds-chat-avatar">
+                                        <span class="slds-avatar slds-avatar_circle slds-avatar_small">
+                                            <lightning-icon
+                                                icon-name="utility:einstein"
+                                                alternative-text="Assistant"
+                                                size="small"
+                                            >
+                                            </lightning-icon>
+                                        </span>
+                                    </div>
+                                    <div class="slds-chat-message__body">
+                                        <div
+                                            class="slds-chat-message__text slds-chat-message__text_inbound slds-chat-typing"
+                                        >
+                                            <span class="slds-assistant-typing" aria-live="polite">
+                                                <span class="slds-ball"></span>
+                                                <span class="slds-ball"></span>
+                                                <span class="slds-ball"></span>
+                                            </span>
+                                        </div>
+                                        <div class="slds-chat-message__meta" aria-label="Assistant is typing">
+                                            <span class="slds-text-body_small slds-chat-meta-text"
+                                                >Assistant • typing...</span
+                                            >
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+                        </template>
+                        <div lwc:ref="scrollAnchor"></div>
+                    </ul>
+                </div>
+
+                <div slot="footer" class="slds-p-horizontal_medium slds-p-vertical_small">
+                    <div
+                        class="slds-grid slds-grid_align-spread slds-grid_vertical-align-end slds-chat-input-container"
+                    >
+                        <div class="slds-grow">
+                            <lightning-textarea
+                                label="User Message"
+                                variant="label-hidden"
+                                placeholder="Type your message..."
+                                value={userMessageInput}
+                                onchange={handleInputChange}
+                                onkeydown={handleKeyDown}
+                                max-length="32000"
+                                class="slds-chat-input"
+                                disabled={isInputDisabled}
+                            >
+                            </lightning-textarea>
+                        </div>
+                        <div class="slds-m-left_small slds-chat-send-button">
+                            <lightning-button
+                                icon-name="utility:send"
+                                variant="brand"
+                                label="Send"
+                                title="Send Message"
+                                onclick={handleSendMessageClick}
+                                disabled={isInputDisabled}
+                                class="slds-chat-button"
+                            >
+                            </lightning-button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </lightning-card>
+</template>

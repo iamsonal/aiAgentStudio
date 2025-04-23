@@ -1,0 +1,179 @@
+/*
+ * Copyright (c) 2025 Sonal
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+
+.chat-container {
+    height: 60vh;
+    min-height: 300px;
+    max-height: 70vh;
+    overflow-y: auto;
+    background-color: var(--lwc-colorBackground, #f3f2f2);
+    border: 1px solid var(--lwc-colorBorder, #dddbda);
+    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+    position: relative;
+    scrollbar-width: thin;
+}
+
+.slds-chat-list {
+    padding: var(--lwc-spacingMedium, 1rem);
+}
+
+.slds-chat-message__text {
+    max-width: 85%;
+    padding: var(--lwc-spacingSmall, 0.75rem);
+    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+    line-height: 1.5;
+    box-shadow: var(--lwc-shadowDrag, 0 2px 4px 0 rgba(0, 0, 0, 0.16));
+}
+
+.slds-chat-message__text_outbound {
+    background-color: var(--lwc-brandAccessible, #0176d3);
+    color: var(--lwc-colorTextInverse, #ffffff);
+    border-bottom-right-radius: 0;
+    margin-left: auto;
+}
+
+.slds-chat-message__text_inbound {
+    background-color: var(--lwc-colorBackground, #ffffff);
+    color: var(--lwc-colorTextDefault, #3e3e3c);
+    border-bottom-left-radius: 0;
+}
+
+.slds-chat-message__text-content {
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.message-prefix {
+    font-weight: bold;
+    display: block;
+    margin-bottom: var(--lwc-spacingXxSmall, 0.25rem);
+}
+
+.message-prefix-error {
+    color: var(--lwc-colorTextError, #c23934);
+}
+
+.message-prefix-system {
+    color: #ffb75d;
+}
+
+.slds-chat-message__meta {
+    margin-top: var(--lwc-spacingXxSmall, 0.25rem);
+    font-size: 0.75rem;
+}
+
+.slds-chat-meta-text {
+    color: var(--lwc-colorTextLabel, #706e6b);
+}
+
+.slds-chat-listitem_outbound .slds-chat-message__meta {
+    text-align: right;
+}
+
+.slds-chat-accordion {
+    font-size: 0.75rem;
+}
+
+pre.slds-code {
+    font-family: Consolas, Monaco, 'Courier New', Courier, monospace;
+    font-size: 0.75rem;
+    background-color: var(--lwc-colorBackgroundAlt, #fafaf9);
+    padding: var(--lwc-spacingXSmall, 0.5rem);
+    border: 1px solid var(--lwc-colorBorder, #dddbda);
+    border-radius: var(--lwc-borderRadiusSmall, 0.125rem);
+    max-height: 200px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+}
+
+.slds-chat-input-container {
+    margin-top: var(--lwc-spacingXSmall, 0.5rem);
+}
+
+.slds-chat-input textarea {
+    border: 1px solid var(--lwc-colorBorder, #dddbda);
+    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+    padding: var(--lwc-spacingSmall, 0.75rem);
+    resize: vertical;
+    min-height: 40px;
+    max-height: 120px;
+    transition: border 0.1s linear;
+}
+
+.slds-chat-input textarea:focus {
+    border-color: var(--lwc-brandAccessible, #0176d3);
+    box-shadow: var(--lwc-shadowFocus, 0 0 3px #0176d3);
+}
+
+.slds-chat-button {
+    --sds-c-button-brand-background-color: var(--lwc-brandAccessible, #0176d3);
+    --sds-c-button-brand-text-color: var(--lwc-colorTextButtonBrand, #ffffff);
+}
+
+.slds-chat-typing {
+    padding: var(--lwc-spacingXSmall, 0.5rem) var(--lwc-spacingSmall, 0.75rem);
+    min-height: 2rem;
+}
+
+.slds-assistant-typing {
+    display: inline-flex;
+    align-items: center;
+}
+
+.slds-ball {
+    background-color: var(--lwc-colorTextLabel, #706e6b);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin: 0 2px;
+    animation: bounce 1.5s infinite ease-in-out both;
+}
+
+.slds-ball:nth-child(1) {
+    animation-delay: -0.32s;
+}
+.slds-ball:nth-child(2) {
+    animation-delay: -0.16s;
+}
+.slds-ball:nth-child(3) {
+    animation-delay: 0s;
+}
+
+@keyframes bounce {
+    0%,
+    80%,
+    100% {
+        transform: scale(0.6);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.slds-is-relative {
+    position: relative;
+}
+
+.chat-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-container::-webkit-scrollbar-track {
+    background: var(--lwc-colorBackgroundAlt, #f3f2f2);
+}
+
+.chat-container::-webkit-scrollbar-thumb {
+    background: var(--lwc-colorBorderSeparator, #dddbda);
+    border-radius: 3px;
+}
+
+.chat-container::-webkit-scrollbar-thumb:hover {
+    background: var(--lwc-colorBorderSeparatorAlt, #c9c7c5);
+}

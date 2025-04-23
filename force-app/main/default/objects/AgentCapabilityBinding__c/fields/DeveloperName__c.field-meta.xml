@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DeveloperName__c</fullName>
+    <description>The unique technical name the AI Agent uses internally to identify and request this specific capability.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Required. The unique technical name that the AI Agent model will use to identify and request this capability. This is the &quot;function name&quot; presented to the LLM. Must be unique within the scope of the parent Agent Definition. Follow API naming conventions (no spaces, e.g., createOpportunity, updateCaseStatus). Ensure this name clearly relates to the capability&apos;s purpose.</inlineHelpText>
+    <label>Developer Name</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

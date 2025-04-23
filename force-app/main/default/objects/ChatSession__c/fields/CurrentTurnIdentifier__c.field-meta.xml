@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CurrentTurnIdentifier__c</fullName>
+    <description>Stores the unique identifier (usually ExternalId from the triggering user message) of the processing turn currently being handled by the async framework. Null when Idle or Failed.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Internal framework field tracking the active processing turn. Used to prevent stale jobs from running.</inlineHelpText>
+    <label>Current Turn Identifier</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

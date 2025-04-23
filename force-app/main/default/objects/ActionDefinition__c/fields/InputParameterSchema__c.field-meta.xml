@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InputParameterSchema__c</fullName>
+    <description>Defines the input arguments required from the Language Model (LLM) when it chooses to use this action. This JSON Schema specifies the exact structure, data types, and descriptions of parameters the LLM must provide.</description>
+    <inlineHelpText>Defines the input arguments the Language Model (LLM) MUST provide when invoking this action. Use valid JSON Schema format (typically {&quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: {...}, &quot;required&quot;: [...]}). Describe each parameter clearly in the schema&apos;s &apos;description&apos; fields. This schema is crucial for teaching the LLM how to call the action correctly via Agent Capability Bindings. Example properties: {&quot;AccountName&quot;: {&quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;The name for the new Account&quot;}}.</inlineHelpText>
+    <label>LLM Input Parameter Schema (JSON Schema)</label>
+    <length>131072</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

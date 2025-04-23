@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SourceDeveloperName__c</fullName>
+    <caseSensitive>false</caseSensitive>
+    <description>Unique system identifier for this context source rule.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Unique, code-friendly name (no spaces, e.g., AccountOpenCasesContext). Used for bindings.</inlineHelpText>
+    <label>Developer Name</label>
+    <length>255</length>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

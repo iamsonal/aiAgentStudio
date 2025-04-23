@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ChatSession__c</fullName>
+    <description>Links this log entry to the parent chat session. Master-Detail ensures logs are deleted with the session and facilitates rollup summaries if needed later.</description>
+    <label>Chat Session</label>
+    <referenceTo>ChatSession__c</referenceTo>
+    <relationshipLabel>Orchestration Logs</relationshipLabel>
+    <relationshipName>OrchestrationLogs</relationshipName>
+    <relationshipOrder>0</relationshipOrder>
+    <reparentableMasterDetail>false</reparentableMasterDetail>
+    <trackTrending>false</trackTrending>
+    <type>MasterDetail</type>
+    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+</CustomField>

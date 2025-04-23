@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>LLMConfiguration__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Identifies the specific LLM Configuration used for an LLMCallAttempt or LLMResponse step.</description>
+    <label>LLM Configuration Used</label>
+    <referenceTo>LLMConfiguration__c</referenceTo>
+    <relationshipLabel>Orchestration Logs</relationshipLabel>
+    <relationshipName>OrchestrationLogs</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

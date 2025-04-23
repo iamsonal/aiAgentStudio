@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>LinkDetailApiName__c</fullName>
+    <description>The API name of the specific lookup field or child relationship name used by the &apos;Link Type&apos;.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Required if Link Type is &apos;Parent Lookup&apos; (use Lookup Field API Name) or &apos;Child Relationship&apos; (use Child Relationship Name). Blank for &apos;Direct&apos;.</inlineHelpText>
+    <label>Link Detail API Name</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

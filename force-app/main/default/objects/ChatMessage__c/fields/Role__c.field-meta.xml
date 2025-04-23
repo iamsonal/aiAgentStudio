@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Role__c</fullName>
+    <description>Indicates the originator or type of the message content.</description>
+    <inlineHelpText>&apos;user&apos;: Message from the end-user. &apos;assistant&apos;: Response from the LLM/AI agent. &apos;tool&apos;: Result returned from a tool execution. &apos;system&apos;: Initial system prompt message (only if stored explicitly).</inlineHelpText>
+    <label>Role</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>user</fullName>
+                <default>false</default>
+                <label>user</label>
+            </value>
+            <value>
+                <fullName>assistant</fullName>
+                <default>false</default>
+                <label>assistant</label>
+            </value>
+            <value>
+                <fullName>system</fullName>
+                <default>false</default>
+                <label>system</label>
+            </value>
+            <value>
+                <fullName>tool</fullName>
+                <default>false</default>
+                <label>tool</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

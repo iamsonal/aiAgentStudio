@@ -1,0 +1,56 @@
+minimum_cumulusci_version: '4.3.0'
+project:
+    name: aiAgent
+    package:
+        name: aiAgent
+        api_version: '62.0'
+    git:
+        default_branch: 'main'
+    source_format: sfdx
+
+tasks:
+    robot:
+        options:
+            suites: robot/aiAgent/tests
+            options:
+                outputdir: robot/aiAgent/results
+
+    robot_testdoc:
+        options:
+            path: robot/aiAgent/tests
+            output: robot/aiAgent/doc/aiAgent_tests.html
+    deploy_seed_data:
+        class_path: cumulusci.tasks.salesforce.Deploy
+        options:
+            path: seed-data
+
+flows:
+    dev_org:
+        steps:
+            5:
+                task: deploy_seed_data
+            6:
+                task: assign_permission_sets
+                options:
+                    api_names: AIAgentStudioConfigurator
+            7:
+                task: execute_anon
+                description: Create Field Sets using the Metadata API
+                options:
+                    apex: "AgentFrameworkFieldSetSetup.runCreateFieldSets();"
+            8:
+                task: execute_anon
+                description: Creates Context Graph Source records
+                options:
+                    apex: "AgentFrameworkContextSourceSetup.runContextSourceSetup();"
+            9:
+                task: execute_anon
+                description: Set up Sales Data
+                options:
+                    apex: "AgentTestDataFactory.setupSalesCopilotData();"
+
+orgs:
+    scratch:
+        dev:
+            config_file: orgs/dev.json
+            days: 30

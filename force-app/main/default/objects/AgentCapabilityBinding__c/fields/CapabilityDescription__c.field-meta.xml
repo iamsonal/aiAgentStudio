@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CapabilityDescription__c</fullName>
+    <description>A clear, natural language description telling the underlying agent model when and how to use the linked action.</description>
+    <inlineHelpText>Write a detailed explanation for the agent model itself. Describe the action&apos;s purpose, inputs needed, and expected output, guiding its usage.</inlineHelpText>
+    <label>Description for Agent</label>
+    <length>131072</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DefaultMaxRetryAttempts__c</fullName>
+    <defaultValue>1</defaultValue>
+    <description>The default number of times the system should retry connecting to the language model provider if a temporary connection error occurs.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Controls how many times the framework retries sending a request if a temporary connection failure (like network issues or provider overload) happens.</inlineHelpText>
+    <label>Default Maximum Retry Attempts</label>
+    <precision>3</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

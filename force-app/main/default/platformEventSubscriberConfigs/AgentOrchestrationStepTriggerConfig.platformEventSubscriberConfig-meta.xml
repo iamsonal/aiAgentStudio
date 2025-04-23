@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PlatformEventSubscriberConfig xmlns="http://soap.sforce.com/2006/04/metadata">
+    <platformEventConsumer>AgentOrchestrationStepTrigger</platformEventConsumer>
+    <batchSize>200</batchSize>
+    <masterLabel>AgentOrchestrationStepTriggerConfig</masterLabel>
+    <user>test-plldpnfpm4q5@example.com</user>
+    <isProtected>false</isProtected>
+</PlatformEventSubscriberConfig>

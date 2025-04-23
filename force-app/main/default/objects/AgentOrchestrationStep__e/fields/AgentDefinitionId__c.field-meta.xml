@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AgentDefinitionId__c</fullName>
+    <description>Identifies the specific agent configuration being used for this step of the process.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>The 18-character system identifier for the agent definition record controlling this interaction.</inlineHelpText>
+    <isFilteringDisabled>false</isFilteringDisabled>
+    <isNameField>false</isNameField>
+    <isSortingDisabled>false</isSortingDisabled>
+    <label>Agent Definition Id</label>
+    <length>18</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

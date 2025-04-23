@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InitialRetryDelayMillis__c</fullName>
+    <description>The base delay (in milliseconds) before the *first* retry attempt. Subsequent delays typically increase exponentially.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Wait time (ms) before the first retry (e.g., 500). Uses framework defaults if blank.</inlineHelpText>
+    <label>Initial Retry Delay (ms)</label>
+    <precision>6</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

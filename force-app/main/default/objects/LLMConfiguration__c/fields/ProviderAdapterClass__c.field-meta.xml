@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProviderAdapterClass__c</fullName>
+    <description>The fully qualified name of the Apex class that implements the ILLMProviderAdapter interface for this specific LLM provider and API format.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>e.g., &apos;OpenAIProviderAdapter&apos;, &apos;AnthropicProviderAdapter&apos;. The class must exist in the org and implement the required interface methods.</inlineHelpText>
+    <label>Provider Adapter Class</label>
+    <length>255</length>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

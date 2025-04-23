@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AssistantToolCalls__c</fullName>
+    <description>Stores the raw JSON array payload of the tool_calls requested by the LLM in this assistant message turn. This data is used by the framework to execute the requested actions and reconstruct conversation history accurately for subsequent LLM calls involving tools.</description>
+    <inlineHelpText>(Internal Framework Use) Contains the JSON list of functions/tools the Assistant decided to call in this specific message. Populated only for &apos;assistant&apos; role messages that include tool calls. Do not edit manually.</inlineHelpText>
+    <label>Assistant Tool Calls (Payload)</label>
+    <length>131072</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

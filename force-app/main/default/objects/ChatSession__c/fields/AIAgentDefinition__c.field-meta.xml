@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AIAgentDefinition__c</fullName>
+    <deleteConstraint>Restrict</deleteConstraint>
+    <description>Identifies the specific agent configuration record that controls this session&apos;s behavior, prompts, and capabilities.</description>
+    <inlineHelpText>Select the agent definition that governs this conversation&apos;s personality, knowledge, and available actions.</inlineHelpText>
+    <label>AI Agent Definition</label>
+    <referenceTo>AIAgentDefinition__c</referenceTo>
+    <relationshipLabel>Chat Sessions</relationshipLabel>
+    <relationshipName>ChatSessions</relationshipName>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

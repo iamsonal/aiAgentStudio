@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DeveloperName__c</fullName>
+    <caseSensitive>false</caseSensitive>
+    <description>The unique technical name the agent uses internally to request this specific action. Must be unique across all actions.</description>
+    <externalId>true</externalId>
+    <inlineHelpText>Required. A unique, machine-readable name for this action definition used internally by the framework and APIs. Must be unique across all Action Definitions. Follow standard API naming conventions: use underscores instead of spaces, start with a letter, contain only letters, numbers, and underscores (e.g., Create_Case, Get_Opportunity_Products). This is the identifier for the reusable action logic itself.</inlineHelpText>
+    <label>Developer Name</label>
+    <length>255</length>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

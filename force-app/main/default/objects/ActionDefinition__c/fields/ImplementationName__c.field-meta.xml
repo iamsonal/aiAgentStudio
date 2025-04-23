@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ImplementationName__c</fullName>
+    <description>Specifies the exact name of the code or flow that executes this action&apos;s logic.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Required only if &apos;Implementation Type&apos; is &apos;Apex&apos; or &apos;Flow&apos;. Enter the exact API name of the specific Apex class (if Type is Apex) or the specific Flow API Name (if Type is Flow) that contains the logic for this action. For Apex, the class must implement the &apos;IAgentAction&apos; interface.</inlineHelpText>
+    <label>Implementation Detail</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MaxRetryAttempts__c</fullName>
+    <description>Maximum number of times to retry the LLM callout upon encountering specific transient errors (e.g., 429 Too Many Requests, 5xx Server Errors). Set to 0 to disable retries.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Number of retry attempts (e.g., 3 means initial call + up to 3 retries). Uses framework defaults if blank. Set to 0 to disable.</inlineHelpText>
+    <label>Max Retry Attempts</label>
+    <precision>2</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

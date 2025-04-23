@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>FilterBy__c</fullName>
+    <description>Additional JSON-based criteria to filter the retrieved target records.</description>
+    <inlineHelpText>JSON Array (simple AND) or Map (complex AND/OR).</inlineHelpText>
+    <label>Filter By (JSON)</label>
+    <length>32768</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

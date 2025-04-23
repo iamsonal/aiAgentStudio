@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>63.0</apiVersion>
+    <description>Ai Assistant Chat</description>
+    <isExposed>true</isExposed>
+    <masterLabel>Ai Assistant Chat</masterLabel>
+    <targets>
+        <target>lightning__AppPage</target>
+        <target>lightning__RecordPage</target>
+        <target>lightning__HomePage</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__AppPage, lightning__HomePage, lightning__RecordPage">
+            <property name="agentDeveloperName" type="String" label="Agent Developer Name" description="The Developer Name of the AIAgentDefinition__c to use." default="SalesCopilot"/>
+            <property name="cardTitle" type="String" label="Card Title" description="Title displayed on the chat component card." default="AI Assistant"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

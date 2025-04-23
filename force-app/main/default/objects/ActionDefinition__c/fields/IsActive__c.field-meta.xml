@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsActive__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>Controls whether this action definition is available for use by agents.</description>
+    <inlineHelpText>Controls whether this action definition is available for use. Check this box to activate the action. Uncheck it to disable this action entirely, preventing it from being linked via new Agent Capability Bindings and potentially causing errors if existing bindings try to use it. Default: Checked (Active).</inlineHelpText>
+    <label>Action Active</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

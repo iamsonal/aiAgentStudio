@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ToolCallId__c</fullName>
+    <description>When the Role is &apos;tool&apos;, this field contains the unique identifier (id value) from the corresponding tool_calls object in the preceding &apos;assistant&apos; message. This links the tool&apos;s result back to the assistant&apos;s specific request.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>(Internal Framework Use) Links a tool execution result message back to the specific tool call request ID from the assistant. Populated only for messages with Role = &apos;tool&apos;.</inlineHelpText>
+    <label>Tool Call ID</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

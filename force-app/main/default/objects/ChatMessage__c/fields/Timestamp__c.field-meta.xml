@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Timestamp__c</fullName>
+    <description>Timestamp indicating when this message was created or received by the framework. Used for ordering the conversation.</description>
+    <inlineHelpText>Timestamp indicating when this message was created or received by the framework. Used for ordering the conversation.</inlineHelpText>
+    <label>Timestamp</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

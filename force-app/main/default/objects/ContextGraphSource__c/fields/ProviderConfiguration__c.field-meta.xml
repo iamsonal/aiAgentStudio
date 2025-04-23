@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProviderConfiguration__c</fullName>
+    <description>Custom JSON configuration passed to the Apex Provider class.</description>
+    <inlineHelpText>Used only if Implementation Type is &apos;Apex&apos;. Enter JSON data required by the provider class. Consult class docs for format.</inlineHelpText>
+    <label>Provider Configuration (JSON)</label>
+    <length>32768</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

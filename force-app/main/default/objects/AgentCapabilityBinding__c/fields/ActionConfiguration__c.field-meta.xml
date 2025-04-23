@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ActionConfiguration__c</fullName>
+    <description>(Optional) Provides specific backend configuration settings (as JSON data) for the linked &apos;Action Implementation Logic&apos;, tailored for this specific agent&apos;s use of the action. The structure must match the &apos;Binding Config Schema&apos; defined on the selected Action Definition, if one exists.</description>
+    <inlineHelpText>(Optional) JSON configuration data passed to the backend logic (Apex/Flow) of the linked Action Definition, providing settings specific to how this agent uses the action. This allows customizing a reusable action for a particular agent. The structure MUST match the &apos;Binding Config Schema&apos; defined on the linked Action Definition (if one is defined there). Leave blank if no agent-specific backend configuration is needed.</inlineHelpText>
+    <label>Action Implementation Config (JSON)</label>
+    <length>131072</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>
