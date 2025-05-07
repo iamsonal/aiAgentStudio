@@ -2,27 +2,37 @@
 
 ## Overview
 
-This Salesforce AI Agent Framework provides a robust and extensible platform for integrating advanced AI Agents, powered by Large Language Models (LLMs), directly within your Salesforce environment. It enables the creation of sophisticated conversational assistants that can understand user intent, access relevant Salesforce data securely, perform actions within Salesforce (like creating/updating records, posting to Chatter), and provide intelligent responses through a chat interface.
+This Salesforce AI Agent Framework provides a robust and extensible platform for integrating advanced AI Agents, powered by Large Language Models (LLMs), directly within your Salesforce environment. It enables the creation of sophisticated conversational assistants that can understand user intent, access relevant Salesforce data securely, perform actions within Salesforce (like creating/updating records, posting to Chatter, running Flows), and provide intelligent responses through a chat interface.
 
-The framework prioritizes configurability, security, asynchronous processing, and observability, allowing technical teams to build, manage, and debug AI-driven workflows effectively.
+The framework prioritizes declarative configuration, robust security, managed asynchronous processing, comprehensive error handling, and detailed observability, allowing technical teams to build, manage, and debug AI-driven workflows effectively within the Salesforce ecosystem.
 
 ---
 
 ## Core Features & Capabilities
 
-*   **Reliable & Configurable:** Define agent personas, LLM connections, context rules, and actions declaratively using Salesforce objects/metadata. Crucially, the framework includes robust validation triggers and utilities to ensure configuration quality and prevent common setup errors, reducing runtime issues. Includes detailed field descriptions and help texts to simplify setup and maintenance.
-*   **Asynchronous Architecture & Managed Execution:** Handles LLM API calls and complex actions in the background using Salesforce Queueables (and optional Platform Events). Actively manages state transitions and job dependencies for multi-step interactions, preventing timeouts and ensuring a responsive user interface. Includes logic to handle potentially stale background jobs.
+*   **Reliable & Configurable Core:** Define agent personas, LLM connections, dynamic context retrieval rules, and agent capabilities (tools/actions) declaratively using Salesforce Custom Objects and Custom Metadata. The framework includes validation triggers on configuration objects to prevent common setup errors and reduce runtime issues.
+*   **Managed Asynchronous Architecture:** LLM API callouts and designated complex actions are handled in the background using Salesforce Queueables (`FollowUpLLMQueueable`, `ExecuteSingleActionQueueable`). The framework actively manages state transitions (`ChatSession__c.ProcessingStatus__c`) and job dependencies for multi-step interactions, preventing UI timeouts and ensuring a responsive user experience. It includes logic to handle potentially stale background jobs.
 *   **Extensible by Design:**
-    *   **LLM Agnostic (Adapter Pattern):** Integrate with various LLM providers (like OpenAI, Anthropic, etc.) by implementing a standard `ILLMProviderAdapter` interface. An OpenAI adapter is included.
-    *   **Custom Actions:** Extend agent capabilities beyond the included standard actions (Get/Create/Update Records, Chatter, Flow, etc.) by creating custom Apex classes (`IAgentAction`).
-    *   **Custom Context:** Implement custom Apex logic (`IAgentContextProvider`) to fetch and structure complex or proprietary data for the agent, supplementing the declarative context rules. Examples include providers for relevant Salesforce Knowledge Articles, a user's recent activity across records, or complex calculated metrics.
-*   **Security Integrated:** Operates securely within Salesforce's sharing model. Automatically enforces Object permissions (CRUD) and Field-Level Security (FLS) during context gathering and action execution (e.g., `WITH USER_MODE`, internal checks), ensuring agents only see and modify data the user is permitted to access.
-*   **Intelligent Context Gathering & Schema Awareness:** Define rules (`ContextGraphSource__c`) to automatically pull relevant data based on the record the user is viewing or the user themselves. Supports traversing relationships (parent/child) and applying filters/ordering.
-*   **Standardized Tool/Action Framework:** Configure actions (tools) with clear descriptions and structured input parameters (JSON Schema) for the LLM, enabling reliable function calling. The framework provides a `BaseAgentAction` class and utility helpers (`ActionParamUtils`, `SecurityUtils`) promoting consistent, secure, and maintainable development of both standard and custom actions.
-*   **Built-in Observability & Turn-Based Debugging:** Detailed logging (`OrchestrationLog__c`) captures each step of the agent's processing turn. Manages the end-to-end processing of a single user message as a distinct 'turn' (tracked by `TurnIdentifier__c`), enabling reliable correlation of asynchronous steps. Note: A sample LWC (`chatSessionVisualizer`) for visualizing logs is provided but considered optional (see Architecture section).
-*   **Ready-to-Use UI:** Includes a sample chat LWC (`aiAssistantChat`) providing a foundation for user interaction. *Note: This is considered optional (see Architecture section).*
-*   **Robust Error Handling:** The framework includes retry logic for LLM callouts and standardized error handling within the action execution base class.
-*   **Potential for Interaction Refinements:** While the current focus is direct execution, future patterns could be implemented to allow the agent to ask the user clarifying questions if the LLM is unsure about action parameters or the exact tool required, preventing execution errors due to ambiguity.
+    *   **LLM Agnostic (Adapter Pattern):** Integrate with various LLM providers (OpenAI, Anthropic, etc.) by implementing a standard `ILLMProviderAdapter` interface. An `OpenAIProviderAdapter` with retry logic is included.
+    *   **Custom Actions:** Extend agent capabilities beyond the included standard actions (Get/Create/Update Records, Post Chatter, Run Flow, Submit for Approval, Check Approval Status) by creating custom Apex classes implementing `IAgentAction`. A `BaseAgentAction` abstract class provides a standardized structure and error handling.
+    *   **Custom Context Provisioning:** Implement custom Apex logic via `IAgentContextProvider` to fetch and structure complex or proprietary contextual data for the agent, supplementing declarative context rules.
+*   **Security-First Approach:** Operates securely within Salesforce's sharing model. Enforces Object permissions (CRUD) and Field-Level Security (FLS) during context gathering (`ContextService`), action argument coercion (`ActionParamUtils`), and action execution (`SecurityUtils`, `QueryService` with `WITH USER_MODE`). Ensures agents only see and modify data the user is permitted to access.
+*   **Dynamic Context Gathering & Schema Awareness:** Define rules (`AgentContextConfig__c`) to automatically pull relevant Salesforce data based on the current record context or the user. Providers fetch data, and `ContextService` formats it for the LLM, respecting FLS.
+*   **Standardized Tool/Action Framework:**
+    *   Configure capabilities (`AgentCapabilityBinding__c`) with clear descriptions and structured input parameters (JSON Schema) for the LLM, enabling reliable function/tool calling.
+    *   The `ActionRegistry` dynamically instantiates action handlers.
+    *   `ActionParamUtils` standardizes the parsing and validation of LLM-provided arguments.
+    *   `BaseAgentAction` provides a template for action implementation with centralized error mapping.
+*   **User Confirmation Workflow (Human-in-the-Loop):** Capabilities can be flagged (`RequiresHumanApproval__c`) to prompt the user for explicit confirmation via the chat interface before execution, mediated by Platform Events (`AgentActionConfirmationRequest__e`).
+*   **Built-in Observability & Turn-Based Debugging:**
+    *   Detailed logging (`OrchestrationLog__c`, managed by `OrchestrationLogger`) captures each step of the agent's processing turn.
+    *   Manages the end-to-end processing of a single user message as a distinct 'turn' (tracked by `TurnIdentifier__c`), enabling reliable correlation of synchronous and asynchronous steps.
+    *   Includes a `ChatSessionVisualizer` LWC to inspect orchestration logs.
+*   **Turn Lifecycle Management:** `TurnLifecycleService` centralizes logic for managing chat turn state transitions, working with `ChatSessionStateService` for DML operations and platform event publishing for final responses (`AgentResponse__e`).
+*   **Robust Error Handling & Retry Logic:**
+    *   The framework includes retry logic for LLM callouts (in `OpenAIProviderAdapter`).
+    *   Standardized error handling and mapping to `ActionResult` within `BaseAgentAction`.
+    *   Queueable jobs include `try-catch` blocks and attempt to update session state to `FAILED` upon unrecoverable errors.
 
 ---
 
@@ -30,44 +40,86 @@ The framework prioritizes configurability, security, asynchronous processing, an
 
 This framework employs several key architectural principles:
 
-1.  **Configuration-Driven Engine:** At its heart, the framework uses Salesforce metadata (Custom Objects, Metadata Types, Custom Settings) to define how an agent behaves, what data it can access, and what actions it can perform. This decouples the agent's capabilities from the core orchestration code.
-    *   `AIAgentDefinition__c` defines *the agent*.
-    *   `LLMConfiguration__c` defines *the connection to the LLM*.
-    *   `ActionDefinition__c` defines *reusable backend logic* (an action).
-    *   `AgentCapabilityBinding__c` defines *how a specific agent uses* a specific action (what the LLM sees).
-    *   `ContextGraphSource__c` defines *a rule for getting specific data*.
-    *   `AgentContextBinding__c` links *an agent to the context rules* it should use.
-2.  **Asynchronous Orchestration:** To handle the potential latency of LLM calls and action executions, the processing of a user message (a "turn") is managed by a chain of asynchronous Apex Queueable jobs. This prevents blocking the user interface and avoids hitting Salesforce synchronous limits.
-3.  **State Machine:** The `ChatSession__c` object acts as a state machine, tracking the progress of each turn (e.g., `AwaitingLLMResponse`, `ExecutingActions`, `Idle`, `Failed`) via the `ProcessingStatus__c` field. A dedicated service (`ChatSessionStateService`) manages state transitions atomically to prevent race conditions.
-4.  **Event-Driven Decoupling (Optional):** For complex interactions involving multiple back-and-forth steps between the LLM and actions, an optional Platform Event mechanism can be enabled (`AIAgentFrameworkSettings__c.MitigateChainingLimitsViaEvent__c`). This further breaks down the asynchronous chain, which can be **essential in developer/scratch orgs** due to stricter governor limits on Queueable chaining.
-5.  **Modular Interfaces:** Core components like LLM communication (`ILLMProviderAdapter`), action execution (`IAgentAction`), and context provision (`IAgentContextProvider`) are defined by interfaces, allowing for custom implementations to be easily integrated.
-6.  **Separated Data Model:** Conversation history (`ChatMessage__c`) and processing state (`ChatSession__c`) are stored separately from the configuration and execution logic, allowing for clear data management and auditing.
-7.  **Separation of Core Framework and UI/Setup Tooling:** To maintain a clear separation of concerns and keep the core framework lightweight and modular, Lightning pages, LWC visualizers (like the Session and Context Graph Visualizers mentioned below), and setup assistants are intentionally excluded from this repository. These components are highly implementation-specific and are better suited as optional, pluggable extensions that can be developed or customized based on individual project needs. By doing this, the framework remains focused on its primary purpose—enabling powerful AI agents within Salesforce—without being tied to a specific UI or setup flow. This approach promotes flexibility, encourages best practices in enterprise architecture, and allows teams to integrate their own visual layers or setup tooling as needed.
+1.  **Declarative Configuration Engine:** The core behavior, LLM connections, data access rules, and agent capabilities are defined through Salesforce Custom Objects, Custom Metadata Types, and Custom Settings. This decouples specific agent implementations from the core orchestration code.
+    *   **`AIAgentDefinition__c`**: Defines the agent's persona, system prompt, and links to its LLM and context configurations.
+    *   **`LLMConfiguration__c`**: Specifies the LLM provider, model, API endpoint (via Named Credential), and adapter class.
+    *   **`ActionDefinition__c`**: Defines a reusable piece of backend logic (Standard, Apex, Flow).
+    *   **`AgentCapabilityBinding__c`**: Links an `AIAgentDefinition__c` to an `ActionDefinition__c`, specifying how the LLM perceives and invokes this capability (name, description, input schema, approval needs).
+    *   **`AgentContextConfig__c`**: Defines a rule for fetching specific contextual data (via an `IAgentContextProvider` Apex class).
+    *   **`StandardActionHandler__mdt`**: Maps standard action types to their implementing Apex handler classes.
+    *   **`AIAgentFrameworkSettings__c`**: Org-wide default settings for the framework (e.g., history limits, retry behavior).
+2.  **Service-Oriented Orchestration:** A set of services manage distinct responsibilities:
+    *   **`AIAssistantController`**: LWC-facing entry point, handles initial synchronous processing and dispatches to `OrchestrationService`.
+    *   **`LLMInteractionService`**: Manages the direct callout to the LLM (via an `ILLMProviderAdapter`), including context aggregation and payload formatting.
+    *   **`OrchestrationService`**: Processes the LLM's response, determines next steps (content, action, confirmation), and coordinates with other services.
+    *   **`ActionExecutionService`**: Executes individual `IAgentAction` implementations.
+    *   **`MessagePersistenceService`**: Handles saving `ChatMessage__c` records.
+    *   **`ChatSessionStateService` & `TurnLifecycleService`**: Manage the `ChatSession__c` state machine (`ProcessingStatus__c`) and lifecycle of a turn.
+    *   **`OrchestrationDispatchService`**: Enqueues asynchronous jobs (`FollowUpLLMQueueable`, `ExecuteSingleActionQueueable`).
+3.  **Asynchronous Processing:** LLM follow-up calls and actions marked `RunAsynchronously__c` are executed via Apex Queueables. This maintains UI responsiveness and respects Salesforce governor limits for synchronous transactions.
+4.  **State Machine:** The `ChatSession__c` object (fields: `ProcessingStatus__c`, `CurrentTurnIdentifier__c`, `CurrentJobId__c`) tracks the progress of each turn. `ChatSessionStateService` ensures atomic updates, and `TurnLifecycleService` dictates state transitions.
+5.  **Event-Driven UI Updates:** Platform Events (`AgentResponse__e`, `AgentActionConfirmationRequest__e`) are used to communicate final turn outcomes or requests for user confirmation back to the LWC, enabling a decoupled and responsive UI.
+6.  **Modular Interfaces:** Core functionalities are defined by interfaces (`ILLMProviderAdapter`, `IAgentAction`, `IAgentContextProvider`), promoting extensibility.
 
 ---
 
-## Core Components (Simplified View)
+## Core Components
 
-*   **Configuration:** Managed through Custom Objects (`AIAgentDefinition__c`, `LLMConfiguration__c`, `ActionDefinition__c`, `AgentCapabilityBinding__c`, `ContextGraphSource__c`, `AgentContextBinding__c`), Custom Metadata (`StandardActionHandler__mdt`), and Custom Settings (`AIAgentFrameworkSettings__c`).
-*   **Orchestration Engine:** A series of Apex Queueable classes (`PrepareLLMCallQueueable`, `ExecuteLLMCallQueueable`, `ExecuteActionsQueueable`, `FinalizeTurnQueueable`) that manage the step-by-step processing of a user request. Includes `ChatSessionStateService` for managing state.
-*   **LLM Integration:** Components responsible for communicating with the LLM provider API (`ILLMProviderAdapter` interface, `OpenAIProviderAdapter` implementation, `LLMProviderFactory`).
-*   **Action Framework:** Enables agents to perform tasks (`IAgentAction` interface, `BaseAgentAction` abstract class, `ActionRegistry` factory, Standard Action implementations).
-*   **Context Framework:** Gathers relevant Salesforce data (`ContextService`, `IAgentContextProvider` interface, `ContextQueryBuilder`).
-*   **Data Model:** Stores conversation history and state (`ChatSession__c`, `ChatMessage__c`).
-*   **Observability:** Logs detailed execution steps for debugging (`OrchestrationLog__c`).
-*   **User Interface (Optional Samples):** Sample chat component (`aiAssistantChat` LWC) and a debug visualizer (`chatSessionVisualizer` LWC) are provided but are considered optional extensions, not core framework requirements.
+*   **Configuration Objects:**
+    *   `AIAgentDefinition__c`, `LLMConfiguration__c`, `ActionDefinition__c`, `AgentCapabilityBinding__c`, `AgentContextConfig__c`.
+*   **Configuration Metadata:**
+    *   `StandardActionHandler__mdt`, `AIAgentFrameworkSettings__c`.
+*   **Orchestration & Core Services:**
+    *   `AIAssistantController` (LWC entry point)
+    *   `AgentRoutingService` (Selects agent for new sessions)
+    *   `OrchestrationService` (Post-LLM processing logic)
+    *   `LLMInteractionService` (Prepares for and calls LLM)
+    *   `ContextService` (Gathers context via `IAgentContextProvider` implementations)
+    *   `ActionExecutionService` (Invokes `IAgentAction` implementations)
+    *   `MessagePersistenceService` (Saves `ChatMessage__c`)
+    *   `TurnLifecycleService` & `ChatSessionStateService` (Manage turn/session state)
+    *   `OrchestrationDispatchService` (Enqueues async jobs)
+    *   `OrchestrationLogger` (Handles `OrchestrationLog__c` creation)
+*   **LLM Integration:**
+    *   `ILLMProviderAdapter` (Interface)
+    *   `OpenAIProviderAdapter` (Implementation with retries)
+    *   `LLMProviderFactory`
+    *   `LlmPayloadUtils` (Formats messages and tools for LLM APIs)
+*   **Action Framework:**
+    *   `IAgentAction` (Interface)
+    *   `BaseAgentAction` (Abstract class for common action logic)
+    *   `ActionRegistry` (Instantiates action handlers)
+    *   Standard Action Implementations (e.g., `ActionCreateRecord`, `ActionGetRecords`, `ActionFlowHandler`, etc.)
+    *   `ActionParamUtils` (Coerces and validates LLM-provided arguments for actions)
+*   **Data Model:**
+    *   `ChatSession__c` (Stores conversation state, links, status)
+    *   `ChatMessage__c` (Stores individual messages: user, assistant, tool)
+    *   `OrchestrationLog__c` (Detailed step-by-step logs for debugging)
+*   **Security & Utilities:**
+    *   `SecurityUtils` (CRUD/FLS checks)
+    *   `SchemaUtils` (Schema describe utilities with caching)
+    *   `AIAgentConstants`
+    *   `UuidUtils`
+*   **Platform Events:**
+    *   `AgentResponse__e` (Signals final turn outcome to UI)
+    *   `AgentActionConfirmationRequest__e` (Signals need for user confirmation to UI)
+*   **User Interface (Sample Included):**
+    *   `aiAssistantChat` LWC (Chat interface)
+    *   `chatSessionVisualizer` LWC (Debug tool to view `OrchestrationLog__c` timeline)
 
 ---
 
-## The Role of the Administrator / Configurator
+## Administrator / Configurator Responsibilities
 
-While the framework provides the engine, the power and effectiveness of an AI Agent built with it largely depend on the configuration provided by Salesforce Administrators or technical configurators.
+The power of an AI Agent built with this framework hinges on thoughtful configuration:
 
-*   **Clear Instructions are Key:** The quality of the `System Prompt__c` on `AIAgentDefinition__c` and the `Description__c` fields on `AgentCapabilityBinding__c` (which describe actions/tools to the LLM) is paramount. These fields need to clearly articulate the agent's role, limitations, and precisely *when* and *why* it should use a specific capability (action). Vague or ambiguous instructions will lead to poor LLM performance and incorrect tool usage.
-*   **Understanding Context:** Configuring `ContextGraphSource__c` records effectively requires understanding the data model and how different pieces of information relate to user or record context. Well-defined context ensures the LLM has the necessary information without being overloaded.
-*   **Token Awareness:** Remember that everything sent to the LLM (prompts, context, message history, tool definitions) consumes tokens, which often translates to cost and can impact performance limits. Admins should be mindful of keeping prompts, descriptions, and context concise yet effective to minimize token usage. Prioritize essential context and avoid including overly verbose or irrelevant data.
-
-Effective agent configuration is an iterative process of defining capabilities, testing, and refining the instructions provided to the LLM.
+*   **Clear Instructions (Prompts & Descriptions):** The quality of `AIAgentDefinition__c.SystemPrompt__c` and `AgentCapabilityBinding__c.Description__c` (for LLM tools) is paramount. These must clearly define the agent's role, limitations, and how/when to use specific capabilities. Ambiguity leads to poor LLM performance.
+*   **Accurate Tool Schemas:** The `InputSchema__c` on `AgentCapabilityBinding__c` must accurately reflect the arguments the LLM needs to provide for an action, and these must be compatible with the backend action handler.
+*   **Contextual Relevance:** Configure `AgentContextConfig__c` records effectively to provide necessary, but not excessive, information to the LLM.
+*   **Security & Permissions:** While the framework enforces FLS/CRUD, admins are responsible for assigning appropriate permissions to users for the configuration objects, Apex classes, and underlying data the agent might access or modify.
+*   **Token Awareness:** Prompts, context, history, and tool definitions all consume LLM tokens. Optimize these for conciseness and relevance to manage costs and performance.
+*   **Named Credential Setup:** Correctly configure Named Credentials for LLM provider authentication. **API keys must not be hardcoded.**
+*   **Iterative Refinement:** Agent configuration is an iterative process of definition, testing, and refinement based on observed behavior and performance.
 
 ---
 
@@ -76,65 +128,49 @@ Effective agent configuration is an iterative process of defining capabilities, 
 ![28ba2bd8-a3c1-49c2-a506-05f27d9b4d12.svg](28ba2bd8-a3c1-49c2-a506-05f27d9b4d12.svg)
 ---
 
-## Getting Started / Setup
+## Setup
 
-Follow these steps to deploy and configure the framework:
-
-1.  **Deploy Components:** Deploy all Custom Objects, Fields, Apex Classes, Triggers, LWCs (if desired for sample UI/visualizer), Custom Metadata, and the Custom Setting (`AIAgentFrameworkSettings__c`) to your Salesforce org.
-
-2.  **Field Set Prerequisites:** Ensure the Salesforce **Field Sets** referenced by any `ContextGraphSource__c` records you plan to use exist on the relevant SObjects. You can create these manually via the Object Manager in Setup.
-    *   *(Optional Utility):* The repository includes an *example* utility class `AgentFrameworkFieldSetSetup` that can create *sample* Field Sets. Its usage might require specific permissions or one-time setup.
-
-3.  **Configure Your Agent (Manual Setup):** The core of the setup involves creating configuration records. You can do this manually via Salesforce Setup or potentially build/use custom setup tools. This typically involves:
-    *   **(A) LLM Configuration:** Create an `LLMConfiguration__c` record defining the LLM provider, model, adapter class (e.g., `OpenAIProviderAdapter`), and the Named Credential to use (see next step).
-    *   **(B) Agent Definition:** Create an `AIAgentDefinition__c` record. Define the agent's persona (`SystemPrompt__c`), link it to the `LLMConfiguration__c` record, and set activation status.
-    *   **(C) Action Definitions (Optional):** Create `ActionDefinition__c` records for each *reusable* action (Standard, Apex, or Flow) your agents will use, specifying the implementation type and details.
-    *   **(D) Context Graph Sources (Optional):** Create `ContextGraphSource__c` records defining rules for fetching declarative context.
-    *   **(E) Capability Bindings (Essential):** Link your `AIAgentDefinition__c` to `ActionDefinition__c` records via `AgentCapabilityBinding__c`. This defines *how the agent sees and uses the action* (name, description for LLM, optional config).
-    *   **(F) Context Bindings (Optional):** Link your `AIAgentDefinition__c` to `ContextGraphSource__c` (or Recipes) using `AgentContextBinding__c` records to specify which context rules the agent uses.
-
-4.  **Configure Named Credential:**
-    *   Create an **External Credential** (Setup -> Security) for your LLM Provider. Configure authentication (e.g., Custom Header for API Key). Create a **Principal** linking the auth details.
-    *   Create a **Named Credential** (Setup -> Security) matching the name referenced in your `LLMConfiguration__c`. Link it to the External Credential and set the URL to the LLM provider's API base (e.g., `https://api.openai.com`). **Do not hardcode API keys.**
-
-5.  **Configure Framework Settings (IMPORTANT FOR DEV/SCRATCH ORGS):**
-    *   Go to Setup -> Custom Settings -> AI Agent Framework Settings -> Manage -> New/Edit.
-    *   **Check the "Use Decoupling for Complex Actions" (`MitigateChainingLimitsViaEvent__c`) checkbox, especially for non-production orgs to avoid queueable chaining limits.**
-    *   Review and adjust other defaults (retries, turns, etc.) if needed. Save.
-
-6.  **Assign Permissions:** Create and assign Permission Sets granting users access to:
-    *   Framework Custom Objects (Read essential, CRUD as needed).
-    *   Apex Classes (Controller, Queueables, Services, Adapters, Actions).
-    *   LWCs (`aiAssistantChat`, `chatSessionVisualizer`) if using the optional sample UI.
-
-7.  **Deploy LWC (Optional):** If using the sample UI, add `aiAssistantChat` to relevant Lightning Pages. Set the `agentDeveloperName` property in the LWC's configuration to match your `AIAgentDefinition__c` Developer Name.
-
-8.  **(Optional Demo Data):** The repository contains utility classes (`AgentTestDataFactory`, `AgentFrameworkContextSourceSetup`) designed *solely for demonstration purposes* to create sample configurations and test data. They are not required for a manual setup. Execute them via Anonymous Apex only if you want to explore the pre-configured "SalesCopilot" example.
+1.  **Deploy All Components:** Custom Objects, Fields, Apex Classes, Triggers, LWCs, Custom Metadata Types, and Custom Settings.
+2.  **Configure Named Credential:**
+    *   Create an **External Credential** for your LLM Provider (e.g., for OpenAI, Custom Auth with header `Authorization` and value `Bearer YOUR_API_KEY_STORED_AS_A_SECRET_PARAMETER`).
+    *   Create a **Named Credential** matching the `DeveloperName__c` you'll use in `LLMConfiguration__c`. Set its URL (e.g., `https://api.openai.com`) and link to the External Credential.
+3.  **Configure `LLMConfiguration__c`:**
+    *   Create at least one record specifying `DeveloperName__c`, `NamedCredential__c` (from step 2), `ProviderAdapterClass__c` (e.g., `OpenAIProviderAdapter`), and `DefaultModelIdentifier__c`.
+4.  **Configure `AIAgentDefinition__c`:**
+    *   Create at least one record. Assign a `DeveloperName__c`, link to an `LLMConfiguration__c`, and write a `SystemPrompt__c`.
+5.  **(Optional) Standard Action Handlers (`StandardActionHandler__mdt`):**
+    *   Verify records exist for standard actions like `GetRecords`, `CreateRecord`, `RunFlow`, etc., mapping them to their respective handler classes (e.g., `ActionGetRecords`, `ActionFlowHandler`). These should be deployed with the framework.
+6.  **Configure `ActionDefinition__c` records:**
+    *   For each reusable piece of logic (Standard, Custom Apex, Flow) your agent needs. Specify `ImplementationType__c` and details (e.g., `ImplementationName__c` for Apex/Flow, `StandardActionType__c` for Standard). Define the `InputParameterSchema__c` (JSON schema of arguments the LLM should provide).
+7.  **Configure `AgentCapabilityBinding__c` records:**
+    *   For each `AIAgentDefinition__c`, create bindings to the `ActionDefinition__c` records it should be able to use.
+    *   Critically, define `DeveloperName__c` (the function name for the LLM), `Description__c` (how the LLM should understand and use the tool), and `InputSchema__c` (JSON schema for the LLM's arguments, tailored from the Action Definition's schema, possibly including the `confirmation_message` if `RequiresHumanApproval__c` is true).
+8.  **Configure `AgentContextConfig__c` records (Optional):**
+    *   If dynamic context is needed, define sources linking an `AIAgentDefinition__c` to `IAgentContextProvider` Apex classes.
+9.  **Configure `AIAgentFrameworkSettings__c` (Custom Setting):**
+    *   Go to Setup -> Custom Settings -> AI Agent Framework Settings -> Manage.
+    *   Review defaults (e.g., `DefaultMaxConversationTurns__c`, `DefaultHistoryLimit__c`). Consider enabling `MitigateChainingLimitsViaEvent__c` for dev orgs.
+10. **Assign Permissions:**
+    *   Grant users access to essential Custom Objects (CRUD as appropriate: `ChatSession__c`, `ChatMessage__c` for users; more for admins).
+    *   Grant users access to controller Apex classes (`AIAssistantController`).
+    *   Grant admins access to configuration objects and setup/debug LWCs.
+11. **Add LWC to Page (Optional):** Add `aiAssistantChat` to a Lightning Page.
 
 ---
 
 ## Known Limitations & Potential Future Enhancements
 
-While robust, the framework has areas for potential evolution and refinement:
-
-*   **Multi-LLM Provider Strategy (Enhancement):** Currently, an agent is tied to one LLM Configuration. A key future enhancement would be to support more dynamic selection or routing to different LLM models (potentially from different providers) based on cost, complexity, or task suitability, potentially configured at the Agent Definition or even dynamically during orchestration.
-*   **Refine State Management:** The asynchronous nature requires careful state management (`ProcessingStatus__c`). Future iterations could involve adding stricter state transition validation or monitoring for sessions stuck in intermediate states.
-*   **Enhance Error Granularity & Debugging:** While logs exist, returning more specific error codes from Actions and improving the correlation of low-level failures (e.g., specific filter validation errors) up through the orchestration layer would aid debugging.
-*   **Optimize Context Gathering:** For agents with many context sources, the current sequential gathering within the Queueable could be optimized, perhaps exploring parallel retrieval options (e.g., via `@future` methods or dedicated Queueables) if latency becomes an issue.
-*   **Refine Tool Result Saving:** The current process saves all tool results before proceeding. Adding more granular error handling or options for partial success in the `ExecuteActionsQueueable` step could improve resilience in complex multi-tool scenarios.
-*   **Improve LWC Resilience:** The sample LWC relies on Platform Events. Adding manual refresh/sync options or alternative status polling could make the UI more resilient to potential event delivery issues.
-*   **Configuration UI:** As mentioned, a dedicated setup UI would greatly improve the ease of configuring and managing agents, actions, and context rules compared to manual record creation.
-
----
-
-## Contributing
-
-*(Placeholder - Add contribution guidelines if applicable).*
+*   **State Reconciliation:** For enterprise resilience against rare cascading failures leaving sessions in transient states, a background reconciliation job (Scheduled Apex) could be implemented to identify and fail "stuck" sessions.
+*   **Advanced Context Management:** Current context is primarily history + injected context. Future enhancements could include RAG (Retrieval Augmented Generation) via vector DBs, more sophisticated history summarization, or agent-driven context selection.
+*   **Dynamic LLM Routing:** Allow an agent or orchestration step to dynamically choose an LLM model/provider based on task complexity, cost, or specific capabilities.
+*   **Action/Schema Management UI:** A dedicated UI to more easily create, manage, and validate the alignment between `ActionDefinition__c.InputParameterSchema__c` and `AgentCapabilityBinding__c.InputSchema__c` would greatly aid configuration.
+*   **Observability Deep Dive:** While `OrchestrationLog__c` is good, more advanced analytics on token usage per turn/agent, action success/failure rates, and LLM tool selection accuracy could be valuable.
+*   **Rate Limiting/Throttling for LLM Calls:** For high-volume scenarios, implementing internal rate limiting for calls to the LLM provider.
 
 ---
 
 ## License
 
-*(Copyright (c) 2025 Sonal)*
+(Copyright (c) 2025 Sonal - AI Agent Framework Team)
 
 This source code is licensed under the MIT license. See the LICENSE file for details.
