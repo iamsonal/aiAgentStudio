@@ -38,74 +38,32 @@ The framework prioritizes declarative configuration, robust security, managed as
 
 ## Architecture & Key Concepts
 
-This framework employs several key architectural principles:
+This AI Agent framework is built on several core ideas:
 
-1.  **Declarative Configuration Engine:** The core behavior, LLM connections, data access rules, and agent capabilities are defined through Salesforce Custom Objects, Custom Metadata Types, and Custom Settings. This decouples specific agent implementations from the core orchestration code.
-    *   **`AIAgentDefinition__c`**: Defines the agent's persona, system prompt, and links to its LLM and context configurations.
-    *   **`LLMConfiguration__c`**: Specifies the LLM provider, model, API endpoint (via Named Credential), and adapter class.
-    *   **`ActionDefinition__c`**: Defines a reusable piece of backend logic (Standard, Apex, Flow).
-    *   **`AgentCapabilityBinding__c`**: Links an `AIAgentDefinition__c` to an `ActionDefinition__c`, specifying how the LLM perceives and invokes this capability (name, description, input schema, approval needs).
-    *   **`AgentContextConfig__c`**: Defines a rule for fetching specific contextual data (via an `IAgentContextProvider` Apex class).
-    *   **`StandardActionHandler__mdt`**: Maps standard action types to their implementing Apex handler classes.
-    *   **`AIAgentFrameworkSettings__c`**: Org-wide default settings for the framework (e.g., history limits, retry behavior).
-2.  **Service-Oriented Orchestration:** A set of services manage distinct responsibilities:
-    *   **`AIAssistantController`**: LWC-facing entry point, handles initial synchronous processing and dispatches to `OrchestrationService`.
-    *   **`LLMInteractionService`**: Manages the direct callout to the LLM (via an `ILLMProviderAdapter`), including context aggregation and payload formatting.
-    *   **`OrchestrationService`**: Processes the LLM's response, determines next steps (content, action, confirmation), and coordinates with other services.
-    *   **`ActionExecutionService`**: Executes individual `IAgentAction` implementations.
-    *   **`MessagePersistenceService`**: Handles saving `ChatMessage__c` records.
-    *   **`ChatSessionStateService` & `TurnLifecycleService`**: Manage the `ChatSession__c` state machine (`ProcessingStatus__c`) and lifecycle of a turn.
-    *   **`OrchestrationDispatchService`**: Enqueues asynchronous jobs (`FollowUpLLMQueueable`, `ExecuteSingleActionQueueable`).
-3.  **Asynchronous Processing:** LLM follow-up calls and actions marked `RunAsynchronously__c` are executed via Apex Queueables. This maintains UI responsiveness and respects Salesforce governor limits for synchronous transactions.
-4.  **State Machine:** The `ChatSession__c` object (fields: `ProcessingStatus__c`, `CurrentTurnIdentifier__c`, `CurrentJobId__c`) tracks the progress of each turn. `ChatSessionStateService` ensures atomic updates, and `TurnLifecycleService` dictates state transitions.
-5.  **Event-Driven UI Updates:** Platform Events (`AgentResponse__e`, `AgentActionConfirmationRequest__e`) are used to communicate final turn outcomes or requests for user confirmation back to the LWC, enabling a decoupled and responsive UI.
-6.  **Modular Interfaces:** Core functionalities are defined by interfaces (`ILLMProviderAdapter`, `IAgentAction`, `IAgentContextProvider`), promoting extensibility.
+1.  **Configuration First:** Define agents, LLM connections, tools (actions), and context rules using Salesforce Objects & Metadata (like `AIAgentDefinition__c`, `LLMConfiguration__c`, `ActionDefinition__c`, `AgentCapabilityBinding__c`, `AIAgentFrameworkSettings__c`). This makes the framework adaptable without changing core code.
+2.  **Service-Based Design:** Different services handle specific jobs:
+    *   **Orchestration:** Decides what to do after the LLM responds (reply, use a tool, ask for confirmation).
+    *   **LLM Interaction:** Formats requests and handles calls to the actual language model (e.g., OpenAI).
+    *   **Action/Tool Execution:** Runs the logic for specific tools (Apex, Flow, Standard Actions).
+    *   **Context Management:** Gathers relevant data (e.g., from related records) to send with the LLM request.
+    *   **State & Persistence:** Manages the chat session's status and saves messages.
+3.  **Asynchronous Processing:** Long tasks (like waiting for LLM follow-ups or certain tool executions) run in the background using Queueables to keep the UI responsive and avoid hitting Salesforce limits.
+4.  **State Management:** The `ChatSession__c` record tracks the conversation's status (e.g., Idle, Processing, Failed) using specific fields (`ProcessingStatus__c`, `CurrentTurnIdentifier__c`).
+5.  **Event-Driven UI:** Platform Events (`AgentResponse__e`, `AgentActionConfirmationRequest__e`) notify the chat UI about final results or when user confirmation is needed, keeping the UI updated without direct Apex coupling.
+6.  **Extensible Interfaces:** Key parts use interfaces (`ILLMProviderAdapter`, `IAgentAction`, `IAgentContextProvider`), making it easier to add support for new LLMs, tools, or context sources.
 
 ---
 
-## Core Components
+## Core Component Types
 
-*   **Configuration Objects:**
-    *   `AIAgentDefinition__c`, `LLMConfiguration__c`, `ActionDefinition__c`, `AgentCapabilityBinding__c`, `AgentContextConfig__c`.
-*   **Configuration Metadata:**
-    *   `StandardActionHandler__mdt`, `AIAgentFrameworkSettings__c`.
-*   **Orchestration & Core Services:**
-    *   `AIAssistantController` (LWC entry point)
-    *   `AgentRoutingService` (Selects agent for new sessions)
-    *   `OrchestrationService` (Post-LLM processing logic)
-    *   `LLMInteractionService` (Prepares for and calls LLM)
-    *   `ContextService` (Gathers context via `IAgentContextProvider` implementations)
-    *   `ActionExecutionService` (Invokes `IAgentAction` implementations)
-    *   `MessagePersistenceService` (Saves `ChatMessage__c`)
-    *   `TurnLifecycleService` & `ChatSessionStateService` (Manage turn/session state)
-    *   `OrchestrationDispatchService` (Enqueues async jobs)
-    *   `OrchestrationLogger` (Handles `OrchestrationLog__c` creation)
-*   **LLM Integration:**
-    *   `ILLMProviderAdapter` (Interface)
-    *   `OpenAIProviderAdapter` (Implementation with retries)
-    *   `LLMProviderFactory`
-    *   `LlmPayloadUtils` (Formats messages and tools for LLM APIs)
-*   **Action Framework:**
-    *   `IAgentAction` (Interface)
-    *   `BaseAgentAction` (Abstract class for common action logic)
-    *   `ActionRegistry` (Instantiates action handlers)
-    *   Standard Action Implementations (e.g., `ActionCreateRecord`, `ActionGetRecords`, `ActionFlowHandler`, etc.)
-    *   `ActionParamUtils` (Coerces and validates LLM-provided arguments for actions)
-*   **Data Model:**
-    *   `ChatSession__c` (Stores conversation state, links, status)
-    *   `ChatMessage__c` (Stores individual messages: user, assistant, tool)
-    *   `OrchestrationLog__c` (Detailed step-by-step logs for debugging)
-*   **Security & Utilities:**
-    *   `SecurityUtils` (CRUD/FLS checks)
-    *   `SchemaUtils` (Schema describe utilities with caching)
-    *   `AIAgentConstants`
-    *   `UuidUtils`
-*   **Platform Events:**
-    *   `AgentResponse__e` (Signals final turn outcome to UI)
-    *   `AgentActionConfirmationRequest__e` (Signals need for user confirmation to UI)
-*   **User Interface (Sample Included):**
-    *   `aiAssistantChat` LWC (Chat interface)
-    *   `chatSessionVisualizer` LWC (Debug tool to view `OrchestrationLog__c` timeline)
+*   **Configuration:** Custom Objects and Metadata defining agent behavior.
+*   **Services:** Apex classes handling specific tasks (Orchestration, LLM Calls, Actions, Context, State, Persistence).
+*   **Interfaces:** Define contracts for extensibility (LLM Adapters, Actions, Context Providers).
+*   **Action Framework:** Components for defining, discovering, and executing tools (Apex, Flow, Standard).
+*   **Data Model:** Custom Objects (`ChatSession__c`, `ChatMessage__c`, `OrchestrationLog__c`) storing conversation data and debug logs.
+*   **Platform Events:** Used for asynchronous UI communication.
+*   **Utilities:** Helpers for security, schema interactions, parameters, etc.
+*   **LWC UI:** Includes a sample chat interface (`aiAssistantChat`)
 
 ---
 
