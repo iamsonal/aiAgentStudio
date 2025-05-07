@@ -83,7 +83,95 @@ The power of an AI Agent built with this framework hinges on thoughtful configur
 
 ## Execution Flow (Conceptual)
 
-![28ba2bd8-a3c1-49c2-a506-05f27d9b4d12.svg](28ba2bd8-a3c1-49c2-a506-05f27d9b4d12.svg)
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant UI as LWC Interface
+    participant Backend as Agent Framework Backend
+    participant LLM as External LLM
+    participant ActionExecutor as Action Executor
+    participant EAQ as Async Action Job
+    participant FLQ as Follow-Up LLM Job
+
+    U->>UI: Send Message
+    UI->>Backend: Process User Input (Turn Start)
+    Backend->>Backend: Save User Message
+    Backend->>LLM: Call LLM (with History/Tools)
+    LLM-->>Backend: LLM Response
+
+    alt LLM Call Failed
+        Backend->>Backend: Log & Set Session Failed
+        Backend-->>UI: Display Error
+    else LLM Response Received
+        Backend->>Backend: Process LLM Response (Content/Tool Call?)
+
+        alt Content Only
+            Backend->>Backend: Save Assistant Message
+            Backend->>Backend: Set Session Idle
+            Backend-->>UI: Display Response
+        else Tool Call Requested
+            Backend->>Backend: Save Assistant Message (w/ tool calls)
+
+            alt Confirmation Required?
+                Backend->>Backend: Store Pending Action Details
+                Backend-->>UI: Request User Confirmation (Event)
+                UI->>U: Show Confirmation Prompt
+                U->>UI: Approve / Reject
+                UI->>Backend: Handle Confirmation
+
+                alt User Approved
+                    note over Backend: Action proceeds...
+                else User Rejected
+                    Backend->>Backend: Save Rejection Result
+                    Backend->>Backend: Set Session Failed (Rejected)
+                    Backend-->>UI: Display Cancellation
+                end
+            end
+
+            alt Synchronous Action
+                Backend->>ActionExecutor: Execute Sync Action
+                ActionExecutor-->>Backend: Action Result
+
+                alt Action Succeeded
+                    Backend->>Backend: Save Tool Result Message
+                    Backend->>FLQ: Enqueue Follow-Up LLM Job
+                    Backend->>Backend: Set Session Awaiting Follow-up
+                    Backend-->>UI: Update Status (Processing...)
+                else Action Failed
+                    Backend->>Backend: Log Action Failure
+                    Backend->>Backend: Set Session Failed
+                    Backend-->>UI: Display Error
+                end
+            else Asynchronous Action
+                Backend->>EAQ: Enqueue Async Action Job
+                Backend->>Backend: Set Session Awaiting Action
+                Backend-->>UI: Update Status (Processing...)
+            end
+        end
+    end
+
+    par Async Action Execution
+        EAQ->>EAQ: Start Job
+        EAQ->>ActionExecutor: Execute Action
+        ActionExecutor-->>EAQ: Action Result
+        EAQ->>Backend: Process Action Result (via service call internally)
+
+        alt Action Succeeded
+            Backend->>Backend: Save Tool Result Message
+            Backend->>FLQ: Enqueue Follow-Up LLM Job
+            Backend->>Backend: Set Session Awaiting Follow-up
+        else Action Failed
+            Backend->>Backend: Log Action Failure
+            Backend->>Backend: Set Session Failed
+        end
+    and LLM Follow-Up Flow
+        FLQ->>FLQ: Start Job
+        FLQ->>LLM: Call LLM (with action result)
+        LLM-->>FLQ: LLM Response
+        FLQ->>Backend: Process LLM Response (re-enters main loop logic)
+        note right of Backend: Returns to "Process LLM Response" decision point above
+    end
+```
 ---
 
 ## Setup
