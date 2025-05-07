@@ -6,7 +6,6 @@
  * @implements IAgentContextProvider
  */
 public class AccountCompetitiveIntelProvider implements IAgentContextProvider {
-
     /**
      * @description Retrieves context data based on the Account anchor.
      *              Returns a hardcoded competitive summary packaged in a Note SObject.
@@ -43,9 +42,9 @@ public class AccountCompetitiveIntelProvider implements IAgentContextProvider {
         // The IAgentContextProvider interface requires returning a List<SObject>.
         // We use a Note record here as a simple container. It's not saved to the database.
         Note intelNote = new Note(
-                // Do NOT set an Id or ParentId. This is just a data container.
-                Title = 'Account Competitive Intelligence Summary (Simulated)', // Title for clarity
-                Body = combinedContent // The hardcoded summary
+            // Do NOT set an Id or ParentId. This is just a data container.
+            Title = 'Account Competitive Intelligence Summary (Simulated)', // Title for clarity
+            Body = combinedContent // The hardcoded summary
         );
 
         List<SObject> notesList = new List<SObject>{ intelNote };

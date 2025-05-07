@@ -6,6 +6,13 @@
  */
 
 public with sharing class ActionParamUtils {
+    public class ArgumentValidationException extends AIAgentException {
+    }
+    public class ActionSecurityException extends AIAgentException {
+    }
+    public class InvalidArgumentTypeException extends AIAgentException {
+    }
+
     /**
      * @description Converts raw argument values to types compatible with SObject fields.
      * @param rawArguments Map<String, Object> Parsed JSON arguments from LLM.
@@ -20,51 +27,36 @@ public with sharing class ActionParamUtils {
         SObjectType targetSObjectType,
         AccessType accessType
     ) {
-        if (rawArguments == null || rawArguments.isEmpty()) {
+        if (rawArguments == null || rawArguments.isEmpty())
             return new Map<String, Object>();
-        }
 
-        if (targetSObjectType == null) {
-            throw new ActionSecurityException('Cannot coerce types for a null SObjectType.');
-        }
-
-        Map<String, Schema.SObjectField> fieldMap;
-        try {
-            fieldMap = targetSObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap();
-        } catch (Exception e) {
-            throw new ActionSecurityException(
-                'Failed to describe SObject ' + targetSObjectType + ': ' + e.getMessage(),
-                e
-            );
+        if (targetSObjectType == null)
+            throw new SecurityUtils.ActionSecurityException('Target SObjectType cannot be null.');
+        if (accessType != System.AccessType.CREATABLE && accessType != System.AccessType.UPDATABLE) {
+            throw new InvalidArgumentTypeException('AccessType must be CREATABLE or UPDATABLE.');
         }
 
         Map<String, Object> coercedArguments = new Map<String, Object>();
+        Map<String, Schema.SObjectField> allFields = SchemaUtils.getObjectFields(targetSObjectType);
 
         for (String fieldName : rawArguments.keySet()) {
-            Schema.SObjectField fieldToken = fieldMap.get(fieldName.toLowerCase());
+            Schema.SObjectField fieldToken = allFields.get(fieldName.toLowerCase());
             if (fieldToken == null) {
                 continue;
             }
 
-            Object rawValue = rawArguments.get(fieldName);
             Schema.DescribeFieldResult dfr = fieldToken.getDescribe();
-            Schema.DisplayType fieldType = dfr.getType();
 
             if (!SecurityUtils.hasFieldPermission(dfr, accessType)) {
                 continue;
             }
 
+            Object rawValue = rawArguments.get(fieldName);
             try {
-                Object coercedValue = coerceValueForField(rawValue, fieldName, fieldType, dfr);
-                coercedArguments.put(fieldName, coercedValue);
-            } catch (Exception e) {
-                String errMsg =
-                    'Failed coercing value for field "' +
-                    fieldName +
-                    '". Type: ' +
-                    fieldType +
-                    '. Error: ' +
-                    e.getMessage();
+                Object coercedValue = coerceValueForField(rawValue, fieldName, dfr);
+                coercedArguments.put(dfr.getName(), coercedValue);
+            } catch (InvalidArgumentTypeException e) {
+                String errMsg = 'Failed coercing value for permitted field "' + fieldName + '". Error: ' + e.getMessage();
 
                 throw new InvalidArgumentTypeException(errMsg, e);
             }
@@ -74,23 +66,17 @@ public with sharing class ActionParamUtils {
     }
 
     /**
-     * @description Coerces a raw value to the appropriate type for the specified field
+     * @description Coerces a raw value based on field type. Throws InvalidArgumentTypeException on failure.
      * @param rawValue The value to coerce
-     * @param fieldName The name of the field (for error messages)
-     * @param fieldType The display type of the field
-     * @param dfr The field describe result (used for additional type-specific validation)
+     * @param fieldName The API name of the field (for error messages)
+     * @param dfr The field describe result (for type and validation info)
      * @return Object The coerced value
-     * @throws InvalidArgumentTypeException If the value cannot be coerced to the target type
+     * @throws InvalidArgumentTypeException If the value cannot be coerced to the target type or violates constraints.
      */
-    private static Object coerceValueForField(
-        Object rawValue,
-        String fieldName,
-        Schema.DisplayType fieldType,
-        Schema.DescribeFieldResult dfr
-    ) {
-        if (rawValue == null) {
+    private static Object coerceValueForField(Object rawValue, String fieldName, Schema.DescribeFieldResult dfr) {
+        if (rawValue == null)
             return null;
-        }
+        Schema.DisplayType fieldType = dfr.getType();
 
         try {
             switch on fieldType {
@@ -103,14 +89,17 @@ public with sharing class ActionParamUtils {
                 when BOOLEAN {
                     return coerceToBoolean(rawValue, fieldName);
                 }
-                when INTEGER, DOUBLE, CURRENCY, PERCENT {
-                    return coerceToNumber(rawValue, fieldName, fieldType);
+                when INTEGER {
+                    return coerceToInteger(rawValue, fieldName);
+                }
+                when DOUBLE, CURRENCY, PERCENT {
+                    return coerceToDecimal(rawValue, fieldName);
                 }
                 when ID, REFERENCE {
                     return coerceToId(rawValue, fieldName);
                 }
                 when STRING, TEXTAREA, PICKLIST, MULTIPICKLIST, EMAIL, PHONE, URL, ENCRYPTEDSTRING {
-                    return coerceToString(rawValue, fieldName, fieldType, dfr);
+                    return coerceToString(rawValue, fieldName, dfr);
                 }
                 when TIME {
                     return coerceToTime(rawValue, fieldName);
@@ -132,6 +121,48 @@ public with sharing class ActionParamUtils {
         }
     }
 
+    private static String getInputTypeString(Object val) {
+        if (val == null)
+            return 'null';
+
+        if (val instanceof String)
+            return 'String';
+        if (val instanceof Integer)
+            return 'Integer';
+        if (val instanceof Long)
+            return 'Long';
+        if (val instanceof Double)
+            return 'Double';
+        if (val instanceof Decimal)
+            return 'Decimal';
+        if (val instanceof Boolean)
+            return 'Boolean';
+        if (val instanceof Date)
+            return 'Date';
+        if (val instanceof Datetime)
+            return 'Datetime';
+        if (val instanceof Time)
+            return 'Time';
+        if (val instanceof Id)
+            return 'Id';
+        if (val instanceof List<Object>)
+            return 'List';
+        if (val instanceof Map<String, Object>)
+            return 'Map';
+        if (val instanceof Blob)
+            return 'Blob';
+
+        if (val instanceof SObject) {
+            try {
+                return ((SObject) val).getSObjectType().getDescribe().getName();
+            } catch (Exception e) {
+                return 'SObject';
+            }
+        }
+
+        return 'Object (Unknown Type)';
+    }
+
     /**
      * @description Coerces a value to a Time type
      */
@@ -148,101 +179,154 @@ public with sharing class ActionParamUtils {
                     return Time.newInstance(hour, minute, second, 0);
                 }
             } catch (Exception e) {
-                throw new InvalidArgumentTypeException(
-                    'Invalid time format for field ' + fieldName + '. Expected hh:mm:ss format, got: ' + rawValue
-                );
+                throw new InvalidArgumentTypeException('Invalid time format for field ' + fieldName + '. Expected hh:mm:ss format, got: ' + rawValue);
             }
         }
 
-        throw new InvalidArgumentTypeException(
-            'Expected String (hh:mm:ss) or Time for Time field ' + fieldName + ', got ' + rawValue
-        );
+        throw new InvalidArgumentTypeException('Expected String (hh:mm:ss) or Time for Time field ' + fieldName + ', got ' + rawValue);
     }
 
-    /**
-     * @description Coerces a value to a Blob type
-     */
     private static Blob coerceToBlob(Object rawValue, String fieldName) {
-        if (rawValue instanceof Blob) {
+        if (rawValue instanceof Blob)
             return (Blob) rawValue;
-        } else if (rawValue instanceof String) {
+        if (rawValue instanceof String) {
             try {
                 return EncodingUtil.base64Decode((String) rawValue);
             } catch (Exception e) {
                 throw new InvalidArgumentTypeException(
-                    'Invalid Base64 string for field ' + fieldName + ': ' + e.getMessage()
+                    'Invalid Base64 format for Blob field "' + fieldName + '". Got: "' + String.valueOf(rawValue).abbreviate(50) + '"',
+                    e
                 );
             }
         }
-
         throw new InvalidArgumentTypeException(
-            'Expected Base64 String or Blob for Blob field ' + fieldName + ', got ' + rawValue
+            'Cannot coerce to Blob for field "' + fieldName + '". Expected String or Blob, got ' + getInputTypeString(rawValue)
         );
     }
 
-    /**
-     * @description Coerces a value to a Date
-     */
     private static Date coerceToDate(Object rawValue, String fieldName) {
-        if (rawValue instanceof Date) {
+        if (rawValue instanceof Date)
             return (Date) rawValue;
-        } else if (rawValue instanceof String) {
+        if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
             try {
                 return Date.valueOf((String) rawValue);
             } catch (Exception e) {
                 throw new InvalidArgumentTypeException(
-                    'Invalid date format for field ' + fieldName + '. Expected YYYY-MM-DD format, got: ' + rawValue
+                    'Invalid date format for field "' + fieldName + '". Expected YYYY-MM-DD. Got: "' + rawValue + '"'
                 );
             }
         }
 
         throw new InvalidArgumentTypeException(
-            'Expected String (YYYY-MM-DD) or Date for Date field ' + fieldName + ', got ' + rawValue
+            'Cannot coerce to Date for field "' + fieldName + '". Expected String or Date, got ' + getInputTypeString(rawValue)
         );
     }
 
-    /**
-     * @description Coerces a value to a DateTime
-     */
     private static Datetime coerceToDateTime(Object rawValue, String fieldName) {
-        if (rawValue instanceof Datetime) {
+        if (rawValue instanceof Datetime)
             return (Datetime) rawValue;
-        } else if (rawValue instanceof String) {
+        if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
             try {
-                return Datetime.valueOf(((String) rawValue).replace(' ', 'T'));
+                return Datetime.valueOfGmt(((String) rawValue).replace(' ', 'T'));
             } catch (Exception e) {
-                throw new InvalidArgumentTypeException(
-                    'Could not parse String "' +
-                        rawValue +
-                        '" as Datetime for field ' +
-                        fieldName +
-                        '. Use ISO 8601 format (e.g., YYYY-MM-DDThh:mm:ssZ).'
-                );
+                try {
+                    return Datetime.valueOf((String) rawValue);
+                } catch (Exception e2) {
+                    throw new InvalidArgumentTypeException(
+                        'Invalid Datetime format for field "' +
+                            fieldName +
+                            '". Use ISO 8601 (YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DD hh:mm:ss). Got: "' +
+                            rawValue +
+                            '"',
+                        e2
+                    );
+                }
             }
         }
 
         throw new InvalidArgumentTypeException(
-            'Expected String (ISO 8601) or Datetime for Datetime field ' + fieldName + ', got ' + rawValue
+            'Cannot coerce to Datetime for field "' + fieldName + '". Expected String or Datetime, got ' + getInputTypeString(rawValue)
         );
     }
 
-    /**
-     * @description Coerces a value to a Boolean
-     */
     private static Boolean coerceToBoolean(Object rawValue, String fieldName) {
-        if (rawValue instanceof Boolean) {
+        if (rawValue instanceof Boolean)
             return (Boolean) rawValue;
-        } else if (rawValue instanceof String) {
-            return Boolean.valueOf((String) rawValue);
-        } else if (rawValue instanceof Integer || rawValue instanceof Decimal) {
-            return (Decimal.valueOf(String.valueOf(rawValue)) != 0);
+        if (rawValue instanceof String) {
+            String sVal = ((String) rawValue).trim().toLowerCase();
+            if (sVal == 'true')
+                return true;
+            if (sVal == 'false')
+                return false;
+        }
+        if (rawValue instanceof Integer || rawValue instanceof Decimal) {
+            return Decimal.valueOf(String.valueOf(rawValue)) != 0;
+        }
+        throw new InvalidArgumentTypeException(
+            'Cannot coerce to Boolean for field "' +
+                fieldName +
+                '". Expected true/false or number 0/1. Got: "' +
+                rawValue +
+                '" (' +
+                getInputTypeString(rawValue) +
+                ')'
+        );
+    }
+
+    private static Decimal coerceToDecimal(Object rawValue, String fieldName) {
+        if (rawValue instanceof Integer || rawValue instanceof Double || rawValue instanceof Decimal)
+            return Decimal.valueOf(String.valueOf(rawValue));
+        if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
+            try {
+                return Decimal.valueOf((String) rawValue);
+            } catch (Exception e) {
+                throw new InvalidArgumentTypeException('Invalid Decimal format for field "' + fieldName + '". Got: "' + rawValue + '"');
+            }
         }
 
         throw new InvalidArgumentTypeException(
-            'Expected Boolean, String("true"/"false"), or Number(0/1) for Boolean field ' +
-                fieldName +
-                ', got ' +
-                rawValue
+            'Cannot coerce to Decimal for field "' + fieldName + '". Expected Number or numeric String, got ' + getInputTypeString(rawValue)
+        );
+    }
+
+    private static Integer coerceToInteger(Object rawValue, String fieldName) {
+        final Long INT_MAX_AS_LONG = 2147483647L;
+        final Long INT_MIN_AS_LONG = -2147483648L;
+
+        if (rawValue instanceof Integer)
+            return (Integer) rawValue;
+        if (rawValue instanceof Long) {
+            Long longVal = (Long) rawValue;
+
+            if (longVal > INT_MAX_AS_LONG || longVal < INT_MIN_AS_LONG) {
+                throw new InvalidArgumentTypeException('Long value "' + longVal + '" out of range for Integer field "' + fieldName + '".');
+            }
+            return longVal.intValue();
+        }
+        if (rawValue instanceof Decimal || rawValue instanceof Double) {
+            Decimal dVal = Decimal.valueOf(String.valueOf(rawValue));
+            if (dVal.scale() > 0)
+                throw new InvalidArgumentTypeException('Decimal value "' + dVal + '" cannot be used for Integer field "' + fieldName + '".');
+
+            if (dVal > INT_MAX_AS_LONG || dVal < INT_MIN_AS_LONG) {
+                throw new InvalidArgumentTypeException('Value "' + dVal + '" out of range for Integer field "' + fieldName + '".');
+            }
+
+            return dVal.intValue();
+        }
+        if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
+            try {
+                return Integer.valueOf((String) rawValue);
+            } catch (System.MathException me) {
+                throw new InvalidArgumentTypeException(
+                    'Value "' + rawValue + '" is out of the valid range for an Integer field "' + fieldName + '".'
+                );
+            } catch (Exception e) {
+                throw new InvalidArgumentTypeException('Invalid Integer format for field "' + fieldName + '". Got: "' + rawValue + '"');
+            }
+        }
+        throw new InvalidArgumentTypeException(
+            'Cannot coerce to Integer for field "' + fieldName + '". Expected Number or numeric String, got ' + getInputTypeString(rawValue)
         );
     }
 
@@ -258,14 +342,10 @@ public with sharing class ActionParamUtils {
             try {
                 decimalValue = Decimal.valueOf((String) rawValue);
             } catch (Exception e) {
-                throw new InvalidArgumentTypeException(
-                    'Invalid numeric format for field ' + fieldName + ': ' + rawValue
-                );
+                throw new InvalidArgumentTypeException('Invalid numeric format for field ' + fieldName + ': ' + rawValue);
             }
         } else {
-            throw new InvalidArgumentTypeException(
-                'Expected Number or numeric String for field ' + fieldName + ', got ' + rawValue
-            );
+            throw new InvalidArgumentTypeException('Expected Number or numeric String for field ' + fieldName + ', got ' + rawValue);
         }
 
         if (fieldType == Schema.DisplayType.INTEGER) {
@@ -275,104 +355,70 @@ public with sharing class ActionParamUtils {
         return decimalValue;
     }
 
-    /**
-     * @description Coerces a value to an Id
-     */
     private static Id coerceToId(Object rawValue, String fieldName) {
-        if (rawValue instanceof Id) {
+        if (rawValue instanceof Id)
             return (Id) rawValue;
-        } else if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
+        if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
             try {
                 return Id.valueOf((String) rawValue);
             } catch (Exception e) {
-                throw new InvalidArgumentTypeException(
-                    'Invalid Salesforce ID format for field ' + fieldName + ': ' + rawValue
-                );
+                throw new InvalidArgumentTypeException('Invalid Salesforce ID format for field "' + fieldName + '". Got: "' + rawValue + '"');
             }
         }
 
         throw new InvalidArgumentTypeException(
-            'Expected valid Salesforce ID String for field ' + fieldName + ', got ' + rawValue
+            'Cannot coerce to Id for field "' + fieldName + '". Expected ID string, got ' + getInputTypeString(rawValue)
         );
     }
 
-    /**
-     * @description Coerces a value to a String, with optional validation for picklist fields
-     */
-    private static String coerceToString(
-        Object rawValue,
-        String fieldName,
-        Schema.DisplayType fieldType,
-        Schema.DescribeFieldResult dfr
-    ) {
+    private static String coerceToString(Object rawValue, String fieldName, DescribeFieldResult dfr) {
         String stringValue = String.valueOf(rawValue);
+        Integer maxLength = dfr.getLength();
+        Schema.DisplayType fieldType = dfr.getType();
 
-        if (fieldType == Schema.DisplayType.PICKLIST) {
+        if (fieldType == DisplayType.PICKLIST)
             validatePicklistValue(stringValue, fieldName, dfr);
-        } else if (fieldType == Schema.DisplayType.MULTIPICKLIST) {
+        else if (fieldType == DisplayType.MULTIPICKLIST)
             validateMultiPicklistValues(stringValue, fieldName, dfr);
-        }
 
-        if (
-            (fieldType == Schema.DisplayType.STRING ||
-            fieldType == Schema.DisplayType.EMAIL ||
-            fieldType == Schema.DisplayType.PHONE ||
-            fieldType == Schema.DisplayType.URL) && stringValue.length() > dfr.getLength()
-        ) {
+        if (fieldType != DisplayType.TEXTAREA && maxLength > 0 && stringValue.length() > maxLength) {
             throw new InvalidArgumentTypeException(
-                'Value exceeds maximum length for field ' +
-                    fieldName +
-                    '. Max length: ' +
-                    dfr.getLength() +
-                    ', Actual length: ' +
-                    stringValue.length()
+                'Value length (' + stringValue.length() + ') exceeds maximum (' + maxLength + ') for field "' + fieldName + '".'
             );
         }
-
         return stringValue;
     }
 
-    /**
-     * @description Validates that a string value is a valid picklist entry
-     */
     private static void validatePicklistValue(String value, String fieldName, Schema.DescribeFieldResult dfr) {
-        if (dfr.getPicklistValues().isEmpty()) {
+        List<Schema.PicklistEntry> entries = dfr.getPicklistValues();
+        if (entries == null || entries.isEmpty())
             return;
-        }
-
         Boolean isValid = false;
-        for (Schema.PicklistEntry entry : dfr.getPicklistValues()) {
-            if (entry.isActive() && entry.getValue() == value) {
+        for (Schema.PicklistEntry entry : entries) {
+            if (entry.isActive() && entry.getValue().equals(value)) {
                 isValid = true;
                 break;
             }
         }
-
         if (!isValid) {
-            throw new InvalidArgumentTypeException('Invalid picklist value "' + value + '" for field ' + fieldName);
+            throw new InvalidArgumentTypeException('Invalid picklist value "' + value + '" for field "' + fieldName + '".');
         }
     }
 
-    /**
-     * @description Validates that a semicolon-delimited string contains valid multipicklist entries
-     */
     private static void validateMultiPicklistValues(String value, String fieldName, Schema.DescribeFieldResult dfr) {
-        if (dfr.getPicklistValues().isEmpty()) {
+        List<Schema.PicklistEntry> entries = dfr.getPicklistValues();
+        if (entries == null || entries.isEmpty())
             return;
-        }
-
         Set<String> validValues = new Set<String>();
-        for (Schema.PicklistEntry entry : dfr.getPicklistValues()) {
-            if (entry.isActive()) {
+        for (Schema.PicklistEntry entry : entries) {
+            if (entry.isActive())
                 validValues.add(entry.getValue());
-            }
         }
 
         for (String item : value.split(';')) {
-            if (!validValues.contains(item.trim())) {
-                throw new InvalidArgumentTypeException(
-                    'Invalid multipicklist value "' + item + '" for field ' + fieldName
-                );
+            String trimmedItem = item.trim();
+            if (String.isNotBlank(trimmedItem) && !validValues.contains(trimmedItem)) {
+                throw new InvalidArgumentTypeException('Invalid value "' + trimmedItem + '" in multipicklist string for field "' + fieldName + '".');
             }
         }
     }
@@ -385,15 +431,8 @@ public with sharing class ActionParamUtils {
      * @throws ArgumentValidationException If the key is missing, value is null/blank, or not a String.
      */
     public static String getRequiredString(Map<String, Object> params, String key) {
-        if (
-            params == null ||
-            !params.containsKey(key) ||
-            !(params.get(key) instanceof String) ||
-            String.isBlank((String) params.get(key))
-        ) {
-            throw new ArgumentValidationException(
-                'Missing or invalid required parameter: "' + key + '" (non-blank String)'
-            );
+        if (params == null || !params.containsKey(key) || !(params.get(key) instanceof String) || String.isBlank((String) params.get(key))) {
+            throw new ArgumentValidationException('Missing or invalid required parameter: "' + key + '" (non-blank String)');
         }
         return (String) params.get(key);
     }
@@ -435,9 +474,7 @@ public with sharing class ActionParamUtils {
             }
             return recordId;
         } catch (System.StringException e) {
-            throw new ArgumentValidationException(
-                'Invalid format for parameter "' + key + '". Expected valid Salesforce ID, received: ' + idStr
-            );
+            throw new ArgumentValidationException('Invalid format for parameter "' + key + '". Expected valid Salesforce ID, received: ' + idStr);
         }
     }
 
@@ -449,12 +486,7 @@ public with sharing class ActionParamUtils {
      * @return The validated Id value, or null if missing or invalid format/type. Logs warning on invalid format.
      */
     public static Id getOptionalId(Map<String, Object> params, String key, SObjectType requiredObjectType) {
-        if (
-            params != null &&
-            params.containsKey(key) &&
-            params.get(key) instanceof String &&
-            String.isNotBlank((String) params.get(key))
-        ) {
+        if (params != null && params.containsKey(key) && params.get(key) instanceof String && String.isNotBlank((String) params.get(key))) {
             String idStr = (String) params.get(key);
             try {
                 Id recordId = Id.valueOf(idStr);
@@ -492,10 +524,7 @@ public with sharing class ActionParamUtils {
         }
 
         throw new ArgumentValidationException(
-            'Invalid value for parameter "' +
-                key +
-                '". Expected Boolean or String "true"/"false", got: ' +
-                String.valueOf(val)
+            'Invalid value for parameter "' + key + '". Expected Boolean or String "true"/"false", got: ' + String.valueOf(val)
         );
     }
 
@@ -533,19 +562,14 @@ public with sharing class ActionParamUtils {
      */
     public static List<String> getRequiredStringList(Map<String, Object> params, String key, Boolean requireNonEmpty) {
         if (params == null || !params.containsKey(key) || !(params.get(key) instanceof List<Object>)) {
-            throw new ArgumentValidationException(
-                'Missing or invalid required parameter: "' + key + '" (List<String>)'
-            );
+            throw new ArgumentValidationException('Missing or invalid required parameter: "' + key + '" (List<String>)');
         }
         List<Object> rawList = (List<Object>) params.get(key);
         List<String> stringList = new List<String>();
         for (Object item : rawList) {
             if (!(item instanceof String)) {
                 throw new ArgumentValidationException(
-                    'Invalid item type in list parameter "' +
-                        key +
-                        '": Must contain only Strings. Found: ' +
-                        String.valueOf(item)
+                    'Invalid item type in list parameter "' + key + '": Must contain only Strings. Found: ' + String.valueOf(item)
                 );
             }
 
@@ -596,9 +620,7 @@ public with sharing class ActionParamUtils {
      */
     public static Map<String, Object> getRequiredMap(Map<String, Object> params, String key, Boolean requireNonEmpty) {
         if (params == null || !params.containsKey(key) || !(params.get(key) instanceof Map<String, Object>)) {
-            throw new ArgumentValidationException(
-                'Missing or invalid required parameter: "' + key + '" (Map<String, Object>)'
-            );
+            throw new ArgumentValidationException('Missing or invalid required parameter: "' + key + '" (Map<String, Object>)');
         }
         Map<String, Object> mapValue = (Map<String, Object>) params.get(key);
         if (requireNonEmpty && mapValue.isEmpty()) {
@@ -628,17 +650,8 @@ public with sharing class ActionParamUtils {
         Pattern emailPattern = Pattern.compile('^[a-zA-Z0-9._|\\\\%#~`=?&/$^*!}{+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}$');
         for (String email : emails) {
             if (String.isBlank(email) || !emailPattern.matcher(email).matches()) {
-                throw new ArgumentValidationException(
-                    'Invalid email format "' + email + '" in list parameter "' + paramName + '".'
-                );
+                throw new ArgumentValidationException('Invalid email format "' + email + '" in list parameter "' + paramName + '".');
             }
         }
-    }
-
-    public class ActionSecurityException extends AIAgentException {
-    }
-    public class InvalidArgumentTypeException extends AIAgentException {
-    }
-    public class ArgumentValidationException extends AIAgentException {
     }
 }

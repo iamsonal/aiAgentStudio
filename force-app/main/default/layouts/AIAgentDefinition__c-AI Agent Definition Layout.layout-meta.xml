@@ -86,11 +86,11 @@
     </relatedLists>
     <relatedLists>
         <fields>NAME</fields>
-        <fields>ContextName__c</fields>
-        <fields>BindingType__c</fields>
-        <fields>BindingOrder__c</fields>
+        <fields>ContextLabel__c</fields>
+        <fields>ImplementationName__c</fields>
+        <fields>RequiresRecordContext__c</fields>
         <fields>IsActive__c</fields>
-        <relatedList>AgentContextBinding__c.AIAgentDefinition__c</relatedList>
+        <relatedList>AgentContextConfig__c.AIAgentDefinition__c</relatedList>
     </relatedLists>
     <showEmailCheckbox>false</showEmailCheckbox>
     <showHighlightsPanel>false</showHighlightsPanel>
@@ -98,7 +98,7 @@
     <showRunAssignmentRulesCheckbox>false</showRunAssignmentRulesCheckbox>
     <showSubmitAndAttachButton>false</showSubmitAndAttachButton>
     <summaryLayout>
-        <masterLabel>00hAw0000044NYi</masterLabel>
+        <masterLabel>00hSv000003BsRZ</masterLabel>
         <sizeX>4</sizeX>
         <sizeY>0</sizeY>
         <summaryLayoutStyle>Default</summaryLayoutStyle>

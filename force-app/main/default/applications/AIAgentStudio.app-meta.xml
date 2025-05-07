@@ -27,15 +27,6 @@
         <type>Flexipage</type>
         <pageOrSobjectType>ChatSession__c</pageOrSobjectType>
     </actionOverrides>
-    <actionOverrides>
-        <actionName>View</actionName>
-        <comment>Action override created by Lightning App Builder during activation.</comment>
-        <content>ContextGraphSourceRecordPage</content>
-        <formFactor>Large</formFactor>
-        <skipRecordTypeSelect>false</skipRecordTypeSelect>
-        <type>Flexipage</type>
-        <pageOrSobjectType>ContextGraphSource__c</pageOrSobjectType>
-    </actionOverrides>
     <brand>
         <headerColor>#0070D2</headerColor>
         <shouldOverrideOrgTheme>false</shouldOverrideOrgTheme>
@@ -53,7 +44,6 @@
     <tabs>AIAgentDefinition__c</tabs>
     <tabs>ActionDefinition__c</tabs>
     <tabs>ChatSession__c</tabs>
-    <tabs>ContextGraphSource__c</tabs>
     <uiType>Lightning</uiType>
     <utilityBar>AI_Agent_Studio_UtilityBar</utilityBar>
 </CustomApplication>

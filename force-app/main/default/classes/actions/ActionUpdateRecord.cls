@@ -20,7 +20,6 @@ public class ActionUpdateRecord extends BaseAgentAction {
     private static final String ERR_CODE_DML = AIAgentConstants.ERR_CODE_DML_ERROR;
     private static final String ERR_CODE_LOCKED = AIAgentConstants.ERR_CODE_RECORD_LOCKED;
     private static final String ERR_CODE_UNEXPECTED = AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
-    private static final String ERR_CODE_TYPE_COERCION = FrameworkUtils.ERR_CODE_INPUT_VALIDATION_TYPE;
 
     private static final String RECORD_ID_KEY = 'recordId';
 
@@ -68,10 +67,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
      * @return UpdateRecordParsedArguments instance.
      * @throws ValidationException if arguments JSON is invalid, recordId is missing/invalid, or no update fields provided.
      */
-    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(
-        String argumentsJson,
-        String logPrefix
-    ) {
+    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(String argumentsJson, String logPrefix) {
         Map<String, Object> parsedLlmArgs;
         try {
             if (String.isBlank(argumentsJson)) {
@@ -101,10 +97,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
         }
 
         if (!(idObj instanceof String) || String.isBlank((String) idObj)) {
-            throw new ValidationException(
-                'Invalid value for "' + RECORD_ID_KEY + '": must be a non-blank string ID.',
-                RECORD_ID_KEY
-            );
+            throw new ValidationException('Invalid value for "' + RECORD_ID_KEY + '": must be a non-blank string ID.', RECORD_ID_KEY);
         }
         String recordIdStr = (String) idObj;
 
@@ -114,10 +107,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
             recordSObjectId = Id.valueOf(recordIdStr);
             targetSObjectType = recordSObjectId.getSObjectType();
         } catch (System.StringException strEx) {
-            throw new ValidationException(
-                'Invalid format for parameter "' + RECORD_ID_KEY + '": ' + recordIdStr,
-                RECORD_ID_KEY
-            );
+            throw new ValidationException('Invalid format for parameter "' + RECORD_ID_KEY + '": ' + recordIdStr, RECORD_ID_KEY);
         }
 
         Map<String, Object> updateData = new Map<String, Object>();
@@ -151,11 +141,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
             SecurityUtils.checkObjectPermission(args.targetSObjectType, AccessType.UPDATABLE);
 
             try {
-                filteredData = ActionParamUtils.coerceArgumentTypesForSObject(
-                    args.updateData,
-                    args.targetSObjectType,
-                    AccessType.UPDATABLE
-                );
+                filteredData = ActionParamUtils.coerceArgumentTypesForSObject(args.updateData, args.targetSObjectType, AccessType.UPDATABLE);
             } catch (ActionParamUtils.InvalidArgumentTypeException typeEx) {
                 throw new ValidationException(typeEx.getMessage(), null);
             } catch (SecurityUtils.ActionSecurityException secEx) {
@@ -201,10 +187,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
 
         if (sr.isSuccess()) {
             String successMsg = 'Successfully updated record ' + args.recordSObjectId + '.';
-            Map<String, Object> outputMap = new Map<String, Object>{
-                'recordId' => args.recordSObjectId,
-                'message' => successMsg
-            };
+            Map<String, Object> outputMap = new Map<String, Object>{ 'recordId' => args.recordSObjectId, 'message' => successMsg };
             String internalDetails =
                 'Record updated. ID: ' +
                 args.recordSObjectId +
@@ -222,11 +205,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
                     primaryErrorCode = ERR_CODE_PERMISSION;
                 }
             }
-            return this.dmlError(
-                'Failed to update record ' + args.recordSObjectId + '.',
-                sr.getErrors(),
-                primaryErrorCode
-            );
+            return this.dmlError('Failed to update record ' + args.recordSObjectId + '.', sr.getErrors(), primaryErrorCode);
         }
     }
 }

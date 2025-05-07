@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PendingConfirmationActionDetails__c</fullName>
+    <description>(Internal Framework Use) If this Assistant message requested user confirmation for an action, this field stores the JSON payload of the &apos;tool_calls&apos; that are pending approval.</description>
+    <inlineHelpText>Stores the proposed action details requiring user confirmation initiated by this message.</inlineHelpText>
+    <label>Pending Confirmation Action Details</label>
+    <length>131072</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

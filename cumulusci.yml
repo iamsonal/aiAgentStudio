@@ -33,17 +33,12 @@ flows:
                 task: assign_permission_sets
                 options:
                     api_names: AIAgentStudioConfigurator
-            7:
-                task: execute_anon
-                description: Create Field Sets using the Metadata API
-                options:
-                    apex: "AgentFrameworkFieldSetSetup.runCreateFieldSets();"
+#            7:
+#                task: execute_anon
+#                description: Create Field Sets using the Metadata API
+#                options:
+#                    apex: "AgentFrameworkFieldSetSetup.runCreateFieldSets();"
             8:
-                task: execute_anon
-                description: Creates Context Graph Source records
-                options:
-                    apex: "AgentFrameworkContextSourceSetup.runContextSourceSetup();"
-            9:
                 task: execute_anon
                 description: Set up Sales Data
                 options:

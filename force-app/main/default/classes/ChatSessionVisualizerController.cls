@@ -169,9 +169,7 @@ public with sharing class ChatSessionVisualizerController {
             ];
 
             for (ChatMessage__c msg : userMessages) {
-                String shortId = msg.ExternalId__c.length() > 8
-                    ? msg.ExternalId__c.substring(0, 8) + '...'
-                    : msg.ExternalId__c;
+                String shortId = msg.ExternalId__c.length() > 8 ? msg.ExternalId__c.substring(0, 8) + '...' : msg.ExternalId__c;
                 String label = msg.Timestamp__c.format('yyyy-MM-dd HH:mm:ss') + ' (Turn: ' + shortId + ')';
 
                 turnOptions.add(new Map<String, String>{ 'label' => label, 'value' => msg.ExternalId__c });

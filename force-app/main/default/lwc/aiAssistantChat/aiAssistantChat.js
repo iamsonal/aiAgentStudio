@@ -19,12 +19,13 @@ import createNewChatSession from '@salesforce/apex/AIAssistantController.createN
 import getChatHistory from '@salesforce/apex/AIAssistantController.getChatHistory';
 import getPreviousChatSessions from '@salesforce/apex/AIAssistantController.getPreviousChatSessions';
 import getChatMessageById from '@salesforce/apex/AIAssistantController.getChatMessageById';
+import handleUserConfirmation from '@salesforce/apex/AIAssistantController.handleUserConfirmation';
 
 const SCROLL_TOLERANCE = 10;
+const CONFIRMATION_EVENT_CHANNEL = '/event/AgentActionConfirmationRequest__e';
 
 export default class AiAssistantChat extends LightningElement {
     @api recordId;
-    @api agentDeveloperName = 'SalesCopilot';
     @api cardTitle = 'AI Assistant';
 
     placeholderMessage = 'Start a new chat session to begin your conversation.';
@@ -36,6 +37,11 @@ export default class AiAssistantChat extends LightningElement {
     criticalError = null;
     allSessionOptions = [];
     selectedSessionValue = null;
+    agentDeveloperName = 'SalesCopilot';
+
+    confirmationRequestData = null;
+    showConfirmationPrompt = false;
+    isHandlingConfirmation = false;
 
     oldestMessageTimestamp = null;
     hasMoreHistory = false;
@@ -50,6 +56,8 @@ export default class AiAssistantChat extends LightningElement {
     channelName = '/event/AgentResponse__e';
     subscription = {};
     isSubscribed = false;
+    finalResponseSubscription = {};
+    confirmationSubscription = {};
 
     @wire(CurrentPageReference) pageRef;
 
@@ -67,6 +75,11 @@ export default class AiAssistantChat extends LightningElement {
     }
 
     renderedCallback() {
+        if (this.showConfirmationPrompt) {
+            const approveButton = this.template.querySelector('.confirmation-approve-button');
+            if (approveButton) {
+            }
+        }
         if (this._pendingAutoScroll) {
             this._pendingAutoScroll = false;
             if (!this.isLoadingMoreHistory && !this._isUserScrolledUp) {
@@ -94,14 +107,7 @@ export default class AiAssistantChat extends LightningElement {
     }
 
     getDefaultLoadingState() {
-        return {
-            initial: true,
-            sessions: false,
-            history: false,
-            sending: false,
-            updatingLabel: false,
-            exporting: false
-        };
+        return { initial: true, sessions: false, history: false, sending: false, updatingLabel: false, exporting: false };
     }
 
     _resetComponentState() {
@@ -194,7 +200,6 @@ export default class AiAssistantChat extends LightningElement {
         await this.runWithLoading('history', async () => {
             try {
                 const newId = await createNewChatSession({
-                    agentDeveloperName: this.agentDeveloperName,
                     recordId: contextRecordId
                 });
                 this.currentSessionId = newId;
@@ -449,10 +454,8 @@ export default class AiAssistantChat extends LightningElement {
     }
 
     async handleSubscribe() {
-        if (this.isSubscribed) {
-            console.log('Already subscribed.');
-            return;
-        }
+        this.handleUnsubscribe();
+
         try {
             const empEnabled = await isEmpEnabled();
             if (!empEnabled) {
@@ -461,15 +464,17 @@ export default class AiAssistantChat extends LightningElement {
                 return;
             }
 
-            const messageCallback = (response) => {
-                this.handleAgentResponseEvent(response);
-            };
+            console.log(`Subscribing to final response channel: ${this.channelName}`);
+            const finalSub = await subscribe(this.channelName, -1, this.handleAgentResponseEvent.bind(this));
+            this.finalResponseSubscription = finalSub;
+            console.log(`Subscription successful for channel: ${this.channelName}`, this.finalResponseSubscription);
 
-            console.log(`Subscribing to channel: ${this.channelName}`);
-            const sub = await subscribe(this.channelName, -1, messageCallback);
-            this.subscription = sub;
+            console.log(`Subscribing to confirmation channel: ${CONFIRMATION_EVENT_CHANNEL}`);
+            const confirmSub = await subscribe(CONFIRMATION_EVENT_CHANNEL, -1, this.handleConfirmationRequestEvent.bind(this));
+            this.confirmationSubscription = confirmSub;
+            console.log(`Subscription successful for channel: ${CONFIRMATION_EVENT_CHANNEL}`, this.confirmationSubscription);
+
             this.isSubscribed = true;
-            console.log(`Subscription successful for channel: ${this.channelName}`, this.subscription);
         } catch (error) {
             this.isSubscribed = false;
             this.handleError('Event Subscription Failed', error);
@@ -477,22 +482,102 @@ export default class AiAssistantChat extends LightningElement {
         }
     }
 
-    handleUnsubscribe() {
-        if (!this.isSubscribed || !this.subscription || !this.subscription.channel) {
-            console.log('Not subscribed or subscription object invalid, skipping unsubscribe.');
+    handleConfirmationRequestEvent(response) {
+        console.log('Received CONFIRMATION request event:', JSON.stringify(response));
+        const payload = response?.data?.payload;
+        if (!payload) {
+            console.warn('Received confirmation event without payload:', response);
             return;
         }
-        unsubscribe(this.subscription, (response) => {
-            console.log(`Unsubscribe response for channel ${this.subscription?.channel}:`, JSON.stringify(response));
-            this.subscription = {};
-            this.isSubscribed = false;
-        }).catch((error) => {
-            this.handleError('Event Unsubscription Failed', error);
-            console.error(`Error unsubscribing from ${this.subscription?.channel}:`, JSON.stringify(error));
 
-            this.subscription = {};
-            this.isSubscribed = false;
-        });
+        const eventSessionId = payload.ChatSessionId__c;
+
+        if (eventSessionId !== this.currentSessionId) {
+            console.log(`Ignoring confirmation event for session ${eventSessionId}, current session is ${this.currentSessionId}`);
+            return;
+        }
+
+        this.loadingState = { ...this.loadingState, sending: false };
+        this.isHandlingConfirmation = false;
+
+        this.confirmationRequestData = {
+            sessionId: eventSessionId,
+            assistantMessageId: payload.AssistantMessageId__c,
+            actionName: payload.ActionName__c,
+            confirmationMessage: payload.ConfirmationMessage__c,
+            fullActionArgumentsJson: payload.FullActionArgumentsJson__c,
+            confirmationRequestId: payload.ConfirmationRequestId__c
+        };
+
+        this.showConfirmationPrompt = true;
+        this._requestAutoScroll();
+
+        console.log('Stored confirmation request details and displaying prompt.', this.confirmationRequestData);
+    }
+
+    async handleConfirmationResponse(wasApproved) {
+        if (!this.confirmationRequestData || this.isHandlingConfirmation) {
+            console.warn('No pending confirmation or already handling.');
+            return;
+        }
+
+        console.log(`User responded to confirmation: ${wasApproved ? 'Approved' : 'Rejected'}`);
+        this.isHandlingConfirmation = true;
+        this.showConfirmationPrompt = false;
+
+        const { sessionId, assistantMessageId, confirmationRequestId } = this.confirmationRequestData;
+
+        try {
+            const result = await handleUserConfirmation({
+                sessionId: sessionId,
+                assistantMessageId: assistantMessageId,
+                approved: wasApproved,
+                confirmationRequestId: confirmationRequestId
+            });
+
+            if (result && result.success) {
+                this.showToast('Processing', wasApproved ? 'Action processing initiated...' : 'Action cancelled.', 'info');
+            } else {
+                const errMsg = result?.error || 'Failed to process confirmation response.';
+                this.handleError('Confirmation Handling Failed', { message: errMsg }, true);
+                this.displayFrameworkError(errMsg);
+            }
+        } catch (error) {
+            this.handleError('Error handling user confirmation', error, true);
+            this.displayFrameworkError(`Error processing confirmation: ${error.message || 'Unknown Error'}`);
+        } finally {
+            this.isHandlingConfirmation = false;
+            this.confirmationRequestData = null;
+        }
+    }
+
+    handleApproveClick() {
+        this.handleConfirmationResponse(true);
+    }
+
+    handleRejectClick() {
+        this.handleConfirmationResponse(false);
+    }
+
+    handleUnsubscribe() {
+        if (this.finalResponseSubscription && this.finalResponseSubscription.channel) {
+            unsubscribe(this.finalResponseSubscription, (response) => {
+                console.log(`Unsubscribe response for channel ${this.finalResponseSubscription?.channel}:`, JSON.stringify(response));
+            }).catch((error) => {
+                console.error(`Error unsubscribing from ${this.finalResponseSubscription?.channel}:`, JSON.stringify(error));
+            });
+            this.finalResponseSubscription = {};
+        }
+
+        if (this.confirmationSubscription && this.confirmationSubscription.channel) {
+            unsubscribe(this.confirmationSubscription, (response) => {
+                console.log(`Unsubscribe response for channel ${this.confirmationSubscription?.channel}:`, JSON.stringify(response));
+            }).catch((error) => {
+                console.error(`Error unsubscribing from ${this.confirmationSubscription?.channel}:`, JSON.stringify(error));
+            });
+            this.confirmationSubscription = {};
+        }
+        this.isSubscribed = false;
     }
 
     registerErrorListener() {
@@ -503,7 +588,7 @@ export default class AiAssistantChat extends LightningElement {
     }
 
     async handleAgentResponseEvent(response) {
-        console.log('Received raw event:', JSON.stringify(response));
+        console.log('Received FINAL event (AgentResponse__e):', JSON.stringify(response));
         const payload = response?.data?.payload;
         if (!payload) {
             console.warn('Received event without payload:', response);
@@ -519,6 +604,7 @@ export default class AiAssistantChat extends LightningElement {
 
         console.log(`Processing AgentResponse__e for session ${eventSessionId}`);
         this.loadingState = { ...this.loadingState, sending: false };
+        this.isHandlingConfirmation = false;
 
         const isSuccess = payload.IsSuccess__c;
         const finalMsgId = payload.FinalAssistantMessageId__c;
@@ -548,10 +634,7 @@ export default class AiAssistantChat extends LightningElement {
                     if (this.chatMessages.length <= messageCountBefore) {
                         console.error('CRITICAL: chatMessages array length did NOT increase after update!');
                     } else {
-                        console.log(
-                            'Last item key after update:',
-                            this.chatMessages[this.chatMessages.length - 1]?.displayKey
-                        );
+                        console.log('Last item key after update:', this.chatMessages[this.chatMessages.length - 1]?.displayKey);
                     }
 
                     console.log('Appended final message to chat.');
@@ -559,9 +642,7 @@ export default class AiAssistantChat extends LightningElement {
                 } else {
                     console.warn(`Could not find ChatMessage for final ID: ${finalMsgId}. Displaying fallback.`);
 
-                    this.displayFrameworkError(
-                        'Agent processing complete, but failed to load the final message content.'
-                    );
+                    this.displayFrameworkError('Agent processing complete, but failed to load the final message content.');
                 }
             } else if (isSuccess && !finalMsgId) {
                 console.log('Agent processing completed successfully without a final textual message.');
@@ -577,11 +658,7 @@ export default class AiAssistantChat extends LightningElement {
                 };
                 const agentFailMsgForDisplay = formatDisplayMessages([agentFailMsgData], this.chatMessages.length)[0];
                 this.chatMessages = [...this.chatMessages, agentFailMsgForDisplay];
-                this.showToast(
-                    'Agent Processing Error',
-                    errorDetails || 'The agent failed to complete the request.',
-                    'error'
-                );
+                this.showToast('Agent Processing Error', errorDetails || 'The agent failed to complete the request.', 'error');
                 this._requestAutoScroll();
             }
         } catch (error) {
@@ -613,7 +690,9 @@ export default class AiAssistantChat extends LightningElement {
     }
 
     get isInputDisabled() {
-        return this.loadingState.sending || !this.currentSessionId || !!this.criticalError;
+        return (
+            this.loadingState.sending || !this.currentSessionId || !!this.criticalError || this.showConfirmationPrompt || this.isHandlingConfirmation
+        );
     }
 
     get sessionSelectorPlaceholder() {

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AIAgentDefinition__c</fullName>
+    <label>AI Agent Definition</label>
+    <referenceTo>AIAgentDefinition__c</referenceTo>
+    <relationshipLabel>Agent Context Configs</relationshipLabel>
+    <relationshipName>AgentContextConfigs</relationshipName>
+    <relationshipOrder>0</relationshipOrder>
+    <reparentableMasterDetail>false</reparentableMasterDetail>
+    <trackTrending>false</trackTrending>
+    <type>MasterDetail</type>
+    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+</CustomField>

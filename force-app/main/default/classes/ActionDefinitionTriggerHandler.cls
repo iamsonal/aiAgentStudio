@@ -36,9 +36,7 @@ public with sharing class ActionDefinitionTriggerHandler {
                     if (record.Id == null)
                         record.addError(fieldName, 'JSON content must be a valid JSON Object (e.g., {...}).');
                     else
-                        Trigger.newMap
-                            .get(record.Id)
-                            .addError(fieldName, 'JSON content must be a valid JSON Object (e.g., {...}).');
+                        Trigger.newMap.get(record.Id).addError(fieldName, 'JSON content must be a valid JSON Object (e.g., {...}).');
                 }
             } catch (System.JSONException e) {
                 if (record.Id == null)
@@ -49,9 +47,7 @@ public with sharing class ActionDefinitionTriggerHandler {
                 if (record.Id == null)
                     record.addError(fieldName, 'Unexpected error validating JSON: ' + ex.getMessage());
                 else
-                    Trigger.newMap
-                        .get(record.Id)
-                        .addError(fieldName, 'Unexpected error validating JSON: ' + ex.getMessage());
+                    Trigger.newMap.get(record.Id).addError(fieldName, 'Unexpected error validating JSON: ' + ex.getMessage());
             }
         }
     }
@@ -65,20 +61,12 @@ public with sharing class ActionDefinitionTriggerHandler {
 
         if (record.ImplementationType__c == 'Apex') {
             if (String.isBlank(record.ImplementationName__c)) {
-                handleValidationError(
-                    record,
-                    'ImplementationName__c',
-                    'Implementation Detail (Apex Class Name) is required when Type is Apex.'
-                );
+                handleValidationError(record, 'ImplementationName__c', 'Implementation Detail (Apex Class Name) is required when Type is Apex.');
             } else {
                 try {
                     Type apexType = Type.forName(record.ImplementationName__c);
                     if (apexType == null) {
-                        handleValidationError(
-                            record,
-                            'ImplementationName__c',
-                            'Apex class "' + record.ImplementationName__c + '" not found.'
-                        );
+                        handleValidationError(record, 'ImplementationName__c', 'Apex class "' + record.ImplementationName__c + '" not found.');
                     } else {
                     }
                 } catch (Exception e) {
@@ -91,19 +79,11 @@ public with sharing class ActionDefinitionTriggerHandler {
             }
         } else if (record.ImplementationType__c == 'Flow') {
             if (String.isBlank(record.ImplementationName__c)) {
-                handleValidationError(
-                    record,
-                    'ImplementationName__c',
-                    'Implementation Detail (Flow API Name) is required when Type is Flow.'
-                );
+                handleValidationError(record, 'ImplementationName__c', 'Implementation Detail (Flow API Name) is required when Type is Flow.');
             }
         } else if (record.ImplementationType__c == 'Standard') {
             if (String.isBlank(record.StandardActionType__c)) {
-                handleValidationError(
-                    record,
-                    'StandardActionType__c',
-                    'Standard Action Type is required when Type is Standard.'
-                );
+                handleValidationError(record, 'StandardActionType__c', 'Standard Action Type is required when Type is Standard.');
             }
         }
     }

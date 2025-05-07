@@ -22,9 +22,7 @@ public inherited sharing class LLMProviderFactory {
         }
         String adapterClassName = llmConfig.ProviderAdapterClass__c;
         if (String.isBlank(adapterClassName)) {
-            throw new ConfigurationException(
-                'ProviderAdapterClass__c is not defined for LLM Configuration: ' + llmConfig.DeveloperName__c
-            );
+            throw new ConfigurationException('ProviderAdapterClass__c is not defined for LLM Configuration: ' + llmConfig.DeveloperName__c);
         }
 
         if (adapterInstanceCache.containsKey(adapterClassName)) {
@@ -34,17 +32,12 @@ public inherited sharing class LLMProviderFactory {
         try {
             Type adapterType = Type.forName(adapterClassName);
             if (adapterType == null) {
-                throw new ConfigurationException(
-                    'Adapter class not found: ' + adapterClassName + ' for LLM Config ' + llmConfig.DeveloperName__c
-                );
+                throw new ConfigurationException('Adapter class not found: ' + adapterClassName + ' for LLM Config ' + llmConfig.DeveloperName__c);
             }
             Object adapterObject = adapterType.newInstance();
             if (!(adapterObject instanceof ILLMProviderAdapter)) {
                 throw new ConfigurationException(
-                    'Class ' +
-                        adapterClassName +
-                        ' does not implement ILLMProviderAdapter for LLM Config ' +
-                        llmConfig.DeveloperName__c
+                    'Class ' + adapterClassName + ' does not implement ILLMProviderAdapter for LLM Config ' + llmConfig.DeveloperName__c
                 );
             }
             ILLMProviderAdapter adapterInstance = (ILLMProviderAdapter) adapterObject;
@@ -52,12 +45,7 @@ public inherited sharing class LLMProviderFactory {
             return adapterInstance;
         } catch (Exception e) {
             throw new ConfigurationException(
-                'Error instantiating adapter ' +
-                    adapterClassName +
-                    ' for LLM ' +
-                    llmConfig.DeveloperName__c +
-                    ': ' +
-                    e.getMessage(),
+                'Error instantiating adapter ' + adapterClassName + ' for LLM ' + llmConfig.DeveloperName__c + ': ' + e.getMessage(),
                 e
             );
         }

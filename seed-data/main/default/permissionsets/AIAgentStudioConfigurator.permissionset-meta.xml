@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Grants access to the &apos;AI Agent Studio&apos; Lightning app and provides necessary permissions to create, read, update, and delete AI Agent Definitions, LLM Configurations, Tool Definitions, and Agent Capability Bindings.</description>
+    <externalCredentialPrincipalAccesses>
+        <enabled>true</enabled>
+        <externalCredentialPrincipal>OpenAIEC-OpenAI</externalCredentialPrincipal>
+    </externalCredentialPrincipalAccesses>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>AI Agent Studio Configurator</label>
+    <license>Salesforce</license>
+</PermissionSet>

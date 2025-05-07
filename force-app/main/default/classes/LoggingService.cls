@@ -105,19 +105,7 @@ public without sharing class LoggingService {
         String timestamp = Datetime.now().format('yyyy-MM-dd HH:mm:ss.SSS');
         String userId = UserInfo.getUserId();
         String username = UserInfo.getUsername();
-        String formattedMessage =
-            '[' +
-            level +
-            '] ' +
-            timestamp +
-            ' ' +
-            username +
-            ' (' +
-            userId +
-            ') ' +
-            context +
-            ': ' +
-            message;
+        String formattedMessage = '[' + level + '] ' + timestamp + ' ' + username + ' (' + userId + ') ' + context + ': ' + message;
 
         if (error != null) {
             formattedMessage +=

@@ -5,7 +5,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-
 public with sharing class AgentCapabilityBindingTriggerHandler {
     public static void handleTrigger(
         List<AgentCapabilityBinding__c> newRecords,
@@ -53,12 +52,7 @@ public with sharing class AgentCapabilityBindingTriggerHandler {
     }
 
     /** Validates that a string is well-formed JSON and optionally checks if it's an object */
-    private static void validateJsonSyntax(
-        AgentCapabilityBinding__c record,
-        String jsonString,
-        String fieldName,
-        Boolean requireObject
-    ) {
+    private static void validateJsonSyntax(AgentCapabilityBinding__c record, String jsonString, String fieldName, Boolean requireObject) {
         if (String.isNotBlank(jsonString)) {
             try {
                 Object parsed = JSON.deserializeUntyped(jsonString);

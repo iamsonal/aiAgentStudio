@@ -44,6 +44,46 @@ public inherited sharing class AIAgentConfigService {
     };
 
     /**
+     * @description Retrieves an active capability binding including related Action Definition fields.
+     * @param agentDefId The ID of the AIAgentDefinition__c.
+     * @param capabilityDevName The DeveloperName__c of the AgentCapabilityBinding__c.
+     * @return AgentCapabilityBinding__c record with related ActionDefinition__r details, or null if not found/inactive.
+     * @throws ConfigurationException on query errors.
+     */
+    public static AgentCapabilityBinding__c getCapabilityBinding(Id agentDefId, String capabilityDevName) {
+        String logPrefix = '[AIAgentCfgSvc] ';
+        if (agentDefId == null || String.isBlank(capabilityDevName)) {
+            return null;
+        }
+
+        try {
+            List<AgentCapabilityBinding__c> bindings = [
+                SELECT
+                    Id,
+                    ActionDefinition__c,
+                    ActionConfiguration__c,
+                    RequiresHumanApproval__c,
+                    ActionDefinition__r.IsActive__c,
+                    ActionDefinition__r.RunAsynchronously__c
+                FROM AgentCapabilityBinding__c
+                WHERE
+                    AIAgentDefinition__c = :agentDefId
+                    AND DeveloperName__c = :capabilityDevName
+                    AND IsActive__c = TRUE
+                    AND ActionDefinition__r.IsActive__c = TRUE
+                LIMIT 1
+            ];
+
+            if (bindings.isEmpty()) {
+                return null;
+            }
+            return bindings[0];
+        } catch (Exception e) {
+            throw new ConfigurationException('Error querying capability binding "' + capabilityDevName + '": ' + e.getMessage(), e);
+        }
+    }
+
+    /**
      * @description Retrieves an active AI Agent Definition by its Salesforce Record ID.
      *              Ensures required related fields are queried and caches the result.
      * @param agentDefId The 18-character Salesforce ID of the AIAgentDefinition__c record.
@@ -56,11 +96,7 @@ public inherited sharing class AIAgentConfigService {
         }
 
         if (!agentDefIdCache.containsKey(agentDefId)) {
-            String queryString = buildQuery(
-                'AIAgentDefinition__c',
-                AGENT_DEFINITION_FIELDS,
-                'Id = :agentDefId AND IsActive__c = TRUE'
-            );
+            String queryString = buildQuery('AIAgentDefinition__c', AGENT_DEFINITION_FIELDS, 'Id = :agentDefId AND IsActive__c = TRUE');
 
             List<AIAgentDefinition__c> results = Database.query(queryString);
 
@@ -105,9 +141,7 @@ public inherited sharing class AIAgentConfigService {
             List<AIAgentDefinition__c> results = Database.query(queryString);
 
             if (results.isEmpty()) {
-                throw new ConfigurationException(
-                    'Active AI Agent Definition not found for Developer Name: "' + developerName + '"'
-                );
+                throw new ConfigurationException('Active AI Agent Definition not found for Developer Name: "' + developerName + '"');
             }
             if (results.size() > 1) {
             }
@@ -139,11 +173,7 @@ public inherited sharing class AIAgentConfigService {
         }
 
         if (!llmConfigIdCache.containsKey(llmConfigId)) {
-            String queryString = buildQuery(
-                'LLMConfiguration__c',
-                LLM_CONFIGURATION_FIELDS,
-                'Id = :llmConfigId AND IsActive__c = TRUE'
-            );
+            String queryString = buildQuery('LLMConfiguration__c', LLM_CONFIGURATION_FIELDS, 'Id = :llmConfigId AND IsActive__c = TRUE');
             List<LLMConfiguration__c> results = Database.query(queryString);
 
             if (results.isEmpty()) {
@@ -177,9 +207,7 @@ public inherited sharing class AIAgentConfigService {
             List<LLMConfiguration__c> results = Database.query(queryString);
 
             if (results.isEmpty()) {
-                throw new ConfigurationException(
-                    'Active LLM Configuration not found for Developer Name: "' + developerName + '"'
-                );
+                throw new ConfigurationException('Active LLM Configuration not found for Developer Name: "' + developerName + '"');
             }
             if (results.size() > 1) {
             }

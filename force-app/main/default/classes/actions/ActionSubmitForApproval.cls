@@ -88,10 +88,7 @@ public with sharing class ActionSubmitForApproval extends BaseAgentAction {
                     if (item instanceof String && String.isNotBlank((String) item)) {
                         stringIds.add((String) item);
                     } else {
-                        throw new ValidationException(
-                            'Invalid value in "' + key + '" list. All elements must be non-blank strings.',
-                            key
-                        );
+                        throw new ValidationException('Invalid value in "' + key + '" list. All elements must be non-blank strings.', key);
                     }
                 }
             } else if (approversObj instanceof String) {
@@ -111,10 +108,7 @@ public with sharing class ActionSubmitForApproval extends BaseAgentAction {
                 try {
                     parsedIds.add(Id.valueOf(strId));
                 } catch (Exception e) {
-                    throw new ValidationException(
-                        'Invalid Salesforce ID format found in parameter "' + key + '": ' + strId,
-                        key
-                    );
+                    throw new ValidationException('Invalid Salesforce ID format found in parameter "' + key + '": ' + strId, key);
                 }
             }
             return parsedIds;
@@ -128,17 +122,11 @@ public with sharing class ActionSubmitForApproval extends BaseAgentAction {
      * @return SubmitApprovalParsedArguments instance.
      * @throws ValidationException If arguments are invalid.
      */
-    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(
-        String argumentsJson,
-        String logPrefix
-    ) {
+    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(String argumentsJson, String logPrefix) {
         try {
             return new SubmitApprovalParsedArguments(argumentsJson);
         } catch (Exception e) {
-            throw new ValidationException(
-                'Failed to parse/validate SubmitForApproval arguments: ' + e.getMessage(),
-                null
-            );
+            throw new ValidationException('Failed to parse/validate SubmitForApproval arguments: ' + e.getMessage(), null);
         }
     }
 
@@ -182,15 +170,9 @@ public with sharing class ActionSubmitForApproval extends BaseAgentAction {
                 ex.getMessage().contains('NO_APPLICABLE_PROCESS') ||
                 ex.getMessage().contains('PROCESS_DEFINITION_NOT_FOUND')
             ) {
-                return this.runtimeError(
-                    'Approval process not found or invalid for this record: ' + ex.getMessage(),
-                    ERR_CODE_NO_PROCESS,
-                    ex
-                );
+                return this.runtimeError('Approval process not found or invalid for this record: ' + ex.getMessage(), ERR_CODE_NO_PROCESS, ex);
             } else if (ex.getMessage().contains('INSUFFICIENT_ACCESS')) {
-                throw new ActionSecurityException(
-                    'Insufficient permissions for approval submission: ' + ex.getMessage()
-                );
+                throw new ActionSecurityException('Insufficient permissions for approval submission: ' + ex.getMessage());
             }
 
             throw ex;

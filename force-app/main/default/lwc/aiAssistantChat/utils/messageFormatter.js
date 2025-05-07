@@ -52,33 +52,16 @@ export function formatTimestamp(timestampInput) {
             if (Math.abs(diff) < 5 * 60 * 1000) {
                 return 'Just now';
             } else {
-                return timestamp.toLocaleString([], {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit'
-                });
+                return timestamp.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
             }
         }
 
         if (diff < RELATIVE_TIME_THRESHOLD_MS) {
             return timestamp.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
         } else if (now.getFullYear() === timestamp.getFullYear()) {
-            return timestamp.toLocaleDateString([], {
-                month: 'short',
-                day: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit'
-            });
+            return timestamp.toLocaleDateString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
         } else {
-            return timestamp.toLocaleDateString([], {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit'
-            });
+            return timestamp.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
         }
     } catch (e) {
         console.error('Error formatting timestamp:', timestampInput, e);
@@ -109,10 +92,7 @@ export function formatDisplayMessages(messages, existingCount = 0) {
         const role = sourceRole?.toLowerCase() || 'system';
 
         const sourceExternalId = msg.ExternalId__c || msg.externalId;
-        const key =
-            sourceExternalId ||
-            msg.id ||
-            `msg-${Date.now()}-${counter++}-${Math.random().toString(36).substring(2, 7)}`;
+        const key = sourceExternalId || msg.id || `msg-${Date.now()}-${counter++}-${Math.random().toString(36).substring(2, 7)}`;
 
         const isOutbound = role === 'user';
         const isAgentError = msg.isAgentError || false;
@@ -137,9 +117,7 @@ export function formatDisplayMessages(messages, existingCount = 0) {
             avatarIcon = 'utility:warning';
         }
 
-        const toolInfoAvailable =
-            (role === 'assistant' && msg.toolCallsData) ||
-            (role === 'tool' && (msg.toolFunctionName || msg.toolResultData));
+        const toolInfoAvailable = (role === 'assistant' && msg.toolCallsData) || (role === 'tool' && (msg.toolFunctionName || msg.toolResultData));
 
         const formattedMsg = {
             id: msg.Id || null,

@@ -11,16 +11,7 @@
  *              field-level security checks, and strict validation of filter/order parameters.
  */
 public class QueryService {
-    private static final Set<String> SUPPORTED_OPERATORS = new Set<String>{
-        '=',
-        '!=',
-        '>',
-        '<',
-        '>=',
-        '<=',
-        'LIKE',
-        'IN'
-    };
+    private static final Set<String> SUPPORTED_OPERATORS = new Set<String>{ '=', '!=', '>', '<', '>=', '<=', 'LIKE', 'IN' };
 
     public virtual class QueryValidationException extends Exception {
     }
@@ -136,11 +127,7 @@ public class QueryService {
         prepareSelectFields(this.filterFieldsUsed);
         String orderByClause = validateAndBuildOrderBy(this.orderBy, this.allFieldsMap);
 
-        String queryString =
-            'SELECT ' +
-            String.join(finalFieldsToSelect, ', ') +
-            ' FROM ' +
-            targetSObjectType.getDescribe().getName();
+        String queryString = 'SELECT ' + String.join(finalFieldsToSelect, ', ') + ' FROM ' + targetSObjectType.getDescribe().getName();
         if (String.isNotBlank(whereClause)) {
             queryString += ' WHERE ' + whereClause;
         }
@@ -195,9 +182,7 @@ public class QueryService {
         }
 
         if (this.finalFieldsToSelect.isEmpty()) {
-            throw new FilterValidationException(
-                'No accessible fields found to select based on request, configuration, filter criteria and FLS.'
-            );
+            throw new FilterValidationException('No accessible fields found to select based on request, configuration, filter criteria and FLS.');
         }
     }
 
@@ -227,11 +212,7 @@ public class QueryService {
             Schema.SObjectField fieldToken = allFieldsMap.get(fieldName.toLowerCase());
             if (fieldToken == null) {
                 throw new FilterValidationException(
-                    'Filter field "' +
-                        fieldName +
-                        '" not found on object ' +
-                        targetSObjectType.getDescribe().getName() +
-                        '.'
+                    'Filter field "' + fieldName + '" not found on object ' + targetSObjectType.getDescribe().getName() + '.'
                 );
             }
             Schema.DescribeFieldResult dfr = fieldToken.getDescribe();
@@ -239,9 +220,7 @@ public class QueryService {
                 throw new FilterValidationException('Filter field "' + fieldName + '" is not filterable.');
             }
             if (!dfr.isAccessible()) {
-                throw new FilterValidationException(
-                    'Filter field "' + fieldName + '" is not accessible to the current user.'
-                );
+                throw new FilterValidationException('Filter field "' + fieldName + '" is not accessible to the current user.');
             }
             this.filterFieldsUsed.add(dfr.getName());
 
@@ -303,10 +282,7 @@ public class QueryService {
         if (operator == 'IN') {
             if (!(actualValue instanceof List<Object>)) {
                 throw new FilterValidationException(
-                    'IN operator requires a List value for field "' +
-                        fieldName +
-                        '". Received: ' +
-                        String.valueOf(actualValue)
+                    'IN operator requires a List value for field "' + fieldName + '". Received: ' + String.valueOf(actualValue)
                 );
             }
             List<Object> valueList = (List<Object>) actualValue;
@@ -341,11 +317,7 @@ public class QueryService {
                     for (Object item : valueList)
                         typedList.add((Integer) coerceFilterValue(item, dfr, fieldName));
                     bindList = typedList;
-                } else if (
-                    fieldType == DisplayType.DOUBLE ||
-                    fieldType == DisplayType.CURRENCY ||
-                    fieldType == DisplayType.PERCENT
-                ) {
+                } else if (fieldType == DisplayType.DOUBLE || fieldType == DisplayType.CURRENCY || fieldType == DisplayType.PERCENT) {
                     List<Decimal> typedList = new List<Decimal>();
                     for (Object item : valueList)
                         typedList.add((Decimal) coerceFilterValue(item, dfr, fieldName));
@@ -362,21 +334,14 @@ public class QueryService {
                     bindList = typedList;
                 } else {
                     throw new FilterValidationException(
-                        'Field type ' +
-                            fieldType +
-                            ' is not currently supported for IN operator list binding for field "' +
-                            fieldName +
-                            '".'
+                        'Field type ' + fieldType + ' is not currently supported for IN operator list binding for field "' + fieldName + '".'
                     );
                 }
             } catch (FilterValidationException e) {
                 throw e;
             } catch (Exception ex) {
                 throw new FilterValidationException(
-                    'Unexpected error preparing IN list for field "' +
-                        fieldName +
-                        '". Check list values. Error: ' +
-                        ex.getMessage()
+                    'Unexpected error preparing IN list for field "' + fieldName + '". Check list values. Error: ' + ex.getMessage()
                 );
             }
 
@@ -390,11 +355,7 @@ public class QueryService {
                 condition = dfr.getName() + ' != null';
             else
                 throw new FilterValidationException(
-                    'Operator "' +
-                        operator +
-                        '" cannot be used with an explicit null value for field ' +
-                        fieldName +
-                        '. Use "=" or "!=".'
+                    'Operator "' + operator + '" cannot be used with an explicit null value for field ' + fieldName + '. Use "=" or "!=".'
                 );
         } else {
             Object coercedValue = coerceFilterValue(actualValue, dfr, fieldName);
@@ -442,10 +403,7 @@ public class QueryService {
                     }
                 } else {
                     throw new FilterValidationException(
-                        'Expected Number or numeric String for field "' +
-                            fieldNameForError +
-                            '", got data type: ' +
-                            String.valueOf(rawValue)
+                        'Expected Number or numeric String for field "' + fieldNameForError + '", got data type: ' + String.valueOf(rawValue)
                     );
                 }
 
@@ -453,11 +411,7 @@ public class QueryService {
                     try {
                         if (decimalValue.scale() > 0) {
                             throw new FilterValidationException(
-                                'Decimal value "' +
-                                    decimalValue +
-                                    '" cannot be used for Integer field "' +
-                                    fieldNameForError +
-                                    '".'
+                                'Decimal value "' + decimalValue + '" cannot be used for Integer field "' + fieldNameForError + '".'
                             );
                         }
                         return decimalValue.intValue();
@@ -488,11 +442,7 @@ public class QueryService {
                     return Decimal.valueOf(String.valueOf(rawValue)) != 0;
                 }
                 throw new FilterValidationException(
-                    'Invalid Boolean format for field "' +
-                        fieldNameForError +
-                        '". Expected true/false, got "' +
-                        rawValue +
-                        '".'
+                    'Invalid Boolean format for field "' + fieldNameForError + '". Expected true/false, got "' + rawValue + '".'
                 );
             } else if (fieldType == DisplayType.ID || fieldType == DisplayType.REFERENCE) {
                 if (rawValue instanceof String) {
@@ -500,38 +450,26 @@ public class QueryService {
                         return Id.valueOf((String) rawValue);
                     } catch (Exception idEx) {
                         throw new FilterValidationException(
-                            'Invalid Salesforce ID format for field "' +
-                                fieldNameForError +
-                                '". Received "' +
-                                rawValue +
-                                '".'
+                            'Invalid Salesforce ID format for field "' + fieldNameForError + '". Received "' + rawValue + '".'
                         );
                     }
                 }
                 if (rawValue instanceof Id)
                     return rawValue;
-                throw new FilterValidationException(
-                    'Invalid data type for ID field "' + fieldNameForError + '". Received "' + rawValue + '".'
-                );
+                throw new FilterValidationException('Invalid data type for ID field "' + fieldNameForError + '". Received "' + rawValue + '".');
             } else if (fieldType == DisplayType.DATE) {
                 if (rawValue instanceof String) {
                     try {
                         return Date.valueOf((String) rawValue);
                     } catch (Exception dateEx) {
                         throw new FilterValidationException(
-                            'Invalid Date format for field "' +
-                                fieldNameForError +
-                                '". Expected YYYY-MM-DD. Received "' +
-                                rawValue +
-                                '".'
+                            'Invalid Date format for field "' + fieldNameForError + '". Expected YYYY-MM-DD. Received "' + rawValue + '".'
                         );
                     }
                 }
                 if (rawValue instanceof Date)
                     return rawValue;
-                throw new FilterValidationException(
-                    'Invalid data type for Date field "' + fieldNameForError + '". Received "' + rawValue + '".'
-                );
+                throw new FilterValidationException('Invalid data type for Date field "' + fieldNameForError + '". Received "' + rawValue + '".');
             } else if (fieldType == DisplayType.DATETIME) {
                 if (rawValue instanceof String) {
                     String dateString = (String) rawValue;
@@ -563,9 +501,7 @@ public class QueryService {
                 }
                 if (rawValue instanceof Datetime)
                     return rawValue;
-                throw new FilterValidationException(
-                    'Invalid data type for Datetime field "' + fieldNameForError + '". Received "' + rawValue + '".'
-                );
+                throw new FilterValidationException('Invalid data type for Datetime field "' + fieldNameForError + '". Received "' + rawValue + '".');
             } else if (
                 dfr.getSOAPType() == Schema.SoapType.STRING ||
                 fieldType == DisplayType.PICKLIST ||
@@ -580,9 +516,7 @@ public class QueryService {
 
                 Integer fieldLength = dfr.getLength();
                 if (fieldLength > 0 && stringVal.length() > fieldLength && fieldType != DisplayType.TEXTAREA) {
-                    throw new FilterValidationException(
-                        'Value length exceeds maximum (' + fieldLength + ') for field "' + fieldNameForError + '".'
-                    );
+                    throw new FilterValidationException('Value length exceeds maximum (' + fieldLength + ') for field "' + fieldNameForError + '".');
                 }
                 return stringVal;
             }
@@ -594,10 +528,7 @@ public class QueryService {
             }
 
             throw new FilterValidationException(
-                'Unexpected error coercing value for filter field "' +
-                    fieldNameForError +
-                    '". Details: ' +
-                    e.getMessage()
+                'Unexpected error coercing value for filter field "' + fieldNameForError + '". Details: ' + e.getMessage()
             );
         }
     }
@@ -613,9 +544,7 @@ public class QueryService {
         String direction = 'ASC';
         String nullsOrder = '';
 
-        Pattern orderByPattern = Pattern.compile(
-            '(?i)^([a-zA-Z0-9_\\.]+)(?:\\s+(ASC|DESC))?(?:\\s+NULLS\\s+(FIRST|LAST))?$'
-        );
+        Pattern orderByPattern = Pattern.compile('(?i)^([a-zA-Z0-9_\\.]+)(?:\\s+(ASC|DESC))?(?:\\s+NULLS\\s+(FIRST|LAST))?$');
         Matcher m = orderByPattern.matcher(orderByParam.trim());
 
         if (m.matches()) {
@@ -628,9 +557,7 @@ public class QueryService {
             }
         } else {
             throw new OrderByValidationException(
-                'Invalid ORDER BY syntax provided: "' +
-                    orderByParam +
-                    '". Expected format: FieldName [ASC|DESC] [NULLS FIRST|LAST].'
+                'Invalid ORDER BY syntax provided: "' + orderByParam + '". Expected format: FieldName [ASC|DESC] [NULLS FIRST|LAST].'
             );
         }
 
@@ -642,13 +569,7 @@ public class QueryService {
                 ? allFieldsMap.values()[0].getDescribe().getSObjectType().getDescribe().getName()
                 : 'unknown object';
             throw new OrderByValidationException(
-                'ORDER BY field "' +
-                    fieldName +
-                    '" (or its base relationship "' +
-                    baseFieldName +
-                    '") not found on object ' +
-                    objName +
-                    '.'
+                'ORDER BY field "' + fieldName + '" (or its base relationship "' + baseFieldName + '") not found on object ' + objName + '.'
             );
         }
 
@@ -657,9 +578,7 @@ public class QueryService {
             throw new OrderByValidationException('ORDER BY field "' + fieldName + '" is not sortable.');
         }
         if (!dfr.isAccessible()) {
-            throw new OrderByValidationException(
-                'ORDER BY field "' + fieldName + '" is not accessible to the current user.'
-            );
+            throw new OrderByValidationException('ORDER BY field "' + fieldName + '" is not accessible to the current user.');
         }
 
         String finalNullsClause = '';

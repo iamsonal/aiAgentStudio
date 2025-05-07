@@ -65,9 +65,7 @@ public class ActionGetRecords extends BaseAgentAction {
         Object apiNameObj = this.parsedActionConfig.get(CONFIG_KEY_OBJECT_API_NAME);
         if (!(apiNameObj instanceof String) || String.isBlank((String) apiNameObj)) {
             throw new ValidationException(
-                'Required property "' +
-                    CONFIG_KEY_OBJECT_API_NAME +
-                    '" in ActionConfiguration must be a non-blank String.',
+                'Required property "' + CONFIG_KEY_OBJECT_API_NAME + '" in ActionConfiguration must be a non-blank String.',
                 CONFIG_KEY_OBJECT_API_NAME
             );
         }
@@ -75,10 +73,7 @@ public class ActionGetRecords extends BaseAgentAction {
         this.objectApiName = (String) apiNameObj;
         this.targetSObjectType = Schema.getGlobalDescribe().get(this.objectApiName.toLowerCase());
         if (this.targetSObjectType == null) {
-            throw new ValidationException(
-                'Invalid SObject API Name configured: ' + this.objectApiName,
-                CONFIG_KEY_OBJECT_API_NAME
-            );
+            throw new ValidationException('Invalid SObject API Name configured: ' + this.objectApiName, CONFIG_KEY_OBJECT_API_NAME);
         }
 
         if (this.parsedActionConfig.containsKey(CONFIG_KEY_DEFAULT_FIELDS)) {
@@ -124,12 +119,7 @@ public class ActionGetRecords extends BaseAgentAction {
         Integer queryLimit;
         String orderBy;
 
-        public GetRecordsParsedArguments(
-            Map<String, Object> filters,
-            List<String> additionalFields,
-            Integer queryLimit,
-            String orderBy
-        ) {
+        public GetRecordsParsedArguments(Map<String, Object> filters, List<String> additionalFields, Integer queryLimit, String orderBy) {
             this.filters = filters;
             this.additionalFields = additionalFields;
             this.queryLimit = queryLimit;
@@ -144,10 +134,7 @@ public class ActionGetRecords extends BaseAgentAction {
      * @return GetRecordsParsedArguments instance.
      * @throws ValidationException If arguments are invalid.
      */
-    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(
-        String argumentsJson,
-        String logPrefix
-    ) {
+    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(String argumentsJson, String logPrefix) {
         Map<String, Object> parsedLlmArgs;
         try {
             parsedLlmArgs = String.isNotBlank(argumentsJson)
@@ -163,17 +150,11 @@ public class ActionGetRecords extends BaseAgentAction {
             if (filtersObj instanceof Map<String, Object>) {
                 filters = (Map<String, Object>) filtersObj;
             } else {
-                throw new ValidationException(
-                    'Parameter "' + PARAM_KEY_FILTERS + '" must be a valid JSON Object (Map).',
-                    PARAM_KEY_FILTERS
-                );
+                throw new ValidationException('Parameter "' + PARAM_KEY_FILTERS + '" must be a valid JSON Object (Map).', PARAM_KEY_FILTERS);
             }
         }
 
-        List<String> additionalFields = ActionParamUtils.getOptionalStringList(
-            parsedLlmArgs,
-            PARAM_KEY_ADDITIONAL_FIELDS
-        );
+        List<String> additionalFields = ActionParamUtils.getOptionalStringList(parsedLlmArgs, PARAM_KEY_ADDITIONAL_FIELDS);
 
         Integer queryLimit = parseLimitParameter(parsedLlmArgs.get(PARAM_KEY_LIMIT));
 
@@ -230,14 +211,7 @@ public class ActionGetRecords extends BaseAgentAction {
             }
 
             if (totalFoundCount > this.maxReturnToLLM) {
-                resultMessage =
-                    'Found ' +
-                    totalFoundCount +
-                    ' ' +
-                    this.objectApiName +
-                    ' record(s). Showing the first ' +
-                    this.maxReturnToLLM +
-                    '.';
+                resultMessage = 'Found ' + totalFoundCount + ' ' + this.objectApiName + ' record(s). Showing the first ' + this.maxReturnToLLM + '.';
             } else {
                 resultMessage = 'Found and showing all ' + totalFoundCount + ' ' + this.objectApiName + ' record(s).';
             }
@@ -251,12 +225,7 @@ public class ActionGetRecords extends BaseAgentAction {
             'records' => finalResultsForLlm
         };
 
-        String internalDetails =
-            'Query executed. Total found: ' +
-            totalFoundCount +
-            '. Returned to LLM: ' +
-            finalResultsForLlm.size() +
-            '.';
+        String internalDetails = 'Query executed. Total found: ' + totalFoundCount + '. Returned to LLM: ' + finalResultsForLlm.size() + '.';
 
         return this.success(outputMap, internalDetails);
     }
@@ -277,10 +246,7 @@ public class ActionGetRecords extends BaseAgentAction {
                 try {
                     requestedDecimal = Decimal.valueOf((String) limitObj);
                 } catch (Exception e) {
-                    throw new ValidationException(
-                        'Parameter "' + PARAM_KEY_LIMIT + '" must be a valid Integer.',
-                        PARAM_KEY_LIMIT
-                    );
+                    throw new ValidationException('Parameter "' + PARAM_KEY_LIMIT + '" must be a valid Integer.', PARAM_KEY_LIMIT);
                 }
             } else {
                 throw new ValidationException(
@@ -290,10 +256,7 @@ public class ActionGetRecords extends BaseAgentAction {
             }
 
             if (requestedDecimal == null) {
-                throw new ValidationException(
-                    'Parameter "' + PARAM_KEY_LIMIT + '" must be a valid Integer.',
-                    PARAM_KEY_LIMIT
-                );
+                throw new ValidationException('Parameter "' + PARAM_KEY_LIMIT + '" must be a valid Integer.', PARAM_KEY_LIMIT);
             } else if (requestedDecimal <= 0) {
                 effectiveLimit = DEFAULT_QUERY_LIMIT;
             } else {

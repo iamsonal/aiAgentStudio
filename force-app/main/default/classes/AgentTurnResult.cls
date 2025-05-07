@@ -5,7 +5,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-
 /** @description Wraps the final result of a single turn processed by the AIAgentOrchestrator. */
 public class AgentTurnResult {
     @AuraEnabled

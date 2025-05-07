@@ -26,10 +26,7 @@
             <div class="slds-grid slds-grid_vertical">
                 <div class="slds-col slds-size_12-of-12 chat-container slds-scrollable_y" onscroll={handleScroll}>
                     <template if:true={criticalError}>
-                        <div
-                            class="slds-notify slds-notify_alert slds-theme_alert-texture slds-m-bottom_small"
-                            role="alert"
-                        >
+                        <div class="slds-notify slds-notify_alert slds-theme_alert-texture slds-m-bottom_small" role="alert">
                             <lightning-icon
                                 icon-name="utility:warning"
                                 alternative-text="Error!"
@@ -61,10 +58,7 @@
 
                         <template if:true={loadingState.history}>
                             <div class="slds-is-relative slds-p-vertical_medium">
-                                <lightning-spinner
-                                    alternative-text="Loading history..."
-                                    size="medium"
-                                ></lightning-spinner>
+                                <lightning-spinner alternative-text="Loading history..." size="medium"></lightning-spinner>
                             </div>
                         </template>
                     </div>
@@ -76,11 +70,7 @@
                                     <template if:true={message.isInbound}>
                                         <div class="slds-chat-avatar">
                                             <span class="slds-avatar slds-avatar_circle slds-avatar_small">
-                                                <lightning-icon
-                                                    icon-name={message.avatarIcon}
-                                                    alternative-text={message.roleLabel}
-                                                    size="small"
-                                                >
+                                                <lightning-icon icon-name={message.avatarIcon} alternative-text={message.roleLabel} size="small">
                                                 </lightning-icon>
                                             </span>
                                         </div>
@@ -92,9 +82,7 @@
                                                 <span class={message.prefixClass}>{message.prefix}</span>
                                             </template>
                                             <div class="slds-chat-message__text-content">
-                                                <lightning-formatted-rich-text
-                                                    value={message.content}
-                                                ></lightning-formatted-rich-text>
+                                                <lightning-formatted-rich-text value={message.content}></lightning-formatted-rich-text>
                                             </div>
                                         </div>
 
@@ -112,22 +100,14 @@
                                                             </p>
                                                         </template>
                                                         <template if:true={message._parsedToolCallsData}>
-                                                            <p class="slds-m-bottom_xx-small">
-                                                                <strong>Request Payload:</strong>
-                                                            </p>
-                                                            <pre
-                                                                class="slds-code slds-box slds-box_small slds-m-bottom_small"
-                                                            >
+                                                            <p class="slds-m-bottom_xx-small"><strong>Request Payload:</strong></p>
+                                                            <pre class="slds-code slds-box slds-box_small slds-m-bottom_small">
 {message.formattedToolCallsJson}</pre
                                                             >
                                                         </template>
                                                         <template if:true={message._parsedToolResultData}>
-                                                            <p class="slds-m-bottom_xx-small">
-                                                                <strong>Result Data:</strong>
-                                                            </p>
-                                                            <pre class="slds-code slds-box slds-box_small">
-{message.formattedToolResultJson}</pre
-                                                            >
+                                                            <p class="slds-m-bottom_xx-small"><strong>Result Data:</strong></p>
+                                                            <pre class="slds-code slds-box slds-box_small">{message.formattedToolResultJson}</pre>
                                                         </template>
                                                     </lightning-accordion-section>
                                                 </lightning-accordion>
@@ -149,18 +129,11 @@
                                 <div class="slds-chat-message">
                                     <div class="slds-chat-avatar">
                                         <span class="slds-avatar slds-avatar_circle slds-avatar_small">
-                                            <lightning-icon
-                                                icon-name="utility:einstein"
-                                                alternative-text="Assistant"
-                                                size="small"
-                                            >
-                                            </lightning-icon>
+                                            <lightning-icon icon-name="utility:einstein" alternative-text="Assistant" size="small"> </lightning-icon>
                                         </span>
                                     </div>
                                     <div class="slds-chat-message__body">
-                                        <div
-                                            class="slds-chat-message__text slds-chat-message__text_inbound slds-chat-typing"
-                                        >
+                                        <div class="slds-chat-message__text slds-chat-message__text_inbound slds-chat-typing">
                                             <span class="slds-assistant-typing" aria-live="polite">
                                                 <span class="slds-ball"></span>
                                                 <span class="slds-ball"></span>
@@ -168,9 +141,7 @@
                                             </span>
                                         </div>
                                         <div class="slds-chat-message__meta" aria-label="Assistant is typing">
-                                            <span class="slds-text-body_small slds-chat-meta-text"
-                                                >Assistant • typing...</span
-                                            >
+                                            <span class="slds-text-body_small slds-chat-meta-text">Assistant • typing...</span>
                                         </div>
                                     </div>
                                 </div>
@@ -180,10 +151,40 @@
                     </ul>
                 </div>
 
+                <template if:true={showConfirmationPrompt}>
+                    <div class="slds-col slds-size_12-of-12 slds-box slds-theme_shade slds-m-vertical_small slds-p-around_medium confirmation-prompt">
+                        <h3 class="slds-text-heading_small slds-m-bottom_small">Action Confirmation Required</h3>
+                        <p class="slds-m-bottom_medium">{confirmationRequestData.confirmationMessage}</p>
+                        <div class="slds-grid slds-grid_align-spread">
+                            <lightning-button
+                                label="Reject"
+                                variant="neutral"
+                                onclick={handleRejectClick}
+                                disabled={isHandlingConfirmation}
+                                class="confirmation-reject-button"
+                                icon-name="utility:close"
+                            >
+                            </lightning-button>
+                            <lightning-button
+                                label="Approve"
+                                variant="brand"
+                                onclick={handleApproveClick}
+                                disabled={isHandlingConfirmation}
+                                class="confirmation-approve-button"
+                                icon-name="utility:check"
+                            >
+                            </lightning-button>
+                        </div>
+                        <template if:true={isHandlingConfirmation}>
+                            <div class="slds-is-relative slds-m-top_small">
+                                <lightning-spinner alternative-text="Processing confirmation..." size="small"></lightning-spinner>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
                 <div slot="footer" class="slds-p-horizontal_medium slds-p-vertical_small">
-                    <div
-                        class="slds-grid slds-grid_align-spread slds-grid_vertical-align-end slds-chat-input-container"
-                    >
+                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-end slds-chat-input-container">
                         <div class="slds-grow">
                             <lightning-textarea
                                 label="User Message"

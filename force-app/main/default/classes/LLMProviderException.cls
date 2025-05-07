@@ -7,5 +7,5 @@
 
 
 /** @description Exception for errors during communication with or response parsing from the LLM Provider API. */
-public class LLMProviderException extends AIAgentException {
+public virtual class LLMProviderException extends AIAgentException {
 }

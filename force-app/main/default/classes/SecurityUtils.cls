@@ -6,7 +6,14 @@
  */
 
 
+/**
+ * @description Utility methods for performing security checks (CRUD/FLS).
+ */
 public with sharing class SecurityUtils {
+    /** @description Custom exception for security check failures */
+    public class ActionSecurityException extends AIAgentException {
+    }
+
     /**
      * @description Checks if the current user has the specified CRUD permission on an SObject type.
      * @param sObjectType The SObjectType to check.
@@ -15,24 +22,21 @@ public with sharing class SecurityUtils {
      */
     public static void checkObjectPermission(SObjectType sObjectType, AccessType accessType) {
         if (sObjectType == null) {
-            throw new ActionSecurityException('Cannot check permissions on a null SObjectType.');
+            throw new ActionSecurityException('SObjectType cannot be null.');
         }
-
         if (accessType == null) {
-            throw new ActionSecurityException('AccessType cannot be null for security check.');
+            throw new ActionSecurityException('AccessType cannot be null.');
         }
 
         Schema.DescribeSObjectResult describeResult;
         try {
             describeResult = sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED);
         } catch (Exception e) {
-            throw new ActionSecurityException('Failed to describe SObject: ' + e.getMessage(), e);
+            throw new ActionSecurityException('Failed to describe SObject ' + String.valueOf(sObjectType) + ': ' + e.getMessage(), e);
         }
 
-        String objectName = describeResult.getName();
         Boolean hasPermission = false;
         String permissionType = '';
-
         switch on accessType {
             when CREATABLE {
                 hasPermission = describeResult.isCreateable();
@@ -47,14 +51,14 @@ public with sharing class SecurityUtils {
                 permissionType = 'UPDATE';
             }
             when else {
-                throw new ActionSecurityException('Unsupported AccessType provided: ' + accessType);
+                throw new ActionSecurityException('Unsupported AccessType for object check: ' + accessType);
             }
         }
 
         if (!hasPermission) {
             String errorMessage = String.format(
-                'INSUFFICIENT_PERMISSIONS: User {0} does not have {1} access on SObject {2}.',
-                new List<String>{ UserInfo.getUserName(), permissionType, objectName }
+                'User {0} does not have {1} access on SObject {2}.',
+                new List<String>{ UserInfo.getUserName(), permissionType, describeResult.getName() }
             );
 
             throw new ActionSecurityException(errorMessage);
@@ -62,148 +66,74 @@ public with sharing class SecurityUtils {
     }
 
     /**
-     * @description Checks if the current user has the specified FLS permission on a field. Throws ActionSecurityException if permission is denied.
+     * @description Checks if the current user has the specified FLS permission on a field using DescribeFieldResult.
+     * @param dfr The Schema.DescribeFieldResult of the field.
+     * @param accessType AccessType.READABLE, AccessType.CREATABLE, or AccessType.UPDATABLE.
+     * @throws ActionSecurityException If the required permission is not granted.
+     */
+    public static void checkFieldPermission(Schema.DescribeFieldResult dfr, AccessType accessType) {
+        if (dfr == null) {
+            throw new ActionSecurityException('DescribeFieldResult cannot be null for field permission check.');
+        }
+        if (
+            accessType == null ||
+            (accessType != System.AccessType.READABLE &&
+            accessType != System.AccessType.CREATABLE &&
+            accessType != System.AccessType.UPDATABLE)
+        ) {
+            throw new ActionSecurityException('Invalid AccessType for field check: ' + accessType + '. Expected READABLE, CREATABLE, or UPDATABLE.');
+        }
+
+        Boolean hasPermission = hasFieldPermission(dfr, accessType);
+
+        if (!hasPermission) {
+            throw new ActionSecurityException('Permission denied. User does not have ' + accessType + ' access on Field ' + dfr.getName() + '.');
+        }
+    }
+
+    /**
+     * @description Checks if the current user has the specified FLS permission on a field using SObjectType and fieldName.
      * @param sObjectType The SObjectType of the field.
-     * @param fieldName The API name of the field.
-     * @param accessType AccessType.CREATABLE, AccessType.READABLE, or AccessType.UPDATABLE.
+     * @param fieldName The API name of the field (case-insensitive).
+     * @param accessType AccessType.READABLE, AccessType.CREATABLE, or AccessType.UPDATABLE.
      * @throws ActionSecurityException If the required permission is not granted or the field doesn't exist.
      */
     public static void checkFieldPermission(SObjectType sObjectType, String fieldName, AccessType accessType) {
         if (sObjectType == null || String.isBlank(fieldName)) {
-            throw new ActionSecurityException(
-                'Cannot check field permissions with null SObjectType or blank field name.'
-            );
+            throw new ActionSecurityException('SObjectType and Field Name are required for field permission check.');
         }
-        Map<String, Schema.SObjectField> fieldMap = sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED)
-            .fields.getMap();
-        Schema.SObjectField fieldToken = fieldMap.get(fieldName.toLowerCase());
 
+        Schema.SObjectField fieldToken = SchemaUtils.getFieldToken(sObjectType, fieldName);
         if (fieldToken == null) {
-            throw new ActionSecurityException(
-                'Field ' + fieldName + ' not found on SObject ' + sObjectType.getDescribe().getName() + '.'
-            );
+            throw new ActionSecurityException('Field ' + fieldName + ' not found on SObject ' + sObjectType.getDescribe().getName() + '.');
         }
 
-        Schema.DescribeFieldResult describeResult = fieldToken.getDescribe();
-        Boolean hasPermission = false;
-
-        switch on accessType {
-            when CREATABLE {
-                hasPermission = describeResult.isCreateable();
-            }
-            when READABLE {
-                hasPermission = describeResult.isAccessible();
-            }
-            when UPDATABLE {
-                hasPermission = describeResult.isUpdateable();
-            }
-            when else {
-                throw new ActionSecurityException('Unsupported AccessType for field check: ' + accessType);
-            }
-        }
-
-        if (!hasPermission) {
-            throw new ActionSecurityException(
-                'Permission denied. User does not have ' +
-                    accessType +
-                    ' access on Field ' +
-                    describeResult.getName() +
-                    ' of SObject ' +
-                    sObjectType.getDescribe().getName() +
-                    '.'
-            );
-        }
+        checkFieldPermission(fieldToken.getDescribe(), accessType);
     }
 
     /**
-     * @description Validates FLS permissions for a map of field data and returns a new map containing
-     *              only the fields the user has the required permission for.
-     * @param sObjectType The SObjectType of the record.
-     * @param fieldData Map<String, Object> where keys are field API names and values are the data.
-     * @param accessType AccessType.CREATABLE or AccessType.UPDATABLE.
-     * @return Map<String, Object> A new map containing only the key-value pairs for which the user
-     *         has the specified FLS permission. Returns empty map if input map is null/empty.
-     * @throws ActionSecurityException if parameters are invalid.
+     * @description Helper method returning boolean FLS check without throwing exception.
+     * @param dfr The Schema.DescribeFieldResult of the field.
+     * @param accessType AccessType.READABLE, AccessType.CREATABLE, or AccessType.UPDATABLE.
+     * @return Boolean true if permission granted, false otherwise. Returns false for invalid accessType.
      */
-    public static Map<String, Object> filterMapByFieldPermissions(
-        SObjectType sObjectType,
-        Map<String, Object> fieldData,
-        AccessType accessType
-    ) {
-        if (sObjectType == null) {
-            throw new ActionSecurityException('Cannot filter fields for a null SObjectType.');
-        }
-
-        if (accessType == null) {
-            throw new ActionSecurityException('AccessType cannot be null.');
-        }
-
-        if (accessType != System.AccessType.CREATABLE && accessType != System.AccessType.UPDATABLE) {
-            throw new ActionSecurityException(
-                'filterMapByFieldPermissions supports only AccessType.CREATABLE or AccessType.UPDATABLE. Provided: ' +
-                accessType
-            );
-        }
-
-        Map<String, Object> accessibleFieldsMap = new Map<String, Object>();
-        if (fieldData == null || fieldData.isEmpty()) {
-            return accessibleFieldsMap;
-        }
-
-        Map<String, Schema.SObjectField> allFields;
-        try {
-            allFields = sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap();
-        } catch (Exception e) {
-            throw new ActionSecurityException('Failed to describe SObject fields: ' + e.getMessage(), e);
-        }
-
-        Set<String> skippedFields = new Set<String>();
-
-        for (String fieldName : fieldData.keySet()) {
-            Schema.SObjectField fieldToken = allFields.get(fieldName.toLowerCase());
-
-            if (fieldToken != null && hasFieldPermission(fieldToken, accessType)) {
-                accessibleFieldsMap.put(fieldName, fieldData.get(fieldName));
-            } else {
-                skippedFields.add(fieldName);
-            }
-        }
-
-        if (!skippedFields.isEmpty()) {
-        }
-
-        return accessibleFieldsMap;
-    }
-
-    /**
-     * @description Helper method to check if a field has the specified permission.
-     * @param fieldToken The SObjectField to check.
-     * @param accessType The type of access to check (CREATABLE or UPDATABLE).
-     * @return Boolean True if the user has the specified permission, false otherwise.
-     */
-    public static Boolean hasFieldPermission(Schema.SObjectField fieldToken, AccessType accessType) {
-        Schema.DescribeFieldResult dfr = fieldToken.getDescribe();
-
+    public static Boolean hasFieldPermission(Schema.DescribeFieldResult dfr, AccessType accessType) {
+        if (dfr == null)
+            return false;
         if (accessType == System.AccessType.CREATABLE) {
             return dfr.isCreateable();
-        } else if (accessType == System.AccessType.UPDATABLE) {
+        }
+        if (accessType == System.AccessType.UPDATABLE) {
             return dfr.isUpdateable();
         }
-
+        if (accessType == System.AccessType.READABLE) {
+            return dfr.isAccessible();
+        }
         return false;
     }
 
-    /**
-     * @description Checks if the current user has the specified access type permission for the field
-     * @param dfr The field describe result
-     * @param accessType The type of access to check (CREATABLE or UPDATABLE)
-     * @return Boolean True if the user has permission, false otherwise
-     */
-    public static Boolean hasFieldPermission(Schema.DescribeFieldResult dfr, AccessType accessType) {
-        return (accessType == System.AccessType.CREATABLE && dfr.isCreateable()) ||
-            (accessType == System.AccessType.UPDATABLE && dfr.isUpdateable());
-    }
-
-    public class ActionSecurityException extends AIAgentException {
+    public static Boolean hasFieldPermission(SObjectType sObjectType, String fieldName, AccessType accessType) {
+        Schema.SObjectField fieldToken = SchemaUtils.getFieldToken(sObjectType, fieldName);
+        return (fieldToken != null) && hasFieldPermission(fieldToken.getDescribe(), accessType);
     }
 }

@@ -214,10 +214,7 @@ public inherited sharing class OrchestrationLogger {
         } catch (Exception e) {
             String errMsg = '[OrchestrationLogger] Payload serialization failed: ' + e.getMessage();
 
-            jsonString =
-                '{"error": "Failed to serialize payload", "details": "' +
-                String.valueOf(e.getMessage()).escapeJava() +
-                '"}';
+            jsonString = '{"error": "Failed to serialize payload", "details": "' + String.valueOf(e.getMessage()).escapeJava() + '"}';
         }
         return jsonString;
     }

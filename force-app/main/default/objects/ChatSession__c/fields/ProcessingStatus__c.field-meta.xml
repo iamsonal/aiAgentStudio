@@ -3,7 +3,7 @@
     <fullName>ProcessingStatus__c</fullName>
     <description>Tracks the current internal stage of the agent&apos;s processing cycle for this session (e.g., waiting for model, executing actions, idle).</description>
     <inlineHelpText>Indicates the agent&apos;s current background activity related to this chat (e.g., &apos;Idle&apos;, &apos;AwaitingLLMResponse&apos;, &apos;ExecutingActions&apos;, &apos;Failed&apos;).</inlineHelpText>
-    <label>Internal Processing State</label>
+    <label>Processing Status</label>
     <required>true</required>
     <trackTrending>false</trackTrending>
     <type>Picklist</type>
@@ -17,14 +17,19 @@
                 <label>Idle</label>
             </value>
             <value>
-                <fullName>AwaitingLLMResponse</fullName>
+                <fullName>Processing</fullName>
                 <default>false</default>
-                <label>AwaitingLLMResponse</label>
+                <label>Processing</label>
             </value>
             <value>
-                <fullName>ProcessingLLMResponse</fullName>
+                <fullName>AwaitingAction</fullName>
                 <default>false</default>
-                <label>ProcessingLLMResponse</label>
+                <label>AwaitingAction</label>
+            </value>
+            <value>
+                <fullName>AwaitingFollowup</fullName>
+                <default>false</default>
+                <label>AwaitingFollowup</label>
             </value>
             <value>
                 <fullName>Failed</fullName>
@@ -32,39 +37,9 @@
                 <label>Failed</label>
             </value>
             <value>
-                <fullName>QueuedForLLM</fullName>
+                <fullName>AwaitingUserConfirmation</fullName>
                 <default>false</default>
-                <label>QueuedForLLM</label>
-            </value>
-            <value>
-                <fullName>PreparingLLMCall</fullName>
-                <default>false</default>
-                <label>PreparingLLMCall</label>
-            </value>
-            <value>
-                <fullName>QueuedForProcessing</fullName>
-                <default>false</default>
-                <label>QueuedForProcessing</label>
-            </value>
-            <value>
-                <fullName>ExecutingActions</fullName>
-                <default>false</default>
-                <label>ExecutingActions</label>
-            </value>
-            <value>
-                <fullName>AwaitingActionResultLLM</fullName>
-                <default>false</default>
-                <label>AwaitingActionResultLLM</label>
-            </value>
-            <value>
-                <fullName>Finalizing</fullName>
-                <default>false</default>
-                <label>Finalizing</label>
-            </value>
-            <value>
-                <fullName>QueuedForAction</fullName>
-                <default>false</default>
-                <label>QueuedForAction</label>
+                <label>AwaitingUserConfirmation</label>
             </value>
         </valueSetDefinition>
     </valueSet>

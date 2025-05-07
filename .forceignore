@@ -18,4 +18,7 @@ package.xml
 **/*.tsbuildinfo
 **/eslint.config.mjs
 
+force-app/main/default/objects/Account/**
+force-app/main/default/profiles/**
+force-app/main/default/flexipages/Account_Record_Page.flexipage-meta.xml
 force-app/main/default/platformEventSubscriberConfigs/AgentOrchestrationStepTriggerConfig.platformEventSubscriberConfig-meta.xml

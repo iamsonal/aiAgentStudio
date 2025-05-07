@@ -177,3 +177,13 @@ pre.slds-code {
 .chat-container::-webkit-scrollbar-thumb:hover {
     background: var(--lwc-colorBorderSeparatorAlt, #c9c7c5);
 }
+
+.confirmation-prompt {
+    border: 1px solid var(--lwc-colorBorderWarning, #ffb75d);
+    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+    background-color: #fffbee;
+}
+
+.confirmation-prompt p {
+    white-space: pre-wrap;
+}

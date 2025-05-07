@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RequiresHumanApproval__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>If checked, the user will be prompted in the chat interface to explicitly confirm (Yes/No) before the agent executes this specific capability/action.</description>
+    <inlineHelpText>Check this box to force the agent to ask for user confirmation via the chat interface before proceeding with this specific action/capability.</inlineHelpText>
+    <label>Requires User Confirmation</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

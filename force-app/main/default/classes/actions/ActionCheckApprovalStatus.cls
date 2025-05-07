@@ -64,17 +64,11 @@ public class ActionCheckApprovalStatus extends BaseAgentAction {
      * @return CheckApprovalStatusParsedArguments instance.
      * @throws ValidationException If arguments are invalid.
      */
-    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(
-        String argumentsJson,
-        String logPrefix
-    ) {
+    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(String argumentsJson, String logPrefix) {
         try {
             return new CheckApprovalStatusParsedArguments(argumentsJson);
         } catch (Exception e) {
-            throw new ValidationException(
-                'Failed to parse/validate CheckApprovalStatus arguments: ' + e.getMessage(),
-                null
-            );
+            throw new ValidationException('Failed to parse/validate CheckApprovalStatus arguments: ' + e.getMessage(), null);
         }
     }
 
@@ -99,11 +93,7 @@ public class ActionCheckApprovalStatus extends BaseAgentAction {
                     CompletedDate,
                     TargetObjectId,
                     TargetObject.Name,
-                    (
-                        SELECT StepStatus, Comments, Actor.Name, CreatedDate
-                        FROM Steps
-                        ORDER BY CreatedDate DESC, Id DESC
-                    ),
+                    (SELECT StepStatus, Comments, Actor.Name, CreatedDate FROM Steps ORDER BY CreatedDate DESC, Id DESC),
                     (SELECT Actor.Name FROM Workitems WHERE ActorId != NULL ORDER BY CreatedDate DESC)
                 FROM ProcessInstance
                 WHERE TargetObjectId = :args.recordSObjectId
@@ -112,8 +102,7 @@ public class ActionCheckApprovalStatus extends BaseAgentAction {
             ];
 
             if (instances.isEmpty()) {
-                String notFoundMsg =
-                    'No approval process instance found or accessible for Record ID: ' + args.recordSObjectId;
+                String notFoundMsg = 'No approval process instance found or accessible for Record ID: ' + args.recordSObjectId;
 
                 return this.runtimeError(notFoundMsg, ERR_CODE_NOT_FOUND, null);
             }

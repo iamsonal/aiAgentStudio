@@ -70,10 +70,7 @@ public class ActionFlowHandler extends BaseAgentAction {
                     }
                 } catch (Exception e) {
                     throw new ValidationException(
-                        'Failed to parse arguments JSON for Flow: ' +
-                            e.getMessage() +
-                            '. JSON: ' +
-                            jsonArguments?.abbreviate(500),
+                        'Failed to parse arguments JSON for Flow: ' + e.getMessage() + '. JSON: ' + jsonArguments?.abbreviate(500),
                         null
                     );
                 }
@@ -88,10 +85,7 @@ public class ActionFlowHandler extends BaseAgentAction {
      * @return FlowHandlerParsedArguments instance.
      * @throws ValidationException If arguments JSON is invalid.
      */
-    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(
-        String argumentsJson,
-        String logPrefix
-    ) {
+    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(String argumentsJson, String logPrefix) {
         try {
             return new FlowHandlerParsedArguments(argumentsJson);
         } catch (ValidationException ve) {
@@ -119,9 +113,7 @@ public class ActionFlowHandler extends BaseAgentAction {
 
         if (String.isBlank(flowApiName)) {
             throw new ValidationException(
-                'Flow API Name (ImplementationName__c) is missing in the linked Action Definition (' +
-                    this.actionContext.actionDefinitionId +
-                    ').',
+                'Flow API Name (ImplementationName__c) is missing in the linked Action Definition (' + this.actionContext.actionDefinitionId + ').',
                 'ImplementationName__c'
             );
         }
@@ -136,13 +128,7 @@ public class ActionFlowHandler extends BaseAgentAction {
         }
 
         if (faultMessageText != null) {
-            String details =
-                'Flow "' +
-                flowApiName +
-                '" reported failure via "' +
-                FAULT_MESSAGE_VAR +
-                '": ' +
-                faultMessageText;
+            String details = 'Flow "' + flowApiName + '" reported failure via "' + FAULT_MESSAGE_VAR + '": ' + faultMessageText;
             String summaryForLlm = 'Flow execution reported a failure: ' + faultMessageText.abbreviate(100);
 
             return this.runtimeError(details, ERR_CODE_FLOW_FAULT, null);
@@ -151,24 +137,10 @@ public class ActionFlowHandler extends BaseAgentAction {
             String internalDetails;
 
             if (resultOutputForLlm != null) {
-                internalDetails =
-                    'Flow "' +
-                    flowApiName +
-                    '" completed. Retrieved output from variable "' +
-                    OUTPUT_RESULT_VAR +
-                    '".';
+                internalDetails = 'Flow "' + flowApiName + '" completed. Retrieved output from variable "' + OUTPUT_RESULT_VAR + '".';
             } else {
-                internalDetails =
-                    'Flow "' +
-                    flowApiName +
-                    '" completed without output in variable "' +
-                    OUTPUT_RESULT_VAR +
-                    '".';
-                resultOutputForLlm = new Map<String, Object>{
-                    'message' => 'Flow ' +
-                    flowApiName +
-                    ' completed successfully.'
-                };
+                internalDetails = 'Flow "' + flowApiName + '" completed without output in variable "' + OUTPUT_RESULT_VAR + '".';
+                resultOutputForLlm = new Map<String, Object>{ 'message' => 'Flow ' + flowApiName + ' completed successfully.' };
             }
             return this.success(resultOutputForLlm, internalDetails);
         }

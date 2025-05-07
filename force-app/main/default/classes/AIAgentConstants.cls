@@ -7,27 +7,16 @@
 
 
 /**
- * @description Defines constants used throughout the AI Agent Framework, particularly for ProcessingStatus__c values.
+ * @description Defines constants used throughout the AI Agent Framework.
+ *              Includes processing statuses, roles, error codes, and other common values.
  */
 public inherited sharing class AIAgentConstants {
     public static final String STATUS_IDLE = 'Idle';
-    public static final String STATUS_QUEUED_FOR_PROCESSING = 'QueuedForProcessing';
-    public static final String STATUS_PREPARING_LLM_CALL = 'PreparingLLMCall';
-    public static final String STATUS_AWAITING_LLM_RESPONSE = 'AwaitingLLMResponse';
-    public static final String STATUS_PROCESSING_LLM_RESPONSE = 'ProcessingLLMResponse';
-    public static final String STATUS_QUEUED_FOR_ACTION = 'QueuedForAction';
-    public static final String STATUS_EXECUTING_ACTIONS = 'ExecutingActions';
-    public static final String STATUS_AWAITING_ACTION_RESULT_LLM = 'AwaitingActionResultLLM';
-    public static final String STATUS_FINALIZING = 'Finalizing';
+    public static final String STATUS_PROCESSING = 'Processing';
+    public static final String STATUS_AWAITING_ACTION = 'AwaitingAction';
+    public static final String STATUS_AWAITING_FOLLOWUP = 'AwaitingFollowup';
+    public static final String STATUS_AWAITING_USER_CONFIRMATION = 'AwaitingUserConfirmation';
     public static final String STATUS_FAILED = 'Failed';
-
-    public static final String NEXT_EXPECTED_NONE = 'None';
-    public static final String NEXT_EXPECTED_PREPARE_LLM = 'PrepareLLM';
-    public static final String NEXT_EXPECTED_EXECUTE_LLM = 'ExecuteLLM';
-    public static final String NEXT_EXPECTED_EXECUTE_ACTIONS = 'ExecuteActions';
-    public static final String NEXT_EXPECTED_FINALIZE = 'Finalize';
-
-    public static final String EVENT_STEP_PREPARE_LLM_WITH_RESULTS = 'PrepareLLMCallWithResults';
 
     public static final String ROLE_USER = 'user';
     public static final String ROLE_ASSISTANT = 'assistant';
@@ -42,7 +31,16 @@ public inherited sharing class AIAgentConstants {
     public static final String ERR_CODE_RECORD_NOT_FOUND = 'RECORD_NOT_FOUND';
     public static final String ERR_CODE_RECORD_LOCKED = 'RECORD_LOCKED';
     public static final String ERR_CODE_CONNECT_API_ERROR = 'CONNECT_API_ERROR';
+    public static final String ERR_CODE_LLM_CALL_FAILED = 'LLM_CALL_FAILED';
+    public static final String ERR_CODE_ACTION_EXECUTION = 'ACTION_EXECUTION_FAILED';
+    public static final String ERR_CODE_FLOW_FAULT = 'FLOW_FAULT';
+    public static final String ERR_CODE_MAX_TURNS_EXCEEDED = 'MAX_TURNS_EXCEEDED';
     public static final String ERR_CODE_UNEXPECTED_ERROR = 'UNEXPECTED_ERROR';
     public static final String ERR_CODE_ACTION_HANDLER_NULL_RESULT = 'ACTION_HANDLER_NULL_RESULT';
     public static final String ERR_CODE_SYSTEM_LIMIT = 'SYSTEM_LIMIT_EXCEEDED';
+    public static final String ERR_CODE_USER_REJECTED = 'USER_REJECTED_ACTION';
+    public static final String ERR_CODE_CONFIRMATION_TIMEOUT = 'CONFIRMATION_TIMEOUT';
+    public static final String ERR_CODE_CONFIRMATION_STATE_ERROR = 'CONFIRMATION_STATE_ERROR';
+
+    public static final String NEXT_EXPECTED_NONE = 'None';
 }

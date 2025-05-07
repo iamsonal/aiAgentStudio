@@ -21,11 +21,7 @@ public class ActionPostChatter extends BaseAgentAction {
     private static final String FEED_TYPE_RECORD = 'Record';
     private static final String FEED_TYPE_USER = 'User';
     private static final String FEED_TYPE_GROUP = 'Group';
-    private static final Set<String> VALID_FEED_TYPES = new Set<String>{
-        FEED_TYPE_RECORD,
-        FEED_TYPE_USER,
-        FEED_TYPE_GROUP
-    };
+    private static final Set<String> VALID_FEED_TYPES = new Set<String>{ FEED_TYPE_RECORD, FEED_TYPE_USER, FEED_TYPE_GROUP };
 
     private static final String ERR_CODE_INPUT = AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
     private static final String ERR_CODE_INVALID_TARGET = 'INVALID_TARGET_ID';
@@ -78,10 +74,7 @@ public class ActionPostChatter extends BaseAgentAction {
             this.feedType = ActionParamUtils.getRequiredString(parsedArgs, ARG_FEED_TYPE);
             if (!VALID_FEED_TYPES.contains(this.feedType)) {
                 throw new ValidationException(
-                    'Invalid value for parameter "' +
-                        ARG_FEED_TYPE +
-                        '". Must be one of: ' +
-                        String.join(new List<String>(VALID_FEED_TYPES), ', '),
+                    'Invalid value for parameter "' + ARG_FEED_TYPE + '". Must be one of: ' + String.join(new List<String>(VALID_FEED_TYPES), ', '),
                     ARG_FEED_TYPE
                 );
             }
@@ -102,10 +95,7 @@ public class ActionPostChatter extends BaseAgentAction {
                 if (idType == User.SObjectType)
                     return 'User';
                 else
-                    throw new ValidationException(
-                        'Target ID ' + targetIdParam + ' is not a User ID, but feedType was "User".',
-                        ARG_TARGET_ID
-                    );
+                    throw new ValidationException('Target ID ' + targetIdParam + ' is not a User ID, but feedType was "User".', ARG_TARGET_ID);
             } else if (feedTypeParam == FEED_TYPE_GROUP) {
                 if (idType == CollaborationGroup.SObjectType)
                     return 'CollaborationGroup';
@@ -117,9 +107,7 @@ public class ActionPostChatter extends BaseAgentAction {
             } else if (feedTypeParam == FEED_TYPE_RECORD) {
                 if (idType == User.SObjectType || idType == CollaborationGroup.SObjectType) {
                     throw new ValidationException(
-                        'Target ID ' +
-                            targetIdParam +
-                            ' is a User/Group ID, but feedType was "Record". Use feedType "User" or "Group" instead.',
+                        'Target ID ' + targetIdParam + ' is a User/Group ID, but feedType was "Record". Use feedType "User" or "Group" instead.',
                         ARG_TARGET_ID
                     );
                 }
@@ -136,10 +124,7 @@ public class ActionPostChatter extends BaseAgentAction {
      * @return PostChatterParsedArguments instance.
      * @throws ValidationException If arguments are invalid.
      */
-    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(
-        String argumentsJson,
-        String logPrefix
-    ) {
+    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(String argumentsJson, String logPrefix) {
         try {
             return new PostChatterParsedArguments(argumentsJson);
         } catch (ActionParamUtils.ArgumentValidationException ave) {
@@ -171,11 +156,7 @@ public class ActionPostChatter extends BaseAgentAction {
 
             if (targetCheck.isEmpty()) {
                 throw new ActionSecurityException(
-                    'Target ' +
-                        args.feedType +
-                        ' with ID ' +
-                        args.targetSObjectId +
-                        ' not found or user lacks READ access.'
+                    'Target ' + args.feedType + ' with ID ' + args.targetSObjectId + ' not found or user lacks READ access.'
                 );
             }
         } catch (System.QueryException qe) {
@@ -209,17 +190,10 @@ public class ActionPostChatter extends BaseAgentAction {
             throw prepEx;
         }
 
-        ConnectApi.FeedElement feedElement = ConnectApi.ChatterFeeds.postFeedElement(
-            Network.getNetworkId(),
-            feedItemInput
-        );
+        ConnectApi.FeedElement feedElement = ConnectApi.ChatterFeeds.postFeedElement(Network.getNetworkId(), feedItemInput);
 
         String successMsg = 'Posted to Chatter feed (' + args.feedType + ') successfully.';
-        Map<String, Object> outputMap = new Map<String, Object>{
-            'isSuccess' => true,
-            'message' => successMsg,
-            'feedElementId' => feedElement.id
-        };
+        Map<String, Object> outputMap = new Map<String, Object>{ 'isSuccess' => true, 'message' => successMsg, 'feedElementId' => feedElement.id };
 
         return this.success(outputMap, 'Chatter post created. ID: ' + feedElement.id);
     }

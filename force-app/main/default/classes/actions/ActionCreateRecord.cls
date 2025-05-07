@@ -21,7 +21,6 @@ public class ActionCreateRecord extends BaseAgentAction {
     private static final String ERR_CODE_PERMISSION = AIAgentConstants.ERR_CODE_PERMISSION_DENIED;
     private static final String ERR_CODE_DML = AIAgentConstants.ERR_CODE_DML_ERROR;
     private static final String ERR_CODE_UNEXPECTED = AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
-    private static final String ERR_CODE_TYPE_COERCION = FrameworkUtils.ERR_CODE_INPUT_VALIDATION_TYPE;
 
     private String objectApiName;
     private SObjectType targetSObjectType;
@@ -54,9 +53,7 @@ public class ActionCreateRecord extends BaseAgentAction {
         Object apiNameObj = this.parsedActionConfig.get(CONFIG_KEY_OBJECT_API_NAME);
         if (!(apiNameObj instanceof String) || String.isBlank((String) apiNameObj)) {
             throw new ValidationException(
-                'Required property "' +
-                    CONFIG_KEY_OBJECT_API_NAME +
-                    '" in ActionConfiguration must be a non-blank String.',
+                'Required property "' + CONFIG_KEY_OBJECT_API_NAME + '" in ActionConfiguration must be a non-blank String.',
                 CONFIG_KEY_OBJECT_API_NAME
             );
         }
@@ -64,10 +61,7 @@ public class ActionCreateRecord extends BaseAgentAction {
 
         this.targetSObjectType = Schema.getGlobalDescribe().get(this.objectApiName.toLowerCase());
         if (this.targetSObjectType == null) {
-            throw new ValidationException(
-                'Invalid SObject API Name configured: ' + this.objectApiName,
-                CONFIG_KEY_OBJECT_API_NAME
-            );
+            throw new ValidationException('Invalid SObject API Name configured: ' + this.objectApiName, CONFIG_KEY_OBJECT_API_NAME);
         }
 
         if (this.parsedActionConfig.get(CONFIG_KEY_DEFAULT_VALUES) instanceof Map<String, Object>) {
@@ -93,10 +87,7 @@ public class ActionCreateRecord extends BaseAgentAction {
      * @return CreateRecordParsedArguments instance.
      * @throws ValidationException if arguments JSON is invalid or empty (when no defaults exist).
      */
-    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(
-        String argumentsJson,
-        String logPrefix
-    ) {
+    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(String argumentsJson, String logPrefix) {
         Map<String, Object> llmRecordData;
         try {
             if (String.isBlank(argumentsJson)) {
@@ -109,10 +100,7 @@ public class ActionCreateRecord extends BaseAgentAction {
             }
         } catch (Exception e) {
             throw new ValidationException(
-                'Failed to parse or validate input arguments JSON: ' +
-                    e.getMessage() +
-                    '. Received JSON: ' +
-                    argumentsJson,
+                'Failed to parse or validate input arguments JSON: ' + e.getMessage() + '. Received JSON: ' + argumentsJson,
                 null
             );
         }
@@ -145,11 +133,7 @@ public class ActionCreateRecord extends BaseAgentAction {
 
             Map<String, Object> typedData;
             try {
-                typedData = ActionParamUtils.coerceArgumentTypesForSObject(
-                    finalDataToSet,
-                    this.targetSObjectType,
-                    AccessType.CREATABLE
-                );
+                typedData = ActionParamUtils.coerceArgumentTypesForSObject(finalDataToSet, this.targetSObjectType, AccessType.CREATABLE);
             } catch (ActionParamUtils.InvalidArgumentTypeException typeEx) {
                 throw new ValidationException(typeEx.getMessage(), null);
             } catch (SecurityUtils.ActionSecurityException secEx) {
@@ -187,10 +171,7 @@ public class ActionCreateRecord extends BaseAgentAction {
         if (sr.isSuccess()) {
             String newRecordId = sr.getId();
             String successMsg = 'Successfully created ' + this.objectApiName + ' record.';
-            Map<String, Object> outputMap = new Map<String, Object>{
-                'recordId' => newRecordId,
-                'message' => successMsg
-            };
+            Map<String, Object> outputMap = new Map<String, Object>{ 'recordId' => newRecordId, 'message' => successMsg };
             String internalDetails =
                 'Record created. ID: ' +
                 newRecordId +

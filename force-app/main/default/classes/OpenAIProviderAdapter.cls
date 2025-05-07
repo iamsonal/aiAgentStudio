@@ -13,12 +13,14 @@
  *              Parses text content, tool call requests, and token usage into ProviderResult.
  */
 public class OpenAIProviderAdapter implements ILLMProviderAdapter {
-    private static final String API_KEY = 'sk-proj-';
-
     private static final Double DEFAULT_BACKOFF_FACTOR = 2.0;
     private static final Double JITTER_FACTOR = 0.3;
     private static final Integer MAX_DELAY_MS = 30000;
-    private static final String LOG_PREFIX = 'OpenAIAdapter: ';
+    private static final String LOG_PREFIX = '[OpenAIAdapter] ';
+
+    /** @description Exception specifically for errors during OpenAI response parsing */
+    public class OpenAIParseException extends LLMProviderException {
+    }
 
     /**
      * @description Sends messages and tool definitions to OpenAI, handling transient errors with retries.
@@ -37,7 +39,7 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
     ) {
         RetryConfig retryConfig = getRetryConfig(llmConfig);
 
-        HttpRequest req = buildHttpRequest(llmConfig, agentConfig, messagesPayload, toolsPayload);
+        HttpRequest req = buildHttpRequest(llmConfig, messagesPayload, toolsPayload);
 
         HttpResponse res = null;
         Exception lastException = null;
@@ -46,15 +48,14 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         while (attempt <= retryConfig.maxAttempts) {
             Long calloutStartTime = System.currentTimeMillis();
             lastException = null;
-
             try {
                 Http http = new Http();
 
                 res = http.send(req);
-                Long calloutDuration = System.currentTimeMillis() - calloutStartTime;
+                Long callDuration = System.currentTimeMillis() - calloutStartTime;
 
                 if (res.getStatusCode() >= 200 && res.getStatusCode() < 300) {
-                    return parseOpenAIResponse(res.getBody());
+                    return this.parseOpenAIResponse(res.getBody());
                 } else {
                     if (isRetryable(null, res, retryConfig.retryableStatusCodes) && attempt < retryConfig.maxAttempts) {
                         handleRetryDelay(attempt, retryConfig, LOG_PREFIX);
@@ -75,39 +76,26 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
                     attempt++;
                     continue;
                 } else {
-                    throw new LLMProviderException(
-                        'Callout failed sending request to OpenAI after ' +
-                            (attempt + 1) +
-                            ' attempts: ' +
-                            ce.getMessage(),
-                        ce
-                    );
+                    throw new LLMProviderException('Callout failed: ' + ce.getMessage(), ce);
                 }
+            } catch (OpenAIParseException pex) {
+                lastException = pex;
+
+                throw new LLMProviderException('Failed to parse OpenAI response: ' + pex.getMessage(), pex);
             } catch (Exception e) {
                 lastException = e;
 
-                throw new LLMProviderException(
-                    'Unexpected internal error during OpenAI call processing: ' + e.getMessage(),
-                    e
-                );
+                throw new LLMProviderException('Unexpected internal error: ' + e.getMessage(), e);
             }
         }
 
-        if (lastException != null) {
-            throw new LLMProviderException(
-                'LLM call failed after exhausting all retries. Last Error: ' + lastException.getMessage(),
-                lastException
-            );
-        } else if (res != null) {
-            throw new LLMProviderException(
-                'LLM call failed after exhausting all retries. Last HTTP Status: ' +
-                    res.getStatusCode() +
-                    ' - ' +
-                    getErrorMessageFromResponse(res)
-            );
-        } else {
-            throw new LLMProviderException('LLM call failed after exhausting all retries. Unknown final state.');
-        }
+        String finalError = LOG_PREFIX + 'LLM call failed after exhausting all retries.';
+        if (lastException != null)
+            finalError += ' Last Error: ' + lastException.getMessage();
+        else if (res != null)
+            finalError += ' Last HTTP Status: ' + res.getStatusCode() + ' - ' + getErrorMessageFromResponse(res);
+
+        throw new LLMProviderException(finalError, lastException);
     }
 
     /**
@@ -143,8 +131,7 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         Decimal backoffFactor = DEFAULT_BACKOFF_FACTOR;
         Decimal baseDelay = config.initialDelayMs * (backoffFactor.pow(currentAttempt + 1));
 
-        Decimal jitter =
-            Math.random() * config.initialDelayMs * JITTER_FACTOR * 2 - (config.initialDelayMs * JITTER_FACTOR);
+        Decimal jitter = Math.random() * config.initialDelayMs * JITTER_FACTOR * 2 - (config.initialDelayMs * JITTER_FACTOR);
 
         Integer delayMs = Integer.valueOf(baseDelay + jitter);
         delayMs = Math.max(0, delayMs);
@@ -164,32 +151,17 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
     private RetryConfig getRetryConfig(LLMConfiguration__c llmConfig) {
         RetryConfig config = new RetryConfig();
 
-        Integer settingsDefaultAttempts = AIAgentFrameworkSettings.getDefaultMaxRetryAttempts();
-        if (llmConfig.MaxRetryAttempts__c != null && llmConfig.MaxRetryAttempts__c >= 0) {
-            config.maxAttempts = Integer.valueOf(llmConfig.MaxRetryAttempts__c);
-        } else {
-            config.maxAttempts = settingsDefaultAttempts;
-        }
-
-        Integer settingsDefaultDelay = AIAgentFrameworkSettings.getDefaultInitialRetryDelayMillis();
-        if (llmConfig.InitialRetryDelayMillis__c != null && llmConfig.InitialRetryDelayMillis__c > 0) {
-            config.initialDelayMs = Integer.valueOf(llmConfig.InitialRetryDelayMillis__c);
-        } else {
-            config.initialDelayMs = settingsDefaultDelay;
-        }
-
-        Set<Integer> settingsDefaultCodes = AIAgentFrameworkSettings.getDefaultRetryableStatusCodes();
-        if (String.isNotBlank(llmConfig.RetryableHttpStatusCodes__c)) {
-            config.retryableStatusCodes = AIAgentFrameworkSettings.parseRetryableCodes(
-                llmConfig.RetryableHttpStatusCodes__c
-            );
-
-            if (config.retryableStatusCodes.isEmpty() && String.isNotBlank(llmConfig.RetryableHttpStatusCodes__c)) {
-            }
-        } else {
-            config.retryableStatusCodes = settingsDefaultCodes;
-        }
-
+        config.maxAttempts = (llmConfig.MaxRetryAttempts__c != null &&
+            llmConfig.MaxRetryAttempts__c >= 0)
+            ? Integer.valueOf(llmConfig.MaxRetryAttempts__c)
+            : AIAgentFrameworkSettings.getDefaultMaxRetryAttempts();
+        config.initialDelayMs = (llmConfig.InitialRetryDelayMillis__c != null &&
+            llmConfig.InitialRetryDelayMillis__c > 0)
+            ? Integer.valueOf(llmConfig.InitialRetryDelayMillis__c)
+            : AIAgentFrameworkSettings.getDefaultInitialRetryDelayMillis();
+        config.retryableStatusCodes = String.isNotBlank(llmConfig.RetryableHttpStatusCodes__c)
+            ? AIAgentFrameworkSettings.parseRetryableCodes(llmConfig.RetryableHttpStatusCodes__c)
+            : AIAgentFrameworkSettings.getDefaultRetryableStatusCodes();
         return config;
     }
 
@@ -206,7 +178,6 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
     /** Builds HttpRequest including messages and tools */
     private HttpRequest buildHttpRequest(
         LLMConfiguration__c llmConfig,
-        AIAgentDefinition__c agentConfig,
         List<Map<String, Object>> openAIMessages,
         List<Map<String, Object>> openAITools
     ) {
@@ -216,12 +187,7 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         req.setMethod('POST');
         req.setHeader('Content-Type', 'application/json; charset=utf-8');
 
-        req.setHeader('Authorization', 'Bearer ' + API_KEY);
-
-        Map<String, Object> body = new Map<String, Object>{
-            'model' => llmConfig.DefaultModelIdentifier__c,
-            'messages' => openAIMessages
-        };
+        Map<String, Object> body = new Map<String, Object>{ 'model' => llmConfig.DefaultModelIdentifier__c, 'messages' => openAIMessages };
         if (llmConfig.DefaultTemperature__c != null) {
             body.put('temperature', llmConfig.DefaultTemperature__c);
         }
@@ -233,134 +199,9 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         }
 
         req.setBody(JSON.serialize(body));
-
         req.setTimeout(120000);
 
         return req;
-    }
-
-    /**
-     * Parses the JSON response body from OpenAI Chat Completions API into a ProviderResult.
-     * Handles extracting text content, tool call requests (both raw list and full message object),
-     * and token usage.
-     * @param jsonBody The JSON string response from the OpenAI API.
-     * @return ProviderResult containing parsed data.
-     * @throws LLMProviderException If the JSON is invalid or critical fields are missing/malformed.
-     */
-    private ProviderResult parseOpenAIResponse(String jsonBody) {
-        if (String.isBlank(jsonBody)) {
-            throw new LLMProviderException('Received blank response body from OpenAI.');
-        }
-
-        String content = null;
-        Integer promptTokens = null;
-        Integer completionTokens = null;
-        Integer totalTokens = null;
-        List<Map<String, String>> parsedActions = new List<Map<String, String>>();
-        String rawToolCallsListJson = null;
-        String rawAssistantMessageWithActionsJson = null;
-
-        try {
-            Map<String, Object> responseMap = (Map<String, Object>) JSON.deserializeUntyped(jsonBody);
-
-            if (responseMap.get('usage') instanceof Map<String, Object>) {
-                Map<String, Object> usage = (Map<String, Object>) responseMap.get('usage');
-
-                if (usage.get('prompt_tokens') instanceof Integer || usage.get('prompt_tokens') instanceof Decimal) {
-                    promptTokens = Integer.valueOf(usage.get('prompt_tokens'));
-                } else {
-                }
-
-                if (
-                    usage.get('completion_tokens') instanceof Integer ||
-                    usage.get('completion_tokens') instanceof Decimal
-                ) {
-                    completionTokens = Integer.valueOf(usage.get('completion_tokens'));
-                } else {
-                }
-
-                if (usage.get('total_tokens') instanceof Integer || usage.get('total_tokens') instanceof Decimal) {
-                    totalTokens = Integer.valueOf(usage.get('total_tokens'));
-                } else {
-                }
-            } else {
-            }
-
-            if (responseMap.get('choices') instanceof List<Object>) {
-                List<Object> choices = (List<Object>) responseMap.get('choices');
-                if (!choices.isEmpty() && choices[0] instanceof Map<String, Object>) {
-                    Map<String, Object> choice = (Map<String, Object>) choices[0];
-
-                    if (choice.get('message') instanceof Map<String, Object>) {
-                        Map<String, Object> message = (Map<String, Object>) choice.get('message');
-
-                        if (message.get('content') instanceof String) {
-                            content = (String) message.get('content');
-                        } else {
-                        }
-
-                        if (message.get('tool_calls') instanceof List<Object>) {
-                            List<Object> rawToolCallsList = (List<Object>) message.get('tool_calls');
-                            if (!rawToolCallsList.isEmpty()) {
-                                rawToolCallsListJson = JSON.serialize(rawToolCallsList);
-
-                                rawAssistantMessageWithActionsJson = JSON.serialize(message);
-
-                                for (Object callObj : rawToolCallsList) {
-                                    if (callObj instanceof Map<String, Object>) {
-                                        Map<String, Object> callMap = (Map<String, Object>) callObj;
-
-                                        if (
-                                            'function'.equalsIgnoreCase(String.valueOf(callMap.get('type'))) &&
-                                            callMap.get('function') instanceof Map<String, Object>
-                                        ) {
-                                            String toolCallId = String.valueOf(callMap.get('id'));
-                                            Map<String, Object> funcMap = (Map<String, Object>) callMap.get('function');
-                                            String funcName = String.valueOf(funcMap.get('name'));
-                                            String argsJson = String.valueOf(funcMap.get('arguments'));
-
-                                            if (
-                                                String.isNotBlank(toolCallId) &&
-                                                String.isNotBlank(funcName) &&
-                                                argsJson != null
-                                            ) {
-                                                parsedActions.add(
-                                                    new Map<String, String>{
-                                                        'id' => toolCallId,
-                                                        'name' => funcName,
-                                                        'arguments' => argsJson
-                                                    }
-                                                );
-                                            } else {
-                                            }
-                                        } else {
-                                        }
-                                    } else {
-                                    }
-                                }
-                            } else {
-                            }
-                        }
-                    } else {
-                    }
-                } else {
-                }
-            } else {
-                throw new LLMProviderException('OpenAI response missing required "choices" list.');
-            }
-        } catch (Exception e) {
-            throw new LLMProviderException('Failed to parse OpenAI JSON response: ' + e.getMessage(), e);
-        }
-
-        return new ProviderResult(
-            content,
-            promptTokens,
-            completionTokens,
-            totalTokens,
-            parsedActions,
-            rawToolCallsListJson,
-            rawAssistantMessageWithActionsJson
-        );
     }
 
     /** Minimal error message parsing */
@@ -380,5 +221,128 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         } catch (Exception e) {
         }
         return defaultMessage;
+    }
+
+    /**
+     * Parses the successful JSON response body from the OpenAI Chat Completions API
+     * into the standardized ProviderResult DTO.
+     * @param jsonBody The JSON string response body.
+     * @return ProviderResult Fully populated DTO.
+     * @throws OpenAIParseException If JSON is invalid or critical fields are missing/malformed.
+     */
+    private ProviderResult parseOpenAIResponse(String jsonBody) {
+        if (String.isBlank(jsonBody)) {
+            throw new OpenAIParseException('Cannot parse blank response body.');
+        }
+
+        String content = null;
+        Integer promptTokens = null;
+        Integer completionTokens = null;
+        Integer totalTokens = null;
+        List<Map<String, String>> parsedActions = new List<Map<String, String>>();
+        String rawToolCallsListJson = null;
+        String rawAssistantMessageWithActionsJson = null;
+
+        try {
+            Map<String, Object> responseMap = (Map<String, Object>) JSON.deserializeUntyped(jsonBody);
+
+            if (responseMap.get('usage') instanceof Map<String, Object>) {
+                Map<String, Object> usage = (Map<String, Object>) responseMap.get('usage');
+                promptTokens = safeGetInteger(usage.get('prompt_tokens'), 'prompt_tokens');
+                completionTokens = safeGetInteger(usage.get('completion_tokens'), 'completion_tokens');
+                totalTokens = safeGetInteger(usage.get('total_tokens'), 'total_tokens');
+            } else {
+            }
+
+            if (responseMap.get('choices') instanceof List<Object>) {
+                List<Object> choices = (List<Object>) responseMap.get('choices');
+                if (!choices.isEmpty() && choices[0] instanceof Map<String, Object>) {
+                    Map<String, Object> choice = (Map<String, Object>) choices[0];
+                    if (choice.get('message') instanceof Map<String, Object>) {
+                        Map<String, Object> message = (Map<String, Object>) choice.get('message');
+
+                        rawAssistantMessageWithActionsJson = JSON.serialize(message);
+
+                        if (message.get('content') instanceof String) {
+                            content = (String) message.get('content');
+                        }
+
+                        if (message.get('tool_calls') instanceof List<Object>) {
+                            List<Object> rawToolCallsList = (List<Object>) message.get('tool_calls');
+                            if (!rawToolCallsList.isEmpty()) {
+                                rawToolCallsListJson = JSON.serialize(rawToolCallsList);
+                                parsedActions = this.parseStructuredToolCalls(rawToolCallsList);
+                            }
+                        }
+                    } else {
+                        throw new OpenAIParseException('OpenAI response choice missing required "message" object.');
+                    }
+                } else {
+                }
+            } else {
+                throw new OpenAIParseException('OpenAI response missing required "choices" list.');
+            }
+        } catch (JSONException jex) {
+            throw new OpenAIParseException('Failed to parse OpenAI JSON response body: ' + jex.getMessage(), jex);
+        } catch (Exception e) {
+            if (e instanceof OpenAIParseException)
+                throw e;
+            throw new OpenAIParseException('Unexpected error during OpenAI response parsing: ' + e.getMessage(), e);
+        }
+
+        return new ProviderResult(
+            content,
+            promptTokens,
+            completionTokens,
+            totalTokens,
+            parsedActions,
+            rawToolCallsListJson,
+            rawAssistantMessageWithActionsJson
+        );
+    }
+
+    /**
+     * Parses the raw 'tool_calls' list from LLM response into the structured map format needed by ProviderResult.
+     * Specific to OpenAI 'function' tool call structure.
+     * @param rawToolCallsList The List<Object> from the 'tool_calls' field.
+     * @return List<Map<String, String>> where each map has {id, name, arguments}.
+     */
+    private List<Map<String, String>> parseStructuredToolCalls(List<Object> rawToolCallsList) {
+        List<Map<String, String>> actions = new List<Map<String, String>>();
+        for (Object callObj : rawToolCallsList) {
+            if (callObj instanceof Map<String, Object>) {
+                Map<String, Object> callMap = (Map<String, Object>) callObj;
+                if ('function'.equalsIgnoreCase(String.valueOf(callMap.get('type'))) && callMap.get('function') instanceof Map<String, Object>) {
+                    String toolCallId = String.valueOf(callMap.get('id'));
+                    Map<String, Object> funcMap = (Map<String, Object>) callMap.get('function');
+                    String funcName = String.valueOf(funcMap.get('name'));
+                    Object argsObj = funcMap.get('arguments');
+                    String argsJson = (argsObj instanceof String) ? (String) argsObj : null;
+
+                    if (String.isNotBlank(toolCallId) && String.isNotBlank(funcName) && argsJson != null) {
+                        actions.add(new Map<String, String>{ 'id' => toolCallId, 'name' => funcName, 'arguments' => argsJson });
+                    } else {
+                    }
+                } else {
+                }
+            } else {
+            }
+        }
+        return actions;
+    }
+
+    /** Safely attempts to get an Integer value from an Object, handling potential Decimal conversion */
+
+    private static Integer safeGetInteger(Object val, String fieldName) {
+        if (val == null)
+            return null;
+        try {
+            if (val instanceof Integer)
+                return (Integer) val;
+            if (val instanceof Decimal)
+                return ((Decimal) val).intValue();
+        } catch (Exception e) {
+        }
+        return null;
     }
 }
