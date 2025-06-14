@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description Manages the lifecycle and state transitions of a chat session turn.
@@ -14,35 +14,42 @@ public inherited sharing class TurnLifecycleService {
     public class LifecycleException extends AIAgentException {
     }
 
-    private ChatSessionStateService stateService;
+    private final ChatSessionStateService stateService;
 
+    /**
+     * @description Default constructor for ease of use.
+     */
     public TurnLifecycleService() {
-        this.stateService = new ChatSessionStateService();
+        this(new ChatSessionStateService());
     }
 
-    @TestVisible
-    private TurnLifecycleService(ChatSessionStateService mockStateService) {
-        this.stateService = mockStateService;
+    /**
+     * @description Main constructor for dependency injection.
+     * @param stateService The state service implementation to use.
+     */
+    public TurnLifecycleService(ChatSessionStateService stateService) {
+        if (stateService == null) {
+            throw new IllegalArgumentException('ChatSessionStateService cannot be null.');
+        }
+        this.stateService = stateService;
     }
 
     /** Called when a turn begins any form of active processing (LLM call, action exec) */
     public void startTurnProcessing(Id sessionId, String turnIdentifier, Id jobIdIfAny, String logPrefix) {
-        this.stateService.updateStatus(sessionId, AIAgentConstants.STATUS_PROCESSING, jobIdIfAny, null, turnIdentifier);
-    }
-
-    /** Called when pausing for user confirmation before an action. */
-    public void pauseForUserConfirmation(Id sessionId, String turnIdentifier, String logPrefix) {
-        this.stateService.updateStatus(sessionId, AIAgentConstants.STATUS_AWAITING_USER_CONFIRMATION, null, null, turnIdentifier);
+        String stepDesc = generateStepDescription(AIAgentConstants.STATUS_PROCESSING, null);
+        this.stateService.updateStatus(sessionId, AIAgentConstants.STATUS_PROCESSING, jobIdIfAny, null, turnIdentifier, stepDesc);
     }
 
     /** Called when an asynchronous action is queued, and we are waiting for its completion. */
-    public void pauseForAsyncAction(Id sessionId, String turnIdentifier, Id jobId, String logPrefix) {
-        this.stateService.updateStatus(sessionId, AIAgentConstants.STATUS_AWAITING_ACTION, jobId, null, turnIdentifier);
+    public void pauseForAsyncAction(Id sessionId, String turnIdentifier, Id jobId, String toolName, String logPrefix) {
+        String stepDesc = generateStepDescription(AIAgentConstants.STATUS_AWAITING_ACTION, toolName);
+        this.stateService.updateStatus(sessionId, AIAgentConstants.STATUS_AWAITING_ACTION, jobId, null, turnIdentifier, stepDesc);
     }
 
     /** Called after a tool/action completes and the system needs another LLM call to continue the turn. */
     public void resumeForFollowUpLlmCall(Id sessionId, String turnIdentifier, Id nextJobId, String logPrefix) {
-        this.stateService.updateStatus(sessionId, AIAgentConstants.STATUS_AWAITING_FOLLOWUP, nextJobId, null, turnIdentifier);
+        String stepDesc = generateStepDescription(AIAgentConstants.STATUS_AWAITING_FOLLOWUP, null);
+        this.stateService.updateStatus(sessionId, AIAgentConstants.STATUS_AWAITING_FOLLOWUP, nextJobId, null, turnIdentifier, stepDesc);
     }
 
     /**
@@ -61,5 +68,41 @@ public inherited sharing class TurnLifecycleService {
         this.stateService.updateFinalStatus(sessionId, false, errorDetailForState?.abbreviate(131072), turnIdentifier);
 
         this.stateService.publishFinalResponseEvent(sessionId, false, null, errorMessage?.abbreviate(255), turnIdentifier);
+    }
+
+    /**
+     * @description Generates a user-friendly status message based on the new state and optional context.
+     * @param newStatus The technical status from AIAgentConstants.
+     * @param contextName Optional context, like a Tool Name.
+     * @return A user-friendly string for display.
+     */
+    @TestVisible
+    private String generateStepDescription(String newStatus, String contextName) {
+        if (String.isBlank(newStatus))
+            return null;
+
+        switch on newStatus {
+            when 'Processing' {
+                return 'Thinking...';
+            }
+            when 'AwaitingAction' {
+                return 'Executing: ' + (String.isNotBlank(contextName) ? contextName.abbreviate(50) : 'Action');
+            }
+            when 'AwaitingFollowup' {
+                return 'Processing results...';
+            }
+            when 'AwaitingUserConfirmation' {
+                return 'Waiting for your confirmation...';
+            }
+            when 'Failed' {
+                return 'An error occurred.';
+            }
+            when 'Idle' {
+                return 'Done.';
+            }
+            when else {
+                return 'Processing...';
+            }
+        }
     }
 }

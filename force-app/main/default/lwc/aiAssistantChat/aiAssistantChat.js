@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 import { LightningElement, api, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
@@ -18,15 +18,13 @@ import sendMessage from '@salesforce/apex/AIAssistantController.sendMessage';
 import createNewChatSession from '@salesforce/apex/AIAssistantController.createNewChatSession';
 import getChatHistory from '@salesforce/apex/AIAssistantController.getChatHistory';
 import getPreviousChatSessions from '@salesforce/apex/AIAssistantController.getPreviousChatSessions';
-import getChatMessageById from '@salesforce/apex/AIAssistantController.getChatMessageById';
-import handleUserConfirmation from '@salesforce/apex/AIAssistantController.handleUserConfirmation';
 
 const SCROLL_TOLERANCE = 10;
-const CONFIRMATION_EVENT_CHANNEL = '/event/AgentActionConfirmationRequest__e';
 
 export default class AiAssistantChat extends LightningElement {
     @api recordId;
     @api cardTitle = 'AI Assistant';
+    @api agentDeveloperName = 'SalesCopilot';
 
     placeholderMessage = 'Start a new chat session to begin your conversation.';
 
@@ -37,15 +35,12 @@ export default class AiAssistantChat extends LightningElement {
     criticalError = null;
     allSessionOptions = [];
     selectedSessionValue = null;
-    agentDeveloperName = 'SalesCopilot';
-
-    confirmationRequestData = null;
-    showConfirmationPrompt = false;
-    isHandlingConfirmation = false;
 
     oldestMessageTimestamp = null;
     hasMoreHistory = false;
     isLoadingMoreHistory = false;
+
+    _currentRecordId = null;
 
     _isUserScrolledUp = false;
     _isInitialLoadComplete = false;
@@ -57,9 +52,15 @@ export default class AiAssistantChat extends LightningElement {
     subscription = {};
     isSubscribed = false;
     finalResponseSubscription = {};
-    confirmationSubscription = {};
 
-    @wire(CurrentPageReference) pageRef;
+    @wire(CurrentPageReference)
+    pageRefChanged(pageRef) {
+        if (pageRef?.attributes?.recordId) {
+            this._currentRecordId = pageRef.attributes.recordId;
+        } else {
+            this._currentRecordId = null;
+        }
+    }
 
     connectedCallback() {
         this._initializeComponent();
@@ -200,7 +201,8 @@ export default class AiAssistantChat extends LightningElement {
         await this.runWithLoading('history', async () => {
             try {
                 const newId = await createNewChatSession({
-                    recordId: contextRecordId
+                    recordId: contextRecordId,
+                    requestedAgentDevName: this.agentDeveloperName
                 });
                 this.currentSessionId = newId;
                 this.selectedSessionValue = newId;
@@ -376,6 +378,7 @@ export default class AiAssistantChat extends LightningElement {
         this.chatMessages = [...this.chatMessages, userMsgForDisplay];
 
         const messageToSendToApex = this.userMessageInput;
+        const contextRecordIdForTurn = this._currentRecordId;
         this.userMessageInput = '';
         this.loadingState = { ...this.loadingState, sending: true };
         this.criticalError = null;
@@ -384,7 +387,8 @@ export default class AiAssistantChat extends LightningElement {
         try {
             const result = await sendMessage({
                 sessionId: this.currentSessionId,
-                userMessage: messageToSendToApex
+                userMessage: messageToSendToApex,
+                currentRecordId: contextRecordIdForTurn
             });
 
             console.log('sendMessage Apex call successful, queuing started. Waiting for Platform Event...');
@@ -469,94 +473,12 @@ export default class AiAssistantChat extends LightningElement {
             this.finalResponseSubscription = finalSub;
             console.log(`Subscription successful for channel: ${this.channelName}`, this.finalResponseSubscription);
 
-            console.log(`Subscribing to confirmation channel: ${CONFIRMATION_EVENT_CHANNEL}`);
-            const confirmSub = await subscribe(CONFIRMATION_EVENT_CHANNEL, -1, this.handleConfirmationRequestEvent.bind(this));
-            this.confirmationSubscription = confirmSub;
-            console.log(`Subscription successful for channel: ${CONFIRMATION_EVENT_CHANNEL}`, this.confirmationSubscription);
-
             this.isSubscribed = true;
         } catch (error) {
             this.isSubscribed = false;
             this.handleError('Event Subscription Failed', error);
             console.error(`Error subscribing to ${this.channelName}:`, JSON.stringify(error));
         }
-    }
-
-    handleConfirmationRequestEvent(response) {
-        console.log('Received CONFIRMATION request event:', JSON.stringify(response));
-        const payload = response?.data?.payload;
-        if (!payload) {
-            console.warn('Received confirmation event without payload:', response);
-            return;
-        }
-
-        const eventSessionId = payload.ChatSessionId__c;
-
-        if (eventSessionId !== this.currentSessionId) {
-            console.log(`Ignoring confirmation event for session ${eventSessionId}, current session is ${this.currentSessionId}`);
-            return;
-        }
-
-        this.loadingState = { ...this.loadingState, sending: false };
-        this.isHandlingConfirmation = false;
-
-        this.confirmationRequestData = {
-            sessionId: eventSessionId,
-            assistantMessageId: payload.AssistantMessageId__c,
-            actionName: payload.ActionName__c,
-            confirmationMessage: payload.ConfirmationMessage__c,
-            fullActionArgumentsJson: payload.FullActionArgumentsJson__c,
-            confirmationRequestId: payload.ConfirmationRequestId__c
-        };
-
-        this.showConfirmationPrompt = true;
-        this._requestAutoScroll();
-
-        console.log('Stored confirmation request details and displaying prompt.', this.confirmationRequestData);
-    }
-
-    async handleConfirmationResponse(wasApproved) {
-        if (!this.confirmationRequestData || this.isHandlingConfirmation) {
-            console.warn('No pending confirmation or already handling.');
-            return;
-        }
-
-        console.log(`User responded to confirmation: ${wasApproved ? 'Approved' : 'Rejected'}`);
-        this.isHandlingConfirmation = true;
-        this.showConfirmationPrompt = false;
-
-        const { sessionId, assistantMessageId, confirmationRequestId } = this.confirmationRequestData;
-
-        try {
-            const result = await handleUserConfirmation({
-                sessionId: sessionId,
-                assistantMessageId: assistantMessageId,
-                approved: wasApproved,
-                confirmationRequestId: confirmationRequestId
-            });
-
-            if (result && result.success) {
-                this.showToast('Processing', wasApproved ? 'Action processing initiated...' : 'Action cancelled.', 'info');
-            } else {
-                const errMsg = result?.error || 'Failed to process confirmation response.';
-                this.handleError('Confirmation Handling Failed', { message: errMsg }, true);
-                this.displayFrameworkError(errMsg);
-            }
-        } catch (error) {
-            this.handleError('Error handling user confirmation', error, true);
-            this.displayFrameworkError(`Error processing confirmation: ${error.message || 'Unknown Error'}`);
-        } finally {
-            this.isHandlingConfirmation = false;
-            this.confirmationRequestData = null;
-        }
-    }
-
-    handleApproveClick() {
-        this.handleConfirmationResponse(true);
-    }
-
-    handleRejectClick() {
-        this.handleConfirmationResponse(false);
     }
 
     handleUnsubscribe() {
@@ -569,14 +491,6 @@ export default class AiAssistantChat extends LightningElement {
             this.finalResponseSubscription = {};
         }
 
-        if (this.confirmationSubscription && this.confirmationSubscription.channel) {
-            unsubscribe(this.confirmationSubscription, (response) => {
-                console.log(`Unsubscribe response for channel ${this.confirmationSubscription?.channel}:`, JSON.stringify(response));
-            }).catch((error) => {
-                console.error(`Error unsubscribing from ${this.confirmationSubscription?.channel}:`, JSON.stringify(error));
-            });
-            this.confirmationSubscription = {};
-        }
         this.isSubscribed = false;
     }
 
@@ -604,66 +518,29 @@ export default class AiAssistantChat extends LightningElement {
 
         console.log(`Processing AgentResponse__e for session ${eventSessionId}`);
         this.loadingState = { ...this.loadingState, sending: false };
-        this.isHandlingConfirmation = false;
 
         const isSuccess = payload.IsSuccess__c;
         const finalMsgId = payload.FinalAssistantMessageId__c;
+        const finalMsgContent = payload.FinalMessageContent__c;
         const errorDetails = payload.ErrorDetails__c;
 
-        try {
-            if (isSuccess && finalMsgId) {
-                console.log(`Fetching final assistant message: ${finalMsgId}`);
-                const finalMessage = await getChatMessageById({ messageId: finalMsgId });
-
-                if (finalMessage) {
-                    console.log(`ChatMessages length BEFORE update: ${this.chatMessages.length}`);
-                    const messageCountBefore = this.chatMessages.length;
-
-                    const formattedMsg = formatDisplayMessages([finalMessage], this.chatMessages.length)[0];
-
-                    console.log('Formatted message object:', JSON.stringify(formattedMsg));
-                    if (!formattedMsg || !formattedMsg.displayKey) {
-                        console.error('CRITICAL: formatDisplayMessages returned invalid object!', formattedMsg);
-                        this.displayFrameworkError('Internal error formatting the agent response.');
-                        return;
-                    }
-
-                    this.chatMessages = [...this.chatMessages, formattedMsg];
-
-                    console.log(`ChatMessages length AFTER update: ${this.chatMessages.length}`);
-                    if (this.chatMessages.length <= messageCountBefore) {
-                        console.error('CRITICAL: chatMessages array length did NOT increase after update!');
-                    } else {
-                        console.log('Last item key after update:', this.chatMessages[this.chatMessages.length - 1]?.displayKey);
-                    }
-
-                    console.log('Appended final message to chat.');
-                    this._requestAutoScroll();
-                } else {
-                    console.warn(`Could not find ChatMessage for final ID: ${finalMsgId}. Displaying fallback.`);
-
-                    this.displayFrameworkError('Agent processing complete, but failed to load the final message content.');
-                }
-            } else if (isSuccess && !finalMsgId) {
-                console.log('Agent processing completed successfully without a final textual message.');
-            } else {
-                console.error(`Agent Turn Failed. Details: ${errorDetails}`);
-                const agentFailMsgData = {
-                    role: 'system',
-                    content: `Agent processing failed. Details: ${errorDetails || 'No details provided.'}`,
-                    timestamp: Date.now(),
-                    externalId: `agent-error-${Date.now()}`,
-                    isAgentError: true,
-                    isSystemError: false
-                };
-                const agentFailMsgForDisplay = formatDisplayMessages([agentFailMsgData], this.chatMessages.length)[0];
-                this.chatMessages = [...this.chatMessages, agentFailMsgForDisplay];
-                this.showToast('Agent Processing Error', errorDetails || 'The agent failed to complete the request.', 'error');
-                this._requestAutoScroll();
-            }
-        } catch (error) {
-            this.handleError('Error processing agent response event', error);
-            this.displayFrameworkError(`An internal error occurred while displaying the agent's response.`);
+        if (isSuccess && finalMsgId && finalMsgContent) {
+            const finalMessage = {
+                id: finalMsgId,
+                role: 'assistant',
+                content: finalMsgContent,
+                timestamp: Date.now(),
+                externalId: `msg-${finalMsgId}`
+            };
+            const formattedMsg = formatDisplayMessages([finalMessage], this.chatMessages.length)[0];
+            this.chatMessages = [...this.chatMessages, formattedMsg];
+            this._requestAutoScroll();
+        } else if (isSuccess && !finalMsgId) {
+            console.log('Agent processing completed successfully without a final textual message.');
+        } else {
+            console.error(`Agent Turn Failed. Details: ${errorDetails}`);
+            this.displayFrameworkError(`Agent processing failed. Details: ${errorDetails || 'No details provided.'}`);
+            this.showToast('Agent Processing Error', errorDetails || 'The agent failed to complete the request.', 'error');
         }
     }
 
@@ -690,9 +567,7 @@ export default class AiAssistantChat extends LightningElement {
     }
 
     get isInputDisabled() {
-        return (
-            this.loadingState.sending || !this.currentSessionId || !!this.criticalError || this.showConfirmationPrompt || this.isHandlingConfirmation
-        );
+        return this.loadingState.sending || !this.currentSessionId || !!this.criticalError;
     }
 
     get sessionSelectorPlaceholder() {

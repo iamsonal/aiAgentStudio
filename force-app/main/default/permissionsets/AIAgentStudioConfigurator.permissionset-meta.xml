@@ -9,19 +9,13 @@
         <enabled>true</enabled>
     </classAccesses>
     <description>Grants access to the &apos;AI Agent Studio&apos; Lightning app and provides necessary permissions to create, read, update, and delete AI Agent Definitions, LLM Configurations, Tool Definitions, and Agent Capability Bindings.</description>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AIAgentDefinition__c.CombineRecordAndUserContext__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
+    <externalCredentialPrincipalAccesses>
+        <enabled>true</enabled>
+        <externalCredentialPrincipal>OpenAIEC-OpenAI</externalCredentialPrincipal>
+    </externalCredentialPrincipalAccesses>
     <fieldPermissions>
         <editable>true</editable>
         <field>AIAgentDefinition__c.Description__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AIAgentDefinition__c.IncludeSystemPromptInHistory__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -87,6 +81,16 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>AgentContextConfig__c.ApplicableSObjectTypes__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>AgentContextConfig__c.ContextFormat__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>AgentContextConfig__c.ImplementationConfigJson__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -167,11 +171,6 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>ChatSession__c.LastProcessingError__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ChatSession__c.RelatedRecordId__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>

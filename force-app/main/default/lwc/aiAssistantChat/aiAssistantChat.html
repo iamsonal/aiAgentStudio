@@ -86,34 +86,6 @@
                                             </div>
                                         </div>
 
-                                        <template if:true={message.toolInfoAvailable}>
-                                            <div class="slds-m-top_x-small slds-m-bottom_x-small">
-                                                <lightning-accordion allow-multiple-sections-open>
-                                                    <lightning-accordion-section
-                                                        name={message.displayKey}
-                                                        label="Tool Details"
-                                                        class="slds-chat-accordion"
-                                                    >
-                                                        <template if:true={message.toolFunctionName}>
-                                                            <p class="slds-m-bottom_x-small">
-                                                                <strong>Tool Called:</strong> {message.toolFunctionName}
-                                                            </p>
-                                                        </template>
-                                                        <template if:true={message._parsedToolCallsData}>
-                                                            <p class="slds-m-bottom_xx-small"><strong>Request Payload:</strong></p>
-                                                            <pre class="slds-code slds-box slds-box_small slds-m-bottom_small">
-{message.formattedToolCallsJson}</pre
-                                                            >
-                                                        </template>
-                                                        <template if:true={message._parsedToolResultData}>
-                                                            <p class="slds-m-bottom_xx-small"><strong>Result Data:</strong></p>
-                                                            <pre class="slds-code slds-box slds-box_small">{message.formattedToolResultJson}</pre>
-                                                        </template>
-                                                    </lightning-accordion-section>
-                                                </lightning-accordion>
-                                            </div>
-                                        </template>
-
                                         <div class="slds-chat-message__meta" aria-label={message.ariaLabelMeta}>
                                             <span class="slds-text-body_small slds-chat-meta-text"
                                                 >{message.roleLabel} • {message.formattedTimestamp}</span
@@ -150,38 +122,6 @@
                         <div lwc:ref="scrollAnchor"></div>
                     </ul>
                 </div>
-
-                <template if:true={showConfirmationPrompt}>
-                    <div class="slds-col slds-size_12-of-12 slds-box slds-theme_shade slds-m-vertical_small slds-p-around_medium confirmation-prompt">
-                        <h3 class="slds-text-heading_small slds-m-bottom_small">Action Confirmation Required</h3>
-                        <p class="slds-m-bottom_medium">{confirmationRequestData.confirmationMessage}</p>
-                        <div class="slds-grid slds-grid_align-spread">
-                            <lightning-button
-                                label="Reject"
-                                variant="neutral"
-                                onclick={handleRejectClick}
-                                disabled={isHandlingConfirmation}
-                                class="confirmation-reject-button"
-                                icon-name="utility:close"
-                            >
-                            </lightning-button>
-                            <lightning-button
-                                label="Approve"
-                                variant="brand"
-                                onclick={handleApproveClick}
-                                disabled={isHandlingConfirmation}
-                                class="confirmation-approve-button"
-                                icon-name="utility:check"
-                            >
-                            </lightning-button>
-                        </div>
-                        <template if:true={isHandlingConfirmation}>
-                            <div class="slds-is-relative slds-m-top_small">
-                                <lightning-spinner alternative-text="Processing confirmation..." size="small"></lightning-spinner>
-                            </div>
-                        </template>
-                    </div>
-                </template>
 
                 <div slot="footer" class="slds-p-horizontal_medium slds-p-vertical_small">
                     <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-end slds-chat-input-container">

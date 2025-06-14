@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description Standard Action: Queries Salesforce records based on configuration and LLM parameters.
@@ -16,7 +16,6 @@
  * @extends BaseAgentAction
  * @see QueryService
  * @see SecurityUtils
- * @see ActionParamUtils
  */
 public class ActionGetRecords extends BaseAgentAction {
     private static final String CONFIG_KEY_OBJECT_API_NAME = 'objectApiName';
@@ -154,11 +153,11 @@ public class ActionGetRecords extends BaseAgentAction {
             }
         }
 
-        List<String> additionalFields = ActionParamUtils.getOptionalStringList(parsedLlmArgs, PARAM_KEY_ADDITIONAL_FIELDS);
+        List<String> additionalFields = ParameterExtractionUtils.getOptionalStringList(parsedLlmArgs, PARAM_KEY_ADDITIONAL_FIELDS);
 
         Integer queryLimit = parseLimitParameter(parsedLlmArgs.get(PARAM_KEY_LIMIT));
 
-        String orderBy = ActionParamUtils.getOptionalString(parsedLlmArgs, PARAM_KEY_ORDER_BY)?.trim();
+        String orderBy = ParameterExtractionUtils.getOptionalString(parsedLlmArgs, PARAM_KEY_ORDER_BY)?.trim();
 
         return new GetRecordsParsedArguments(filters, additionalFields, queryLimit, orderBy);
     }

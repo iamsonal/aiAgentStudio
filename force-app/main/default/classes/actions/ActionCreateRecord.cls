@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description Standard Action: Creates a Salesforce record of a type specified in the Action Configuration.
@@ -133,8 +133,12 @@ public class ActionCreateRecord extends BaseAgentAction {
 
             Map<String, Object> typedData;
             try {
-                typedData = ActionParamUtils.coerceArgumentTypesForSObject(finalDataToSet, this.targetSObjectType, AccessType.CREATABLE);
-            } catch (ActionParamUtils.InvalidArgumentTypeException typeEx) {
+                typedData = SObjectArgumentCoercionService.coerceArgumentTypesForSObject(
+                    finalDataToSet,
+                    this.targetSObjectType,
+                    AccessType.CREATABLE
+                );
+            } catch (SObjectArgumentCoercionService.InvalidArgumentTypeException typeEx) {
                 throw new ValidationException(typeEx.getMessage(), null);
             } catch (SecurityUtils.ActionSecurityException secEx) {
                 throw secEx;

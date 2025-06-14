@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description Controller exposing AI Agent Framework functionality.
@@ -32,7 +32,7 @@ public with sharing class AIAssistantController {
     }
 
     @AuraEnabled
-    public static Map<String, Object> sendMessage(Id sessionId, String userMessage) {
+    public static Map<String, Object> sendMessage(Id sessionId, String userMessage, Id currentRecordId) {
         String turnIdentifier = UuidUtils.generateUUID();
         String logPrefix = '[AIController Turn:' + turnIdentifier.left(8) + ' Sess:' + sessionId + '] ';
 
@@ -42,9 +42,6 @@ public with sharing class AIAssistantController {
         validateSessionAccess(sessionId);
 
         Id currentUserId = UserInfo.getUserId();
-        Id agentDefinitionId = null;
-        Id llmConfigId = null;
-        Id relatedRecordId = null;
         Exception controllerProcessingException = null;
         Map<String, Object> lwcResponse = new Map<String, Object>{ 'success' => false, 'sessionId' => sessionId };
 
@@ -52,29 +49,28 @@ public with sharing class AIAssistantController {
         currentUserMessageData.role = AIAgentConstants.ROLE_USER;
         currentUserMessageData.content = userMessage;
 
-        OrchestrationService orchestrationSvc = new OrchestrationService();
+        MessagePersistenceService msgSvc = new MessagePersistenceService();
+        TurnLifecycleService turnSvc = new TurnLifecycleService();
+        ActionExecutionService actionSvc = new ActionExecutionService();
+        OrchestrationDispatchService dispatchSvc = new OrchestrationDispatchService(turnSvc);
+
+        OrchestrationService orchestrationSvc = new OrchestrationService(msgSvc, turnSvc, actionSvc, dispatchSvc);
 
         try {
             ChatSession__c session = [
-                SELECT
-                    Id,
-                    ProcessingStatus__c,
-                    AIAgentDefinition__c,
-                    RelatedRecordId__c,
-                    AIAgentDefinition__r.LLMConfiguration__c,
-                    AIAgentDefinition__r.IsActive__c
+                SELECT Id, ProcessingStatus__c, AIAgentDefinition__c, AIAgentDefinition__r.LLMConfiguration__c, AIAgentDefinition__r.IsActive__c
                 FROM ChatSession__c
                 WHERE Id = :sessionId
                 LIMIT 1
-                FOR UPDATE
             ];
 
             if (session.ProcessingStatus__c != AIAgentConstants.STATUS_IDLE && session.ProcessingStatus__c != AIAgentConstants.STATUS_FAILED) {
                 throw new AuraHandledException('Assistant is currently busy (Status: ' + session.ProcessingStatus__c + '). Please wait.');
             }
-            agentDefinitionId = session.AIAgentDefinition__c;
-            llmConfigId = session.AIAgentDefinition__r.LLMConfiguration__c;
-            relatedRecordId = session.RelatedRecordId__c;
+
+            Id agentDefinitionId = session.AIAgentDefinition__c;
+            Id llmConfigId = session.AIAgentDefinition__r.LLMConfiguration__c;
+
             if (
                 agentDefinitionId == null ||
                 llmConfigId == null ||
@@ -84,6 +80,8 @@ public with sharing class AIAssistantController {
                 throw new ConfigurationException('Agent Definition is missing, inactive, or lacks required LLM Configuration on the Session.');
             }
 
+            Id turnRecordContextId = currentRecordId;
+
             LLMInteractionService interactionService = new LLMInteractionService(
                 sessionId,
                 currentUserId,
@@ -91,8 +89,9 @@ public with sharing class AIAssistantController {
                 llmConfigId,
                 turnIdentifier,
                 1,
-                relatedRecordId
+                turnRecordContextId
             );
+
             LLMInteractionService.LLMInteractionResult llmResult = interactionService.prepareAndCallLLM(currentUserMessageData);
 
             if (llmResult == null) {
@@ -104,7 +103,7 @@ public with sharing class AIAssistantController {
                 sessionId,
                 currentUserId,
                 agentDefinitionId,
-                relatedRecordId,
+                turnRecordContextId,
                 turnIdentifier,
                 1,
                 currentUserMessageData
@@ -137,7 +136,6 @@ public with sharing class AIAssistantController {
 
             lwcResponse.put('error', 'An internal error occurred: ' + errorMsg);
             lwcResponse.put('errorCode', errorCode);
-
             if (!(ex instanceof AuraHandledException)) {
                 throw new AuraHandledException(errorMsg);
             } else {
@@ -156,34 +154,43 @@ public with sharing class AIAssistantController {
         return lwcResponse;
     }
 
+    /**
+     * @description Creates a new chat session, intelligently determining the correct initial context.
+     *              - For internal users on a record page, the context is the record.
+     *              - For internal users on a homepage, there is no record context.
+     *              - For community users, the context is the record page if present, otherwise it defaults
+     *                to the user's own Contact record, making the agent user-centric.
+     * @param recordId The ID of the record the user is on, if any. Can be null.
+     * @return The ID of the newly created ChatSession__c record.
+     * @throws AuraHandledException for configuration errors or permissions issues.
+     */
     @AuraEnabled
-    public static Id createNewChatSession(Id recordId) {
+    public static Id createNewChatSession(Id recordId, String requestedAgentDevName) {
         Id newSessionId = null;
         Id userId = UserInfo.getUserId();
-        String label = 'Chat - ' + Datetime.now().format('MM/dd HH:mm');
+        String logPrefix = '[AIController.createNewChatSession] ';
+
         String selectedAgentDevName = null;
-
         try {
-            selectedAgentDevName = AgentRoutingService.selectAgent(userId, recordId, null);
-
+            selectedAgentDevName = AgentRoutingService.selectAgent(userId, recordId, requestedAgentDevName);
             AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(selectedAgentDevName);
             if (agentDef == null) {
-                throw new ConfigurationException('Internal Error: Selected agent configuration could not be retrieved: ' + selectedAgentDevName);
+                throw new ConfigurationException(
+                    'Internal Error: The selected agent (' + selectedAgentDevName + ') could not be found or is inactive.'
+                );
             }
 
+            String sessionLabel = 'Chat - ' + Datetime.now().format('MM/dd HH:mm:ss');
             ChatSession__c session = new ChatSession__c(
                 AIAgentDefinition__c = agentDef.Id,
-                SessionLabel__c = label,
+                SessionLabel__c = sessionLabel,
                 StartTime__c = Datetime.now(),
                 LastActivityTime__c = Datetime.now(),
                 ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
                 OwnerId = userId,
-                User__c = userId,
-                RelatedRecordId__c = recordId
+                User__c = userId
             );
-            if (!Schema.SObjectType.ChatSession__c.isCreateable()) {
-                throw new AuraHandledException('Permission denied creating Chat Session.');
-            }
+
             Database.insert(session, true);
             newSessionId = session.Id;
         } catch (AgentRoutingService.RoutingException rce) {
@@ -208,14 +215,26 @@ public with sharing class AIAssistantController {
         Integer settingsLimit = AIAgentFrameworkSettings.getDefaultHistoryLimit();
         Integer effectiveLimit = (limitCount != null && limitCount > 0) ? Math.min(limitCount, settingsLimit) : settingsLimit;
         validateSessionAccess(sessionId);
-        List<Map<String, Object>> formattedMessages = new List<Map<String, Object>>();
+
+        List<Map<String, Object>> formattedMessagesForUi = new List<Map<String, Object>>();
 
         try {
+            Integer queryLimitWithBuffer = effectiveLimit * 2;
             String sortOrder = (oldestMessageTimestamp != null) ? 'DESC' : 'ASC';
-            List<ChatMessage__c> messages = ChatMessageService.getHistory(sessionId, effectiveLimit, sortOrder, oldestMessageTimestamp);
 
-            for (ChatMessage__c msg : messages) {
+            List<ChatMessage__c> rawMessages = ChatMessageService.getHistory(sessionId, queryLimitWithBuffer, sortOrder, oldestMessageTimestamp);
+
+            for (ChatMessage__c msg : rawMessages) {
                 String role = msg.Role__c?.toLowerCase();
+
+                if (role == AIAgentConstants.ROLE_TOOL) {
+                    continue;
+                }
+
+                if (role == AIAgentConstants.ROLE_ASSISTANT && String.isBlank(msg.Content__c)) {
+                    continue;
+                }
+
                 Map<String, Object> fMsg = new Map<String, Object>{
                     'id' => msg.Id,
                     'role' => role,
@@ -224,44 +243,43 @@ public with sharing class AIAssistantController {
                     'externalId' => msg.ExternalId__c
                 };
 
-                if (role == AIAgentConstants.ROLE_ASSISTANT && String.isNotBlank(msg.AssistantToolCalls__c)) {
-                    fMsg.put('toolCallsData', msg.AssistantToolCalls__c);
+                formattedMessagesForUi.add(fMsg);
+
+                if (formattedMessagesForUi.size() >= effectiveLimit) {
+                    break;
                 }
-                if (role == AIAgentConstants.ROLE_TOOL && String.isNotBlank(msg.Content__c) && String.isNotBlank(msg.ToolCallId__c)) {
-                    fMsg.put('toolResultData', msg.Content__c);
-                }
-                formattedMessages.add(fMsg);
             }
-            if ('DESC'.equals(sortOrder) && !formattedMessages.isEmpty()) {
+
+            if ('DESC'.equals(sortOrder) && !formattedMessagesForUi.isEmpty()) {
                 List<Map<String, Object>> reversed = new List<Map<String, Object>>();
-                for (Integer i = formattedMessages.size() - 1; i >= 0; i--) {
-                    reversed.add(formattedMessages[i]);
+                for (Integer i = formattedMessagesForUi.size() - 1; i >= 0; i--) {
+                    reversed.add(formattedMessagesForUi[i]);
                 }
-                formattedMessages = reversed;
+                formattedMessagesForUi = reversed;
             }
         } catch (Exception e) {
             throw new AuraHandledException('Error retrieving chat history: ' + e.getMessage());
         }
-        return formattedMessages;
+        return formattedMessagesForUi;
     }
 
-    @AuraEnabled(Cacheable=true)
-    public static ChatMessage__c getChatMessageById(Id messageId) {
-        if (messageId == null) {
-            throw new AuraHandledException('Message ID cannot be null.');
+    @AuraEnabled(cacheable=true)
+    public static ChatSession__c getSessionStatus(Id sessionId) {
+        if (sessionId == null) {
+            throw new AuraHandledException('Session ID is required to get status.');
         }
-        validateSessionAccessForMessage(messageId);
-        List<ChatMessage__c> messages = [
-            SELECT Id, Role__c, Content__c, Timestamp__c, ExternalId__c, TokensUsed__c, ProcessingTimeMillis__c, AssistantToolCalls__c, ToolCallId__c
-            FROM ChatMessage__c
-            WHERE Id = :messageId
-            WITH SECURITY_ENFORCED
-            LIMIT 1
+        validateSessionAccess(sessionId);
+
+        List<ChatSession__c> sessions = [
+            SELECT Id, ProcessingStatus__c, CurrentStepDescription__c
+            FROM ChatSession__c
+            WHERE Id = :sessionId
+            WITH USER_MODE
         ];
-        if (messages.isEmpty()) {
-            throw new AuraHandledException('Chat message content not found.');
+        if (sessions.isEmpty()) {
+            throw new AuraHandledException('Session not found or access denied.');
         }
-        return messages[0];
+        return sessions[0];
     }
 
     @AuraEnabled
@@ -279,10 +297,7 @@ public with sharing class AIAssistantController {
 
             List<String> whereClauses = new List<String>{ 'OwnerId = :userId', 'AIAgentDefinition__c = :agentDefId' };
             Map<String, Object> bindVars = new Map<String, Object>{ 'userId' => userId, 'agentDefId' => agentDefId };
-            if (recordId != null) {
-                whereClauses.add('RelatedRecordId__c = :recordId');
-                bindVars.put('recordId', recordId);
-            }
+
             String whereClause = String.join(whereClauses, ' AND ');
             String query =
                 'SELECT Id, Name, SessionLabel__c, StartTime__c FROM ChatSession__c WHERE ' +
@@ -311,226 +326,6 @@ public with sharing class AIAssistantController {
         return sessionInfos;
     }
 
-    @AuraEnabled
-    public static Map<String, Object> handleUserConfirmation(Id sessionId, Id assistantMessageId, Boolean approved, String confirmationRequestId) {
-        String logPrefix = '[AIConfirmCtrl CfmID:' + confirmationRequestId?.left(8) + ' Sess:' + sessionId + '] ';
-
-        if (sessionId == null || assistantMessageId == null || approved == null || String.isBlank(confirmationRequestId)) {
-            throw new AuraHandledException('Session ID, Message ID, Approval Status, and Confirmation Request ID are required.');
-        }
-        validateSessionAccess(sessionId);
-
-        Id currentUserId = UserInfo.getUserId();
-        Map<String, Object> lwcResponse = new Map<String, Object>{ 'success' => false, 'sessionId' => sessionId };
-        String originalTurnIdentifier = null;
-        Id agentDefinitionId = null;
-        Id relatedRecordId = null;
-
-        OrchestrationService orchestrationSvc = new OrchestrationService();
-        TurnLifecycleService turnLifecycleSvc = new TurnLifecycleService();
-        MessagePersistenceService msgPersistenceSvc = new MessagePersistenceService();
-
-        try {
-            List<ChatSession__c> sessions = [
-                SELECT Id, ProcessingStatus__c, AIAgentDefinition__c, RelatedRecordId__c, CurrentTurnIdentifier__c
-                FROM ChatSession__c
-                WHERE Id = :sessionId
-                LIMIT 1
-                FOR UPDATE
-            ];
-            if (sessions.isEmpty())
-                throw new ControllerException('Session not found for confirmation.');
-            ChatSession__c session = sessions[0];
-
-            if (session.ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_USER_CONFIRMATION) {
-                lwcResponse.put('success', false);
-                lwcResponse.put('error', 'Session is not currently awaiting confirmation.');
-                return lwcResponse;
-            }
-            agentDefinitionId = session.AIAgentDefinition__c;
-            relatedRecordId = session.RelatedRecordId__c;
-            originalTurnIdentifier = session.CurrentTurnIdentifier__c;
-            if (String.isBlank(originalTurnIdentifier)) {
-                throw new ControllerException('Internal Error: CurrentTurnIdentifier missing while AwaitingUserConfirmation.');
-            }
-
-            logPrefix =
-                '[AIConfirmCtrl CfmID:' +
-                confirmationRequestId?.left(8) +
-                ' Turn:' +
-                originalTurnIdentifier.left(8) +
-                ' Sess:' +
-                sessionId +
-                '] ';
-
-            List<ChatMessage__c> assistantMessages = [
-                SELECT Id, PendingConfirmationActionDetails__c, Role__c
-                FROM ChatMessage__c
-                WHERE Id = :assistantMessageId AND ChatSession__c = :sessionId
-                LIMIT 1
-            ];
-            if (assistantMessages.isEmpty() || assistantMessages[0].Role__c != AIAgentConstants.ROLE_ASSISTANT) {
-                throw new ControllerException('Valid Assistant Message for confirmation not found.');
-            }
-            ChatMessage__c assistantMsg = assistantMessages[0];
-            String pendingDetailsJson = assistantMsg.PendingConfirmationActionDetails__c;
-
-            if (String.isBlank(pendingDetailsJson)) {
-                lwcResponse.put('success', false);
-                lwcResponse.put('error', 'This confirmation request may have already been processed or cancelled.');
-                return lwcResponse;
-            }
-
-            if (!approved) {
-                String rejectionContent = JSON.serialize(
-                    new Map<String, String>{ 'status' => 'rejected', 'reason' => 'User did not approve the action.' }
-                );
-                String toolCallIdForRejection = null;
-                try {
-                    List<Object> rawToolCalls = (List<Object>) JSON.deserializeUntyped(pendingDetailsJson);
-                    if (!rawToolCalls.isEmpty() && rawToolCalls[0] instanceof Map<String, Object>) {
-                        toolCallIdForRejection = (String) ((Map<String, Object>) rawToolCalls[0]).get('id');
-                    }
-                } catch (Exception ignored) {
-                }
-
-                msgPersistenceSvc.saveToolResultMessage(
-                    sessionId,
-                    assistantMessageId,
-                    toolCallIdForRejection,
-                    rejectionContent,
-                    null,
-                    null,
-                    0L,
-                    logPrefix
-                );
-
-                turnLifecycleSvc.failTurn(
-                    sessionId,
-                    originalTurnIdentifier,
-                    'Action rejected by user.',
-                    AIAgentConstants.ERR_CODE_USER_REJECTED,
-                    logPrefix
-                );
-                clearPendingActionDetails(assistantMessageId, logPrefix);
-                lwcResponse.put('success', true);
-                lwcResponse.put('message', 'Action cancelled.');
-            } else {
-                AIAssistantController.ActionRequest toolRequestToResume = parsePendingAction(pendingDetailsJson, logPrefix);
-                AgentCapabilityBinding__c binding = AIAgentConfigService.getCapabilityBinding(agentDefinitionId, toolRequestToResume.name);
-                validateBinding(binding, toolRequestToResume.name, logPrefix);
-                Boolean runAsyncOnResume = binding.ActionDefinition__r.RunAsynchronously__c == true;
-
-                String resumeOutcome = null;
-                if (!runAsyncOnResume) {
-                    resumeOutcome = orchestrationSvc.resumeApprovedSyncAction(
-                        sessionId,
-                        currentUserId,
-                        agentDefinitionId,
-                        relatedRecordId,
-                        originalTurnIdentifier,
-                        0 /* Cycle count is effectively reset/not strictly applicable here */,
-                        assistantMessageId,
-                        toolRequestToResume,
-                        binding.ActionDefinition__c,
-                        binding.Id,
-                        binding.ActionConfiguration__c,
-                        logPrefix
-                    );
-                } else {
-                    resumeOutcome = orchestrationSvc.resumeApprovedAsyncAction(
-                        sessionId,
-                        currentUserId,
-                        agentDefinitionId,
-                        relatedRecordId,
-                        originalTurnIdentifier,
-                        0,
-                        assistantMessageId,
-                        toolRequestToResume,
-                        binding.ActionDefinition__c,
-                        binding.Id,
-                        binding.ActionConfiguration__c,
-                        logPrefix
-                    );
-                }
-
-                if (resumeOutcome != null && resumeOutcome != OrchestrationService.OUTCOME_FAILED) {
-                    lwcResponse.put('success', true);
-                    lwcResponse.put('message', 'Action approved and processing initiated.');
-                } else {
-                    lwcResponse.put('success', false);
-
-                    try {
-                        ChatSession__c latestSessionState = [SELECT LastProcessingError__c FROM ChatSession__c WHERE Id = :sessionId];
-                        lwcResponse.put('error', latestSessionState?.LastProcessingError__c ?? 'Agent failed to complete the action after approval.');
-                    } catch (Exception qEx) {
-                        lwcResponse.put('error', 'Agent failed to complete the action after approval.');
-                    }
-                }
-            }
-        } catch (Exception ex) {
-            String errorMsg = ex.getMessage();
-
-            lwcResponse.put('error', 'Internal error during confirmation: ' + errorMsg);
-
-            if (String.isNotBlank(originalTurnIdentifier)) {
-                try {
-                    TurnLifecycleService tls = new TurnLifecycleService();
-                    tls.failTurn(
-                        sessionId,
-                        originalTurnIdentifier,
-                        ('Confirmation Error: ' + errorMsg).abbreviate(131072),
-                        AIAgentConstants.ERR_CODE_CONFIRMATION_STATE_ERROR,
-                        logPrefix
-                    );
-                } catch (Exception finalFailEx) {
-                    /* Log to debug */
-                }
-            }
-            if (!(ex instanceof AuraHandledException)) {
-                throw new AuraHandledException(errorMsg);
-            } else {
-                throw ex;
-            }
-        }
-
-        return lwcResponse;
-    }
-
-    private static void clearPendingActionDetails(Id assistantMessageId, String logPrefix) {
-        try {
-            update new ChatMessage__c(Id = assistantMessageId, PendingConfirmationActionDetails__c = null);
-        } catch (DmlException e) {
-        }
-    }
-
-    private static AIAssistantController.ActionRequest parsePendingAction(String pendingDetailsJson, String logPrefix) {
-        try {
-            List<Object> rawToolCallsList = (List<Object>) JSON.deserializeUntyped(pendingDetailsJson);
-            if (!rawToolCallsList.isEmpty() && rawToolCallsList[0] instanceof Map<String, Object>) {
-                Map<String, Object> callMap = (Map<String, Object>) rawToolCallsList[0];
-                if ('function'.equalsIgnoreCase(String.valueOf(callMap.get('type'))) && callMap.get('function') instanceof Map<String, Object>) {
-                    String toolCallId = String.valueOf(callMap.get('id'));
-                    Map<String, Object> funcMap = (Map<String, Object>) callMap.get('function');
-                    String funcName = String.valueOf(funcMap.get('name'));
-                    Object argsObj = funcMap.get('arguments');
-                    String argsJson = (argsObj instanceof String) ? (String) argsObj : null;
-
-                    if (String.isNotBlank(toolCallId) && String.isNotBlank(funcName) && argsJson != null) {
-                        AIAssistantController.ActionRequest req = new AIAssistantController.ActionRequest();
-                        req.id = toolCallId;
-                        req.name = funcName;
-                        req.arguments = argsJson;
-                        return req;
-                    }
-                }
-            }
-            throw new OrchestrationException('Failed to parse valid action from PendingConfirmationActionDetails__c JSON.');
-        } catch (Exception e) {
-            throw new OrchestrationException('Could not parse pending action: ' + e.getMessage(), e);
-        }
-    }
-
     private static void validateSessionAccess(Id sessionId) {
         try {
             Integer c = [SELECT COUNT() FROM ChatSession__c WHERE Id = :sessionId AND OwnerId = :UserInfo.getUserId() WITH USER_MODE];
@@ -538,28 +333,6 @@ public with sharing class AIAssistantController {
                 throw new AuraHandledException('Chat session not found or access denied.');
         } catch (Exception e) {
             throw new AuraHandledException('Error verifying session access: ' + e.getMessage());
-        }
-    }
-    private static void validateBinding(AgentCapabilityBinding__c binding, String capabilityName, String logPrefix) {
-        if (binding == null)
-            throw new ConfigurationException('Active CapabilityBinding not found: "' + capabilityName + '"');
-        if (binding.ActionDefinition__r == null || !binding.ActionDefinition__r.IsActive__c) {
-            throw new ConfigurationException('Linked Action Definition inactive for capability: "' + capabilityName + '"');
-        }
-    }
-    private static void validateSessionAccessForMessage(Id messageId) {
-        Id userId = UserInfo.getUserId();
-        try {
-            List<AggregateResult> results = [
-                SELECT COUNT(Id) recordCount
-                FROM ChatMessage__c
-                WHERE Id = :messageId AND ChatSession__r.OwnerId = :userId
-            ];
-            if (results.isEmpty() || (Decimal) results[0].get('recordCount') == 0) {
-                throw new AuraHandledException('Message not found or access denied.');
-            }
-        } catch (Exception e) {
-            throw new AuraHandledException('Error verifying message access: ' + e.getMessage());
         }
     }
 }

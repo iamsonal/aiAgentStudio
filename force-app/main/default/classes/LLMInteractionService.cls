@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description Service responsible for the core LLM interaction cycle for a single turn:
@@ -26,7 +26,6 @@ public inherited sharing class LLMInteractionService {
             this.providerResult = result;
             this.assistantMessageData = message;
         }
-
         public LLMInteractionResult(String reason, String code, Exception ex) {
             this.isSuccess = false;
             this.failureReason = reason;
@@ -44,10 +43,8 @@ public inherited sharing class LLMInteractionService {
         public Long processingTimeMs;
     }
 
-    /** @description Exception for this service */
     public class LLMInteractionException extends AIAgentException {
     }
-    /** @description Required Arg Exception */
     public class IllegalArgumentException extends AIAgentException {
     }
 
@@ -74,83 +71,72 @@ public inherited sharing class LLMInteractionService {
         this.logPrefix = '[LLMIntSvc Turn:' + turnId?.left(8) + ' Cycle:' + turnNum + '] ';
     }
 
-    public LLMInteractionResult prepareAndCallLLM() {
-        return this.prepareAndCallLLM(null);
-    }
-
     /**
      * @description Orchestrates the process of calling the LLM for one turn.
-     * @param currentTurnUserMessage Optional - DTO containing the user message data for the *current* turn being processed. Should only be passed for the initial call from the controller.
-     * @return LLMInteractionResult containing success/failure status, ProviderResult, and unsaved Assistant Message data.
+     * @param currentTurnUserMessage The DTO containing the user message for the *current* turn. Can be null for follow-up calls.
+     * @return LLMInteractionResult
      */
     public LLMInteractionResult prepareAndCallLLM(LLMInteractionService.MessageData currentTurnUserMessage) {
         AIAgentDefinition__c agentConfig = null;
         LLMConfiguration__c llmConfig = null;
-        String contextString = null;
-        List<ChatMessage__c> history = null;
-        List<Map<String, Object>> messagesPayload = null;
-        List<Map<String, Object>> toolsPayload = null;
         ProviderResult llmApiResult = null;
-        Integer seq = 50;
 
         try {
             agentConfig = AIAgentConfigService.getAgentDefinition(this.agentDefinitionId);
             llmConfig = AIAgentConfigService.getLLMConfiguration(this.llmConfigurationId);
 
-            contextString = ContextService.aggregateContext(this.agentDefinitionId, this.userId, this.relatedRecordId);
-            if (String.isNotBlank(contextString)) {
-            } else {
+            List<Map<String, Object>> finalMessagesPayload = new List<Map<String, Object>>();
+
+            String staticContextString = ContextProviderRunner.aggregateContext(this.agentDefinitionId, this.userId, this.relatedRecordId);
+            if (String.isNotBlank(staticContextString)) {
             }
 
-            Integer historyLimit = AIAgentFrameworkSettings.getDefaultHistoryLimit();
-            history = ChatMessageService.getHistory(this.sessionId, historyLimit, 'ASC');
-
-            Long fmtStartTime = System.currentTimeMillis();
-            try {
-                messagesPayload = LlmPayloadUtils.formatMessagesForApi(history, agentConfig, contextString, logPrefix);
-
-                if (currentTurnUserMessage != null) {
-                    if (String.isNotBlank(currentTurnUserMessage.content)) {
-                        LlmPayloadUtils.addMessageToPayload(
-                            messagesPayload,
-                            currentTurnUserMessage.role,
-                            currentTurnUserMessage.content,
-                            null,
-                            null,
-                            logPrefix,
-                            'Current User Turn'
-                        );
-                    } else {
-                    }
-                }
-
-                toolsPayload = LlmPayloadUtils.formatToolsForApi(agentConfig.Id, logPrefix);
-                Long fmtDuration = System.currentTimeMillis() - fmtStartTime;
-                Map<String, Object> logFmtOutput = new Map<String, Object>{
-                    'messageCount' => messagesPayload?.size() ?? 0,
-                    'toolCount' => toolsPayload?.size() ?? 0
-                };
-            } catch (Exception fmtEx) {
-                Long fmtDuration = System.currentTimeMillis() - fmtStartTime;
-                throw new LLMInteractionException('Failed formatting LLM payloads: ' + fmtEx.getMessage(), fmtEx);
+            String systemPromptContent = '';
+            if (String.isNotBlank(agentConfig.SystemPrompt__c)) {
+                systemPromptContent = agentConfig.SystemPrompt__c;
+            }
+            if (String.isNotBlank(staticContextString)) {
+                systemPromptContent += '\n\n--- Additional Context ---\n' + staticContextString;
             }
 
-            Map<String, Object> logInput = new Map<String, Object>{ 'messages' => messagesPayload, 'tools' => toolsPayload };
+            if (String.isNotBlank(systemPromptContent)) {
+                finalMessagesPayload.add(new Map<String, Object>{ 'role' => AIAgentConstants.ROLE_SYSTEM, 'content' => systemPromptContent });
+            }
+
+            IMemoryManager memoryManager = MemoryManagerFactory.getManager(agentConfig.MemoryStrategy__c);
+            List<Map<String, Object>> historyPayload = memoryManager.getHistoryPayload(this.sessionId, agentConfig, llmConfig, logPrefix);
+            if (historyPayload != null) {
+                finalMessagesPayload.addAll(historyPayload);
+            }
+
+            if (currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
+                LlmPayloadUtils.addMessageToPayload(
+                    finalMessagesPayload,
+                    currentTurnUserMessage.role,
+                    currentTurnUserMessage.content,
+                    null,
+                    null,
+                    logPrefix,
+                    'Current User Turn'
+                );
+            }
+
+            List<Map<String, Object>> toolsPayload = ToolDefinitionFormatter.formatToolsForApi(agentConfig.Id, logPrefix);
+
             Long callStartTime = System.currentTimeMillis();
             try {
                 ILLMProviderAdapter adapter = LLMProviderFactory.getAdapter(llmConfig);
-                llmApiResult = adapter.sendMessage(messagesPayload, toolsPayload, llmConfig, agentConfig);
+                llmApiResult = adapter.sendMessage(finalMessagesPayload, toolsPayload, llmConfig, agentConfig);
+
                 if (llmApiResult == null) {
-                    throw new LLMInteractionException('LLM Adapter returned null.');
+                    throw new LLMInteractionException('LLM Adapter returned a null result.');
                 }
                 Long callDuration = System.currentTimeMillis() - callStartTime;
 
                 MessageData asstMsgData = new MessageData();
                 asstMsgData.role = AIAgentConstants.ROLE_ASSISTANT;
                 asstMsgData.content = llmApiResult.content;
-
                 asstMsgData.assistantToolCallsJson = llmApiResult.rawToolCallsJson;
-
                 asstMsgData.tokensUsed = llmApiResult.totalTokens;
                 asstMsgData.processingTimeMs = callDuration;
 

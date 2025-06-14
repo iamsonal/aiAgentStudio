@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description Interface for custom Apex classes that provide contextual data for the AI Agent Framework.
@@ -13,7 +13,7 @@
  *
  * @important Implementers MUST ensure their data retrieval logic respects Salesforce security.
  *            Use 'WITH USER_MODE' for SOQL queries OR explicitly check FLS and object permissions
- *            using Schema methods if dynamic SOQL or other methods are used. The ContextService
+ *            using Schema methods if dynamic SOQL or other methods are used. The ContextProviderRunner
  *            invokes these providers within the user's context, but the provider's internal logic
  *            dictates final data access. Only query fields necessary for the context.
  */
@@ -35,7 +35,7 @@ public interface IAgentContextProvider {
      *
      * @return Map<String, List<SObject>> A map where:
      *           - Keys are String labels representing a logical block of context (e.g., "Open Cases", "Account Details").
-     *             These labels MAY be used by the ContextService in the final formatted output.
+     *             These labels MAY be used by the ContextProviderRunner in the final formatted output.
      *           - Values are Lists of SObjects containing the queried data for that block. Only include necessary fields.
      *         Return an empty map or a map with empty lists if no relevant context is found or an error occurs
      *         that should be handled gracefully (log the error internally). Throw exceptions only for

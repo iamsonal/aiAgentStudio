@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description Standard Action: Posts a message to a specified Chatter feed.
@@ -71,7 +71,7 @@ public class ActionPostChatter extends BaseAgentAction {
 
             Map<String, Object> parsedArgs = (Map<String, Object>) JSON.deserializeUntyped(jsonArguments);
 
-            this.feedType = ActionParamUtils.getRequiredString(parsedArgs, ARG_FEED_TYPE);
+            this.feedType = ParameterExtractionUtils.getRequiredString(parsedArgs, ARG_FEED_TYPE);
             if (!VALID_FEED_TYPES.contains(this.feedType)) {
                 throw new ValidationException(
                     'Invalid value for parameter "' + ARG_FEED_TYPE + '". Must be one of: ' + String.join(new List<String>(VALID_FEED_TYPES), ', '),
@@ -79,12 +79,12 @@ public class ActionPostChatter extends BaseAgentAction {
                 );
             }
 
-            this.targetSObjectId = ActionParamUtils.getRequiredId(parsedArgs, ARG_TARGET_ID, null);
+            this.targetSObjectId = ParameterExtractionUtils.getRequiredId(parsedArgs, ARG_TARGET_ID, null);
             this.targetSObjectName = determineSObjectTypeAndValidate(this.feedType, this.targetSObjectId);
 
-            this.text = ActionParamUtils.getRequiredString(parsedArgs, ARG_TEXT);
+            this.text = ParameterExtractionUtils.getRequiredString(parsedArgs, ARG_TEXT);
 
-            this.topics = ActionParamUtils.getOptionalStringList(parsedArgs, ARG_TOPICS);
+            this.topics = ParameterExtractionUtils.getOptionalStringList(parsedArgs, ARG_TOPICS);
         }
 
         /** Determine SObject API Name based on FeedType and validate ID matches */
@@ -127,7 +127,7 @@ public class ActionPostChatter extends BaseAgentAction {
     protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(String argumentsJson, String logPrefix) {
         try {
             return new PostChatterParsedArguments(argumentsJson);
-        } catch (ActionParamUtils.ArgumentValidationException ave) {
+        } catch (ParameterExtractionUtils.ArgumentValidationException ave) {
             throw new ValidationException(ave.getMessage(), null);
         } catch (ValidationException ve) {
             throw ve;

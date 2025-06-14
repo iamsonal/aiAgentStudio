@@ -1,10 +1,10 @@
-// File: classes/UserDetailsProvider.cls
 /**
  * @description Provides basic user details, role, manager, and timezone information.
  *              Designed to run in user-anchored context (RequiresRecordContext__c=false).
  * @implements IAgentContextProvider
  */
 public inherited sharing class UserDetailsProvider implements IAgentContextProvider {
+
     private static final String LOG_PREFIX = '[UserDetailsProvider] ';
 
     // Context Block Labels
@@ -25,11 +25,15 @@ public inherited sharing class UserDetailsProvider implements IAgentContextProvi
         try {
             // Add fields as needed by the LLM context
             List<User> users = [
-                SELECT Id, Name, Email, Title, Department, Phone, TimeZoneSidKey, Profile.Name, UserRole.Name, ManagerId, Manager.Name, Manager.Email
-                FROM User
-                WHERE Id = :userId
-                WITH USER_MODE
-                LIMIT 1
+                    SELECT
+                            Id, Name, Email, Title, Department, Phone, TimeZoneSidKey,
+                            Profile.Name,
+                            UserRole.Name,
+                            ManagerId, Manager.Name, Manager.Email
+                    FROM User
+                    WHERE Id = :userId
+                    WITH USER_MODE
+                    LIMIT 1
             ];
 
             if (!users.isEmpty()) {
@@ -38,10 +42,7 @@ public inherited sharing class UserDetailsProvider implements IAgentContextProvi
                 // The manager and delegated approver info is contained within it
                 // If we wanted separate blocks, we'd extract them.
                 contextBlocks.put(LABEL_USER_DETAILS, users);
-                System.debug(
-                    LoggingLevel.DEBUG,
-                    LOG_PREFIX + 'Fetched core user details. Profile: ' + currentUser.Profile?.Name + ', Role: ' + currentUser.UserRole?.Name
-                );
+                System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Fetched core user details. Profile: ' + currentUser.Profile?.Name + ', Role: ' + currentUser.UserRole?.Name);
 
                 // Example of optionally creating separate blocks if desired:
                 // if(currentUser.ManagerId != null && currentUser.Manager != null){
@@ -70,6 +71,7 @@ public inherited sharing class UserDetailsProvider implements IAgentContextProvi
         } catch(Exception e){
              System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Error fetching User Queues: ' + e.getMessage());
         }*/
+
 
         System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Finished. Returning ' + contextBlocks.size() + ' blocks.');
         return contextBlocks;

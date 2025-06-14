@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description Queueable Job: Executes a single designated agent action asynchronously.
@@ -72,12 +72,13 @@ public class ExecuteSingleActionQueueable implements Queueable {
 
         ActionResult actionResult = null;
         Exception processingException = null;
-        ActionExecutionService actionService = new ActionExecutionService();
         Long actionDuration = 0L;
 
+        ActionExecutionService actionService = new ActionExecutionService();
         TurnLifecycleService turnLifecycleSvc = new TurnLifecycleService();
         MessagePersistenceService msgPersistenceSvc = new MessagePersistenceService();
-        OrchestrationDispatchService orchestrationDispatchSvc = new OrchestrationDispatchService();
+
+        OrchestrationDispatchService orchestrationDispatchSvc = new OrchestrationDispatchService(turnLifecycleSvc);
 
         ChatSession__c session = null;
         try {
@@ -138,6 +139,9 @@ public class ExecuteSingleActionQueueable implements Queueable {
             String resultJsonForStorage = OrchestrationService.serializeActionResult(actionResult, logPrefix);
             Boolean isActionSuccess = actionResult.isSuccess;
 
+            Id newRecordContextId = OrchestrationService.extractRecordIdFromResult(actionResult);
+            String newRecordContextData = (newRecordContextId != null) ? resultJsonForStorage : null;
+
             Id savedToolMessageId = msgPersistenceSvc.saveToolResultMessage(
                 this.chatSessionId,
                 this.parentAssistantMessageId,
@@ -146,6 +150,8 @@ public class ExecuteSingleActionQueueable implements Queueable {
                 actionResult.internalDetails,
                 actionResult.errorCode,
                 actionDuration,
+                newRecordContextId,
+                newRecordContextData,
                 logPrefix
             );
 

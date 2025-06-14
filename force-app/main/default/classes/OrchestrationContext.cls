@@ -1,0 +1,58 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2025 Sonal
+ */
+
+/**
+ * @description Data Transfer Object (DTO) to hold the complete context for processing an LLM response.
+ *              This is passed to ILLMResponseHandler implementations.
+ */
+public class OrchestrationContext {
+    public LLMInteractionService.LLMInteractionResult llmResult { get; private set; }
+    public LLMInteractionService.MessageData userMessageData { get; private set; }
+
+    public Id sessionId { get; private set; }
+    public Id userId { get; private set; }
+    public Id agentDefinitionId { get; private set; }
+    public Id relatedRecordId { get; private set; }
+    public String turnIdentifier { get; private set; }
+    public Integer currentTurnCount { get; private set; }
+    public String logPrefix { get; private set; }
+
+    public MessagePersistenceService msgPersistenceSvc { get; private set; }
+    public TurnLifecycleService turnLifecycleSvc { get; private set; }
+    public ActionExecutionService actionExecSvc { get; private set; }
+    public OrchestrationDispatchService dispatchSvc { get; private set; }
+
+    public OrchestrationContext(
+        LLMInteractionService.LLMInteractionResult llmResult,
+        Id sessionId,
+        Id userId,
+        Id agentDefId,
+        Id relatedId,
+        String turnId,
+        Integer turnCount,
+        LLMInteractionService.MessageData userMsgData,
+        MessagePersistenceService msgSvc,
+        TurnLifecycleService turnSvc,
+        ActionExecutionService actionSvc,
+        OrchestrationDispatchService dispatchSvc
+    ) {
+        this.llmResult = llmResult;
+        this.sessionId = sessionId;
+        this.userId = userId;
+        this.agentDefinitionId = agentDefId;
+        this.relatedRecordId = relatedId;
+        this.turnIdentifier = turnId;
+        this.currentTurnCount = turnCount;
+        this.userMessageData = userMsgData;
+        this.msgPersistenceSvc = msgSvc;
+        this.turnLifecycleSvc = turnSvc;
+        this.actionExecSvc = actionSvc;
+        this.dispatchSvc = dispatchSvc;
+        this.logPrefix = '[OrchSvc Turn:' + turnId?.left(8) + ' Cycle:' + turnCount + ' Sess:' + sessionId + '] ';
+    }
+}

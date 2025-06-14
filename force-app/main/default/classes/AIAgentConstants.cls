@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description Defines constants used throughout the AI Agent Framework.
@@ -13,9 +13,8 @@
 public inherited sharing class AIAgentConstants {
     public static final String STATUS_IDLE = 'Idle';
     public static final String STATUS_PROCESSING = 'Processing';
-    public static final String STATUS_AWAITING_ACTION = 'AwaitingAction';
-    public static final String STATUS_AWAITING_FOLLOWUP = 'AwaitingFollowup';
-    public static final String STATUS_AWAITING_USER_CONFIRMATION = 'AwaitingUserConfirmation';
+    public static final String STATUS_AWAITING_ACTION = 'Awaiting Action';
+    public static final String STATUS_AWAITING_FOLLOWUP = 'Awaiting Followup';
     public static final String STATUS_FAILED = 'Failed';
 
     public static final String ROLE_USER = 'user';

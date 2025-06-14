@@ -5,6 +5,7 @@
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_meta.meta/api_meta/meta_fieldset.htm
  */
 public class AgentFrameworkFieldSetSetup {
+
     // --- Constants ---
     private static final Integer METADATA_API_BATCH_SIZE = 10; // Documented limit
 
@@ -53,8 +54,7 @@ public class AgentFrameworkFieldSetSetup {
 
         // 1. Instantiate Metadata Service
         MetadataService.MetadataPort service = createService();
-        if (service == null)
-            return;
+        if (service == null) return;
 
         // 2. Prepare ALL Metadata objects first
         List<MetadataService.Metadata> allFieldSetsToCreate = new List<MetadataService.Metadata>();
@@ -106,19 +106,21 @@ public class AgentFrameworkFieldSetSetup {
                 processSaveResults(batchResults, currentBatch); // Pass the batch for name matching
 
                 totalProcessed += currentBatch.size();
+
             } catch (Exception e) {
                 System.debug('FATAL ERROR calling createMetadata for batch: ' + e.getMessage());
                 System.debug('Stack Trace: ' + e.getStackTraceString());
                 // Log which Field Sets were in the failing batch
                 System.debug('Field Sets in this failed batch:');
-                for (MetadataService.Metadata md : currentBatch) {
-                    System.debug('  - ' + ((MetadataService.FieldSet) md).fullName);
+                for(MetadataService.Metadata md : currentBatch) {
+                    System.debug('  - ' + ((MetadataService.FieldSet)md).fullName);
                 }
                 // Decide if you want to stop processing or continue with next batch
                 // For setup, often better to log and continue if possible
                 System.debug('Continuing to next batch despite error in current batch.');
             }
             System.debug('--- Finished Processing Batch ' + (i / METADATA_API_BATCH_SIZE + 1) + ' ---');
+
         }
         System.debug('Finished processing all ' + totalProcessed + ' Field Sets in batches.');
     }
@@ -134,12 +136,7 @@ public class AgentFrameworkFieldSetSetup {
         List<FieldSetDefinition> definitions = new List<FieldSetDefinition>();
 
         // == Account Field Sets ==
-        FieldSetDefinition accSalesHeader = new FieldSetDefinition(
-            'Account',
-            'FsAccountSalesHeader',
-            'Account Sales Header FS',
-            'Key fields for providing sales-oriented context about an Account...'
-        );
+        FieldSetDefinition accSalesHeader = new FieldSetDefinition('Account', 'FsAccountSalesHeader', 'Account Sales Header FS', 'Key fields for providing sales-oriented context about an Account...');
         accSalesHeader.fields.add(new FieldDefinition('Name', true));
         accSalesHeader.fields.add(new FieldDefinition('Type', false));
         accSalesHeader.fields.add(new FieldDefinition('Industry', false));
@@ -155,12 +152,7 @@ public class AgentFrameworkFieldSetSetup {
         definitions.add(accSalesHeader);
 
         // == Opportunity Field Sets ==
-        FieldSetDefinition oppListItem = new FieldSetDefinition(
-            'Opportunity',
-            'FsOpportunityListItem',
-            'Opportunity List Item FS',
-            'Core fields for displaying a concise summary of an Opportunity...'
-        );
+        FieldSetDefinition oppListItem = new FieldSetDefinition('Opportunity', 'FsOpportunityListItem', 'Opportunity List Item FS', 'Core fields for displaying a concise summary of an Opportunity...');
         oppListItem.fields.add(new FieldDefinition('Name', true));
         oppListItem.fields.add(new FieldDefinition('StageName', false));
         oppListItem.fields.add(new FieldDefinition('Amount', false));
@@ -169,12 +161,7 @@ public class AgentFrameworkFieldSetSetup {
         oppListItem.fields.add(new FieldDefinition('OwnerId', false));
         definitions.add(oppListItem);
 
-        FieldSetDefinition oppDetail = new FieldSetDefinition(
-            'Opportunity',
-            'FsOpportunityDetail',
-            'Opportunity Detail FS',
-            'Detailed information about an Opportunity...'
-        );
+        FieldSetDefinition oppDetail = new FieldSetDefinition('Opportunity', 'FsOpportunityDetail', 'Opportunity Detail FS', 'Detailed information about an Opportunity...');
         oppDetail.fields.add(new FieldDefinition('Name', true));
         oppDetail.fields.add(new FieldDefinition('AccountId', true));
         oppDetail.fields.add(new FieldDefinition('Account.Name', false)); // Relationship field
@@ -192,12 +179,7 @@ public class AgentFrameworkFieldSetSetup {
         definitions.add(oppDetail);
 
         // == OpportunityLineItem Field Sets ==
-        FieldSetDefinition oppLineItemDetail = new FieldSetDefinition(
-            'OpportunityLineItem',
-            'FsOpportunityLineItemDetail',
-            'Opportunity Line Item Detail FS',
-            'Detailed fields for Opportunity Line Items (Products)...'
-        );
+        FieldSetDefinition oppLineItemDetail = new FieldSetDefinition('OpportunityLineItem', 'FsOpportunityLineItemDetail', 'Opportunity Line Item Detail FS', 'Detailed fields for Opportunity Line Items (Products)...');
         oppLineItemDetail.fields.add(new FieldDefinition('Product2Id', false)); // Useful for context
         oppLineItemDetail.fields.add(new FieldDefinition('Product2.Name', true)); // Essential
         oppLineItemDetail.fields.add(new FieldDefinition('Product2.ProductCode', false));
@@ -209,12 +191,7 @@ public class AgentFrameworkFieldSetSetup {
         definitions.add(oppLineItemDetail);
 
         // == Contact Field Sets ==
-        FieldSetDefinition conListItem = new FieldSetDefinition(
-            'Contact',
-            'FsContactListItem',
-            'Contact List Item FS',
-            'Essential fields for displaying a Contact within a list...'
-        );
+        FieldSetDefinition conListItem = new FieldSetDefinition('Contact', 'FsContactListItem', 'Contact List Item FS', 'Essential fields for displaying a Contact within a list...');
         conListItem.fields.add(new FieldDefinition('Name', true));
         conListItem.fields.add(new FieldDefinition('Title', false));
         conListItem.fields.add(new FieldDefinition('Email', false));
@@ -222,12 +199,7 @@ public class AgentFrameworkFieldSetSetup {
         conListItem.fields.add(new FieldDefinition('Account.Name', false)); // Show related Account Name
         definitions.add(conListItem);
 
-        FieldSetDefinition conDetail = new FieldSetDefinition(
-            'Contact',
-            'FsContactDetail',
-            'Contact Detail FS',
-            'Provides detailed context about a Contact...'
-        );
+        FieldSetDefinition conDetail = new FieldSetDefinition('Contact', 'FsContactDetail', 'Contact Detail FS', 'Provides detailed context about a Contact...');
         conDetail.fields.add(new FieldDefinition('Name', true));
         conDetail.fields.add(new FieldDefinition('AccountId', false));
         conDetail.fields.add(new FieldDefinition('Account.Name', false));
@@ -241,12 +213,7 @@ public class AgentFrameworkFieldSetSetup {
         definitions.add(conDetail);
 
         // == Case Field Sets ==
-        FieldSetDefinition caseListItem = new FieldSetDefinition(
-            'Case',
-            'FsCaseListItem',
-            'Case List Item FS',
-            'Summary fields for displaying Cases in a related list...'
-        );
+        FieldSetDefinition caseListItem = new FieldSetDefinition('Case', 'FsCaseListItem', 'Case List Item FS', 'Summary fields for displaying Cases in a related list...');
         caseListItem.fields.add(new FieldDefinition('CaseNumber', true));
         caseListItem.fields.add(new FieldDefinition('Subject', false));
         caseListItem.fields.add(new FieldDefinition('Status', false));
@@ -255,12 +222,7 @@ public class AgentFrameworkFieldSetSetup {
         caseListItem.fields.add(new FieldDefinition('OwnerId', false));
         definitions.add(caseListItem);
 
-        FieldSetDefinition caseDetail = new FieldSetDefinition(
-            'Case',
-            'FsCaseDetail',
-            'Case Detail FS',
-            'Provides detailed context about a specific Case record...'
-        );
+        FieldSetDefinition caseDetail = new FieldSetDefinition('Case', 'FsCaseDetail', 'Case Detail FS', 'Provides detailed context about a specific Case record...');
         caseDetail.fields.add(new FieldDefinition('CaseNumber', true));
         caseDetail.fields.add(new FieldDefinition('AccountId', false));
         caseDetail.fields.add(new FieldDefinition('ContactId', false));
@@ -279,12 +241,7 @@ public class AgentFrameworkFieldSetSetup {
         definitions.add(caseDetail);
 
         // == Task Field Sets ==
-        FieldSetDefinition taskListItem = new FieldSetDefinition(
-            'Task',
-            'FsTaskListItem',
-            'Task List Item FS',
-            'Essential fields for summarizing Tasks in list views...'
-        );
+        FieldSetDefinition taskListItem = new FieldSetDefinition('Task', 'FsTaskListItem', 'Task List Item FS', 'Essential fields for summarizing Tasks in list views...');
         taskListItem.fields.add(new FieldDefinition('Subject', true));
         taskListItem.fields.add(new FieldDefinition('Status', false));
         taskListItem.fields.add(new FieldDefinition('Priority', false));
@@ -296,12 +253,7 @@ public class AgentFrameworkFieldSetSetup {
         definitions.add(taskListItem);
 
         // == Event Field Sets ==
-        FieldSetDefinition eventUpcoming = new FieldSetDefinition(
-            'Event',
-            'FsEventUpcomingSummary',
-            'Event Upcoming Summary FS',
-            'Key fields for displaying upcoming calendar Events (Meetings)...'
-        );
+        FieldSetDefinition eventUpcoming = new FieldSetDefinition('Event', 'FsEventUpcomingSummary', 'Event Upcoming Summary FS', 'Key fields for displaying upcoming calendar Events (Meetings)...');
         eventUpcoming.fields.add(new FieldDefinition('Subject', true));
         eventUpcoming.fields.add(new FieldDefinition('StartDateTime', true));
         eventUpcoming.fields.add(new FieldDefinition('EndDateTime', true));
@@ -313,12 +265,7 @@ public class AgentFrameworkFieldSetSetup {
         definitions.add(eventUpcoming);
 
         // == User Field Sets ==
-        FieldSetDefinition userSales = new FieldSetDefinition(
-            'User',
-            'FsUserSales',
-            'User Sales Context FS',
-            'Provides identifying and contextual information about the current user...'
-        );
+        FieldSetDefinition userSales = new FieldSetDefinition('User', 'FsUserSales', 'User Sales Context FS', 'Provides identifying and contextual information about the current user...');
         userSales.fields.add(new FieldDefinition('Name', true));
         userSales.fields.add(new FieldDefinition('Title', false));
         userSales.fields.add(new FieldDefinition('Email', false));
@@ -340,9 +287,7 @@ public class AgentFrameworkFieldSetSetup {
             service.timeout_x = 120000; // 120 seconds
             return service;
         } catch (Exception e) {
-            System.debug(
-                'ERROR Creating MetadataService Port: ' + e.getMessage() + '. Ensure Metadata API WSDL generated and Remote Site Setting configured.'
-            );
+            System.debug('ERROR Creating MetadataService Port: ' + e.getMessage() + '. Ensure Metadata API WSDL generated and Remote Site Setting configured.');
             System.debug(e.getStackTraceString());
             return null;
         }
@@ -359,17 +304,14 @@ public class AgentFrameworkFieldSetSetup {
         }
 
         if (results.size() != submittedBatch.size()) {
-            System.debug(
-                LoggingLevel.ERROR,
-                'Mismatch between submitted FieldSets (' + submittedBatch.size() + ') and results (' + results.size() + ') in this batch.'
-            );
+            System.debug(LoggingLevel.ERROR, 'Mismatch between submitted FieldSets (' + submittedBatch.size() + ') and results (' + results.size() + ') in this batch.');
         }
 
         for (Integer i = 0; i < results.size(); i++) {
             MetadataService.SaveResult res = results[i];
             String fsName = 'Unknown (index ' + i + ')';
             if (i < submittedBatch.size() && submittedBatch[i] != null && submittedBatch[i] instanceof MetadataService.FieldSet) {
-                fsName = ((MetadataService.FieldSet) submittedBatch[i]).fullName;
+                fsName = ((MetadataService.FieldSet)submittedBatch[i]).fullName;
             }
 
             if (res.success) {
@@ -379,21 +321,11 @@ public class AgentFrameworkFieldSetSetup {
                 List<String> messages = new List<String>();
                 if (res.errors != null) {
                     for (MetadataService.Error err : res.errors) {
-                        if (err != null) {
-                            messages.add(
-                                '(' +
-                                    err.statusCode +
-                                    ') ' +
-                                    err.message +
-                                    (err.fields != null ? ' [Fields: ' + String.join(err.fields, ',') + ']' : '')
-                            );
-                        } else {
-                            messages.add('(null error object)');
-                        }
+                        if(err != null) {
+                            messages.add('(' + err.statusCode + ') ' + err.message + (err.fields != null ? ' [Fields: ' + String.join(err.fields, ',') + ']' : ''));
+                        } else { messages.add('(null error object)'); }
                     }
-                } else {
-                    messages.add('(results.errors list was null)');
-                }
+                } else { messages.add('(results.errors list was null)'); }
                 System.debug(LoggingLevel.ERROR, errorMsg + String.join(messages, '; '));
                 if (messages.size() > 0 && messages[0].contains('already exists')) {
                     System.debug('(Field set likely existed already, ignoring error for ' + fsName + ')');

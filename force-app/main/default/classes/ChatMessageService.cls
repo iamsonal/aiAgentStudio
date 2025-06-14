@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description Service for retrieving and saving raw ChatMessage__c SObjects.
@@ -39,7 +39,7 @@ public inherited sharing class ChatMessageService {
         String query =
             'SELECT Id, Role__c, Content__c, Timestamp__c, ExternalId__c, ' +
             'AssistantToolCalls__c, ToolCallId__c, ParentMessage__c, ' +
-            'TokensUsed__c, ProcessingTimeMillis__c ' +
+            'TokensUsed__c, ProcessingTimeMillis__c, RecordContextId__c, RecordContextData__c ' +
             'FROM ChatMessage__c ' +
             'WHERE ' +
             whereClause +

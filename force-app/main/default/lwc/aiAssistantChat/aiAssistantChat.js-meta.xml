@@ -8,10 +8,12 @@
         <target>lightning__AppPage</target>
         <target>lightning__RecordPage</target>
         <target>lightning__HomePage</target>
+        <target>lightning__UtilityBar</target>
     </targets>
     <targetConfigs>
         <targetConfig targets="lightning__AppPage, lightning__HomePage, lightning__RecordPage">
             <property name="cardTitle" type="String" label="Card Title" description="Title displayed on the chat component card." default="AI Assistant"/>
+            <property name="agentDeveloperName" type="String" label="Agent Developer Name" description="(Optional) Specify the exact Developer Name of the AI Agent to use. If left blank, the system will route to an appropriate agent automatically." default="SalesCopilot"/>
         </targetConfig>
     </targetConfigs>
 </LightningComponentBundle>

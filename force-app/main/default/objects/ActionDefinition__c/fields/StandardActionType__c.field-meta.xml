@@ -40,6 +40,11 @@
                 <default>false</default>
                 <label>Run Flow</label>
             </value>
+            <value>
+                <fullName>FindEntities</fullName>
+                <default>false</default>
+                <label>Find Entities</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description Queueable Job: Handles subsequent LLM interactions after initial processing or tool execution.
@@ -38,26 +38,17 @@ public class FollowUpLLMQueueable implements Queueable, Database.AllowsCallouts 
     public void execute(QueueableContext context) {
         String logPrefix = '[FollowUpLLM:' + this.turnIdentifier?.left(8) + ' Cycle:' + this.currentTurnCount + ' Job:' + context.getJobId() + '] ';
 
-        Id llmConfigurationId = null;
-        Id relatedRecordId = null;
-        Exception queueableProcessingException = null;
-
         OrchestrationService orchestrationSvc = new OrchestrationService();
         TurnLifecycleService turnLifecycleSvcForFailure = new TurnLifecycleService();
 
-        ChatSession__c session = null;
         LLMInteractionService.LLMInteractionResult llmInteractionResult = null;
+        ChatSession__c session = null;
 
         try {
+            String expectedStatus = AIAgentConstants.STATUS_AWAITING_FOLLOWUP;
+
             List<ChatSession__c> sessions = [
-                SELECT
-                    Id,
-                    ProcessingStatus__c,
-                    CurrentTurnIdentifier__c,
-                    RelatedRecordId__c,
-                    CurrentJobId__c /* Added for more robust check */,
-                    AIAgentDefinition__r.LLMConfiguration__c,
-                    AIAgentDefinition__r.IsActive__c
+                SELECT Id, ProcessingStatus__c, CurrentTurnIdentifier__c, AIAgentDefinition__r.LLMConfiguration__c, AIAgentDefinition__r.IsActive__c
                 FROM ChatSession__c
                 WHERE Id = :this.chatSessionId
                 LIMIT 1
@@ -69,11 +60,11 @@ public class FollowUpLLMQueueable implements Queueable, Database.AllowsCallouts 
             }
             session = sessions[0];
 
-            if (!String.escapeSingleQuotes(session.CurrentTurnIdentifier__c).equals(String.escapeSingleQuotes(this.turnIdentifier))) {
+            if (session.CurrentTurnIdentifier__c == null || !session.CurrentTurnIdentifier__c.equals(this.turnIdentifier)) {
                 return;
             }
 
-            if (session.ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_FOLLOWUP) {
+            if (session.ProcessingStatus__c != expectedStatus) {
                 return;
             }
 
@@ -85,8 +76,18 @@ public class FollowUpLLMQueueable implements Queueable, Database.AllowsCallouts 
                 throw new ConfigurationException('Agent Definition inactive or LLM Configuration missing for Session: ' + this.chatSessionId);
             }
 
-            relatedRecordId = session.RelatedRecordId__c;
-            llmConfigurationId = session.AIAgentDefinition__r.LLMConfiguration__c;
+            Id llmConfigurationId = session.AIAgentDefinition__r.LLMConfiguration__c;
+            Id relatedRecordId = null;
+
+            List<ChatMessage__c> userTurnMessages = [
+                SELECT RecordContextId__c
+                FROM ChatMessage__c
+                WHERE ExternalId__c = :this.turnIdentifier AND Role__c = 'user'
+                LIMIT 1
+            ];
+            if (!userTurnMessages.isEmpty()) {
+                relatedRecordId = userTurnMessages[0].RecordContextId__c;
+            }
 
             LLMInteractionService interactionService = new LLMInteractionService(
                 this.chatSessionId,
@@ -114,13 +115,10 @@ public class FollowUpLLMQueueable implements Queueable, Database.AllowsCallouts 
                 null
             );
         } catch (Exception ex) {
-            queueableProcessingException = ex;
-
             try {
                 ChatSession__c currentStateCheck = [SELECT ProcessingStatus__c FROM ChatSession__c WHERE Id = :this.chatSessionId LIMIT 1];
                 if (currentStateCheck.ProcessingStatus__c != AIAgentConstants.STATUS_FAILED) {
                     String errorDetail = ('Queueable Exception in FollowUpLLM: ' + ex.getMessage()).abbreviate(131072);
-
                     turnLifecycleSvcForFailure.failTurn(
                         this.chatSessionId,
                         this.turnIdentifier,

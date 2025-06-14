@@ -1,21 +1,18 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description OpenAI Adapter implementing ILLMProviderAdapter.
  *              Handles sending message history and tool definitions to OpenAI API.
- *              Includes **retry logic with exponential backoff** for transient errors.
+ *              Uses HttpRetryService for resilient HTTP communication with exponential backoff.
  *              Parses text content, tool call requests, and token usage into ProviderResult.
  */
 public class OpenAIProviderAdapter implements ILLMProviderAdapter {
-    private static final Double DEFAULT_BACKOFF_FACTOR = 2.0;
-    private static final Double JITTER_FACTOR = 0.3;
-    private static final Integer MAX_DELAY_MS = 30000;
     private static final String LOG_PREFIX = '[OpenAIAdapter] ';
 
     /** @description Exception specifically for errors during OpenAI response parsing */
@@ -37,145 +34,29 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         LLMConfiguration__c llmConfig,
         AIAgentDefinition__c agentConfig
     ) {
-        RetryConfig retryConfig = getRetryConfig(llmConfig);
+        HttpRequest request = buildHttpRequest(llmConfig, messagesPayload, toolsPayload);
 
-        HttpRequest req = buildHttpRequest(llmConfig, messagesPayload, toolsPayload);
+        HttpRetryService.RetryConfig retryConfig = HttpRetryService.createRetryConfig(llmConfig, LOG_PREFIX);
 
-        HttpResponse res = null;
-        Exception lastException = null;
-        Integer attempt = 0;
+        try {
+            HttpRetryService.HttpRetryResult result = HttpRetryService.executeWithRetry(request, retryConfig);
 
-        while (attempt <= retryConfig.maxAttempts) {
-            Long calloutStartTime = System.currentTimeMillis();
-            lastException = null;
-            try {
-                Http http = new Http();
-
-                res = http.send(req);
-                Long callDuration = System.currentTimeMillis() - calloutStartTime;
-
-                if (res.getStatusCode() >= 200 && res.getStatusCode() < 300) {
-                    return this.parseOpenAIResponse(res.getBody());
-                } else {
-                    if (isRetryable(null, res, retryConfig.retryableStatusCodes) && attempt < retryConfig.maxAttempts) {
-                        handleRetryDelay(attempt, retryConfig, LOG_PREFIX);
-                        attempt++;
-                        continue;
-                    } else {
-                        String errorMsg = getErrorMessageFromResponse(res);
-
-                        throw new LLMProviderException(errorMsg);
-                    }
-                }
-            } catch (System.CalloutException ce) {
-                lastException = ce;
-                Long calloutFailTime = System.currentTimeMillis();
-
-                if (isRetryable(ce, null, retryConfig.retryableStatusCodes) && attempt < retryConfig.maxAttempts) {
-                    handleRetryDelay(attempt, retryConfig, LOG_PREFIX);
-                    attempt++;
-                    continue;
-                } else {
-                    throw new LLMProviderException('Callout failed: ' + ce.getMessage(), ce);
-                }
-            } catch (OpenAIParseException pex) {
-                lastException = pex;
-
-                throw new LLMProviderException('Failed to parse OpenAI response: ' + pex.getMessage(), pex);
-            } catch (Exception e) {
-                lastException = e;
-
-                throw new LLMProviderException('Unexpected internal error: ' + e.getMessage(), e);
-            }
+            return parseOpenAIResponse(result.response.getBody());
+        } catch (OpenAIParseException pex) {
+            throw new LLMProviderException('Failed to parse OpenAI response: ' + pex.getMessage(), pex);
+        } catch (Exception e) {
+            throw new LLMProviderException('Unexpected internal error: ' + e.getMessage(), e);
         }
-
-        String finalError = LOG_PREFIX + 'LLM call failed after exhausting all retries.';
-        if (lastException != null)
-            finalError += ' Last Error: ' + lastException.getMessage();
-        else if (res != null)
-            finalError += ' Last HTTP Status: ' + res.getStatusCode() + ' - ' + getErrorMessageFromResponse(res);
-
-        throw new LLMProviderException(finalError, lastException);
     }
 
     /**
-     * @description Determines if an error condition warrants a retry.
-     * @param ex The exception caught (null if checking HttpResponse).
-     * @param res The HttpResponse received (null if CalloutException occurred).
-     * @param retryableStatusCodes Set of integer HTTP status codes configured for retry.
-     * @return True if the condition is transient and retryable, false otherwise.
+     * @description Builds HttpRequest including messages and tools for OpenAI API.
+     * @param llmConfig The LLM configuration containing endpoint and model details.
+     * @param openAIMessages Pre-formatted OpenAI message list.
+     * @param openAITools Pre-formatted OpenAI tools list.
+     * @return Configured HttpRequest ready for execution.
      */
     @TestVisible
-    private static Boolean isRetryable(Exception ex, HttpResponse res, Set<Integer> retryableStatusCodes) {
-        if (ex instanceof System.CalloutException) {
-            return true;
-        }
-        if (res != null && retryableStatusCodes != null) {
-            Boolean isCodeRetryable = retryableStatusCodes.contains(res.getStatusCode());
-
-            return isCodeRetryable;
-        }
-
-        return false;
-    }
-
-    /**
-     * @description Calculates and applies the delay before the next retry attempt.
-     *              Uses exponential backoff with jitter. Uses busy-waiting due to Apex limitations.
-     * @param currentAttempt The attempt number that just failed (0-indexed).
-     * @param config The retry configuration.
-     * @param logPrefix Prefix for logging messages.
-     */
-    @TestVisible
-    private static void handleRetryDelay(Integer currentAttempt, RetryConfig config, String logPrefix) {
-        Decimal backoffFactor = DEFAULT_BACKOFF_FACTOR;
-        Decimal baseDelay = config.initialDelayMs * (backoffFactor.pow(currentAttempt + 1));
-
-        Decimal jitter = Math.random() * config.initialDelayMs * JITTER_FACTOR * 2 - (config.initialDelayMs * JITTER_FACTOR);
-
-        Integer delayMs = Integer.valueOf(baseDelay + jitter);
-        delayMs = Math.max(0, delayMs);
-        delayMs = Math.min(delayMs, MAX_DELAY_MS);
-
-        Long waitUntil = System.currentTimeMillis() + delayMs;
-        while (System.currentTimeMillis() < waitUntil) {
-            Decimal x = Math.sqrt(Math.random());
-        }
-    }
-
-    /**
-     * @description Loads retry parameters from LLM Config, falling back to framework defaults.
-     * @param llmConfig The LLMConfiguration__c record.
-     * @return A RetryConfig object containing the resolved settings.
-     */
-    private RetryConfig getRetryConfig(LLMConfiguration__c llmConfig) {
-        RetryConfig config = new RetryConfig();
-
-        config.maxAttempts = (llmConfig.MaxRetryAttempts__c != null &&
-            llmConfig.MaxRetryAttempts__c >= 0)
-            ? Integer.valueOf(llmConfig.MaxRetryAttempts__c)
-            : AIAgentFrameworkSettings.getDefaultMaxRetryAttempts();
-        config.initialDelayMs = (llmConfig.InitialRetryDelayMillis__c != null &&
-            llmConfig.InitialRetryDelayMillis__c > 0)
-            ? Integer.valueOf(llmConfig.InitialRetryDelayMillis__c)
-            : AIAgentFrameworkSettings.getDefaultInitialRetryDelayMillis();
-        config.retryableStatusCodes = String.isNotBlank(llmConfig.RetryableHttpStatusCodes__c)
-            ? AIAgentFrameworkSettings.parseRetryableCodes(llmConfig.RetryableHttpStatusCodes__c)
-            : AIAgentFrameworkSettings.getDefaultRetryableStatusCodes();
-        return config;
-    }
-
-    /**
-     * @description Simple inner class to hold resolved retry configuration.
-     */
-    @TestVisible
-    private class RetryConfig {
-        Integer maxAttempts = 0;
-        Integer initialDelayMs = 1000;
-        Set<Integer> retryableStatusCodes = new Set<Integer>();
-    }
-
-    /** Builds HttpRequest including messages and tools */
     private HttpRequest buildHttpRequest(
         LLMConfiguration__c llmConfig,
         List<Map<String, Object>> openAIMessages,
@@ -188,6 +69,7 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         req.setHeader('Content-Type', 'application/json; charset=utf-8');
 
         Map<String, Object> body = new Map<String, Object>{ 'model' => llmConfig.DefaultModelIdentifier__c, 'messages' => openAIMessages };
+
         if (llmConfig.DefaultTemperature__c != null) {
             body.put('temperature', llmConfig.DefaultTemperature__c);
         }
@@ -204,32 +86,14 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         return req;
     }
 
-    /** Minimal error message parsing */
-    private String getErrorMessageFromResponse(HttpResponse res) {
-        String defaultMessage = 'OpenAI API Error: ' + res.getStatusCode() + ' ' + res.getStatus();
-        try {
-            if (String.isNotBlank(res.getBody())) {
-                Map<String, Object> errorMap = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
-                if (errorMap.get('error') instanceof Map<String, Object>) {
-                    Map<String, Object> errorDetails = (Map<String, Object>) errorMap.get('error');
-                    String msg = String.valueOf(errorDetails.get('message'));
-                    return defaultMessage + '. Details: ' + msg;
-                } else {
-                    return defaultMessage + '. Raw Body: ' + res.getBody().abbreviate(500);
-                }
-            }
-        } catch (Exception e) {
-        }
-        return defaultMessage;
-    }
-
     /**
-     * Parses the successful JSON response body from the OpenAI Chat Completions API
-     * into the standardized ProviderResult DTO.
+     * @description Parses the successful JSON response body from the OpenAI Chat Completions API
+     *              into the standardized ProviderResult DTO.
      * @param jsonBody The JSON string response body.
      * @return ProviderResult Fully populated DTO.
      * @throws OpenAIParseException If JSON is invalid or critical fields are missing/malformed.
      */
+    @TestVisible
     private ProviderResult parseOpenAIResponse(String jsonBody) {
         if (String.isBlank(jsonBody)) {
             throw new OpenAIParseException('Cannot parse blank response body.');
@@ -271,7 +135,7 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
                             List<Object> rawToolCallsList = (List<Object>) message.get('tool_calls');
                             if (!rawToolCallsList.isEmpty()) {
                                 rawToolCallsListJson = JSON.serialize(rawToolCallsList);
-                                parsedActions = this.parseStructuredToolCalls(rawToolCallsList);
+                                parsedActions = parseStructuredToolCalls(rawToolCallsList);
                             }
                         }
                     } else {
@@ -285,8 +149,9 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         } catch (JSONException jex) {
             throw new OpenAIParseException('Failed to parse OpenAI JSON response body: ' + jex.getMessage(), jex);
         } catch (Exception e) {
-            if (e instanceof OpenAIParseException)
+            if (e instanceof OpenAIParseException) {
                 throw e;
+            }
             throw new OpenAIParseException('Unexpected error during OpenAI response parsing: ' + e.getMessage(), e);
         }
 
@@ -302,11 +167,12 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
     }
 
     /**
-     * Parses the raw 'tool_calls' list from LLM response into the structured map format needed by ProviderResult.
-     * Specific to OpenAI 'function' tool call structure.
+     * @description Parses the raw 'tool_calls' list from LLM response into the structured map format needed by ProviderResult.
+     *              Specific to OpenAI 'function' tool call structure.
      * @param rawToolCallsList The List<Object> from the 'tool_calls' field.
      * @return List<Map<String, String>> where each map has {id, name, arguments}.
      */
+    @TestVisible
     private List<Map<String, String>> parseStructuredToolCalls(List<Object> rawToolCallsList) {
         List<Map<String, String>> actions = new List<Map<String, String>>();
         for (Object callObj : rawToolCallsList) {
@@ -331,16 +197,25 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         return actions;
     }
 
-    /** Safely attempts to get an Integer value from an Object, handling potential Decimal conversion */
-
+    /**
+     * @description Safely attempts to get an Integer value from an Object, handling potential Decimal conversion.
+     * @param val The object value to convert.
+     * @param fieldName The field name for logging purposes.
+     * @return Integer value or null if conversion fails.
+     */
+    @TestVisible
     private static Integer safeGetInteger(Object val, String fieldName) {
-        if (val == null)
+        if (val == null) {
             return null;
+        }
+
         try {
-            if (val instanceof Integer)
+            if (val instanceof Integer) {
                 return (Integer) val;
-            if (val instanceof Decimal)
+            }
+            if (val instanceof Decimal) {
                 return ((Decimal) val).intValue();
+            }
         } catch (Exception e) {
         }
         return null;

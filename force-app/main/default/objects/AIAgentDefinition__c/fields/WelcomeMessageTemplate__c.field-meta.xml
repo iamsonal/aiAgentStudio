@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>WelcomeMessageTemplate__c</fullName>
+    <description>Template for the initial welcome message shown to the user. Supports merge fields like {User.FirstName} and {Record.Name}. This message is for display only and is not added to the chat history sent to the AI.</description>
+    <label>Welcome Message Template</label>
+    <length>32768</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

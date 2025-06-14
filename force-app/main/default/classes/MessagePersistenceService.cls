@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description Service responsible for all DML operations related to ChatMessage__c records.
@@ -30,9 +30,18 @@ public inherited sharing class MessagePersistenceService {
      *              The externalId for the first user message in a turn is the turnIdentifier.
      * @return ID of the saved ChatMessage__c or null if no data provided.
      */
-    public Id saveUserMessage(Id sessionId, String turnIdentifier, LLMInteractionService.MessageData userMessageData, String logPrefix) {
+    public Id saveUserMessage(
+        Id sessionId,
+        String turnIdentifier,
+        LLMInteractionService.MessageData userMessageData,
+        Id recordContextId,
+        String logPrefix
+    ) {
         if (userMessageData != null) {
-            return saveMessageInternal(userMessageData, null, sessionId, logPrefix, turnIdentifier, true);
+            ChatMessage__c msgSobj = createMessageSObject(userMessageData, null, sessionId, logPrefix, turnIdentifier, true);
+            msgSobj.RecordContextId__c = recordContextId;
+
+            return insertMessage(msgSobj, logPrefix);
         }
         return null;
     }
@@ -76,6 +85,8 @@ public inherited sharing class MessagePersistenceService {
         String internalDetails,
         String errorCode,
         Long actionDuration,
+        Id recordContextId,
+        String recordContextDataJson,
         String logPrefix
     ) {
         if (String.isBlank(toolCallId) || parentAssistantMessageId == null) {
@@ -89,6 +100,11 @@ public inherited sharing class MessagePersistenceService {
 
         ChatMessage__c msg = createMessageSObject(toolData, parentAssistantMessageId, sessionId, logPrefix, UuidUtils.generateUUID(), false);
         msg.ToolCallId__c = toolCallId;
+
+        if (recordContextId != null) {
+            msg.RecordContextId__c = recordContextId;
+            msg.RecordContextData__c = recordContextDataJson;
+        }
 
         return insertMessage(msg, logPrefix);
     }

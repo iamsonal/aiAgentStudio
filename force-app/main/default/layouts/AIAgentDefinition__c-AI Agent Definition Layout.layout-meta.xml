@@ -30,7 +30,11 @@
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
-                <field>CombineRecordAndUserContext__c</field>
+                <field>WelcomeMessageTemplate__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Required</behavior>
+                <field>MemoryStrategy__c</field>
             </layoutItems>
         </layoutColumns>
         <layoutColumns>
@@ -41,10 +45,6 @@
             <layoutItems>
                 <behavior>Edit</behavior>
                 <field>IsActive__c</field>
-            </layoutItems>
-            <layoutItems>
-                <behavior>Edit</behavior>
-                <field>IncludeSystemPromptInHistory__c</field>
             </layoutItems>
         </layoutColumns>
         <style>TwoColumnsTopToBottom</style>

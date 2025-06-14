@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MemoryStrategy__c</fullName>
+    <description>Defines the memory management strategy for this agent. &apos;Buffer Window&apos; remembers the last N messages (token-intensive but precise). &apos;Summary Buffer&apos; uses an LLM to create a running summary of the conversation (token-efficient but adds latency).</description>
+    <inlineHelpText>Select the memory strategy. &apos;Buffer Window&apos; is best for short, transactional conversations. &apos;Summary Buffer&apos; is best for long, stateful conversations where context from the beginning is critical.</inlineHelpText>
+    <label>Memory Strategy</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Buffer Window</fullName>
+                <default>true</default>
+                <label>Buffer Window</label>
+            </value>
+            <value>
+                <fullName>Summary Buffer</fullName>
+                <default>false</default>
+                <label>Summary Buffer</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

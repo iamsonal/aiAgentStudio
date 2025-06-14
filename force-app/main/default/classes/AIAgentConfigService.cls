@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description Provides cached access to AI Agent Framework configurations using Salesforce RECORD IDs and Developer Names.
@@ -23,10 +23,9 @@ public inherited sharing class AIAgentConfigService {
         'DeveloperName__c',
         'LLMConfiguration__c',
         'SystemPrompt__c',
-        'IncludeSystemPromptInHistory__c',
         'IsActive__c',
-        'Description__c',
-        'CombineRecordAndUserContext__c'
+        'MemoryStrategy__c',
+        'Description__c'
     };
 
     private static final List<String> LLM_CONFIGURATION_FIELDS = new List<String>{

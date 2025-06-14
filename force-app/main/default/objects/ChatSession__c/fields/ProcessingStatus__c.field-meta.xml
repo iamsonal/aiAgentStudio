@@ -22,24 +22,19 @@
                 <label>Processing</label>
             </value>
             <value>
-                <fullName>AwaitingAction</fullName>
+                <fullName>Awaiting Action</fullName>
                 <default>false</default>
-                <label>AwaitingAction</label>
+                <label>Awaiting Action</label>
             </value>
             <value>
-                <fullName>AwaitingFollowup</fullName>
+                <fullName>Awaiting Followup</fullName>
                 <default>false</default>
-                <label>AwaitingFollowup</label>
+                <label>Awaiting Followup</label>
             </value>
             <value>
                 <fullName>Failed</fullName>
                 <default>false</default>
                 <label>Failed</label>
-            </value>
-            <value>
-                <fullName>AwaitingUserConfirmation</fullName>
-                <default>false</default>
-                <label>AwaitingUserConfirmation</label>
             </value>
         </valueSetDefinition>
     </valueSet>

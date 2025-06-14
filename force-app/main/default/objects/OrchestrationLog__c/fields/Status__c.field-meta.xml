@@ -16,11 +16,6 @@
                 <label>Initiated</label>
             </value>
             <value>
-                <fullName>InProgress</fullName>
-                <default>false</default>
-                <label>InProgress</label>
-            </value>
-            <value>
                 <fullName>Success</fullName>
                 <default>false</default>
                 <label>Success</label>

@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2025 Sonal
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2025 Sonal
  */
-
 
 /**
  * @description Standard Action: Submits a Salesforce record into a predefined approval process.
@@ -69,11 +69,11 @@ public with sharing class ActionSubmitForApproval extends BaseAgentAction {
 
             Map<String, Object> parsedArgs = (Map<String, Object>) JSON.deserializeUntyped(jsonArguments);
 
-            this.recordId = ActionParamUtils.getRequiredId(parsedArgs, ARG_RECORD_ID, null);
-            this.submitterComment = ActionParamUtils.getOptionalString(parsedArgs, ARG_SUBMITTER_COMMENT);
-            this.processDefinitionNameOrId = ActionParamUtils.getOptionalString(parsedArgs, ARG_PROCESS_DEF_NAME_OR_ID);
+            this.recordId = ParameterExtractionUtils.getRequiredId(parsedArgs, ARG_RECORD_ID, null);
+            this.submitterComment = ParameterExtractionUtils.getOptionalString(parsedArgs, ARG_SUBMITTER_COMMENT);
+            this.processDefinitionNameOrId = ParameterExtractionUtils.getOptionalString(parsedArgs, ARG_PROCESS_DEF_NAME_OR_ID);
             this.nextApproverIds = parseIdList(parsedArgs.get(ARG_NEXT_APPROVER_IDS), ARG_NEXT_APPROVER_IDS);
-            this.skipEntryCriteria = ActionParamUtils.getOptionalBoolean(parsedArgs, ARG_SKIP_ENTRY_CRITERIA, false);
+            this.skipEntryCriteria = ParameterExtractionUtils.getOptionalBoolean(parsedArgs, ARG_SKIP_ENTRY_CRITERIA, false);
         }
 
         /** Parses optional ID list, allowing string or list<string> input */
