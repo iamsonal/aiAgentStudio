@@ -2,9 +2,9 @@
 
 ## Overview
 
-This Salesforce AI Agent Studio provides a robust, enterprise-grade, and extensible platform for integrating advanced AI Agents, powered by Large Language Models (LLMs), directly within your Salesforce environment. It enables the creation of sophisticated conversational assistants that can understand user intent, access relevant Salesforce data securely, perform complex multi-step actions, and provide intelligent, context-aware responses through a chat interface.
+The Salesforce AI Agent Studio is a robust, enterprise-grade, and extensible platform for integrating advanced AI Agents, powered by Large Language Models (LLMs), directly within your Salesforce environment. It enables the creation of sophisticated conversational assistants that can understand user intent, access relevant Salesforce data securely, perform complex multi-step actions, and provide intelligent, context-aware responses through a chat interface.
 
-The framework has been re-architected to prioritize **declarative configuration**, **robust security**, **scalable asynchronous processing**, **comprehensive error handling**, and **deep observability**, allowing technical teams to build, manage, and debug powerful AI-driven workflows entirely within the Salesforce ecosystem.
+The framework is designed to prioritize declarative configuration, robust security, scalable asynchronous processing, and comprehensive error handling, allowing technical teams to build and manage powerful AI-driven workflows entirely within the Salesforce ecosystem.
 
 ---
 
@@ -14,33 +14,30 @@ This framework is designed to empower teams to build, manage, and scale powerful
 
 #### **Configuration & Control (Clicks, Not Code)**
 
-*   **Admin-Friendly Agent Builder:** Define and manage every aspect of your AI agents declaratively. Admins can configure an agent's personality, link it to an AI model, and assign its tools through core configuration objects like **`AIAgentDefinition__c`** and **`AgentCapability__c`**, minimizing the need for custom Apex code for setup and maintenance.
+This framework is designed to empower teams to build, manage, and scale powerful AI assistants on the Salesforce platform. Its key features are focused on providing a balance of flexibility, control, and enterprise-grade reliability.
 
-*   **Guided Workflows & Smart Task Sequencing:** Enforce business processes by defining the exact order in which an agent must perform tasks. You can configure a capability using the **`ExecutionPrerequisites__c`** field, ensuring the agent follows a logical, predictable path (e.g., `find_record` must succeed before `update_record`).
+##### Configuration & Control (Clicks, Not Code)
 
-*   **Intelligent Error Recovery:** Decide how an agent should behave when a tool fails. By configuring the **`HaltAndReportError__c`** flag on a specific `AgentCapability__c`, you can choose to either stop and clearly explain the problem to the user or allow the agent to attempt autonomous recovery with a different tool.
+*   **Admin-Friendly Agent Builder:** Define and manage every aspect of your AI agents declaratively. Admins can configure an agent's personality, link it to an AI model, and assign its tools through core configuration objects like `AIAgentDefinition__c` and `AgentCapability__c`, minimizing the need for custom Apex code for setup and maintenance.
+*   **Guided Workflows & Smart Task Sequencing:** Enforce business processes by defining the exact order in which an agent must perform tasks. You can configure a capability using the `ExecutionPrerequisites__c` field, ensuring the agent follows a logical, predictable path (e.g., `find_record` must succeed before `update_record`).
+*   **Intelligent Error Recovery:** Decide how an agent should behave when a tool fails. By configuring the `HaltAndReportError__c` flag on a specific `AgentCapability__c`, you can choose to either stop and clearly explain the problem to the user or allow the agent to attempt autonomous recovery with a different tool.
 
-#### **Intelligence & Actions**
+##### Intelligence & Actions
 
-*   **Persistent Conversational Memory:** The framework gives agents a "Context Ledger," stored in **`ChatSession__c.EntityHistoryJson__c`**, allowing them to remember key records and information mentioned across multiple interactions in a single conversation. This means users don't have to repeat themselves, and the agent gets smarter as the conversation progresses.
+*   **Persistent Conversational Memory:** The framework gives agents a "Context Ledger," stored in `ChatSession__c.EntityHistoryJson__c`, allowing them to remember key records and information mentioned across multiple interactions in a single conversation. This means users don't have to repeat themselves, and the agent gets smarter as the conversation progresses.
+*   **Built-in Managerial Approvals:** For high-stakes actions, require a formal sign-off. The framework can automatically create a `HumanApprovalRequest__c` record and submit it into a standard Salesforce Approval Process, pausing the action until a manager approves or rejects it.
+*   **Real-time "Thinking" Display:** Enhance the user experience with an optional streaming-like interface, powered by a Platform Event (`TransientMessage__e`). Users can see the agent's intermediate thoughts and text responses in near real-time while it works on a longer task in the background, making the interaction feel more dynamic and transparent.
 
-*   **Built-in Managerial Approvals:** For high-stakes actions, require a formal sign-off. The framework can automatically create a **`HumanApprovalRequest__c`** record and submit it into a standard **Salesforce Approval Process**, pausing the action until a manager approves or rejects it.
+##### Integration & Extensibility
 
-*   **Real-time "Thinking" Display:** Enhance the user experience with an optional streaming-like interface, powered by a Platform Event (**`TransientMessage__e`**). Users can see the agent's intermediate thoughts and text responses in near real-time while it works on a longer task in the background, making the interaction feel more dynamic and transparent.
+*   **Connect to Any AI Model:** The framework is not locked into one AI provider. Using the Adapter Pattern (`ILLMProviderAdapter` interface) and a simple `LLMConfiguration__c` record, you can connect to different Large Language Models (e.g., OpenAI, Anthropic, Google), allowing you to choose the best model for your needs.
+*   **Create Any Custom Action:** Go beyond the powerful standard actions. Developers can easily build custom tools that interact with any part of Salesforce—or even external systems—by implementing the `IAgentAction` interface.
+*   **Teach the Agent Your Business:** Equip your agent with deep knowledge of your specific business environment. You can create custom context providers by implementing `IAgentContextProvider` and link them to an agent via the `AgentContextConfig__c` object, allowing the agent to make more informed decisions.
 
-#### **Integration & Extensibility**
+##### Trust & Safety
 
-*   **Connect to Any AI Model:** The framework is not locked into one AI provider. Using the **Adapter Pattern** (**`ILLMProviderAdapter`** interface) and a simple **`LLMConfiguration__c`** record, you can connect to different Large Language Models (e.g., OpenAI, Anthropic, Google), allowing you to choose the best model for your needs.
-
-*   **Create Any Custom Action:** Go beyond the powerful standard actions. Developers can easily build custom tools that interact with any part of Salesforce—or even external systems—by implementing the **`IAgentAction`** interface.
-
-*   **Teach the Agent Your Business:** Equip your agent with deep knowledge of your specific business environment. You can create custom context providers by implementing **`IAgentContextProvider`** and link them to an agent via the **`AgentContextConfig__c`** object, allowing the agent to make more informed decisions.
-
-#### **Trust & Safety**
-
-*   **Built on Salesforce Security:** The agent fundamentally respects your existing security model. It acts *as the user*, meaning it can only access data the user is permitted to see. The framework automatically enforces **Sharing Rules, Profiles, and Field-Level Security (FLS)** during every step of its process.
-
-*   **Scalable & Performant Processing:** The framework's architecture is designed for performance. It can be configured to use either default **Apex Queueables** or a highly scalable, event-driven model powered by **Platform Events** (`AsyncFrameworkRequest__e`), ensuring the agent remains responsive even in high-volume organizations.
+*   **Built on Salesforce Security:** The agent fundamentally respects your existing security model. It acts as the user, meaning it can only access data the user is permitted to see. The framework automatically enforces Sharing Rules, Profiles, and Field-Level Security (FLS) during every step of its process.
+*   **Scalable & Performant Processing:** The framework's architecture is designed for performance. It can be configured to use either default Apex Queueables or a highly scalable, event-driven model powered by Platform Events (`AsyncFrameworkRequest__e`), ensuring the agent remains responsive even in high-volume organizations.
 
 ---
 
