@@ -10,36 +10,37 @@ The framework has been re-architected to prioritize **declarative configuration*
 
 ## Core Features & Capabilities
 
-*   **Scalable Asynchronous Architecture:** The framework's core processing logic has been decoupled from its execution mechanism. It supports two modes, configurable via a Custom Setting (`AIAgentFrameworkSettings__c`):
-    *   **Queueable Jobs:** The default, reliable background processing using `Queueable` Apex.
-    *   **Platform Events:** A highly scalable, event-driven mode (`AsyncFrameworkRequest__e`) that avoids Apex job queue limits, ideal for high-concurrency environments.
+This framework is designed to empower teams to build, manage, and scale powerful AI assistants on the Salesforce platform. Its key features are focused on providing a balance of flexibility, control, and enterprise-grade reliability.
 
-*   **Declarative-First Configuration:** Define agent personas, LLM connections, dynamic context retrieval rules, and agent capabilities (tools/actions) declaratively using Salesforce Custom Objects (`AIAgentDefinition__c`, `AgentCapability__c`) and Custom Metadata. The framework includes validation triggers to prevent common setup errors.
+#### **Configuration & Control (Clicks, Not Code)**
 
-*   **Advanced Tool Chaining & Error Handling:** The `AgentCapability__c` object now supports:
-    *   **Execution Prerequisites:** Define a chain of capabilities that must be successfully executed before another can run (e.g., `find_record` must succeed before `update_record`).
-    *   **Prerequisite Validation Scope:** Choose whether prerequisites must be met within the current turn or across the entire session.
-    *   **Halt & Report on Error:** Configure a capability to either stop and report a failure to the user or allow the agent to attempt autonomous recovery.
+*   **Admin-Friendly Agent Builder:** Define and manage every aspect of your AI agents declaratively. Admins can configure an agent's personality, link it to an AI model, and assign its tools through core configuration objects like **`AIAgentDefinition__c`** and **`AgentCapability__c`**, minimizing the need for custom Apex code for setup and maintenance.
 
-*   **Formal Salesforce Approval Integration:** Capabilities can be flagged to trigger a formal **Salesforce Approval Process**. The framework automatically creates a `HumanApprovalRequest__c` record, submits it for approval, and can resume the action upon approval or notify the user upon rejection.
+*   **Guided Workflows & Smart Task Sequencing:** Enforce business processes by defining the exact order in which an agent must perform tasks. You can configure a capability using the **`ExecutionPrerequisites__c`** field, ensuring the agent follows a logical, predictable path (e.g., `find_record` must succeed before `update_record`).
 
-*   **Extensible Action & Context Framework:**
-    *   **LLM Agnostic (Adapter Pattern):** Integrate with various LLM providers by implementing a standard `ILLMProviderAdapter` interface. An `OpenAIProviderAdapter` with robust retry logic is included.
-    *   **Custom Actions & Hooks:** Extend agent capabilities beyond the included standard actions by creating custom Apex classes implementing `IAgentAction` (via the `BaseAgentAction` template). Inject custom logic before or after any action runs using `IPreActionHook` and `IPostActionHook` interfaces.
-    *   **Custom Context Provisioning:** Implement `IAgentContextProvider` to fetch and structure complex contextual data, supplementing declarative context rules.
+*   **Intelligent Error Recovery:** Decide how an agent should behave when a tool fails. By configuring the **`HaltAndReportError__c`** flag on a specific `AgentCapability__c`, you can choose to either stop and clearly explain the problem to the user or allow the agent to attempt autonomous recovery with a different tool.
 
-*   **Stateful Context Management (Context Ledger):** The framework now maintains a "Context Ledger" (`ChatSession__c.EntityHistoryJson__c`) that tracks all relevant records (from the page, created by actions, etc.) throughout a session, providing a more intelligent and persistent context for the agent across multiple turns.
+#### **Intelligence & Actions**
 
-*   **Comprehensive Observability & Turn-Based Debugging:**
-    *   Detailed logging (`OrchestrationLog__c`) captures each step of the agent's processing turn, managed centrally by `OrchestrationLogger`.
-    *   A `ChatSessionVisualizer` LWC provides a step-by-step timeline of an agent's "thought process" for easy debugging.
-    *   The `TurnIdentifier__c` allows for reliable correlation of all synchronous and asynchronous steps for a single user message.
+*   **Persistent Conversational Memory:** The framework gives agents a "Context Ledger," stored in **`ChatSession__c.EntityHistoryJson__c`**, allowing them to remember key records and information mentioned across multiple interactions in a single conversation. This means users don't have to repeat themselves, and the agent gets smarter as the conversation progresses.
 
-*   **Security by Design:** Operates securely within Salesforce's sharing model. Enforces Object permissions and Field-Level Security (FLS) during context gathering, action argument coercion (`SObjectArgumentCoercionService`), and action execution (`SecurityUtils`, `QueryService` with `WITH USER_MODE`).
+*   **Built-in Managerial Approvals:** For high-stakes actions, require a formal sign-off. The framework can automatically create a **`HumanApprovalRequest__c`** record and submit it into a standard **Salesforce Approval Process**, pausing the action until a manager approves or rejects it.
 
-*   **Modern, Responsive UI:**
-    *   The `aiAssistantChat` LWC has a modular, service-based architecture for better maintainability.
-    *   It supports **transient messages** (`TransientMessage__e`), allowing the UI to display the agent's intermediate "thoughts" for a streaming-like experience before a long-running tool completes.
+*   **Real-time "Thinking" Display:** Enhance the user experience with an optional streaming-like interface, powered by a Platform Event (**`TransientMessage__e`**). Users can see the agent's intermediate thoughts and text responses in near real-time while it works on a longer task in the background, making the interaction feel more dynamic and transparent.
+
+#### **Integration & Extensibility**
+
+*   **Connect to Any AI Model:** The framework is not locked into one AI provider. Using the **Adapter Pattern** (**`ILLMProviderAdapter`** interface) and a simple **`LLMConfiguration__c`** record, you can connect to different Large Language Models (e.g., OpenAI, Anthropic, Google), allowing you to choose the best model for your needs.
+
+*   **Create Any Custom Action:** Go beyond the powerful standard actions. Developers can easily build custom tools that interact with any part of Salesforce—or even external systems—by implementing the **`IAgentAction`** interface.
+
+*   **Teach the Agent Your Business:** Equip your agent with deep knowledge of your specific business environment. You can create custom context providers by implementing **`IAgentContextProvider`** and link them to an agent via the **`AgentContextConfig__c`** object, allowing the agent to make more informed decisions.
+
+#### **Trust & Safety**
+
+*   **Built on Salesforce Security:** The agent fundamentally respects your existing security model. It acts *as the user*, meaning it can only access data the user is permitted to see. The framework automatically enforces **Sharing Rules, Profiles, and Field-Level Security (FLS)** during every step of its process.
+
+*   **Scalable & Performant Processing:** The framework's architecture is designed for performance. It can be configured to use either default **Apex Queueables** or a highly scalable, event-driven model powered by **Platform Events** (`AsyncFrameworkRequest__e`), ensuring the agent remains responsive even in high-volume organizations.
 
 ---
 
