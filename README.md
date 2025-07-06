@@ -43,41 +43,40 @@ This framework is designed to empower teams to build, manage, and scale powerful
 
 ## Architecture & Key Concepts
 
-This AI Agent framework has evolved to use several modern design patterns:
+This AI Agent framework is built on several modern design patterns to ensure flexibility, scalability, and maintainability:
 
-1.  **Configuration First:** Core behavior is defined in Custom Objects (`AIAgentDefinition__c`, `LLMConfiguration__c`, `AgentCapability__c`) and Custom Metadata (`StandardActionHandler__mdt`, `SObjectConfig__mdt`). This makes the framework highly adaptable.
-2.  **Decoupled Asynchronous Processing:** Logic classes (`AsyncActionProcessor`, `FollowUpLLMProcessor`) are separated from their invocation mechanism (Queueable vs. Platform Event), enabling scalability. `AgentJobEnqueuer` handles the dispatching.
-3.  **Strategy Pattern for Response Handling:** The `OrchestrationService` uses a `ResponseHandlerFactory` to select the correct strategy (`ToolCallResponseHandler` or `ContentResponseHandler`) based on the LLM's output.
-4.  **Centralized Prompt & Context Composition:** `SystemPromptBuilder` assembles the final system prompt, while `ContextResolverService` uses the `ContextManagerService` (the "Ledger") to orchestrate the gathering of all relevant data from multiple `IAgentContextProvider` implementations in a bulk-safe way.
-5.  **Template Method for Actions:** `BaseAgentAction` provides a standardized execution template (`execute`), ensuring consistent error handling, validation, and hook execution for all actions.
-6.  **Event-Driven UI:** Platform Events (`AgentResponse__e`, `TransientMessage__e`) notify the LWC about final results and intermediate messages, decoupling the backend processing from the UI.
+*   **Configuration First:** Core behavior is defined in Custom Objects (`AIAgentDefinition__c`, `LLMConfiguration__c`, `AgentCapability__c`) and Custom Metadata (`StandardActionHandler__mdt`, `SObjectConfig__mdt`). This makes the framework highly adaptable.
+*   **Decoupled Asynchronous Processing:** Logic classes (`AsyncActionProcessor`, `FollowUpLLMProcessor`) are separated from their invocation mechanism (Queueable vs. Platform Event), enabling scalability. `AgentJobEnqueuer` handles the dispatching.
+*   **Strategy Pattern for Response Handling:** The `OrchestrationService` uses a `ResponseHandlerFactory` to select the correct strategy (`ToolCallResponseHandler` or `ContentResponseHandler`) based on the LLM's output.
+*   **Centralized Prompt & Context Composition:** `SystemPromptBuilder` assembles the final system prompt, while `ContextResolverService` uses the `ContextManagerService` (the "Ledger") to orchestrate the gathering of all relevant data from multiple `IAgentContextProvider` implementations in a bulk-safe way.
+*   **Template Method for Actions:** `BaseAgentAction` provides a standardized execution template (`execute`), ensuring consistent error handling, validation, and hook execution for all actions.
+*   **Event-Driven UI:** Platform Events (`AgentResponse__e`, `TransientMessage__e`) notify the LWC about final results and intermediate messages, decoupling the backend processing from the UI.
 
 ---
 
 ## Core Component Types
 
 *   **Configuration:**
-    *   **Custom Objects:** `AIAgentDefinition__c`, `LLMConfiguration__c`, `AgentCapability__c`, `AgentContextConfig__c`, `HumanApprovalRequest__c`.
-    *   **Custom Metadata:** `StandardActionHandler__mdt`, `SObjectConfig__mdt`.
-    *   **Custom Settings:** `AIAgentFrameworkSettings__c`.
+    *   Custom Objects: `AIAgentDefinition__c`, `LLMConfiguration__c`, `AgentCapability__c`, `AgentContextConfig__c`, `HumanApprovalRequest__c`.
+    *   Custom Metadata: `StandardActionHandler__mdt`, `SObjectConfig__mdt`.
+    *   Custom Settings: `AIAgentFrameworkSettings__c`.
 *   **Services:** Apex classes handling specific tasks (Orchestration, LLM Interaction, Action Execution, Context Resolution & Management, State, Persistence).
 *   **Interfaces:** Define contracts for extensibility (`ILLMProviderAdapter`, `IAgentAction`, `IPreActionHook`, `IPostActionHook`, `IAgentContextProvider`).
 *   **Action Framework:** `BaseAgentAction`, `ActionRegistry`, and standard action implementations (e.g., `ActionGetRecords`, `ActionRunReport`).
-*   **Data Model:** `ChatSession__c`, `ChatMessage__c`, `OrchestrationLog__c`.
+*   **Data Model:** `ChatSession__c`, `ChatMessage__c`.
 *   **Platform Events:** `AgentResponse__e`, `TransientMessage__e`, `AsyncFrameworkRequest__e`.
 *   **Utilities:** Helpers for security, schema, parameters, retries, etc.
-*   **LWC UI:** Includes `aiAssistantChat` and the `chatSessionVisualizer`.
+*   **LWC UI:** Includes `aiAssistantChat`.
 
 ---
 
 ## Administrator / Configurator Responsibilities
-
 *   **Clear Instructions (Prompts & Descriptions):** The quality of `AIAgentDefinition__c` prompts and `AgentCapability__c.Description__c` is paramount. These must clearly define the agent's role, limitations, and how/when to use specific tools.
 *   **Accurate Tool Schemas:** The `Parameters__c` JSON Schema on `AgentCapability__c` must accurately reflect the arguments the LLM needs to provide for an action.
 *   **Prerequisite Chains:** Thoughtfully configure `ExecutionPrerequisites__c` on `AgentCapability__c` to guide the agent through logical workflows.
 *   **Contextual Relevance:** Configure `AgentContextConfig__c` records effectively to provide necessary, but not excessive, information to the LLM to manage token usage.
 *   **Security & Permissions:** Admins are responsible for assigning appropriate permissions to users for the framework objects, Apex classes, and the underlying data the agent might access.
-*   **Named Credential Setup:** Correctly configure Named Credentials for LLM provider authentication. **API keys must not be hardcoded.**
+*   **Named Credential Setup:** Correctly configure Named Credentials for LLM provider authentication. API keys must not be hardcoded.
 
 ---
 
