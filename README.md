@@ -156,10 +156,9 @@ sequenceDiagram
 
 ## Setup
 
-1.  **Deploy All Components:** Deploy all Custom Objects, Fields, Apex Classes, Triggers, LWCs, Custom Metadata Types, and Custom Settings from the project.
-2.  **Configure Named Credential:**
-    *   Create an **External Credential** for your LLM Provider.
-    *   Create a **Named Credential** matching the `NamedCredential__c` value you will use in `LLMConfiguration__c`. Set its URL (e.g., `https://api.openai.com`) and link it to the External Credential.
+1.  **Deploy All Components:** Run `cci flow run dev_org --org dev` to automatically create a scratch org and deploy all metadata components in this repository. Install CumulusCI: [https://cumulusci.readthedocs.io/en/stable/get-started.html](https://cumulusci.readthedocs.io/en/stable/get-started.html)
+2.  **Configure External Credential:**
+    *   Click add for the Authentication Parameters, give it a name of “OpenAIKey” and enter your secret key from OpenAI
 3.  **Configure `LLMConfiguration__c`:**
     *   Create at least one record specifying a `DeveloperName__c`, the `NamedCredential__c` from step 2, the `ProviderAdapterClass__c` (e.g., `OpenAIProviderAdapter`), and the `DefaultModelIdentifier__c`.
 4.  **Configure `AIAgentDefinition__c`:**
