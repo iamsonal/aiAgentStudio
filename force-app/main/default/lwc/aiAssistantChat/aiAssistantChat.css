@@ -1,11 +1,3 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/.
- *
- * Copyright (c) 2025 Sonal
- */
-
 .chat-container {
     height: 60vh;
     min-height: 300px;
@@ -186,4 +178,32 @@ pre.slds-code {
 
 .confirmation-prompt p {
     white-space: pre-wrap;
+}
+
+.welcome-message {
+    border-bottom: 1px solid var(--lwc-colorBorder, #dddbda);
+    background-color: var(--lwc-colorBackgroundAlt, #fafaf9);
+    color: var(--lwc-colorTextLabel, #706e6b);
+    font-style: italic;
+}
+
+.slds-chat-message {
+    position: relative;
+}
+
+.startover-button-container {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.slds-chat-listitem:hover .startover-button-container {
+    opacity: 1;
+}
+
+.slds-chat-listitem_outbound .startover-button-container {
+    right: 100%;
+    margin-right: 0.5rem;
 }

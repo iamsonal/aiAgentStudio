@@ -8,8 +8,8 @@
 
 /**
  * @description Service responsible for the core LLM interaction cycle for a single turn:
- *              context gathering, payload formatting, LLM callout (with retries), and response parsing.
- *              Designed to be called synchronously by the Controller or asynchronously by FollowUpLLMQueueable.
+ *              It delegates prompt composition to SystemPromptBuilder, then handles payload formatting,
+ *              the LLM callout (with retries), and response parsing.
  */
 public inherited sharing class LLMInteractionService {
     /** @description DTO for returning results */
@@ -54,10 +54,20 @@ public inherited sharing class LLMInteractionService {
     private final Id llmConfigurationId;
     private final String turnIdentifier;
     private final Integer currentTurnCount;
-    private final Id relatedRecordId;
     private final String logPrefix;
+    private final Id currentPageRecordId;
+    private final Boolean isFinalErrorTurn;
 
-    public LLMInteractionService(Id sessId, Id usrId, Id agentDefId, Id llmConfigId, String turnId, Integer turnNum, Id relId) {
+    public LLMInteractionService(
+        Id sessId,
+        Id usrId,
+        Id agentDefId,
+        Id llmConfigId,
+        String turnId,
+        Integer turnNum,
+        Id pageRecordId,
+        Boolean isFinalError
+    ) {
         if (sessId == null || usrId == null || agentDefId == null || llmConfigId == null || String.isBlank(turnId) || turnNum == null) {
             throw new IllegalArgumentException('Required arguments cannot be null for LLMInteractionService.');
         }
@@ -67,7 +77,8 @@ public inherited sharing class LLMInteractionService {
         this.llmConfigurationId = llmConfigId;
         this.turnIdentifier = turnId;
         this.currentTurnCount = turnNum;
-        this.relatedRecordId = relId;
+        this.currentPageRecordId = pageRecordId;
+        this.isFinalErrorTurn = (isFinalError == true);
         this.logPrefix = '[LLMIntSvc Turn:' + turnId?.left(8) + ' Cycle:' + turnNum + '] ';
     }
 
@@ -79,28 +90,44 @@ public inherited sharing class LLMInteractionService {
     public LLMInteractionResult prepareAndCallLLM(LLMInteractionService.MessageData currentTurnUserMessage) {
         AIAgentDefinition__c agentConfig = null;
         LLMConfiguration__c llmConfig = null;
-        ProviderResult llmApiResult = null;
+
+        SystemPromptBuilder promptBuilder = new SystemPromptBuilder();
 
         try {
             agentConfig = AIAgentConfigService.getAgentDefinition(this.agentDefinitionId);
             llmConfig = AIAgentConfigService.getLLMConfiguration(this.llmConfigurationId);
 
+            String finalSystemPrompt = promptBuilder.build(this.sessionId, agentConfig, llmConfig, this.currentPageRecordId, this.currentTurnCount);
+
+            Boolean isMultiStepTurn = this.currentTurnCount > 1;
+
+            Boolean isFinalContentCall = (currentTurnUserMessage == null);
+            Boolean transientMessagesDisabled = !AIAgentFrameworkSettings.useTransientMessages();
+
+            if (isMultiStepTurn && isFinalContentCall && transientMessagesDisabled) {
+                String summarizationInstruction =
+                    '\n\n# FINAL INSTRUCTIONS\n\n' +
+                    'You have just completed one or more tool actions that the user did not see. ' +
+                    'Your task is to synthesize the results of all actions into a single, user-friendly summary. ' +
+                    'This will be the only message the user sees for this turn. ' +
+                    'Do not ask questions; provide a conclusive, final response.';
+
+                finalSystemPrompt += summarizationInstruction;
+            }
+
+            if (this.isFinalErrorTurn) {
+                String finalErrorInstruction =
+                    '\n\n# CRITICAL INSTRUCTIONS\n\n' +
+                    'The last tool you tried to use failed. Inform the user of this failure based on the history. ' +
+                    'Then, check if you have an alternative tool and propose it as the next step. ' +
+                    'Do not use any tools now; only generate a text response.';
+                finalSystemPrompt += finalErrorInstruction;
+            }
+
             List<Map<String, Object>> finalMessagesPayload = new List<Map<String, Object>>();
 
-            String staticContextString = ContextProviderRunner.aggregateContext(this.agentDefinitionId, this.userId, this.relatedRecordId);
-            if (String.isNotBlank(staticContextString)) {
-            }
-
-            String systemPromptContent = '';
-            if (String.isNotBlank(agentConfig.SystemPrompt__c)) {
-                systemPromptContent = agentConfig.SystemPrompt__c;
-            }
-            if (String.isNotBlank(staticContextString)) {
-                systemPromptContent += '\n\n--- Additional Context ---\n' + staticContextString;
-            }
-
-            if (String.isNotBlank(systemPromptContent)) {
-                finalMessagesPayload.add(new Map<String, Object>{ 'role' => AIAgentConstants.ROLE_SYSTEM, 'content' => systemPromptContent });
+            if (String.isNotBlank(finalSystemPrompt)) {
+                finalMessagesPayload.add(new Map<String, Object>{ 'role' => AIAgentConstants.ROLE_SYSTEM, 'content' => finalSystemPrompt });
             }
 
             IMemoryManager memoryManager = MemoryManagerFactory.getManager(agentConfig.MemoryStrategy__c);
@@ -126,7 +153,7 @@ public inherited sharing class LLMInteractionService {
             Long callStartTime = System.currentTimeMillis();
             try {
                 ILLMProviderAdapter adapter = LLMProviderFactory.getAdapter(llmConfig);
-                llmApiResult = adapter.sendMessage(finalMessagesPayload, toolsPayload, llmConfig, agentConfig);
+                ProviderResult llmApiResult = adapter.sendMessage(finalMessagesPayload, toolsPayload, llmConfig, agentConfig);
 
                 if (llmApiResult == null) {
                     throw new LLMInteractionException('LLM Adapter returned a null result.');

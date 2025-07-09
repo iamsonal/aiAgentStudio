@@ -19,15 +19,12 @@ public inherited sharing class MessageHistoryFormatter {
      *              This method ONLY handles the conversation history, not the system prompt.
      * @param historySObjectsAsc The list of ChatMessage__c records to format, ordered ascending by time.
      * @param agentConfig The agent's configuration record (needed for potential future logic).
-     * @param includeSystemPrompt If true, the system prompt will be added. (DEPRECATED but kept for signature compatibility, logic is now conditional).
      * @param loggingContext A logging prefix string.
      * @return A list of message maps, ready to be included in the LLM API request body.
      */
     public static List<Map<String, Object>> formatMessagesForApi(
         List<ChatMessage__c> historySObjectsAsc,
         AIAgentDefinition__c agentConfig,
-        String injectedContextString,
-        Boolean includeSystemPrompt,
         String loggingContext
     ) {
         String debugPrefix = String.isNotBlank(loggingContext) ? loggingContext : '[MsgHistFormatter] ';
@@ -69,17 +66,6 @@ public inherited sharing class MessageHistoryFormatter {
             }
 
             String finalContentForLlm = currentMsg.Content__c;
-            if (
-                role == AIAgentConstants.ROLE_TOOL &&
-                String.isNotBlank(currentMsg.RecordContextId__c) &&
-                String.isNotBlank(currentMsg.RecordContextData__c)
-            ) {
-                String contextHeader = String.format(
-                    '[CONTEXT UPDATE: The last action created or referenced the following record (ID: {0}). This is the new, primary context for your next step.]\n',
-                    new List<String>{ currentMsg.RecordContextId__c }
-                );
-                finalContentForLlm = contextHeader + currentMsg.RecordContextData__c;
-            }
 
             if (
                 role == AIAgentConstants.ROLE_USER ||
@@ -106,15 +92,6 @@ public inherited sharing class MessageHistoryFormatter {
                             String toolMsgKey = '  Tool Result Msg ' + toolResultMessage.Id + ' (for CallId ' + toolCallId + ')';
 
                             String finalToolContent = toolResultMessage.Content__c;
-                            if (
-                                String.isNotBlank(toolResultMessage.RecordContextId__c) && String.isNotBlank(toolResultMessage.RecordContextData__c)
-                            ) {
-                                String contextHeader = String.format(
-                                    '[CONTEXT UPDATE: Your action created or referenced the following record (ID: {0}). This is now the primary context.]\n',
-                                    new List<String>{ toolResultMessage.RecordContextId__c }
-                                );
-                                finalToolContent = contextHeader + toolResultMessage.RecordContextData__c;
-                            }
 
                             LlmPayloadUtils.addMessageToPayload(
                                 finalPayload,

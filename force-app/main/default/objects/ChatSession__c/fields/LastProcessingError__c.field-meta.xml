@@ -5,6 +5,7 @@
     <inlineHelpText>Displays detailed information about the most recent critical failure encountered by the agent while processing this conversation. Blank if no errors.</inlineHelpText>
     <label>Last Error Details</label>
     <length>131072</length>
+    <trackHistory>false</trackHistory>
     <trackTrending>false</trackTrending>
     <type>LongTextArea</type>
     <visibleLines>3</visibleLines>

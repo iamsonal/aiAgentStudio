@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ImplementationType__c</fullName>
+    <description>Defines how this capability is implemented. &apos;Standard&apos; uses a built-in framework action. &apos;Apex&apos; uses a custom Apex class that implements the IAgentAction interface. &apos;Flow&apos; uses a Salesforce Flow.</description>
+    <inlineHelpText>Choose how this capability is implemented. &apos;Standard&apos; for built-in actions, &apos;Apex&apos; for custom code, or &apos;Flow&apos; for a Salesforce Flow.</inlineHelpText>
+    <label>Implementation Type</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Standard</fullName>
+                <default>false</default>
+                <label>Standard</label>
+            </value>
+            <value>
+                <fullName>Apex</fullName>
+                <default>false</default>
+                <label>Apex</label>
+            </value>
+            <value>
+                <fullName>Flow</fullName>
+                <default>false</default>
+                <label>Flow</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

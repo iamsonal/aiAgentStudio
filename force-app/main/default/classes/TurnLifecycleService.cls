@@ -43,12 +43,14 @@ public inherited sharing class TurnLifecycleService {
     /** Called when an asynchronous action is queued, and we are waiting for its completion. */
     public void pauseForAsyncAction(Id sessionId, String turnIdentifier, Id jobId, String toolName, String logPrefix) {
         String stepDesc = generateStepDescription(AIAgentConstants.STATUS_AWAITING_ACTION, toolName);
+
         this.stateService.updateStatus(sessionId, AIAgentConstants.STATUS_AWAITING_ACTION, jobId, null, turnIdentifier, stepDesc);
     }
 
     /** Called after a tool/action completes and the system needs another LLM call to continue the turn. */
     public void resumeForFollowUpLlmCall(Id sessionId, String turnIdentifier, Id nextJobId, String logPrefix) {
         String stepDesc = generateStepDescription(AIAgentConstants.STATUS_AWAITING_FOLLOWUP, null);
+
         this.stateService.updateStatus(sessionId, AIAgentConstants.STATUS_AWAITING_FOLLOWUP, nextJobId, null, turnIdentifier, stepDesc);
     }
 
@@ -85,14 +87,11 @@ public inherited sharing class TurnLifecycleService {
             when 'Processing' {
                 return 'Thinking...';
             }
-            when 'AwaitingAction' {
+            when 'Awaiting Action' {
                 return 'Executing: ' + (String.isNotBlank(contextName) ? contextName.abbreviate(50) : 'Action');
             }
-            when 'AwaitingFollowup' {
+            when 'Awaiting Followup' {
                 return 'Processing results...';
-            }
-            when 'AwaitingUserConfirmation' {
-                return 'Waiting for your confirmation...';
             }
             when 'Failed' {
                 return 'An error occurred.';

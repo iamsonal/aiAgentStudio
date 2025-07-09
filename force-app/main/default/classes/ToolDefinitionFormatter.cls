@@ -13,7 +13,7 @@ public inherited sharing class ToolDefinitionFormatter {
     /** @description Exception for critical errors during tool definition formatting */
     public class ToolFormattingException extends LlmPayloadUtils.LlmPayloadException {
     }
-    public static final String CONFIRMATION_PARAM_NAME = 'confirmation_message';
+    public static final String SUBMISSION_COMMENT_PARAM_NAME = 'submission_comment';
 
     /**
      * Formats the tool definition payload based on active Agent Capabilities.
@@ -27,47 +27,80 @@ public inherited sharing class ToolDefinitionFormatter {
         List<Map<String, Object>> toolsPayload = new List<Map<String, Object>>();
 
         try {
-            List<AgentCapabilityBinding__c> capabilities = [
-                SELECT Id, DeveloperName__c, Description__c, InputSchema__c, RequiresHumanApproval__c, ActionDefinition__r.IsActive__c
-                FROM AgentCapabilityBinding__c
-                WHERE AIAgentDefinition__c = :agentDefinitionId AND IsActive__c = TRUE AND ActionDefinition__r.IsActive__c = TRUE
-                ORDER BY ExecutionOrder__c ASC NULLS LAST, Name ASC
+            List<AgentCapability__c> capabilities = [
+                SELECT
+                    Id,
+                    CapabilityName__c,
+                    Description__c,
+                    Parameters__c,
+                    RequiresConfirmation__c,
+                    RequiresApproval__c,
+                    ImplementationType__c,
+                    StandardActionType__c,
+                    BackendConfiguration__c
+                FROM AgentCapability__c
+                WHERE AIAgentDefinition__c = :agentDefinitionId AND IsActive__c = TRUE
+                ORDER BY ExecutionPriority__c ASC NULLS LAST, CapabilityName__c ASC
             ];
 
             if (capabilities.isEmpty()) {
                 return toolsPayload;
             }
 
-            for (AgentCapabilityBinding__c binding : capabilities) {
-                String capabilityDevName = binding.DeveloperName__c;
-                String capabilityDesc = binding.Description__c;
-                String capabilityInputSchemaJson = binding.InputSchema__c;
-                Boolean needsConfirmation = binding.RequiresHumanApproval__c == true;
+            for (AgentCapability__c cap : capabilities) {
+                String capabilityName = cap.CapabilityName__c;
+                String capabilityDesc = cap.Description__c;
+                String capabilityInputSchemaJson = cap.Parameters__c;
+                Boolean needsConfirmation = cap.RequiresConfirmation__c;
 
-                if (String.isBlank(capabilityDevName)) {
-                    continue;
+                if (needsConfirmation) {
+                    capabilityDesc += '\n\nIMPORTANT: This is a sensitive action. Before calling this tool, you MUST first ask the user for confirmation with a simple "Are you sure?" style question. Do not call the tool until the user responds affirmatively.';
                 }
-                if (String.isBlank(capabilityDesc)) {
+
+                if (String.isBlank(capabilityName) || String.isBlank(capabilityDesc)) {
                     continue;
                 }
                 if (String.isBlank(capabilityInputSchemaJson)) {
                     capabilityInputSchemaJson = '{"type":"object", "properties":{}}';
                 }
 
-                Map<String, Object> paramSchema = parseAndValidateInputSchemaJson(capabilityInputSchemaJson, capabilityDevName, debugPrefix);
-                if (paramSchema == null) {
+                Map<String, Object> paramSchema = parseAndValidateInputSchemaJson(capabilityInputSchemaJson, capabilityName, debugPrefix);
+                if (paramSchema == null)
                     continue;
+
+                if (cap.RequiresApproval__c) {
+                    Map<String, Object> properties = (Map<String, Object>) paramSchema.get('properties');
+                    if (properties == null) {
+                        properties = new Map<String, Object>();
+                        paramSchema.put('properties', properties);
+                    }
+
+                    Map<String, Object> confirmationParam = new Map<String, Object>{
+                        'type' => 'string',
+                        'description' => 'A concise but clear justification for this request. This message will be sent to the manager for approval.'
+                    };
+
+                    properties.put(ToolDefinitionFormatter.SUBMISSION_COMMENT_PARAM_NAME, confirmationParam);
+
+                    Object requiredObj = paramSchema.get('required');
+                    List<Object> requiredList = (requiredObj instanceof List<Object>) ? (List<Object>) requiredObj : new List<Object>();
+
+                    if (!requiredList.contains(ToolDefinitionFormatter.SUBMISSION_COMMENT_PARAM_NAME)) {
+                        requiredList.add(ToolDefinitionFormatter.SUBMISSION_COMMENT_PARAM_NAME);
+                    }
+                    paramSchema.put('required', requiredList);
                 }
 
-                if (needsConfirmation) {
-                    paramSchema = addConfirmationParameterToSchema(paramSchema, capabilityDevName, debugPrefix);
-                    if (paramSchema == null) {
-                        continue;
+                String sObjectApiName = getObjectApiNameFromConfig(cap);
+                if (String.isNotBlank(sObjectApiName)) {
+                    SObjectType sObjType = SchemaUtils.getSObjectType(sObjectApiName);
+                    if (sObjType != null) {
+                        enrichSchemaWithFieldDetails(paramSchema, sObjType, debugPrefix);
                     }
                 }
 
                 Map<String, Object> functionDef = new Map<String, Object>{
-                    'name' => capabilityDevName,
+                    'name' => capabilityName,
                     'description' => capabilityDesc,
                     'parameters' => paramSchema
                 };
@@ -77,6 +110,55 @@ public inherited sharing class ToolDefinitionFormatter {
             throw new ToolFormattingException('Failed to format tools payload: ' + e.getMessage(), e);
         }
         return toolsPayload;
+    }
+
+    private static String getObjectApiNameFromConfig(AgentCapability__c cap) {
+        Set<String> objectAwareActions = new Set<String>{ 'CreateRecord', 'UpdateRecord', 'GetRecords' };
+        if (
+            'Standard'.equalsIgnoreCase(cap.ImplementationType__c) &&
+            objectAwareActions.contains(cap.StandardActionType__c) &&
+            String.isNotBlank(cap.BackendConfiguration__c)
+        ) {
+            try {
+                Map<String, Object> backendConfig = (Map<String, Object>) JSON.deserializeUntyped(cap.BackendConfiguration__c);
+                if (backendConfig.containsKey('objectApiName') && backendConfig.get('objectApiName') instanceof String) {
+                    return (String) backendConfig.get('objectApiName');
+                }
+            } catch (Exception e) {
+            }
+        }
+        return null;
+    }
+
+    private static void enrichSchemaWithFieldDetails(Map<String, Object> paramSchema, SObjectType sObjType, String debugPrefix) {
+        if (paramSchema == null || !paramSchema.containsKey('properties'))
+            return;
+
+        Map<String, Object> properties = (Map<String, Object>) paramSchema.get('properties');
+        Map<String, SObjectField> objectFields = SchemaUtils.getObjectFields(sObjType);
+
+        for (String paramName : properties.keySet()) {
+            SObjectField fieldToken = objectFields.get(paramName.toLowerCase());
+            if (fieldToken != null) {
+                DescribeFieldResult dfr = fieldToken.getDescribe();
+                Map<String, Object> paramDefinition = (Map<String, Object>) properties.get(paramName);
+
+                String currentDesc = (String) paramDefinition.get('description');
+                paramDefinition.put('description', (dfr.getLabel() + (String.isNotBlank(currentDesc) ? '. ' + currentDesc : '')));
+
+                if (dfr.getType() == DisplayType.PICKLIST) {
+                    List<String> picklistApiNames = new List<String>();
+                    for (PicklistEntry entry : dfr.getPicklistValues()) {
+                        if (entry.isActive()) {
+                            picklistApiNames.add(entry.getValue());
+                        }
+                    }
+                    if (!picklistApiNames.isEmpty()) {
+                        paramDefinition.put('enum', picklistApiNames);
+                    }
+                }
+            }
+        }
     }
 
     /** Parses and validates the binding's InputSchema__c JSON */
@@ -94,42 +176,6 @@ public inherited sharing class ToolDefinitionFormatter {
                 paramSchema.put('properties', new Map<String, Object>());
             }
             return paramSchema;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /** Adds the confirmation_message parameter to an existing schema map. */
-    private static Map<String, Object> addConfirmationParameterToSchema(
-        Map<String, Object> originalSchema,
-        String capabilityDevName,
-        String logPrefix
-    ) {
-        try {
-            Map<String, Object> modifiedSchema = originalSchema;
-            Map<String, Object> confirmationParamDef = new Map<String, Object>{
-                'type' => 'string',
-                'description' => 'Required. A human-readable message describing what this function will do. This will be shown to the user for confirmation before executing.'
-            };
-            Map<String, Object> properties = (Map<String, Object>) modifiedSchema.get('properties');
-            properties.put(CONFIRMATION_PARAM_NAME, confirmationParamDef);
-
-            if (modifiedSchema.containsKey('required') && modifiedSchema.get('required') instanceof List<Object>) {
-                List<Object> requiredList = (List<Object>) modifiedSchema.get('required');
-                Boolean found = false;
-                for (Object reqItem : requiredList) {
-                    if (reqItem instanceof String && ((String) reqItem) == CONFIRMATION_PARAM_NAME) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    requiredList.add(CONFIRMATION_PARAM_NAME);
-                }
-            } else {
-                modifiedSchema.put('required', new List<String>{ CONFIRMATION_PARAM_NAME });
-            }
-            return modifiedSchema;
         } catch (Exception e) {
             return null;
         }

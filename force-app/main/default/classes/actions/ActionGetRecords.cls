@@ -218,15 +218,9 @@ public class ActionGetRecords extends BaseAgentAction {
             resultMessage = 'No ' + this.objectApiName + ' records found matching the criteria.';
         }
 
-        Map<String, Object> outputMap = new Map<String, Object>{
-            'count' => totalFoundCount,
-            'message' => resultMessage,
-            'records' => finalResultsForLlm
-        };
-
+        Map<String, Object> dataPayload = new Map<String, Object>{ 'count' => totalFoundCount, 'records' => finalResultsForLlm };
         String internalDetails = 'Query executed. Total found: ' + totalFoundCount + '. Returned to LLM: ' + finalResultsForLlm.size() + '.';
-
-        return this.success(outputMap, internalDetails);
+        return this.success(dataPayload, resultMessage, internalDetails);
     }
 
     /**

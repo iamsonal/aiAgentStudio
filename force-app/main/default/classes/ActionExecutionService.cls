@@ -17,29 +17,24 @@ public inherited sharing class ActionExecutionService {
 
     /**
      * @description Executes a single specified action synchronously.
-     * @param actionDefinitionId ID of the ActionDefinition__c.
-     * @param bindingConfigJson Configuration JSON from the AgentCapabilityBinding__c (can be null).
+     * @param capability The full AgentCapability__c record.
      * @param llmArgumentsJson Arguments JSON string provided by the LLM for this action call.
      * @param context The ActionContext for this execution.
      * @return ActionResult Result of the action's execution.
-     * @throws ActionRegistry.ActionRegistryException If handler lookup fails.
-     * @throws ActionExecutionException for other critical errors during execution.
-     * @throws Various exceptions from the underlying IAgentAction implementation.
      */
-    public ActionResult executeSingleAction(Id actionDefinitionId, String bindingConfigJson, String llmArgumentsJson, ActionContext context) {
-        String logPrefix = '[ActExecSvc Turn:' + context?.chatSessionId + ' ActionDef:' + actionDefinitionId + '] ';
+    public ActionResult executeSingleAction(AgentCapability__c capability, String llmArgumentsJson, ActionContext context) {
+        String logPrefix = '[ActExecSvc Cap:' + capability?.Id + ' Turn:' + context?.chatSessionId + '] ';
         ActionResult result = null;
         Long startTime = System.currentTimeMillis();
 
-        if (actionDefinitionId == null || context == null) {
-            throw new IllegalArgumentException('ActionDefinitionId and ActionContext are required.');
+        if (capability == null || context == null) {
+            throw new IllegalArgumentException('AgentCapability and ActionContext are required.');
         }
 
-        IAgentAction actionHandler = null;
         try {
-            actionHandler = ActionRegistry.createActionHandler(actionDefinitionId);
+            IAgentAction actionHandler = ActionRegistry.createActionHandler(capability);
 
-            result = actionHandler.execute(bindingConfigJson, llmArgumentsJson, context);
+            result = actionHandler.execute(capability.BackendConfiguration__c, llmArgumentsJson, context);
 
             Long duration = System.currentTimeMillis() - startTime;
             if (result == null) {

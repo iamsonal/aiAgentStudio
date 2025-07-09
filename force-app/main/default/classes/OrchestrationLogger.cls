@@ -59,10 +59,7 @@ public inherited sharing class OrchestrationLogger {
                     WITH USER_MODE
                     LIMIT 1
                 ];
-                if (!sessions.isEmpty()) {
-                    isEnabled = sessions[0].EnableOrchestrationLogging__c == true;
-                } else {
-                }
+                isEnabled = (!sessions.isEmpty() && sessions[0].EnableOrchestrationLogging__c == true);
             } catch (Exception e) {
             }
             loggingEnabledCache.put(sessionId, isEnabled);
@@ -73,6 +70,8 @@ public inherited sharing class OrchestrationLogger {
     /**
      * @description Logs a detailed step in the orchestration process IF logging is enabled for the session.
      *              Requires the caller to manage and pass the Sequence__c value.
+     *              Now accepts a single agentCapabilityId.
+     *
      * @param sessionId - Chat Session ID (Required)
      * @param turnIdentifier - User Turn Identifier (Required)
      * @param sequence - Execution sequence number within the turn (Required by caller)
@@ -85,8 +84,7 @@ public inherited sharing class OrchestrationLogger {
      * @param errorCode - Optional error code (if status=Failure)
      * @param durationMs - Optional step duration
      * @param chatMessageId - Optional related ChatMessage__c ID
-     * @param bindingId - Optional related AgentCapabilityBinding__c ID
-     * @param actionDefId - Optional related ActionDefinition__c ID
+     * @param agentCapabilityId - (NEW) Optional related AgentCapability__c ID
      * @param llmConfigId - Optional related LLMConfiguration__c ID
      * @param toolCallId - Optional LLM Tool Call ID
      */
@@ -103,8 +101,7 @@ public inherited sharing class OrchestrationLogger {
         String errorCode,
         Long durationMs,
         Id chatMessageId,
-        Id bindingId,
-        Id actionDefId,
+        Id agentCapabilityId,
         Id llmConfigId,
         String toolCallId
     ) {
@@ -129,8 +126,7 @@ public inherited sharing class OrchestrationLogger {
                 ErrorCode__c = errorCode,
                 DurationMillis__c = durationMs,
                 ChatMessage__c = chatMessageId,
-                AgentCapabilityBinding__c = bindingId,
-                ActionDefinition__c = actionDefId,
+                AgentCapability__c = agentCapabilityId,
                 LLMConfiguration__c = llmConfigId,
                 ToolCallId__c = toolCallId
             );
@@ -159,7 +155,6 @@ public inherited sharing class OrchestrationLogger {
         }
 
         List<OrchestrationLog__c> logsToInsert = new List<OrchestrationLog__c>(logBuffer);
-
         logBuffer.clear();
 
         try {
@@ -173,9 +168,8 @@ public inherited sharing class OrchestrationLogger {
                 } else {
                     Database.Error err = results[i].getErrors()[0];
                     OrchestrationLog__c failedLog = logsToInsert[i];
-
                     String errMsg = String.format(
-                        'Failed saving OrcheLog [Sess:{0}, Turn:{1}, Seq:{2}, Type:{3}]. Error: {4} - {5}',
+                        'Failed saving OrchestrationLog [Sess:{0}, Turn:{1}, Seq:{2}, Type:{3}]. Error: {4} - {5}',
                         new List<String>{
                             String.valueOf(failedLog?.ChatSession__c),
                             failedLog?.TurnIdentifier__c,
@@ -188,6 +182,9 @@ public inherited sharing class OrchestrationLogger {
                     errorMessages.add(errMsg);
                 }
             }
+
+            if (!errorMessages.isEmpty()) {
+            }
         } catch (Exception e) {
         } finally {
             if (!logBuffer.isEmpty()) {
@@ -198,25 +195,22 @@ public inherited sharing class OrchestrationLogger {
 
     /**
      * @description Safely serializes an object to JSON and truncates if necessary.
-     * @param payload The object to serialize.
-     * @return JSON String, truncated if exceeding MAX_PAYLOAD_LENGTH, or error message on failure.
      */
     @TestVisible
     private static String serializeAndTruncate(Object payload) {
         if (payload == null)
             return null;
-        String jsonString = null;
         try {
-            jsonString = JSON.serialize(payload, false);
+            String jsonString = JSON.serialize(payload, false);
             if (jsonString.length() > MAX_PAYLOAD_LENGTH) {
                 jsonString = jsonString.left(MAX_PAYLOAD_LENGTH - 18) + '... [truncated]';
             }
+            return jsonString;
         } catch (Exception e) {
             String errMsg = '[OrchestrationLogger] Payload serialization failed: ' + e.getMessage();
 
-            jsonString = '{"error": "Failed to serialize payload", "details": "' + String.valueOf(e.getMessage()).escapeJava() + '"}';
+            return '{"error": "Failed to serialize payload", "details": "' + String.valueOf(e.getMessage()).escapeJava() + '"}';
         }
-        return jsonString;
     }
 
     /**

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExecutionPriority__c</fullName>
+    <description>A number that determines the order of execution if the AI requests multiple tools in a single turn. Capabilities with lower numbers execute first.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>A number that determines the execution order if the AI requests multiple tools in one turn. Lower numbers execute first.</inlineHelpText>
+    <label>Execution Priority</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>2</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

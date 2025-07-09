@@ -5,6 +5,7 @@
     <inlineHelpText>Indicates the agent&apos;s current background activity related to this chat (e.g., &apos;Idle&apos;, &apos;AwaitingLLMResponse&apos;, &apos;ExecutingActions&apos;, &apos;Failed&apos;).</inlineHelpText>
     <label>Processing Status</label>
     <required>true</required>
+    <trackHistory>true</trackHistory>
     <trackTrending>false</trackTrending>
     <type>Picklist</type>
     <valueSet>

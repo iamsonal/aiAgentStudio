@@ -5,6 +5,7 @@
     <inlineHelpText>Records when the last message was sent or received in this conversation. Useful for sorting and identifying inactive sessions.</inlineHelpText>
     <label>Last Interaction Time</label>
     <required>false</required>
+    <trackHistory>false</trackHistory>
     <trackTrending>false</trackTrending>
     <type>DateTime</type>
 </CustomField>

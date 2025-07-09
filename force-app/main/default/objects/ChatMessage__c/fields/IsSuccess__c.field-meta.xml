@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsSuccess__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>For messages with Role = &apos;tool&apos;, this flag indicates if the tool execution was successful. Allows for efficient querying of prerequisite completion.</description>
+    <inlineHelpText>This field is set by the framework when a tool result message is created.</inlineHelpText>
+    <label>Success</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

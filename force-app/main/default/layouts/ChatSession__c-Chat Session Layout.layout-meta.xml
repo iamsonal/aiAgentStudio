@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Layout xmlns="http://soap.sforce.com/2006/04/metadata">
+    <excludeButtons>OpenSlackRecordChannel</excludeButtons>
     <excludeButtons>Submit</excludeButtons>
     <layoutSections>
         <customLabel>false</customLabel>
@@ -101,6 +102,7 @@
         <fields>NAME</fields>
         <fields>Role__c</fields>
         <fields>Timestamp__c</fields>
+        <fields>CapabilityName__c</fields>
         <fields>Content__c</fields>
         <relatedList>ChatMessage__c.ChatSession__c</relatedList>
         <sortField>Timestamp__c</sortField>
@@ -130,7 +132,7 @@
     <showRunAssignmentRulesCheckbox>false</showRunAssignmentRulesCheckbox>
     <showSubmitAndAttachButton>false</showSubmitAndAttachButton>
     <summaryLayout>
-        <masterLabel>00hDJ0000041o6H</masterLabel>
+        <masterLabel>00hDU000009Uogi</masterLabel>
         <sizeX>4</sizeX>
         <sizeY>0</sizeY>
         <summaryLayoutStyle>Default</summaryLayoutStyle>

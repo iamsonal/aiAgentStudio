@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EnableScalableProcessingMode__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When enabled, the framework uses a highly scalable, event-driven architecture for background processing. This is recommended for orgs with high user concurrency or heavy asynchronous job usage to ensure responsive performance.</description>
+    <inlineHelpText>Check this to switch to a high-throughput processing mode using Platform Events. This avoids potential delays from the standard async job queue and is ideal for large-scale deployments.</inlineHelpText>
+    <label>Enable Scalable Processing Mode</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

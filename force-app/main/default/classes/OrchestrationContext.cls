@@ -17,42 +17,42 @@ public class OrchestrationContext {
     public Id sessionId { get; private set; }
     public Id userId { get; private set; }
     public Id agentDefinitionId { get; private set; }
-    public Id relatedRecordId { get; private set; }
     public String turnIdentifier { get; private set; }
     public Integer currentTurnCount { get; private set; }
     public String logPrefix { get; private set; }
+    public Id currentPageRecordId { get; private set; }
 
-    public MessagePersistenceService msgPersistenceSvc { get; private set; }
     public TurnLifecycleService turnLifecycleSvc { get; private set; }
     public ActionExecutionService actionExecSvc { get; private set; }
-    public OrchestrationDispatchService dispatchSvc { get; private set; }
+    public AgentJobEnqueuer dispatchSvc { get; private set; }
+    public ContextManagerService contextManagerSvc { get; private set; }
 
     public OrchestrationContext(
         LLMInteractionService.LLMInteractionResult llmResult,
         Id sessionId,
         Id userId,
         Id agentDefId,
-        Id relatedId,
         String turnId,
         Integer turnCount,
         LLMInteractionService.MessageData userMsgData,
-        MessagePersistenceService msgSvc,
         TurnLifecycleService turnSvc,
         ActionExecutionService actionSvc,
-        OrchestrationDispatchService dispatchSvc
+        AgentJobEnqueuer dispatchSvc,
+        ContextManagerService contextMgrSvc,
+        Id pageRecordId
     ) {
         this.llmResult = llmResult;
         this.sessionId = sessionId;
         this.userId = userId;
         this.agentDefinitionId = agentDefId;
-        this.relatedRecordId = relatedId;
         this.turnIdentifier = turnId;
         this.currentTurnCount = turnCount;
         this.userMessageData = userMsgData;
-        this.msgPersistenceSvc = msgSvc;
         this.turnLifecycleSvc = turnSvc;
         this.actionExecSvc = actionSvc;
         this.dispatchSvc = dispatchSvc;
+        this.contextManagerSvc = contextMgrSvc;
+        this.currentPageRecordId = pageRecordId;
         this.logPrefix = '[OrchSvc Turn:' + turnId?.left(8) + ' Cycle:' + turnCount + ' Sess:' + sessionId + '] ';
     }
 }

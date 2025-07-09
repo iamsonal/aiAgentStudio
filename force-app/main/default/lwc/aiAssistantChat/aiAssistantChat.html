@@ -1,25 +1,15 @@
 <template>
     <lightning-card title={cardTitle} icon-name="utility:einstein">
-        <div slot="actions" class="slds-grid slds-grid_vertical-align-center">
-            <lightning-combobox
-                label="Select Session"
-                variant="label-hidden"
-                placeholder={sessionSelectorPlaceholder}
-                options={allSessionOptions}
-                value={selectedSessionValue}
-                onchange={handleSessionChange}
-                dropdown-alignment="auto"
-                class="slds-m-right_x-small"
-                disabled={isSessionControlDisabled}
-                title="Select an existing session or start a new one"
+        <div slot="actions">
+            <lightning-button-icon
+                icon-name="utility:add"
+                variant="border-filled"
+                alternative-text="Start New Chat"
+                title={newChatTooltip}
+                onclick={handleNewChatClick}
+                disabled={isNewChatDisabled}
             >
-            </lightning-combobox>
-
-            <template if:true={loadingState.sessions}>
-                <div class="slds-is-relative slds-m-left_xx-small">
-                    <lightning-spinner alternative-text="Loading sessions..." size="small"></lightning-spinner>
-                </div>
-            </template>
+            </lightning-button-icon>
         </div>
 
         <div class="slds-card__body slds-card__body_inner">
@@ -67,6 +57,23 @@
                         <template for:each={chatMessages} for:item="message">
                             <li key={message.displayKey} class={message.listItemClass} data-key={message.displayKey}>
                                 <div class="slds-chat-message">
+                                    <template if:true={showStartOverButton}>
+                                        <template if:true={message.isOutbound}>
+                                            <div class="startover-button-container">
+                                                <lightning-button-icon
+                                                    icon-name="utility:redo"
+                                                    variant="border-filled"
+                                                    size="x-small"
+                                                    alternative-text="Start Over From Here"
+                                                    title="Start Over From Here"
+                                                    data-external-id={message.externalId}
+                                                    onclick={handleStartOverClick}
+                                                >
+                                                </lightning-button-icon>
+                                            </div>
+                                        </template>
+                                    </template>
+
                                     <template if:true={message.isInbound}>
                                         <div class="slds-chat-avatar">
                                             <span class="slds-avatar slds-avatar_circle slds-avatar_small">

@@ -4,9 +4,21 @@
         <itemInstances>
             <componentInstance>
                 <componentInstanceProperties>
+                    <name>agentDeveloperName</name>
+                    <value>Support_Copilot</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>cardTitle</name>
+                    <value>AI Assistant</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
                     <name>eager</name>
                     <type>decorator</type>
                     <value>false</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>enableStartOver</name>
+                    <value>true</value>
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>height</name>

@@ -8,8 +8,8 @@
 
 /**
  * @description Implements the IMemoryManager interface for a "fixed-window buffer" strategy.
- *              It retrieves the last N messages from the chat history. This is the default
- *              and most common memory strategy.
+ *              It retrieves a base number of recent messages and ensures the oldest turn included
+ *              is complete, preventing conversational context from being cut off.
  * @implements IMemoryManager
  */
 public class BufferWindowMemoryManager implements IMemoryManager {
@@ -21,23 +21,25 @@ public class BufferWindowMemoryManager implements IMemoryManager {
     ) {
         String debugPrefix = String.isNotBlank(loggingContext) ? loggingContext : '[BufferWindowMemory] ';
 
-        Integer historyLimit = AIAgentFrameworkSettings.getDefaultHistoryLimit();
+        Decimal historyLimitDecimal = agentConfig.HistoryLimit__c;
+
+        if (historyLimitDecimal == null) {
+            List<ChatMessage__c> allMessages = ChatMessageService.getHistory(sessionId, null, 'ASC', null, false);
+            return MessageHistoryFormatter.formatMessagesForApi(allMessages, agentConfig, debugPrefix);
+        }
+
+        Integer historyLimit = historyLimitDecimal.intValue();
+
         if (historyLimit <= 0) {
             return new List<Map<String, Object>>();
         }
 
-        List<ChatMessage__c> rawMessages = ChatMessageService.getHistory(sessionId, historyLimit, 'ASC', null);
+        List<ChatMessage__c> finalSortedHistory = ChatMessageService.getHistoryWithCompleteTurns(sessionId, historyLimit, 'DESC', false);
 
-        return MessageHistoryFormatter.formatMessagesForApi(rawMessages, agentConfig, '', false, debugPrefix);
+        return MessageHistoryFormatter.formatMessagesForApi(finalSortedHistory, agentConfig, debugPrefix);
     }
 
-    public void onTurnCompletion(
-        Id sessionId,
-        List<ChatMessage__c> newMessagesInTurn,
-        AIAgentDefinition__c agentConfig,
-        LLMConfiguration__c llmConfig,
-        String loggingContext
-    ) {
+    public void onTurnCompletion(Id sessionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String loggingContext) {
         return;
     }
 }

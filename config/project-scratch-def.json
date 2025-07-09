@@ -1,27 +1,15 @@
 {
     "orgName": "aiAgent",
-    "edition": "Enterprise",
+    "edition": "Developer",
     "features": [
-        "ServiceCloud",
-        "EnableSetPasswordInApi",
-        "ServiceUser",
         "Knowledge",
         "LightningServiceConsole",
         "Communities",
-        "LiveAgent"
+        "LiveAgent",
+        "ServiceCloud",
+        "EnableSetPasswordInApi"
     ],
     "settings": {
-        "orgPreferenceSettings": {
-            "s1DesktopEnabled": true,
-            "chatterEnabled": true,
-            "networksEnabled": true
-        },
-        "lightningExperienceSettings": {
-            "enableLightning": true
-        },
-        "mobileSettings": {
-            "enableS1EncryptedStoragePref2": false
-        },
         "communitiesSettings": {
             "enableNetworksEnabled": true
         },
@@ -30,11 +18,16 @@
         },
         "knowledgeSettings": {
             "enableKnowledge": true,
-            "enableLightningKnowledge": true,
-            "defaultLanguage": "en_US"
+            "enableLightningKnowledge": true
+        },
+        "lightningExperienceSettings": {
+            "enableS1DesktopEnabled": true
         },
         "pathAssistantSettings": {
             "pathAssistantEnabled": true
+        },
+        "languageSettings": {
+            "enableTranslationWorkbench": true
         }
     }
 }

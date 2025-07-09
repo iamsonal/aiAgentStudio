@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsActive__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>Controls whether this capability is available for the agent to use. If unchecked, it will not be included in the list of tools sent to the LLM.</description>
+    <inlineHelpText>Uncheck this to disable the capability without deleting it. The AI will no longer be able to see or use this tool.</inlineHelpText>
+    <label>Active</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

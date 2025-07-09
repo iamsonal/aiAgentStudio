@@ -174,15 +174,14 @@ public class ActionCreateRecord extends BaseAgentAction {
 
         if (sr.isSuccess()) {
             String newRecordId = sr.getId();
-            String successMsg = 'Successfully created ' + this.objectApiName + ' record.';
-            Map<String, Object> outputMap = new Map<String, Object>{ 'recordId' => newRecordId, 'message' => successMsg };
+            String successMsg = 'Successfully created ' + this.objectApiName + ' record with ID ' + newRecordId + '.';
+            Map<String, Object> dataPayload = new Map<String, Object>{ 'recordId' => newRecordId };
             String internalDetails =
                 'Record created. ID: ' +
                 newRecordId +
                 '. Fields Set: ' +
                 String.join(new List<String>(filteredData.keySet()), ', ');
-
-            return this.success(outputMap, internalDetails);
+            return this.success(dataPayload, successMsg, internalDetails);
         } else {
             return this.dmlError('Failed to create ' + this.objectApiName + ' record.', sr.getErrors(), ERR_CODE_DML);
         }

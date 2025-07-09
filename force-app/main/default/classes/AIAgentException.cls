@@ -6,10 +6,6 @@
  * Copyright (c) 2025 Sonal
  */
 
-/**
- * Created by sonal on 2025-04-01.
- */
-
 /** @description Base exception for general framework errors. */
 public virtual class AIAgentException extends Exception {
 }

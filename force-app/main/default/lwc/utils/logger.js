@@ -6,6 +6,8 @@
  * Copyright (c) 2025 Sonal
  */
 
+
+
 const LOG_LEVEL = {
     DEBUG: 'DEBUG',
     INFO: 'INFO',
@@ -13,28 +15,39 @@ const LOG_LEVEL = {
     ERROR: 'ERROR'
 };
 
+
 const logger = {
+    
     debug(context, message) {
         this._log(LOG_LEVEL.DEBUG, context, message);
     },
 
+    
     info(context, message) {
         this._log(LOG_LEVEL.INFO, context, message);
     },
 
+    
     warn(context, message) {
         this._log(LOG_LEVEL.WARN, context, message);
     },
 
+    
     error(context, error) {
         this._log(LOG_LEVEL.ERROR, context, error);
+
+        
+        
     },
 
+    
     _log(level, context, message) {
+        
         const formattedMessage = `[${level}] ${context}: ${this._formatMessage(message)}`;
 
         switch (level) {
             case LOG_LEVEL.DEBUG:
+                
                 if (!this._isProduction()) {
                     console.debug(formattedMessage);
                 }
@@ -53,6 +66,7 @@ const logger = {
         }
     },
 
+    
     _formatMessage(message) {
         if (message instanceof Error) {
             return `${message.name}: ${message.message}\nStack: ${message.stack || 'No stack trace available'}`;
@@ -66,9 +80,13 @@ const logger = {
         return String(message);
     },
 
+    
     _isProduction() {
+        
+        
         return false;
     }
 };
+
 
 export { logger, LOG_LEVEL };

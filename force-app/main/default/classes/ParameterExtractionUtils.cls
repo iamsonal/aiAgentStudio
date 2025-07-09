@@ -6,10 +6,6 @@
  * Copyright (c) 2025 Sonal
  */
 
-/**
- * Created by sonal on 2025-04-18.
- */
-
 public with sharing class ParameterExtractionUtils {
     public class ArgumentValidationException extends AIAgentException {
     }

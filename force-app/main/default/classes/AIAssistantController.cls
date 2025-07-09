@@ -12,14 +12,9 @@
  *              dispatches asynchronous work (actions/follow-up) when needed.
  */
 public with sharing class AIAssistantController {
-    private static final String DEFAULT_AGENT_DEV_NAME = 'Sales_Assistant';
-    private static final Integer HISTORY_MESSAGE_LIMIT = 50;
-
     public class ControllerException extends AIAgentException {
     }
     public class ConfigurationException extends AIAgentException {
-    }
-    public class OrchestrationException extends AIAgentException {
     }
 
     public class ActionRequest {
@@ -32,15 +27,13 @@ public with sharing class AIAssistantController {
     }
 
     @AuraEnabled
-    public static Map<String, Object> sendMessage(Id sessionId, String userMessage, Id currentRecordId) {
-        String turnIdentifier = UuidUtils.generateUUID();
+    public static Map<String, Object> sendMessage(Id sessionId, String userMessage, Id currentRecordId, String turnIdentifier) {
         String logPrefix = '[AIController Turn:' + turnIdentifier.left(8) + ' Sess:' + sessionId + '] ';
 
         if (sessionId == null || String.isBlank(userMessage)) {
             throw new AuraHandledException('Session ID and User Message are required.');
         }
         validateSessionAccess(sessionId);
-
         Id currentUserId = UserInfo.getUserId();
         Exception controllerProcessingException = null;
         Map<String, Object> lwcResponse = new Map<String, Object>{ 'success' => false, 'sessionId' => sessionId };
@@ -49,12 +42,7 @@ public with sharing class AIAssistantController {
         currentUserMessageData.role = AIAgentConstants.ROLE_USER;
         currentUserMessageData.content = userMessage;
 
-        MessagePersistenceService msgSvc = new MessagePersistenceService();
-        TurnLifecycleService turnSvc = new TurnLifecycleService();
-        ActionExecutionService actionSvc = new ActionExecutionService();
-        OrchestrationDispatchService dispatchSvc = new OrchestrationDispatchService(turnSvc);
-
-        OrchestrationService orchestrationSvc = new OrchestrationService(msgSvc, turnSvc, actionSvc, dispatchSvc);
+        OrchestrationService orchestrationSvc = new OrchestrationService();
 
         try {
             ChatSession__c session = [
@@ -80,8 +68,6 @@ public with sharing class AIAssistantController {
                 throw new ConfigurationException('Agent Definition is missing, inactive, or lacks required LLM Configuration on the Session.');
             }
 
-            Id turnRecordContextId = currentRecordId;
-
             LLMInteractionService interactionService = new LLMInteractionService(
                 sessionId,
                 currentUserId,
@@ -89,7 +75,8 @@ public with sharing class AIAssistantController {
                 llmConfigId,
                 turnIdentifier,
                 1,
-                turnRecordContextId
+                currentRecordId,
+                false
             );
 
             LLMInteractionService.LLMInteractionResult llmResult = interactionService.prepareAndCallLLM(currentUserMessageData);
@@ -103,10 +90,10 @@ public with sharing class AIAssistantController {
                 sessionId,
                 currentUserId,
                 agentDefinitionId,
-                turnRecordContextId,
                 turnIdentifier,
                 1,
-                currentUserMessageData
+                currentUserMessageData,
+                currentRecordId
             );
 
             if (outcome == OrchestrationService.OUTCOME_FAILED) {
@@ -145,7 +132,7 @@ public with sharing class AIAssistantController {
             if (controllerProcessingException != null && !(controllerProcessingException instanceof AuraHandledException)) {
                 try {
                     TurnLifecycleService tls = new TurnLifecycleService();
-                    String finalErrorMsg = ('Controller Error: ' + controllerProcessingException.getMessage()).abbreviate(1000);
+                    String finalErrorMsg = ('Controller Error: ' + controllerProcessingException.getMessage());
                     tls.failTurn(sessionId, turnIdentifier, finalErrorMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
                 } catch (Exception finalEx) {
                 }
@@ -165,14 +152,14 @@ public with sharing class AIAssistantController {
      * @throws AuraHandledException for configuration errors or permissions issues.
      */
     @AuraEnabled
-    public static Id createNewChatSession(Id recordId, String requestedAgentDevName) {
-        Id newSessionId = null;
+    public static SessionDetails createNewChatSession(Id recordId, String requestedAgentDevName) {
         Id userId = UserInfo.getUserId();
         String logPrefix = '[AIController.createNewChatSession] ';
 
         String selectedAgentDevName = null;
         try {
             selectedAgentDevName = AgentRoutingService.selectAgent(userId, recordId, requestedAgentDevName);
+
             AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(selectedAgentDevName);
             if (agentDef == null) {
                 throw new ConfigurationException(
@@ -192,7 +179,24 @@ public with sharing class AIAssistantController {
             );
 
             Database.insert(session, true);
-            newSessionId = session.Id;
+            Id newSessionId = session.Id;
+
+            String welcomeMessage = '';
+            if (String.isNotBlank(agentDef.WelcomeMessageTemplate__c)) {
+                String template = agentDef.WelcomeMessageTemplate__c;
+
+                String firstName = String.isNotBlank(UserInfo.getFirstName()) ? UserInfo.getFirstName() : 'User';
+                String fullName = String.isNotBlank(UserInfo.getName()) ? UserInfo.getName() : 'User';
+
+                welcomeMessage = template.replace('{User.FirstName}', firstName).replace('{User.Name}', fullName);
+            }
+
+            SessionDetails response = new SessionDetails();
+            response.sessionId = newSessionId;
+            response.welcomeMessage = welcomeMessage;
+            response.transientMessagesEnabled = AIAgentFrameworkSettings.useTransientMessages();
+
+            return response;
         } catch (AgentRoutingService.RoutingException rce) {
             throw new AuraHandledException(rce.getMessage());
         } catch (AIAgentConfigService.ConfigurationException ce) {
@@ -204,7 +208,6 @@ public with sharing class AIAssistantController {
                 throw new AuraHandledException('Error creating session: ' + e.getMessage());
             }
         }
-        return newSessionId;
     }
 
     @AuraEnabled
@@ -220,7 +223,7 @@ public with sharing class AIAssistantController {
 
         try {
             Integer queryLimitWithBuffer = effectiveLimit * 2;
-            String sortOrder = (oldestMessageTimestamp != null) ? 'DESC' : 'ASC';
+            String sortOrder = 'DESC';
 
             List<ChatMessage__c> rawMessages = ChatMessageService.getHistory(sessionId, queryLimitWithBuffer, sortOrder, oldestMessageTimestamp);
 
@@ -263,69 +266,6 @@ public with sharing class AIAssistantController {
         return formattedMessagesForUi;
     }
 
-    @AuraEnabled(cacheable=true)
-    public static ChatSession__c getSessionStatus(Id sessionId) {
-        if (sessionId == null) {
-            throw new AuraHandledException('Session ID is required to get status.');
-        }
-        validateSessionAccess(sessionId);
-
-        List<ChatSession__c> sessions = [
-            SELECT Id, ProcessingStatus__c, CurrentStepDescription__c
-            FROM ChatSession__c
-            WHERE Id = :sessionId
-            WITH USER_MODE
-        ];
-        if (sessions.isEmpty()) {
-            throw new AuraHandledException('Session not found or access denied.');
-        }
-        return sessions[0];
-    }
-
-    @AuraEnabled
-    public static List<Map<String, String>> getPreviousChatSessions(String agentDeveloperName, Id recordId) {
-        Id userId = UserInfo.getUserId();
-        List<Map<String, String>> sessionInfos = new List<Map<String, String>>();
-
-        if (String.isBlank(agentDeveloperName)) {
-            agentDeveloperName = DEFAULT_AGENT_DEV_NAME;
-        }
-
-        try {
-            AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(agentDeveloperName);
-            Id agentDefId = agentDef.Id;
-
-            List<String> whereClauses = new List<String>{ 'OwnerId = :userId', 'AIAgentDefinition__c = :agentDefId' };
-            Map<String, Object> bindVars = new Map<String, Object>{ 'userId' => userId, 'agentDefId' => agentDefId };
-
-            String whereClause = String.join(whereClauses, ' AND ');
-            String query =
-                'SELECT Id, Name, SessionLabel__c, StartTime__c FROM ChatSession__c WHERE ' +
-                whereClause +
-                ' ORDER BY LastActivityTime__c DESC NULLS LAST LIMIT 50';
-            List<ChatSession__c> sessions = Database.queryWithBinds(query, bindVars, AccessLevel.USER_MODE);
-
-            for (ChatSession__c sess : sessions) {
-                String displayLabel = String.isNotBlank(sess.SessionLabel__c)
-                    ? sess.SessionLabel__c
-                    : (sess.Name + (sess.StartTime__c != null ? ' (' + sess.StartTime__c.format('MM/dd HH:mm') + ')' : ''));
-                sessionInfos.add(
-                    new Map<String, String>{
-                        'sessionId' => sess.Id,
-                        'displayLabel' => displayLabel.abbreviate(80),
-                        'sessionName' => sess.Name,
-                        'sessionLabel' => sess.SessionLabel__c
-                    }
-                );
-            }
-        } catch (AIAgentConfigService.ConfigurationException ce) {
-            throw new AuraHandledException('Could not find active agent config for "' + agentDeveloperName + '": ' + ce.getMessage());
-        } catch (Exception e) {
-            throw new AuraHandledException('Error retrieving session list: ' + e.getMessage());
-        }
-        return sessionInfos;
-    }
-
     private static void validateSessionAccess(Id sessionId) {
         try {
             Integer c = [SELECT COUNT() FROM ChatSession__c WHERE Id = :sessionId AND OwnerId = :UserInfo.getUserId() WITH USER_MODE];
@@ -334,5 +274,93 @@ public with sharing class AIAssistantController {
         } catch (Exception e) {
             throw new AuraHandledException('Error verifying session access: ' + e.getMessage());
         }
+    }
+
+    /**
+     * @description Retrieves details of the most recent, active chat session, including a processed welcome message.
+     * @param agentDeveloperName The developer name of the agent.
+     * @param recordId The current record context, if any.
+     * @return SessionDetails wrapper containing the session ID and processed welcome message, or null.
+     */
+    @AuraEnabled(Cacheable=true)
+    public static SessionDetails getMostRecentSession(String agentDeveloperName, Id recordId) {
+        Id userId = UserInfo.getUserId();
+
+        try {
+            AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(agentDeveloperName);
+            if (agentDef == null) {
+                return null;
+            }
+
+            List<ChatSession__c> sessions = [
+                SELECT Id
+                FROM ChatSession__c
+                WHERE OwnerId = :userId AND AIAgentDefinition__c = :agentDef.Id
+                WITH USER_MODE
+                ORDER BY LastActivityTime__c DESC NULLS LAST
+                LIMIT 1
+            ];
+
+            if (sessions.isEmpty()) {
+                return null;
+            }
+
+            SessionDetails response = new SessionDetails();
+            response.sessionId = sessions[0].Id;
+
+            String template = agentDef.WelcomeMessageTemplate__c;
+            if (String.isNotBlank(template)) {
+                String processedMessage = template.replace('{User.FirstName}', UserInfo.getFirstName());
+                processedMessage = processedMessage.replace('{User.Name}', UserInfo.getName());
+                response.welcomeMessage = processedMessage;
+            }
+            response.transientMessagesEnabled = AIAgentFrameworkSettings.useTransientMessages();
+
+            return response;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @AuraEnabled
+    public static void startOverFromMessage(Id sessionId, String externalId) {
+        validateSessionAccess(sessionId);
+        String logPrefix = '[AIController.startOverFromMessage] ';
+
+        try {
+            List<ChatMessage__c> messages = [
+                SELECT Timestamp__c
+                FROM ChatMessage__c
+                WHERE ExternalId__c = :externalId AND ChatSession__c = :sessionId
+                WITH USER_MODE
+                LIMIT 1
+            ];
+
+            if (messages.isEmpty()) {
+                throw new AuraHandledException('Target message not found or does not belong to this session.');
+            }
+            Datetime targetTimestamp = messages[0].Timestamp__c;
+
+            List<ChatMessage__c> messagesToDelete = [
+                SELECT Id
+                FROM ChatMessage__c
+                WHERE ChatSession__c = :sessionId AND Timestamp__c >= :targetTimestamp
+            ];
+
+            if (!messagesToDelete.isEmpty()) {
+                delete messagesToDelete;
+            }
+        } catch (Exception e) {
+            throw new AuraHandledException('An error occurred while deleting messages: ' + e.getMessage());
+        }
+    }
+
+    public class SessionDetails {
+        @AuraEnabled
+        public Id sessionId { get; set; }
+        @AuraEnabled
+        public String welcomeMessage { get; set; }
+        @AuraEnabled
+        public Boolean transientMessagesEnabled { get; set; }
     }
 }

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>HistoryLimit__c</fullName>
+    <description>For &apos;Buffer Window&apos; agents, this sets the base number of recent messages to include in the history. The framework ensures the oldest turn included is never cut off, so the final count may slightly exceed this limit. A blank value includes all history; a value of 0 includes no history.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Specify the number of recent messages to remember. If the oldest message is part of a multi-message turn, all messages from that turn are included. Leave blank for unlimited history, or enter 0 to include none.</inlineHelpText>
+    <label>History Limit</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

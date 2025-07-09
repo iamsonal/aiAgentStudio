@@ -22,10 +22,18 @@ public inherited sharing class AIAgentConfigService {
         'Name',
         'DeveloperName__c',
         'LLMConfiguration__c',
-        'SystemPrompt__c',
         'IsActive__c',
         'MemoryStrategy__c',
-        'Description__c'
+        'ContextFormatStrategy__c',
+        'Description__c',
+        'HistoryLimit__c',
+        'SummarizationTriggerSize__c',
+        'SummarizationChunkSize__c',
+        'WelcomeMessageTemplate__c',
+        'IdentityPrompt__c',
+        'InstructionsPrompt__c',
+        'ExamplesPrompt__c',
+        'PromptFooter__c'
     };
 
     private static final List<String> LLM_CONFIGURATION_FIELDS = new List<String>{
@@ -43,42 +51,50 @@ public inherited sharing class AIAgentConfigService {
     };
 
     /**
-     * @description Retrieves an active capability binding including related Action Definition fields.
+     * @description Retrieves a complete, active Agent Capability record.
      * @param agentDefId The ID of the AIAgentDefinition__c.
-     * @param capabilityDevName The DeveloperName__c of the AgentCapabilityBinding__c.
-     * @return AgentCapabilityBinding__c record with related ActionDefinition__r details, or null if not found/inactive.
+     * @param capabilityName The CapabilityName__c of the AgentCapability__c record.
+     * @return AgentCapability__c record, or null if not found/inactive.
      * @throws ConfigurationException on query errors.
      */
-    public static AgentCapabilityBinding__c getCapabilityBinding(Id agentDefId, String capabilityDevName) {
+    public static AgentCapability__c getCapability(Id agentDefId, String capabilityName) {
         String logPrefix = '[AIAgentCfgSvc] ';
-        if (agentDefId == null || String.isBlank(capabilityDevName)) {
+        if (agentDefId == null || String.isBlank(capabilityName)) {
             return null;
         }
 
         try {
-            List<AgentCapabilityBinding__c> bindings = [
+            List<AgentCapability__c> capabilities = [
                 SELECT
                     Id,
-                    ActionDefinition__c,
-                    ActionConfiguration__c,
-                    RequiresHumanApproval__c,
-                    ActionDefinition__r.IsActive__c,
-                    ActionDefinition__r.RunAsynchronously__c
-                FROM AgentCapabilityBinding__c
-                WHERE
-                    AIAgentDefinition__c = :agentDefId
-                    AND DeveloperName__c = :capabilityDevName
-                    AND IsActive__c = TRUE
-                    AND ActionDefinition__r.IsActive__c = TRUE
+                    CapabilityName__c,
+                    Description__c,
+                    Parameters__c,
+                    ImplementationType__c,
+                    ImplementationDetail__c,
+                    StandardActionType__c,
+                    BackendConfiguration__c,
+                    RunAsynchronously__c,
+                    RequiresConfirmation__c,
+                    RequiresApproval__c,
+                    HaltAndReportError__c,
+                    ExecutionPrerequisites__c,
+                    PrerequisiteValidation__c,
+                    PreExecutionHook__c,
+                    PostExecutionHook__c
+                FROM AgentCapability__c
+                WHERE AIAgentDefinition__c = :agentDefId AND CapabilityName__c = :capabilityName AND IsActive__c = TRUE
                 LIMIT 1
             ];
 
-            if (bindings.isEmpty()) {
+            if (capabilities.isEmpty()) {
                 return null;
             }
-            return bindings[0];
+            return capabilities[0];
         } catch (Exception e) {
-            throw new ConfigurationException('Error querying capability binding "' + capabilityDevName + '": ' + e.getMessage(), e);
+            String errorMsg = 'Error querying AgentCapability "' + capabilityName + '" on Agent ' + agentDefId;
+
+            throw new ConfigurationException(errorMsg, e);
         }
     }
 

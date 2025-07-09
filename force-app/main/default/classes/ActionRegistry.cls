@@ -42,65 +42,45 @@ public class ActionRegistry {
         isCacheInitialized = true;
     }
 
-    public static IAgentAction createActionHandler(Id actionDefinitionId) {
-        if (actionDefinitionId == null)
-            throw new ActionRegistryException('Action Definition ID cannot be null.');
+    public static IAgentAction createActionHandler(AgentCapability__c capability) {
+        if (capability == null)
+            throw new ActionRegistryException('AgentCapability cannot be null.');
         ensureCacheInitialized();
 
-        List<ActionDefinition__c> definitions = [
-            SELECT Id, Name, ImplementationType__c, ImplementationName__c, StandardActionType__c
-            FROM ActionDefinition__c
-            WHERE Id = :actionDefinitionId AND IsActive__c = TRUE
-            LIMIT 1
-        ];
-        if (definitions.isEmpty())
-            throw new ActionRegistryException('Active Action Definition not found for ID: ' + actionDefinitionId);
-
-        ActionDefinition__c definition = definitions[0];
-        String implType = definition.ImplementationType__c;
-        String implName = definition.ImplementationName__c;
-        String stdActionType = definition.StandardActionType__c;
-        String logIdentifier = ('Standard'.equalsIgnoreCase(implType)) ? stdActionType : implName;
+        String implType = capability.ImplementationType__c;
+        String implDetail = capability.ImplementationDetail__c;
+        String stdActionType = capability.StandardActionType__c;
+        String logIdentifier = ('Standard'.equalsIgnoreCase(implType)) ? stdActionType : implDetail;
 
         if (String.isBlank(implType))
-            throw new ActionRegistryException('Action Definition (' + actionDefinitionId + ') missing required Implementation Type.');
+            throw new ActionRegistryException('Capability (' + capability.Id + ') missing required Implementation Type.');
         if ('Standard'.equalsIgnoreCase(implType) && String.isBlank(stdActionType))
-            throw new ActionRegistryException('Action Definition (' + actionDefinitionId + ' Type=Standard) missing required Standard Action Type.');
-        if (('Apex'.equalsIgnoreCase(implType) || 'Flow'.equalsIgnoreCase(implType)) && String.isBlank(implName))
-            throw new ActionRegistryException(
-                'Action Definition (' + actionDefinitionId + ' Type=' + implType + ') missing required Implementation Name.'
-            );
+            throw new ActionRegistryException('Capability (' + capability.Id + ' Type=Standard) missing required Standard Action Type.');
+        if (('Apex'.equalsIgnoreCase(implType) || 'Flow'.equalsIgnoreCase(implType)) && String.isBlank(implDetail))
+            throw new ActionRegistryException('Capability (' + capability.Id + ' Type=' + implType + ') missing required Implementation Detail.');
 
-        IAgentAction actionInstance = null;
         try {
             switch on implType {
                 when 'Standard' {
-                    String cacheKey = stdActionType.toLowerCase();
-                    StandardActionHandler__mdt handlerMdt = standardHandlerCache.get(cacheKey);
+                    StandardActionHandler__mdt handlerMdt = standardHandlerCache.get(stdActionType.toLowerCase());
                     if (handlerMdt == null)
                         throw new ActionRegistryException('No active StandardActionHandler registered for key: "' + stdActionType + '".');
-                    actionInstance = instantiateAndCheckInterface(Type.forName(handlerMdt.HandlerClassName__c), handlerMdt.HandlerClassName__c);
+                    return instantiateAndCheckInterface(Type.forName(handlerMdt.HandlerClassName__c), handlerMdt.HandlerClassName__c);
                 }
                 when 'Apex' {
-                    actionInstance = instantiateAndCheckInterface(Type.forName(implName), implName);
+                    return instantiateAndCheckInterface(Type.forName(implDetail), implDetail);
                 }
                 when 'Flow' {
                     final String FLOW_HANDLER_KEY = 'RunFlow';
                     StandardActionHandler__mdt flowHandlerMdt = standardHandlerCache.get(FLOW_HANDLER_KEY.toLowerCase());
                     if (flowHandlerMdt == null)
-                        throw new ActionRegistryException(
-                            'Flow handler registration not found in StandardActionHandler__mdt for key: "' + FLOW_HANDLER_KEY + '".'
-                        );
-                    actionInstance = instantiateAndCheckInterface(
-                        Type.forName(flowHandlerMdt.HandlerClassName__c),
-                        flowHandlerMdt.HandlerClassName__c
-                    );
+                        throw new ActionRegistryException('Flow handler registration not found for key: "' + FLOW_HANDLER_KEY + '".');
+                    return instantiateAndCheckInterface(Type.forName(flowHandlerMdt.HandlerClassName__c), flowHandlerMdt.HandlerClassName__c);
                 }
                 when else {
                     throw new ActionRegistryException('Unsupported Implementation Type: "' + implType + '".');
                 }
             }
-            return actionInstance;
         } catch (ActionRegistryException are) {
             throw are;
         } catch (Exception e) {

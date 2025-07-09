@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExamplesPrompt__c</fullName>
+    <description>Few-shot examples of user queries and desired assistant responses to guide complex behavior. This content will be rendered under an &apos;# Examples&apos; Markdown header.</description>
+    <inlineHelpText>Structure examples using XML tags like &lt;user_query&gt; and &lt;assistant_response&gt; to provide clear, concrete examples of how the agent should respond or use tools.</inlineHelpText>
+    <label>Examples Prompt</label>
+    <length>32768</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

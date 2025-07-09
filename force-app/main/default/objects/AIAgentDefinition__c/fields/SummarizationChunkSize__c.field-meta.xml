@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SummarizationChunkSize__c</fullName>
+    <description>For &apos;Summary Buffer&apos; agents, this is the number of the oldest messages that will be processed and condensed into the main summary in a single background job.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>The number of the oldest unsummarized messages to process in a single batch.</inlineHelpText>
+    <label>Summarization Chunk Size</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

@@ -105,16 +105,13 @@ public class ActionFlowHandler extends BaseAgentAction {
      */
     protected override ActionResult performAction(BaseAgentAction.ParsedArguments validatedArgs, String logPrefix) {
         FlowHandlerParsedArguments args = (FlowHandlerParsedArguments) validatedArgs;
-        Object resultOutputForLlm = null;
-        String flowApiName = null;
 
-        ActionDefinition__c actionDef = findActionDefinition(this.actionContext.actionDefinitionId);
-        flowApiName = actionDef?.ImplementationName__c;
+        String flowApiName = this.actionContext.implementationDetail;
 
         if (String.isBlank(flowApiName)) {
             throw new ValidationException(
-                'Flow API Name (ImplementationName__c) is missing in the linked Action Definition (' + this.actionContext.actionDefinitionId + ').',
-                'ImplementationName__c'
+                'Flow API Name (ImplementationDetail) is missing from the Agent Capability configuration.',
+                'ImplementationDetail__c'
             );
         }
 
@@ -129,36 +126,16 @@ public class ActionFlowHandler extends BaseAgentAction {
 
         if (faultMessageText != null) {
             String details = 'Flow "' + flowApiName + '" reported failure via "' + FAULT_MESSAGE_VAR + '": ' + faultMessageText;
-            String summaryForLlm = 'Flow execution reported a failure: ' + faultMessageText.abbreviate(100);
 
             return this.runtimeError(details, ERR_CODE_FLOW_FAULT, null);
         } else {
-            resultOutputForLlm = flowInterview.getVariableValue(OUTPUT_RESULT_VAR);
-            String internalDetails;
-
-            if (resultOutputForLlm != null) {
-                internalDetails = 'Flow "' + flowApiName + '" completed. Retrieved output from variable "' + OUTPUT_RESULT_VAR + '".';
-            } else {
-                internalDetails = 'Flow "' + flowApiName + '" completed without output in variable "' + OUTPUT_RESULT_VAR + '".';
-                resultOutputForLlm = new Map<String, Object>{ 'message' => 'Flow ' + flowApiName + ' completed successfully.' };
+            Object flowDataPayload = flowInterview.getVariableValue(OUTPUT_RESULT_VAR);
+            String successMsg = 'Flow "' + flowApiName + '" completed successfully.';
+            String internalDetails = successMsg;
+            if (flowDataPayload == null) {
+                flowDataPayload = new Map<String, Object>();
             }
-            return this.success(resultOutputForLlm, internalDetails);
-        }
-    }
-
-    private static ActionDefinition__c findActionDefinition(Id actionDefinitionId) {
-        if (actionDefinitionId == null)
-            return null;
-        try {
-            List<ActionDefinition__c> definitions = [
-                SELECT ImplementationName__c
-                FROM ActionDefinition__c
-                WHERE Id = :actionDefinitionId AND IsActive__c = TRUE
-                LIMIT 1
-            ];
-            return definitions.isEmpty() ? null : definitions[0];
-        } catch (Exception e) {
-            return null;
+            return this.success(flowDataPayload, successMsg, internalDetails);
         }
     }
 }

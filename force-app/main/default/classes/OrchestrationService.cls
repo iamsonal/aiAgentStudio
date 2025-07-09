@@ -17,8 +17,6 @@ public inherited sharing class OrchestrationService {
     }
     public class ConfigurationException extends OrchestrationException {
     }
-    public class ActionProcessingException extends OrchestrationException {
-    }
 
     public static final String OUTCOME_COMPLETED = 'COMPLETED';
     public static final String OUTCOME_FAILED = 'FAILED';
@@ -26,34 +24,34 @@ public inherited sharing class OrchestrationService {
     public static final String OUTCOME_QUEUED_ACTION = 'QUEUED_ACTION';
     public static final String OUTCOME_AWAITING_CONFIRMATION = 'AWAITING_CONFIRMATION';
 
-    private final MessagePersistenceService msgPersistenceSvc;
     private final TurnLifecycleService turnLifecycleSvc;
     private final ActionExecutionService actionExecSvc;
-    private final OrchestrationDispatchService orchestrationDispatchSvc;
+    private final AgentJobEnqueuer orchestrationDispatchSvc;
+    private final ContextManagerService contextManagerSvc;
 
     /**
      * @description Default constructor for ease of use. Instantiates default dependencies.
      */
     public OrchestrationService() {
-        this(new MessagePersistenceService(), new TurnLifecycleService(), new ActionExecutionService(), new OrchestrationDispatchService());
+        this(new TurnLifecycleService(), new ActionExecutionService(), new AgentJobEnqueuer(), new ContextManagerService());
     }
 
     /**
      * @description Main constructor for dependency injection. Allows for test mocking.
      */
     public OrchestrationService(
-        MessagePersistenceService msgSvc,
         TurnLifecycleService turnSvc,
         ActionExecutionService actionSvc,
-        OrchestrationDispatchService dispatchSvc
+        AgentJobEnqueuer dispatchSvc,
+        ContextManagerService contextSvc
     ) {
-        if (msgSvc == null || turnSvc == null || actionSvc == null || dispatchSvc == null) {
+        if (turnSvc == null || actionSvc == null || dispatchSvc == null || contextSvc == null) {
             throw new IllegalArgumentException('All service dependencies for OrchestrationService are required.');
         }
-        this.msgPersistenceSvc = msgSvc;
         this.turnLifecycleSvc = turnSvc;
         this.actionExecSvc = actionSvc;
         this.orchestrationDispatchSvc = dispatchSvc;
+        this.contextManagerSvc = contextSvc;
     }
 
     /**
@@ -66,10 +64,10 @@ public inherited sharing class OrchestrationService {
         Id sessionId,
         Id userId,
         Id agentDefinitionId,
-        Id relatedRecordId,
         String turnIdentifier,
         Integer currentTurnCount,
-        LLMInteractionService.MessageData userMessageDataForTurn
+        LLMInteractionService.MessageData userMessageDataForTurn,
+        Id currentPageRecordId
     ) {
         String logPrefix = '[OrchSvc Turn:' + turnIdentifier?.left(8) + ' Cycle:' + currentTurnCount + ' Sess:' + sessionId + '] ';
 
@@ -87,14 +85,14 @@ public inherited sharing class OrchestrationService {
                 sessionId,
                 userId,
                 agentDefinitionId,
-                relatedRecordId,
                 turnIdentifier,
                 currentTurnCount,
                 userMessageDataForTurn,
-                this.msgPersistenceSvc,
                 this.turnLifecycleSvc,
                 this.actionExecSvc,
-                this.orchestrationDispatchSvc
+                this.orchestrationDispatchSvc,
+                this.contextManagerSvc,
+                currentPageRecordId
             );
 
             ILLMResponseHandler handler = ResponseHandlerFactory.getHandler(llmInteractionResult);
@@ -122,15 +120,13 @@ public inherited sharing class OrchestrationService {
                 Map<String, Object> syntheticOutput = new Map<String, Object>{ 'status' => actionResult.isSuccess ? 'success' : 'failure' };
                 if (!actionResult.isSuccess) {
                     syntheticOutput.put('error_code', actionResult.errorCode);
-                    String llmErrorDetail = actionResult.internalDetails != null
-                        ? actionResult.internalDetails.abbreviate(200)
-                        : 'No details available.';
+                    String llmErrorDetail = actionResult.internalDetails != null ? actionResult.internalDetails : 'No details available.';
                     if (actionResult.internalDetails != null && actionResult.internalDetails.contains('Exception:')) {
                         llmErrorDetail = 'An internal error occurred executing the action.';
                     }
                     syntheticOutput.put('details', llmErrorDetail);
                 } else if (actionResult.internalDetails != null) {
-                    syntheticOutput.put('details', actionResult.internalDetails.abbreviate(200));
+                    syntheticOutput.put('details', actionResult.internalDetails);
                 }
                 return JSON.serialize(syntheticOutput);
             }
@@ -152,27 +148,57 @@ public inherited sharing class OrchestrationService {
      * @return The Salesforce ID found in the payload, or null if not found or invalid format.
      */
     public static Id extractRecordIdFromResult(ActionResult actionResult) {
-        if (actionResult == null || actionResult.outputForLlm == null || !(actionResult.outputForLlm instanceof Map<String, Object>)) {
+        if (
+            actionResult == null ||
+            !actionResult.isSuccess ||
+            actionResult.outputForLlm == null ||
+            !(actionResult.outputForLlm instanceof Map<String, Object>)
+        ) {
             return null;
         }
 
         Map<String, Object> outputMap = (Map<String, Object>) actionResult.outputForLlm;
+        if (!'SUCCESS'.equalsIgnoreCase(String.valueOf(outputMap.get('status'))) || !(outputMap.get('data') instanceof Map<String, Object>)) {
+            return null;
+        }
 
-        if (outputMap.containsKey('recordId') && outputMap.get('recordId') instanceof String) {
+        Map<String, Object> dataMap = (Map<String, Object>) outputMap.get('data');
+
+        if (dataMap.get('recordId') instanceof String) {
             try {
-                return Id.valueOf((String) outputMap.get('recordId'));
+                return Id.valueOf((String) dataMap.get('recordId'));
             } catch (Exception e) {
-                /* ID format was invalid, fall through */
+                /* fall through */
             }
         }
 
-        if (outputMap.containsKey('record') && outputMap.get('record') instanceof Map<String, Object>) {
-            Map<String, Object> recordMap = (Map<String, Object>) outputMap.get('record');
-            if (recordMap.containsKey('Id') && recordMap.get('Id') instanceof String) {
+        if (dataMap.get('records') instanceof List<Object>) {
+            List<Object> recordsList = (List<Object>) dataMap.get('records');
+            if (recordsList.size() == 1) {
+                Object firstRecord = recordsList[0];
+
+                if (firstRecord instanceof SObject) {
+                    return (Id) ((SObject) firstRecord).get('Id');
+                } else if (firstRecord instanceof Map<String, Object>) {
+                    Map<String, Object> recordMap = (Map<String, Object>) firstRecord;
+                    if (recordMap.get('Id') instanceof String) {
+                        try {
+                            return Id.valueOf((String) recordMap.get('Id'));
+                        } catch (Exception e) {
+                            /* fall through */
+                        }
+                    }
+                }
+            }
+        }
+
+        if (dataMap.get('record') instanceof Map<String, Object>) {
+            Map<String, Object> recordMap = (Map<String, Object>) dataMap.get('record');
+            if (recordMap.get('Id') instanceof String) {
                 try {
                     return Id.valueOf((String) recordMap.get('Id'));
                 } catch (Exception e) {
-                    /* ID format was invalid, fall through */
+                    /* fall through */
                 }
             }
         }

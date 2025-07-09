@@ -15,11 +15,11 @@ public class ContentResponseHandler implements ILLMResponseHandler {
 
         LLMInteractionService.MessageData assistantData = context.llmResult.assistantMessageData;
 
-        Id savedUserMessageId = context.msgPersistenceSvc.saveUserMessage(
+        Id savedUserMessageId = ChatMessageService.saveUserMessage(
             context.sessionId,
             context.turnIdentifier,
             context.userMessageData,
-            context.relatedRecordId,
+            null,
             logPrefix
         );
 
@@ -34,7 +34,30 @@ public class ContentResponseHandler implements ILLMResponseHandler {
             return OrchestrationService.OUTCOME_FAILED;
         }
 
-        Id savedAssistantMessageId = context.msgPersistenceSvc.saveAssistantMessage(context.sessionId, savedUserMessageId, assistantData, logPrefix);
+        Id savedAssistantMessageId = ChatMessageService.saveAssistantMessage(
+            context.sessionId,
+            context.turnIdentifier,
+            savedUserMessageId,
+            assistantData,
+            null,
+            logPrefix
+        );
+
+        try {
+            context.contextManagerSvc.commitTurnContext(context.sessionId, context.currentTurnCount, context.currentPageRecordId, null);
+        } catch (Exception e) {
+        }
+
+        try {
+            AIAgentDefinition__c agentConfig = AIAgentConfigService.getAgentDefinition(context.agentDefinitionId);
+            if (String.isNotBlank(agentConfig.MemoryStrategy__c)) {
+                LLMConfiguration__c llmConfig = AIAgentConfigService.getLLMConfiguration(agentConfig.LLMConfiguration__c);
+                IMemoryManager memoryManager = MemoryManagerFactory.getManager(agentConfig.MemoryStrategy__c);
+                memoryManager.onTurnCompletion(context.sessionId, agentConfig, llmConfig, logPrefix);
+            }
+        } catch (Exception e) {
+        }
+
         context.turnLifecycleSvc.completeTurnSuccessfully(context.sessionId, context.turnIdentifier, savedAssistantMessageId, logPrefix);
         return OrchestrationService.OUTCOME_COMPLETED;
     }

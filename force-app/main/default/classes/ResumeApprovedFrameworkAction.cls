@@ -8,21 +8,19 @@
 
 /**
  * @description Invocable Apex called by an Approval Process. Resumes an AI Framework action
- *              post-approval. It determines if the action is sync or async, executes or enqueues it,
- *              and sends a notification to the user.
+ *              post-approval by fetching the correct capability and executing it.
  */
 public with sharing class ResumeApprovedFrameworkAction {
-    public class ActionExecutionException extends Exception {
+    public class ActionResumeException extends Exception {
     }
 
     @InvocableMethod(
         Label='Resume AI Framework Action on Approval'
-        description='Resumes the AI agent framework action after Salesforce approval and sends a notification.'
+        Description='Resumes the AI agent framework action after Salesforce approval and sends a notification.'
     )
     public static void resumeAction(List<Id> humanApprovalRequestIds) {
-        if (humanApprovalRequestIds == null || humanApprovalRequestIds.isEmpty()) {
+        if (humanApprovalRequestIds == null || humanApprovalRequestIds.isEmpty())
             return;
-        }
 
         List<HumanApprovalRequest__c> harsToProcess = [
             SELECT
@@ -50,24 +48,18 @@ public with sharing class ResumeApprovedFrameworkAction {
             Id userId = har.ChatSession__r?.User__c;
 
             try {
-                if (!isValidForProcessing(har, logPrefix)) {
+                if (har.ChatSession__r == null) {
+                    updateHARStatus(har, 'Error', 'ChatSession link is missing.', logPrefix);
                     continue;
                 }
 
-                AIAssistantController.ActionRequest toolRequest = new AIAssistantController.ActionRequest();
-                toolRequest.id = har.LLMToolCallId__c;
-                toolRequest.name = har.LLMToolName__c;
-                toolRequest.arguments = har.LLMToolArgumentsJSON__c;
+                AgentCapability__c capability = AIAgentConfigService.getCapability(har.ChatSession__r.AIAgentDefinition__c, har.LLMToolName__c);
 
-                AgentCapabilityBinding__c binding = AIAgentConfigService.getCapabilityBinding(
-                    har.ChatSession__r.AIAgentDefinition__c,
-                    toolRequest.name
-                );
-                if (binding == null || binding.ActionDefinition__r == null || !binding.ActionDefinition__r.IsActive__c) {
-                    throw new ActionExecutionException('Active CapabilityBinding or linked ActionDefinition not found for tool: ' + toolRequest.name);
+                if (capability == null) {
+                    throw new ActionResumeException('Active AgentCapability not found for tool: ' + har.LLMToolName__c);
                 }
 
-                handleActionResume(har, toolRequest, binding, logPrefix);
+                handleActionResume(har, capability, logPrefix);
             } catch (Exception e) {
                 if (userId != null) {
                     NotificationService.sendUserNotification(
@@ -86,16 +78,11 @@ public with sharing class ResumeApprovedFrameworkAction {
     }
 
     /**
-     * @description Handles the resumption of any approved action (sync or async).
+     * @description Handles the resumption of any approved action.
      *              The invocable method context is already asynchronous from the user's perspective,
      *              so we can execute the action directly here.
      */
-    private static void handleActionResume(
-        HumanApprovalRequest__c har,
-        AIAssistantController.ActionRequest toolRequest,
-        AgentCapabilityBinding__c binding,
-        String logPrefix
-    ) {
+    private static void handleActionResume(HumanApprovalRequest__c har, AgentCapability__c capability, String logPrefix) {
         ActionExecutionService actionService = new ActionExecutionService();
 
         Id turnRecordContextId = null;
@@ -116,15 +103,13 @@ public with sharing class ResumeApprovedFrameworkAction {
             har.ChatSession__r.User__c,
             turnRecordContextId,
             har.ChatSession__r.AIAgentDefinition__c,
-            binding.Id,
-            binding.ActionDefinition__c
+            capability.Id,
+            capability.PreExecutionHook__c,
+            capability.PostExecutionHook__c,
+            capability.ImplementationDetail__c
         );
-        ActionResult actionResult = actionService.executeSingleAction(
-            binding.ActionDefinition__c,
-            binding.ActionConfiguration__c,
-            toolRequest.arguments,
-            actionContext
-        );
+
+        ActionResult actionResult = actionService.executeSingleAction(capability, har.LLMToolArgumentsJSON__c, actionContext);
 
         if (actionResult.isSuccess) {
             NotificationService.sendUserNotification(
@@ -138,7 +123,7 @@ public with sharing class ResumeApprovedFrameworkAction {
             NotificationService.sendUserNotification(
                 har.ChatSession__r.User__c,
                 'Action Failed After Approval: "' + har.LLMToolName__c + '"',
-                'Your request was approved, but the action failed to execute. ' + String.valueOf(actionResult.outputForLlm).abbreviate(100),
+                'Your request was approved, but the action failed to execute. ' + String.valueOf(actionResult.outputForLlm),
                 har.ChatSession__c
             );
             updateHARStatus(har, 'Error', 'Action failed post-approval: ' + actionResult.internalDetails, logPrefix);
@@ -164,7 +149,7 @@ public with sharing class ResumeApprovedFrameworkAction {
         try {
             har.ApprovalStatus__c = status;
             if (String.isNotBlank(comments)) {
-                har.ApproverComments__c = (har.ApproverComments__c != null ? har.ApproverComments__c + '\n' : '') + comments.abbreviate(131000);
+                har.ApproverComments__c = (har.ApproverComments__c != null ? har.ApproverComments__c + '\n' : '') + comments;
             }
             update har;
         } catch (Exception e) {

@@ -4,6 +4,7 @@
     <columns>NAME</columns>
     <columns>DeveloperName__c</columns>
     <columns>LLMConfiguration__c</columns>
+    <columns>MemoryStrategy__c</columns>
     <columns>IsActive__c</columns>
     <filterScope>Everything</filterScope>
     <label>All</label>

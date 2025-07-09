@@ -6,10 +6,6 @@
  * Copyright (c) 2025 Sonal
  */
 
-/**
- * Created by sonal on 2025-04-01.
- */
-
 /** @description Exception for errors during communication with or response parsing from the LLM Provider API. */
 public virtual class LLMProviderException extends AIAgentException {
 }

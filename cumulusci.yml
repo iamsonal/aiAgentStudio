@@ -14,7 +14,6 @@ tasks:
             suites: robot/aiAgent/tests
             options:
                 outputdir: robot/aiAgent/results
-
     robot_testdoc:
         options:
             path: robot/aiAgent/tests
@@ -23,26 +22,42 @@ tasks:
         class_path: cumulusci.tasks.salesforce.Deploy
         options:
             path: seed-data
+    enable_knowledge_user:
+        class_path: cumulusci.tasks.apex.anon.AnonymousApexTask
+        options:
+            path: scripts/apex/ConfigureAppDev.cls
+            apex: enableKnowledgeUser();
+    load_knowledge_data:
+        class_path: cumulusci.tasks.command.Command
+        options:
+            command: >
+                sf data import bulk 
+                --file data/Knowledge__kav.csv 
+                --sobject Knowledge__kav 
+                --wait 30
 
 flows:
     dev_org:
         steps:
-            5:
+            5.1:
                 task: deploy_seed_data
-            6:
+            5.2:
                 task: assign_permission_sets
                 options:
                     api_names: AIAgentStudioConfigurator
-#            7:
-#                task: execute_anon
-#                description: Create Field Sets using the Metadata API
-#                options:
-#                    apex: "AgentFrameworkFieldSetSetup.runCreateFieldSets();"
-            8:
+            6.1:
+                task: enable_knowledge_user
+            6.2:
+                task: assign_permission_sets
+                options:
+                    api_names: KnowledgeDemo
+#            6.3:
+#                task: load_knowledge_data
+            7:
                 task: execute_anon
                 description: Set up Sales Data
                 options:
-                    apex: "AgentTestDataFactory.setupSalesCopilotData();"
+                    apex: "AgentTestDataFactory.createSupportShowcaseData();"
 
 orgs:
     scratch:

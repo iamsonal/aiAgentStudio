@@ -13,19 +13,16 @@
  * @extends BaseAgentAction
  *
  * @configuration
- * The ActionConfiguration__c JSON for this action defines which objects are searchable and which fields to return.
- * The system uses a built-in map to understand primary name fields (e.g., Name, CaseNumber) and key identifier fields
- * (e.g., Email, AccountNumber) for intelligent scoring.
+ * This action is configured entirely via the 'SObjectConfig__mdt' Custom Metadata Type.
+ * Create records in this CMDT to define which objects are searchable, their primary display field,
+ * and key fields for scoring. The action dynamically reads this metadata at runtime.
  *
- * @example ActionConfiguration__c JSON (This is now OPTIONAL and only used for maxAmbiguousResults)
- * {
- *   "maxAmbiguousResults": 3
- * }
+ * An optional JSON configuration can be provided on the AgentCapability__c record to override 'maxAmbiguousResults'.
+ * @example BackendConfiguration__c JSON: { "maxAmbiguousResults": 3 }
  *
  * @returns {ActionResult} A structured result indicating the outcome: SUCCESS, AMBIGUOUS, or NOT_FOUND.
  */
 public class ActionFindEntities extends BaseAgentAction {
-    private static final String CONFIG_SEARCHABLE_OBJECTS = 'searchableObjects';
     private static final String CONFIG_MAX_AMBIGUOUS_RESULTS = 'maxAmbiguousResults';
     private static final String ARG_SEARCH_QUERY = 'searchQuery';
     private static final String ARG_SOBJECT_TYPES = 'sObjectTypes';
@@ -39,15 +36,20 @@ public class ActionFindEntities extends BaseAgentAction {
     private static final Integer NAME_FIELD_MATCH_SCORE = 100;
     private static final Integer KEY_FIELD_MATCH_SCORE = 50;
 
-    private static final Map<String, KnownFieldInfo> KNOWN_FIELDS_MAP = new Map<String, KnownFieldInfo>{
-        'Account' => new KnownFieldInfo('Name', new Set<String>{ 'AccountNumber', 'Phone' }),
-        'Contact' => new KnownFieldInfo('Name', new Set<String>{ 'Email', 'Phone' }),
-        'Opportunity' => new KnownFieldInfo('Name', new Set<String>{ 'NextStep' }),
-        'Case' => new KnownFieldInfo('CaseNumber', new Set<String>{ 'Subject' }),
-        'User' => new KnownFieldInfo('Name', new Set<String>{ 'Email' })
-    };
+    @TestVisible
+    private static List<SObjectConfig__mdt> MDT_CACHE;
 
-    private Map<String, List<String>> configuredReturnFields;
+    private class ScoringInfo {
+        public String primaryNameField { get; set; }
+        public Set<String> keyIdentifierFields { get; set; }
+        public ScoringInfo(String nameField, Set<String> keyFields) {
+            this.primaryNameField = nameField;
+            this.keyIdentifierFields = keyFields;
+        }
+    }
+
+    private Map<String, List<String>> configuredReturnFields = new Map<String, List<String>>();
+    private Map<String, ScoringInfo> scoringConfig = new Map<String, ScoringInfo>();
     private Integer maxAmbiguousResults;
 
     protected override String getLogPrefixName() {
@@ -55,39 +57,54 @@ public class ActionFindEntities extends BaseAgentAction {
     }
 
     /**
-     * @description *** UPDATED ***
-     *              Populates the searchable objects and fields from the hard-coded KNOWN_FIELDS_MAP
-     *              instead of from the ActionConfiguration JSON. It can still optionally read
-     *              maxAmbiguousResults from the JSON if provided.
+     * @description Populates the searchable objects and fields by querying the SObjectConfig__mdt
+     *              Custom Metadata Type. This allows administrators to configure search behavior without code changes.
+     *              The results are cached for the duration of the transaction.
      * @param actionConfigurationJson The raw JSON string from the binding (may be null).
      * @param logPrefix Logging prefix.
      */
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
-
-        this.configuredReturnFields = new Map<String, List<String>>();
         this.maxAmbiguousResults = DEFAULT_MAX_AMBIGUOUS_RESULTS;
 
-        for (String sObjName : KNOWN_FIELDS_MAP.keySet()) {
-            KnownFieldInfo knowns = KNOWN_FIELDS_MAP.get(sObjName);
-            List<String> fieldsForObject = new List<String>();
-
-            if (String.isNotBlank(knowns.nameField)) {
-                fieldsForObject.add(knowns.nameField);
+        if (MDT_CACHE == null) {
+            try {
+                MDT_CACHE = [
+                    SELECT SObjectAPIName__c, PrimaryNameField__c, KeyIdentifierFields__c
+                    FROM SObjectConfig__mdt
+                    WHERE IsActive__c = TRUE
+                ];
+            } catch (Exception e) {
+                throw new ValidationException('Failed to query required SObjectConfig__mdt records: ' + e.getMessage(), null, e);
             }
-            if (knowns.keyIdentifierFields != null) {
-                fieldsForObject.addAll(knowns.keyIdentifierFields);
-            }
-
-            if (!fieldsForObject.isEmpty()) {
-                Set<String> fieldSet = new Set<String>(fieldsForObject);
-                fieldSet.add('Id');
-                this.configuredReturnFields.put(sObjName, new List<String>(fieldSet));
-            }
+        } else {
         }
 
-        if (this.configuredReturnFields.isEmpty()) {
-            throw new ValidationException('Internal configuration error: KNOWN_FIELDS_MAP is empty or invalid.', null);
+        if (MDT_CACHE.isEmpty()) {
+            throw new ValidationException('No active SObjectConfig__mdt records found. Please configure at least one searchable object.', null);
+        }
+
+        for (SObjectConfig__mdt config : MDT_CACHE) {
+            String sObjApiName = config.SObjectAPIName__c;
+            if (String.isBlank(sObjApiName) || String.isBlank(config.PrimaryNameField__c)) {
+                continue;
+            }
+
+            Set<String> keyFields = new Set<String>();
+            if (String.isNotBlank(config.KeyIdentifierFields__c)) {
+                for (String field : config.KeyIdentifierFields__c.split(',')) {
+                    if (String.isNotBlank(field.trim())) {
+                        keyFields.add(field.trim());
+                    }
+                }
+            }
+            this.scoringConfig.put(sObjApiName.toLowerCase(), new ScoringInfo(config.PrimaryNameField__c, keyFields));
+
+            List<String> fieldsForObject = new List<String>(keyFields);
+            fieldsForObject.add(config.PrimaryNameField__c);
+            fieldsForObject.add('Id');
+
+            this.configuredReturnFields.put(sObjApiName, new List<String>(new Set<String>(fieldsForObject)));
         }
 
         if (this.parsedActionConfig != null && this.parsedActionConfig.containsKey(CONFIG_MAX_AMBIGUOUS_RESULTS)) {
@@ -125,7 +142,6 @@ public class ActionFindEntities extends BaseAgentAction {
         String soslReturningClause = buildSoslReturningClause(accessibleReturnFields);
 
         String sanitizedSearchQuery = String.escapeSingleQuotes(args.searchQuery);
-
         String soslQuery = 'FIND \'' + sanitizedSearchQuery + '\' IN ALL FIELDS RETURNING ' + soslReturningClause + ' LIMIT ' + SOSL_QUERY_LIMIT;
 
         List<List<SObject>> searchResults;
@@ -136,7 +152,8 @@ public class ActionFindEntities extends BaseAgentAction {
         }
 
         List<ScoredResult> finalRankedResults = scoreAndRankResults(searchResults, args.searchQuery, logPrefix);
-        return processRankedResults(finalRankedResults, logPrefix);
+        Map<String, Object> result = processRankedResults(finalRankedResults, logPrefix);
+        return this.success((Map<String, Object>) result.get('data'), (String) result.get('messageForUser'), (String) result.get('internalDetails'));
     }
 
     private Map<String, List<String>> buildAccessibleReturnFieldMap(List<String> sObjectTypesFromArgs, String logPrefix) {
@@ -181,49 +198,42 @@ public class ActionFindEntities extends BaseAgentAction {
         for (List<SObject> sObjectList : searchResults) {
             for (SObject sObj : sObjectList) {
                 Integer score = initialScore--;
-                KnownFieldInfo knowns = KNOWN_FIELDS_MAP.get(sObj.getSObjectType().getDescribe().getName());
+                String sObjNameLower = sObj.getSObjectType().getDescribe().getName().toLowerCase();
+                ScoringInfo scoringInfo = this.scoringConfig.get(sObjNameLower);
 
-                if (knowns != null) {
-                    Object nameValueObj = sObj.get(knowns.nameField);
+                if (scoringInfo != null) {
+                    Object nameValueObj = sObj.get(scoringInfo.primaryNameField);
                     if (nameValueObj != null && String.valueOf(nameValueObj).toLowerCase().contains(searchQuery.toLowerCase())) {
                         score += NAME_FIELD_MATCH_SCORE;
                     }
 
-                    for (String keyField : knowns.keyIdentifierFields) {
+                    for (String keyField : scoringInfo.keyIdentifierFields) {
                         Object keyValueObj = sObj.get(keyField);
                         if (keyValueObj != null && String.valueOf(keyValueObj).toLowerCase().contains(searchQuery.toLowerCase())) {
                             score += KEY_FIELD_MATCH_SCORE;
                         }
                     }
                 }
-                scoredList.add(new ScoredResult(sObj, score));
+                scoredList.add(new ScoredResult(sObj, score, this.scoringConfig));
             }
         }
         scoredList.sort();
         return scoredList;
     }
 
-    private ActionResult processRankedResults(List<ScoredResult> rankedResults, String logPrefix) {
-        if (rankedResults.isEmpty()) {
-            return success(
-                new Map<String, Object>{ 'status' => STATUS_NOT_FOUND, 'message' => 'No matching records found.' },
-                'Search complete: No results.'
-            );
-        } else if (rankedResults.size() == 1) {
-            return success(
-                new Map<String, Object>{ 'status' => STATUS_SUCCESS, 'record' => buildRecordDataMap(rankedResults[0].record) },
-                'Search complete: Found single match.'
-            );
-        } else {
-            Integer topScore = rankedResults[0].score;
-            Integer secondScore = rankedResults[1].score;
-            if (topScore > secondScore + (NAME_FIELD_MATCH_SCORE / 2)) {
-                return success(
-                    new Map<String, Object>{ 'status' => STATUS_SUCCESS, 'record' => buildRecordDataMap(rankedResults[0].record) },
-                    'Search complete: Found single high-confidence match.'
-                );
-            }
+    private Map<String, Object> processRankedResults(List<ScoredResult> rankedResults, String logPrefix) {
+        Map<String, Object> result = new Map<String, Object>();
 
+        if (rankedResults.isEmpty()) {
+            result.put('data', new Map<String, Object>{ 'status' => STATUS_NOT_FOUND });
+            result.put('messageForUser', 'No matching records found.');
+            result.put('internalDetails', 'Search complete: No results.');
+        } else if (rankedResults.size() == 1 || (rankedResults[0].score > rankedResults[1].score + (NAME_FIELD_MATCH_SCORE / 2))) {
+            String msg = (rankedResults.size() == 1) ? 'Found a single matching record.' : 'Found a high-confidence match.';
+            result.put('data', new Map<String, Object>{ 'status' => STATUS_SUCCESS, 'record' => buildRecordDataMap(rankedResults[0].record) });
+            result.put('messageForUser', msg + ' Here are the details for ' + rankedResults[0].displayLabel + '.');
+            result.put('internalDetails', 'Search complete: ' + msg);
+        } else {
             List<Map<String, String>> options = new List<Map<String, String>>();
             for (Integer i = 0; i < Math.min(rankedResults.size(), this.maxAmbiguousResults); i++) {
                 ScoredResult res = rankedResults[i];
@@ -235,11 +245,11 @@ public class ActionFindEntities extends BaseAgentAction {
                     }
                 );
             }
-            return success(
-                new Map<String, Object>{ 'status' => STATUS_AMBIGUOUS, 'options' => options },
-                'Search complete: Ambiguous matches found.'
-            );
+            result.put('data', new Map<String, Object>{ 'status' => STATUS_AMBIGUOUS, 'options' => options });
+            result.put('messageForUser', 'Found multiple possible matches. Please clarify which one you mean.');
+            result.put('internalDetails', 'Search complete: Ambiguous matches found.');
         }
+        return result;
     }
 
     private Map<String, Object> buildRecordDataMap(SObject record) {
@@ -251,33 +261,23 @@ public class ActionFindEntities extends BaseAgentAction {
         return recordData;
     }
 
-    /** @description DTO to hold info about an SObject's key text fields. */
-    private class KnownFieldInfo {
-        public String nameField { get; private set; }
-        public Set<String> keyIdentifierFields { get; private set; }
-
-        public KnownFieldInfo(String nameField, Set<String> keyIdentifiers) {
-            this.nameField = nameField;
-            this.keyIdentifierFields = keyIdentifiers;
-        }
-    }
-
-    /** @description Wrapper class to hold a record and its calculated relevance score. */
     private class ScoredResult implements Comparable {
         public SObject record { get; private set; }
         public Integer score { get; private set; }
         public String displayLabel { get; private set; }
 
-        public ScoredResult(SObject record, Integer score) {
+        public ScoredResult(SObject record, Integer score, Map<String, ScoringInfo> dynamicScoringConfig) {
             this.record = record;
             this.score = score;
-            this.displayLabel = buildDisplayLabel(record);
+            this.displayLabel = buildDisplayLabel(record, dynamicScoringConfig);
         }
 
-        private String buildDisplayLabel(SObject sObj) {
-            String sObjName = sObj.getSObjectType().getDescribe().getName();
-            KnownFieldInfo knowns = KNOWN_FIELDS_MAP.get(sObjName);
-            String primaryValue = (knowns != null && sObj.isSet(knowns.nameField)) ? String.valueOf(sObj.get(knowns.nameField)) : sObj.Id;
+        private String buildDisplayLabel(SObject sObj, Map<String, ScoringInfo> dynamicScoringConfig) {
+            String sObjNameLower = sObj.getSObjectType().getDescribe().getName().toLowerCase();
+            ScoringInfo scoringInfo = dynamicScoringConfig.get(sObjNameLower);
+            String primaryValue = (scoringInfo != null && sObj.isSet(scoringInfo.primaryNameField))
+                ? String.valueOf(sObj.get(scoringInfo.primaryNameField))
+                : sObj.Id;
 
             return primaryValue + ' (' + sObj.getSObjectType().getDescribe().getLabel() + ')';
         }

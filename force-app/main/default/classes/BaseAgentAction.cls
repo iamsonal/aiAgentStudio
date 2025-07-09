@@ -33,6 +33,10 @@ public abstract class BaseAgentAction implements IAgentAction {
         }
     }
 
+    public virtual override String toString() {
+        return 'ActionHandler:' + getLogPrefixName() + ' (Context: ' + (actionContext != null ? 'Set' : 'Not Set') + ')';
+    }
+
     /** @description Exception specifically for security/permission denials. */
     public virtual class ActionSecurityException extends AIAgentException {
     }
@@ -53,28 +57,54 @@ public abstract class BaseAgentAction implements IAgentAction {
             return new ActionResult('Internal error: Missing context.', 'ActionContext was null', AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR);
         }
         this.actionContext = context;
-        final String logPrefix = '[' + getLogPrefixName() + ' Cap:' + context.agentCapabilityId + ' Act:' + context.actionDefinitionId + '] ';
+        final String logPrefix = '[' + getLogPrefixName() + ' Cap:' + context.agentCapabilityId + '] ';
         ActionResult finalResult = null;
-        ParsedArguments validatedArgs = null;
 
         try {
+            Map<String, Object> argsMap = String.isBlank(argumentsJson)
+                ? new Map<String, Object>()
+                : (Map<String, Object>) JSON.deserializeUntyped(argumentsJson);
+
+            if (String.isNotBlank(context.preHookClassName)) {
+                IPreActionHook preHook = (IPreActionHook) createHookInstance(context.preHookClassName, 'IPreActionHook');
+                argsMap = preHook.preProcess(argsMap, context);
+            }
+
             this.parseActionConfiguration(actionConfigurationJson, logPrefix);
-            validatedArgs = this.parseAndValidateArguments(argumentsJson, logPrefix);
+            ParsedArguments validatedArgs = this.parseAndValidateArguments(JSON.serialize(argsMap), logPrefix);
+
             finalResult = this.performAction(validatedArgs, logPrefix);
             if (finalResult == null) {
                 throw new ActionHandlerNullException('Handler (' + getLogPrefixName() + ') returned null ActionResult.');
             }
-        } catch (ValidationException ve) {
-            finalResult = this.validationError(ve.getMessage(), ve.fieldName);
-        } catch (ActionSecurityException se) {
-            finalResult = this.securityError(se.getMessage());
-        } catch (ActionHandlerNullException ne) {
-            finalResult = this.runtimeError(ne.getMessage(), AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT, ne);
         } catch (Exception ex) {
             finalResult = mapExceptionToResult(ex, logPrefix);
+        } finally {
+            if (String.isNotBlank(context.postHookClassName) && finalResult != null) {
+                try {
+                    IPostActionHook postHook = (IPostActionHook) createHookInstance(context.postHookClassName, 'IPostActionHook');
+                    postHook.postProcess(finalResult, context);
+                } catch (Exception postHookEx) {
+                }
+            }
         }
 
         return finalResult;
+    }
+
+    private Object createHookInstance(String className, String interfaceName) {
+        Type hookType = Type.forName(className);
+        if (hookType == null) {
+            throw new ValidationException('Hook class not found: "' + className + '". Check the class name and namespace.', null);
+        }
+        Object instance = hookType.newInstance();
+
+        Type requiredInterface = Type.forName(interfaceName);
+        if (!requiredInterface.isAssignableFrom(hookType)) {
+            throw new ValidationException('Class ' + className + ' must implement the ' + interfaceName + ' interface.', null);
+        }
+
+        return instance;
     }
 
     protected virtual String getLogPrefixName() {
@@ -101,40 +131,68 @@ public abstract class BaseAgentAction implements IAgentAction {
 
     protected abstract ActionResult performAction(ParsedArguments validatedArgs, String logPrefix);
 
-    protected ActionResult success(Object outputForLlm, String internalDetails) {
-        return new ActionResult(outputForLlm, internalDetails);
+    protected ActionResult success(Object dataPayload, String messageForUser, String internalDetails) {
+        Map<String, Object> standardOutput = new Map<String, Object>{
+            'status' => 'SUCCESS',
+            'messageForUser' => messageForUser,
+            'data' => dataPayload
+        };
+        return new ActionResult(standardOutput, internalDetails);
     }
 
     protected ActionResult validationError(String details, String fieldName) {
-        String summary = 'Invalid input' + (String.isNotBlank(fieldName) ? ' for parameter "' + fieldName + '"' : '') + '.';
-        String detailStr = String.isNotBlank(details) ? details : summary;
-        return new ActionResult(summary, detailStr, AIAgentConstants.ERR_CODE_INPUT_VALIDATION);
+        String toolName = this.getLogPrefixName();
+        String llmErrorMessage =
+            'Invalid input' +
+            (String.isNotBlank(fieldName) ? ' for parameter "' + fieldName + '"' : '') +
+            ' in the ' +
+            toolName +
+            ' action. Details: ' +
+            details;
+
+        Map<String, Object> errorPayload = new Map<String, Object>{
+            'status' => 'ERROR',
+            'error' => new Map<String, Object>{ 'code' => AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'message' => llmErrorMessage }
+        };
+        return new ActionResult(errorPayload, 'Validation Error: ' + details, AIAgentConstants.ERR_CODE_INPUT_VALIDATION);
     }
 
     protected ActionResult securityError(String details) {
-        String summary = 'Action denied due to security restrictions.';
-        return new ActionResult(summary, details ?? summary, AIAgentConstants.ERR_CODE_PERMISSION_DENIED);
+        String toolName = this.getLogPrefixName();
+        String llmErrorMessage = 'The ' + toolName + ' action was denied due to security restrictions. Details: ' + details;
+
+        Map<String, Object> errorPayload = new Map<String, Object>{
+            'status' => 'ERROR',
+            'error' => new Map<String, Object>{ 'code' => AIAgentConstants.ERR_CODE_PERMISSION_DENIED, 'message' => llmErrorMessage }
+        };
+        return new ActionResult(errorPayload, details, AIAgentConstants.ERR_CODE_PERMISSION_DENIED);
     }
 
     protected ActionResult dmlError(String genericMessage, List<Database.Error> dmlErrors, String suggestedErrorCode) {
-        String details = String.isNotBlank(genericMessage) ? genericMessage : 'DML Operation Failed.';
+        String toolName = this.getLogPrefixName();
         String primaryErrorCode = suggestedErrorCode ?? AIAgentConstants.ERR_CODE_DML_ERROR;
-        List<String> errorDetailsList = new List<String>();
+        String firstDmlMessage = 'A database error occurred.';
 
+        List<String> errorDetailsList = new List<String>();
         if (dmlErrors != null && !dmlErrors.isEmpty()) {
             StatusCode firstStatusCode = dmlErrors[0].getStatusCode();
             primaryErrorCode = mapStatusCodeToErrorCode(firstStatusCode, primaryErrorCode);
+            firstDmlMessage = dmlErrors[0].getMessage();
+
             for (Database.Error err : dmlErrors) {
                 String fieldStr = String.join(err.getFields() ?? new List<String>(), ',');
-
                 errorDetailsList.add('[Fields:(' + fieldStr + '), Status:' + err.getStatusCode() + ', Msg:' + err.getMessage() + ']');
             }
-            details += ' Details: ' + String.join(errorDetailsList, '; ');
-        } else {
-            details += ' (No specific DML error details)';
         }
-        String summaryForLlm = genericMessage?.abbreviate(100) ?? 'Database operation failed.';
-        return new ActionResult(summaryForLlm, details, primaryErrorCode);
+        String internalDetailsForLog = (genericMessage ?? '') + ' Details: ' + String.join(errorDetailsList, '; ');
+
+        String llmErrorMessage = 'A database error occurred while executing the ' + toolName + ' action: ' + firstDmlMessage;
+
+        Map<String, Object> errorPayload = new Map<String, Object>{
+            'status' => 'ERROR',
+            'error' => new Map<String, Object>{ 'code' => primaryErrorCode, 'message' => llmErrorMessage }
+        };
+        return new ActionResult(errorPayload, internalDetailsForLog, primaryErrorCode);
     }
 
     /** Maps DML StatusCode enum values to framework error codes */
@@ -174,12 +232,25 @@ public abstract class BaseAgentAction implements IAgentAction {
 
     /** Creates generic RUNTIME FAILED ActionResult */
     protected ActionResult runtimeError(String internalMessage, String errorCode, Exception caughtException) {
-        String summaryForLlm = 'An unexpected internal error occurred.';
-        String details = 'Runtime Error: ' + (internalMessage ?? 'No details available.');
+        String toolName = this.getLogPrefixName();
+        String finalErrorCode = String.isNotBlank(errorCode) ? errorCode : AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
+        String llmErrorMessage =
+            'An unexpected internal error occurred while running the ' +
+            toolName +
+            ' action. The system reported: ' +
+            internalMessage;
+
+        Map<String, Object> errorPayload = new Map<String, Object>{
+            'status' => 'ERROR',
+            'error' => new Map<String, Object>{ 'code' => finalErrorCode, 'message' => llmErrorMessage }
+        };
+
+        String detailsForLogging = 'Runtime Error: ' + (internalMessage ?? 'No details available.');
         if (caughtException != null) {
-            details += ' (Type: ' + caughtException.getTypeName() + ')';
+            detailsForLogging += ' (Type: ' + caughtException.getTypeName() + ')';
         }
-        return new ActionResult(summaryForLlm, details, String.isNotBlank(errorCode) ? errorCode : AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR);
+
+        return new ActionResult(errorPayload, detailsForLogging, finalErrorCode);
     }
 
     /** Maps caught exceptions to ActionResult */
@@ -188,11 +259,7 @@ public abstract class BaseAgentAction implements IAgentAction {
             DmlException dmlEx = (DmlException) ex;
             String initialCode = dmlEx.getNumDml() > 0 ? dmlEx.getDmlStatusCode(0) : null;
             String firstDmlMsg = dmlEx.getNumDml() > 0 ? dmlEx.getDmlMessage(0) : ex.getMessage();
-            return dmlError(
-                'DML failed: ' + firstDmlMsg.abbreviate(200),
-                null,
-                mapStatusCodeToErrorCode(initialCode, AIAgentConstants.ERR_CODE_DML_ERROR)
-            );
+            return dmlError('DML failed: ' + firstDmlMsg, null, mapStatusCodeToErrorCode(initialCode, AIAgentConstants.ERR_CODE_DML_ERROR));
         }
 
         if (ex instanceof System.QueryException) {
@@ -231,5 +298,21 @@ public abstract class BaseAgentAction implements IAgentAction {
         }
 
         return this.runtimeError(ex.getMessage(), AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex);
+    }
+
+    /**
+     * @description Creates a standardized, structured error payload map for the LLM.
+     * @param toolName The name of the tool that failed.
+     * @param errorCode A machine-readable framework error code.
+     * @param errorMessage A detailed, LLM-readable description of what went wrong and potentially how to fix it.
+     * @return A map ready to be serialized as JSON for the LLM.
+     */
+    private Map<String, Object> buildErrorPayload(String toolName, String errorCode, String errorMessage) {
+        return new Map<String, Object>{
+            'status' => 'error',
+            'tool_name' => toolName,
+            'error_type' => String.isNotBlank(errorCode) ? errorCode : AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+            'error_details' => errorMessage
+        };
     }
 }

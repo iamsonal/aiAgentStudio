@@ -6,11 +6,6 @@
  * Copyright (c) 2025 Sonal
  */
 
-/**
- * @description Service class for centralized logging in Apex
- * @author Claude
- * @date 2025-04-19
- */
 public without sharing class LoggingService {
     /**
      * Enum for log levels

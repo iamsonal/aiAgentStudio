@@ -11,9 +11,10 @@
         <target>lightning__UtilityBar</target>
     </targets>
     <targetConfigs>
-        <targetConfig targets="lightning__AppPage, lightning__HomePage, lightning__RecordPage">
+        <targetConfig targets="lightning__AppPage, lightning__HomePage, lightning__RecordPage, lightning__UtilityBar">
             <property name="cardTitle" type="String" label="Card Title" description="Title displayed on the chat component card." default="AI Assistant"/>
             <property name="agentDeveloperName" type="String" label="Agent Developer Name" description="(Optional) Specify the exact Developer Name of the AI Agent to use. If left blank, the system will route to an appropriate agent automatically." default="SalesCopilot"/>
+            <property name="enableStartOver" type="Boolean" label="Enable 'Start Over From Here' Feature" description="FOR TESTING ONLY. If enabled, users with the correct permission can delete a user message and all subsequent messages to test a different conversation path." default="false"/>
         </targetConfig>
     </targetConfigs>
 </LightningComponentBundle>

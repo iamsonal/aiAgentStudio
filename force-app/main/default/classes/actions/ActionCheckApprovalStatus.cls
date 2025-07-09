@@ -150,8 +150,11 @@ public class ActionCheckApprovalStatus extends BaseAgentAction {
         if (String.isBlank(lastComment))
             lastComment = NA;
 
-        Map<String, Object> outputMap = new Map<String, Object>{
-            'isSuccess' => true,
+        String successMsg = 'The approval status for ' + (instance.TargetObject?.Name ?? 'this record') + ' is currently "' + status + '".';
+        if (status == 'Pending') {
+            successMsg += ' It is assigned to: ' + assignedTo + '.';
+        }
+        Map<String, Object> dataPayload = new Map<String, Object>{
             'recordId' => args.recordSObjectId,
             'recordName' => instance.TargetObject?.Name ?? NA,
             'processInstanceId' => instance.Id,
@@ -166,6 +169,6 @@ public class ActionCheckApprovalStatus extends BaseAgentAction {
 
         String internalDetails = 'Status=' + status + ', Assignee=' + assignedTo + ' for InstanceId=' + instance.Id;
 
-        return this.success(outputMap, internalDetails);
+        return this.success(dataPayload, successMsg, internalDetails);
     }
 }

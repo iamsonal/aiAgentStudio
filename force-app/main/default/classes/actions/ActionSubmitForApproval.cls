@@ -10,7 +10,6 @@
  * @description Standard Action: Submits a Salesforce record into a predefined approval process.
  *              Extends BaseAgentAction for standardized execution flow and error handling.
  * @author AI Agent Framework Team
- * @date 2025-04-18 (Updated for BaseAgentAction)
  * @extends BaseAgentAction
  */
 public with sharing class ActionSubmitForApproval extends BaseAgentAction {
@@ -180,16 +179,11 @@ public with sharing class ActionSubmitForApproval extends BaseAgentAction {
 
         if (result.isSuccess()) {
             String instanceId = result.getInstanceId();
-            Map<String, Object> outputMap = new Map<String, Object>{
-                'isSuccess' => true,
-                'message' => 'Record ' +
-                params.recordId +
-                ' submitted for approval successfully.',
-                'processInstanceId' => instanceId,
-                'actorIds' => result.getActorIds()
-            };
+            String successMsg = 'Record ' + params.recordId + ' submitted for approval successfully.';
+            Map<String, Object> dataPayload = new Map<String, Object>{ 'processInstanceId' => instanceId, 'actorIds' => result.getActorIds() };
+            String internalDetails = 'Submission successful. Instance ID: ' + instanceId;
 
-            return this.success(outputMap, 'Approval process initiated. Instance ID: ' + instanceId);
+            return this.success(dataPayload, successMsg, internalDetails);
         } else {
             String errorMessage = processApprovalErrors(result.getErrors());
             String errorCode = determineApprovalErrorCode(errorMessage);

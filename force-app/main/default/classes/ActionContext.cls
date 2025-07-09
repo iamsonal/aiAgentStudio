@@ -7,7 +7,8 @@
  */
 
 /**
- * @description Contextual information passed to IAgentAction implementations during execution.
+ * @description Contextual information passed to IAgentAction implementations and Hooks.
+ *              This DTO carries all necessary state for an action's execution.
  */
 public class ActionContext {
     public Id chatSessionId { get; private set; }
@@ -15,14 +16,21 @@ public class ActionContext {
     public Id relatedRecordId { get; private set; }
     public Id agentDefinitionId { get; private set; }
     public Id agentCapabilityId { get; private set; }
-    public Id actionDefinitionId { get; private set; }
+    public String preHookClassName { get; private set; }
+    public String postHookClassName { get; private set; }
+    public String implementationDetail { get; private set; }
 
-    public ActionContext(Id sessId, Id usrId, Id relId, Id agentDefId, Id capabilityId, Id actionDefId) {
+    /**
+     * @description Constructor requires all context pieces, including optional hooks.
+     */
+    public ActionContext(Id sessId, Id usrId, Id relId, Id agentDefId, Id capabilityId, String preHook, String postHook, String implDetail) {
         this.chatSessionId = sessId;
         this.userId = usrId;
         this.relatedRecordId = relId;
         this.agentDefinitionId = agentDefId;
         this.agentCapabilityId = capabilityId;
-        this.actionDefinitionId = actionDefId;
+        this.preHookClassName = preHook;
+        this.postHookClassName = postHook;
+        this.implementationDetail = implDetail;
     }
 }

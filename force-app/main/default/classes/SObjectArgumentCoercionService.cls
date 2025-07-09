@@ -6,10 +6,6 @@
  * Copyright (c) 2025 Sonal
  */
 
-/**
- * Created by sonal on 2025-05-28.
- */
-
 public with sharing class SObjectArgumentCoercionService {
     /**
      * @description Converts raw argument values to types compatible with SObject fields.

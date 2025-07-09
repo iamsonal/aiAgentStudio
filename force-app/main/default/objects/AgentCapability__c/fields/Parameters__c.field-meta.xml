@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Parameters__c</fullName>
+    <description>A JSON Schema (following the OpenAPI specification) that defines the input arguments this capability accepts from the LLM. This schema tells the AI what data to provide and enforces the format.</description>
+    <inlineHelpText>The JSON Schema defining the tool&apos;s input arguments. Example for a &apos;find_contact&apos; tool: {&quot;type&quot;:&quot;object&quot;, &quot;properties&quot;:{&quot;lastName&quot;:{&quot;type&quot;:&quot;string&quot;, &quot;description&quot;:&quot;The contact&apos;s last name.&quot;}}, &quot;required&quot;:[&quot;lastName&quot;]}</inlineHelpText>
+    <label>Parameters</label>
+    <length>131072</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

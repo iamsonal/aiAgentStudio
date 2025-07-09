@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RequiresConfirmation__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>If checked, the framework will instruct the AI to first ask the user for a simple &quot;yes/no&quot; confirmation in the chat before executing the action. This provides a lightweight safety check for significant actions.</description>
+    <inlineHelpText>If checked, the AI will be instructed to ask the user for confirmation in the chat before executing this action. Use for significant but non-critical actions.</inlineHelpText>
+    <label>Requires User Confirmation</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

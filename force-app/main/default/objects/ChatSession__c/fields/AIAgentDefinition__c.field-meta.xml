@@ -9,6 +9,7 @@
     <relationshipLabel>Chat Sessions</relationshipLabel>
     <relationshipName>ChatSessions</relationshipName>
     <required>true</required>
+    <trackHistory>false</trackHistory>
     <trackTrending>false</trackTrending>
     <type>Lookup</type>
 </CustomField>

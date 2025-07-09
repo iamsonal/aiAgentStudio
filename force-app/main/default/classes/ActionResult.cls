@@ -38,7 +38,7 @@ public class ActionResult {
     public ActionResult(Object outputData, String details) {
         this.isSuccess = true;
         this.outputForLlm = outputData;
-        this.internalDetails = details?.abbreviate(5000);
+        this.internalDetails = details;
         this.errorCode = null;
     }
 
@@ -51,7 +51,7 @@ public class ActionResult {
     public ActionResult(Object errorOutput, String details, String code) {
         this.isSuccess = false;
         this.outputForLlm = errorOutput;
-        this.internalDetails = details?.abbreviate(5000);
+        this.internalDetails = details;
         this.errorCode = code;
     }
 

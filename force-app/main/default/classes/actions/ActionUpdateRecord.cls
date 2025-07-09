@@ -21,7 +21,8 @@ public class ActionUpdateRecord extends BaseAgentAction {
     private static final String ERR_CODE_LOCKED = AIAgentConstants.ERR_CODE_RECORD_LOCKED;
     private static final String ERR_CODE_UNEXPECTED = AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
 
-    private static final String RECORD_ID_KEY = 'recordId';
+    private static final String CONFIG_KEY_RECORD_ID_PARAM = 'recordIdParameter';
+    private String recordIdParameterName = 'recordId';
 
     /**
      * @description Provides a specific log prefix for this action type.
@@ -32,16 +33,21 @@ public class ActionUpdateRecord extends BaseAgentAction {
     }
 
     /**
-     * @description Parses the ActionConfiguration JSON. UpdateRecord generally doesn't need config,
-     *              so this implementation is minimal. Override if config becomes necessary.
-     * @param actionConfigurationJson The raw JSON string.
+     * @description (MODIFIED) Parses the ActionConfiguration JSON to find the name of the record ID parameter.
+     *              Example BackendConfiguration__c JSON: { "recordIdParameter": "opportunityId" }
+     * @param actionConfigurationJson The raw JSON string from the capability's BackendConfiguration__c field.
      * @param logPrefix Logging prefix.
-     * @throws ValidationException if JSON is provided but invalid.
      */
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
 
-        if (this.parsedActionConfig != null && !this.parsedActionConfig.isEmpty()) {
+        if (this.parsedActionConfig != null && this.parsedActionConfig.containsKey(CONFIG_KEY_RECORD_ID_PARAM)) {
+            Object paramNameObj = this.parsedActionConfig.get(CONFIG_KEY_RECORD_ID_PARAM);
+            if (paramNameObj instanceof String && String.isNotBlank((String) paramNameObj)) {
+                this.recordIdParameterName = (String) paramNameObj;
+            } else {
+            }
+        } else {
         }
     }
 
@@ -61,11 +67,12 @@ public class ActionUpdateRecord extends BaseAgentAction {
     }
 
     /**
-     * @description Parses and validates the LLM arguments for UpdateRecord. Requires 'recordId' and fields to update.
-     * @param argumentsJson Raw JSON string from the LLM (expected to be a map).
+     * @description (MODIFIED) Parses and validates the LLM arguments. Now uses the configured
+     *              record ID parameter name instead of a hardcoded value.
+     * @param argumentsJson Raw JSON string from the LLM.
      * @param logPrefix Logging prefix.
      * @return UpdateRecordParsedArguments instance.
-     * @throws ValidationException if arguments JSON is invalid, recordId is missing/invalid, or no update fields provided.
+     * @throws ValidationException if arguments are invalid or the configured ID parameter is missing.
      */
     protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(String argumentsJson, String logPrefix) {
         Map<String, Object> parsedLlmArgs;
@@ -85,7 +92,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
         String recordIdKeyFound = null;
         Object idObj = null;
         for (String key : parsedLlmArgs.keySet()) {
-            if (RECORD_ID_KEY.equalsIgnoreCase(key)) {
+            if (this.recordIdParameterName.equalsIgnoreCase(key)) {
                 recordIdKeyFound = key;
                 idObj = parsedLlmArgs.get(key);
                 break;
@@ -93,11 +100,14 @@ public class ActionUpdateRecord extends BaseAgentAction {
         }
 
         if (recordIdKeyFound == null) {
-            throw new ValidationException('Missing required parameter: "' + RECORD_ID_KEY + '".', RECORD_ID_KEY);
+            throw new ValidationException('Missing required ID parameter: "' + this.recordIdParameterName + '".', this.recordIdParameterName);
         }
 
         if (!(idObj instanceof String) || String.isBlank((String) idObj)) {
-            throw new ValidationException('Invalid value for "' + RECORD_ID_KEY + '": must be a non-blank string ID.', RECORD_ID_KEY);
+            throw new ValidationException(
+                'Invalid value for "' + this.recordIdParameterName + '": must be a non-blank string ID.',
+                this.recordIdParameterName
+            );
         }
         String recordIdStr = (String) idObj;
 
@@ -107,12 +117,15 @@ public class ActionUpdateRecord extends BaseAgentAction {
             recordSObjectId = Id.valueOf(recordIdStr);
             targetSObjectType = recordSObjectId.getSObjectType();
         } catch (System.StringException strEx) {
-            throw new ValidationException('Invalid format for parameter "' + RECORD_ID_KEY + '": ' + recordIdStr, RECORD_ID_KEY);
+            throw new ValidationException(
+                'Invalid format for parameter "' + this.recordIdParameterName + '": ' + recordIdStr,
+                this.recordIdParameterName
+            );
         }
 
         Map<String, Object> updateData = new Map<String, Object>();
         for (String key : parsedLlmArgs.keySet()) {
-            if (!key.equalsIgnoreCase(RECORD_ID_KEY)) {
+            if (!key.equalsIgnoreCase(recordIdKeyFound)) {
                 updateData.put(key, parsedLlmArgs.get(key));
             }
         }
@@ -191,14 +204,13 @@ public class ActionUpdateRecord extends BaseAgentAction {
 
         if (sr.isSuccess()) {
             String successMsg = 'Successfully updated record ' + args.recordSObjectId + '.';
-            Map<String, Object> outputMap = new Map<String, Object>{ 'recordId' => args.recordSObjectId, 'message' => successMsg };
+            Map<String, Object> dataPayload = new Map<String, Object>{ 'recordId' => args.recordSObjectId.toString() };
             String internalDetails =
                 'Record updated. ID: ' +
                 args.recordSObjectId +
                 '. Fields updated: ' +
                 String.join(new List<String>(filteredData.keySet()), ', ');
-
-            return this.success(outputMap, internalDetails);
+            return this.success(dataPayload, successMsg, internalDetails);
         } else {
             String primaryErrorCode = ERR_CODE_DML;
             if (!sr.getErrors().isEmpty()) {

@@ -22,7 +22,15 @@ public class HandleRejectedFrameworkAction {
         }
 
         List<HumanApprovalRequest__c> harsToProcess = [
-            SELECT Id, ChatSession__c, LLMToolName__c, ApproverComments__c, OriginalAssistantMessage__c, LLMToolCallId__c, ChatSession__r.User__c
+            SELECT
+                Id,
+                ChatSession__c,
+                LLMToolName__c,
+                ApproverComments__c,
+                OriginalAssistantMessage__c,
+                LLMToolCallId__c,
+                OriginalTurnIdentifier__c,
+                ChatSession__r.User__c
             FROM HumanApprovalRequest__c
             WHERE Id IN :humanApprovalRequestIds
         ];
@@ -46,9 +54,9 @@ public class HandleRejectedFrameworkAction {
                 }
                 String rejectionContentJson = JSON.serialize(new Map<String, String>{ 'status' => 'rejected', 'reason' => rejectionReason });
 
-                MessagePersistenceService msgService = new MessagePersistenceService();
-                msgService.saveToolResultMessage(
+                ChatMessageService.saveToolResultMessage(
                     har.ChatSession__c,
+                    har.OriginalTurnIdentifier__c,
                     har.OriginalAssistantMessage__c,
                     har.LLMToolCallId__c,
                     rejectionContentJson,
@@ -57,6 +65,7 @@ public class HandleRejectedFrameworkAction {
                     0L,
                     null,
                     null,
+                    har.LLMToolName__c,
                     logPrefix
                 );
 

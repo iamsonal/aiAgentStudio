@@ -1,79 +1,49 @@
 /**
- * @description Provides basic user details, role, manager, and timezone information.
- *              Designed to run in user-anchored context (RequiresRecordContext__c=false).
+ * @description Provides details about the current user for the AI Agent Framework.
+ *              This is a non-record-context provider, meaning it's triggered by the
+ *              user's context rather than a specific record's context.
  * @implements IAgentContextProvider
  */
-public inherited sharing class UserDetailsProvider implements IAgentContextProvider {
+public with sharing class UserDetailsProvider implements IAgentContextProvider {
+    /**
+     * @description Retrieves details for the current user.
+     * @param anchorIds A Set containing the ID of the current user. This is passed by the
+     *                  framework for non-record-context providers.
+     * @param userId The ID of the user initiating the request (redundant in this provider but part of the interface).
+     * @param configurationJson Optional JSON string for custom configuration (not used by this provider).
+     * @return A map containing the user's details under the key 'Current User Details'.
+     */
+    public Map<String, List<SObject>> getContext(Set<Id> anchorIds, Id userId, String configurationJson) {
+        Map<String, List<SObject>> results = new Map<String, List<SObject>>();
 
-    private static final String LOG_PREFIX = '[UserDetailsProvider] ';
-
-    // Context Block Labels
-    private static final String LABEL_USER_DETAILS = 'Current User Details';
-    private static final String LABEL_MANAGER_INFO = 'User Manager Information';
-    private static final String LABEL_DELEGATED_APPROVER = 'User Delegated Approver';
-
-    public Map<String, List<SObject>> getContext(Id anchorId, Id userId, String configurationJson) {
-        System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Getting details for User: ' + userId);
-        Map<String, List<SObject>> contextBlocks = new Map<String, List<SObject>>();
-
-        if (userId == null) {
-            System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'User ID is null.');
-            return contextBlocks;
+        // --- 1. Validate Input ---
+        // Best practice for bulk-safe providers is to always check for empty input.
+        if (anchorIds == null || anchorIds.isEmpty()) {
+            System.debug(LoggingLevel.WARN, '[UserDetailsProvider] Anchor ID set is null or empty. Aborting.');
+            return results;
         }
 
-        // --- 1. Get Core User Details including Profile, Role, Manager, Delegated Approver ---
         try {
-            // Add fields as needed by the LLM context
+            // --- 2. Query for User Details (Securely and in Bulk) ---
+            // The query now uses 'IN :anchorIds' to adhere to the bulk-safe contract.
+            // For this provider, anchorIds will typically contain only the current user's ID.
             List<User> users = [
-                    SELECT
-                            Id, Name, Email, Title, Department, Phone, TimeZoneSidKey,
-                            Profile.Name,
-                            UserRole.Name,
-                            ManagerId, Manager.Name, Manager.Email
-                    FROM User
-                    WHERE Id = :userId
-                    WITH USER_MODE
-                    LIMIT 1
+                SELECT Name, FirstName, Title, Department, Email
+                FROM User
+                WHERE Id IN :anchorIds
+                WITH USER_MODE
+                LIMIT 1
             ];
 
             if (!users.isEmpty()) {
-                User currentUser = users[0];
-                // We return the main user object under LABEL_USER_DETAILS
-                // The manager and delegated approver info is contained within it
-                // If we wanted separate blocks, we'd extract them.
-                contextBlocks.put(LABEL_USER_DETAILS, users);
-                System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Fetched core user details. Profile: ' + currentUser.Profile?.Name + ', Role: ' + currentUser.UserRole?.Name);
-
-                // Example of optionally creating separate blocks if desired:
-                // if(currentUser.ManagerId != null && currentUser.Manager != null){
-                //     contextBlocks.put(LABEL_MANAGER_INFO, new List<User>{currentUser.Manager});
-                // }
-                // if(currentUser.DelegatedApproverId != null && currentUser.DelegatedApprover != null){
-                //     contextBlocks.put(LABEL_DELEGATED_APPROVER, new List<User>{currentUser.DelegatedApprover});
-                // }
+                results.put('Current User Details', users);
             }
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Error fetching User details: ' + e.getMessage());
-            // Log & Continue
+            // Log the error but do not throw, allowing the agent to proceed gracefully without this context.
+            System.debug(LoggingLevel.ERROR, '[UserDetailsProvider] Failed to query user details. Error: ' + e.getMessage());
         }
 
-        // Example: Getting User Queue Memberships (can be limit intensive)
-        /* try {
-            List<Group> userQueues = [SELECT Id, Name, DeveloperName
-                                      FROM Group
-                                      WHERE Type = 'Queue'
-                                      AND Id IN (SELECT GroupId FROM GroupMember WHERE UserOrGroupId = :userId)
-                                      WITH USER_MODE LIMIT 10]; // Limit queue results
-            if(!userQueues.isEmpty()){
-                 contextBlocks.put('User Queue Memberships', userQueues);
-                 System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Fetched ' + userQueues.size() + ' queues.');
-            }
-        } catch(Exception e){
-             System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Error fetching User Queues: ' + e.getMessage());
-        }*/
-
-
-        System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Finished. Returning ' + contextBlocks.size() + ' blocks.');
-        return contextBlocks;
+        // --- 3. Return the populated map ---
+        return results;
     }
 }

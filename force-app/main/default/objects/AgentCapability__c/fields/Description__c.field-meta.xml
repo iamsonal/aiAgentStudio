@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Description__c</fullName>
+    <description>A clear, detailed description of what this capability does, when it should be used, and what its outcome is. This text is sent directly to the LLM and is critical for helping the AI make correct decisions about which tool to use. The framework will automatically append instructions for confirmation or approval if those options are checked.</description>
+    <inlineHelpText>A clear, detailed description for the AI. Explain what the tool does, when to use it, and what its outcome is. Example: &quot;Searches for customer accounts by name and returns their ID, industry, and owner.&quot;</inlineHelpText>
+    <label>Description</label>
+    <length>131072</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

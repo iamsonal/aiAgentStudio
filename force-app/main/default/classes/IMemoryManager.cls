@@ -25,20 +25,12 @@ public interface IMemoryManager {
     List<Map<String, Object>> getHistoryPayload(Id sessionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String loggingContext);
 
     /**
-     * @description A hook that is called by the framework after a turn successfully completes.
-     *              Strategies like Summary Buffer use this to update their state (e.g., generate a new summary).
+     * @description A hook called by the framework after a turn successfully completes.
+     *              Strategies like Summary Buffer use this to decide if any background processing is needed.
      * @param sessionId The ID of the ChatSession__c.
-     * @param newMessagesInTurn A list of the ChatMessage__c records that were created
-     *        during the just-completed turn (e.g., the user's message and the final assistant reply).
      * @param agentConfig The full AIAgentDefinition__c record.
      * @param llmConfig The full LLMConfiguration__c record.
      * @param loggingContext A string prefix for logging.
      */
-    void onTurnCompletion(
-        Id sessionId,
-        List<ChatMessage__c> newMessagesInTurn,
-        AIAgentDefinition__c agentConfig,
-        LLMConfiguration__c llmConfig,
-        String loggingContext
-    );
+    void onTurnCompletion(Id sessionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String loggingContext);
 }
