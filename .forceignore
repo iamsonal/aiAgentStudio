@@ -21,4 +21,6 @@ package.xml
 scripts/**
 
 force-app/main/default/profiles/**
+force-app/main/default/layouts/Account-Account Layout.layout-meta.xml
 force-app/main/default/flexipages/Account_Record_Page.flexipage-meta.xml
+force-app/main/default/platformEventSubscriberConfigs/**

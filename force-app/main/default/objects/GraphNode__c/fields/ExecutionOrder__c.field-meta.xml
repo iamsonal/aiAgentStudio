@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExecutionOrder__c</fullName>
+    <description>A number that controls the display order of nodes in the related list on the Parent Graph Capability&apos;s page layout. This is for administrative convenience and readability only; it does not affect the runtime execution order.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Enter a number (e.g., 10, 20, 30) to control the visual sorting of nodes on the capability&apos;s page. Lower numbers appear first. This has no impact on how the graph actually runs.</inlineHelpText>
+    <label>Execution Order</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>2</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

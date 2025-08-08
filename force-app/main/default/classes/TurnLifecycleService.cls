@@ -56,20 +56,59 @@ public inherited sharing class TurnLifecycleService {
 
     /**
      * @description Call when a turn completes successfully with a final assistant message.
+     *              Enhanced with orchestration logging for turn completion tracking.
      * @param finalAssistantMessageId ID of the last ChatMessage__c from the assistant for this turn.
      */
     public void completeTurnSuccessfully(Id sessionId, String turnIdentifier, Id finalAssistantMessageId, String logPrefix) {
+        OrchestrationLogger.logStep(
+            sessionId,
+            turnIdentifier,
+            OrchestrationLogger.TYPE_TURN_COMPLETE,
+            OrchestrationLogger.STATUS_SUCCESS,
+            'Turn completed successfully',
+            null,
+            new Map<String, Object>{ 'finalMessageId' => finalAssistantMessageId },
+            null,
+            null,
+            null,
+            finalAssistantMessageId,
+            null,
+            null,
+            null
+        );
+
         this.stateService.updateFinalStatus(sessionId, true, null, turnIdentifier);
         this.stateService.publishFinalResponseEvent(sessionId, true, finalAssistantMessageId, null, turnIdentifier);
+
+        OrchestrationLogger.commitLogsAndCleanupTurn(turnIdentifier);
     }
 
-    /** Call when a turn fails unrecoverably. */
+    /** Call when a turn fails unrecoverably. Enhanced with orchestration logging. */
     public void failTurn(Id sessionId, String turnIdentifier, String errorMessage, String errorCode, String logPrefix) {
         String errorDetailForState = String.isNotBlank(errorCode) ? '[' + errorCode + '] ' + errorMessage : errorMessage;
+
+        OrchestrationLogger.logStep(
+            sessionId,
+            turnIdentifier,
+            OrchestrationLogger.TYPE_TURN_FAIL,
+            OrchestrationLogger.STATUS_FAILURE,
+            'Turn failed',
+            null,
+            null,
+            errorMessage,
+            errorCode,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         this.stateService.updateFinalStatus(sessionId, false, errorDetailForState?.abbreviate(131072), turnIdentifier);
 
         this.stateService.publishFinalResponseEvent(sessionId, false, null, errorMessage?.abbreviate(255), turnIdentifier);
+
+        OrchestrationLogger.commitLogsAndCleanupTurn(turnIdentifier);
     }
 
     /**

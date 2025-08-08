@@ -30,14 +30,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         AgentCapability__c capability = AIAgentConfigService.getCapability(context.agentDefinitionId, toolRequest.name);
         this.validateCapability(capability, toolRequest.name, logPrefix);
 
-        if (String.isNotBlank(capability.ExecutionPrerequisites__c)) {
-            List<String> missingPrerequisites = findMissingPrerequisites(capability, context, logPrefix);
-
-            if (!missingPrerequisites.isEmpty()) {
-                return handleMissingPrerequisites(context, toolRequest, capability, missingPrerequisites);
-            }
-        }
-
         Id savedUserMessageId = ChatMessageService.saveUserMessage(
             context.sessionId,
             context.turnIdentifier,
@@ -58,7 +50,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 logPrefix
             );
 
-            if (AIAgentFrameworkSettings.useTransientMessages() && String.isNotBlank(assistantData.content)) {
+            if (String.isNotBlank(assistantData.content)) {
                 try {
                     TransientMessage__e event = new TransientMessage__e(
                         ChatSessionId__c = context.sessionId,
@@ -99,7 +91,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
             context.dispatchSvc.enqueueAsyncAction(
                 context.sessionId,
-                context.userId,
+                context.originalUserId,
                 context.agentDefinitionId,
                 savedAssistantMessageId,
                 toolRequest.id,
@@ -231,7 +223,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         context.turnLifecycleSvc.resumeForFollowUpLlmCall(context.sessionId, context.turnIdentifier, null, logPrefix);
         context.dispatchSvc.enqueueFollowUp(
             context.sessionId,
-            context.userId,
+            context.originalUserId,
             context.agentDefinitionId,
             context.turnIdentifier,
             context.currentTurnCount + 1,
@@ -256,13 +248,14 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
         ActionContext actionContext = new ActionContext(
             context.sessionId,
-            context.userId,
+            context.originalUserId,
+            context.executionUserId,
             actionRecordContextId,
             context.agentDefinitionId,
             capability.Id,
-            capability.PreExecutionHook__c,
-            capability.PostExecutionHook__c,
-            capability.ImplementationDetail__c
+            capability.ImplementationDetail__c,
+            context.turnIdentifier,
+            context.currentTurnCount
         );
 
         ActionResult actionResult = null;
@@ -279,6 +272,10 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             );
         } finally {
             actionDuration = System.currentTimeMillis() - syncActionStart;
+        }
+
+        if (actionResult == null) {
+            return OrchestrationService.OUTCOME_QUEUED_ACTION;
         }
 
         String resultJsonForStorage = OrchestrationService.serializeActionResult(actionResult, logPrefix);
@@ -311,6 +308,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             }
         }
 
+        if (actionResult == null) {
+            return OrchestrationService.OUTCOME_QUEUED_ACTION;
+        }
         if (actionResult.isSuccess || capability.HaltAndReportError__c == false) {
             Integer maxTurns = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
             if ((context.currentTurnCount + 1) > maxTurns) {
@@ -330,7 +330,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
             context.dispatchSvc.enqueueFollowUp(
                 context.sessionId,
-                context.userId,
+                context.originalUserId,
                 context.agentDefinitionId,
                 context.turnIdentifier,
                 context.currentTurnCount + 1,
@@ -343,7 +343,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
             context.dispatchSvc.enqueueFollowUp(
                 context.sessionId,
-                context.userId,
+                context.originalUserId,
                 context.agentDefinitionId,
                 context.turnIdentifier,
                 context.currentTurnCount + 1,
@@ -382,202 +382,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             return (confirmationObj instanceof String && String.isNotBlank((String) confirmationObj)) ? (String) confirmationObj : null;
         } catch (Exception e) {
             return null;
-        }
-    }
-
-    /**
-     * @description (NEW and COMPLETE) Handles the case where prerequisites are missing by generating a synthetic
-     *              error response to guide the LLM. This is the implementation for the "Error Feedback Loop".
-     * @param context The orchestration context.
-     * @param toolRequest The original tool request from the LLM.
-     * @param capability The capability that was attempted.
-     * @param missingTools The list of prerequisite capability names that are missing.
-     * @return The final outcome for the orchestrator (OUTCOME_QUEUED_FOLLOWUP).
-     */
-    private String handleMissingPrerequisites(
-        OrchestrationContext context,
-        AIAssistantController.ActionRequest toolRequest,
-        AgentCapability__c capability,
-        List<String> missingTools
-    ) {
-        String logPrefix = context.logPrefix + '[PrereqHandler] ';
-
-        String missingToolsString = '\'' + String.join(missingTools, '\', \'') + '\'';
-        String errorMessageForLlm =
-            'Action \'' +
-            capability.CapabilityName__c +
-            '\' cannot be used yet. ' +
-            'The following prerequisite tool(s) must be successfully used first: ' +
-            missingToolsString +
-            '. ' +
-            'Please use the required tool(s) to proceed.';
-
-        Map<String, Object> errorPayload = new Map<String, Object>{
-            'status' => 'ERROR',
-            'error' => new Map<String, Object>{ 'code' => 'PREREQUISITE_NOT_MET', 'message' => errorMessageForLlm }
-        };
-
-        ActionResult prerequisiteFailureResult = new ActionResult(
-            errorPayload,
-            'Prerequisites not met. Missing: ' + missingToolsString,
-            'PREREQUISITE_NOT_MET'
-        );
-
-        Id savedUserMessageId = ChatMessageService.saveUserMessage(
-            context.sessionId,
-            context.turnIdentifier,
-            context.userMessageData,
-            context.currentPageRecordId,
-            logPrefix
-        );
-        Id savedAssistantMessageId = ChatMessageService.saveAssistantMessage(
-            context.sessionId,
-            context.turnIdentifier,
-            savedUserMessageId,
-            context.llmResult.assistantMessageData,
-            toolRequest.name,
-            logPrefix
-        );
-
-        String resultJsonForStorage = OrchestrationService.serializeActionResult(prerequisiteFailureResult, logPrefix);
-        ChatMessageService.saveToolResultMessage(
-            context.sessionId,
-            context.turnIdentifier,
-            savedAssistantMessageId,
-            toolRequest.id,
-            resultJsonForStorage,
-            prerequisiteFailureResult.internalDetails,
-            prerequisiteFailureResult.errorCode,
-            0L,
-            null,
-            null,
-            capability.CapabilityName__c,
-            logPrefix
-        );
-
-        context.turnLifecycleSvc.resumeForFollowUpLlmCall(context.sessionId, context.turnIdentifier, null, logPrefix);
-        context.dispatchSvc.enqueueFollowUp(
-            context.sessionId,
-            context.userId,
-            context.agentDefinitionId,
-            context.turnIdentifier,
-            context.currentTurnCount + 1,
-            logPrefix,
-            false
-        );
-
-        return OrchestrationService.OUTCOME_QUEUED_FOLLOWUP;
-    }
-
-    /**
-     * @description (REWRITTEN) Checks for missing prerequisites based on the capability's configured validation scope.
-     * @param capability The capability being checked for prerequisites.
-     * @param context The full orchestration context, providing sessionId and turnIdentifier.
-     * @param logPrefix A logging prefix.
-     * @return A list of capability names that are required but have not been successfully run.
-     */
-    private List<String> findMissingPrerequisites(AgentCapability__c capability, OrchestrationContext context, String logPrefix) {
-        String prerequisitesString = capability.ExecutionPrerequisites__c;
-        String validationScope = capability.PrerequisiteValidation__c;
-
-        List<String> requiredTools = new List<String>();
-        for (String toolName : prerequisitesString.split('\\|')) {
-            if (String.isNotBlank(toolName.trim())) {
-                requiredTools.add(toolName.trim());
-            }
-        }
-        if (requiredTools.isEmpty()) {
-            return new List<String>();
-        }
-
-        Set<String> fulfilledTools = new Set<String>();
-
-        if ('Entire Session'.equalsIgnoreCase(validationScope)) {
-            try {
-                for (ChatMessage__c msg : [
-                    SELECT CapabilityName__c
-                    FROM ChatMessage__c
-                    WHERE ChatSession__c = :context.sessionId AND Role__c = 'tool' AND IsSuccess__c = TRUE AND CapabilityName__c != NULL
-                ]) {
-                    fulfilledTools.add(msg.CapabilityName__c);
-                }
-            } catch (Exception e) {
-                return requiredTools;
-            }
-        } else {
-            try {
-                List<ChatMessage__c> toolResultMessages = [
-                    SELECT Content__c, ToolCallId__c, ParentMessage__r.AssistantToolCalls__c
-                    FROM ChatMessage__c
-                    WHERE TurnIdentifier__c = :context.turnIdentifier AND Role__c = 'tool' AND IsSuccess__c = TRUE
-                ];
-
-                for (ChatMessage__c msg : toolResultMessages) {
-                    String toolName = getToolNameForResultMessage(msg, logPrefix);
-                    if (String.isNotBlank(toolName)) {
-                        fulfilledTools.add(toolName);
-                    }
-                }
-            } catch (Exception e) {
-                return requiredTools;
-            }
-        }
-
-        List<String> missingTools = new List<String>();
-        for (String required : requiredTools) {
-            if (!fulfilledTools.contains(required)) {
-                missingTools.add(required);
-            }
-        }
-
-        if (!missingTools.isEmpty()) {
-        }
-
-        return missingTools;
-    }
-
-    /**
-     * @description (NEW HELPER) Determines the capability name that generated a specific tool result message.
-     */
-    private String getToolNameForResultMessage(ChatMessage__c toolResultMessage, String logPrefix) {
-        if (
-            toolResultMessage.ParentMessage__r == null ||
-            String.isBlank(toolResultMessage.ParentMessage__r.AssistantToolCalls__c) ||
-            String.isBlank(toolResultMessage.ToolCallId__c)
-        ) {
-            return null;
-        }
-
-        try {
-            List<Object> toolCalls = (List<Object>) JSON.deserializeUntyped(toolResultMessage.ParentMessage__r.AssistantToolCalls__c);
-            for (Object callObj : toolCalls) {
-                Map<String, Object> callMap = (Map<String, Object>) callObj;
-                if (toolResultMessage.ToolCallId__c.equals(callMap.get('id'))) {
-                    Map<String, Object> functionMap = (Map<String, Object>) callMap.get('function');
-                    return (String) functionMap.get('name');
-                }
-            }
-        } catch (Exception e) {
-        }
-
-        return null;
-    }
-
-    /**
-     * @description Inspects the JSON content of a tool result to determine if it was successful.
-     */
-    private Boolean wasToolExecutionSuccessful(String resultContentJson, String logPrefix) {
-        if (String.isBlank(resultContentJson)) {
-            return false;
-        }
-
-        try {
-            Map<String, Object> payload = (Map<String, Object>) JSON.deserializeUntyped(resultContentJson);
-
-            Object statusValue = payload.get('status');
-            return (statusValue instanceof String && 'SUCCESS'.equalsIgnoreCase((String) statusValue));
-        } catch (Exception e) {
-            return false;
         }
     }
 }

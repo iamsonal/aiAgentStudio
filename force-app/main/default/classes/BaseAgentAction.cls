@@ -34,7 +34,7 @@ public abstract class BaseAgentAction implements IAgentAction {
     }
 
     public virtual override String toString() {
-        return 'ActionHandler:' + getLogPrefixName() + ' (Context: ' + (actionContext != null ? 'Set' : 'Not Set') + ')';
+        return 'ActionHandler (Context: ' + (actionContext != null ? 'Set' : 'Not Set') + ')';
     }
 
     /** @description Exception specifically for security/permission denials. */
@@ -45,12 +45,9 @@ public abstract class BaseAgentAction implements IAgentAction {
     private class ActionHandlerNullException extends AIAgentException {
     }
 
-    /** @description Placeholder base for parsed args - Subclasses define their concrete type */
-    public virtual class ParsedArguments {
-    }
-
     /**
-     * @description Standardized execution flow. Handles config/arg parsing, execution, exception mapping.
+     * @description SIMPLIFIED execution flow. Handles intelligent parameter processing, security, and result wrapping.
+     *              Actions only need to implement executeAction() with pure business logic.
      */
     public virtual ActionResult execute(String actionConfigurationJson, String argumentsJson, ActionContext context) {
         if (context == null) {
@@ -59,56 +56,145 @@ public abstract class BaseAgentAction implements IAgentAction {
         this.actionContext = context;
         final String logPrefix = '[' + getLogPrefixName() + ' Cap:' + context.agentCapabilityId + '] ';
         ActionResult finalResult = null;
+        Long startTime = System.currentTimeMillis();
+
+        OrchestrationLogger.logActionStart(context, getLogPrefixName(), argumentsJson);
 
         try {
             Map<String, Object> argsMap = String.isBlank(argumentsJson)
                 ? new Map<String, Object>()
                 : (Map<String, Object>) JSON.deserializeUntyped(argumentsJson);
 
-            if (String.isNotBlank(context.preHookClassName)) {
-                IPreActionHook preHook = (IPreActionHook) createHookInstance(context.preHookClassName, 'IPreActionHook');
-                argsMap = preHook.preProcess(argsMap, context);
-            }
-
             this.parseActionConfiguration(actionConfigurationJson, logPrefix);
-            ParsedArguments validatedArgs = this.parseAndValidateArguments(JSON.serialize(argsMap), logPrefix);
 
-            finalResult = this.performAction(validatedArgs, logPrefix);
+            Map<String, Object> processedParams = intelligentParameterProcessing(argsMap, logPrefix);
+
+            performIntelligentSecurityChecks(processedParams, logPrefix);
+
+            Object result = executeAction(processedParams);
+
+            finalResult = intelligentResultWrapping(result, logPrefix);
+
             if (finalResult == null) {
                 throw new ActionHandlerNullException('Handler (' + getLogPrefixName() + ') returned null ActionResult.');
             }
         } catch (Exception ex) {
             finalResult = mapExceptionToResult(ex, logPrefix);
-        } finally {
-            if (String.isNotBlank(context.postHookClassName) && finalResult != null) {
-                try {
-                    IPostActionHook postHook = (IPostActionHook) createHookInstance(context.postHookClassName, 'IPostActionHook');
-                    postHook.postProcess(finalResult, context);
-                } catch (Exception postHookEx) {
-                }
-            }
         }
+
+        Long duration = System.currentTimeMillis() - startTime;
+        OrchestrationLogger.logActionResult(context, getLogPrefixName(), finalResult, duration);
 
         return finalResult;
     }
 
-    private Object createHookInstance(String className, String interfaceName) {
-        Type hookType = Type.forName(className);
-        if (hookType == null) {
-            throw new ValidationException('Hook class not found: "' + className + '". Check the class name and namespace.', null);
-        }
-        Object instance = hookType.newInstance();
+    /**
+     * @description THE ONLY METHOD actions need to implement!
+     *              Framework automatically handles parameter extraction, validation, security, and result wrapping.
+     *              @param params Validated and typed parameters extracted from JSON arguments
+     *              @return Simple result object (String, custom object, or ActionResult)
+     */
+    public abstract Object executeAction(Map<String, Object> params);
 
-        Type requiredInterface = Type.forName(interfaceName);
-        if (!requiredInterface.isAssignableFrom(hookType)) {
-            throw new ValidationException('Class ' + className + ' must implement the ' + interfaceName + ' interface.', null);
+    /**
+     * @description Intelligently processes parameters based on naming conventions and types
+     */
+    private Map<String, Object> intelligentParameterProcessing(Map<String, Object> rawArgs, String logPrefix) {
+        Map<String, Object> processed = new Map<String, Object>();
+
+        for (String paramName : rawArgs.keySet()) {
+            Object value = rawArgs.get(paramName);
+
+            if (value == null) {
+                continue;
+            }
+
+            if (paramName.toLowerCase().endsWith('id') || paramName.toLowerCase().contains('recordid')) {
+                processed.put(paramName, coerceToId(value, paramName));
+            } else if (paramName.toLowerCase().contains('date') || paramName.toLowerCase().contains('time')) {
+                processed.put(paramName, coerceToDateTime(value, paramName));
+            } else if (
+                paramName.toLowerCase().contains('limit') ||
+                paramName.toLowerCase().contains('count') ||
+                paramName.toLowerCase().contains('max')
+            ) {
+                processed.put(paramName, coerceToInteger(value, paramName));
+            } else if (
+                paramName.toLowerCase().contains('enable') ||
+                paramName.toLowerCase().contains('is') ||
+                paramName.toLowerCase().contains('has')
+            ) {
+                processed.put(paramName, coerceToBoolean(value, paramName));
+            } else {
+                processed.put(paramName, value);
+            }
         }
 
-        return instance;
+        return processed;
+    }
+
+    /**
+     * @description Performs intelligent security checks based on parameter patterns
+     */
+    private void performIntelligentSecurityChecks(Map<String, Object> params, String logPrefix) {
+        for (String paramName : params.keySet()) {
+            Object value = params.get(paramName);
+
+            if (value instanceof Id && (paramName.toLowerCase().endsWith('id') || paramName.toLowerCase().contains('recordid'))) {
+                Id recordId = (Id) value;
+                SObjectType objType = recordId.getSObjectType();
+
+                String actionName = String.valueOf(this).toLowerCase();
+                System.AccessType accessType = System.AccessType.READABLE;
+
+                if (actionName.contains('create')) {
+                    accessType = System.AccessType.CREATABLE;
+                } else if (actionName.contains('update') || actionName.contains('edit')) {
+                    accessType = System.AccessType.UPDATABLE;
+                } else if (actionName.contains('delete')) {
+                    accessType = System.AccessType.UPDATABLE;
+                }
+
+                SecurityUtils.checkObjectPermission(objType, accessType);
+            }
+        }
+    }
+
+    /**
+     * @description Intelligently wraps results based on return type
+     */
+    private ActionResult intelligentResultWrapping(Object result, String logPrefix) {
+        if (result == null) {
+            return successWithData(new Map<String, Object>(), 'Action completed successfully', 'No data returned');
+        }
+
+        if (result instanceof ActionResult) {
+            return (ActionResult) result;
+        }
+
+        if (result instanceof String) {
+            return successWithData(new Map<String, Object>(), (String) result, 'String result returned');
+        }
+
+        Map<String, Object> dataMap = extractObjectProperties(result);
+
+        String userMessage = 'Action completed successfully';
+        if (dataMap.containsKey('message')) {
+            userMessage = String.valueOf(dataMap.get('message'));
+        } else if (dataMap.containsKey('userMessage')) {
+            userMessage = String.valueOf(dataMap.get('userMessage'));
+        }
+
+        return successWithData(dataMap, userMessage, 'Object result returned');
     }
 
     protected virtual String getLogPrefixName() {
-        return 'BaseAgentAction';
+        String className = String.valueOf(this);
+
+        if (className.contains(':')) {
+            className = className.substring(0, className.indexOf(':'));
+        }
+        return className.replace('Action', '');
     }
 
     protected virtual void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
@@ -127,19 +213,37 @@ public abstract class BaseAgentAction implements IAgentAction {
         }
     }
 
-    protected abstract ParsedArguments parseAndValidateArguments(String argumentsJson, String logPrefix);
-
-    protected abstract ActionResult performAction(ParsedArguments validatedArgs, String logPrefix);
-
-    protected ActionResult success(Object dataPayload, String messageForUser, String internalDetails) {
-        Map<String, Object> standardOutput = new Map<String, Object>{
-            'status' => 'SUCCESS',
+    /**
+     * @description Creates a successful ActionResult with clean, standardized structure.
+     * @param businessData Pure business data without any framework fields
+     * @param messageForUser Human-readable success message
+     * @param internalDetails Internal logging details
+     * @param metadata Optional metadata for complex scenarios
+     */
+    protected ActionResult successWithData(Object businessData, String messageForUser, String internalDetails, Map<String, Object> metadata) {
+        Map<String, Object> cleanOutput = new Map<String, Object>{
+            'success' => true,
             'messageForUser' => messageForUser,
-            'data' => dataPayload
+            'data' => businessData ?? new Map<String, Object>()
         };
-        return new ActionResult(standardOutput, internalDetails);
+
+        if (metadata != null && !metadata.isEmpty()) {
+            cleanOutput.put('metadata', metadata);
+        }
+
+        return new ActionResult(cleanOutput, internalDetails);
     }
 
+    /**
+     * @description Creates a successful ActionResult with clean structure (no metadata).
+     */
+    protected ActionResult successWithData(Object businessData, String messageForUser, String internalDetails) {
+        return successWithData(businessData, messageForUser, internalDetails, null);
+    }
+
+    /**
+     * @description Creates a validation error ActionResult with clean structure.
+     */
     protected ActionResult validationError(String details, String fieldName) {
         String toolName = this.getLogPrefixName();
         String llmErrorMessage =
@@ -150,24 +254,36 @@ public abstract class BaseAgentAction implements IAgentAction {
             ' action. Details: ' +
             details;
 
-        Map<String, Object> errorPayload = new Map<String, Object>{
-            'status' => 'ERROR',
-            'error' => new Map<String, Object>{ 'code' => AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'message' => llmErrorMessage }
+        Map<String, Object> cleanOutput = new Map<String, Object>{
+            'success' => false,
+            'errorCode' => AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+            'messageForUser' => llmErrorMessage,
+            'data' => new Map<String, Object>()
         };
-        return new ActionResult(errorPayload, 'Validation Error: ' + details, AIAgentConstants.ERR_CODE_INPUT_VALIDATION);
+
+        return new ActionResult(cleanOutput, 'Validation Error: ' + details, AIAgentConstants.ERR_CODE_INPUT_VALIDATION);
     }
 
+    /**
+     * @description Creates a security error ActionResult with clean structure.
+     */
     protected ActionResult securityError(String details) {
         String toolName = this.getLogPrefixName();
         String llmErrorMessage = 'The ' + toolName + ' action was denied due to security restrictions. Details: ' + details;
 
-        Map<String, Object> errorPayload = new Map<String, Object>{
-            'status' => 'ERROR',
-            'error' => new Map<String, Object>{ 'code' => AIAgentConstants.ERR_CODE_PERMISSION_DENIED, 'message' => llmErrorMessage }
+        Map<String, Object> cleanOutput = new Map<String, Object>{
+            'success' => false,
+            'errorCode' => AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
+            'messageForUser' => llmErrorMessage,
+            'data' => new Map<String, Object>()
         };
-        return new ActionResult(errorPayload, details, AIAgentConstants.ERR_CODE_PERMISSION_DENIED);
+
+        return new ActionResult(cleanOutput, details, AIAgentConstants.ERR_CODE_PERMISSION_DENIED);
     }
 
+    /**
+     * @description Creates a DML error ActionResult with clean structure.
+     */
     protected ActionResult dmlError(String genericMessage, List<Database.Error> dmlErrors, String suggestedErrorCode) {
         String toolName = this.getLogPrefixName();
         String primaryErrorCode = suggestedErrorCode ?? AIAgentConstants.ERR_CODE_DML_ERROR;
@@ -188,11 +304,14 @@ public abstract class BaseAgentAction implements IAgentAction {
 
         String llmErrorMessage = 'A database error occurred while executing the ' + toolName + ' action: ' + firstDmlMessage;
 
-        Map<String, Object> errorPayload = new Map<String, Object>{
-            'status' => 'ERROR',
-            'error' => new Map<String, Object>{ 'code' => primaryErrorCode, 'message' => llmErrorMessage }
+        Map<String, Object> cleanOutput = new Map<String, Object>{
+            'success' => false,
+            'errorCode' => primaryErrorCode,
+            'messageForUser' => llmErrorMessage,
+            'data' => new Map<String, Object>()
         };
-        return new ActionResult(errorPayload, internalDetailsForLog, primaryErrorCode);
+
+        return new ActionResult(cleanOutput, internalDetailsForLog, primaryErrorCode);
     }
 
     /** Maps DML StatusCode enum values to framework error codes */
@@ -230,7 +349,9 @@ public abstract class BaseAgentAction implements IAgentAction {
         return statusCode != null ? mapStatusCodeToErrorCode(statusCode.name(), defaultCode) : defaultCode;
     }
 
-    /** Creates generic RUNTIME FAILED ActionResult */
+    /**
+     * @description Creates a runtime error ActionResult with clean structure.
+     */
     protected ActionResult runtimeError(String internalMessage, String errorCode, Exception caughtException) {
         String toolName = this.getLogPrefixName();
         String finalErrorCode = String.isNotBlank(errorCode) ? errorCode : AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
@@ -240,9 +361,11 @@ public abstract class BaseAgentAction implements IAgentAction {
             ' action. The system reported: ' +
             internalMessage;
 
-        Map<String, Object> errorPayload = new Map<String, Object>{
-            'status' => 'ERROR',
-            'error' => new Map<String, Object>{ 'code' => finalErrorCode, 'message' => llmErrorMessage }
+        Map<String, Object> cleanOutput = new Map<String, Object>{
+            'success' => false,
+            'errorCode' => finalErrorCode,
+            'messageForUser' => llmErrorMessage,
+            'data' => new Map<String, Object>()
         };
 
         String detailsForLogging = 'Runtime Error: ' + (internalMessage ?? 'No details available.');
@@ -250,7 +373,7 @@ public abstract class BaseAgentAction implements IAgentAction {
             detailsForLogging += ' (Type: ' + caughtException.getTypeName() + ')';
         }
 
-        return new ActionResult(errorPayload, detailsForLogging, finalErrorCode);
+        return new ActionResult(cleanOutput, detailsForLogging, finalErrorCode);
     }
 
     /** Maps caught exceptions to ActionResult */
@@ -300,19 +423,81 @@ public abstract class BaseAgentAction implements IAgentAction {
         return this.runtimeError(ex.getMessage(), AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex);
     }
 
+    private Id coerceToId(Object value, String paramName) {
+        if (value instanceof Id) {
+            return (Id) value;
+        }
+        if (value instanceof String && String.isNotBlank((String) value)) {
+            try {
+                return Id.valueOf((String) value);
+            } catch (Exception e) {
+                throw new ValidationException('Invalid ID format for parameter "' + paramName + '": ' + value, paramName);
+            }
+        }
+        throw new ValidationException('Parameter "' + paramName + '" must be a valid Salesforce ID', paramName);
+    }
+
+    private DateTime coerceToDateTime(Object value, String paramName) {
+        if (value instanceof DateTime) {
+            return (DateTime) value;
+        }
+        if (value instanceof String && String.isNotBlank((String) value)) {
+            try {
+                return DateTime.valueOf((String) value);
+            } catch (Exception e) {
+                throw new ValidationException('Invalid DateTime format for parameter "' + paramName + '": ' + value, paramName);
+            }
+        }
+        return null;
+    }
+
+    private Integer coerceToInteger(Object value, String paramName) {
+        if (value instanceof Integer) {
+            return (Integer) value;
+        }
+        if (value instanceof Decimal) {
+            return ((Decimal) value).intValue();
+        }
+        if (value instanceof String && String.isNotBlank((String) value)) {
+            try {
+                return Integer.valueOf((String) value);
+            } catch (Exception e) {
+                throw new ValidationException('Invalid Integer format for parameter "' + paramName + '": ' + value, paramName);
+            }
+        }
+        return null;
+    }
+
+    private Boolean coerceToBoolean(Object value, String paramName) {
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        }
+        if (value instanceof String) {
+            String strValue = ((String) value).toLowerCase();
+            if (strValue == 'true' || strValue == '1' || strValue == 'yes') {
+                return true;
+            }
+            if (strValue == 'false' || strValue == '0' || strValue == 'no') {
+                return false;
+            }
+        }
+        return null;
+    }
+
     /**
-     * @description Creates a standardized, structured error payload map for the LLM.
-     * @param toolName The name of the tool that failed.
-     * @param errorCode A machine-readable framework error code.
-     * @param errorMessage A detailed, LLM-readable description of what went wrong and potentially how to fix it.
-     * @return A map ready to be serialized as JSON for the LLM.
+     * @description Extracts public properties from an object using JSON serialization
      */
-    private Map<String, Object> buildErrorPayload(String toolName, String errorCode, String errorMessage) {
-        return new Map<String, Object>{
-            'status' => 'error',
-            'tool_name' => toolName,
-            'error_type' => String.isNotBlank(errorCode) ? errorCode : AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-            'error_details' => errorMessage
-        };
+    private Map<String, Object> extractObjectProperties(Object obj) {
+        Map<String, Object> properties = new Map<String, Object>();
+
+        try {
+            String jsonStr = JSON.serialize(obj);
+            Map<String, Object> deserialized = (Map<String, Object>) JSON.deserializeUntyped(jsonStr);
+            properties.putAll(deserialized);
+        } catch (Exception e) {
+            properties.put('result', obj);
+        }
+
+        return properties;
     }
 }

@@ -56,35 +56,23 @@ public inherited sharing class AgentJobEnqueuer {
         try {
             Boolean finalErrorFlag = (isFinalErrorTurn == true);
 
-            if (AIAgentFrameworkSettings.useScalableProcessing()) {
-                Map<String, Object> payload = new Map<String, Object>{
-                    'sessionId' => sessionId,
-                    'userId' => userId,
-                    'agentDefId' => agentDefId,
-                    'turnId' => turnId,
-                    'nextTurnCount' => nextTurnCount,
-                    'isFinalErrorTurn' => finalErrorFlag
-                };
-                AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
-                    SessionId__c = sessionId,
-                    TurnIdentifier__c = turnId,
-                    JobType__c = 'FollowUpLLM',
-                    Payload__c = JSON.serialize(payload)
-                );
-                EventBus.publish(event);
-            } else {
-                FollowUpLLMQueueableWrapper nextJob = new FollowUpLLMQueueableWrapper(
-                    sessionId,
-                    userId,
-                    agentDefId,
-                    turnId,
-                    nextTurnCount,
-                    finalErrorFlag
-                );
-                Id jobId = System.enqueueJob(nextJob);
-            }
+            Map<String, Object> payload = new Map<String, Object>{
+                'sessionId' => sessionId,
+                'userId' => userId,
+                'agentDefId' => agentDefId,
+                'turnId' => turnId,
+                'nextTurnCount' => nextTurnCount,
+                'isFinalErrorTurn' => finalErrorFlag
+            };
+            AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
+                SessionId__c = sessionId,
+                TurnIdentifier__c = turnId,
+                JobType__c = 'FollowUpLLM',
+                Payload__c = JSON.serialize(payload)
+            );
+            EventBus.publish(event);
         } catch (Exception e) {
-            this.handleDispatchFailure(sessionId, turnId, 'FollowUpLLM job/event', e, logPrefix);
+            this.handleDispatchFailure(sessionId, turnId, 'FollowUpLLM event', e, logPrefix);
         }
     }
 
@@ -92,7 +80,7 @@ public inherited sharing class AgentJobEnqueuer {
      * @description Enqueues the AsyncActionQueueableWrapper job.
      *              Now accepts the entire AgentCapability__c object for a cleaner interface.
      * @param sessionId The ID of the chat session.
-     * @param userId The ID of the user.
+     * @param originalUserId The ID of the user.
      * @param agentDefId The ID of the agent definition.
      * @param parentAsstMsgId The ID of the assistant message that requested this action.
      * @param toolCallId The unique ID for this specific tool call from the LLM.
@@ -105,7 +93,7 @@ public inherited sharing class AgentJobEnqueuer {
      */
     public void enqueueAsyncAction(
         Id sessionId,
-        Id userId,
+        Id originalUserId,
         Id agentDefId,
         Id parentAsstMsgId,
         String toolCallId,
@@ -116,43 +104,27 @@ public inherited sharing class AgentJobEnqueuer {
         Integer currentTurnCount,
         String logPrefix
     ) {
-        String jobDetails = 'ExecuteSingleAction job/event for Capability: ' + capability.CapabilityName__c;
+        String jobDetails = 'ExecuteSingleAction event for Capability: ' + capability.CapabilityName__c;
         try {
-            if (AIAgentFrameworkSettings.useScalableProcessing()) {
-                Map<String, Object> payload = new Map<String, Object>{
-                    'sessionId' => sessionId,
-                    'userId' => userId,
-                    'agentDefId' => agentDefId,
-                    'parentAsstMsgId' => parentAsstMsgId,
-                    'toolCallId' => toolCallId,
-                    'llmArgsJson' => llmArgsJson,
-                    'capability' => capability,
-                    'relatedId' => relatedId,
-                    'turnId' => turnId,
-                    'currentTurnCount' => currentTurnCount
-                };
-                AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
-                    SessionId__c = sessionId,
-                    TurnIdentifier__c = turnId,
-                    JobType__c = 'ExecuteAction',
-                    Payload__c = JSON.serialize(payload)
-                );
-                EventBus.publish(event);
-            } else {
-                AsyncActionQueueableWrapper asyncJob = new AsyncActionQueueableWrapper(
-                    sessionId,
-                    userId,
-                    agentDefId,
-                    parentAsstMsgId,
-                    toolCallId,
-                    llmArgsJson,
-                    capability,
-                    relatedId,
-                    turnId,
-                    currentTurnCount
-                );
-                Id jobId = System.enqueueJob(asyncJob);
-            }
+            Map<String, Object> payload = new Map<String, Object>{
+                'sessionId' => sessionId,
+                'originalUserId' => originalUserId,
+                'agentDefId' => agentDefId,
+                'parentAsstMsgId' => parentAsstMsgId,
+                'toolCallId' => toolCallId,
+                'llmArgsJson' => llmArgsJson,
+                'capability' => capability,
+                'relatedId' => relatedId,
+                'turnId' => turnId,
+                'currentTurnCount' => currentTurnCount
+            };
+            AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
+                SessionId__c = sessionId,
+                TurnIdentifier__c = turnId,
+                JobType__c = 'ExecuteAction',
+                Payload__c = JSON.serialize(payload)
+            );
+            EventBus.publish(event);
         } catch (Exception e) {
             this.handleDispatchFailure(sessionId, turnId, jobDetails, e, logPrefix);
         }
@@ -168,5 +140,23 @@ public inherited sharing class AgentJobEnqueuer {
         }
 
         throw new DispatchException('Failed to dispatch ' + jobDescription, enqueueException);
+    }
+
+    public void enqueueGraphStep(Id sessionId, Id graphCapabilityId) {
+        String logPrefix = '[AgentJobEnqueuer Sess:' + sessionId + '] ';
+        String jobDescription = 'GraphStep job/event';
+
+        try {
+            Map<String, Object> payload = new Map<String, Object>{ 'sessionId' => sessionId, 'graphCapabilityId' => graphCapabilityId };
+            AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
+                SessionId__c = sessionId,
+                TurnIdentifier__c = null,
+                JobType__c = 'GraphStep',
+                Payload__c = JSON.serialize(payload)
+            );
+            EventBus.publish(event);
+        } catch (Exception e) {
+            this.handleDispatchFailure(sessionId, null, jobDescription, e, logPrefix);
+        }
     }
 }

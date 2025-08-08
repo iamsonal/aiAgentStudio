@@ -97,12 +97,20 @@ public inherited sharing class LLMInteractionService {
             agentConfig = AIAgentConfigService.getAgentDefinition(this.agentDefinitionId);
             llmConfig = AIAgentConfigService.getLLMConfiguration(this.llmConfigurationId);
 
-            String finalSystemPrompt = promptBuilder.build(this.sessionId, agentConfig, llmConfig, this.currentPageRecordId, this.currentTurnCount);
+            String finalSystemPrompt = promptBuilder.build(
+                this.sessionId,
+                agentConfig,
+                llmConfig,
+                this.currentPageRecordId,
+                this.currentTurnCount,
+                this.userId
+            );
 
             Boolean isMultiStepTurn = this.currentTurnCount > 1;
-
             Boolean isFinalContentCall = (currentTurnUserMessage == null);
-            Boolean transientMessagesDisabled = !AIAgentFrameworkSettings.useTransientMessages();
+
+            Boolean reasoningModeEnabled = (agentConfig.EnableReasoningMode__c != false);
+            Boolean transientMessagesDisabled = !reasoningModeEnabled;
 
             if (isMultiStepTurn && isFinalContentCall && transientMessagesDisabled) {
                 String summarizationInstruction =

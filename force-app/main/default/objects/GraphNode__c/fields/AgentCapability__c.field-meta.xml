@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AgentCapability__c</fullName>
+    <description>The parent Agent Capability that this node belongs to. This capability must have its &apos;Implementation Type&apos; set to &apos;Graph&apos;. This relationship groups all nodes that form a single, cohesive process.</description>
+    <inlineHelpText>Select the &quot;Graph&quot; type Agent Capability that this step is a part of. For example, if you are defining the steps for an &quot;Onboard New Client&quot; process, you would select the &apos;onboard_new_client&apos; capability here.</inlineHelpText>
+    <label>Agent Capability</label>
+    <referenceTo>AgentCapability__c</referenceTo>
+    <relationshipLabel>Graph Nodes</relationshipLabel>
+    <relationshipName>GraphNodes</relationshipName>
+    <relationshipOrder>0</relationshipOrder>
+    <reparentableMasterDetail>false</reparentableMasterDetail>
+    <trackTrending>false</trackTrending>
+    <type>MasterDetail</type>
+    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+</CustomField>

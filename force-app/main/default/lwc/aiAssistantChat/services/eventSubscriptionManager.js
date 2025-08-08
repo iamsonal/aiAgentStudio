@@ -6,73 +6,93 @@
  * Copyright (c) 2025 Sonal
  */
 
-import { subscribe, unsubscribe, onError, isEmpEnabled } from 'lightning/empApi';
+import { UniversalEmpApi } from 'c/universalEmpApi';
 
 const AGENT_RESPONSE_CHANNEL = '/event/AgentResponse__e';
 const TRANSIENT_MESSAGE_CHANNEL = '/event/TransientMessage__e';
 
 export class EventSubscriptionManager {
-    constructor({ errorHandler, onAgentResponse, onTransientMessage }) {
+    constructor({ errorHandler, onAgentResponse, onTransientMessage, useCommunityMode = false }) {
         this.errorHandler = errorHandler;
         this.onAgentResponse = onAgentResponse;
         this.onTransientMessage = onTransientMessage;
+        this.useCommunityMode = useCommunityMode;
 
-        this.agentResponseSubscription = null;
-        this.transientMessageSubscription = null;
-        this.isEmpApiEnabled = false;
+        this.empApi = new UniversalEmpApi();
+        this.transientSubscriptionInitialized = false;
+        this._initializationPromise = null;
 
-        this._initialize();
+        this._initializationPromise = this._initialize();
     }
 
     async _initialize() {
-        this._registerErrorListener();
-        this.isEmpApiEnabled = await isEmpEnabled();
-        if (!this.isEmpApiEnabled) {
-            this.errorHandler.handleError('EMP API is not enabled', new Error('Streaming API is disabled for this user.'));
-            return;
-        }
+        try {
+            await this.empApi.initialize((message, error) => {
+                this.errorHandler.handleError(message, error);
+            }, this.useCommunityMode);
 
-        this._subscribeToAgentResponses();
+            await this.empApi.subscribe(AGENT_RESPONSE_CHANNEL, -1, this.onAgentResponse.bind(this));
+        } catch (error) {
+            this.errorHandler.handleError('Failed to initialize event subscriptions', error);
+            throw error;
+        }
+    }
+
+    async waitForInitialization() {
+        return this._initializationPromise;
     }
 
     async initializeTransientSubscription() {
-        if (!this.isEmpApiEnabled || this.transientMessageSubscription) {
+        if (this.transientSubscriptionInitialized) {
             return;
         }
-        await this._subscribeToTransientMessages();
-    }
 
-    async _subscribeToAgentResponses() {
         try {
-            console.log(`Subscribing to: ${AGENT_RESPONSE_CHANNEL}`);
-            this.agentResponseSubscription = await subscribe(AGENT_RESPONSE_CHANNEL, -1, this.onAgentResponse.bind(this));
+            await this.empApi.subscribe(TRANSIENT_MESSAGE_CHANNEL, -1, this.onTransientMessage.bind(this));
+            this.transientSubscriptionInitialized = true;
         } catch (error) {
-            this.errorHandler.handleError('Agent Response subscription failed', error);
+            this.errorHandler.handleError('Failed to subscribe to transient messages', error);
         }
     }
 
-    async _subscribeToTransientMessages() {
+    async reconnect() {
         try {
-            console.log(`Subscribing to: ${TRANSIENT_MESSAGE_CHANNEL}`);
-            this.transientMessageSubscription = await subscribe(TRANSIENT_MESSAGE_CHANNEL, -1, this.onTransientMessage.bind(this));
+            this.empApi.cleanup();
+
+            this.empApi = new UniversalEmpApi();
+            await this.empApi.initialize((message, error) => {
+                this.errorHandler.handleError(message, error);
+            }, this.useCommunityMode);
+
+            try {
+                await this.empApi.subscribe(AGENT_RESPONSE_CHANNEL, -1, this.onAgentResponse.bind(this));
+            } catch (subscribeError) {
+                console.error('Failed to resubscribe to agent response channel:', subscribeError);
+                throw subscribeError;
+            }
+
+            if (this.transientSubscriptionInitialized) {
+                try {
+                    await this.empApi.subscribe(TRANSIENT_MESSAGE_CHANNEL, -1, this.onTransientMessage.bind(this));
+                } catch (transientSubscribeError) {
+                    console.error('Failed to resubscribe to transient message channel:', transientSubscribeError);
+
+                    this.transientSubscriptionInitialized = false;
+                }
+            }
+
+            console.log('EventSubscriptionManager: Reconnection successful');
         } catch (error) {
-            this.errorHandler.handleError('Transient Message subscription failed', error);
+            this.errorHandler.handleError('Failed to reconnect event subscriptions', error);
+            throw error;
         }
     }
 
-    _registerErrorListener() {
-        onError((error) => {
-            console.error('EMP API error:', error);
-            this.errorHandler.handleError('Streaming API error', error, false);
-        });
+    isConnected() {
+        return this.empApi?.isConnected() || false;
     }
 
     cleanup() {
-        if (this.agentResponseSubscription) {
-            unsubscribe(this.agentResponseSubscription, (response) => console.log('Unsubscribed from AgentResponse__e:', response));
-        }
-        if (this.transientMessageSubscription) {
-            unsubscribe(this.transientMessageSubscription, (response) => console.log('Unsubscribed from TransientMessage__e:', response));
-        }
+        this.empApi.cleanup();
     }
 }

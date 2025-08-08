@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PrimitiveCapabilityRun__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>The specific, primitive &apos;building block&apos; tool that was executed at this node.</description>
+    <inlineHelpText>The underlying action that was performed at this step, for example, the &apos;CreateRecord&apos; or &apos;PostChatter&apos; tool.</inlineHelpText>
+    <label>Primitive Capability Run</label>
+    <referenceTo>AgentCapability__c</referenceTo>
+    <relationshipLabel>Graph Execution Logs (Primitive Capability Run)</relationshipLabel>
+    <relationshipName>PrimitiveUsageLogs</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

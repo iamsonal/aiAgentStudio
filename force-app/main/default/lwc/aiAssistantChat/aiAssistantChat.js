@@ -23,6 +23,7 @@ export default class AiAssistantChat extends LightningElement {
     @api cardTitle = 'AI Assistant';
     @api agentDeveloperName = 'SalesCopilot';
     @api enableStartOver = false;
+    @api useCommunityMode = false;
 
     chatMessages = [];
     userMessageInput = '';
@@ -37,53 +38,94 @@ export default class AiAssistantChat extends LightningElement {
     _errorHandler;
 
     _currentRecordId = null;
+    _visibilityChangeHandler = null;
 
     @wire(CurrentPageReference)
     pageRefChanged(pageRef) {
         this._currentRecordId = pageRef?.attributes?.recordId || null;
     }
 
-    connectedCallback() {
-        this._initializeServices();
-        this._initializeChat();
+    async connectedCallback() {
+        try {
+            await this._initializeServices();
+            await this._initializeChat();
+            this._setupVisibilityListener();
+        } catch (error) {
+            this._errorHandler?.handleCriticalError('Failed to initialize component', error);
+        }
     }
 
     disconnectedCallback() {
         this._cleanupServices();
+        this._cleanupVisibilityListener();
     }
 
     renderedCallback() {
         this._scrollManager?.handleRenderedCallback();
     }
 
-    _initializeServices() {
-        this._errorHandler = new ErrorHandler(this);
-        this._loadingManager = new LoadingStateManager({
-            onStateChange: (newState) => {
-                this.loadingState = { ...newState };
-            }
-        });
-        this._scrollManager = new ScrollManager(this.template, this._loadingManager);
+    async _initializeServices() {
+        try {
+            this._errorHandler = new ErrorHandler(this);
+            this._loadingManager = new LoadingStateManager({
+                onStateChange: (newState) => {
+                    this.loadingState = { ...newState };
+                }
+            });
+            this._scrollManager = new ScrollManager(this.template, this._loadingManager);
 
-        this._eventManager = new EventSubscriptionManager({
-            errorHandler: this._errorHandler,
-            onAgentResponse: (response) => this._handleAgentResponse(response),
-            onTransientMessage: (response) => this._handleTransientMessage(response)
-        });
+            this._eventManager = new EventSubscriptionManager({
+                errorHandler: this._errorHandler,
+                onAgentResponse: (response) => this._handleAgentResponse(response),
+                onTransientMessage: (response) => this._handleTransientMessage(response),
+                useCommunityMode: this.useCommunityMode
+            });
 
-        this._sessionManager = new ChatSessionManager({
-            agentDeveloperName: this.agentDeveloperName,
-            errorHandler: this._errorHandler,
-            loadingManager: this._loadingManager,
-            eventManager: this._eventManager,
-            onMessagesUpdated: (messages) => this._handleMessagesUpdated(messages),
-            onSessionChanged: (sessionId) => this._handleSessionChanged(sessionId)
-        });
+            await this._eventManager.waitForInitialization();
+
+            this._sessionManager = new ChatSessionManager({
+                agentDeveloperName: this.agentDeveloperName,
+                errorHandler: this._errorHandler,
+                loadingManager: this._loadingManager,
+                eventManager: this._eventManager,
+                onMessagesUpdated: (messages) => this._handleMessagesUpdated(messages),
+                onSessionChanged: (sessionId) => this._handleSessionChanged(sessionId)
+            });
+        } catch (error) {
+            console.error('Service initialization failed:', error);
+            throw error;
+        }
     }
 
     _cleanupServices() {
         this._eventManager?.cleanup();
         this._scrollManager?.cleanup();
+    }
+
+    _setupVisibilityListener() {
+        this._visibilityChangeHandler = () => {
+            if (!document.hidden && this._eventManager) {
+                setTimeout(async () => {
+                    try {
+                        if (!this._eventManager.isConnected()) {
+                            console.log('Page became active, reconnecting event subscriptions...');
+                            await this._eventManager.reconnect();
+                        }
+                    } catch (error) {
+                        this._errorHandler.handleError('Failed to reconnect on page visibility', error);
+                    }
+                }, 1000);
+            }
+        };
+
+        document.addEventListener('visibilitychange', this._visibilityChangeHandler);
+    }
+
+    _cleanupVisibilityListener() {
+        if (this._visibilityChangeHandler) {
+            document.removeEventListener('visibilitychange', this._visibilityChangeHandler);
+            this._visibilityChangeHandler = null;
+        }
     }
 
     async _initializeChat() {
@@ -134,14 +176,41 @@ export default class AiAssistantChat extends LightningElement {
     }
 
     async handleLoadMoreHistory() {
-        await this._sessionManager.loadMoreHistory();
+        try {
+            await this._sessionManager.loadMoreHistory();
+        } catch (error) {
+            this._errorHandler.handleError('Failed to load more history', error);
+        }
     }
 
     async _sendMessage() {
         const messageText = this.userMessageInput.trim();
-        if (!messageText || this.isLoading || this.criticalError) return;
+
+        if (!messageText) {
+            this._showValidationError('Please enter a message before sending.');
+            return;
+        }
+
+        if (messageText.length > 32000) {
+            this._showValidationError('Message is too long. Please keep it under 32,000 characters.');
+            return;
+        }
+
+        if (this.isLoading || this.criticalError) {
+            return;
+        }
 
         try {
+            if (!this._eventManager.isConnected()) {
+                console.warn('Event connection lost, attempting to reconnect...');
+                try {
+                    await this._eventManager.reconnect();
+                } catch (reconnectError) {
+                    this._errorHandler.handleError('Failed to reconnect before sending message', reconnectError);
+                    return;
+                }
+            }
+
             const contextRecordId = this._currentRecordId;
             const turnIdentifier = UuidUtils.generateUUID();
 
@@ -197,7 +266,7 @@ export default class AiAssistantChat extends LightningElement {
     }
 
     async handleStartOverClick(event) {
-        const externalId = event.currentTarget.dataset.externalId;
+        const externalId = event.target.dataset.messageId;
         if (!externalId) return;
 
         this._loadingManager.setLoading('sending', true);
@@ -207,7 +276,11 @@ export default class AiAssistantChat extends LightningElement {
                 externalId: externalId
             });
 
-            this._sessionManager.reloadHistory();
+            try {
+                await this._sessionManager.reloadHistory();
+            } catch (reloadError) {
+                this._errorHandler.handleError('Failed to reload history after start over', reloadError);
+            }
         } catch (error) {
             this._errorHandler.handleError('Failed to start over from message', error);
         } finally {
@@ -215,7 +288,37 @@ export default class AiAssistantChat extends LightningElement {
         }
     }
 
+    _showValidationError(message) {
+        this._errorHandler._showToast('Validation Error', message, 'warning');
+    }
+
     get showStartOverButton() {
         return this.enableStartOver && !this.isLoading;
+    }
+
+    get inputPlaceholder() {
+        if (this.criticalError) {
+            return 'Chat is unavailable...';
+        }
+        if (this.loadingState.sending) {
+            return 'Sending message...';
+        }
+        if (!this.currentSessionId) {
+            return 'Initializing chat...';
+        }
+        return 'Type your message...';
+    }
+
+    get sendButtonTitle() {
+        if (this.criticalError) {
+            return 'Chat is unavailable';
+        }
+        if (this.loadingState.sending) {
+            return 'Sending message...';
+        }
+        if (!this.currentSessionId) {
+            return 'Initializing...';
+        }
+        return 'Send message (Enter)';
     }
 }

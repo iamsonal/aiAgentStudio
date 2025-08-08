@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>GraphCapability__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>The top-level &apos;Graph&apos; type capability that was invoked, representing the overall process being executed.</description>
+    <inlineHelpText>Identifies the parent process, for example, &apos;onboard_new_client&apos;, that this log step is a part of.</inlineHelpText>
+    <label>Graph Capability</label>
+    <referenceTo>AgentCapability__c</referenceTo>
+    <relationshipLabel>Graph Execution Logs</relationshipLabel>
+    <relationshipName>GraphExecutionLogs</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsActive__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>Controls whether this node is active within the graph. If unchecked, the node is ignored by the execution engine. If the process is routed to an inactive node, it will result in a configuration error.</description>
+    <inlineHelpText>Uncheck this to safely disable this specific step for debugging or testing purposes without deleting the node or its configuration.</inlineHelpText>
+    <label>Active</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

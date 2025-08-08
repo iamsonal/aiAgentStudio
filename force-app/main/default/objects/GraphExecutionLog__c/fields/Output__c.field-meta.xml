@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Output__c</fullName>
+    <description>The serialized JSON result returned by the primitive capability at this node.</description>
+    <inlineHelpText>Shows the exact data the underlying tool produced as its result.</inlineHelpText>
+    <label>Node Output</label>
+    <length>131072</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

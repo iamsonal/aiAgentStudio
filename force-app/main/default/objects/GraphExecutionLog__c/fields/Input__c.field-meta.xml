@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Input__c</fullName>
+    <description>The serialized JSON arguments that were passed to the primitive capability at this node, after input mapping.</description>
+    <inlineHelpText>Shows the exact data the underlying tool received to perform its action.</inlineHelpText>
+    <label>Node Input</label>
+    <length>131072</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

@@ -139,7 +139,7 @@ public with sharing class AgentCapabilityTriggerHandler {
         for (AgentCapability__c existingCap : [
             SELECT Id, AIAgentDefinition__c, CapabilityName__c
             FROM AgentCapability__c
-            WHERE AIAgentDefinition__c IN :agentIds
+            WHERE AIAgentDefinition__c IN :agentIds AND ExposureLevel__c != 'Disabled'
         ]) {
             if (String.isNotBlank(existingCap.CapabilityName__c)) {
                 String key = existingCap.AIAgentDefinition__c + ':' + existingCap.CapabilityName__c.toLowerCase();

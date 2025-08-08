@@ -156,8 +156,8 @@
                     <name>uiBehavior</name>
                     <value>none</value>
                 </fieldInstanceProperties>
-                <fieldItem>Record.IsActive__c</fieldItem>
-                <identifier>RecordIsActive_cField</identifier>
+                <fieldItem>Record.ExposureLevel__c</fieldItem>
+                <identifier>RecordExposureLevel_cField</identifier>
             </fieldInstance>
         </itemInstances>
         <itemInstances>
@@ -188,46 +188,6 @@
                 </fieldInstanceProperties>
                 <fieldItem>Record.HaltAndReportError__c</fieldItem>
                 <identifier>RecordHaltAndReportError_cField</identifier>
-            </fieldInstance>
-        </itemInstances>
-        <itemInstances>
-            <fieldInstance>
-                <fieldInstanceProperties>
-                    <name>uiBehavior</name>
-                    <value>none</value>
-                </fieldInstanceProperties>
-                <fieldItem>Record.ExecutionPrerequisites__c</fieldItem>
-                <identifier>RecordExecutionPrerequisites_cField</identifier>
-            </fieldInstance>
-        </itemInstances>
-        <itemInstances>
-            <fieldInstance>
-                <fieldInstanceProperties>
-                    <name>uiBehavior</name>
-                    <value>none</value>
-                </fieldInstanceProperties>
-                <fieldItem>Record.PrerequisiteValidation__c</fieldItem>
-                <identifier>RecordPrerequisiteValidation_cField</identifier>
-            </fieldInstance>
-        </itemInstances>
-        <itemInstances>
-            <fieldInstance>
-                <fieldInstanceProperties>
-                    <name>uiBehavior</name>
-                    <value>none</value>
-                </fieldInstanceProperties>
-                <fieldItem>Record.PreExecutionHook__c</fieldItem>
-                <identifier>RecordPreExecutionHook_cField</identifier>
-            </fieldInstance>
-        </itemInstances>
-        <itemInstances>
-            <fieldInstance>
-                <fieldInstanceProperties>
-                    <name>uiBehavior</name>
-                    <value>none</value>
-                </fieldInstanceProperties>
-                <fieldItem>Record.PostExecutionHook__c</fieldItem>
-                <identifier>RecordPostExecutionHook_cField</identifier>
             </fieldInstance>
         </itemInstances>
         <name>Facet-a0d95c0d-e49f-4331-a016-b1d026392365</name>
@@ -354,6 +314,14 @@
         <itemInstances>
             <componentInstance>
                 <componentInstanceProperties>
+                    <name>parentFieldApiName</name>
+                    <value>AgentCapability__c.Id</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>relatedListApiName</name>
+                    <value>GraphNodes__r</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
                     <name>relatedListComponentOverride</name>
                     <value>NONE</value>
                 </componentInstanceProperties>
@@ -365,12 +333,16 @@
                     <name>showActionBar</name>
                     <value>true</value>
                 </componentInstanceProperties>
-                <componentName>force:relatedListContainer</componentName>
-                <identifier>force_relatedListContainer</identifier>
+                <componentName>force:relatedListSingleContainer</componentName>
+                <identifier>force_relatedListSingleContainer</identifier>
             </componentInstance>
         </itemInstances>
         <mode>Replace</mode>
         <name>relatedTabContent</name>
+        <type>Facet</type>
+    </flexiPageRegions>
+    <flexiPageRegions>
+        <name>Facet-16786b2a-8cda-41df-b432-503c0da08f4d</name>
         <type>Facet</type>
     </flexiPageRegions>
     <flexiPageRegions>
@@ -404,6 +376,27 @@
                 </componentInstanceProperties>
                 <componentName>flexipage:tab</componentName>
                 <identifier>relatedListsTab</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
+                    <name>body</name>
+                    <value>Facet-16786b2a-8cda-41df-b432-503c0da08f4d</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>title</name>
+                    <value>Graph Nodes</value>
+                </componentInstanceProperties>
+                <componentName>flexipage:tab</componentName>
+                <identifier>flexipage_tab</identifier>
+                <visibilityRule>
+                    <criteria>
+                        <leftValue>{!Record.ImplementationType__c}</leftValue>
+                        <operator>EQUAL</operator>
+                        <rightValue>Graph</rightValue>
+                    </criteria>
+                </visibilityRule>
             </componentInstance>
         </itemInstances>
         <mode>Replace</mode>

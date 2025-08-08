@@ -56,13 +56,15 @@ public inherited sharing class OrchestrationService {
 
     /**
      * @description Processes the result from an LLM call by delegating to the appropriate strategy handler.
+     *              Enhanced with orchestration logging for detailed turn tracking.
      * @param llmInteractionResult The result object from the LLMInteractionService.
      * @return String An outcome constant (e.g., OUTCOME_COMPLETED).
      */
     public String processLlmResult(
         LLMInteractionService.LLMInteractionResult llmInteractionResult,
         Id sessionId,
-        Id userId,
+        Id originalUserId,
+        Id executionUserId,
         Id agentDefinitionId,
         String turnIdentifier,
         Integer currentTurnCount,
@@ -71,19 +73,71 @@ public inherited sharing class OrchestrationService {
     ) {
         String logPrefix = '[OrchSvc Turn:' + turnIdentifier?.left(8) + ' Cycle:' + currentTurnCount + ' Sess:' + sessionId + '] ';
 
+        OrchestrationLogger.logStep(
+            sessionId,
+            turnIdentifier,
+            OrchestrationLogger.TYPE_LLM_RESPONSE,
+            OrchestrationLogger.STATUS_INIT,
+            'Processing LLM response',
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
         try {
             if (llmInteractionResult == null || !llmInteractionResult.isSuccess) {
                 String failureReason = llmInteractionResult?.failureReason ?? 'Unknown LLM Interaction Error';
                 String failureCode = llmInteractionResult?.failureCode ?? AIAgentConstants.ERR_CODE_LLM_CALL_FAILED;
 
+                OrchestrationLogger.logStep(
+                    sessionId,
+                    turnIdentifier,
+                    OrchestrationLogger.TYPE_LLM_RESPONSE,
+                    OrchestrationLogger.STATUS_FAILURE,
+                    'LLM interaction failed',
+                    null,
+                    null,
+                    failureReason,
+                    failureCode,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                );
+
                 this.turnLifecycleSvc.failTurn(sessionId, turnIdentifier, failureReason, failureCode, logPrefix);
                 return OUTCOME_FAILED;
             }
 
+            OrchestrationLogger.logStep(
+                sessionId,
+                turnIdentifier,
+                OrchestrationLogger.TYPE_LLM_RESPONSE,
+                OrchestrationLogger.STATUS_SUCCESS,
+                'LLM response received successfully',
+                null,
+                llmInteractionResult,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
+
             OrchestrationContext context = new OrchestrationContext(
                 llmInteractionResult,
                 sessionId,
-                userId,
+                originalUserId,
+                executionUserId,
                 agentDefinitionId,
                 turnIdentifier,
                 currentTurnCount,
@@ -95,17 +149,77 @@ public inherited sharing class OrchestrationService {
                 currentPageRecordId
             );
 
-            ILLMResponseHandler handler = ResponseHandlerFactory.getHandler(llmInteractionResult);
+            ILLMResponseHandler handler;
+            if (llmInteractionResult.providerResult?.requestedActions != null && !llmInteractionResult.providerResult.requestedActions.isEmpty()) {
+                handler = new ToolCallResponseHandler();
+            } else {
+                handler = new ContentResponseHandler();
+            }
 
-            return handler.handle(context);
+            OrchestrationLogger.logStep(
+                sessionId,
+                turnIdentifier,
+                OrchestrationLogger.TYPE_DISPATCH,
+                OrchestrationLogger.STATUS_INIT,
+                'Dispatching to response handler: ' + handler.toString(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
+
+            String outcome = handler.handle(context);
+
+            OrchestrationLogger.logStep(
+                sessionId,
+                turnIdentifier,
+                OrchestrationLogger.TYPE_DISPATCH,
+                OrchestrationLogger.STATUS_SUCCESS,
+                'Orchestration completed with outcome: ' + outcome,
+                null,
+                new Map<String, Object>{ 'outcome' => outcome },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
+
+            return outcome;
         } catch (Exception ex) {
             String errorMsg = 'Critical Orchestration Logic Error: (' + ex.getTypeName() + ') ' + ex.getMessage();
+
+            OrchestrationLogger.logStep(
+                sessionId,
+                turnIdentifier,
+                OrchestrationLogger.TYPE_DISPATCH,
+                OrchestrationLogger.STATUS_FAILURE,
+                'Orchestration failed',
+                null,
+                null,
+                errorMsg,
+                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
 
             try {
                 this.turnLifecycleSvc.failTurn(sessionId, turnIdentifier, errorMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
             } catch (Exception finalFailEx) {
             }
             return OUTCOME_FAILED;
+        } finally {
+            OrchestrationLogger.commitLogs();
         }
     }
 
@@ -117,17 +231,16 @@ public inherited sharing class OrchestrationService {
             if (actionResult.outputForLlm != null) {
                 return JSON.serialize(actionResult.outputForLlm);
             } else {
-                Map<String, Object> syntheticOutput = new Map<String, Object>{ 'status' => actionResult.isSuccess ? 'success' : 'failure' };
+                Map<String, Object> syntheticOutput = new Map<String, Object>{ 'success' => actionResult.isSuccess };
                 if (!actionResult.isSuccess) {
-                    syntheticOutput.put('error_code', actionResult.errorCode);
+                    syntheticOutput.put('errorCode', actionResult.errorCode);
                     String llmErrorDetail = actionResult.internalDetails != null ? actionResult.internalDetails : 'No details available.';
                     if (actionResult.internalDetails != null && actionResult.internalDetails.contains('Exception:')) {
                         llmErrorDetail = 'An internal error occurred executing the action.';
                     }
-                    syntheticOutput.put('details', llmErrorDetail);
-                } else if (actionResult.internalDetails != null) {
-                    syntheticOutput.put('details', actionResult.internalDetails);
+                    syntheticOutput.put('messageForUser', llmErrorDetail);
                 }
+                syntheticOutput.put('data', new Map<String, Object>());
                 return JSON.serialize(syntheticOutput);
             }
         } catch (Exception jsonEx) {

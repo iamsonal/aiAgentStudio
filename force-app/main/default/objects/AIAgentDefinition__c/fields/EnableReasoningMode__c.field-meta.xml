@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EnableReasoningMode__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When enabled, the agent is instructed to first explain its thought process or the action it is about to take in plain language before executing a tool. This enhances transparency and user trust.</description>
+    <inlineHelpText>Check this to make the agent &quot;think out loud.&quot; The agent will generate a user-facing message explaining its next action before calling a tool, providing a more interactive and transparent experience.</inlineHelpText>
+    <label>Enable Reasoning Mode</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

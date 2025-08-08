@@ -62,6 +62,16 @@
                 <identifier>RecordDescription_cField</identifier>
             </fieldInstance>
         </itemInstances>
+        <itemInstances>
+            <fieldInstance>
+                <fieldInstanceProperties>
+                    <name>uiBehavior</name>
+                    <value>none</value>
+                </fieldInstanceProperties>
+                <fieldItem>Record.EnableReasoningMode__c</fieldItem>
+                <identifier>RecordEnableReasoningMode_cField</identifier>
+            </fieldInstance>
+        </itemInstances>
         <name>Facet-76a727d9-05f1-4ec9-bdf0-a9d1a1167974</name>
         <type>Facet</type>
     </flexiPageRegions>
@@ -94,6 +104,16 @@
                 </fieldInstanceProperties>
                 <fieldItem>Record.LLMConfiguration__c</fieldItem>
                 <identifier>RecordLLMConfiguration_cField</identifier>
+            </fieldInstance>
+        </itemInstances>
+        <itemInstances>
+            <fieldInstance>
+                <fieldInstanceProperties>
+                    <name>uiBehavior</name>
+                    <value>none</value>
+                </fieldInstanceProperties>
+                <fieldItem>Record.RequiresServiceUserContext__c</fieldItem>
+                <identifier>RecordRequiresServiceUserContext_cField</identifier>
             </fieldInstance>
         </itemInstances>
         <name>Facet-5ebf0c80-5237-4581-84c7-73617ef5a10c</name>
@@ -517,16 +537,13 @@
                             <value>StandardActionType__c</value>
                         </valueListItems>
                         <valueListItems>
-                            <value>RequiresConfirmation__c</value>
-                        </valueListItems>
-                        <valueListItems>
-                            <value>RequiresApproval__c</value>
+                            <value>ImplementationType__c</value>
                         </valueListItems>
                         <valueListItems>
                             <value>RunAsynchronously__c</value>
                         </valueListItems>
                         <valueListItems>
-                            <value>IsActive__c</value>
+                            <value>ExposureLevel__c</value>
                         </valueListItems>
                     </valueList>
                 </componentInstanceProperties>
@@ -540,7 +557,7 @@
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>sortFieldAlias</name>
-                    <value>__DEFAULT__</value>
+                    <value>ExposureLevel__c</value>
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>sortFieldOrder</name>

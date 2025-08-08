@@ -101,20 +101,6 @@ public with sharing class TestFactory {
             )
         );
 
-        capabilities.add(
-            createSingleCapability(
-                agentDefId,
-                'run_test_flow',
-                'Runs a test flow.',
-                '{"type":"object","properties":{"input_Name":{"type":"string"}},"required":["input_Name"]}',
-                'Flow',
-                'My_Test_Flow',
-                null,
-                true,
-                null
-            )
-        );
-
         return capabilities;
     }
 
@@ -142,7 +128,6 @@ public with sharing class TestFactory {
             StandardActionType__c = stdActionType,
             RunAsynchronously__c = runAsync,
             BackendConfiguration__c = backendConfigJson,
-            IsActive__c = true,
             ExecutionPriority__c = 10
         );
     }

@@ -6,10 +6,6 @@
  * Copyright (c) 2025 Sonal
  */
 
-/**
- * Created by sonal on 2025-04-02.
- */
-
 /** @description Factory for retrieving instances of LLM Provider Adapters. */
 public inherited sharing class LLMProviderFactory {
     @TestVisible

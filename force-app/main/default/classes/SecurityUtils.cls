@@ -92,26 +92,6 @@ public with sharing class SecurityUtils {
     }
 
     /**
-     * @description Checks if the current user has the specified FLS permission on a field using SObjectType and fieldName.
-     * @param sObjectType The SObjectType of the field.
-     * @param fieldName The API name of the field (case-insensitive).
-     * @param accessType AccessType.READABLE, AccessType.CREATABLE, or AccessType.UPDATABLE.
-     * @throws ActionSecurityException If the required permission is not granted or the field doesn't exist.
-     */
-    public static void checkFieldPermission(SObjectType sObjectType, String fieldName, AccessType accessType) {
-        if (sObjectType == null || String.isBlank(fieldName)) {
-            throw new ActionSecurityException('SObjectType and Field Name are required for field permission check.');
-        }
-
-        Schema.SObjectField fieldToken = SchemaUtils.getFieldToken(sObjectType, fieldName);
-        if (fieldToken == null) {
-            throw new ActionSecurityException('Field ' + fieldName + ' not found on SObject ' + sObjectType.getDescribe().getName() + '.');
-        }
-
-        checkFieldPermission(fieldToken.getDescribe(), accessType);
-    }
-
-    /**
      * @description Helper method returning boolean FLS check without throwing exception.
      * @param dfr The Schema.DescribeFieldResult of the field.
      * @param accessType AccessType.READABLE, AccessType.CREATABLE, or AccessType.UPDATABLE.

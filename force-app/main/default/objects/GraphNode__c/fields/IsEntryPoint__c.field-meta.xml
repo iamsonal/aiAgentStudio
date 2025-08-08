@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsEntryPoint__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>If checked, this node is designated as the starting point for the entire graph. Each graph must have exactly one active entry point node. The process will always begin execution at this step.</description>
+    <inlineHelpText>Check this box to mark this node as the first step in the process. Only one node in a single graph can be the entry point.</inlineHelpText>
+    <label>Entry Point</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

@@ -100,7 +100,6 @@ public with sharing class AgentTestDataFactory {
             '- Before suggesting complex actions, first use the `search_knowledge_base` tool to see if a standard troubleshooting guide exists.',
             '- Do not use the \'escalate_to_engineering\' or \'dispatch_technician\' tools unless the user explicitly asks for an escalation or a technician, or agrees to your suggestion to use one.',
             '- CRITICAL RULE: If the user\'s request could refer to more than one Asset or Case in the provided context, you MUST use the find_support_record tool first. DO NOT make assumptions.',
-            '- Clearly explain the actions you are taking. For example, "I am now logging this issue in our external system..." or "I am posting a message to our engineering team for help..."',
             '- Adhere strictly to the confirmation and approval protocols described in the tool descriptions. If a tool requires confirmation, your first response MUST be a simple confirmation question.'
         };
         String instructionsPrompt = String.join(instructionParts, '\n\n');
@@ -124,147 +123,139 @@ public with sharing class AgentTestDataFactory {
         List<AgentCapability__c> capabilities = new List<AgentCapability__c>();
 
         capabilities.add(
-            createCapability(
-                agent.Id,
-                'get_case_details',
-                'Retrieves the current status, priority, and subject of a specific case by its Case Number.',
-                '{"type":"object","properties":{"filters":{"type":"object","properties":{"CaseNumber":{"type":"string"}}}}}',
-                'Standard',
-                'GetRecords',
-                null,
-                '{"objectApiName":"Case"}',
-                false,
-                false,
-                10,
-                null,
-                false
-            )
+                createCapability(
+                        agent.Id,
+                        'get_case_details',
+                        'Retrieves the current status, priority, and subject of a specific case by its Case Number.',
+                        '{"type":"object","properties":{"filters":{"type":"object","properties":{"CaseNumber":{"type":"string"}}}}}',
+                        'Standard',
+                        'GetRecords',
+                        null,
+                        '{"objectApiName":"Case"}',
+                        false,
+                        false,
+                        10,
+                        false
+                )
         );
         capabilities.add(
-            createCapability(
-                agent.Id,
-                'find_support_record',
-                'Performs a fuzzy search for a specific Asset (by serial number) or a Case (by subject). Use this if the user\'s request is ambiguous.',
-                '{"type":"object","properties":{"searchQuery":{"type":"string"}},"required":["searchQuery"]}',
-                'Standard',
-                'FindEntities',
-                null,
-                null,
-                false,
-                false,
-                20,
-                null,
-                false
-            )
+                createCapability(
+                        agent.Id,
+                        'find_support_record',
+                        'Performs a fuzzy search for a specific Asset (by serial number) or a Case (by subject). Use this if the user\'s request is ambiguous.',
+                        '{"type":"object","properties":{"searchQuery":{"type":"string"}},"required":["searchQuery"]}',
+                        'Standard',
+                        'FindEntities',
+                        null,
+                        null,
+                        false,
+                        false,
+                        20,
+                        false
+                )
         );
         capabilities.add(
-            createCapability(
-                agent.Id,
-                'search_knowledge_base',
-                'Searches the internal knowledge base for troubleshooting guides and articles. Can filter by category (e.g., {"dataCategory": {"Robotic_Arms":"Troubleshooting"}}).',
-                '{"type":"object","properties":{"searchQuery":{"type":"string"},"dataCategory":{"type":"object"}},"required":["searchQuery"]}',
-                'Standard',
-                'SearchKnowledge',
-                null,
-                null,
-                false,
-                false,
-                30,
-                null,
-                false
-            )
+                createCapability(
+                        agent.Id,
+                        'search_knowledge_base',
+                        'Searches the internal knowledge base for troubleshooting guides and articles. Can filter by category (e.g., {"dataCategory": {"Robotic_Arms":"Troubleshooting"}}).',
+                        '{"type":"object","properties":{"searchQuery":{"type":"string"},"dataCategory":{"type":"object"}},"required":["searchQuery"]}',
+                        'Standard',
+                        'SearchKnowledge',
+                        null,
+                        null,
+                        false,
+                        false,
+                        30,
+                        false
+                )
         );
         capabilities.add(
-            createCapability(
-                agent.Id,
-                'add_internal_comment',
-                'Adds an internal-only comment to the case feed for documentation.',
-                '{"type":"object","properties":{"parentId":{"type":"string"}, "commentBody":{"type":"string"}},"required":["parentId","commentBody"]}',
-                'Standard',
-                'CreateRecord',
-                null,
-                '{"objectApiName":"CaseComment"}',
-                false,
-                false,
-                40,
-                null,
-                false
-            )
+                createCapability(
+                        agent.Id,
+                        'add_internal_comment',
+                        'Adds an internal-only comment to the case feed for documentation.',
+                        '{"type":"object","properties":{"parentId":{"type":"string"}, "commentBody":{"type":"string"}},"required":["parentId","commentBody"]}',
+                        'Standard',
+                        'CreateRecord',
+                        null,
+                        '{"objectApiName":"CaseComment"}',
+                        false,
+                        false,
+                        40,
+                        false
+                )
+        );
+        // This capability is now INTERNAL, used by the graph.
+        capabilities.add(
+                new AgentCapability__c(
+                        AIAgentDefinition__c = agent.Id,
+                        CapabilityName__c = 'escalate_to_engineering',
+                        Description__c = 'Posts a message to the internal engineering team\'s Chatter group.',
+                        Parameters__c = '{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}',
+                        ImplementationType__c = 'Standard',
+                        StandardActionType__c = 'PostChatter',
+                        BackendConfiguration__c = '{"feedType":"Group","targetId":"' + idMap.get('Chatter Group ID') + '"}',
+                        ExposureLevel__c = 'Internal' // Make this internal-only
+                )
+        );
+        // This capability is now INTERNAL, used by the graph.
+        capabilities.add(
+                new AgentCapability__c(
+                        AIAgentDefinition__c = agent.Id,
+                        CapabilityName__c = 'log_issue_externally',
+                        Description__c = 'Logs the case details in an external system (Jira).',
+                        Parameters__c = '{"type":"object","properties":{"caseId":{"type":"string"}},"required":["caseId"]}',
+                        ImplementationType__c = 'Apex',
+                        ImplementationDetail__c = 'ActionLogIssueExternally',
+                        RunAsynchronously__c = true,
+                        ExposureLevel__c = 'Internal' // Make this internal-only
+                )
         );
         capabilities.add(
-            createCapability(
-                agent.Id,
-                'escalate_to_engineering',
-                'Posts a message to the internal engineering team\'s Chatter group to ask for their help on a complex technical issue. IMPORTANT: After successfully using this tool, you must immediately use the `log_issue_externally` tool.',
-                '{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}',
-                'Standard',
-                'PostChatter',
-                null,
-                '{"feedType":"Group","targetId":"' + idMap.get('Chatter Group ID') + '"}',
-                false,
-                false,
-                50,
-                'add_internal_comment',
-                false
-            )
-        );
-        capabilities.add(
-            createCapability(
-                agent.Id,
-                'log_issue_externally',
-                'Logs the case details in an external system (Jira). This is a background process and takes a moment to complete.',
-                '{"type":"object","properties":{"caseId":{"type":"string"}},"required":["caseId"]}',
-                'Apex',
-                null,
-                'ActionLogIssueExternally',
-                null,
-                false,
-                false,
-                60,
-                null,
-                true
-            )
-        );
-        capabilities.add(
-            createCapability(
-                agent.Id,
-                'close_the_case',
-                'Updates the case status to "Closed." IMPORTANT: You must ask the user for confirmation before using this tool.',
-                '{"type":"object","properties":{"recordId":{"type":"string"},"Status":{"type":"string","enum":["Closed"]}},"required":["recordId","Status"]}',
-                'Standard',
-                'UpdateRecord',
-                null,
-                '{"objectApiName":"Case"}',
-                true,
-                false,
-                70,
-                'add_internal_comment',
-                false
-            )
+                createCapability(
+                        agent.Id,
+                        'close_the_case',
+                        'Updates the case status to "Closed." IMPORTANT: You must ask the user for confirmation before using this tool.',
+                        '{"type":"object","properties":{"recordId":{"type":"string"},"Status":{"type":"string","enum":["Closed"]}},"required":["recordId","Status"]}',
+                        'Standard',
+                        'UpdateRecord',
+                        null,
+                        '{"objectApiName":"Case"}',
+                        true,
+                        false,
+                        70,
+                        false
+                )
         );
 
         String creditDescription = 'Creates a formal service credit request as a draft contract for manager approval.';
         String creditParams = '{"type":"object","properties":{"AccountId":{"type":"string", "description": "The ID of the customer Account to associate the credit with."}, "StartDate":{"type":"string", "format":"date", "description":"The effective date for the credit, usually today."}, "Description":{"type":"string", "description":"A clear justification for the service credit explaining why it is being offered."}},"required":["AccountId", "StartDate", "Description"]}';
         String creditBackendConfig = '{"objectApiName":"Contract", "defaultFieldValues": {"Status":"Draft", "ContractTerm": 1}}';
         capabilities.add(
-            createCapability(
-                agent.Id,
-                'issue_service_credit',
-                creditDescription,
-                creditParams,
-                'Standard',
-                'CreateRecord',
-                null,
-                creditBackendConfig,
-                false,
-                true,
-                80,
-                null,
-                false
-            )
+                createCapability(
+                        agent.Id,
+                        'issue_service_credit',
+                        creditDescription,
+                        creditParams,
+                        'Standard',
+                        'CreateRecord',
+                        null,
+                        creditBackendConfig,
+                        false,
+                        true,
+                        80,
+                        false
+                )
         );
 
         insert capabilities;
+
+        Map<String, Id> primitiveCapsMap = new Map<String, Id>();
+        for (AgentCapability__c cap : capabilities) {
+            primitiveCapsMap.put(cap.CapabilityName__c, cap.Id);
+        }
+        AgentCapability__c graphCap = setupEscalationGraph(agent.Id, primitiveCapsMap);
 
         // --- Context Providers ---
         System.debug('Creating context providers for Support Copilot...');
@@ -430,7 +421,6 @@ public with sharing class AgentTestDataFactory {
         Boolean requiresConfirmation,
         Boolean requiresApproval,
         Integer priority,
-        String prerequisites,
         Boolean runAsynchronously
     ) {
         return new AgentCapability__c(
@@ -444,9 +434,7 @@ public with sharing class AgentTestDataFactory {
             BackendConfiguration__c = backendConfig,
             RequiresConfirmation__c = requiresConfirmation,
             RequiresApproval__c = requiresApproval,
-            IsActive__c = true,
             ExecutionPriority__c = priority,
-            ExecutionPrerequisites__c = prerequisites,
             RunAsynchronously__c = runAsynchronously
         );
     }
@@ -510,5 +498,80 @@ public with sharing class AgentTestDataFactory {
                 e.getMessage()
             );
         }
+    }
+
+    private static AgentCapability__c setupEscalationGraph(Id agentId, Map<String, Id> primitiveCapsMap) {
+        System.debug('Setting up Escalation Graph capability...');
+
+        // 1. Define the main "Graph" capability that the LLM will see and call.
+        String graphDescription = 'Initiates a full Tier 2 escalation process. This involves adding an initial case comment, posting to the engineering team for immediate help, and logging a ticket in an external system for tracking. This is a comprehensive action.';
+        String graphParams = '{"type":"object","properties":{"caseId":{"type":"string", "description": "The ID of the case to be escalated."}, "escalationReason":{"type":"string", "description": "A concise reason for the escalation to be posted to the engineering team."}},"required":["caseId", "escalationReason"]}';
+
+        AgentCapability__c graphCapability = createCapability(
+                agentId,
+                'escalate_to_tier_2',
+                graphDescription,
+                graphParams,
+                'Graph', // ImplementationType
+                null,    // StandardActionType
+                null,    // ImplementationDetail
+                null,    // BackendConfiguration
+                false,   // RequiresConfirmation
+                false,   // RequiresApproval
+                45,      // ExecutionPriority
+                false    // RunAsynchronously (the graph itself starts sync)
+        );
+        insert graphCapability;
+
+        // 2. Define the individual nodes (steps) of the graph.
+        List<GraphNode__c> graphNodes = new List<GraphNode__c>();
+
+        // Node 1: Add initial comment (Entry Point)
+        graphNodes.add(
+                GraphNodeBuilder.create('node_add_internal_comment')
+                        .forCapability(graphCapability.Id)
+                        .runCapability('add_internal_comment') // Assumes primitive capability exists
+                        .asEntryPoint()
+                        .mapInput('parentId', '{!input.caseId}')
+                        .mapInput('commentBody', 'Escalation to Tier 2 process initiated by agent.')
+                        .routeWhenSuccess('node_escalate_to_engineering')
+                        .build()
+        );
+
+        // Node 2: Post to engineering team
+        graphNodes.add(
+                GraphNodeBuilder.create('node_escalate_to_engineering')
+                        .forCapability(graphCapability.Id)
+                        .runCapability('escalate_to_engineering')
+                        .mapInput('text', '{!input.escalationReason}')
+                        .routeWhenSuccess('node_log_issue_externally')
+                        .build()
+        );
+
+        // Node 3: Log in external system (Async)
+        graphNodes.add(
+                GraphNodeBuilder.create('node_log_issue_externally')
+                        .forCapability(graphCapability.Id)
+                        .runCapability('log_issue_externally')
+                        .startAsync()
+                        .mapInput('caseId', '{!input.caseId}')
+                        .routeWhenSuccess('node_add_internal_comment_1')
+                        .build()
+        );
+
+        // Node 4: Add final comment with ticket reference (Exit Node)
+        graphNodes.add(
+                GraphNodeBuilder.create('node_add_internal_comment_1')
+                        .forCapability(graphCapability.Id)
+                        .runCapability('add_internal_comment')
+                        .mapInput('parentId', '{!input.caseId}')
+                        .mapInput('commentBody', 'Escalation complete. External Reference: {!node.node_log_issue_externally.output.data.externalTicketId}')
+                        .build()
+        );
+
+        insert graphNodes;
+        System.debug(graphNodes.size() + ' graph nodes created for ' + graphCapability.CapabilityName__c);
+
+        return graphCapability;
     }
 }

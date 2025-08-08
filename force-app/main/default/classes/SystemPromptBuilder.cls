@@ -27,25 +27,51 @@ public inherited sharing class SystemPromptBuilder {
      * @description The main method to build the complete, structured system prompt for a turn.
      * @return The final, formatted system prompt string.
      */
-    public String build(Id sessionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, Id currentPageRecordId, Integer currentTurn) {
+    public String build(
+        Id sessionId,
+        AIAgentDefinition__c agentConfig,
+        LLMConfiguration__c llmConfig,
+        Id currentPageRecordId,
+        Integer currentTurn,
+        Id conversationalUserId
+    ) {
         String logPrefix = '[SystemPromptBuilder Sess:' + sessionId + '] ';
 
         List<String> promptParts = new List<String>();
 
-        String temporalContext = buildTemporalContext();
+        String temporalContext = buildTemporalContext(conversationalUserId);
         promptParts.add('# System Context\n\n' + temporalContext);
 
         if (String.isNotBlank(agentConfig.IdentityPrompt__c)) {
             promptParts.add('# Identity\n\n' + agentConfig.IdentityPrompt__c);
         }
-        if (String.isNotBlank(agentConfig.InstructionsPrompt__c)) {
-            promptParts.add('# Instructions\n\n' + agentConfig.InstructionsPrompt__c);
+
+        String finalInstructions = agentConfig.InstructionsPrompt__c;
+        if (agentConfig.EnableReasoningMode__c) {
+            String reasoningInstruction =
+                '# CRITICAL BEHAVIOR RULE: REASONING MODE\n\n' +
+                'When you decide to use a tool, you MUST first generate a user-facing `content` message. ' +
+                'This message should concisely explain the action you are about to take (your "reasoning"). ' +
+                'Immediately following the `content`, you must include the `tool_calls` payload for the action. ' +
+                'Your response must contain BOTH `content` and `tool_calls` whenever you use a tool.';
+            finalInstructions = String.isBlank(finalInstructions) ? reasoningInstruction.trim() : finalInstructions + reasoningInstruction;
         }
+        if (String.isNotBlank(finalInstructions)) {
+            promptParts.add('# Instructions\n\n' + finalInstructions);
+        }
+
         if (String.isNotBlank(agentConfig.ExamplesPrompt__c)) {
             promptParts.add('# Examples\n\n' + agentConfig.ExamplesPrompt__c);
         }
 
-        String formattedContextData = buildFormattedContextData(sessionId, agentConfig, llmConfig, currentPageRecordId, currentTurn);
+        String formattedContextData = buildFormattedContextData(
+            sessionId,
+            agentConfig,
+            llmConfig,
+            currentPageRecordId,
+            currentTurn,
+            conversationalUserId
+        );
         if (String.isNotBlank(formattedContextData)) {
             promptParts.add('# Context\n\n<CONTEXT>\n' + formattedContextData + '\n</CONTEXT>');
         }
@@ -67,7 +93,8 @@ public inherited sharing class SystemPromptBuilder {
         AIAgentDefinition__c agentConfig,
         LLMConfiguration__c llmConfig,
         Id currentPageRecordId,
-        Integer currentTurn
+        Integer currentTurn,
+        Id conversationalUserId
     ) {
         String logPrefix = '[SystemPromptBuilder.Context] ';
         List<String> contextBlocks = new List<String>();
@@ -80,7 +107,7 @@ public inherited sharing class SystemPromptBuilder {
         ContextResolverService.ResolutionResult resolvedContext = this.contextResolver.resolve(
             sessionId,
             agentConfig.Id,
-            UserInfo.getUserId(),
+            conversationalUserId,
             currentPageRecordId,
             currentTurn
         );
@@ -113,9 +140,9 @@ public inherited sharing class SystemPromptBuilder {
         return null;
     }
 
-    private String buildTemporalContext() {
+    private String buildTemporalContext(Id conversationalUserId) {
         Datetime now = Datetime.now();
-        User u = [SELECT TimeZoneSidKey FROM User WHERE Id = :UserInfo.getUserId()];
+        User u = [SELECT TimeZoneSidKey FROM User WHERE Id = :conversationalUserId];
 
         List<String> contextLines = new List<String>{
             '- Current Date: ' + now.format('yyyy-MM-dd'),

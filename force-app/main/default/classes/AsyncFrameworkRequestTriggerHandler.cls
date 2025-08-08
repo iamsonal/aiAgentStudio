@@ -25,6 +25,8 @@ public class AsyncFrameworkRequestTriggerHandler {
                     handleExecuteAction(payloadJson);
                 } else if ('FollowUpLLM'.equalsIgnoreCase(jobType)) {
                     handleFollowUpLLM(payloadJson);
+                } else if ('GraphStep'.equalsIgnoreCase(jobType)) {
+                    handleGraphStep(payloadJson);
                 } else {
                 }
             } catch (Exception e) {
@@ -39,7 +41,7 @@ public class AsyncFrameworkRequestTriggerHandler {
 
         AsyncActionProcessor processor = new AsyncActionProcessor(
             (Id) params.get('sessionId'),
-            (Id) params.get('userId'),
+            (Id) params.get('originalUserId'),
             (Id) params.get('agentDefId'),
             (Id) params.get('parentAsstMsgId'),
             (String) params.get('toolCallId'),
@@ -69,5 +71,16 @@ public class AsyncFrameworkRequestTriggerHandler {
             isFinalError
         );
         processor.process('PlatformEvent');
+    }
+
+    private static void handleGraphStep(String payloadJson) {
+        Map<String, Object> params = (Map<String, Object>) JSON.deserializeUntyped(payloadJson);
+        Id sessionId = (Id) params.get('sessionId');
+        Id graphCapabilityId = (Id) params.get('graphCapabilityId');
+
+        GraphExecutionService graphService = new GraphExecutionService();
+        Map<String, GraphNode__c> graphNodes = graphService.queryAndMapAllNodes(graphCapabilityId);
+
+        graphService.executeNextStepChain(sessionId, graphNodes);
     }
 }

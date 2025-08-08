@@ -34,7 +34,7 @@ public with sharing class AIAssistantController {
             throw new AuraHandledException('Session ID and User Message are required.');
         }
         validateSessionAccess(sessionId);
-        Id currentUserId = UserInfo.getUserId();
+        Id originalUserId = UserInfo.getUserId();
         Exception controllerProcessingException = null;
         Map<String, Object> lwcResponse = new Map<String, Object>{ 'success' => false, 'sessionId' => sessionId };
 
@@ -46,7 +46,13 @@ public with sharing class AIAssistantController {
 
         try {
             ChatSession__c session = [
-                SELECT Id, ProcessingStatus__c, AIAgentDefinition__c, AIAgentDefinition__r.LLMConfiguration__c, AIAgentDefinition__r.IsActive__c
+                SELECT
+                    Id,
+                    ProcessingStatus__c,
+                    AIAgentDefinition__c,
+                    AIAgentDefinition__r.LLMConfiguration__c,
+                    AIAgentDefinition__r.IsActive__c,
+                    AIAgentDefinition__r.RequiresServiceUserContext__c
                 FROM ChatSession__c
                 WHERE Id = :sessionId
                 LIMIT 1
@@ -68,32 +74,32 @@ public with sharing class AIAssistantController {
                 throw new ConfigurationException('Agent Definition is missing, inactive, or lacks required LLM Configuration on the Session.');
             }
 
-            LLMInteractionService interactionService = new LLMInteractionService(
+            if (session.AIAgentDefinition__r.RequiresServiceUserContext__c) {
+                UserContextSwitchEvent__e contextEvent = new UserContextSwitchEvent__e(
+                    OriginalUserId__c = originalUserId,
+                    AgentDefinitionId__c = agentDefinitionId,
+                    SessionId__c = sessionId,
+                    TurnIdentifier__c = turnIdentifier,
+                    UserMessage__c = userMessage,
+                    CurrentRecordId__c = currentRecordId != null ? String.valueOf(currentRecordId) : null
+                );
+
+                EventBus.publish(contextEvent);
+
+                lwcResponse.put('success', true);
+                lwcResponse.put('message', 'Processing...');
+                return lwcResponse;
+            }
+
+            String outcome = processMessageDirectly(
                 sessionId,
-                currentUserId,
+                originalUserId,
                 agentDefinitionId,
                 llmConfigId,
                 turnIdentifier,
-                1,
                 currentRecordId,
-                false
-            );
-
-            LLMInteractionService.LLMInteractionResult llmResult = interactionService.prepareAndCallLLM(currentUserMessageData);
-
-            if (llmResult == null) {
-                throw new ControllerException('LLMInteractionService returned a null result.');
-            }
-
-            String outcome = orchestrationSvc.processLlmResult(
-                llmResult,
-                sessionId,
-                currentUserId,
-                agentDefinitionId,
-                turnIdentifier,
-                1,
                 currentUserMessageData,
-                currentRecordId
+                orchestrationSvc
             );
 
             if (outcome == OrchestrationService.OUTCOME_FAILED) {
@@ -194,7 +200,7 @@ public with sharing class AIAssistantController {
             SessionDetails response = new SessionDetails();
             response.sessionId = newSessionId;
             response.welcomeMessage = welcomeMessage;
-            response.transientMessagesEnabled = AIAgentFrameworkSettings.useTransientMessages();
+            response.transientMessagesEnabled = true;
 
             return response;
         } catch (AgentRoutingService.RoutingException rce) {
@@ -314,7 +320,7 @@ public with sharing class AIAssistantController {
                 processedMessage = processedMessage.replace('{User.Name}', UserInfo.getName());
                 response.welcomeMessage = processedMessage;
             }
-            response.transientMessagesEnabled = AIAgentFrameworkSettings.useTransientMessages();
+            response.transientMessagesEnabled = true;
 
             return response;
         } catch (Exception e) {
@@ -362,5 +368,51 @@ public with sharing class AIAssistantController {
         public String welcomeMessage { get; set; }
         @AuraEnabled
         public Boolean transientMessagesEnabled { get; set; }
+    }
+
+    /**
+     * @description Processes message directly without user context switching
+     */
+    private static String processMessageDirectly(
+        Id sessionId,
+        Id userId,
+        Id agentDefinitionId,
+        Id llmConfigId,
+        String turnIdentifier,
+        Id currentRecordId,
+        LLMInteractionService.MessageData currentUserMessageData,
+        OrchestrationService orchestrationSvc
+    ) {
+        Id originalUserId = userId;
+        Id executionUserId = userId;
+
+        LLMInteractionService interactionService = new LLMInteractionService(
+            sessionId,
+            originalUserId,
+            agentDefinitionId,
+            llmConfigId,
+            turnIdentifier,
+            1,
+            currentRecordId,
+            false
+        );
+
+        LLMInteractionService.LLMInteractionResult llmResult = interactionService.prepareAndCallLLM(currentUserMessageData);
+
+        if (llmResult == null) {
+            throw new ControllerException('LLMInteractionService returned a null result.');
+        }
+
+        return orchestrationSvc.processLlmResult(
+            llmResult,
+            sessionId,
+            originalUserId,
+            executionUserId,
+            agentDefinitionId,
+            turnIdentifier,
+            1,
+            currentUserMessageData,
+            currentRecordId
+        );
     }
 }

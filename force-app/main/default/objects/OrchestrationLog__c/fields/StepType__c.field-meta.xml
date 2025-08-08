@@ -70,6 +70,51 @@
                 <default>false</default>
                 <label>NextStepDispatch</label>
             </value>
+            <value>
+                <fullName>GraphExecutionStart</fullName>
+                <default>false</default>
+                <label>GraphExecutionStart</label>
+            </value>
+            <value>
+                <fullName>GraphNodeExecution</fullName>
+                <default>false</default>
+                <label>GraphNodeExecution</label>
+            </value>
+            <value>
+                <fullName>GraphNodeTransition</fullName>
+                <default>false</default>
+                <label>GraphNodeTransition</label>
+            </value>
+            <value>
+                <fullName>GraphExecutionComplete</fullName>
+                <default>false</default>
+                <label>GraphExecutionComplete</label>
+            </value>
+            <value>
+                <fullName>AsyncJobQueued</fullName>
+                <default>false</default>
+                <label>AsyncJobQueued</label>
+            </value>
+            <value>
+                <fullName>AsyncJobResumed</fullName>
+                <default>false</default>
+                <label>AsyncJobResumed</label>
+            </value>
+            <value>
+                <fullName>ApprovalRequested</fullName>
+                <default>false</default>
+                <label>ApprovalRequested</label>
+            </value>
+            <value>
+                <fullName>ApprovalProcessed</fullName>
+                <default>false</default>
+                <label>ApprovalProcessed</label>
+            </value>
+            <value>
+                <fullName>ToolValidation</fullName>
+                <default>false</default>
+                <label>ToolValidation</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

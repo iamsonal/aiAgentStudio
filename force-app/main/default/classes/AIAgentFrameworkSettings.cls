@@ -19,8 +19,6 @@ public inherited sharing class AIAgentFrameworkSettings {
     private static final Integer FINAL_DEFAULT_MaxRetryAttempts = 1;
     private static final Integer FINAL_DEFAULT_InitialRetryDelayMillis = 1000;
     private static final String FINAL_DEFAULT_RetryableHttpStatusCodes = '408,429,500,502,503,504';
-    private static final Boolean FINAL_DEFAULT_EnableScalableProcessingMode = false;
-    private static final Boolean FINAL_DEFAULT_EnableTransientMessages = false;
 
     /** @description Gets the singleton instance of the settings, applying defaults for missing values. */
     public static AIAgentFrameworkSettings__c getInstance() {
@@ -36,8 +34,6 @@ public inherited sharing class AIAgentFrameworkSettings {
                 settings.DefaultMaxRetryAttempts__c = FINAL_DEFAULT_MaxRetryAttempts;
                 settings.DefaultInitialRetryDelayMillis__c = FINAL_DEFAULT_InitialRetryDelayMillis;
                 settings.DefaultRetryableHttpStatusCodes__c = FINAL_DEFAULT_RetryableHttpStatusCodes;
-                settings.EnableScalableProcessingMode__c = FINAL_DEFAULT_EnableScalableProcessingMode;
-                settings.EnableTransientMessages__c = FINAL_DEFAULT_EnableTransientMessages;
             } else {
                 if (settings.DefaultMaxConversationTurns__c == null || settings.DefaultMaxConversationTurns__c < 0) {
                     settings.DefaultMaxConversationTurns__c = FINAL_DEFAULT_MaxConversationTurns;
@@ -56,12 +52,6 @@ public inherited sharing class AIAgentFrameworkSettings {
                 }
                 if (String.isBlank(settings.DefaultRetryableHttpStatusCodes__c)) {
                     settings.DefaultRetryableHttpStatusCodes__c = FINAL_DEFAULT_RetryableHttpStatusCodes;
-                }
-                if (settings.EnableScalableProcessingMode__c == null) {
-                    settings.EnableScalableProcessingMode__c = FINAL_DEFAULT_EnableScalableProcessingMode;
-                }
-                if (settings.EnableTransientMessages__c == null) {
-                    settings.EnableTransientMessages__c = FINAL_DEFAULT_EnableTransientMessages;
                 }
             }
         }
@@ -96,16 +86,6 @@ public inherited sharing class AIAgentFrameworkSettings {
     /** @description Gets the configured default retryable HTTP status codes as a Set, falling back to internal default. */
     public static Set<Integer> getDefaultRetryableStatusCodes() {
         return parseRetryableCodes(getInstance().DefaultRetryableHttpStatusCodes__c);
-    }
-
-    /** @description Gets the configured setting for using event-based decoupling */
-    public static Boolean useScalableProcessing() {
-        return getInstance().EnableScalableProcessingMode__c;
-    }
-
-    /** @description Gets the configured setting for using transient messages for intermediate UI updates. */
-    public static Boolean useTransientMessages() {
-        return getInstance().EnableTransientMessages__c;
     }
 
     /** Parses a comma-separated string of HTTP codes into a Set of Integers */

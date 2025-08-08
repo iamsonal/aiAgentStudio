@@ -15,7 +15,8 @@ public class OrchestrationContext {
     public LLMInteractionService.MessageData userMessageData { get; private set; }
 
     public Id sessionId { get; private set; }
-    public Id userId { get; private set; }
+    public Id originalUserId { get; private set; }
+    public Id executionUserId { get; private set; }
     public Id agentDefinitionId { get; private set; }
     public String turnIdentifier { get; private set; }
     public Integer currentTurnCount { get; private set; }
@@ -30,7 +31,8 @@ public class OrchestrationContext {
     public OrchestrationContext(
         LLMInteractionService.LLMInteractionResult llmResult,
         Id sessionId,
-        Id userId,
+        Id origUserId,
+        Id execUserId,
         Id agentDefId,
         String turnId,
         Integer turnCount,
@@ -43,7 +45,8 @@ public class OrchestrationContext {
     ) {
         this.llmResult = llmResult;
         this.sessionId = sessionId;
-        this.userId = userId;
+        this.originalUserId = origUserId;
+        this.executionUserId = execUserId;
         this.agentDefinitionId = agentDefId;
         this.turnIdentifier = turnId;
         this.currentTurnCount = turnCount;

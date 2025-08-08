@@ -12,7 +12,7 @@
  */
 public class AsyncActionProcessor {
     private final Id chatSessionId;
-    private final Id userId;
+    private final Id originalUserId;
     private final Id agentDefinitionId;
     private final Id parentAssistantMessageId;
     private final String toolCallId;
@@ -24,7 +24,7 @@ public class AsyncActionProcessor {
 
     public AsyncActionProcessor(
         Id sessId,
-        Id usrId,
+        Id origUserId,
         Id agentDefId,
         Id parentMsgId,
         String toolCallId,
@@ -35,7 +35,7 @@ public class AsyncActionProcessor {
         Integer turnCount
     ) {
         this.chatSessionId = sessId;
-        this.userId = usrId;
+        this.originalUserId = origUserId;
         this.agentDefinitionId = agentDefId;
         this.parentAssistantMessageId = parentMsgId;
         this.toolCallId = toolCallId;
@@ -51,6 +51,8 @@ public class AsyncActionProcessor {
      * @param jobIdForLogging The Apex Job ID or other identifier for logging purposes. Can be null.
      */
     public void process(String jobIdForLogging) {
+        Id executionUserId = UserInfo.getUserId();
+
         String logPrefix =
             '[AsyncActionProcessor:' +
             this.turnIdentifier?.left(8) +
@@ -88,13 +90,14 @@ public class AsyncActionProcessor {
             try {
                 ActionContext actionContext = new ActionContext(
                     this.chatSessionId,
-                    this.userId,
+                    this.originalUserId,
+                    executionUserId,
                     this.relatedRecordId,
                     this.agentDefinitionId,
                     this.capability.Id,
-                    this.capability.PreExecutionHook__c,
-                    this.capability.PostExecutionHook__c,
-                    this.capability.ImplementationDetail__c
+                    this.capability.ImplementationDetail__c,
+                    this.turnIdentifier,
+                    this.currentTurnCount
                 );
                 actionResult = actionService.executeSingleAction(this.capability, this.llmArgumentsJson, actionContext);
             } catch (Exception ex) {
@@ -138,7 +141,7 @@ public class AsyncActionProcessor {
                 turnLifecycleSvc.resumeForFollowUpLlmCall(this.chatSessionId, this.turnIdentifier, null, logPrefix);
                 orchestrationDispatchSvc.enqueueFollowUp(
                     this.chatSessionId,
-                    this.userId,
+                    this.originalUserId,
                     this.agentDefinitionId,
                     this.turnIdentifier,
                     this.currentTurnCount + 1,

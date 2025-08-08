@@ -63,6 +63,14 @@
                 <behavior>Edit</behavior>
                 <field>PromptFooter__c</field>
             </layoutItems>
+            <layoutItems>
+                <behavior>Edit</behavior>
+                <field>EnableReasoningMode__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Edit</behavior>
+                <field>RequiresServiceUserContext__c</field>
+            </layoutItems>
         </layoutColumns>
         <layoutColumns>
             <layoutItems>
@@ -117,7 +125,7 @@
         <fields>NAME</fields>
         <fields>CapabilityName__c</fields>
         <fields>ImplementationType__c</fields>
-        <fields>IsActive__c</fields>
+        <fields>ExposureLevel__c</fields>
         <relatedList>AgentCapability__c.AIAgentDefinition__c</relatedList>
     </relatedLists>
     <showEmailCheckbox>false</showEmailCheckbox>

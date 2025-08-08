@@ -6,10 +6,6 @@
  * Copyright (c) 2025 Sonal
  */
 
-/**
- * Created by sonal on 2025-07-01.
- */
-
-trigger HumanApprovalRequestTrigger on HumanApprovalRequest__c (after update) {
+trigger HumanApprovalRequestTrigger on HumanApprovalRequest__c(after update) {
     HumanApprovalRequestTriggerHandler.handleAfterUpdate(Trigger.new, Trigger.oldMap);
 }

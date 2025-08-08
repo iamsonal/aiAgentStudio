@@ -101,12 +101,13 @@ public with sharing class ResumeApprovedFrameworkAction {
         ActionContext actionContext = new ActionContext(
             har.ChatSession__c,
             har.ChatSession__r.User__c,
+            UserInfo.getUserId(),
             turnRecordContextId,
             har.ChatSession__r.AIAgentDefinition__c,
             capability.Id,
-            capability.PreExecutionHook__c,
-            capability.PostExecutionHook__c,
-            capability.ImplementationDetail__c
+            capability.ImplementationDetail__c,
+            har.OriginalTurnIdentifier__c,
+            har.OriginalTurnCount__c.intValue()
         );
 
         ActionResult actionResult = actionService.executeSingleAction(capability, har.LLMToolArgumentsJSON__c, actionContext);

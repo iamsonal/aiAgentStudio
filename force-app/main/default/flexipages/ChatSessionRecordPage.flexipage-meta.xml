@@ -471,16 +471,6 @@
     <flexiPageRegions>
         <itemInstances>
             <componentInstance>
-                <componentName>chatSessionVisualizer</componentName>
-                <identifier>c_chatSessionVisualizer</identifier>
-            </componentInstance>
-        </itemInstances>
-        <name>Facet-7ae02674-8ad3-4573-a4a4-3fa25807ccc6</name>
-        <type>Facet</type>
-    </flexiPageRegions>
-    <flexiPageRegions>
-        <itemInstances>
-            <componentInstance>
                 <componentInstanceProperties>
                     <name>active</name>
                     <value>true</value>
@@ -513,10 +503,6 @@
         </itemInstances>
         <itemInstances>
             <componentInstance>
-                <componentInstanceProperties>
-                    <name>body</name>
-                    <value>Facet-7ae02674-8ad3-4573-a4a4-3fa25807ccc6</value>
-                </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>title</name>
                     <value>Session Visualizer</value>

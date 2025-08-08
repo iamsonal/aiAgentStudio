@@ -166,7 +166,7 @@ export class ChatSessionManager {
             return;
         }
         console.log(`Adding transient message with ID ${messageId}`);
-        this._addAssistantMessage(content, messageId);
+        this._addTransientAssistantMessage(content, messageId);
     }
 
     canLoadMore() {
@@ -249,6 +249,20 @@ export class ChatSessionManager {
             externalId: `msg-${messageId}`
         };
         const formatted = formatDisplayMessages([assistantMsg], this.messages.length)[0];
+        this.messages = [...this.messages, formatted];
+        this.onMessagesUpdated([...this.messages]);
+    }
+
+    _addTransientAssistantMessage(content, messageId) {
+        const transientMsg = {
+            id: messageId,
+            role: 'assistant',
+            content,
+            timestamp: Date.now(),
+            externalId: `transient-${messageId}`,
+            isTransient: true
+        };
+        const formatted = formatDisplayMessages([transientMsg], this.messages.length)[0];
         this.messages = [...this.messages, formatted];
         this.onMessagesUpdated([...this.messages]);
     }

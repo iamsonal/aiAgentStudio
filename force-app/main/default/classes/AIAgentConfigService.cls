@@ -33,7 +33,9 @@ public inherited sharing class AIAgentConfigService {
         'IdentityPrompt__c',
         'InstructionsPrompt__c',
         'ExamplesPrompt__c',
-        'PromptFooter__c'
+        'PromptFooter__c',
+        'EnableReasoningMode__c',
+        'RequiresServiceUserContext__c'
     };
 
     private static final List<String> LLM_CONFIGURATION_FIELDS = new List<String>{
@@ -77,13 +79,9 @@ public inherited sharing class AIAgentConfigService {
                     RunAsynchronously__c,
                     RequiresConfirmation__c,
                     RequiresApproval__c,
-                    HaltAndReportError__c,
-                    ExecutionPrerequisites__c,
-                    PrerequisiteValidation__c,
-                    PreExecutionHook__c,
-                    PostExecutionHook__c
+                    HaltAndReportError__c
                 FROM AgentCapability__c
-                WHERE AIAgentDefinition__c = :agentDefId AND CapabilityName__c = :capabilityName AND IsActive__c = TRUE
+                WHERE AIAgentDefinition__c = :agentDefId AND CapabilityName__c = :capabilityName AND ExposureLevel__c != 'Disabled'
                 LIMIT 1
             ];
 

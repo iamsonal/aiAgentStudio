@@ -61,9 +61,12 @@ public class FollowUpLLMProcessor {
                 return;
             }
 
+            Id executionUserId = UserInfo.getUserId();
+            Id originalUserId = this.userId;
+
             LLMInteractionService interactionService = new LLMInteractionService(
                 this.chatSessionId,
-                this.userId,
+                originalUserId,
                 this.agentDefinitionId,
                 sessions[0].AIAgentDefinition__r.LLMConfiguration__c,
                 this.turnIdentifier,
@@ -76,7 +79,8 @@ public class FollowUpLLMProcessor {
             String outcome = orchestrationSvc.processLlmResult(
                 llmInteractionResult,
                 this.chatSessionId,
-                this.userId,
+                originalUserId,
+                executionUserId,
                 this.agentDefinitionId,
                 this.turnIdentifier,
                 this.currentTurnCount,

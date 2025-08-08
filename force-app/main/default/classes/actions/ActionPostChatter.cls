@@ -7,15 +7,15 @@
  */
 
 /**
- * @description Standard Action: Posts a message to a specified Chatter feed.
- *              Extends BaseAgentAction for standardized execution flow and error handling.
- *              Uses ConnectApi, supporting posts to Records, Users, or Groups.
+ * @description ENHANCED Standard Action: Posts messages to Chatter feeds with intelligent processing.
+ *              Framework automatically handles parameter extraction, validation, security, and result wrapping.
+ *              Configuration example: {"feedType": "Record", "targetId": "003..."}
+ *
+ *              MAINTAINS: Comprehensive security validation, topic handling, and ConnectApi integration.
+ *              ENHANCED: Simplified interface while preserving all robustness features.
  * @extends BaseAgentAction
  */
 public class ActionPostChatter extends BaseAgentAction {
-    private static final String ARG_TEXT = 'text';
-    private static final String ARG_TOPICS = 'topics';
-
     private static final String CONFIG_FEED_TYPE = 'feedType';
     private static final String CONFIG_TARGET_ID = 'targetId';
 
@@ -24,19 +24,34 @@ public class ActionPostChatter extends BaseAgentAction {
     private String targetSObjectName;
 
     /**
-     * @description Provides a specific log prefix for this action type.
-     * @return String 'ActionPostChatter'
+     * @description THE ONLY METHOD we need to implement!
+     *              Framework automatically handles parameter extraction and validation.
+     *              ENHANCED: Maintains comprehensive Chatter functionality while leveraging framework simplicity.
      */
-    protected override String getLogPrefixName() {
-        return 'ActionPostChatter';
+    public override Object executeAction(Map<String, Object> params) {
+        Long startTime = System.currentTimeMillis();
+
+        String text = (String) params.get('text');
+        List<String> topics = (List<String>) params.get('topics');
+
+        if (String.isBlank(text)) {
+            throw new ValidationException('Text parameter cannot be blank for Chatter post', 'text');
+        }
+
+        validateChatterTargetAccess();
+
+        ConnectApi.FeedElement feedElement = createChatterPost(text, topics);
+
+        Long executionTime = System.currentTimeMillis() - startTime;
+
+        return new ChatterResult(
+            feedElement.id,
+            'I have successfully posted the message to the ' + this.feedType + ' feed.',
+            text.length(),
+            topics != null ? topics.size() : 0
+        );
     }
 
-    /**
-     * @description Parses ActionConfiguration to get feedType and targetId.
-     * @param actionConfigurationJson The raw JSON string from BackendConfiguration__c.
-     * @param logPrefix Logging prefix.
-     * @throws ValidationException if config is invalid or missing required keys.
-     */
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
 
@@ -46,8 +61,15 @@ public class ActionPostChatter extends BaseAgentAction {
 
         this.feedType = ParameterExtractionUtils.getRequiredString(this.parsedActionConfig, CONFIG_FEED_TYPE);
         this.targetSObjectId = ParameterExtractionUtils.getRequiredId(this.parsedActionConfig, CONFIG_TARGET_ID, null);
-
         this.targetSObjectName = this.targetSObjectId.getSObjectType().getDescribe().getName();
+
+        validateFeedTypeConsistency();
+    }
+
+    /**
+     * @description Validates feed type and target ID consistency
+     */
+    private void validateFeedTypeConsistency() {
         if (
             (this.feedType == 'User' &&
             this.targetSObjectName != 'User') ||
@@ -56,101 +78,105 @@ public class ActionPostChatter extends BaseAgentAction {
             (this.feedType == 'Record' && (this.targetSObjectName == 'User' || this.targetSObjectName == 'CollaborationGroup'))
         ) {
             throw new ValidationException(
-                'Mismatch between configured feedType "' + this.feedType + '" and targetId object type "' + this.targetSObjectName + '".',
-                null
+                'Mismatch between feedType "' + this.feedType + '" and targetId object type "' + this.targetSObjectName + '".',
+                CONFIG_FEED_TYPE
             );
         }
     }
 
     /**
-     * @description (MODIFIED) Defines arguments expected from the LLM. Now only 'text' and 'topics'.
+     * @description Validates user access to the Chatter target
      */
-    class PostChatterParsedArguments extends BaseAgentAction.ParsedArguments {
-        String text;
-        List<String> topics;
-
-        public PostChatterParsedArguments(String jsonArguments) {
-            if (String.isBlank(jsonArguments)) {
-                throw new ValidationException('Input arguments JSON cannot be blank.', null);
-            }
-
-            Map<String, Object> parsedArgs = (Map<String, Object>) JSON.deserializeUntyped(jsonArguments);
-
-            this.text = ParameterExtractionUtils.getRequiredString(parsedArgs, ARG_TEXT);
-
-            this.topics = ParameterExtractionUtils.getOptionalStringList(parsedArgs, ARG_TOPICS);
-        }
-    }
-
-    /**
-     * @description (MODIFIED) Parses the LLM arguments (now just text/topics).
-     */
-    protected override BaseAgentAction.ParsedArguments parseAndValidateArguments(String argumentsJson, String logPrefix) {
+    private void validateChatterTargetAccess() {
         try {
-            return new PostChatterParsedArguments(argumentsJson);
-        } catch (ParameterExtractionUtils.ArgumentValidationException ave) {
-            throw new ValidationException(ave.getMessage(), null);
-        } catch (Exception e) {
-            throw new ValidationException('Failed to parse/validate PostChatter arguments: ' + e.getMessage(), null);
-        }
-    }
-
-    /**
-     * @description (MODIFIED) Core logic now uses instance variables from backend config.
-     */
-    protected override ActionResult performAction(BaseAgentAction.ParsedArguments validatedArgs, String logPrefix) {
-        PostChatterParsedArguments args = (PostChatterParsedArguments) validatedArgs;
-
-        Id currentTargetId = this.targetSObjectId;
-        String currentFeedType = this.feedType;
-        String currentTargetObjectName = this.targetSObjectName;
-
-        try {
-            String query = 'SELECT Id FROM ' + currentTargetObjectName + ' WHERE Id = :targetId LIMIT 1';
+            String query = 'SELECT Id FROM ' + this.targetSObjectName + ' WHERE Id = :targetId LIMIT 1';
             List<SObject> targetCheck = Database.queryWithBinds(
                 query,
-                new Map<String, Object>{ 'targetId' => currentTargetId },
+                new Map<String, Object>{ 'targetId' => this.targetSObjectId },
                 AccessLevel.USER_MODE
             );
+
             if (targetCheck.isEmpty()) {
                 throw new ActionSecurityException(
-                    'Target ' + currentFeedType + ' with ID ' + currentTargetId + ' not found or user lacks READ access.'
+                    'Target ' + this.feedType + ' with ID ' + this.targetSObjectId + ' not found or user lacks access.'
                 );
             }
         } catch (System.QueryException qe) {
-            throw qe;
+            String enhancedMessage = 'Failed to validate access to Chatter target: ' + qe.getMessage();
+
+            throw new ActionSecurityException(enhancedMessage);
         }
+    }
 
-        ConnectApi.FeedItemInput feedItemInput = new ConnectApi.FeedItemInput();
-        ConnectApi.MessageBodyInput messageBodyInput = new ConnectApi.MessageBodyInput();
-        ConnectApi.TextSegmentInput textSegment = new ConnectApi.TextSegmentInput();
-        textSegment.text = args.text;
-        messageBodyInput.messageSegments = new List<ConnectApi.MessageSegmentInput>{ textSegment };
-        feedItemInput.body = messageBodyInput;
+    /**
+     * @description Creates and posts Chatter message with enhanced error handling
+     */
+    private ConnectApi.FeedElement createChatterPost(String text, List<String> topics) {
+        try {
+            if (text.length() > 10000) {
+                text = text.substring(0, 10000) + '... [truncated]';
+            }
 
-        feedItemInput.subjectId = currentTargetId;
+            ConnectApi.FeedItemInput feedItemInput = new ConnectApi.FeedItemInput();
+            ConnectApi.MessageBodyInput messageBodyInput = new ConnectApi.MessageBodyInput();
+            ConnectApi.TextSegmentInput textSegment = new ConnectApi.TextSegmentInput();
+            textSegment.text = text;
+            messageBodyInput.messageSegments = new List<ConnectApi.MessageSegmentInput>{ textSegment };
+            feedItemInput.body = messageBodyInput;
+            feedItemInput.subjectId = this.targetSObjectId;
 
-        if (args.topics != null && !args.topics.isEmpty()) {
-            ConnectApi.FeedElementCapabilitiesInput capabilitiesInput = new ConnectApi.FeedElementCapabilitiesInput();
-            ConnectApi.TopicsCapabilityInput topicsCapabilityInput = new ConnectApi.TopicsCapabilityInput();
-            topicsCapabilityInput.topics = new List<String>();
-            for (String topicName : args.topics) {
-                if (String.isNotBlank(topicName)) {
-                    topicsCapabilityInput.topics.add(topicName.trim());
+            if (topics != null && !topics.isEmpty()) {
+                ConnectApi.FeedElementCapabilitiesInput capabilitiesInput = new ConnectApi.FeedElementCapabilitiesInput();
+                ConnectApi.TopicsCapabilityInput topicsCapabilityInput = new ConnectApi.TopicsCapabilityInput();
+                topicsCapabilityInput.topics = new List<String>();
+
+                for (String topicName : topics) {
+                    if (String.isNotBlank(topicName)) {
+                        String cleanTopic = topicName.trim();
+
+                        if (cleanTopic.length() <= 25) {
+                            topicsCapabilityInput.topics.add(cleanTopic);
+                        } else {
+                        }
+                    }
+                }
+
+                if (!topicsCapabilityInput.topics.isEmpty()) {
+                    capabilitiesInput.topics = topicsCapabilityInput;
+                    feedItemInput.capabilities = capabilitiesInput;
                 }
             }
-            if (!topicsCapabilityInput.topics.isEmpty()) {
-                capabilitiesInput.topics = topicsCapabilityInput;
-                feedItemInput.capabilities = capabilitiesInput;
-            }
+
+            return ConnectApi.ChatterFeeds.postFeedElement(Network.getNetworkId(), feedItemInput);
+        } catch (ConnectApi.ConnectApiException cae) {
+            String enhancedMessage = 'Chatter post failed: ' + cae.getMessage();
+
+            throw new ValidationException(enhancedMessage, null);
+        } catch (Exception ex) {
+            String enhancedMessage = 'Unexpected error posting to Chatter: ' + ex.getMessage();
+
+            throw new ValidationException(enhancedMessage, null);
         }
+    }
 
-        ConnectApi.FeedElement feedElement = ConnectApi.ChatterFeeds.postFeedElement(Network.getNetworkId(), feedItemInput);
+    public class ChatterResult {
+        public String feedElementId;
+        public String message;
+        public Integer messageLength;
+        public Integer topicCount;
+        public Map<String, Object> metadata;
 
-        String successMsg = 'I have successfully posted the message to the ' + currentFeedType + ' feed.';
-        Map<String, Object> dataPayload = new Map<String, Object>{ 'feedElementId' => feedElement.id };
-        String internalDetails = 'Chatter post created. ID: ' + feedElement.id;
-
-        return this.success(dataPayload, successMsg, internalDetails);
+        public ChatterResult(String feedElementId, String message, Integer messageLength, Integer topicCount) {
+            this.feedElementId = feedElementId;
+            this.message = message;
+            this.messageLength = messageLength;
+            this.topicCount = topicCount;
+            this.metadata = new Map<String, Object>{
+                'feedElementId' => feedElementId,
+                'messageLength' => messageLength,
+                'topicCount' => topicCount,
+                'postSuccessful' => true
+            };
+        }
     }
 }

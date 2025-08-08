@@ -8,7 +8,7 @@
     <columns>ImplementationDetail__c</columns>
     <columns>StandardActionType__c</columns>
     <columns>RunAsynchronously__c</columns>
-    <columns>IsActive__c</columns>
+    <columns>ExposureLevel__c</columns>
     <filterScope>Everything</filterScope>
     <label>All</label>
 </ListView>

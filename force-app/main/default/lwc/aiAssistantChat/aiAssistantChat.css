@@ -1,3 +1,11 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2025 Sonal
+ */
+
 .chat-container {
     height: 60vh;
     min-height: 300px;
@@ -191,19 +199,178 @@ pre.slds-code {
     position: relative;
 }
 
-.startover-button-container {
+.message-actions {
     position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
+    top: var(--lwc-spacingXxSmall, 0.25rem);
+    right: var(--lwc-spacingXxSmall, 0.25rem);
     opacity: 0;
     transition: opacity 0.2s ease-in-out;
+    z-index: 10;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: var(--lwc-borderRadiusSmall, 0.125rem);
+    backdrop-filter: blur(4px);
 }
 
-.slds-chat-listitem:hover .startover-button-container {
+.slds-chat-listitem:hover .message-actions {
     opacity: 1;
 }
 
-.slds-chat-listitem_outbound .startover-button-container {
-    right: 100%;
-    margin-right: 0.5rem;
+.message-actions lightning-button-icon {
+    --sds-c-button-neutral-color-background: transparent;
+    --sds-c-button-neutral-color-border: transparent;
+}
+
+.message-actions lightning-button-icon:hover {
+    --sds-c-button-neutral-color-background: var(--lwc-colorBackgroundButtonDefaultHover, #f3f2f2);
+    --sds-c-button-neutral-color-border: var(--lwc-colorBorderButtonDefault, #dddbda);
+}
+
+.slds-chat-message {
+    position: relative;
+    margin: var(--lwc-spacingXSmall, 0.5rem) 0;
+}
+
+.slds-chat-message__text {
+    position: relative;
+    transition: box-shadow 0.2s ease-in-out;
+}
+
+.slds-chat-listitem:hover .slds-chat-message__text {
+    box-shadow:
+        var(--lwc-shadowDrag, 0 2px 4px 0 rgba(0, 0, 0, 0.16)),
+        0 0 0 1px var(--lwc-colorBorder, #dddbda);
+}
+
+.slds-chat-input-container {
+    background-color: var(--lwc-colorBackground, #ffffff);
+    border-top: 1px solid var(--lwc-colorBorder, #dddbda);
+    padding: var(--lwc-spacingMedium, 1rem);
+    margin-top: 0;
+}
+
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.slds-notify_alert {
+    margin-bottom: var(--lwc-spacingMedium, 1rem);
+    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+}
+
+.slds-chat-listitem_transient {
+    animation: fadeInTransient 0.3s ease-in-out;
+}
+
+.slds-chat-message__text_transient {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 1px dashed var(--lwc-colorBorderSeparator, #dddbda);
+    color: var(--lwc-colorTextLabel, #706e6b);
+    font-style: italic;
+    position: relative;
+    overflow: hidden;
+}
+
+.slds-chat-message__text_transient::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 123, 211, 0.1), transparent);
+    animation: shimmer 2s infinite;
+}
+
+.slds-chat-message__text_transient .slds-chat-message__text-content {
+    position: relative;
+    z-index: 1;
+}
+
+.slds-chat-listitem_transient .slds-chat-meta-text {
+    color: var(--lwc-colorTextLabel, #706e6b);
+    font-style: italic;
+}
+
+.transient-prefix {
+    opacity: 0.7;
+    margin-right: var(--lwc-spacingXxSmall, 0.25rem);
+    font-size: 0.9em;
+}
+
+.slds-chat-listitem_transient .slds-chat-avatar .slds-avatar {
+    position: relative;
+}
+
+.slds-chat-listitem_transient .slds-chat-avatar .slds-avatar::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    background-color: var(--lwc-brandAccessible, #0176d3);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes fadeInTransient {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scale(1.2);
+    }
+}
+
+@media (max-width: 768px) {
+    .chat-container {
+        height: 50vh;
+        min-height: 250px;
+    }
+
+    .message-actions {
+        opacity: 0.7;
+        background-color: rgba(255, 255, 255, 0.95);
+    }
+
+    .slds-chat-listitem:hover .message-actions,
+    .message-actions:focus-within {
+        opacity: 1;
+    }
+
+    .slds-chat-message__text_transient::before {
+        animation: none;
+    }
 }

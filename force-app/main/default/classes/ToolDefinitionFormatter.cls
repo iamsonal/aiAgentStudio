@@ -39,7 +39,7 @@ public inherited sharing class ToolDefinitionFormatter {
                     StandardActionType__c,
                     BackendConfiguration__c
                 FROM AgentCapability__c
-                WHERE AIAgentDefinition__c = :agentDefinitionId AND IsActive__c = TRUE
+                WHERE AIAgentDefinition__c = :agentDefinitionId AND ExposureLevel__c = 'External'
                 ORDER BY ExecutionPriority__c ASC NULLS LAST, CapabilityName__c ASC
             ];
 

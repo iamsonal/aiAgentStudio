@@ -59,14 +59,14 @@
                                 <div class="slds-chat-message">
                                     <template if:true={showStartOverButton}>
                                         <template if:true={message.isOutbound}>
-                                            <div class="startover-button-container">
+                                            <div class="message-actions">
                                                 <lightning-button-icon
                                                     icon-name="utility:redo"
                                                     variant="border-filled"
+                                                    alternative-text="Start over from here"
+                                                    title="Start over from here"
                                                     size="x-small"
-                                                    alternative-text="Start Over From Here"
-                                                    title="Start Over From Here"
-                                                    data-external-id={message.externalId}
+                                                    data-message-id={message.externalId}
                                                     onclick={handleStartOverClick}
                                                 >
                                                 </lightning-button-icon>
@@ -77,8 +77,19 @@
                                     <template if:true={message.isInbound}>
                                         <div class="slds-chat-avatar">
                                             <span class="slds-avatar slds-avatar_circle slds-avatar_small">
-                                                <lightning-icon icon-name={message.avatarIcon} alternative-text={message.roleLabel} size="small">
-                                                </lightning-icon>
+                                                <template if:true={message.isTransient}>
+                                                    <lightning-icon
+                                                        icon-name="utility:einstein"
+                                                        alternative-text="Assistant thinking"
+                                                        size="small"
+                                                        class="transient-avatar"
+                                                    >
+                                                    </lightning-icon>
+                                                </template>
+                                                <template if:false={message.isTransient}>
+                                                    <lightning-icon icon-name={message.avatarIcon} alternative-text={message.roleLabel} size="small">
+                                                    </lightning-icon>
+                                                </template>
                                             </span>
                                         </div>
                                     </template>
@@ -87,6 +98,9 @@
                                         <div class={message.textBubbleClass}>
                                             <template if:true={message.prefix}>
                                                 <span class={message.prefixClass}>{message.prefix}</span>
+                                            </template>
+                                            <template if:true={message.isTransient}>
+                                                <span class="transient-prefix">💭 </span>
                                             </template>
                                             <div class="slds-chat-message__text-content">
                                                 <lightning-formatted-rich-text value={message.content}></lightning-formatted-rich-text>
@@ -130,28 +144,43 @@
                     </ul>
                 </div>
 
-                <div slot="footer" class="slds-p-horizontal_medium slds-p-vertical_small">
-                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-end slds-chat-input-container">
+                <div class="slds-chat-input-container">
+                    <template if:true={criticalError}>
+                        <div class="slds-notify slds-notify_alert slds-theme_alert-texture slds-m-bottom_small" role="alert">
+                            <lightning-icon
+                                icon-name="utility:warning"
+                                alternative-text="Error!"
+                                variant="inverse"
+                                size="small"
+                                class="slds-m-right_small"
+                            ></lightning-icon>
+                            <span>Chat is temporarily unavailable. Please refresh the page.</span>
+                        </div>
+                    </template>
+
+                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-end">
                         <div class="slds-grow">
                             <lightning-textarea
-                                label="User Message"
+                                label="Type your message"
                                 variant="label-hidden"
-                                placeholder="Type your message..."
+                                placeholder={inputPlaceholder}
                                 value={userMessageInput}
                                 onchange={handleInputChange}
                                 onkeydown={handleKeyDown}
                                 max-length="32000"
                                 class="slds-chat-input"
                                 disabled={isInputDisabled}
+                                aria-describedby="input-help"
                             >
                             </lightning-textarea>
+                            <div id="input-help" class="slds-assistive-text">Press Enter to send, Shift+Enter for new line</div>
                         </div>
                         <div class="slds-m-left_small slds-chat-send-button">
                             <lightning-button
                                 icon-name="utility:send"
                                 variant="brand"
                                 label="Send"
-                                title="Send Message"
+                                title={sendButtonTitle}
                                 onclick={handleSendMessageClick}
                                 disabled={isInputDisabled}
                                 class="slds-chat-button"
