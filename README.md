@@ -8,6 +8,16 @@ The framework is designed around a "clicks, not code" philosophy for orchestrati
 
 ---
 
+## Target Audience
+
+This framework is designed for:
+
+*   **Salesforce Administrators:** To declaratively build, configure, and manage powerful AI agents and their capabilities—including complex business processes using the visual Graph Builder—without writing Apex code.
+*   **Salesforce Developers:** To extend the framework with custom actions (`IAgentAction`), context providers (`IAgentContextProvider`), and LLM integrations (`ILLMProviderAdapter`) to meet unique business requirements.
+*   **Salesforce Architects:** To design and implement secure, scalable, and observable AI solutions that integrate seamlessly with the Salesforce platform's security and data models.
+
+---
+
 ## Core Features & Capabilities
 
 This framework is designed to empower teams to build, manage, and scale powerful AI assistants on the Salesforce platform. Its key features are focused on providing a balance of flexibility, control, and enterprise-grade reliability.
@@ -40,6 +50,28 @@ This framework is designed to empower teams to build, manage, and scale powerful
 #### **Advanced Observability & Debugging**
 *   **Orchestration "Flight Recorder":** A detailed `OrchestrationLogger` captures every step of an agent's decision-making process into the `OrchestrationLog__c` object. This provides deep, step-by-step visibility into prompt composition, tool selection, action execution, and graph transitions, making debugging complex interactions straightforward.
 *   **Graph Execution Logs:** For graph-based capabilities, every node execution, state transition, and input/output is logged to `GraphExecutionLog__c`, providing a complete audit trail of the automated process.
+
+---
+
+## Architectural Layers
+
+To better understand the framework, it's helpful to view it as two distinct but interconnected layers: the **Core Agent Framework** and the **Graph Orchestration Engine**.
+
+1.  **The Core Agent Framework (Foundation)**
+    This is the foundational layer responsible for all conversational AI interactions. It includes:
+    *   Session and message management (`ChatSession__c`, `ChatMessage__c`).
+    *   LLM connectivity and interaction (`LLMInteractionService`, `ILLMProviderAdapter`).
+    *   Context gathering and prompt construction (`ContextManagerService`, `SystemPromptBuilder`).
+    *   The execution of single-step **"Primitive" capabilities** (Standard, Apex, or Flow actions).
+
+    You can build a fully functional, powerful conversational agent using only the Core Framework.
+
+2.  **The Graph Orchestration Engine (Advanced Process Automation)**
+    This is an advanced layer built *on top of* the Core Framework. It allows you to chain Primitive capabilities together to execute complex, multi-step business processes. It includes:
+    *   **Backend Components:** The `GraphNode__c` object to define steps, and the `GraphExecutionService` to run the process.
+    *   **Configuration:** An `AgentCapability__c` with `ImplementationType__c = 'Graph'` serves as the entry point.
+
+    While the backend components for running graphs are included in this package, the **`graphBuilder` suite of Lightning Web Components is considered a separate, specialized design tool.** It is not part of the core runtime framework itself but is a purpose-built UI for administrators to visually configure the Graph Orchestration Engine. This separation ensures the core agent runtime remains lean while providing powerful visual tooling for those who need it.
 
 ---
 
@@ -87,80 +119,151 @@ This AI Agent framework is built on several modern design patterns to ensure fle
 
 ```mermaid
 sequenceDiagram
-    participant U as User
+    actor U as User
     participant UI as LWC Interface
-    participant Backend as Agent Framework Backend
-    participant PE_Handler as Platform Event Handler
+    participant SF as Salesforce Agent Framework
     participant LLM as External LLM
-    participant ActionExecutor as Action Executor
-    participant GraphExecutor as Graph Executor
-    participant ApprovalProcess as Salesforce Approval
-
-    U->>UI: Send Message
-    UI->>Backend: AIAssistantController.sendMessage()
     
-    alt Run As User Configured
-        Backend->>PE_Handler: Publish UserContextSwitchEvent__e
-        PE_Handler->>Backend: Re-invoke logic as RunAsUser
-    else Run As User Not Configured
-        Backend->>Backend: Process Directly
-    end
-
-    Backend->>Backend: Save User Message, Resolve Context
-    Backend->>LLM: Call LLM (with History/Tools/Context)
-    LLM-->>Backend: LLM Response
-
-    alt LLM Call Failed
-        Backend->>Backend: Log & Set Session Failed
-        Backend-->>UI: Display Error (via AgentResponse__e)
-    else LLM Response Received
-        Backend->>Backend: Process LLM Response (OrchestrationService)
-
-        alt Content Only
-            Backend->>Backend: Save Assistant Message & Finalize Turn
-            Backend-->>UI: Display Response (via AgentResponse__e)
-        else Tool Call Requested
-            Backend->>Backend: Save Assistant Message (w/ tool calls)
-
-            alt Capability is a Graph
-                Backend->>GraphExecutor: Start Graph Run
-                GraphExecutor->>PE_Handler: Enqueue GraphStep Job
-                Backend-->>UI: Update Status (Processing...)
-            else Capability is a Primitive Action
-                opt Approval Required
-                    Backend->>ApprovalProcess: Create HumanApprovalRequest__c & Submit
-                    Backend->>PE_Handler: Enqueue Follow-Up LLM Job
-                    Backend-->>UI: Update Status (Pending Approval)
-                end
-
-                opt Not for Approval
-                    alt Asynchronous Action
-                        Backend->>PE_Handler: Enqueue Async Action Job
-                        Backend-->>UI: Show Transient Message (Optional, via TransientMessage__e)
-                        Backend-->>UI: Update Status (Processing...)
-                    else Synchronous Action
-                        Backend->>ActionExecutor: Execute Sync Action
-                        ActionExecutor-->>Backend: Action Result
-                        Backend->>Backend: Save Tool Result Message
-                        Backend->>PE_Handler: Enqueue Follow-Up LLM Job
-                        Backend-->>UI: Update Status (Processing...)
-                    end
-                end
-            end
+    U->>UI: 1. Send Message
+    UI->>SF: 2. AIAssistantController.sendMessage()
+    SF->>SF: 3. Resolve Context & Prepare Prompt
+    SF->>LLM: 4. Call LLM for next step
+    LLM-->>SF: 5. LLM Response (Content or Tool Call)
+    
+    alt 6a. Content-Only Response
+        SF->>SF: Save Messages & Finalize Turn
+        SF-->>UI: 7a. Push Final Response (via AgentResponse__e)
+        UI-->>U: Response delivered
+    else 6b. Tool Call Requested
+        SF->>SF: 7b. Dispatch Action/Graph
+        
+        alt Synchronous Action / Graph (Fast)
+            SF->>SF: 8a. Execute Action or Graph Steps Synchronously
+            note right of SF: Runs simple actions OR graph chains<br/>that don't require an async handoff.
+            SF->>LLM: 9a. Follow-up with Final Result
+            LLM-->>SF: 10a. Final Content Response
+            SF->>SF: 11a. Save Messages & Finalize Turn
+            SF-->>UI: 12a. Push Final Response (via AgentResponse__e)
+            UI-->>U: Final response delivered
+        else Asynchronous Action / Graph (Slow / Callout)
+            SF->>SF: 8b. Enqueue Background Job
+            note right of SF: For single async actions, graphs starting<br/>async, or graphs transitioning to async.
+            SF-->>UI: 9b. Update Status to "Processing..."
+            UI-->>U: Status update delivered
+            
+            note right of SF: Initial request ends. The rest happens in the background.
+            
+            SF->>SF: 10b. Background Job Executes Action/Graph Step(s)
+            SF->>LLM: 11b. Follow-up with Result
+            LLM-->>SF: 12b. Final Content Response
+            SF->>SF: 13b. Save Messages & Finalize Turn
+            SF-->>UI: 14b. Push Final Response (via AgentResponse__e)
+            UI-->>U: Final response delivered
         end
     end
-
-    par Async Action/Graph Execution
-        PE_Handler->>ActionExecutor: Execute Action
-        ActionExecutor-->>PE_Handler: Action Result
-        PE_Handler->>Backend: Process Action Result
-        Backend->>PE_Handler: Enqueue Follow-Up LLM Job
-    and LLM Follow-Up Flow
-        PE_Handler->>LLM: Call LLM (with new action result)
-        LLM-->>PE_Handler: LLM Response
-        PE_Handler->>Backend: Process LLM Response (re-enters main loop)
-    end
 ```
+---
+
+## Developer's Corner: Creating a Custom Action
+
+Developers can easily extend the framework by creating custom Apex actions. By inheriting from `BaseAgentAction`, you get standardized error handling, validation, and result wrapping for free.
+
+**Example: A custom action to get the current user's details.**
+
+1.  **Create the Apex Class:**
+    ```apex
+    // File: classes/actions/ActionGetUserDetails.cls
+    public class ActionGetUserDetails extends BaseAgentAction {
+        // This is the only method you need to implement!
+        public override Object executeAction(Map<String, Object> params) {
+            // No input parameters are needed for this action.
+            // The framework provides user context automatically via this.actionContext.
+            Id userId = this.actionContext.originalUserId;
+
+            User u = [SELECT Name, Email, Title, Department FROM User WHERE Id = :userId];
+            
+            // Return a simple map. The framework will wrap it in a standard success response.
+            // The 'message' key will be used for the user-facing success message.
+            return new Map<String, Object>{
+                'message' => 'I have retrieved the current user\'s details.',
+                'userDetails' => u
+            };
+        }
+    }
+    ```
+
+2.  **Register as a Capability:** Create an `AgentCapability__c` record:
+    *   **Capability Name:** `get_user_details`
+    *   **Description:** "Retrieves the full name, email, title, and department of the current user."
+    *   **Implementation Type:** `Apex`
+    *   **Implementation Detail:** `ActionGetUserDetails`
+    *   **Parameters:** `{"type": "object", "properties": {}}` (since no LLM input is needed).
+
+---
+
+## Configuration Deep Dive: JSON Examples
+
+Here are examples of the key JSON configuration fields to help guide setup.
+
+#### 1. `Parameters__c` (on AgentCapability__c)
+Defines the inputs an action expects from the LLM. This uses a standard JSON Schema format.
+
+**Example for an action that creates a Contact:**
+```json
+{
+  "type": "object",
+  "properties": {
+    "lastName": {
+      "type": "string",
+      "description": "The last name of the contact."
+    },
+    "firstName": {
+      "type": "string",
+      "description": "The first name of the contact."
+    },
+    "email": {
+      "type": "string",
+      "description": "The primary email address of the contact."
+    }
+  },
+  "required": ["lastName", "firstName"]
+}
+```
+
+#### 2. `BackendConfiguration__c` (on AgentCapability__c)
+Provides static, backend-only configuration to a standard action handler. The LLM never sees this.
+
+**Example for a "CreateRecord" standard action to create a Contact:**
+```json
+{
+  "objectApiName": "Contact",
+  "defaultFieldValues": {
+    "LeadSource": "AI Assistant"
+  }
+}
+```
+
+#### 3. `ConditionalEdges__c` (on GraphNode__c)
+Defines the routing logic from one node to the next in a graph. The framework evaluates these in order.
+
+**Example for a node that checks a case status:**
+```json
+[
+  {
+    "condition": "{!result.isSuccess} == true && {!node.check_case_status.output.Status} == 'Closed'",
+    "nextNode": "send_survey_node"
+  },
+  {
+    "condition": "{!result.isSuccess} == true",
+    "nextNode": "escalate_case_node"
+  },
+  {
+    "condition": "true",
+    "nextNode": "handle_error_node"
+  }
+]
+```
+
 ---
 
 ## Setup
@@ -197,10 +300,33 @@ sequenceDiagram
 
 ## Known Limitations & Potential Future Enhancements
 
-*   **State Reconciliation:** A background reconciliation job (Scheduled Apex) could be implemented to identify and fail "stuck" sessions left in a transient state by a rare, unhandled error.
-*   **Advanced Context Management:** Future enhancements could include native RAG (Retrieval Augmented Generation) via vector DBs or agent-driven context selection.
-*   **Dynamic LLM Routing:** Allow an agent to dynamically choose an LLM model/provider based on task complexity, cost, or specific capabilities.
-*   **Observability Deep Dive:** Enhance the observability UI to visualize `OrchestrationLog__c` and `GraphExecutionLog__c` records, providing a clear, interactive "flight recording" of agent turns.
+*   **Current State:** The framework has robust backend logging (`OrchestrationLog__c`, `GraphExecutionLog__c`) that acts as a "flight recorder" for every agent turn.
+*   **Potential Enhancement: Observability UI.** Create a dedicated LWC that visualizes the `OrchestrationLog__c` and `GraphExecutionLog__c` records. This would provide administrators with an interactive timeline of the agent's decision-making process, making it easier to debug complex interactions and graph executions without needing to write SOQL queries.
+
+*   **Current State:** Context is managed by a sophisticated "Context Ledger" (`ContextManagerService`) that intelligently tracks Salesforce records with relevance scoring.
+*   **Potential Enhancement: Native Retrieval-Augmented Generation (RAG).** Integrate with a Vector Database to allow the agent to perform semantic searches against external knowledge bases (e.g., documentation, help articles). This would augment the agent's knowledge beyond what is stored in Salesforce records, enabling it to answer a wider range of questions.
+
+*   **Current State:** Asynchronous processing relies on Salesforce Platform Events, which are highly scalable but offer limited out-of-the-box monitoring for specific job statuses.
+*   **Potential Enhancement: Proactive Session Monitoring.** Implement a Scheduled Apex job that runs periodically to check for `ChatSession__c` records that may have become "stuck" in a processing state (e.g., `Awaiting Action`) due to an unhandled platform-level error. The job could reset these sessions to a `Failed` state and notify an administrator.
+
+*   **Current State:** An `AIAgentDefinition__c` is statically linked to a single `LLMConfiguration__c`.
+*   **Potential Enhancement: Dynamic LLM Routing.** Develop an advanced routing mechanism that allows a single agent to choose the most appropriate LLM model (or even provider) on-the-fly based on the complexity, cost, or specific requirements of the user's prompt. For example, using a small, fast model for simple queries and a larger, more powerful model for complex reasoning tasks.
+
+*   **Current State:** Configuration of Primitive capabilities and Context Providers is done through standard Salesforce record edit pages.
+*   **Potential Enhancement: Guided Configuration Wizards.** Develop LWCs to provide a guided setup experience for creating `AgentCapability__c` and `AgentContextConfig__c` records. These wizards could help admins correctly format JSON schemas and provide real-time validation, reducing configuration errors.
+
+---
+
+## ⚠️ Important Disclaimer
+
+This AI Agent Framework is provided "as is" and "with all faults." The developers make no warranties, express or implied, and hereby disclaim all other warranties, including without limitation, any implied warranties of merchantability, fitness for a particular purpose, or non-infringement.
+
+**Use at Your Own Risk:**
+*   **AI-Generated Content:** Responses and actions are driven by a Large Language Model (LLM) and may be inaccurate, incomplete, or inappropriate. **All AI-generated output should be independently verified before being relied upon.**
+*   **Automated Actions:** The agent can perform actions that modify data within your Salesforce organization (e.g., creating/updating records, posting to Chatter). You are solely responsible for configuring the agent's capabilities and for any actions it performs.
+*   **No Liability:** In no event shall the authors or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
+
+It is your responsibility to test this framework thoroughly in a sandbox environment and to configure its permissions and capabilities in a way that aligns with your organization's security and data governance policies.
 
 ---
 
