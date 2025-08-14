@@ -7,20 +7,20 @@
  */
 
 /**
- * @description Enhanced orchestration logging utility that acts as a "flight recorder" for AI agent decision-making.
- *              Provides deep, step-by-step visibility into conversational turns, supporting both traditional
- *              action execution and modern graph-based workflows. Integrates with the current framework's
- *              ActionContext, OrchestrationContext, and async processing patterns.
+ * @description
+ * OrchestrationLogger is a robust, transaction-scoped logging utility for AI agent orchestration flows.
+ * It provides detailed, chronological visibility into conversational turns, action execution, LLM interactions,
+ * and decision-making processes. The logger buffers log entries for efficient bulk commit, manages sequence
+ * numbers for ordering, and supports granular step-type/status tracking. Its design prioritizes debuggability,
+ * extensibility, and minimal disruption to mainline agent execution, even in the face of logging failures.
  *
- * @features
- * - Transaction-scoped log buffering with explicit commit control
- * - Automatic sequence management per turn
- * - Support for both sync and async execution patterns
- * - Graph execution step tracking
- * - Enhanced payload serialization with truncation
- * - Comprehensive error handling and recovery
- * - Performance-optimized caching
- * - Integration with current framework services
+ * Key responsibilities:
+ *   - Buffering and committing orchestration logs for each chat session/turn
+ *   - Automatic sequence management for ordered log records
+ *   - Rich, structured payload capture (inputs, outputs, errors, durations, etc.)
+ *   - Context-aware logging for LLM, action, and graph execution steps
+ *   - Resilience: logging failures never block or break agent flows
+ *   - Developer-friendly debug output for troubleshooting and monitoring
  */
 public inherited sharing class OrchestrationLogger {
     @TestVisible
@@ -36,6 +36,7 @@ public inherited sharing class OrchestrationLogger {
     private static final Integer MAX_DETAILS_LENGTH = 131000;
     private static final Integer MAX_ERROR_LENGTH = 131000;
 
+    // Step type constants for orchestration logging
     public static final String TYPE_USER_PROMPT = 'UserPrompt';
     public static final String TYPE_CONTEXT_GATHERING = 'ContextGathering';
     public static final String TYPE_LLM_PREP = 'LLMRequestPreparation';
@@ -50,30 +51,26 @@ public inherited sharing class OrchestrationLogger {
     public static final String TYPE_GRAPH_NODE = 'GraphNodeExecution';
     public static final String TYPE_GRAPH_TRANSITION = 'GraphNodeTransition';
     public static final String TYPE_GRAPH_COMPLETE = 'GraphExecutionComplete';
-
     public static final String TYPE_TOOL_SAVE = 'ToolResultSaving';
     public static final String TYPE_TOOL_VALIDATION = 'ToolValidation';
-
     public static final String TYPE_DISPATCH = 'NextStepDispatch';
     public static final String TYPE_ASYNC_QUEUE = 'AsyncJobQueued';
     public static final String TYPE_ASYNC_RESUME = 'AsyncJobResumed';
-
     public static final String TYPE_TURN_COMPLETE = 'TurnCompletion';
     public static final String TYPE_TURN_FAIL = 'TurnFailure';
-
     public static final String TYPE_APPROVAL_REQUEST = 'ApprovalRequested';
     public static final String TYPE_APPROVAL_RESPONSE = 'ApprovalProcessed';
-
     public static final String STATUS_INIT = 'Initiated';
     public static final String STATUS_SUCCESS = 'Success';
     public static final String STATUS_FAILURE = 'Failure';
     public static final String STATUS_SKIPPED = 'Skipped';
 
     /**
-     * @description Checks if detailed logging is enabled for the given session ID.
-     *              Uses a transaction-scoped cache to minimize queries and improve performance.
-     * @param sessionId ID of the ChatSession__c
-     * @return Boolean True if enabled, false otherwise. Returns false if sessionId is null or record not found.
+     * Checks if orchestration logging is enabled for the given chat session.
+     *
+     * @param sessionId   The ChatSession__c Id to check logging status for.
+     * @return            True if logging is enabled for this session, false if not or if session is missing.
+     * @sideeffect       Caches the result for the sessionId for the duration of the transaction.
      */
     public static Boolean isEnabled(Id sessionId) {
         if (sessionId == null) {
@@ -92,19 +89,26 @@ public inherited sharing class OrchestrationLogger {
                 ];
                 isEnabled = (!sessions.isEmpty() && sessions[0].EnableOrchestrationLogging__c == true);
             } catch (Exception e) {
+                System.debug(
+                    LoggingLevel.ERROR,
+                    '[OrchestrationLogger.isEnabled] Error checking logging flag for session ' + sessionId + ': ' + e.getMessage()
+                );
+                // Default to false on error to prevent logging failures from disrupting main flow
                 isEnabled = false;
             }
             loggingEnabledCache.put(sessionId, isEnabled);
+            System.debug(LoggingLevel.DEBUG, '[OrchestrationLogger.isEnabled] Cached logging status for ' + sessionId + ': ' + isEnabled);
         }
         return loggingEnabledCache.get(sessionId);
     }
 
     /**
-     * @description Gets the next sequence number for a given session, providing global ordering across all turns.
-     *              This ensures proper chronological ordering for UI visualization.
-     * @param sessionId The chat session ID for global sequence tracking
-     * @param turnIdentifier The turn identifier for turn-specific tracking
-     * @return Integer The next global sequence number for this session
+     * Generates the next sequence number for log ordering within a session and turn.
+     *
+     * @param sessionId      The ChatSession__c Id for global sequence tracking.
+     * @param turnIdentifier The turn identifier for turn-specific sequence tracking.
+     * @return               The next sequence number for this session.
+     * @sideeffect           Updates the sequence cache for both session and turn.
      */
     @TestVisible
     private static Integer getNextSequence(Id sessionId, String turnIdentifier) {
@@ -112,6 +116,7 @@ public inherited sharing class OrchestrationLogger {
             return 1;
         }
 
+        // Maintain global sequence per session for chronological ordering
         String sessionKey = String.valueOf(sessionId);
         Integer globalSequence = turnSequenceCache.get(sessionKey);
         if (globalSequence == null) {
@@ -121,6 +126,7 @@ public inherited sharing class OrchestrationLogger {
         globalSequence++;
         turnSequenceCache.put(sessionKey, globalSequence);
 
+        // Track turn-specific sequence for reference
         if (String.isNotBlank(turnIdentifier)) {
             String turnKey = sessionKey + ':' + turnIdentifier;
             Integer turnSequence = turnSequenceCache.get(turnKey);
@@ -132,24 +138,23 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Enhanced logging method that automatically manages sequence numbers and integrates
-     *              with the current framework's context objects. Supports both ActionContext and
-     *              OrchestrationContext for seamless integration.
+     * Logs a single orchestration step, automatically managing sequence and serializing payloads.
      *
-     * @param sessionId - Chat Session ID (Required)
-     * @param turnIdentifier - User Turn Identifier (Required)
-     * @param stepType - Picklist API Name from OrchestrationLog__c.StepType__c (Required, use constants)
-     * @param status - Picklist API Name from OrchestrationLog__c.Status__c (Required, use constants)
-     * @param details - Optional summary text
-     * @param inputPayload - Optional input object (will be JSON serialized & truncated)
-     * @param outputPayload - Optional output object (will be JSON serialized & truncated)
-     * @param errorMessage - Optional error message text (if status=Failure)
-     * @param errorCode - Optional error code (if status=Failure)
-     * @param durationMs - Optional step duration
-     * @param chatMessageId - Optional related ChatMessage__c ID
-     * @param agentCapabilityId - Optional related AgentCapability__c ID
-     * @param llmConfigId - Optional related LLMConfiguration__c ID
-     * @param toolCallId - Optional LLM Tool Call ID
+     * @param sessionId         Chat session Id (required)
+     * @param turnIdentifier    Turn identifier (required)
+     * @param stepType          Step type constant (required)
+     * @param status            Status constant (required)
+     * @param details           Optional step description
+     * @param inputPayload      Optional input data (JSON serialized)
+     * @param outputPayload     Optional output data (JSON serialized)
+     * @param errorMessage      Optional error message for failures
+     * @param errorCode         Optional error code for failures
+     * @param durationMs        Optional step duration in ms
+     * @param chatMessageId     Optional related chat message Id
+     * @param agentCapabilityId Optional related agent capability Id
+     * @param llmConfigId       Optional related LLM config Id
+     * @param toolCallId        Optional LLM tool call Id
+     * @sideeffect              Buffers the log entry for later commit.
      */
     public static void logStep(
         Id sessionId,
@@ -167,6 +172,7 @@ public inherited sharing class OrchestrationLogger {
         Id llmConfigId,
         String toolCallId
     ) {
+        // Generate sequence number for chronological ordering
         Integer sequence = getNextSequence(sessionId, turnIdentifier);
         logStepWithSequence(
             sessionId,
@@ -188,11 +194,12 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Convenience method for logging from ActionContext
-     * @param context The ActionContext containing session and turn information
-     * @param stepType The type of step being logged
-     * @param status The status of the step
-     * @param details Optional details about the step
+     * Logs an orchestration step using ActionContext for session and turn information.
+     *
+     * @param context   ActionContext containing session and turn data.
+     * @param stepType  Step type constant.
+     * @param status    Status constant.
+     * @param details   Optional step description.
      */
     public static void logFromActionContext(ActionContext context, String stepType, String status, String details) {
         if (context == null)
@@ -217,11 +224,12 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Convenience method for logging from OrchestrationContext
-     * @param context The OrchestrationContext containing session and turn information
-     * @param stepType The type of step being logged
-     * @param status The status of the step
-     * @param details Optional details about the step
+     * Logs an orchestration step using OrchestrationContext for session and turn information.
+     *
+     * @param context   OrchestrationContext containing session and turn data.
+     * @param stepType  Step type constant.
+     * @param status    Status constant.
+     * @param details   Optional step description.
      */
     public static void logFromOrchestrationContext(OrchestrationContext context, String stepType, String status, String details) {
         if (context == null)
@@ -231,8 +239,24 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Internal method that handles the actual logging with explicit sequence management.
-     *              This maintains backward compatibility while adding auto-sequence functionality.
+     * Internal logging method with explicit sequence management. Used for backward compatibility and advanced scenarios.
+     *
+     * @param sessionId         Chat session Id
+     * @param turnIdentifier    Turn identifier
+     * @param sequence          Explicit sequence number
+     * @param stepType          Step type constant
+     * @param status            Status constant
+     * @param details           Optional step description
+     * @param inputPayload      Optional input data
+     * @param outputPayload     Optional output data
+     * @param errorMessage      Optional error message
+     * @param errorCode         Optional error code
+     * @param durationMs        Optional step duration
+     * @param chatMessageId     Optional related chat message Id
+     * @param agentCapabilityId Optional related agent capability Id
+     * @param llmConfigId       Optional related LLM config Id
+     * @param toolCallId        Optional LLM tool call Id
+     * @sideeffect              Buffers the log entry for later commit.
      */
     @TestVisible
     private static void logStepWithSequence(
@@ -256,7 +280,22 @@ public inherited sharing class OrchestrationLogger {
             return;
         }
 
+        // Validate required parameters
         if (String.isBlank(turnIdentifier) || sequence == null || String.isBlank(stepType) || String.isBlank(status)) {
+            System.debug(
+                LoggingLevel.ERROR,
+                '[OrchestrationLogger.logStepWithSequence] Skipping log: missing required parameter(s). ' +
+                    'SessionId=' +
+                    sessionId +
+                    ', Turn=' +
+                    turnIdentifier +
+                    ', Seq=' +
+                    sequence +
+                    ', Type=' +
+                    stepType +
+                    ', Status=' +
+                    status
+            );
             return;
         }
 
@@ -278,6 +317,7 @@ public inherited sharing class OrchestrationLogger {
                 ToolCallId__c = toolCallId
             );
 
+            // Serialize and truncate payload data
             if (inputPayload != null) {
                 log.PayloadInput__c = serializeAndTruncate(inputPayload);
             }
@@ -286,18 +326,44 @@ public inherited sharing class OrchestrationLogger {
             }
 
             logBuffer.add(log);
+
+            System.debug(
+                LoggingLevel.DEBUG,
+                '[OrchestrationLogger] Log buffered: SessionId=' +
+                    sessionId +
+                    ', Turn=' +
+                    turnIdentifier +
+                    ', Seq=' +
+                    sequence +
+                    ', Type=' +
+                    stepType +
+                    ', Status=' +
+                    status
+            );
         } catch (Exception e) {
+            System.debug(
+                LoggingLevel.ERROR,
+                '[OrchestrationLogger.logStepWithSequence] Failed to create log for session ' +
+                    sessionId +
+                    ', turn ' +
+                    turnIdentifier +
+                    ', seq ' +
+                    sequence +
+                    ': ' +
+                    e.getMessage()
+            );
         }
     }
 
     /**
-     * @description Commits (inserts) any buffered OrchestrationLog__c records for the current transaction.
-     *              Enhanced with better error handling, performance metrics, and recovery mechanisms.
-     *              Uses allOrNone=false and traps DML exceptions to prevent logging failures
-     *              from disrupting the main agent flow. Clears the buffer after attempting insert.
+     * Commits all buffered log records to the database in partial success mode.
+     *
+     * @sideeffect   Clears the buffer after commit. Logs errors but never throws.
+     * @debug        Outputs commit summary and any failures to debug logs.
      */
     public static void commitLogs() {
         if (logBuffer.isEmpty()) {
+            System.debug(LoggingLevel.DEBUG, '[OrchestrationLogger.commitLogs] No logs to commit (buffer is empty)');
             return;
         }
 
@@ -338,31 +404,56 @@ public inherited sharing class OrchestrationLogger {
             Long duration = System.currentTimeMillis() - startTime;
 
             if (!errorMessages.isEmpty()) {
+                System.debug(LoggingLevel.ERROR, '[OrchestrationLogger.commitLogs] Log commit failures: ' + String.join(errorMessages, '; '));
             }
+
+            System.debug(
+                LoggingLevel.INFO,
+                '[OrchestrationLogger.commitLogs] Log commit summary: duration=' +
+                    duration +
+                    'ms, total=' +
+                    logsToInsert.size() +
+                    ', success=' +
+                    successCount +
+                    ', failures=' +
+                    failureCount
+            );
         } catch (Exception e) {
             Long duration = System.currentTimeMillis() - startTime;
+            System.debug(
+                LoggingLevel.ERROR,
+                '[OrchestrationLogger.commitLogs] CRITICAL: Database insert failed after ' + duration + 'ms. Exception: ' + e.getMessage()
+            );
         } finally {
             if (!logBuffer.isEmpty()) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    '[OrchestrationLogger.commitLogs] Buffer not empty after commit, clearing ' + logBuffer.size() + ' entries'
+                );
                 logBuffer.clear();
             }
         }
     }
 
     /**
-     * @description Commits logs and clears sequence cache for a specific turn.
-     *              Useful when a turn completes to free up memory and ensure clean state.
-     * @param turnIdentifier The turn identifier to clean up
+     * Commits logs and cleans up sequence cache for a completed turn.
+     *
+     * @param turnIdentifier   The turn identifier to remove from the sequence cache.
+     * @sideeffect            Commits logs and removes turn sequence from cache.
      */
     public static void commitLogsAndCleanupTurn(String turnIdentifier) {
         commitLogs();
         if (String.isNotBlank(turnIdentifier) && turnSequenceCache.containsKey(turnIdentifier)) {
             turnSequenceCache.remove(turnIdentifier);
+            System.debug(LoggingLevel.DEBUG, '[OrchestrationLogger] Cleaned sequence cache for turn: ' + turnIdentifier);
         }
     }
 
     /**
-     * @description Safely serializes an object to JSON and truncates if necessary.
-     *              Enhanced with better error handling and performance optimization.
+     * Serializes an object to JSON, truncating if necessary and handling serialization errors gracefully.
+     *
+     * @param payload   The object to serialize.
+     * @return          JSON string (possibly truncated), or error payload if serialization fails.
      */
     @TestVisible
     private static String serializeAndTruncate(Object payload) {
@@ -375,7 +466,9 @@ public inherited sharing class OrchestrationLogger {
             return truncateText(jsonString, MAX_PAYLOAD_LENGTH);
         } catch (Exception e) {
             String errMsg = '[OrchestrationLogger] Payload serialization failed: ' + e.getMessage();
+            System.debug(LoggingLevel.ERROR, errMsg);
 
+            // Create safe error payload
             Map<String, Object> errorPayload = new Map<String, Object>{
                 'error' => 'Failed to serialize payload',
                 'errorType' => e.getTypeName(),
@@ -392,10 +485,11 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Safely truncates text to specified length with proper truncation indicator.
-     * @param text The text to truncate
-     * @param maxLength The maximum allowed length
-     * @return String The truncated text or original if within limits
+     * Truncates a string to the specified length, appending a truncation indicator if needed.
+     *
+     * @param text       The text to truncate.
+     * @param maxLength  The maximum allowed length.
+     * @return           Truncated text or original if within limits.
      */
     @TestVisible
     private static String truncateText(String text, Integer maxLength) {
@@ -411,18 +505,24 @@ public inherited sharing class OrchestrationLogger {
         }
 
         String truncated = text.left(availableLength) + truncationIndicator;
+        System.debug(LoggingLevel.WARN, '[OrchestrationLogger] Truncated text from ' + text.length() + ' to ' + truncated.length() + ' characters');
 
         return truncated;
     }
 
+    // ============================================================================
+    // --- Enhanced Utility Methods ---
+    // ============================================================================
+
     /**
-     * @description Logs tool call parsing and validation.
-     * @param sessionId The chat session ID
-     * @param turnIdentifier The turn identifier
-     * @param toolCallsJson The raw tool calls JSON from LLM
-     * @param parsedActions The parsed action requests
-     * @param validationResults Any validation results
-     * @param durationMs Time taken to parse
+     * Logs the parsing and validation of tool calls from an LLM response.
+     *
+     * @param sessionId         The chat session Id.
+     * @param turnIdentifier    The turn identifier.
+     * @param toolCallsJson     The raw tool calls JSON from the LLM.
+     * @param parsedActions     The parsed action requests.
+     * @param validationResults Any validation results.
+     * @param durationMs        Time taken to parse (ms).
      */
     public static void logActionParsing(
         Id sessionId,
@@ -456,12 +556,13 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Enhanced action start logging with complete context and arguments.
-     * @param context The ActionContext for the execution
-     * @param actionName The name of the action being executed
-     * @param arguments The arguments passed to the action
-     * @param toolCallId The LLM tool call ID
-     * @param actionConfig The action configuration
+     * Logs the start of an action execution, including context and arguments.
+     *
+     * @param context      The ActionContext for the execution.
+     * @param actionName   The name of the action being executed.
+     * @param arguments    The arguments passed to the action.
+     * @param toolCallId   The LLM tool call ID.
+     * @param actionConfig The action configuration.
      */
     public static void logActionStart(ActionContext context, String actionName, String arguments, String toolCallId, String actionConfig) {
         if (context == null)
@@ -497,18 +598,19 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Backward compatibility method for simple action start logging.
+     * Backward compatibility overload for simple action start logging (no toolCallId or config).
      */
     public static void logActionStart(ActionContext context, String actionName, String arguments) {
         logActionStart(context, actionName, arguments, null, null);
     }
 
     /**
-     * @description Logs the result of an action execution with performance metrics.
-     * @param context The ActionContext for the execution
-     * @param actionName The name of the action that was executed
-     * @param result The ActionResult from the execution
-     * @param durationMs The execution duration in milliseconds
+     * Logs the result of an action execution, including success/failure and performance metrics.
+     *
+     * @param context     The ActionContext for the execution.
+     * @param actionName  The name of the action that was executed.
+     * @param result      The ActionResult from the execution.
+     * @param durationMs  The execution duration in ms.
      */
     public static void logActionResult(ActionContext context, String actionName, ActionResult result, Long durationMs) {
         if (context == null || result == null)
@@ -542,12 +644,13 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Logs user prompt/message with full context for conversation tracking.
-     * @param sessionId The chat session ID
-     * @param turnIdentifier The turn identifier
-     * @param userMessage The user's message content
-     * @param messageId The ChatMessage__c ID
-     * @param relatedRecordId Any related record context
+     * Logs a user prompt/message with full context for conversation tracking.
+     *
+     * @param sessionId        The chat session Id.
+     * @param turnIdentifier   The turn identifier.
+     * @param userMessage      The user's message content.
+     * @param messageId        The ChatMessage__c Id.
+     * @param relatedRecordId  Any related record context.
      */
     public static void logUserPrompt(Id sessionId, String turnIdentifier, String userMessage, Id messageId, Id relatedRecordId) {
         Map<String, Object> inputPayload = new Map<String, Object>{
@@ -576,12 +679,13 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Logs context gathering phase with retrieved context information.
-     * @param sessionId The chat session ID
-     * @param turnIdentifier The turn identifier
-     * @param contextSources List of context sources gathered
-     * @param contextData The actual context data retrieved
-     * @param durationMs Time taken to gather context
+     * Logs the context gathering phase, including sources and retrieved data.
+     *
+     * @param sessionId        The chat session Id.
+     * @param turnIdentifier   The turn identifier.
+     * @param contextSources   List of context sources gathered.
+     * @param contextData      The actual context data retrieved.
+     * @param durationMs       Time taken to gather context (ms).
      */
     public static void logContextGathering(Id sessionId, String turnIdentifier, List<String> contextSources, Object contextData, Long durationMs) {
         Map<String, Object> inputPayload = new Map<String, Object>{
@@ -608,15 +712,16 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Logs LLM request preparation with complete prompt and configuration.
-     * @param sessionId The chat session ID
-     * @param turnIdentifier The turn identifier
-     * @param systemPrompt The system prompt used
-     * @param userPrompt The user prompt/message
-     * @param conversationHistory The conversation history included
-     * @param toolDefinitions Available tool definitions
-     * @param llmConfigId The LLM configuration used
-     * @param durationMs Time taken to prepare request
+     * Logs the preparation of an LLM request, including prompts, history, and tool definitions.
+     *
+     * @param sessionId            The chat session Id.
+     * @param turnIdentifier       The turn identifier.
+     * @param systemPrompt         The system prompt used.
+     * @param userPrompt           The user prompt/message.
+     * @param conversationHistory  The conversation history included.
+     * @param toolDefinitions      Available tool definitions.
+     * @param llmConfigId          The LLM configuration used.
+     * @param durationMs           Time taken to prepare request (ms).
      */
     public static void logLlmRequestPreparation(
         Id sessionId,
@@ -660,15 +765,16 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Logs LLM call attempt with complete request details.
-     * @param sessionId The chat session ID
-     * @param turnIdentifier The turn identifier
-     * @param requestPayload The complete request sent to LLM
-     * @param llmConfigId The LLM configuration used
-     * @param status The call status (STATUS_INIT for start, STATUS_SUCCESS/FAILURE for completion)
-     * @param durationMs The call duration (null for start)
-     * @param errorMessage Any error message if failed
-     * @param errorCode Any error code if failed
+     * Logs an LLM call attempt, including request details, status, and errors if any.
+     *
+     * @param sessionId      The chat session Id.
+     * @param turnIdentifier The turn identifier.
+     * @param requestPayload The complete request sent to LLM.
+     * @param llmConfigId    The LLM configuration used.
+     * @param status         The call status (STATUS_INIT, STATUS_SUCCESS, STATUS_FAILURE).
+     * @param durationMs     The call duration (ms, null for start).
+     * @param errorMessage   Any error message if failed.
+     * @param errorCode      Any error code if failed.
      */
     public static void logLlmCall(
         Id sessionId,
@@ -703,13 +809,14 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Logs LLM response with complete response details and analysis.
-     * @param sessionId The chat session ID
-     * @param turnIdentifier The turn identifier
-     * @param requestPayload The original request for context
-     * @param responsePayload The complete LLM response
-     * @param llmConfigId The LLM configuration used
-     * @param durationMs The total interaction duration
+     * Logs an LLM response, including request, response, and extracted analysis metrics.
+     *
+     * @param sessionId        The chat session Id.
+     * @param turnIdentifier   The turn identifier.
+     * @param requestPayload   The original request for context.
+     * @param responsePayload  The complete LLM response.
+     * @param llmConfigId      The LLM configuration used.
+     * @param durationMs       The total interaction duration (ms).
      */
     public static void logLlmResponse(
         Id sessionId,
@@ -719,6 +826,7 @@ public inherited sharing class OrchestrationLogger {
         Id llmConfigId,
         Long durationMs
     ) {
+        // Extract key metrics from response for better visibility
         Map<String, Object> responseAnalysis = analyzeLlmResponse(responsePayload);
 
         String details =
@@ -749,7 +857,10 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Analyzes LLM response payload to extract key metrics for logging.
+     * Analyzes an LLM response payload to extract key metrics for logging (tokens, tool calls, content, etc).
+     *
+     * @param responsePayload  The LLM response payload.
+     * @return                 Map of extracted metrics.
      */
     @TestVisible
     private static Map<String, Object> analyzeLlmResponse(Object responsePayload) {
@@ -764,18 +875,21 @@ public inherited sharing class OrchestrationLogger {
             if (responsePayload instanceof Map<String, Object>) {
                 Map<String, Object> response = (Map<String, Object>) responsePayload;
 
+                // Extract token usage
                 if (response.containsKey('providerResult')) {
                     Map<String, Object> providerResult = (Map<String, Object>) response.get('providerResult');
                     if (providerResult?.containsKey('totalTokens')) {
                         analysis.put('totalTokens', providerResult.get('totalTokens'));
                     }
 
+                    // Check for tool calls
                     if (providerResult?.containsKey('requestedActions')) {
                         List<Object> actions = (List<Object>) providerResult.get('requestedActions');
                         analysis.put('toolCallCount', actions?.size() ?? 0);
                         analysis.put('responseType', (actions?.size() ?? 0) > 0 ? 'tool_call' : 'content');
                     }
 
+                    // Check for content
                     if (providerResult?.containsKey('content')) {
                         String content = (String) providerResult.get('content');
                         analysis.put('hasContent', String.isNotBlank(content));
@@ -786,21 +900,23 @@ public inherited sharing class OrchestrationLogger {
                 }
             }
         } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, '[OrchestrationLogger] Failed to analyze LLM response: ' + e.getMessage());
         }
 
         return analysis;
     }
 
     /**
-     * @description Logs graph execution steps with node information.
-     * @param sessionId The chat session ID
-     * @param turnIdentifier The turn identifier
-     * @param stepType The type of graph step
-     * @param status The status of the step
-     * @param nodeName The name of the graph node
-     * @param nodeInputs The inputs to the node
-     * @param nodeOutputs The outputs from the node
-     * @param durationMs The execution duration
+     * Logs a graph execution step, including node name, inputs, outputs, and duration.
+     *
+     * @param sessionId      The chat session Id.
+     * @param turnIdentifier The turn identifier.
+     * @param stepType       The type of graph step.
+     * @param status         The status of the step.
+     * @param nodeName       The name of the graph node.
+     * @param nodeInputs     The inputs to the node.
+     * @param nodeOutputs    The outputs from the node.
+     * @param durationMs     The execution duration (ms).
      */
     public static void logGraphStep(
         Id sessionId,
@@ -818,17 +934,19 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Gets current buffer size for monitoring and debugging.
-     * @return Integer The number of logs currently buffered
+     * Gets the current buffer size (number of logs currently buffered).
+     *
+     * @return   The number of logs currently buffered.
      */
     public static Integer getBufferSize() {
         return logBuffer.size();
     }
 
     /**
-     * @description Gets current sequence for a turn (for debugging).
-     * @param turnIdentifier The turn identifier
-     * @return Integer The current sequence number for the turn
+     * Gets the current sequence number for a turn (for debugging).
+     *
+     * @param turnIdentifier   The turn identifier.
+     * @return                 The current sequence number for the turn.
      */
     @TestVisible
     public static Integer getCurrentSequence(String turnIdentifier) {
@@ -836,21 +954,27 @@ public inherited sharing class OrchestrationLogger {
     }
 
     /**
-     * @description Clears all caches and buffers (for testing or transaction resets).
+     * Clears all caches and buffers (for testing or transaction resets).
+     *
+     * @sideeffect   Empties all internal caches and log buffer.
      */
     @TestVisible
     private static void clearCache() {
         loggingEnabledCache.clear();
         turnSequenceCache.clear();
         logBuffer.clear();
+        System.debug(LoggingLevel.DEBUG, '[OrchestrationLogger] All caches and buffers cleared.');
     }
 
     /**
-     * @description Emergency method to force commit logs if transaction is about to fail.
-     *              Should only be used in exception handlers as a last resort.
+     * Emergency method to force commit logs if transaction is about to fail.
+     * Should only be used in exception handlers as a last resort.
+     *
+     * @sideeffect   Attempts to commit all buffered logs immediately.
      */
     public static void emergencyCommit() {
         if (!logBuffer.isEmpty()) {
+            System.debug(LoggingLevel.WARN, '[OrchestrationLogger] Emergency commit triggered with ' + logBuffer.size() + ' logs');
             commitLogs();
         }
     }

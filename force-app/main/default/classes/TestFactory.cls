@@ -14,6 +14,7 @@
  */
 @TestVisible
 public with sharing class TestFactory {
+    // --- Static counter to ensure unique developer names across multiple calls in a single test ---
     private static Integer counter = 1;
 
     /**
@@ -23,12 +24,16 @@ public with sharing class TestFactory {
     public static AgentSetupData createFullAgentSetup() {
         AgentSetupData setup = new AgentSetupData();
 
+        // 1. LLM Configuration
         setup.llmConfig = createLLMConfiguration();
 
-        setup.agentDefinition = createAgentDefinition(null);
+        // 2. Agent Definition (linked to the LLM config)
+        setup.agentDefinition = createAgentDefinition(null); // Will be linked after insert
 
+        // 3. Agent Capabilities
         setup.capabilities = createStandardCapabilities(null);
 
+        // 4. Context Provider Configs
         setup.contextConfigs = createContextConfigs(null);
 
         return setup;
@@ -43,7 +48,7 @@ public with sharing class TestFactory {
             Name = 'Test OpenAI LLM ' + counter,
             DeveloperName__c = 'Test_OpenAI_LLM_' + counter++,
             ProviderAdapterClass__c = OpenAIProviderAdapter.class.getName(),
-            NamedCredential__c = 'OpenAI_API_Test',
+            NamedCredential__c = 'OpenAI_API_Test', // A placeholder name
             DefaultModelIdentifier__c = 'gpt-4o-mini',
             IsActive__c = true
         );
@@ -73,6 +78,7 @@ public with sharing class TestFactory {
     public static List<AgentCapability__c> createStandardCapabilities(Id agentDefId) {
         List<AgentCapability__c> capabilities = new List<AgentCapability__c>();
 
+        // Capability 1: Find Records (Standard Action)
         capabilities.add(
             createSingleCapability(
                 agentDefId,
@@ -80,13 +86,14 @@ public with sharing class TestFactory {
                 'Searches for records like Accounts or Contacts.',
                 '{"type":"object","properties":{"searchQuery":{"type":"string"}},"required":["searchQuery"]}',
                 'Standard',
-                null,
+                null, // No ImplementationDetail for Standard
                 'FindEntities',
                 false,
-                null
+                null // No BackendConfiguration for FindEntities
             )
         );
 
+        // Capability 2: Create Opportunity (Standard Action with Backend Config)
         capabilities.add(
             createSingleCapability(
                 agentDefId,
@@ -97,7 +104,7 @@ public with sharing class TestFactory {
                 null,
                 'CreateRecord',
                 false,
-                '{"objectApiName": "Opportunity"}'
+                '{"objectApiName": "Opportunity"}' // Backend config tells the action what to create
             )
         );
 
@@ -143,7 +150,7 @@ public with sharing class TestFactory {
                 AIAgentDefinition__c = agentDefId,
                 ContextLabel__c = 'Test User Context',
                 ImplementationType__c = 'Apex',
-                ImplementationName__c = 'UserDetailsProvider',
+                ImplementationName__c = 'UserDetailsProvider', // Assuming this mock provider exists
                 ExecutionOrder__c = 10,
                 IsActive__c = true
             )
@@ -177,6 +184,7 @@ public with sharing class TestFactory {
         Datetime now = Datetime.now();
 
         for (Integer i = 1; i <= count; i++) {
+            // User Message
             messages.add(
                 new ChatMessage__c(
                     ChatSession__c = sessionId,
@@ -186,7 +194,7 @@ public with sharing class TestFactory {
                     ExternalId__c = UuidUtils.generateUUID()
                 )
             );
-
+            // Assistant Response
             messages.add(
                 new ChatMessage__c(
                     ChatSession__c = sessionId,

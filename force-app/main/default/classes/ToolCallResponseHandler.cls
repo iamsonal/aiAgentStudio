@@ -7,29 +7,48 @@
  */
 
 /**
- * @description Strategy implementation for handling LLM responses that request a tool call.
- *              Contains the logic for validation, approval checks, and sync/async execution.
+ * ToolCallResponseHandler orchestrates the full lifecycle of tool call requests originating from LLM responses within the agent framework.
+ *
+ * Responsibilities:
+ *   - Validates and interprets tool call requests from LLM output.
+ *   - Determines whether tool execution requires human approval or can proceed autonomously.
+ *   - Manages both synchronous and asynchronous execution paths for tool actions, including queuing and follow-up.
+ *   - Integrates with chat history, approval processes, and orchestration services to maintain robust conversation and action state.
+ *   - Ensures traceability and error handling throughout the tool call process, providing clear runtime diagnostics and developer insight.
+ *
+ * This class is central to bridging LLM-driven intent with secure, auditable, and extensible tool execution in the agent orchestration framework.
  */
 public class ToolCallResponseHandler implements ILLMResponseHandler {
     public class ToolProcessingException extends AIAgentException {
     }
 
     /**
-     * @description Main entry point. Handles the entire tool call process.
-     * @param context The orchestration context containing all necessary state and services.
-     * @return String An outcome constant (e.g., OrchestrationService.OUTCOME_QUEUED_ACTION).
+     * Entry point for handling a tool call request from an LLM response.
+     *
+     * Examines the requested action, validates agent capability, and determines whether to route
+     * the request through a human approval workflow or execute it directly (synchronously or asynchronously).
+     *
+     * @param context OrchestrationContext containing session state, LLM result, and service references.
+     * @return String outcome constant indicating the next orchestration step (e.g., queued, failed, follow-up).
+     * @throws ToolProcessingException if the tool request is malformed or capability is missing.
      */
     public String handle(OrchestrationContext context) {
         String logPrefix = context.logPrefix + '[ToolCallHandler] ';
+        System.debug(LoggingLevel.INFO, logPrefix + 'Starting tool call handling for LLM response.');
 
         LLMInteractionService.MessageData assistantData = context.llmResult.assistantMessageData;
 
+        // Currently, only one tool call per turn is supported. Extend here for parallel tool calls if needed.
         Map<String, String> firstActionRequestMap = context.llmResult.providerResult.requestedActions[0];
         AIAssistantController.ActionRequest toolRequest = this.parseToolRequestMap(firstActionRequestMap);
 
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'Parsed tool request: Capability=' + toolRequest.name + ', ToolCallID=' + toolRequest.id);
+
+        // Retrieve capability configuration for the requested tool
         AgentCapability__c capability = AIAgentConfigService.getCapability(context.agentDefinitionId, toolRequest.name);
         this.validateCapability(capability, toolRequest.name, logPrefix);
 
+        // Persist user message to chat history for traceability
         Id savedUserMessageId = ChatMessageService.saveUserMessage(
             context.sessionId,
             context.turnIdentifier,
@@ -38,9 +57,11 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             logPrefix
         );
 
+        // Route to approval workflow or direct execution based on capability settings
         if (capability.RequiresApproval__c) {
             return this.handleApprovalRequiredAction(context, savedUserMessageId, assistantData, toolRequest, capability, logPrefix);
         } else {
+            // Save assistant message containing the tool call request for audit and context
             Id savedAssistantMessageId = ChatMessageService.saveAssistantMessage(
                 context.sessionId,
                 context.turnIdentifier,
@@ -58,7 +79,12 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                         MessageContent__c = assistantData.content
                     );
                     EventBus.publish(event);
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Published TransientMessage__e for UI update (assistant content).');
                 } catch (Exception e) {
+                    System.debug(
+                        LoggingLevel.WARN,
+                        logPrefix + 'Non-critical: Failed to publish TransientMessage__e for UI. Error: ' + e.getMessage()
+                    );
                 }
             }
 
@@ -67,13 +93,16 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     }
 
     /**
-     * @description Executes the action, branching between synchronous and asynchronous paths.
-     * @param context The orchestration context.
-     * @param savedAssistantMessageId The ID of the saved assistant message requesting the action.
-     * @param toolRequest The parsed tool request from the LLM.
-     * @param capability The fully queried AgentCapability__c record.
-     * @param logPrefix A logging prefix.
-     * @return String An outcome constant.
+     * Determines whether to execute the tool action synchronously or asynchronously based on capability configuration.
+     *
+     * If asynchronous, queues the action and pauses the turn; if synchronous, executes immediately and continues the conversation.
+     *
+     * @param context OrchestrationContext for the current turn.
+     * @param savedAssistantMessageId Id of the assistant message containing the tool call.
+     * @param toolRequest Parsed ActionRequest from the LLM.
+     * @param capability AgentCapability__c record for the tool.
+     * @param logPrefix String prefix for log output.
+     * @return String outcome constant for orchestration flow.
      */
     private String executeActionDirectly(
         OrchestrationContext context,
@@ -83,12 +112,14 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         String logPrefix
     ) {
         Boolean runAsync = capability.RunAsynchronously__c;
+        System.debug(LoggingLevel.INFO, logPrefix + 'Executing tool action "' + toolRequest.name + '". Async=' + runAsync);
 
         if (!runAsync) {
+            // Synchronous execution: continue conversation in same transaction
             return this.executeSyncActionAndContinue(context, savedAssistantMessageId, toolRequest, capability, logPrefix);
         } else {
+            // Asynchronous execution: queue and pause turn for later resumption
             context.turnLifecycleSvc.pauseForAsyncAction(context.sessionId, context.turnIdentifier, null, capability.CapabilityName__c, logPrefix);
-
             context.dispatchSvc.enqueueAsyncAction(
                 context.sessionId,
                 context.originalUserId,
@@ -102,13 +133,24 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 context.currentTurnCount,
                 logPrefix
             );
+            System.debug(LoggingLevel.INFO, logPrefix + 'Tool action queued for asynchronous execution.');
             return OrchestrationService.OUTCOME_QUEUED_ACTION;
         }
     }
 
     /**
-     * @description Handles the specific flow for actions that require Salesforce Approval.
-     *              This involves creating a HumanApprovalRequest__c record and finalizing the turn.
+     * Handles tool actions that require human approval via Salesforce approval process.
+     *
+     * Persists the approval request, submits it to the approval workflow, and manages error handling and cleanup.
+     * Also saves the pending status to chat history and queues a follow-up LLM call to inform the user.
+     *
+     * @param context OrchestrationContext for the current turn.
+     * @param savedUserMessageId Id of the user message for this turn.
+     * @param assistantData LLMInteractionService.MessageData for the assistant's response.
+     * @param toolRequest Parsed ActionRequest from the LLM.
+     * @param capability AgentCapability__c record for the tool.
+     * @param logPrefix String prefix for log output.
+     * @return String outcome constant for orchestration flow.
      */
     private String handleApprovalRequiredAction(
         OrchestrationContext context,
@@ -118,6 +160,11 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         AgentCapability__c capability,
         String logPrefix
     ) {
+        System.debug(
+            LoggingLevel.INFO,
+            logPrefix + 'Tool action "' + toolRequest.name + '" requires Salesforce Approval. Submitting approval request and finalizing turn.'
+        );
+
         String submissionComment = this.extractSubmissionComment(toolRequest.arguments, toolRequest.name, logPrefix);
         if (String.isBlank(submissionComment)) {
             String errMsg = 'Agent did not provide a required confirmation prompt for approval-required action "' + toolRequest.name + '".';
@@ -128,9 +175,11 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
                 logPrefix
             );
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Missing confirmation prompt for approval-required action. Failing turn.');
             return OrchestrationService.OUTCOME_FAILED;
         }
 
+        // Save assistant message with pending action status for audit and context
         Id assistantMessageId = ChatMessageService.saveAssistantMessageWithPendingAction(
             context.sessionId,
             context.turnIdentifier,
@@ -141,6 +190,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             logPrefix
         );
 
+        // Create approval request record for Salesforce approval process
         HumanApprovalRequest__c har = new HumanApprovalRequest__c(
             ChatSession__c = context.sessionId,
             OriginalAssistantMessage__c = assistantMessageId,
@@ -163,19 +213,27 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 logPrefix
             );
             OrchestrationService.clearPendingDetailsFromMessage(assistantMessageId, logPrefix);
+            System.debug(LoggingLevel.ERROR, logPrefix + 'DML error inserting HumanApprovalRequest__c: ' + e.getMessage());
             return OrchestrationService.OUTCOME_FAILED;
         }
 
         try {
+            // Submit approval request to Salesforce approval process
             Approval.ProcessSubmitRequest req = new Approval.ProcessSubmitRequest();
-
             req.setObjectId(har.Id);
-
             req.setComments('Submitted by AI Agent on behalf of user. Justification: ' + submissionComment);
-
             Approval.ProcessResult result = Approval.process(req);
-
             if (result.isSuccess()) {
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix +
+                        'HumanApprovalRequest__c ' +
+                        har.Id +
+                        ' successfully submitted to approval process. Instance ID: ' +
+                        result.getInstanceId()
+                );
+
+                // Store process instance ID for tracking approval status
                 update new HumanApprovalRequest__c(Id = har.Id, RelatedApprovalProcessInstanceId__c = result.getInstanceId());
             } else {
                 String submissionErrors = '';
@@ -192,11 +250,15 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
                 logPrefix
             );
-
-            delete har;
+            delete har; // Clean up orphaned approval request
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Approval process submission failed. Orphaned request deleted. Error: ' + approvalEx.getMessage()
+            );
             return OrchestrationService.OUTCOME_FAILED;
         }
 
+        // Save pending status as tool result for LLM context in next turn
         String toolResultContent = JSON.serialize(
             new Map<String, String>{
                 'status' => 'pending_approval',
@@ -220,6 +282,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             logPrefix
         );
 
+        // Queue follow-up LLM call to inform user about pending approval
         context.turnLifecycleSvc.resumeForFollowUpLlmCall(context.sessionId, context.turnIdentifier, null, logPrefix);
         context.dispatchSvc.enqueueFollowUp(
             context.sessionId,
@@ -235,7 +298,17 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     }
 
     /**
-     * @description Executes a synchronous action, processes its result, and determines the next step for the conversation.
+     * Executes a tool action synchronously and processes the result to determine the next conversation step.
+     *
+     * Handles both successful and failed outcomes, updating chat history and context as needed.
+     * May queue a follow-up LLM call or halt the conversation based on capability configuration and result.
+     *
+     * @param context OrchestrationContext for the current turn.
+     * @param savedAssistantMessageId Id of the assistant message containing the tool call.
+     * @param toolRequest Parsed ActionRequest from the LLM.
+     * @param capability AgentCapability__c record for the tool.
+     * @param logPrefix String prefix for log output.
+     * @return String outcome constant for orchestration flow.
      */
     private String executeSyncActionAndContinue(
         OrchestrationContext context,
@@ -244,8 +317,11 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         AgentCapability__c capability,
         String logPrefix
     ) {
+        // Use current page record as action context for tool execution
         Id actionRecordContextId = context.currentPageRecordId;
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'Resolved action context record ID: ' + actionRecordContextId);
 
+        // Build action execution context
         ActionContext actionContext = new ActionContext(
             context.sessionId,
             context.originalUserId,
@@ -265,6 +341,10 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         try {
             actionResult = context.actionExecSvc.executeSingleAction(capability, toolRequest.arguments, actionContext);
         } catch (Exception execEx) {
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Unhandled exception during synchronous tool execution: ' + execEx.getMessage() + '\n' + execEx.getStackTraceString()
+            );
             actionResult = new ActionResult(
                 'Action failed internally: ' + execEx.getMessage(),
                 execEx.getStackTraceString(),
@@ -274,10 +354,13 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             actionDuration = System.currentTimeMillis() - syncActionStart;
         }
 
+        // Null result indicates successful handoff to asynchronous processing
         if (actionResult == null) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Tool action dispatched to async job. No further action in this transaction.');
             return OrchestrationService.OUTCOME_QUEUED_ACTION;
         }
 
+        // Save tool result to chat history before any follow-up processing
         String resultJsonForStorage = OrchestrationService.serializeActionResult(actionResult, logPrefix);
         Id newRecordContextId = OrchestrationService.extractRecordIdFromResult(actionResult);
 
@@ -296,6 +379,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             logPrefix
         );
 
+        // If a new record was created, update the context ledger for future turns
         if (actionResult.isSuccess && newRecordContextId != null) {
             try {
                 context.contextManagerSvc.commitTurnContext(
@@ -305,17 +389,23 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     newRecordContextId
                 );
             } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Non-fatal: Failed to commit new record context to ledger: ' + e.getMessage());
             }
         }
 
+        // Determine next orchestration step based on result and capability configuration
         if (actionResult == null) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Tool action transitioned to async. Sync portion complete.');
             return OrchestrationService.OUTCOME_QUEUED_ACTION;
         }
         if (actionResult.isSuccess || capability.HaltAndReportError__c == false) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Tool action succeeded or is configured for autonomous recovery. Continuing agent loop.');
+
+            // Enforce maximum turn limit to prevent infinite loops
             Integer maxTurns = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
             if ((context.currentTurnCount + 1) > maxTurns) {
                 String limitErrorMsg = 'Maximum processing cycles (' + maxTurns + ') would be exceeded. The turn cannot continue.';
-
+                System.debug(LoggingLevel.WARN, logPrefix + limitErrorMsg + ' Failing turn.');
                 context.turnLifecycleSvc.failTurn(
                     context.sessionId,
                     context.turnIdentifier,
@@ -326,8 +416,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 return OrchestrationService.OUTCOME_FAILED;
             }
 
+            // Queue follow-up LLM call with updated tool result in conversation history
             context.turnLifecycleSvc.resumeForFollowUpLlmCall(context.sessionId, context.turnIdentifier, null, logPrefix);
-
             context.dispatchSvc.enqueueFollowUp(
                 context.sessionId,
                 context.originalUserId,
@@ -339,8 +429,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             );
             return OrchestrationService.OUTCOME_QUEUED_FOLLOWUP;
         } else {
+            // Action failed and is configured to halt - dispatch final error formulation call
+            System.debug(LoggingLevel.WARN, logPrefix + 'Tool action failed and is configured to HALT. Dispatching final error-formulation call.');
             context.turnLifecycleSvc.resumeForFollowUpLlmCall(context.sessionId, context.turnIdentifier, null, logPrefix);
-
             context.dispatchSvc.enqueueFollowUp(
                 context.sessionId,
                 context.originalUserId,
@@ -348,12 +439,20 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 context.turnIdentifier,
                 context.currentTurnCount + 1,
                 logPrefix,
-                true
+                true // Final error turn
             );
             return OrchestrationService.OUTCOME_QUEUED_FOLLOWUP;
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Helper methods for tool request processing
+    // -------------------------------------------------------------------------
+
+    /**
+     * Parses a tool request map from the LLM into a strongly-typed ActionRequest.
+     * Throws ToolProcessingException if required fields are missing.
+     */
     private AIAssistantController.ActionRequest parseToolRequestMap(Map<String, String> requestMap) {
         AIAssistantController.ActionRequest req = new AIAssistantController.ActionRequest();
         req.id = requestMap?.get('id');
@@ -361,18 +460,26 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         req.arguments = requestMap?.get('arguments');
         if (String.isBlank(req.id) || String.isBlank(req.name) || req.arguments == null) {
             throw new ToolProcessingException(
-                'Parsed LLM tool request missing id, name, or arguments JSON. RequestMap: ' + JSON.serialize(requestMap)
+                'Malformed LLM tool request: missing id, name, or arguments. RequestMap: ' + JSON.serialize(requestMap)
             );
         }
         return req;
     }
 
+    /**
+     * Validates that the given AgentCapability__c is present. Throws ConfigurationException if not found.
+     */
     private void validateCapability(AgentCapability__c capability, String capabilityName, String logPrefix) {
         if (capability == null) {
             throw new OrchestrationService.ConfigurationException('Active AgentCapability not found for name: "' + capabilityName + '"');
         }
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'Capability validated: ' + capabilityName);
     }
 
+    /**
+     * Extracts the submission comment (confirmation prompt) from the tool arguments JSON.
+     * Returns null if not present or if parsing fails.
+     */
     private String extractSubmissionComment(String argumentsJson, String capabilityName, String logPrefix) {
         if (String.isBlank(argumentsJson))
             return null;
@@ -381,6 +488,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             Object confirmationObj = argsMap.get(ToolDefinitionFormatter.SUBMISSION_COMMENT_PARAM_NAME);
             return (confirmationObj instanceof String && String.isNotBlank((String) confirmationObj)) ? (String) confirmationObj : null;
         } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to parse confirmation message for ' + capabilityName + ': ' + e.getMessage());
             return null;
         }
     }

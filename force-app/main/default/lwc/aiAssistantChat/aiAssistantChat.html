@@ -1,5 +1,6 @@
 <template>
     <lightning-card title={cardTitle} icon-name="utility:einstein">
+        <!-- Actions: New Chat button -->
         <div slot="actions">
             <lightning-button-icon
                 icon-name="utility:add"
@@ -14,6 +15,7 @@
 
         <div class="slds-card__body slds-card__body_inner">
             <div class="slds-grid slds-grid_vertical">
+                <!-- Chat History Container (scrollable) -->
                 <div class="slds-col slds-size_12-of-12 chat-container slds-scrollable_y" onscroll={handleScroll}>
                     <template if:true={criticalError}>
                         <div class="slds-notify slds-notify_alert slds-theme_alert-texture slds-m-bottom_small" role="alert">
@@ -29,6 +31,7 @@
                     </template>
 
                     <div class="slds-p-around_small slds-text-align_center">
+                        <!-- Load More button and spinner for paginated history -->
                         <template if:true={showLoadMoreButton}>
                             <lightning-button
                                 label="Load More"
@@ -53,10 +56,12 @@
                         </template>
                     </div>
 
+                    <!-- Chat message list -->
                     <ul class="slds-chat-list" lwc:ref="chatList">
                         <template for:each={chatMessages} for:item="message">
                             <li key={message.displayKey} class={message.listItemClass} data-key={message.displayKey}>
                                 <div class="slds-chat-message">
+                                    <!-- Start Over button for outbound messages (if enabled) -->
                                     <template if:true={showStartOverButton}>
                                         <template if:true={message.isOutbound}>
                                             <div class="message-actions">
@@ -74,6 +79,7 @@
                                         </template>
                                     </template>
 
+                                    <!-- Avatar for inbound (assistant) messages -->
                                     <template if:true={message.isInbound}>
                                         <div class="slds-chat-avatar">
                                             <span class="slds-avatar slds-avatar_circle slds-avatar_small">
@@ -99,12 +105,10 @@
                                             <template if:true={message.prefix}>
                                                 <span class={message.prefixClass}>{message.prefix}</span>
                                             </template>
-
                                             <div class="slds-chat-message__text-content">
                                                 <lightning-formatted-rich-text value={message.content}></lightning-formatted-rich-text>
                                             </div>
                                         </div>
-
                                         <div class="slds-chat-message__meta" aria-label={message.ariaLabelMeta}>
                                             <span class="slds-text-body_small slds-chat-meta-text"
                                                 >{message.roleLabel} • {message.formattedTimestamp}</span
@@ -115,6 +119,7 @@
                             </li>
                         </template>
 
+                        <!-- Typing indicator for assistant while sending -->
                         <template if:true={loadingState.sending}>
                             <li class="slds-chat-listitem slds-chat-listitem_inbound">
                                 <div class="slds-chat-message">
@@ -142,6 +147,7 @@
                     </ul>
                 </div>
 
+                <!-- Footer: Input area and send button -->
                 <div class="slds-chat-input-container">
                     <template if:true={criticalError}>
                         <div class="slds-notify slds-notify_alert slds-theme_alert-texture slds-m-bottom_small" role="alert">

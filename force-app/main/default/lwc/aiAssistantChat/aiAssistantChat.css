@@ -6,6 +6,7 @@
  * Copyright (c) 2025 Sonal
  */
 
+/* Main Chat Container */
 .chat-container {
     height: 60vh;
     min-height: 300px;
@@ -18,10 +19,12 @@
     scrollbar-width: thin;
 }
 
+/* SLDS Chat List Improvements */
 .slds-chat-list {
     padding: var(--lwc-spacingMedium, 1rem);
 }
 
+/* Message Bubbles - Enhanced with SLDS variables */
 .slds-chat-message__text {
     max-width: 85%;
     padding: var(--lwc-spacingSmall, 0.75rem);
@@ -43,11 +46,13 @@
     border-bottom-left-radius: 0;
 }
 
+/* Message Content Formatting */
 .slds-chat-message__text-content {
     word-break: break-word;
     white-space: pre-wrap;
 }
 
+/* Message Prefixes Styling */
 .message-prefix {
     font-weight: bold;
     display: block;
@@ -62,6 +67,7 @@
     color: #ffb75d;
 }
 
+/* Meta Information Styling */
 .slds-chat-message__meta {
     margin-top: var(--lwc-spacingXxSmall, 0.25rem);
     font-size: 0.75rem;
@@ -75,10 +81,12 @@
     text-align: right;
 }
 
+/* Accordion within Chat */
 .slds-chat-accordion {
     font-size: 0.75rem;
 }
 
+/* Code Block Styling */
 pre.slds-code {
     font-family: Consolas, Monaco, 'Courier New', Courier, monospace;
     font-size: 0.75rem;
@@ -91,6 +99,7 @@ pre.slds-code {
     white-space: pre-wrap;
 }
 
+/* Input Area Styling */
 .slds-chat-input-container {
     margin-top: var(--lwc-spacingXSmall, 0.5rem);
 }
@@ -115,6 +124,7 @@ pre.slds-code {
     --sds-c-button-brand-text-color: var(--lwc-colorTextButtonBrand, #ffffff);
 }
 
+/* Typing Indicator Animation */
 .slds-chat-typing {
     padding: var(--lwc-spacingXSmall, 0.5rem) var(--lwc-spacingSmall, 0.75rem);
     min-height: 2rem;
@@ -157,10 +167,12 @@ pre.slds-code {
     }
 }
 
+/* Loading Area Styling */
 .slds-is-relative {
     position: relative;
 }
 
+/* Custom Scrollbar for Webkit browsers */
 .chat-container::-webkit-scrollbar {
     width: 6px;
 }
@@ -179,13 +191,13 @@ pre.slds-code {
 }
 
 .confirmation-prompt {
-    border: 1px solid var(--lwc-colorBorderWarning, #ffb75d);
+    border: 1px solid var(--lwc-colorBorderWarning, #ffb75d); /* Example border */
     border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
-    background-color: #fffbee;
+    background-color: #fffbee; /* Example background */
 }
 
 .confirmation-prompt p {
-    white-space: pre-wrap;
+    white-space: pre-wrap; /* Respect newlines in the confirmation message */
 }
 
 .welcome-message {
@@ -196,9 +208,10 @@ pre.slds-code {
 }
 
 .slds-chat-message {
-    position: relative;
+    position: relative; /* Anchor for the absolute positioned button */
 }
 
+/* Container for message actions */
 .message-actions {
     position: absolute;
     top: var(--lwc-spacingXxSmall, 0.25rem);
@@ -211,10 +224,12 @@ pre.slds-code {
     backdrop-filter: blur(4px);
 }
 
+/* Show actions when hovering over the message */
 .slds-chat-listitem:hover .message-actions {
     opacity: 1;
 }
 
+/* Style the action button */
 .message-actions lightning-button-icon {
     --sds-c-button-neutral-color-background: transparent;
     --sds-c-button-neutral-color-border: transparent;
@@ -225,11 +240,13 @@ pre.slds-code {
     --sds-c-button-neutral-color-border: var(--lwc-colorBorderButtonDefault, #dddbda);
 }
 
+/* Improve message bubble spacing and interaction */
 .slds-chat-message {
     position: relative;
     margin: var(--lwc-spacingXSmall, 0.5rem) 0;
 }
 
+/* Enhanced message bubbles with better visual hierarchy */
 .slds-chat-message__text {
     position: relative;
     transition: box-shadow 0.2s ease-in-out;
@@ -241,6 +258,7 @@ pre.slds-code {
         0 0 0 1px var(--lwc-colorBorder, #dddbda);
 }
 
+/* Improved input area */
 .slds-chat-input-container {
     background-color: var(--lwc-colorBackground, #ffffff);
     border-top: 1px solid var(--lwc-colorBorder, #dddbda);
@@ -248,6 +266,7 @@ pre.slds-code {
     margin-top: 0;
 }
 
+/* Better loading states */
 .loading-overlay {
     position: absolute;
     top: 0;
@@ -261,11 +280,13 @@ pre.slds-code {
     z-index: 100;
 }
 
+/* Improved error states */
 .slds-notify_alert {
     margin-bottom: var(--lwc-spacingMedium, 1rem);
     border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
 }
 
+/* Professional Reasoning Mode Styling - Enterprise Look */
 .slds-chat-listitem_transient {
     animation: fadeInTransient 0.2s ease-in-out;
 }
@@ -288,12 +309,14 @@ pre.slds-code {
     font-size: 0.75rem;
 }
 
+/* Professional reasoning message meta styling */
 .slds-chat-listitem_transient .slds-chat-meta-text {
     color: var(--lwc-colorTextLabel, #706e6b);
     font-style: normal;
     font-weight: 500;
 }
 
+/* Professional reasoning message prefix */
 .transient-prefix {
     display: inline-block;
     background-color: var(--lwc-brandAccessible, #0176d3);
@@ -308,6 +331,7 @@ pre.slds-code {
     margin-bottom: var(--lwc-spacingXxSmall, 0.25rem);
 }
 
+/* Professional reasoning message avatar - subtle indicator */
 .slds-chat-listitem_transient .slds-chat-avatar .slds-avatar {
     position: relative;
     border: 2px solid var(--lwc-brandAccessible, #0176d3);
@@ -325,6 +349,7 @@ pre.slds-code {
     border-radius: 50%;
 }
 
+/* Professional Animations - Subtle and Enterprise-friendly */
 @keyframes fadeInTransient {
     from {
         opacity: 0;
@@ -343,6 +368,7 @@ pre.slds-code {
         min-height: 250px;
     }
 
+    /* On mobile, show actions by default since hover isn't reliable */
     .message-actions {
         opacity: 0.7;
         background-color: rgba(255, 255, 255, 0.95);
@@ -353,6 +379,7 @@ pre.slds-code {
         opacity: 1;
     }
 
+    /* Maintain professional styling on mobile */
     .slds-chat-message__text_transient {
         border-left-width: 2px;
     }

@@ -7,24 +7,36 @@
  */
 
 /**
- * @description Service for retrieving and saving raw ChatMessage__c SObjects.
- *              Handles query limits and allows basic pagination/sorting for history retrieval.
+ * @description
+ * ChatMessageService is the central service for managing ChatMessage__c records in conversational AI sessions.
+ *
+ * Responsibilities:
+ *   - Provides robust, turn-aware retrieval of chat history, ensuring conversation integrity and context preservation
+ *   - Supports flexible, paginated, and filtered access to message history for LLM and summarization workflows
+ *   - Handles persistence of user, assistant, and tool messages with detailed error handling and logging
+ *   - Ensures all message operations are auditable and maintainable, surfacing issues for troubleshooting
+ *
+ * This class is not intended for direct use outside the agent framework's messaging and memory subsystems.
  */
 public inherited sharing class ChatMessageService {
     public class PersistenceException extends AIAgentException {
     }
 
+    // Overloaded method for backward compatibility and use cases that don't need the summarization filter.
     public static List<ChatMessage__c> getHistory(Id sessionId, Integer limitCount, String sortOrder, Datetime olderThanTimestamp) {
         return getHistory(sessionId, limitCount, sortOrder, olderThanTimestamp, false);
     }
 
     /**
-     * @description Retrieves raw ChatMessage__c records for a session. Used for UI or raw history needs.
-     * @param sessionId The ID of the ChatSession__c.
-     * @param limitCount Max messages to retrieve (uses Framework Setting default if null/invalid).
-     * @param sortOrder Sort order ('ASC' or 'DESC'). Default 'ASC'.
-     * @param olderThanTimestamp Optional pagination marker (usually used with 'DESC' sort).
-     * @return List of ChatMessage__c SObject records.
+     * Retrieves ChatMessage__c records for a session with flexible filtering and pagination.
+     * Supports summarization filtering and enforces framework-defined limits for performance.
+     *
+     * @param sessionId         The chat session identifier.
+     * @param limitCount        Maximum messages to retrieve (framework default applied if null).
+     * @param sortOrder         Chronological sort direction ('ASC' or 'DESC').
+     * @param olderThanTimestamp Pagination boundary for efficient large dataset handling.
+     * @param onlyUnsummarized  If true, only messages not yet processed by summarization are returned.
+     * @return                  Ordered list of ChatMessage__c records matching criteria.
      */
     public static List<ChatMessage__c> getHistory(
         Id sessionId,
@@ -77,15 +89,18 @@ public inherited sharing class ChatMessageService {
     }
 
     /**
-     * @description Saves a list of ChatMessage__c SObject records, allowing partial success.
-     * @param messages List of ChatMessage__c records to insert.
-     * @return List of Database.SaveResult objects.
-     * @throws DmlException if Database.insert throws an exception beyond SaveResult errors.
+     * Persists a list of ChatMessage__c records with comprehensive error handling and partial success support.
+     * Provides detailed logging for monitoring and troubleshooting conversation persistence issues.
+     *
+     * @param messages List of ChatMessage__c records to persist.
+     * @return         List of Database.SaveResult objects with success/failure details for each record.
+     * @throws         DmlException or PersistenceException on critical database errors.
      */
     public static List<Database.SaveResult> saveMessages(List<ChatMessage__c> messages) {
         if (messages == null || messages.isEmpty())
             return new List<Database.SaveResult>();
 
+        // Filter out any null entries to avoid DML errors
         List<ChatMessage__c> messagesToInsert = new List<ChatMessage__c>();
         for (ChatMessage__c msg : messages) {
             if (msg != null) {
@@ -96,9 +111,11 @@ public inherited sharing class ChatMessageService {
             return new List<Database.SaveResult>();
         }
 
+        System.debug(LoggingLevel.INFO, '[ChatMessageService] Persisting ' + messagesToInsert.size() + ' chat messages');
         try {
-            List<Database.SaveResult> results = Database.insert(messagesToInsert, false);
+            List<Database.SaveResult> results = Database.insert(messagesToInsert, false); // Allow partial success
 
+            // Count successes and failures, and collect error details for logging
             Integer successCount = 0;
             Integer failureCount = 0;
             List<String> errorMsgs = new List<String>();
@@ -107,7 +124,7 @@ public inherited sharing class ChatMessageService {
                     successCount++;
                 } else {
                     failureCount++;
-
+                    // Concatenate errors for this record
                     String recordErrors = '';
                     for (Database.Error err : results[i].getErrors()) {
                         recordErrors +=
@@ -119,26 +136,40 @@ public inherited sharing class ChatMessageService {
                             err.getMessage() +
                             '] ';
                     }
-
+                    System.debug(LoggingLevel.ERROR, '[ChatMessageService] Message persistence failed at index ' + i + ': ' + recordErrors);
                     errorMsgs.add('Index ' + i + ': ' + recordErrors);
                 }
             }
             if (failureCount > 0 || successCount > 0) {
+                System.debug(
+                    LoggingLevel.INFO,
+                    '[ChatMessageService] Message Save Results: total=' +
+                        messagesToInsert.size() +
+                        ', success=' +
+                        successCount +
+                        ', failures=' +
+                        failureCount
+                );
                 if (failureCount > 0) {
+                    System.debug(LoggingLevel.WARN, '[ChatMessageService] Failure details: ' + String.join(errorMsgs, '; '));
                 }
             }
             return results;
         } catch (Exception e) {
-            throw e;
+            System.debug(LoggingLevel.ERROR, '[ChatMessageService] CRITICAL: Database error during message persistence: ' + e.getMessage());
+            throw e; // Rethrow critical DML exception
         }
     }
 
     /**
-     * @description Retrieves a turn-aware chunk of chat history, ensuring the boundary turn is never incomplete.
-     * @param sessionId The ID of the ChatSession__c.
-     * @param baseLimit The base number of messages to fetch.
-     * @param initialSortOrder The direction to fetch the initial chunk ('ASC' for oldest, 'DESC' for newest).
-     * @return A chronologically sorted List<ChatMessage__c> representing the complete, turn-aware history chunk.
+     * Retrieves a turn-aware chunk of ChatMessage__c records, ensuring complete conversation turns are included.
+     * Prevents mid-turn cutoffs by automatically including all messages from the boundary turn.
+     *
+     * @param sessionId         Chat session identifier.
+     * @param baseLimit         Initial message count target (minimum number of messages to retrieve).
+     * @param initialSortOrder  Retrieval direction for initial chunk ('ASC' or 'DESC').
+     * @param onlyUnsummarized  If true, only unsummarized messages are included.
+     * @return                  List of ChatMessage__c records representing complete conversation turns, in chronological order.
      */
     public static List<ChatMessage__c> getHistoryWithCompleteTurns(
         Id sessionId,
@@ -152,20 +183,24 @@ public inherited sharing class ChatMessageService {
             return new List<ChatMessage__c>();
         }
 
+        // Initial fetch: get a chunk of messages in the requested order
         List<ChatMessage__c> initialChunk = getHistory(sessionId, baseLimit, initialSortOrder, null, onlyUnsummarized);
 
         if (initialChunk.isEmpty()) {
             return new List<ChatMessage__c>();
         }
 
+        // Identify the boundary turn from the last message in the initial chunk
         ChatMessage__c boundaryMessage = initialChunk.get(initialChunk.size() - 1);
         String boundaryTurnId = boundaryMessage.TurnIdentifier__c;
 
+        // Use a map to deduplicate messages and efficiently merge boundary turn
         Map<Id, ChatMessage__c> allMessagesMap = new Map<Id, ChatMessage__c>();
         for (ChatMessage__c msg : initialChunk) {
             allMessagesMap.put(msg.Id, msg);
         }
 
+        // If a boundary turn exists, fetch all of its messages to ensure the turn is complete
         if (String.isNotBlank(boundaryTurnId)) {
             List<ChatMessage__c> fullBoundaryTurn = [
                 SELECT
@@ -185,6 +220,8 @@ public inherited sharing class ChatMessageService {
                 WHERE TurnIdentifier__c = :boundaryTurnId
             ];
 
+            System.debug(LoggingLevel.INFO, logPrefix + 'Fetched ' + fullBoundaryTurn.size() + ' messages for boundary turn: ' + boundaryTurnId);
+
             for (ChatMessage__c turnMsg : fullBoundaryTurn) {
                 if (!allMessagesMap.containsKey(turnMsg.Id)) {
                     allMessagesMap.put(turnMsg.Id, turnMsg);
@@ -192,8 +229,12 @@ public inherited sharing class ChatMessageService {
             }
         }
 
+        // Convert map to list and sort chronologically for the final return
         List<ChatMessage__c> finalMessages = sortMessages(allMessagesMap.values());
-
+        System.debug(
+            LoggingLevel.INFO,
+            logPrefix + 'Turn-aware history retrieval complete: ' + finalMessages.size() + ' messages (unsummarized=' + onlyUnsummarized + ')'
+        );
         return finalMessages;
     }
 
@@ -211,7 +252,10 @@ public inherited sharing class ChatMessageService {
         return finalSortedList;
     }
 
-    /** Helper class for robust chronological sorting. */
+    /**
+     * Helper class for robust chronological sorting of ChatMessage__c records.
+     * Sorts by timestamp, then by ID to ensure consistent ordering even when timestamps are identical.
+     */
     private class MessageSorter implements Comparable {
         public ChatMessage__c message;
         public MessageSorter(ChatMessage__c msg) {
@@ -231,6 +275,16 @@ public inherited sharing class ChatMessageService {
         }
     }
 
+    /**
+     * Persists a user message for the given session and turn.
+     *
+     * @param sessionId        The chat session identifier.
+     * @param turnIdentifier   The conversation turn identifier.
+     * @param userMessageData  The user message data.
+     * @param recordContextId  Optional record context ID to associate with the message.
+     * @param logPrefix        Logging prefix for debug output.
+     * @return                 The ID of the persisted ChatMessage__c record, or null if input is null.
+     */
     public static Id saveUserMessage(
         Id sessionId,
         String turnIdentifier,
@@ -246,6 +300,17 @@ public inherited sharing class ChatMessageService {
         return null;
     }
 
+    /**
+     * Persists an assistant message for the given session and turn.
+     *
+     * @param sessionId            The chat session identifier.
+     * @param turnIdentifier       The conversation turn identifier.
+     * @param parentUserMessageId  The ID of the user message this assistant message responds to.
+     * @param assistantMessageData The assistant message data.
+     * @param capabilityName       The capability or tool name associated with this message.
+     * @param logPrefix            Logging prefix for debug output.
+     * @return                     The ID of the persisted ChatMessage__c record.
+     */
     public static Id saveAssistantMessage(
         Id sessionId,
         String turnIdentifier,
@@ -266,6 +331,18 @@ public inherited sharing class ChatMessageService {
         return insertMessage(msgSobj, logPrefix);
     }
 
+    /**
+     * Persists an assistant message with pending tool calls for the given session and turn.
+     *
+     * @param sessionId                 The chat session identifier.
+     * @param turnIdentifier            The conversation turn identifier.
+     * @param parentUserMessageId       The ID of the user message this assistant message responds to.
+     * @param assistantMessageData      The assistant message data.
+     * @param pendingToolCallsListJson  JSON string of pending tool calls.
+     * @param capabilityName            The capability or tool name associated with this message.
+     * @param logPrefix                 Logging prefix for debug output.
+     * @return                          The ID of the persisted ChatMessage__c record.
+     */
     public static Id saveAssistantMessageWithPendingAction(
         Id sessionId,
         String turnIdentifier,
@@ -288,6 +365,24 @@ public inherited sharing class ChatMessageService {
         return insertMessage(msg, logPrefix);
     }
 
+    /**
+     * Persists a tool result message for the given session and turn.
+     *
+     * @param sessionId             The chat session identifier.
+     * @param turnIdentifier        The conversation turn identifier.
+     * @param parentAssistantMessageId The ID of the assistant message this tool result is associated with.
+     * @param toolCallId            The tool call identifier.
+     * @param toolResultContentJson JSON string of the tool result content.
+     * @param internalDetails       Internal details for logging (not persisted).
+     * @param errorCode             Error code if the tool call failed, or null/blank if successful.
+     * @param actionDuration        Duration of the tool action in milliseconds.
+     * @param recordContextId       Optional record context ID to associate with the message.
+     * @param recordContextDataJson Optional record context data as JSON.
+     * @param capabilityName        The capability or tool name associated with this message.
+     * @param logPrefix             Logging prefix for debug output.
+     * @return                      The ID of the persisted ChatMessage__c record.
+     * @throws                     PersistenceException if required fields are missing.
+     */
     public static Id saveToolResultMessage(
         Id sessionId,
         String turnIdentifier,
@@ -324,6 +419,19 @@ public inherited sharing class ChatMessageService {
         return insertMessage(msg, logPrefix);
     }
 
+    /**
+     * Helper to construct a ChatMessage__c SObject from message data and context.
+     * Throws PersistenceException if required fields are missing.
+     *
+     * @param msgData         The message data (required).
+     * @param parentMsgId     The parent message ID, if any.
+     * @param sessionId       The chat session ID (required).
+     * @param turnIdentifier  The conversation turn identifier (required).
+     * @param logPrefix       Logging prefix for debug output.
+     * @param externalIdToUse The external ID to assign to the message.
+     * @return                The constructed ChatMessage__c SObject.
+     * @throws                PersistenceException if required fields are missing.
+     */
     private static ChatMessage__c createMessageSObject(
         LLMInteractionService.MessageData msgData,
         Id parentMsgId,
@@ -353,21 +461,32 @@ public inherited sharing class ChatMessageService {
         );
     }
 
+    /**
+     * Helper to persist a single ChatMessage__c record and return its ID.
+     * Logs success or error details for traceability.
+     *
+     * @param msgToInsert The ChatMessage__c record to insert.
+     * @param logPrefix   Logging prefix for debug output.
+     * @return            The ID of the inserted record.
+     * @throws            DmlException or PersistenceException on failure.
+     */
     private static Id insertMessage(ChatMessage__c msgToInsert, String logPrefix) {
         try {
             List<Database.SaveResult> results = saveMessages(new List<ChatMessage__c>{ msgToInsert });
             if (results != null && !results.isEmpty() && results[0].isSuccess()) {
                 Id savedId = results[0].getId();
-
+                System.debug(LoggingLevel.INFO, logPrefix + 'Message persisted: role=' + msgToInsert.Role__c + ', id=' + savedId);
                 return savedId;
             } else {
                 String errorDetail = 'Unknown DML Error saving message.';
                 if (results != null && !results.isEmpty() && results[0].getErrors().size() > 0) {
                     errorDetail = results[0].getErrors()[0].getMessage();
                 }
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to save ChatMessage (' + msgToInsert.Role__c + '): ' + errorDetail);
                 throw new DmlException('Failed to save ChatMessage (' + msgToInsert.Role__c + '). Error: ' + errorDetail);
             }
         } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Exception saving ChatMessage (' + msgToInsert.Role__c + '): ' + e.getMessage());
             throw new PersistenceException('Error saving ChatMessage (' + msgToInsert.Role__c + '): ' + e.getMessage(), e);
         }
     }

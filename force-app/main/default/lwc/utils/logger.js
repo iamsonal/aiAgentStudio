@@ -6,8 +6,6 @@
  * Copyright (c) 2025 Sonal
  */
 
-
-
 const LOG_LEVEL = {
     DEBUG: 'DEBUG',
     INFO: 'INFO',

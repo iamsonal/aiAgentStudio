@@ -7,25 +7,39 @@
  */
 
 /**
- * @description HTTP client service for making internal REST calls to AI Agent processing endpoints.
- *              Handles authentication, error handling, and retry logic.
+ * @description
+ * AIAgentHttpClient is a robust, internal HTTP client service for AI Agent REST API communications.
+ * Responsibilities:
+ *   - Provides secure, authenticated callouts via Named Credentials
+ *   - Implements comprehensive error handling and automatic retry logic for transient failures
+ *   - Enables reliable, auditable communication between different execution contexts within the framework
+ *   - Surfaces callout and parsing issues clearly via debug output for maintainability
+ *
+ * This class is not intended to be instantiated or extended.
  */
 public class AIAgentHttpClient {
     private static final String LOG_PREFIX = '[AIAgentHttpClient] ';
     private static final String NAMED_CREDENTIAL_NAME = 'AgentStudioInternalAPI';
 
+    /**
+     * Processes an AI agent message by making a secure, authenticated REST callout to the internal API.
+     * Implements retry logic for transient failures and parses the response into a strongly-typed result.
+     *
+     * @param requestData The message request data to send to the internal API.
+     * @return           The parsed HTTP response as an AIAgentHttpResponse.
+     */
     public static AIAgentHttpResponse processMessage(AIAgentMessageRequest requestData) {
         String logPrefix = LOG_PREFIX + '[Turn:' + requestData.turnIdentifier?.left(8) + '] ';
-        System.debug(LoggingLevel.INFO, logPrefix + 'Initiating REST callout via Named Credential for message processing');
+        System.debug(LoggingLevel.INFO, logPrefix + 'Starting secure REST callout for AI agent message processing via Named Credential.');
 
         try {
             HttpRequest httpReq = buildHttpRequest(requestData, logPrefix);
 
-            // USE THE ROBUST, CENTRALIZED RETRY SERVICE
+            // Configure retry strategy for transient failures
             HttpRetryService.RetryConfig config = new HttpRetryService.RetryConfig(
-                    2, // maxAttempts
-                    1000, // initialDelayMs
-                    new Set<Integer>{ 408, 429, 500, 502, 503, 504 }
+                    2, // maxAttempts - limit retries to prevent excessive delays
+                    1000, // initialDelayMs - 1 second initial delay
+                    new Set<Integer>{ 408, 429, 500, 502, 503, 504 } // Retryable HTTP status codes
                 )
                 .withLogPrefix(logPrefix);
 
@@ -33,14 +47,23 @@ public class AIAgentHttpClient {
 
             return parseResponse(result.response, logPrefix);
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'HTTP client error: ' + e.getMessage());
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'HTTP client encountered unexpected error: ' + e.getMessage() + '\nStack Trace: ' + e.getStackTraceString()
+            );
             return new AIAgentHttpResponse(false, null, 'HTTP client error: ' + e.getMessage(), null);
         }
     }
 
+    /**
+     * Builds an authenticated HttpRequest for the internal AI Agent REST API using Named Credentials.
+     *
+     * @param requestData The message request data to send.
+     * @param logPrefix   The logging prefix for debug output.
+     * @return            The configured HttpRequest instance.
+     */
     private static HttpRequest buildHttpRequest(AIAgentMessageRequest requestData, String logPrefix) {
-        // The endpoint now uses the Named Credential syntax.
-        // Salesforce handles replacing the URL and adding the Authorization header automatically.
+        // Use Named Credential endpoint for secure authentication and URL management
         String endpoint = 'callout:' + NAMED_CREDENTIAL_NAME + '/services/apexrest/ai/agent/process/';
 
         HttpRequest httpReq = new HttpRequest();
@@ -59,18 +82,23 @@ public class AIAgentHttpClient {
 
         httpReq.setBody(JSON.serialize(requestBody));
 
-        System.debug(LoggingLevel.DEBUG, logPrefix + 'HTTP request prepared for Named Credential: ' + NAMED_CREDENTIAL_NAME);
+        System.debug(LoggingLevel.INFO, logPrefix + 'HTTP request built for Named Credential: ' + NAMED_CREDENTIAL_NAME);
         return httpReq;
     }
 
     /**
-     * @description Parses the HTTP response and creates an AIAgentHttpResponse
+     * Parses the HTTP response and creates an AIAgentHttpResponse.
+     * Handles both success and error responses, with robust error parsing and debug output.
+     *
+     * @param httpRes   The HttpResponse returned from the callout.
+     * @param logPrefix The logging prefix for debug output.
+     * @return          The parsed AIAgentHttpResponse.
      */
     private static AIAgentHttpResponse parseResponse(HttpResponse httpRes, String logPrefix) {
         Integer statusCode = httpRes.getStatusCode();
         String responseBody = httpRes.getBody();
 
-        System.debug(LoggingLevel.DEBUG, logPrefix + 'Parsing response. Status: ' + statusCode + ', Body length: ' + (responseBody?.length() ?? 0));
+        System.debug(LoggingLevel.INFO, logPrefix + 'HTTP response received. Status=' + statusCode + ', BodyLength=' + (responseBody?.length() ?? 0));
 
         try {
             if (statusCode == 200) {
@@ -93,7 +121,7 @@ public class AIAgentHttpClient {
                         );
                         errorMessage = errorResponse.error ?? errorMessage;
                     } catch (Exception parseEx) {
-                        // If we can't parse the error response, use the raw body
+                        // If unable to parse error response, use the raw body (truncated if necessary)
                         errorMessage = responseBody.length() > 200 ? responseBody.substring(0, 200) + '...' : responseBody;
                     }
                 }
@@ -102,13 +130,13 @@ public class AIAgentHttpClient {
                 return new AIAgentHttpResponse(false, null, errorMessage, null);
             }
         } catch (JSONException e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'JSON parsing error: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to parse JSON response: ' + e.getMessage());
             return new AIAgentHttpResponse(false, null, 'Response parsing error: ' + e.getMessage(), null);
         }
     }
 
     /**
-     * @description Request data structure for HTTP client
+     * Request data structure for the AI Agent HTTP client.
      */
     public class AIAgentMessageRequest {
         public String sessionId { get; set; }
@@ -136,7 +164,7 @@ public class AIAgentHttpClient {
     }
 
     /**
-     * @description Response structure for HTTP client
+     * Response data structure for the AI Agent HTTP client.
      */
     public class AIAgentHttpResponse {
         public Boolean success { get; set; }
@@ -150,11 +178,5 @@ public class AIAgentHttpClient {
             this.error = error;
             this.requestId = requestId;
         }
-    }
-
-    /**
-     * @description Custom exception for HTTP client errors
-     */
-    public class AIAgentHttpClientException extends Exception {
     }
 }

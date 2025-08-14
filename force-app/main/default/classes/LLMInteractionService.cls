@@ -7,12 +7,24 @@
  */
 
 /**
- * @description Service responsible for the core LLM interaction cycle for a single turn:
- *              It delegates prompt composition to SystemPromptBuilder, then handles payload formatting,
- *              the LLM callout (with retries), and response parsing.
+ * @description
+ * LLMInteractionService orchestrates the complete LLM interaction lifecycle for a single conversational turn.
+ *
+ * Responsibilities:
+ *   - Manages prompt composition, payload formatting, HTTP communication (with retry), and response parsing
+ *   - Integrates with SystemPromptBuilder for prompt assembly and MemoryManager for conversation history
+ *   - Supports both reasoning and non-reasoning modes, injecting summarization or error instructions as needed
+ *   - Handles all configuration, error, and result packaging for downstream orchestration
+ *
+ * This service is the central entry point for all LLM calls in the agent framework, ensuring consistency,
+ * observability, and extensibility for all conversational turns.
  */
 public inherited sharing class LLMInteractionService {
-    /** @description DTO for returning results */
+    /**
+     * Data Transfer Object containing the complete result of an LLM interaction cycle.
+     *
+     * Includes success status, provider response data, message metadata, and failure details.
+     */
     public class LLMInteractionResult {
         public Boolean isSuccess { get; private set; }
         public ProviderResult providerResult { get; private set; }
@@ -34,7 +46,11 @@ public inherited sharing class LLMInteractionService {
         }
     }
 
-    /** @description DTO for passing necessary unsaved message data */
+    /**
+     * Data Transfer Object for message metadata that hasn't been persisted to ChatMessage__c yet.
+     *
+     * Contains role, content, tool calls, token usage, and processing time information.
+     */
     public class MessageData {
         public String role;
         public String content;
@@ -83,20 +99,45 @@ public inherited sharing class LLMInteractionService {
     }
 
     /**
-     * @description Orchestrates the process of calling the LLM for one turn.
-     * @param currentTurnUserMessage The DTO containing the user message for the *current* turn. Can be null for follow-up calls.
-     * @return LLMInteractionResult
+     * Orchestrates the process of calling the LLM for a single conversational turn.
+     *
+     * - Loads agent and LLM configuration
+     * - Delegates prompt composition to SystemPromptBuilder
+     * - Injects summarization or error instructions as needed
+     * - Assembles the final message and tool payloads
+     * - Calls the LLM provider adapter (with retry logic)
+     * - Packages the result or error for downstream processing
+     *
+     * @param currentTurnUserMessage  The DTO containing the user message for the current turn. Can be null for follow-up calls.
+     * @return LLMInteractionResult   The result of the LLM interaction, including success/failure, provider result, and message metadata.
      */
     public LLMInteractionResult prepareAndCallLLM(LLMInteractionService.MessageData currentTurnUserMessage) {
+        System.debug(
+            LoggingLevel.INFO,
+            logPrefix + 'Starting LLM interaction cycle for turn ' + this.currentTurnCount + ' (sessionId=' + this.sessionId + ')'
+        );
         AIAgentDefinition__c agentConfig = null;
         LLMConfiguration__c llmConfig = null;
 
         SystemPromptBuilder promptBuilder = new SystemPromptBuilder();
 
         try {
+            // 1. Load Core Configurations
             agentConfig = AIAgentConfigService.getAgentDefinition(this.agentDefinitionId);
             llmConfig = AIAgentConfigService.getLLMConfiguration(this.llmConfigurationId);
+            System.debug(
+                LoggingLevel.DEBUG,
+                logPrefix +
+                    'Loaded configuration: Agent=' +
+                    agentConfig.DeveloperName__c +
+                    ', LLM=' +
+                    llmConfig.DeveloperName__c +
+                    ', User=' +
+                    this.userId
+            );
 
+            // --- 2. DELEGATE Prompt Composition ---
+            // All complex prompt assembly logic is now in one place.
             String finalSystemPrompt = promptBuilder.build(
                 this.sessionId,
                 agentConfig,
@@ -106,13 +147,17 @@ public inherited sharing class LLMInteractionService {
                 this.userId
             );
 
+            // --- 3. FINAL SUMMARY INJECTION LOGIC
             Boolean isMultiStepTurn = this.currentTurnCount > 1;
             Boolean isFinalContentCall = (currentTurnUserMessage == null);
 
+            // Default to 'true' (reasoning enabled) if the field is null for backward compatibility.
             Boolean reasoningModeEnabled = (agentConfig.EnableReasoningMode__c != false);
             Boolean transientMessagesDisabled = !reasoningModeEnabled;
 
             if (isMultiStepTurn && isFinalContentCall && transientMessagesDisabled) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Injecting summarization instructions for non-reasoning multi-step turn.');
+
                 String summarizationInstruction =
                     '\n\n# FINAL INSTRUCTIONS\n\n' +
                     'You have just completed one or more tool actions that the user did not see. ' +
@@ -123,6 +168,7 @@ public inherited sharing class LLMInteractionService {
                 finalSystemPrompt += summarizationInstruction;
             }
 
+            // This logic handles the "Halt and Report" error path.
             if (this.isFinalErrorTurn) {
                 String finalErrorInstruction =
                     '\n\n# CRITICAL INSTRUCTIONS\n\n' +
@@ -130,20 +176,25 @@ public inherited sharing class LLMInteractionService {
                     'Then, check if you have an alternative tool and propose it as the next step. ' +
                     'Do not use any tools now; only generate a text response.';
                 finalSystemPrompt += finalErrorInstruction;
+                System.debug(LoggingLevel.WARN, logPrefix + 'Injecting error recovery instructions into system prompt for failed tool use.');
             }
 
+            // 4. Assemble the Final Message Payload for the LLM
             List<Map<String, Object>> finalMessagesPayload = new List<Map<String, Object>>();
 
+            // a. Add the single, unified system prompt as the first message.
             if (String.isNotBlank(finalSystemPrompt)) {
                 finalMessagesPayload.add(new Map<String, Object>{ 'role' => AIAgentConstants.ROLE_SYSTEM, 'content' => finalSystemPrompt });
             }
 
+            // b. Get the conversation history using the appropriate Memory Manager.
             IMemoryManager memoryManager = MemoryManagerFactory.getManager(agentConfig.MemoryStrategy__c);
             List<Map<String, Object>> historyPayload = memoryManager.getHistoryPayload(this.sessionId, agentConfig, llmConfig, logPrefix);
             if (historyPayload != null) {
                 finalMessagesPayload.addAll(historyPayload);
             }
 
+            // c. Append the current user's message for this turn.
             if (currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
                 LlmPayloadUtils.addMessageToPayload(
                     finalMessagesPayload,
@@ -156,8 +207,10 @@ public inherited sharing class LLMInteractionService {
                 );
             }
 
+            // --- 5. Format Tool Definitions ---
             List<Map<String, Object>> toolsPayload = ToolDefinitionFormatter.formatToolsForApi(agentConfig.Id, logPrefix);
 
+            // --- 6. Call LLM (Includes Retries) ---
             Long callStartTime = System.currentTimeMillis();
             try {
                 ILLMProviderAdapter adapter = LLMProviderFactory.getAdapter(llmConfig);
@@ -167,7 +220,18 @@ public inherited sharing class LLMInteractionService {
                     throw new LLMInteractionException('LLM Adapter returned a null result.');
                 }
                 Long callDuration = System.currentTimeMillis() - callStartTime;
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix +
+                        'LLM call succeeded in ' +
+                        callDuration +
+                        'ms. Tokens used: ' +
+                        llmApiResult.totalTokens +
+                        ', sessionId=' +
+                        this.sessionId
+                );
 
+                // Package result DTOs
                 MessageData asstMsgData = new MessageData();
                 asstMsgData.role = AIAgentConstants.ROLE_ASSISTANT;
                 asstMsgData.content = llmApiResult.content;
@@ -178,10 +242,31 @@ public inherited sharing class LLMInteractionService {
                 return new LLMInteractionResult(llmApiResult, asstMsgData);
             } catch (Exception callEx) {
                 Long callDuration = System.currentTimeMillis() - callStartTime;
-
+                System.debug(
+                    LoggingLevel.ERROR,
+                    logPrefix +
+                        'LLM call failed after ' +
+                        callDuration +
+                        'ms. Error: ' +
+                        callEx.getMessage() +
+                        ', Type: ' +
+                        callEx.getTypeName() +
+                        ', sessionId=' +
+                        this.sessionId
+                );
                 return new LLMInteractionResult('LLM Call Failed: ' + callEx.getMessage(), AIAgentConstants.ERR_CODE_LLM_CALL_FAILED, callEx);
             }
         } catch (Exception ex) {
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix +
+                    'Critical error during LLM interaction preparation: ' +
+                    ex.getMessage() +
+                    '\n' +
+                    ex.getStackTraceString() +
+                    ', sessionId=' +
+                    this.sessionId
+            );
             return new LLMInteractionResult('Interaction Setup Failed: ' + ex.getMessage(), AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex);
         }
     }

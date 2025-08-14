@@ -7,16 +7,24 @@
  */
 
 /**
- * @description Formats SObject lists into various structured text formats for LLM context.
- *              This class acts as a central formatting engine, routing to different strategies
- *              (e.g., XML, Structured Text) based on agent configuration. It is optimized to
- *              perform a single, cached schema describe call per SObject type per transaction.
+ * @description
+ * SObjectContextFormatter is a central formatting engine for converting SObject data into structured text formats
+ * optimized for LLM (Large Language Model) consumption. It supports multiple formatting strategies (XML, Structured Text),
+ * implements efficient schema caching to minimize describe calls per transaction, and ensures consistent, readable data
+ * presentation for AI context injection and prompt engineering.
+ *
+ * Responsibilities:
+ *   - Format SObject records into XML or Markdown-style structured text for LLMs
+ *   - Group and organize records by type for clarity
+ *   - Efficiently cache schema metadata to reduce describe call overhead
+ *   - Provide extensible, maintainable formatting logic for AI context use cases
  */
 public inherited sharing class SObjectContextFormatter {
+    // Schema information cache container
     @TestVisible
     private class ObjectSchemaInfo {
         public DescribeSObjectResult objectDescribe { get; private set; }
-        public Map<String, DescribeFieldResult> fieldDescribeMap { get; private set; }
+        public Map<String, DescribeFieldResult> fieldDescribeMap { get; private set; } // Lowercase key
         private Map<String, Schema.SObjectField> fieldTokenMap { get; set; }
 
         public ObjectSchemaInfo(DescribeSObjectResult objDescribe) {
@@ -25,13 +33,21 @@ public inherited sharing class SObjectContextFormatter {
             this.fieldTokenMap = objDescribe.fields.getMap();
         }
 
+        /**
+         * Retrieves the DescribeFieldResult for a field, with lazy loading and caching.
+         *
+         * @param fieldName   The API name of the field to describe.
+         * @return            DescribeFieldResult for the field, or null if not found.
+         */
         public DescribeFieldResult getFieldDescribe(String fieldName) {
             String fieldNameLower = fieldName.toLowerCase();
 
+            // Return cached result if available
             if (fieldDescribeMap.containsKey(fieldNameLower)) {
                 return fieldDescribeMap.get(fieldNameLower);
             }
 
+            // Locate and describe the field, then cache result
             for (String key : fieldTokenMap.keySet()) {
                 if (key.equalsIgnoreCase(fieldName)) {
                     Schema.SObjectField fieldToken = fieldTokenMap.get(key);
@@ -43,6 +59,11 @@ public inherited sharing class SObjectContextFormatter {
             return null;
         }
 
+        /**
+         * Batch describes multiple fields to optimize performance and cache usage.
+         *
+         * @param fieldNames   Set of field names to describe.
+         */
         public void describeFields(Set<String> fieldNames) {
             for (String fieldName : fieldNames) {
                 getFieldDescribe(fieldName);
@@ -50,21 +71,25 @@ public inherited sharing class SObjectContextFormatter {
         }
     }
 
+    // Transaction-scoped schema information cache
     @TestVisible
     private static Map<SObjectType, ObjectSchemaInfo> schemaInfoCache = new Map<SObjectType, ObjectSchemaInfo>();
 
     /**
-     * @description Main entry point for formatting context. Groups records by type and delegates to the appropriate strategy.
-     * @param records The list of all SObjects to be included in the context.
-     * @param formatStrategy The chosen format (e.g., 'Xml', 'StructuredText').
-     * @param logPrefix A logging prefix.
-     * @return A single string containing all formatted context blocks.
+     * Main entry point for formatting SObject data into structured context for LLMs.
+     * Groups records by type and applies the specified formatting strategy.
+     *
+     * @param records         List of SObjects to format for LLM context.
+     * @param formatStrategy  The formatting approach ('XML' or 'StructuredText').
+     * @param logPrefix       Logging prefix for debug messages.
+     * @return                Formatted context string ready for LLM consumption.
      */
     public static String formatContext(List<SObject> records, String formatStrategy, String logPrefix) {
         if (records == null || records.isEmpty()) {
             return '';
         }
 
+        // Group records by type for organized formatting
         Map<String, List<SObject>> recordsByType = groupRecordsByType(records);
         List<String> allFormattedBlocks = new List<String>();
 
@@ -72,9 +97,11 @@ public inherited sharing class SObjectContextFormatter {
             List<SObject> sObjectList = recordsByType.get(sObjTypeName);
             String formattedBlock = '';
 
+            // Apply appropriate formatting strategy
             if ('XML'.equalsIgnoreCase(formatStrategy)) {
                 formattedBlock = formatAsXml(sObjectList, logPrefix);
             } else {
+                // Default to StructuredText formatting
                 formattedBlock = formatAsStructuredText(sObjectList, logPrefix);
             }
 
@@ -86,10 +113,12 @@ public inherited sharing class SObjectContextFormatter {
     }
 
     /**
-     * @description Formats a list of SObjects of the SAME TYPE into a structured XML block.
-     * @param sObjectList A list of records, all of the same SObjectType.
-     * @param logPrefix A logging prefix.
-     * @return An XML-formatted string.
+     * Formats SObjects into structured XML format with field metadata.
+     * Creates hierarchical XML structure with object and field information.
+     *
+     * @param sObjectList   List of records of the same SObjectType to format.
+     * @param logPrefix     Logging prefix for debug messages.
+     * @return              XML-formatted string with object and field data.
      */
     private static String formatAsXml(List<SObject> sObjectList, String logPrefix) {
         if (sObjectList.isEmpty())
@@ -116,7 +145,7 @@ public inherited sharing class SObjectContextFormatter {
                 if (dfr != null && dfr.isAccessible()) {
                     Object value = populatedFields.get(fieldName);
                     String displayValue = (value == null) ? '' : String.valueOf(value);
-
+                    // Escape HTML characters for safe XML output
                     fieldXmlTags.add(
                         '    <field api_name="' +
                             dfr.getName() +
@@ -150,10 +179,12 @@ public inherited sharing class SObjectContextFormatter {
     }
 
     /**
-     * @description Formats a list of SObjects of the SAME TYPE into Markdown-grouped key-value text.
-     * @param sObjectList A list of records, all of the same SObjectType.
-     * @param logPrefix A logging prefix.
-     * @return A Markdown-formatted string.
+     * Formats SObjects into readable Markdown-style structured text.
+     * Creates grouped sections with clear record separation and field labels.
+     *
+     * @param sObjectList   List of records of the same SObjectType to format.
+     * @param logPrefix     Logging prefix for debug messages.
+     * @return              Markdown-formatted string with organized record data.
      */
     private static String formatAsStructuredText(List<SObject> sObjectList, String logPrefix) {
         if (sObjectList.isEmpty())
@@ -170,6 +201,7 @@ public inherited sharing class SObjectContextFormatter {
 
         schemaInfo.describeFields(allFieldNames);
 
+        // Create section header with object information
         String groupHeader = '## ' + schemaInfo.objectDescribe.getLabelPlural() + ' (' + sObjectList.size() + ' Records)';
         List<String> recordBlocks = new List<String>();
 
@@ -177,6 +209,7 @@ public inherited sharing class SObjectContextFormatter {
             List<String> fieldEntries = new List<String>();
             Map<String, Object> populatedFields = record.getPopulatedFieldsAsMap();
 
+            // Identify primary display field for record title
             String primaryDisplayFieldApiName = findPrimaryDisplayField(populatedFields.keySet(), schemaInfo);
 
             if (String.isNotBlank(primaryDisplayFieldApiName) && populatedFields.get(primaryDisplayFieldApiName) != null) {
@@ -184,17 +217,19 @@ public inherited sharing class SObjectContextFormatter {
                 fieldEntries.add('**' + primaryValue + '**');
             }
 
+            // Sort field names for consistent output
             List<String> sortedFieldNames = new List<String>(populatedFields.keySet());
             sortedFieldNames.sort();
 
             for (String fieldName : sortedFieldNames) {
+                // Skip primary field already used as title
                 if (fieldName.equalsIgnoreCase(primaryDisplayFieldApiName))
                     continue;
 
                 DescribeFieldResult dfr = schemaInfo.getFieldDescribe(fieldName);
                 if (dfr != null && dfr.isAccessible()) {
                     Object value = populatedFields.get(fieldName);
-
+                    // Sanitize value for clean text output
                     String displayValue = (value == null) ? '[Not Set]' : String.valueOf(value).replace('\n', ' ').replace('\r', '');
                     fieldEntries.add(dfr.getLabel() + ': ' + displayValue);
                 }
@@ -207,9 +242,18 @@ public inherited sharing class SObjectContextFormatter {
         if (recordBlocks.isEmpty())
             return '';
 
+        // Combine record blocks with clear separators
         return groupHeader + '\n\n' + String.join(recordBlocks, '\n\n---\n\n');
     }
 
+    // Utility methods for formatting support
+
+    /**
+     * Groups a list of SObjects by their SObjectType name.
+     *
+     * @param records   List of SObjects to group.
+     * @return          Map from SObjectType name to list of SObjects.
+     */
     private static Map<String, List<SObject>> groupRecordsByType(List<SObject> records) {
         Map<String, List<SObject>> mapByType = new Map<String, List<SObject>>();
         for (SObject record : records) {
@@ -222,20 +266,37 @@ public inherited sharing class SObjectContextFormatter {
         return mapByType;
     }
 
+    /**
+     * Retrieves and caches ObjectSchemaInfo for a given SObjectType.
+     * Logs cache misses and describe failures for troubleshooting.
+     *
+     * @param sObjType   The SObjectType to describe.
+     * @param logPrefix  Logging prefix for debug messages.
+     * @return           ObjectSchemaInfo for the SObjectType, or null if describe fails.
+     */
     private static ObjectSchemaInfo getSchemaInfo(SObjectType sObjType, String logPrefix) {
         if (sObjType == null)
             return null;
         if (!schemaInfoCache.containsKey(sObjType)) {
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Schema cache MISS for ' + sObjType + '. Describing object.');
             ObjectSchemaInfo newSchemaInfo = null;
             try {
                 newSchemaInfo = new ObjectSchemaInfo(sObjType.getDescribe());
             } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to describe SObject ' + sObjType + ': ' + e.getMessage());
             }
             schemaInfoCache.put(sObjType, newSchemaInfo);
         }
         return schemaInfoCache.get(sObjType);
     }
 
+    /**
+     * Finds the primary display field for a record, prioritizing common display fields.
+     *
+     * @param populatedFields   Set of populated field API names.
+     * @param schemaInfo        ObjectSchemaInfo for the SObjectType.
+     * @return                  The API name of the primary display field, or 'Id' if none found.
+     */
     private static String findPrimaryDisplayField(Set<String> populatedFields, ObjectSchemaInfo schemaInfo) {
         List<String> preferredFields = new List<String>{ 'Name', 'Subject', 'CaseNumber', 'Title' };
         Set<String> populatedFieldsLower = new Set<String>();
@@ -254,6 +315,9 @@ public inherited sharing class SObjectContextFormatter {
         return 'Id';
     }
 
+    /**
+     * Clears the schema info cache (for testing or transaction resets).
+     */
     @TestVisible
     private static void clearCache() {
         schemaInfoCache.clear();

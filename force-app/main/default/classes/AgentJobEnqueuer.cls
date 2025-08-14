@@ -7,9 +7,16 @@
  */
 
 /**
- * @description Service responsible for enqueueing asynchronous framework jobs
- *              (FollowUpLLM, ExecuteSingleAction). Now supports both Queueable and
- *              Platform Event dispatching based on framework settings.
+ * @description
+ * AgentJobEnqueuer is the central service for dispatching asynchronous jobs within the AI Agent Framework.
+ * It is responsible for reliably publishing platform events that trigger follow-up LLM interactions,
+ * action executions, and graph processing steps. The class ensures:
+ *   - Consistent, testable job dispatch logic for all asynchronous agent operations
+ *   - Comprehensive error handling and session state management on dispatch failures
+ *   - Clear, actionable debug output for troubleshooting and operational transparency
+ *
+ * This class is designed for extensibility and maintainability, serving as the single point of orchestration
+ * for all asynchronous agent job requests.
  */
 public inherited sharing class AgentJobEnqueuer {
     public class DispatchException extends AIAgentException {
@@ -18,15 +25,18 @@ public inherited sharing class AgentJobEnqueuer {
     private final TurnLifecycleService turnLifecycleSvc;
 
     /**
-     * @description Default constructor for ease of use. Instantiates its own dependency.
+     * Default constructor. Instantiates its own TurnLifecycleService dependency.
+     * Use this in production code where dependency injection is not required.
      */
     public AgentJobEnqueuer() {
         this(new TurnLifecycleService());
     }
 
     /**
-     * @description Main constructor for dependency injection, used for testing.
-     * @param turnLifecycleService The lifecycle service for failure handling.
+     * Main constructor for dependency injection (primarily for testing).
+     *
+     * @param turnLifecycleService The TurnLifecycleService instance to use for session state management.
+     * @throws IllegalArgumentException if turnLifecycleService is null.
      */
     public AgentJobEnqueuer(TurnLifecycleService turnLifecycleService) {
         if (turnLifecycleService == null) {
@@ -36,13 +46,16 @@ public inherited sharing class AgentJobEnqueuer {
     }
 
     /**
-     * @description Enqueues the FollowUpLLMQueueableWrapper job.
-     * @param sessionId The ID of the chat session.
-     * @param userId The ID of the user.
-     * @param agentDefId The ID of the agent definition.
-     * @param turnId The unique identifier for the current turn.
-     * @param nextTurnCount The cycle number for the next turn.
-     * @param logPrefix A logging prefix.
+     * Publishes a platform event to enqueue a follow-up LLM operation for a given session turn.
+     *
+     * @param sessionId        The ID of the chat session.
+     * @param userId           The ID of the user.
+     * @param agentDefId       The ID of the agent definition.
+     * @param turnId           The unique identifier for the current turn.
+     * @param nextTurnCount    The cycle number for the next turn.
+     * @param logPrefix        A logging prefix for debug output.
+     * @param isFinalErrorTurn Whether this is the final error turn for the session.
+     * @throws DispatchException if event publication fails.
      */
     public void enqueueFollowUp(
         Id sessionId,
@@ -55,7 +68,6 @@ public inherited sharing class AgentJobEnqueuer {
     ) {
         try {
             Boolean finalErrorFlag = (isFinalErrorTurn == true);
-
             Map<String, Object> payload = new Map<String, Object>{
                 'sessionId' => sessionId,
                 'userId' => userId,
@@ -71,25 +83,38 @@ public inherited sharing class AgentJobEnqueuer {
                 Payload__c = JSON.serialize(payload)
             );
             EventBus.publish(event);
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix +
+                    '[AgentJobEnqueuer] Published FollowUpLLM event for turnId=' +
+                    turnId +
+                    ', sessionId=' +
+                    sessionId +
+                    ', nextTurnCount=' +
+                    nextTurnCount +
+                    ', isFinalErrorTurn=' +
+                    finalErrorFlag
+            );
         } catch (Exception e) {
             this.handleDispatchFailure(sessionId, turnId, 'FollowUpLLM event', e, logPrefix);
         }
     }
 
     /**
-     * @description Enqueues the AsyncActionQueueableWrapper job.
-     *              Now accepts the entire AgentCapability__c object for a cleaner interface.
-     * @param sessionId The ID of the chat session.
-     * @param originalUserId The ID of the user.
-     * @param agentDefId The ID of the agent definition.
-     * @param parentAsstMsgId The ID of the assistant message that requested this action.
-     * @param toolCallId The unique ID for this specific tool call from the LLM.
-     * @param llmArgsJson The JSON string of arguments from the LLM for the action.
-     * @param capability The self-contained AgentCapability__c object defining the action to be run.
-     * @param relatedId The turn-specific related record ID.
-     * @param turnId The unique identifier for the current turn.
-     * @param currentTurnCount The cycle number of the current turn.
-     * @param logPrefix A logging prefix.
+     * Publishes a platform event to enqueue an asynchronous action execution for a given capability.
+     *
+     * @param sessionId         The ID of the chat session.
+     * @param originalUserId    The ID of the user.
+     * @param agentDefId        The ID of the agent definition.
+     * @param parentAsstMsgId   The ID of the assistant message that requested this action.
+     * @param toolCallId        The unique ID for this specific tool call from the LLM.
+     * @param llmArgsJson       The JSON string of arguments from the LLM for the action.
+     * @param capability        The AgentCapability__c object defining the action to be run.
+     * @param relatedId         The turn-specific related record ID.
+     * @param turnId            The unique identifier for the current turn.
+     * @param currentTurnCount  The cycle number of the current turn.
+     * @param logPrefix         A logging prefix for debug output.
+     * @throws DispatchException if event publication fails.
      */
     public void enqueueAsyncAction(
         Id sessionId,
@@ -125,23 +150,63 @@ public inherited sharing class AgentJobEnqueuer {
                 Payload__c = JSON.serialize(payload)
             );
             EventBus.publish(event);
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix +
+                    '[AgentJobEnqueuer] Published ExecuteAction event for capability="' +
+                    capability.CapabilityName__c +
+                    '", turnId=' +
+                    turnId +
+                    ', sessionId=' +
+                    sessionId +
+                    ', currentTurnCount=' +
+                    currentTurnCount
+            );
         } catch (Exception e) {
             this.handleDispatchFailure(sessionId, turnId, jobDetails, e, logPrefix);
         }
     }
 
+    /**
+     * Handles failures during event dispatch by updating session state and re-throwing a DispatchException.
+     * Ensures error tracking and prevents orphaned processing states.
+     *
+     * @param sessionId       The ID of the chat session.
+     * @param turnId          The unique identifier for the current turn (may be null for some jobs).
+     * @param jobDescription  A human-readable description of the job/event being dispatched.
+     * @param enqueueException The exception thrown during event publication.
+     * @param logPrefix       A logging prefix for debug output.
+     * @throws DispatchException Always thrown to notify the orchestrator of the failure.
+     */
     private void handleDispatchFailure(Id sessionId, String turnId, String jobDescription, Exception enqueueException, String logPrefix) {
         String errorMsg = 'Failed to dispatch ' + jobDescription;
         String errorDetailForState = errorMsg + ': ' + enqueueException.getMessage();
+        System.debug(LoggingLevel.ERROR, logPrefix + '[AgentJobEnqueuer] ' + errorDetailForState);
 
+        // Attempt to mark the turn as failed to prevent orphaned processing states
         try {
             this.turnLifecycleSvc.failTurn(sessionId, turnId, errorDetailForState, AIAgentConstants.ERR_CODE_SYSTEM_LIMIT, logPrefix);
         } catch (Exception finalStateEx) {
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix +
+                    '[AgentJobEnqueuer] CRITICAL: Failed to update session status after dispatch failure for "' +
+                    jobDescription +
+                    '". Session may be left in an inconsistent state. Error: ' +
+                    finalStateEx.getMessage()
+            );
         }
-
+        // Always re-throw to notify the calling orchestrator of the dispatch failure
         throw new DispatchException('Failed to dispatch ' + jobDescription, enqueueException);
     }
 
+    /**
+     * Publishes a platform event to enqueue a graph processing step for a given capability.
+     *
+     * @param sessionId        The ID of the chat session.
+     * @param graphCapabilityId The ID of the capability representing the graph step.
+     * @throws DispatchException if event publication fails.
+     */
     public void enqueueGraphStep(Id sessionId, Id graphCapabilityId) {
         String logPrefix = '[AgentJobEnqueuer Sess:' + sessionId + '] ';
         String jobDescription = 'GraphStep job/event';
@@ -155,6 +220,10 @@ public inherited sharing class AgentJobEnqueuer {
                 Payload__c = JSON.serialize(payload)
             );
             EventBus.publish(event);
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + '[AgentJobEnqueuer] Published GraphStep event for capabilityId=' + graphCapabilityId + ', sessionId=' + sessionId
+            );
         } catch (Exception e) {
             this.handleDispatchFailure(sessionId, null, jobDescription, e, logPrefix);
         }

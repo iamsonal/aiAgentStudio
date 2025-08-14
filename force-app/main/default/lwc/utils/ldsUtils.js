@@ -6,9 +6,6 @@
  * Copyright (c) 2025 Sonal
  */
 
-
-
-
 export function reduceErrors(inputErrors) {
     const errors = Array.isArray(inputErrors) ? inputErrors : [inputErrors];
 

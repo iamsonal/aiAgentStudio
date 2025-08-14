@@ -6,6 +6,17 @@
  * Copyright (c) 2025 Sonal
  */
 
-/** @description Exception for errors during communication with or response parsing from the LLM Provider API. */
+/**
+ * @description
+ * LLMProviderException is the standard exception type for errors encountered during communication with
+ * Large Language Model (LLM) providers. This includes:
+ *   - HTTP communication failures
+ *   - API response parsing errors
+ *   - Provider-specific or protocol-level issues
+ *
+ * This exception extends AIAgentException to ensure all LLM provider errors are handled consistently
+ * by the agent framework's error handling and logging system. Use this exception to signal any
+ * unrecoverable or critical error in LLM provider integrations.
+ */
 public virtual class LLMProviderException extends AIAgentException {
 }

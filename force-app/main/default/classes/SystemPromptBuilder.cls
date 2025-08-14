@@ -7,9 +7,17 @@
  */
 
 /**
- * @description A centralized service responsible for composing the complete system prompt
- *              sent to the LLM. It assembles the prompt from multiple fields on the
- *              AIAgentDefinition__c and uses SObjectContextFormatter for data presentation.
+ * @description
+ * SystemPromptBuilder is a centralized service for composing comprehensive system prompts sent to LLMs.
+ * It assembles prompts from agent configuration fields, dynamic context data, and temporal information.
+ * The builder integrates with SObjectContextFormatter for structured data presentation and supports various
+ * formatting strategies, ensuring that each prompt is context-rich, well-structured, and optimized for LLM consumption.
+ *
+ * Responsibilities:
+ *   - Compose system prompts from static, dynamic, and temporal sources
+ *   - Integrate conversation summaries and SObject context data
+ *   - Support multiple formatting strategies for context injection
+ *   - Provide clear debug output for prompt composition and troubleshooting
  */
 public inherited sharing class SystemPromptBuilder {
     private final ContextResolverService contextResolver;
@@ -24,8 +32,16 @@ public inherited sharing class SystemPromptBuilder {
     }
 
     /**
-     * @description The main method to build the complete, structured system prompt for a turn.
-     * @return The final, formatted system prompt string.
+     * Builds the complete, structured system prompt for an AI conversation turn.
+     * Combines identity, instructions, examples, dynamic context, and temporal data into a cohesive prompt optimized for LLM consumption.
+     *
+     * @param sessionId             The chat session ID for context resolution.
+     * @param agentConfig           Agent configuration containing prompt components.
+     * @param llmConfig             LLM configuration for the session.
+     * @param currentPageRecordId   Optional record ID for page context.
+     * @param currentTurn           The current conversation turn number.
+     * @param conversationalUserId  The user ID for temporal context.
+     * @return                      Complete formatted system prompt string.
      */
     public String build(
         Id sessionId,
@@ -36,12 +52,15 @@ public inherited sharing class SystemPromptBuilder {
         Id conversationalUserId
     ) {
         String logPrefix = '[SystemPromptBuilder Sess:' + sessionId + '] ';
+        System.debug(LoggingLevel.INFO, logPrefix + 'Composing system prompt for Agent: ' + agentConfig.DeveloperName__c);
 
         List<String> promptParts = new List<String>();
 
+        // Add temporal context with current date/time information
         String temporalContext = buildTemporalContext(conversationalUserId);
         promptParts.add('# System Context\n\n' + temporalContext);
 
+        // Add static prompt sections from agent configuration
         if (String.isNotBlank(agentConfig.IdentityPrompt__c)) {
             promptParts.add('# Identity\n\n' + agentConfig.IdentityPrompt__c);
         }
@@ -55,6 +74,7 @@ public inherited sharing class SystemPromptBuilder {
                 'Immediately following the `content`, you must include the `tool_calls` payload for the action. ' +
                 'Your response must contain BOTH `content` and `tool_calls` whenever you use a tool.';
             finalInstructions = String.isBlank(finalInstructions) ? reasoningInstruction.trim() : finalInstructions + reasoningInstruction;
+            System.debug(LoggingLevel.INFO, logPrefix + 'Reasoning Mode enabled. Injecting reasoning instructions.');
         }
         if (String.isNotBlank(finalInstructions)) {
             promptParts.add('# Instructions\n\n' + finalInstructions);
@@ -64,6 +84,7 @@ public inherited sharing class SystemPromptBuilder {
             promptParts.add('# Examples\n\n' + agentConfig.ExamplesPrompt__c);
         }
 
+        // Add dynamic context data
         String formattedContextData = buildFormattedContextData(
             sessionId,
             agentConfig,
@@ -73,20 +94,32 @@ public inherited sharing class SystemPromptBuilder {
             conversationalUserId
         );
         if (String.isNotBlank(formattedContextData)) {
+            // Wrap formatted context data in XML block for clear delineation
             promptParts.add('# Context\n\n<CONTEXT>\n' + formattedContextData + '\n</CONTEXT>');
         }
 
+        // Add optional prompt footer
         if (String.isNotBlank(agentConfig.PromptFooter__c)) {
             promptParts.add(agentConfig.PromptFooter__c);
         }
 
         String composedPrompt = String.join(promptParts, '\n\n');
-
+        System.debug(LoggingLevel.INFO, logPrefix + 'System prompt composition complete. Prompt length: ' + composedPrompt.length());
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'Composed Prompt:\n' + composedPrompt);
         return composedPrompt;
     }
 
     /**
-     * @description Helper to orchestrate dynamic context gathering and formatting.
+     * Orchestrates dynamic context gathering and formatting from multiple sources.
+     * Combines conversation summaries with resolved SObject context data for prompt inclusion.
+     *
+     * @param sessionId             The chat session ID for context resolution.
+     * @param agentConfig           Agent configuration containing context settings.
+     * @param llmConfig             LLM configuration for the session.
+     * @param currentPageRecordId   Optional record ID for page context.
+     * @param currentTurn           The current conversation turn number.
+     * @param conversationalUserId  The user ID for context resolution.
+     * @return                      Formatted context data string ready for prompt inclusion.
      */
     private String buildFormattedContextData(
         Id sessionId,
@@ -99,11 +132,14 @@ public inherited sharing class SystemPromptBuilder {
         String logPrefix = '[SystemPromptBuilder.Context] ';
         List<String> contextBlocks = new List<String>();
 
+        // Include conversation summary for summary buffer strategy
         String summary = getConversationSummary(sessionId, agentConfig, logPrefix);
         if (String.isNotBlank(summary)) {
+            // Wrap summary in XML for consistent formatting
             contextBlocks.add('<CONVERSATION_SUMMARY>\n' + summary.escapeHtml4() + '\n</CONVERSATION_SUMMARY>');
         }
 
+        // Resolve and format SObject context data
         ContextResolverService.ResolutionResult resolvedContext = this.contextResolver.resolve(
             sessionId,
             agentConfig.Id,
@@ -113,9 +149,10 @@ public inherited sharing class SystemPromptBuilder {
         );
 
         if (resolvedContext.recordsToLoad != null && !resolvedContext.recordsToLoad.isEmpty()) {
+            // Format SObject data using configured strategy
             String sObjectContextBlock = SObjectContextFormatter.formatContext(
                 resolvedContext.recordsToLoad,
-                agentConfig.ContextFormatStrategy__c,
+                agentConfig.ContextFormatStrategy__c, // <-- Pass the strategy from the agent config
                 logPrefix
             );
 
@@ -127,19 +164,35 @@ public inherited sharing class SystemPromptBuilder {
         return String.join(contextBlocks, '\n\n');
     }
 
+    /**
+     * Retrieves the conversation summary for the session if using the Summary Buffer memory strategy.
+     *
+     * @param sessionId    The chat session ID.
+     * @param agentConfig  Agent configuration.
+     * @param logPrefix    Logging prefix for debug messages.
+     * @return             The conversation summary string, or null if not found or not applicable.
+     */
     private String getConversationSummary(Id sessionId, AIAgentDefinition__c agentConfig, String logPrefix) {
         if ('Summary Buffer'.equalsIgnoreCase(agentConfig.MemoryStrategy__c)) {
             try {
                 List<ChatSession__c> sessions = [SELECT ConversationSummary__c FROM ChatSession__c WHERE Id = :sessionId LIMIT 1];
                 if (!sessions.isEmpty() && String.isNotBlank(sessions[0].ConversationSummary__c)) {
+                    System.debug(LoggingLevel.DEBUG, logPrefix + 'Adding conversation summary to system prompt.');
                     return sessions[0].ConversationSummary__c;
                 }
             } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to retrieve conversation summary: ' + e.getMessage());
             }
         }
         return null;
     }
 
+    /**
+     * Builds a temporal context string with current date, day, time, and user timezone.
+     *
+     * @param conversationalUserId   The user ID for timezone context.
+     * @return                      Temporal context string for prompt inclusion.
+     */
     private String buildTemporalContext(Id conversationalUserId) {
         Datetime now = Datetime.now();
         User u = [SELECT TimeZoneSidKey FROM User WHERE Id = :conversationalUserId];
