@@ -7,19 +7,35 @@
  */
 
 /**
- * @description The core engine for executing graph-driven capabilities. This version implements
- *              advanced transaction control to run chains of synchronous nodes together,
- *              efficiently pre-fetches the entire graph definition, and correctly dispatches
- *              asynchronous jobs for async primitives.
+ * @description
+ * GraphExecutionService orchestrates the execution of graph-based AI agent workflows.
+ * It manages the lifecycle of a graph run, including:
+ *   - Initializing and maintaining execution state across synchronous and asynchronous boundaries
+ *   - Chaining node executions with intelligent transaction control to avoid governor limits
+ *   - Dispatching jobs for asynchronous processing when required by node configuration or system constraints
+ *   - Evaluating conditional routing between nodes using semantic references and result-based logic
+ *   - Logging execution steps and outcomes for observability and troubleshooting
+ *   - Handling errors and state persistence to support robust, resumable graph execution
+ *
+ * This class is designed for extensibility and maintainability, providing a clear separation between graph orchestration,
+ * node execution, state management, and logging. It is the central engine for running complex, multi-step agent workflows
+ * in a scalable and fault-tolerant manner.
  */
 public with sharing class GraphExecutionService {
-    private static final Integer MAX_SYNC_STEPS_PER_TXN = 5;
+    // --- Constants ---
+    private static final Integer MAX_SYNC_STEPS_PER_TXN = 5; // Prevents governor limit violations in synchronous execution chains
 
+    // --- Exceptions ---
     public class GraphConfigurationException extends AIAgentException {
     }
     public class GraphRuntimeException extends AIAgentException {
     }
 
+    /**
+     * @description Maintains the complete execution state of a graph run.
+     *              Tracks inputs, node execution results, execution path, and context information
+     *              required for state persistence and recovery across transaction boundaries.
+     */
     @TestVisible
     private class GraphRunState {
         public Map<String, Object> inputs;
@@ -41,7 +57,7 @@ public with sharing class GraphExecutionService {
         }
 
         public GraphRunState(Map<String, Object> initialInputs, ActionContext context) {
-            this();
+            this(); // Initialize collections
             this.inputs = initialInputs;
             this.chatSessionId = context.chatSessionId;
             this.turnIdentifier = context.turnIdentifier;
@@ -53,15 +69,21 @@ public with sharing class GraphExecutionService {
     }
 
     /**
-     * @description (NEW) Comparator to sort conditional edges by logical priority.
-     *              Ensures that specific conditions are evaluated before generic ones.
+     * @description Comparator for conditional edge evaluation priority.
+     *              Ensures specific conditions (success/failure) are evaluated before
+     *              generic conditions (always), preventing incorrect routing decisions.
      */
     @TestVisible
     private class EdgeComparator implements Comparator<ConditionalEdge> {
         private final Map<String, Integer> priorities;
 
         public EdgeComparator() {
-            this.priorities = new Map<String, Integer>{ 'success' => 10, 'failure' => 20, 'custom' => 30, 'always' => 999 };
+            this.priorities = new Map<String, Integer>{
+                'success' => 10,
+                'failure' => 20,
+                'custom' => 30,
+                'always' => 999 // Lowest priority
+            };
         }
 
         private String getConditionType(String condition) {
@@ -70,7 +92,7 @@ public with sharing class GraphExecutionService {
             if (condition.contains('{!result.isSuccess} == true'))
                 return 'success';
             if (condition.contains('{!result.isSuccess} == false'))
-                return 'failure';
+                return 'failure'; // Note: an explicit 'false' check
             return 'custom';
         }
 
@@ -86,14 +108,14 @@ public with sharing class GraphExecutionService {
     }
 
     /**
-     * @description Holds the state of a single executed node.
-     *              Separates the clean output (for {!node...} references) from the full result
-     *              (for {!result...} condition evaluation).
+     * @description Encapsulates the execution state and results of a single graph node.
+     *              Maintains both clean output data for semantic references and complete
+     *              result information for conditional edge evaluation.
      */
     @TestVisible
     private class NodeRunState {
-        public Object output;
-        public ActionResult resultForConditions;
+        public Object output; // The clean payload from ActionResult.outputForLlm
+        public ActionResult resultForConditions; // The full ActionResult object
         public Map<String, Object> mappedInputs;
     }
 
@@ -104,9 +126,18 @@ public with sharing class GraphExecutionService {
     }
 
     /**
-     * @description Initiates a new graph run. Queries all nodes once, sets initial state,
-     *              and dispatches the first execution step (sync or async).
-     *              Enhanced with orchestration logging for graph execution tracking.
+     * Initiates a new graph run for the specified agent capability.
+     *
+     * - Loads all nodes for the graph and determines the entry point.
+     * - Sets up the initial execution state and logs the start of execution.
+     * - Depending on the entry node configuration, either starts execution synchronously (in current transaction)
+     *   or persists state and dispatches an asynchronous job for execution.
+     *
+     * @param graphCapability   The AgentCapability__c record representing the graph to execute.
+     * @param llmArgumentsJson  JSON string of initial input arguments for the graph.
+     * @param context           The ActionContext containing session and user metadata.
+     * @return ActionResult    If synchronous, returns the result of execution; if asynchronous, returns a status message.
+     * @throws GraphConfigurationException if the graph is misconfigured (e.g., missing entry point).
      */
     public ActionResult startGraphRun(AgentCapability__c graphCapability, String llmArgumentsJson, ActionContext context) {
         String logPrefix = '[GraphExecSvc.Start Sess:' + context.chatSessionId + '] ';
@@ -137,6 +168,10 @@ public with sharing class GraphExecutionService {
         GraphRunState initialState = new GraphRunState(initialArgs, context);
 
         if (entryNode.StartAsynchronously__c) {
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Initiating asynchronous graph execution for capability: ' + graphCapability.CapabilityName__c
+            );
             OrchestrationLogger.logStep(
                 context.chatSessionId,
                 context.turnIdentifier,
@@ -166,6 +201,7 @@ public with sharing class GraphExecutionService {
                 'Graph enqueued.'
             );
         } else {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Executing graph synchronously for capability: ' + graphCapability.CapabilityName__c);
             OrchestrationLogger.logStep(
                 context.chatSessionId,
                 context.turnIdentifier,
@@ -187,13 +223,19 @@ public with sharing class GraphExecutionService {
     }
 
     /**
-     * @description The definitive transactional loop. Manages state in-memory
-     *              and only performs DML when necessary to break the transaction.
-     * @param sessionId The active session ID.
-     * @param startingNodeName The name of the node to start this chain with.
-     * @param currentState The current in-memory state of the graph.
-     * @param allNodesMap The pre-queried map of all nodes.
-     * @return ActionResult if the graph completes synchronously, otherwise null.
+     * Executes a chain of graph nodes synchronously, up to the transaction step limit.
+     *
+     * - Iteratively processes nodes, updating execution state and logging each step.
+     * - Evaluates conditional edges to determine the next node.
+     * - If a node requires asynchronous execution or the sync step limit is reached, persists state and dispatches async job.
+     * - Finalizes the graph run if the path is complete.
+     *
+     * @param sessionId         The active chat session ID.
+     * @param startingNodeName  The name of the node to start execution from.
+     * @param currentState      The current in-memory state of the graph run.
+     * @param allNodesMap       Map of all nodes in the graph, keyed by node name.
+     * @return ActionResult     If the graph completes synchronously, returns the result; otherwise, returns null (async handoff).
+     * @throws GraphRuntimeException or GraphConfigurationException for execution errors or misconfiguration.
      */
     public ActionResult executeNextStepChain(
         Id sessionId,
@@ -207,6 +249,7 @@ public with sharing class GraphExecutionService {
 
         for (Integer syncStepCounter = 0; syncStepCounter < MAX_SYNC_STEPS_PER_TXN; syncStepCounter++) {
             if (String.isBlank(currentNodeName)) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Chain processing stopped as next node is blank. Finalizing.');
                 return finalizeGraphRun(sessionId, currentState, logPrefix);
             }
 
@@ -225,45 +268,71 @@ public with sharing class GraphExecutionService {
 
             logGraphStep(currentState, currentNode, sequenceCounter, primitiveResult, actionDuration, processedArgs);
 
+            // Update state with the result
             NodeRunState nodeState = new NodeRunState();
             nodeState.output = primitiveResult.outputForLlm;
             nodeState.resultForConditions = primitiveResult;
             nodeState.mappedInputs = processedArgs;
             currentState.nodes.put(currentNodeName, nodeState);
 
+            // Determine the next node by evaluating conditional edges
             String nextNodeName = findNextNode(currentNode.ConditionalEdges__c, currentState, primitiveResult, logPrefix);
 
+            // Look ahead to see if we need to break the transaction
             if (String.isNotBlank(nextNodeName)) {
                 GraphNode__c nextNode = allNodesMap.get(nextNodeName);
                 if (nextNode == null)
                     throw new GraphConfigurationException('Next node "' + nextNodeName + '" defined in edges does not exist.');
 
+                // Check if the next primitive capability requires an async job.
                 if (nextNode.PrimitiveCapabilityToRun__r != null && nextNode.PrimitiveCapabilityToRun__r.RunAsynchronously__c) {
+                    System.debug(
+                        LoggingLevel.INFO,
+                        logPrefix + 'Chain Break: Next node "' + nextNodeName + '" requires async. Persisting and dispatching.'
+                    );
                     persistAndDispatchAsync(sessionId, currentState, nextNodeName, currentNode.AgentCapability__c, logPrefix);
-                    return null;
+                    return null; // Null indicates handoff to an async process
                 }
                 currentNodeName = nextNodeName;
             } else {
+                // No more edges from the current node, the graph path is complete.
+                System.debug(LoggingLevel.INFO, logPrefix + 'Node ' + currentNodeName + ' has no valid next node. Finalizing graph.');
                 return finalizeGraphRun(sessionId, currentState, logPrefix);
             }
         }
 
+        System.debug(LoggingLevel.WARN, logPrefix + 'Max synchronous steps reached. Persisting state and forcing async dispatch.');
         persistAndDispatchAsync(sessionId, currentState, currentNodeName, allNodesMap.values()[0].AgentCapability__c, logPrefix);
-        return null;
+        return null; // Handoff to async process
     }
 
+    /**
+     * Resumes execution of a graph run from persisted state, typically invoked by an async job.
+     *
+     * - Loads the current session and state from the database.
+     * - If a current node is present, resumes execution from that node.
+     * - No-op if the session has no current node (already completed or invalid).
+     *
+     * @param sessionId   The chat session ID to resume.
+     * @param allNodesMap Map of all nodes in the graph, keyed by node name.
+     */
     public void executeNextStepChain(Id sessionId, Map<String, GraphNode__c> allNodesMap) {
         ChatSession__c session = [SELECT Id, CurrentState__c, CurrentGraphNode__c FROM ChatSession__c WHERE Id = :sessionId LIMIT 1 FOR UPDATE];
         if (String.isBlank(session.CurrentGraphNode__c)) {
+            System.debug(LoggingLevel.INFO, '[GraphExecSvc.AsyncResume] No current node for session ' + sessionId + '. Execution will not proceed.');
             return;
         }
-
         Map<String, Object> stateMap = (Map<String, Object>) JSON.deserializeUntyped(session.CurrentState__c);
         GraphRunState currentState = reconstructStateFromMap(stateMap);
-
         executeNextStepChain(sessionId, session.CurrentGraphNode__c, currentState, allNodesMap);
     }
 
+    /**
+     * Queries all active nodes for a given graph capability and returns them as a map keyed by node name.
+     *
+     * @param graphCapabilityId  The Id of the AgentCapability__c representing the graph.
+     * @return Map<String, GraphNode__c>  Map of node name to GraphNode__c record.
+     */
     public Map<String, GraphNode__c> queryAndMapAllNodes(Id graphCapabilityId) {
         List<GraphNode__c> allNodesList = [
             SELECT
@@ -291,6 +360,13 @@ public with sharing class GraphExecutionService {
         return mapToReturn;
     }
 
+    /**
+     * Finds the entry point node in the provided node map.
+     *
+     * @param allNodesMap  Map of all nodes in the graph.
+     * @return GraphNode__c  The entry point node.
+     * @throws GraphConfigurationException if no entry point or multiple entry points are found.
+     */
     private GraphNode__c findEntryPoint(Map<String, GraphNode__c> allNodesMap) {
         GraphNode__c entryNode = null;
         for (GraphNode__c node : allNodesMap.values()) {
@@ -305,14 +381,25 @@ public with sharing class GraphExecutionService {
         return entryNode;
     }
 
+    /**
+     * Executes the primitive capability associated with a graph node.
+     *
+     * - Maps state to input arguments for the primitive.
+     * - Invokes the ActionExecutionService to execute the primitive action.
+     * - Handles and logs errors, returning a failure ActionResult if execution fails.
+     *
+     * @param node      The GraphNode__c to execute.
+     * @param state     The current graph run state.
+     * @param logPrefix Prefix for debug logging.
+     * @return ActionResult  The result of the primitive execution, or a NO_OP if no primitive is defined.
+     */
     private ActionResult executePrimitiveForNode(GraphNode__c node, GraphRunState state, String logPrefix) {
         if (node.PrimitiveCapabilityToRun__c == null) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Node "' + node.NodeName__c + '" has no primitive capability. Skipping execution (NO_OP).');
             return new ActionResult(new Map<String, Object>{ 'status' => 'NO_OP' }, 'No operation performed.', 'No primitive defined for node.');
         }
-
         ActionExecutionService primitiveExecutor = new ActionExecutionService();
         Map<String, Object> mappedArgs = mapStateToArguments(state, node.InputMappings__c, logPrefix);
-
         ActionContext primitiveContext = new ActionContext(
             state.chatSessionId,
             state.originalUserId,
@@ -327,6 +414,7 @@ public with sharing class GraphExecutionService {
         try {
             return primitiveExecutor.executeSingleAction(node.PrimitiveCapabilityToRun__r, JSON.serialize(mappedArgs), primitiveContext);
         } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Primitive execution failed for node "' + node.NodeName__c + '": ' + e.getMessage());
             return new ActionResult(
                 'Graph Primitive Execution Failed',
                 e.getMessage() + '\n' + e.getStackTraceString(),
@@ -335,9 +423,23 @@ public with sharing class GraphExecutionService {
         }
     }
 
+    /**
+     * Finalizes a graph run, clearing session state and logging the result.
+     *
+     * - Updates the session to clear current state and node.
+     * - Aggregates node results for reporting.
+     * - Links the result to the initiating assistant message, if available.
+     * - Triggers follow-up LLM call and enqueues next turn.
+     * - Commits execution logs.
+     *
+     * @param sessionId   The chat session ID.
+     * @param finalState  The final state of the graph run.
+     * @param logPrefix   Prefix for debug logging.
+     * @return ActionResult|null  Always returns null; result is handled asynchronously.
+     */
     private ActionResult finalizeGraphRun(Id sessionId, GraphRunState finalState, String logPrefix) {
+        System.debug(LoggingLevel.INFO, logPrefix + 'Graph run complete. Clearing session state and preparing final result.');
         update new ChatSession__c(Id = sessionId, CurrentState__c = null, CurrentGraphNode__c = null);
-
         List<Object> compositeDataList = new List<Object>();
         for (String nodeName : finalState.executionPath) {
             if (finalState.nodes.containsKey(nodeName)) {
@@ -354,12 +456,11 @@ public with sharing class GraphExecutionService {
                 }
             }
         }
-
         ActionResult finalGraphResult = new ActionResult(
             compositeDataList,
             'Graph completed. Path: ' + String.join(finalState.executionPath, ' -> ')
         );
-
+        // Link result to initiating assistant message, if present
         List<ChatMessage__c> assistantMessagesInTurn = [
             SELECT Id, AssistantToolCalls__c
             FROM ChatMessage__c
@@ -367,7 +468,6 @@ public with sharing class GraphExecutionService {
             ORDER BY CreatedDate DESC
         ];
         ChatMessage__c initiatingAssistantMessage = assistantMessagesInTurn.isEmpty() ? null : assistantMessagesInTurn[0];
-
         if (initiatingAssistantMessage != null && String.isNotBlank(initiatingAssistantMessage.AssistantToolCalls__c)) {
             String toolCallId = null;
             String graphCapabilityName = null;
@@ -378,11 +478,9 @@ public with sharing class GraphExecutionService {
                 Map<String, Object> functionMap = (Map<String, Object>) firstToolCall.get('function');
                 graphCapabilityName = (String) functionMap.get('name');
             }
-
             if (toolCallId != null) {
                 String resultJsonForStorage = OrchestrationService.serializeActionResult(finalGraphResult, logPrefix);
                 Id newRecordContextId = OrchestrationService.extractRecordIdFromResult(finalGraphResult);
-
                 ChatMessageService.saveToolResultMessage(
                     sessionId,
                     finalState.turnIdentifier,
@@ -399,8 +497,12 @@ public with sharing class GraphExecutionService {
                 );
             }
         } else {
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'No initiating assistant message found for this graph run. Final result will not be linked.'
+            );
         }
-
+        // Trigger follow-up LLM call and enqueue next turn
         TurnLifecycleService turnSvc = new TurnLifecycleService();
         AgentJobEnqueuer dispatchSvc = new AgentJobEnqueuer(turnSvc);
         turnSvc.resumeForFollowUpLlmCall(sessionId, finalState.turnIdentifier, null, logPrefix);
@@ -413,15 +515,18 @@ public with sharing class GraphExecutionService {
             logPrefix,
             false
         );
-
+        // Commit logs before exiting the transaction
         commitLogs(finalState, logPrefix);
-
-        return null;
+        return null; // Final result is handled via async follow-up
     }
 
     /**
-     * @description Safely navigates the state JSON to prepare arguments for a primitive.
-     *              This is a wrapper around getValueFromPath for the specific use case of argument mapping.
+     * Maps the current graph state to input arguments for a primitive node, resolving semantic references.
+     *
+     * @param state        The current graph run state.
+     * @param mappingJson  JSON string describing argument mappings.
+     * @param logPrefix    Prefix for debug logging.
+     * @return Map<String, Object>  The mapped arguments for the primitive.
      */
     @TestVisible
     private Map<String, Object> mapStateToArguments(GraphRunState state, String mappingJson, String logPrefix) {
@@ -438,21 +543,26 @@ public with sharing class GraphExecutionService {
             if (sourceValueOrPath instanceof String && ((String) sourceValueOrPath).contains('{!')) {
                 finalValue = processTemplateString((String) sourceValueOrPath, stateMapForEval, logPrefix);
             } else {
-                finalValue = sourceValueOrPath;
+                finalValue = sourceValueOrPath; // Literal value
             }
             mappedArgs.put(targetArg, finalValue);
         }
-
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'Mapped inputs for primitive: ' + JSON.serialize(mappedArgs));
         return mappedArgs;
     }
 
     /**
-     * @description Evaluates conditional edges to determine the name of the next node.
-     * @param conditionalEdgesJson The JSON array from the GraphNode__c.ConditionalEdges__c field.
-     * @param state The current GraphRunState to evaluate conditions against.
-     * @param currentResult The result of the current node execution for condition evaluation.
-     * @param logPrefix A logging prefix.
-     * @return String The name of the next node to execute, or null if no condition is met.
+     * Evaluates conditional edges for a node to determine the next node to execute.
+     *
+     * - Sorts edges by priority (success/failure/custom/always).
+     * - Evaluates each condition in order, using the current state and result.
+     * - Returns the next node name for the first condition that evaluates to true.
+     *
+     * @param conditionalEdgesJson  JSON array of ConditionalEdge objects.
+     * @param state                The current graph run state.
+     * @param currentResult        The result of the current node execution.
+     * @param logPrefix            Prefix for debug logging.
+     * @return String              The name of the next node to execute, or null if no condition is met.
      */
     @TestVisible
     private String findNextNode(String conditionalEdgesJson, GraphRunState state, ActionResult currentResult, String logPrefix) {
@@ -464,6 +574,7 @@ public with sharing class GraphExecutionService {
             return null;
 
         edges.sort(new EdgeComparator());
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'Sorted edges for evaluation. Order: ' + JSON.serialize(edges));
 
         Map<String, Object> stateMapForEval = (Map<String, Object>) JSON.deserializeUntyped(JSON.serialize(state));
         if (currentResult != null) {
@@ -479,18 +590,22 @@ public with sharing class GraphExecutionService {
 
         for (ConditionalEdge edge : edges) {
             if (evaluateCondition(edge.condition, stateMapForEval)) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Edge condition "' + edge.condition + '" met. Routing to: ' + edge.nextNode);
                 return edge.nextNode;
             }
         }
-
+        System.debug(LoggingLevel.WARN, logPrefix + 'No conditional edge was met. Terminating this path.');
         return null;
     }
 
     /**
-     * @description A simple expression evaluator using semantic references.
-     * @param condition The condition string using semantic syntax, e.g., "$result.isSuccess == true"
-     * @param state The untyped map representation of the current graph state.
-     * @return Boolean True if the condition evaluates to true.
+     * Evaluates a condition string using semantic references and the current state.
+     *
+     * Supports '==' and '!=' operators. Returns true if the condition evaluates to true.
+     *
+     * @param condition   The condition string (e.g., "$result.isSuccess == true").
+     * @param stateMapForEval  The current state as an untyped map.
+     * @return Boolean    True if the condition is met, false otherwise.
      */
     @TestVisible
     private Boolean evaluateCondition(String condition, Map<String, Object> stateMapForEval) {
@@ -514,17 +629,19 @@ public with sharing class GraphExecutionService {
                 return !String.valueOf(actualValue).equalsIgnoreCase(parts[1].trim());
             }
         } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, '[GraphExecSvc] Condition evaluation failed for "' + condition + '". Error: ' + e.getMessage());
             return false;
         }
         return false;
     }
 
     /**
-     * @description Resolves semantic references directly without legacy conversion
-     * @param sourcePath The semantic reference path ({!input.field}, {!node.field}, etc.)
-     * @param stateMap The current state map for evaluation
-     * @param logPrefix Logging prefix for debugging
-     * @return Object The resolved value
+     * Resolves a semantic reference path (e.g., {!input.field}) against the current state map.
+     *
+     * @param sourcePath  The semantic reference path.
+     * @param stateMap    The current state map for evaluation.
+     * @param logPrefix   Prefix for debug logging.
+     * @return Object     The resolved value, or throws if resolution fails.
      */
     @TestVisible
     private Object resolveSemanticValue(String sourcePath, Map<String, Object> stateMap, String logPrefix) {
@@ -542,11 +659,12 @@ public with sharing class GraphExecutionService {
     }
 
     /**
-     * @description Processes a template string containing multiple semantic references
-     * @param templateString The string containing merge field references like "Case {!input.case_id} escalated by {!context.user_id}"
-     * @param stateMap The current state map for evaluation
-     * @param logPrefix Logging prefix for debugging
-     * @return String The processed string with all references substituted
+     * Processes a template string, replacing all semantic references with their resolved values from state.
+     *
+     * @param templateString  The string containing merge field references (e.g., "Case {!input.case_id}").
+     * @param stateMap        The current state map for evaluation.
+     * @param logPrefix       Prefix for debug logging.
+     * @return String         The processed string with all references substituted.
      */
     @TestVisible
     private String processTemplateString(String templateString, Map<String, Object> stateMap, String logPrefix) {
@@ -564,17 +682,20 @@ public with sharing class GraphExecutionService {
                 String stringValue = (value == null) ? '' : String.valueOf(value);
                 result = result.replace(reference, stringValue);
             } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Failed to resolve reference ' + reference + ' in template: ' + e.getMessage());
             }
         }
 
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'Template processed: "' + templateString + '" -> "' + result + '"');
         return result;
     }
 
     /**
-     * @description Navigates a nested Map structure using a dot-notation path.
-     * @param data The root map (representing the state).
-     * @param path The dot-notation path, e.g., "nodes.step_1.result.isSuccess".
-     * @return Object The value found at the path, or null if the path is invalid or the value is null.
+     * Navigates a nested map structure using a dot-notation path to retrieve a value.
+     *
+     * @param data  The root map (representing the state).
+     * @param path  The dot-notation path (e.g., "nodes.step_1.result.isSuccess").
+     * @return Object  The value found at the path, or null if the path is invalid or the value is null.
      */
     @TestVisible
     private Object getValueFromPath(Map<String, Object> data, String path) {
@@ -588,15 +709,22 @@ public with sharing class GraphExecutionService {
             if (currentValue instanceof Map<String, Object>) {
                 currentValue = ((Map<String, Object>) currentValue).get(key);
                 if (currentValue == null) {
-                    return null;
+                    return null; // Path does not exist or value is null
                 }
             } else {
+                // The path is invalid because we tried to traverse into a non-map object (e.g., a String or Boolean).
                 return null;
             }
         }
         return currentValue;
     }
 
+    /**
+     * Reconstructs a GraphRunState object from a deserialized state map.
+     *
+     * @param stateMap  The deserialized state map.
+     * @return GraphRunState  The reconstructed state object.
+     */
     private GraphRunState reconstructStateFromMap(Map<String, Object> stateMap) {
         GraphRunState state = new GraphRunState();
         state.inputs = (Map<String, Object>) stateMap.get('inputs');
@@ -605,7 +733,6 @@ public with sharing class GraphExecutionService {
         state.currentTurnCount = (Integer) stateMap.get('currentTurnCount');
         state.originalUserId = (Id) stateMap.get('originalUserId');
         state.agentDefinitionId = (Id) stateMap.get('agentDefinitionId');
-
         Object executionPathObj = stateMap.get('executionPath');
         if (executionPathObj instanceof List<Object>) {
             List<String> pathList = new List<String>();
@@ -616,7 +743,6 @@ public with sharing class GraphExecutionService {
         } else {
             state.executionPath = new List<String>();
         }
-
         Map<String, Object> nodesUntypedMap = (Map<String, Object>) stateMap.get('nodes');
         if (nodesUntypedMap != null) {
             for (String nodeName : nodesUntypedMap.keySet()) {
@@ -624,7 +750,6 @@ public with sharing class GraphExecutionService {
                 NodeRunState nodeState = new NodeRunState();
                 nodeState.output = nodeStateUntyped.get('output');
                 nodeState.mappedInputs = (Map<String, Object>) nodeStateUntyped.get('mappedInputs');
-
                 Map<String, Object> resultUntyped = (Map<String, Object>) nodeStateUntyped.get('resultForConditions');
                 if (resultUntyped != null) {
                     Boolean isSuccess = (Boolean) resultUntyped.get('isSuccess');
@@ -647,6 +772,16 @@ public with sharing class GraphExecutionService {
         return state;
     }
 
+    /**
+     * Logs a single step of graph execution to the in-memory log buffer for later persistence.
+     *
+     * @param state         The current graph run state.
+     * @param node          The node being executed.
+     * @param sequence      The sequence number of this step.
+     * @param result        The result of the node execution.
+     * @param duration      The execution duration in milliseconds.
+     * @param processedArgs The input arguments used for this node.
+     */
     private void logGraphStep(
         GraphRunState state,
         GraphNode__c node,
@@ -669,18 +804,35 @@ public with sharing class GraphExecutionService {
         state.logBuffer.add(log);
     }
 
+    /**
+     * Persists the current graph state and dispatches an asynchronous job to continue execution.
+     *
+     * @param sessionId        The chat session ID.
+     * @param currentState     The current graph run state.
+     * @param nextNodeName     The name of the next node to execute.
+     * @param graphCapabilityId The Id of the graph capability.
+     * @param logPrefix        Prefix for debug logging.
+     */
     private void persistAndDispatchAsync(Id sessionId, GraphRunState currentState, String nextNodeName, Id graphCapabilityId, String logPrefix) {
         commitLogs(currentState, logPrefix);
-
         update new ChatSession__c(Id = sessionId, CurrentState__c = JSON.serialize(currentState), CurrentGraphNode__c = nextNodeName);
+        System.debug(LoggingLevel.INFO, logPrefix + 'Persisted state and dispatched async job for next node: ' + nextNodeName);
         new AgentJobEnqueuer().enqueueGraphStep(sessionId, graphCapabilityId);
     }
 
+    /**
+     * Commits all buffered execution logs to the database, allowing partial success.
+     *
+     * @param state     The current graph run state.
+     * @param logPrefix Prefix for debug logging.
+     */
     private void commitLogs(GraphRunState state, String logPrefix) {
         if (!state.logBuffer.isEmpty()) {
             try {
-                Database.insert(state.logBuffer, false);
+                Database.insert(state.logBuffer, false); // Allow partial success for logging
+                System.debug(LoggingLevel.DEBUG, logPrefix + 'Inserted ' + state.logBuffer.size() + ' GraphExecutionLog records.');
             } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to insert GraphExecutionLog records: ' + e.getMessage());
             } finally {
                 state.logBuffer.clear();
             }

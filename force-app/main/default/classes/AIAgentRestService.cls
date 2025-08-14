@@ -7,17 +7,25 @@
  */
 
 /**
- * @description Production-grade REST service for processing AI agent messages with user context switching.
- *              Replaces the Platform Event + Queueable approach to eliminate concurrency bottlenecks.
+ * @description
+ * AIAgentRestService is the enterprise-grade REST API endpoint for AI agent message processing.
+ * Responsibilities:
+ *   - Provides secure, scalable message processing with advanced user context management
+ *   - Implements comprehensive error handling, request validation, and proper HTTP status code responses
+ *   - Eliminates concurrency bottlenecks by directly queueing asynchronous processing jobs
+ *   - Surfaces operational and validation issues clearly via debug output for maintainability
+ *
+ * This class is not intended to be instantiated or extended.
  */
 @RestResource(urlMapping='/ai/agent/process/*')
 global with sharing class AIAgentRestService {
     private static final String LOG_PREFIX = '[AIAgentRestService] ';
 
     /**
-     * @description Processes AI agent messages in the context of the specified execution user.
-     *              Supports HTTP callouts and eliminates queueable job limitations.
-     * @return AIAgentResponse containing processing outcome and any errors
+     * Processes AI agent messages in the context of the specified execution user.
+     * Supports HTTP callouts and eliminates queueable job limitations by directly enqueuing asynchronous jobs.
+     *
+     * @return AIAgentResponse containing the processing outcome and any errors.
      */
     @HttpPost
     global static AIAgentResponse processMessage() {
@@ -26,7 +34,7 @@ global with sharing class AIAgentRestService {
         String requestId = generateRequestId();
         String logPrefix = LOG_PREFIX + '[ReqId:' + requestId + '] ';
 
-        System.debug(LoggingLevel.INFO, logPrefix + 'Processing AI agent message request');
+        System.debug(LoggingLevel.INFO, logPrefix + 'Processing incoming AI agent message request');
 
         try {
             // Validate request
@@ -40,28 +48,36 @@ global with sharing class AIAgentRestService {
             // Process the message in the execution user context
             String outcome = processMessageInContext(requestData, logPrefix);
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Message processed successfully. Outcome: ' + outcome);
+            System.debug(LoggingLevel.INFO, logPrefix + 'AI agent message processed successfully with outcome: ' + outcome);
 
             // Set success response
             res.statusCode = 200;
             return new AIAgentResponse(true, outcome, null, requestId);
         } catch (AIAgentRestException e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Business logic error: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Request validation or business logic error: ' + e.getMessage());
             res.statusCode = 400;
             return new AIAgentResponse(false, null, e.getMessage(), requestId);
         } catch (System.SecurityException e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Security error: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Security violation detected: ' + e.getMessage());
             res.statusCode = 403;
             return new AIAgentResponse(false, null, 'Access denied: ' + e.getMessage(), requestId);
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Unexpected error: ' + e.getMessage() + '\nStackTrace: ' + e.getStackTraceString());
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Unexpected system error during request processing: ' + e.getMessage() + '\nStack Trace: ' + e.getStackTraceString()
+            );
             res.statusCode = 500;
             return new AIAgentResponse(false, null, 'Internal server error: ' + e.getMessage(), requestId);
         }
     }
 
     /**
-     * @description Parses and validates the incoming request data
+     * Parses and validates the incoming request data from the REST request body.
+     *
+     * @param requestBody The raw JSON request body as a string.
+     * @param logPrefix   The logging prefix for debug output.
+     * @return            The parsed and validated AIAgentRequest.
+     * @throws AIAgentRestException if validation fails or required fields are missing/invalid.
      */
     private static AIAgentRequest parseAndValidateRequest(String requestBody, String logPrefix) {
         try {
@@ -93,7 +109,7 @@ global with sharing class AIAgentRestService {
                 validateId(requestData.currentRecordId, 'currentRecordId');
             }
 
-            System.debug(LoggingLevel.DEBUG, logPrefix + 'Request validation successful');
+            System.debug(LoggingLevel.INFO, logPrefix + 'Request validation completed successfully');
             return requestData;
         } catch (JSONException e) {
             throw new AIAgentRestException('Invalid JSON format: ' + e.getMessage());
@@ -101,7 +117,11 @@ global with sharing class AIAgentRestService {
     }
 
     /**
-     * @description Validates that an ID is in proper Salesforce format
+     * Validates that a string is a proper Salesforce ID format.
+     *
+     * @param idValue   The string value to validate as an ID.
+     * @param fieldName The name of the field being validated (for error reporting).
+     * @throws AIAgentRestException if the ID is not valid.
      */
     private static void validateId(String idValue, String fieldName) {
         try {
@@ -112,7 +132,13 @@ global with sharing class AIAgentRestService {
     }
 
     /**
-     * @description Processes the message in the execution user context
+     * Processes the message in the execution user context, updating session state and enqueuing async processing.
+     *
+     * @param requestData The parsed and validated AIAgentRequest.
+     * @param logPrefix   The logging prefix for debug output.
+     * @return            The processing status string (e.g., 'Processing').
+     * @throws AIAgentRestException for configuration or business logic errors.
+     * @throws Exception for unexpected system errors (will be caught by the main handler).
      */
     private static String processMessageInContext(AIAgentRequest requestData, String logPrefix) {
         Id sessionId = Id.valueOf(requestData.sessionId);
@@ -152,7 +178,7 @@ global with sharing class AIAgentRestService {
                 )
             );
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Message queued for asynchronous processing');
+            System.debug(LoggingLevel.INFO, logPrefix + 'Message successfully queued for asynchronous processing');
             return AIAgentConstants.STATUS_PROCESSING;
         } catch (AIAgentConfigService.ConfigurationException e) {
             throw new AIAgentRestException('Configuration error: ' + e.getMessage());
@@ -168,7 +194,10 @@ global with sharing class AIAgentRestService {
                     logPrefix
                 );
             } catch (Exception failEx) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to mark turn as failed: ' + failEx.getMessage());
+                System.debug(
+                    LoggingLevel.ERROR,
+                    logPrefix + 'CRITICAL: Failed to update session state after processing failure: ' + failEx.getMessage()
+                );
             }
 
             throw e; // Re-throw the original exception
@@ -176,14 +205,16 @@ global with sharing class AIAgentRestService {
     }
 
     /**
-     * @description Generates a unique request ID for tracking and debugging
+     * Generates a unique request ID for tracking and debugging.
+     *
+     * @return A unique request ID string.
      */
     private static String generateRequestId() {
         return String.valueOf(Crypto.getRandomLong()).substring(1, 9);
     }
 
     /**
-     * @description Request data structure for AI agent processing
+     * Request data structure for AI agent processing.
      */
     global class AIAgentRequest {
         public String sessionId { get; set; }
@@ -195,7 +226,7 @@ global with sharing class AIAgentRestService {
     }
 
     /**
-     * @description Response structure for AI agent processing
+     * Response data structure for AI agent processing.
      */
     global class AIAgentResponse {
         public Boolean success { get; set; }
@@ -212,7 +243,7 @@ global with sharing class AIAgentRestService {
     }
 
     /**
-     * @description Custom exception for REST service business logic errors
+     * Exception for REST service business logic errors (e.g., validation, configuration, or user errors).
      */
     public class AIAgentRestException extends Exception {
     }

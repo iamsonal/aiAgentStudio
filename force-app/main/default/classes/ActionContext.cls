@@ -7,24 +7,94 @@
  */
 
 /**
- * @description Contextual information passed to IAgentAction implementations and Hooks.
- *              This DTO carries all necessary state for an action's execution.
+ * @description
+ * ActionContext is an immutable Data Transfer Object (DTO) that encapsulates all contextual information
+ * required for executing agent actions and hooks within the agent framework. Its primary responsibility is to securely
+ * and reliably transport execution context—including user, session, agent, and turn metadata—between framework components.
+ * This class is designed for thread safety, data integrity, and extensibility, ensuring that all relevant context is available
+ * throughout the lifecycle of an agent action without risk of accidental mutation. It is not responsible for business logic,
+ * persistence, or validation beyond construction.
+ *
+ * Usage:
+ *   - Pass as a parameter to agent actions, hooks, and services that require execution context.
+ *   - Use to access immutable context properties for auditing, debugging, or business logic decisions.
+ *
+ * Scope:
+ *   - Encapsulates only the data required for a single agent action execution.
+ *   - Does not manage state transitions or perform side effects.
+ *
+ * Extensibility:
+ *   - New context fields should be added via constructor and private set properties to preserve immutability.
  */
 public class ActionContext {
+    /**
+     * The chat session ID where this action is being executed.
+     * Used to correlate actions with a specific conversation instance.
+     */
     public Id chatSessionId { get; private set; }
+
+    /**
+     * The related record ID for additional context (may be null).
+     * Typically references a business object associated with the session.
+     */
     public Id relatedRecordId { get; private set; }
+
+    /**
+     * The agent definition ID representing the agent's configuration.
+     */
     public Id agentDefinitionId { get; private set; }
+
+    /**
+     * The specific agent capability being executed.
+     */
     public Id agentCapabilityId { get; private set; }
+
+    /**
+     * Implementation-specific details (e.g., class name, flow name).
+     * Useful for debugging and dynamic dispatch.
+     */
     public String implementationDetail { get; private set; }
+
+    /**
+     * Unique identifier for the current conversation turn.
+     * Enables tracking and idempotency for turn-based logic.
+     */
     public String turnIdentifier { get; private set; }
+
+    /**
+     * The current turn number in the conversation.
+     * Increments with each user or agent message.
+     */
     public Integer currentTurnCount { get; private set; }
 
-    /** @description The end-user who initiated the conversation. Use for business logic, notifications, and @-mentions. */
+    /**
+     * The end-user who initiated the conversation.
+     * Use for business logic, notifications, and @-mentions.
+     */
     public Id originalUserId { get; private set; }
 
-    /** @description The user under whose permissions this action is executing (e.g., a service account). Corresponds to UserInfo.getUserId(). */
+    /**
+     * The user context under which this action executes (may be a service account).
+     * Corresponds to UserInfo.getUserId().
+     */
     public Id executionUserId { get; private set; }
 
+    /**
+     * Constructs an immutable ActionContext with all required execution parameters.
+     *
+     * @param sessId         The chat session ID where this action is being executed.
+     * @param origUserId     The original user who initiated the conversation.
+     * @param execUserId     The user context under which the action will execute (may be a service account).
+     * @param relId          The related record ID for context (can be null).
+     * @param agentDefId     The agent definition ID representing the agent's configuration.
+     * @param capabilityId   The specific capability being executed.
+     * @param implDetail     Implementation-specific details (class name, flow name, etc.).
+     * @param turnId         Unique identifier for the current conversation turn.
+     * @param turnCount      The current turn number in the conversation.
+     *
+     * @throws None. This constructor does not perform validation; callers are responsible for providing valid arguments.
+     * @sideeffects None. All properties are set once and are immutable thereafter.
+     */
     public ActionContext(
         Id sessId,
         Id origUserId,
@@ -45,5 +115,28 @@ public class ActionContext {
         this.implementationDetail = implDetail;
         this.turnIdentifier = turnId;
         this.currentTurnCount = turnCount;
+
+        // Debug: Log construction of ActionContext for traceability
+        System.debug(
+            LoggingLevel.FINER,
+            '[ActionContext] Constructed with sessionId=' +
+                String.valueOf(sessId) +
+                ', originalUserId=' +
+                String.valueOf(origUserId) +
+                ', executionUserId=' +
+                String.valueOf(execUserId) +
+                ', relatedRecordId=' +
+                String.valueOf(relId) +
+                ', agentDefinitionId=' +
+                String.valueOf(agentDefId) +
+                ', agentCapabilityId=' +
+                String.valueOf(capabilityId) +
+                ', implementationDetail=' +
+                String.valueOf(implDetail) +
+                ', turnIdentifier=' +
+                String.valueOf(turnId) +
+                ', currentTurnCount=' +
+                String.valueOf(turnCount)
+        );
     }
 }

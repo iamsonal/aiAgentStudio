@@ -7,13 +7,21 @@
  */
 
 /**
- * @description Parses and resolves explicit, scoped semantic data references for graph nodes.
- *              This version enforces a strict syntax to eliminate ambiguity.
- * @syntax
- *  - {!input.parameter_name}
- *  - {!node.node_name.output.field_path}
- *  - {!context.variable_name}
- *  - {!result.property_name} (For Conditional Edges only)
+ * @description
+ * SemanticReference parses and resolves scoped semantic data references for graph execution nodes.
+ * It enforces strict, unambiguous syntax for referencing input parameters, node outputs, context variables,
+ * and result properties within a graph execution state. This class provides robust parsing, validation,
+ * and value resolution for references such as:
+ *   - {!input.parameter_name} (input parameters)
+ *   - {!node.node_name.output.field_path} (node output data)
+ *   - {!context.variable_name} (context variables)
+ *   - {!result.property_name} (result properties, conditional edges only)
+ *
+ * Responsibilities:
+ *   - Parse and validate semantic reference strings
+ *   - Extract scope, source, and field path components
+ *   - Resolve referenced values from a graph execution state map
+ *   - Enforce strict syntax to prevent ambiguity in data resolution
  */
 public class SemanticReference {
     public enum Scope {
@@ -23,8 +31,9 @@ public class SemanticReference {
         RESULT
     }
 
+    // Reference components
     public Scope scope { get; private set; }
-    public String source { get; private set; }
+    public String source { get; private set; } // e.g., parameter_name, node_name, variable_name
     public String fieldPath { get; private set; }
 
     private SemanticReference(Scope scope, String source, String fieldPath) {
@@ -34,10 +43,12 @@ public class SemanticReference {
     }
 
     /**
-     * @description Parses a reference string into a structured SemanticReference object.
-     * @param reference The string to parse, e.g., '{!node.find_account.output.Id}'.
-     * @return A SemanticReference instance.
-     * @throws GraphExecutionService.GraphConfigurationException if the syntax is invalid.
+     * Parses a semantic reference string into a structured SemanticReference object.
+     * Validates syntax and extracts scope, source, and field path components.
+     *
+     * @param reference   The reference string to parse (e.g., '{!node.find_account.output.Id}').
+     * @return            Parsed SemanticReference instance ready for value resolution.
+     * @throws            GraphExecutionService.GraphConfigurationException if reference syntax is invalid.
      */
     public static SemanticReference parse(String reference) {
         if (String.isBlank(reference) || !reference.startsWith('{!') || !reference.endsWith('}')) {
@@ -63,7 +74,7 @@ public class SemanticReference {
                         'Invalid "node" reference format. Must be "{!node.node_name.output...}". Reference: ' + reference
                     );
                 }
-                source = parts[1];
+                source = parts[1]; // The node_name
                 if (parts.size() > 3) {
                     List<String> fieldPathParts = new List<String>();
                     for (Integer i = 3; i < parts.size(); i++) {
@@ -93,9 +104,11 @@ public class SemanticReference {
     }
 
     /**
-     * @description Resolves the value of this reference from the graph's state map.
-     * @param stateMap The untyped map representation of the current GraphRunState.
-     * @return The resolved value, which can be any Object type or null.
+     * Resolves the actual value of this semantic reference from the graph execution state.
+     * Navigates through the state map based on scope and field path to extract data.
+     *
+     * @param stateMap   The graph execution state containing all available data.
+     * @return           The resolved value (any Object type) or null if not found.
      */
     public Object resolveValue(Map<String, Object> stateMap) {
         Object baseObject = null;
@@ -113,11 +126,13 @@ public class SemanticReference {
                 baseObject = resolveContextValue(this.source, stateMap);
             }
             when RESULT {
+                // Result scope contains current node execution results
                 Map<String, Object> currentResult = (Map<String, Object>) stateMap.get('currentNodeResult');
                 baseObject = currentResult?.get(this.source);
             }
         }
 
+        // Navigate nested field path if specified
         if (String.isNotBlank(this.fieldPath)) {
             return getNestedValue(baseObject, this.fieldPath);
         }
@@ -125,6 +140,13 @@ public class SemanticReference {
         return baseObject;
     }
 
+    /**
+     * Parses the scope string into a Scope enum value.
+     *
+     * @param scopeStr   The scope string (e.g., 'input', 'node', etc.).
+     * @return           The corresponding Scope enum value.
+     * @throws           GraphExecutionService.GraphConfigurationException if invalid.
+     */
     private static Scope parseScope(String scopeStr) {
         try {
             return Scope.valueOf(scopeStr.toUpperCase());
@@ -135,6 +157,13 @@ public class SemanticReference {
         }
     }
 
+    /**
+     * Resolves a context variable from the state map.
+     *
+     * @param variableName   The context variable name.
+     * @param stateMap       The graph execution state map.
+     * @return               The resolved value or null if not found.
+     */
     private Object resolveContextValue(String variableName, Map<String, Object> stateMap) {
         switch on variableName {
             when 'userId' {
@@ -164,6 +193,13 @@ public class SemanticReference {
         }
     }
 
+    /**
+     * Navigates a nested field path within a data object (Map<String, Object>), returning the value at the path.
+     *
+     * @param data   The base object (may be a Map<String, Object> or null).
+     * @param path   The dot-separated field path (e.g., 'foo.bar.baz').
+     * @return       The value at the nested path, or null if not found.
+     */
     private Object getNestedValue(Object data, String path) {
         if (data == null || String.isBlank(path))
             return data;
