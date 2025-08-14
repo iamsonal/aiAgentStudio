@@ -270,16 +270,16 @@ public with sharing class AgentTestDataFactory {
         System.debug('Seeding core data...');
         Profile p = [SELECT Id FROM Profile WHERE Name = 'System Administrator'];
         User supportManager = new User(
-            Alias = 'supmgr',
-            Email = 'support.manager@apex-industrial.example.com',
+            Alias = 'srvusr',
+            Email = 'service.user@apex-industrial.example.com',
             EmailEncodingKey = 'UTF-8',
-            LastName = 'Manager',
-            FirstName = 'Sam',
+            LastName = 'User',
+            FirstName = 'Service',
             LanguageLocaleKey = 'en_US',
             LocaleSidKey = 'en_US',
             ProfileId = p.Id,
             TimeZoneSidKey = 'America/Los_Angeles',
-            UserName = 'support.manager' + System.currentTimeMillis() + '@apex-industrial.com'
+            UserName = 'service.user' + System.currentTimeMillis() + '@apex-industrial.com'
         );
         insert supportManager;
         idMap.put('Support Manager User', supportManager.Id);

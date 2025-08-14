@@ -99,9 +99,7 @@
                                             <template if:true={message.prefix}>
                                                 <span class={message.prefixClass}>{message.prefix}</span>
                                             </template>
-                                            <template if:true={message.isTransient}>
-                                                <span class="transient-prefix">💭 </span>
-                                            </template>
+
                                             <div class="slds-chat-message__text-content">
                                                 <lightning-formatted-rich-text value={message.content}></lightning-formatted-rich-text>
                                             </div>

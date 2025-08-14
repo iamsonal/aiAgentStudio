@@ -75,19 +75,31 @@ public with sharing class AIAssistantController {
             }
 
             if (session.AIAgentDefinition__r.RequiresServiceUserContext__c) {
-                UserContextSwitchEvent__e contextEvent = new UserContextSwitchEvent__e(
-                    OriginalUserId__c = originalUserId,
-                    AgentDefinitionId__c = agentDefinitionId,
-                    SessionId__c = sessionId,
-                    TurnIdentifier__c = turnIdentifier,
-                    UserMessage__c = userMessage,
-                    CurrentRecordId__c = currentRecordId != null ? String.valueOf(currentRecordId) : null
+                AIAgentHttpClient.AIAgentMessageRequest httpRequest = new AIAgentHttpClient.AIAgentMessageRequest(
+                    String.valueOf(sessionId),
+                    String.valueOf(originalUserId),
+                    String.valueOf(agentDefinitionId),
+                    turnIdentifier,
+                    userMessage,
+                    currentRecordId != null ? String.valueOf(currentRecordId) : null
                 );
 
-                EventBus.publish(contextEvent);
+                AIAgentHttpClient.AIAgentHttpResponse httpResponse = AIAgentHttpClient.processMessage(httpRequest);
 
-                lwcResponse.put('success', true);
-                lwcResponse.put('message', 'Processing...');
+                if (httpResponse.success) {
+                    lwcResponse.put('success', true);
+                    if (httpResponse.outcome == OrchestrationService.OUTCOME_COMPLETED) {
+                        lwcResponse.put('message', 'Agent responded.');
+                    } else if (httpResponse.outcome == OrchestrationService.OUTCOME_AWAITING_CONFIRMATION) {
+                        lwcResponse.put('message', 'Awaiting user confirmation...');
+                    } else {
+                        lwcResponse.put('message', 'Processing...');
+                    }
+                } else {
+                    lwcResponse.put('success', false);
+                    lwcResponse.put('error', httpResponse.error ?? 'Agent processing failed via REST call.');
+                }
+
                 return lwcResponse;
             }
 

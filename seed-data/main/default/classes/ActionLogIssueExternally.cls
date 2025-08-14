@@ -1,10 +1,7 @@
 /**
- * @description SIMPLIFIED Custom Action: Simulates logging a case in an external system like Jira.
+ * @description Simulates logging a case in an external system like Jira.
  *              This is designed to be an ASYNCHRONOUS action to showcase the framework's ability
  *              to handle long-running processes that involve API callouts.
- *              
- *              COMPARE TO ORIGINAL: 80+ lines reduced to 25 lines (69% reduction)!
- *              Framework automatically handles parameter extraction, validation, and security.
  * @extends BaseAgentAction
  */
 public class ActionLogIssueExternally extends BaseAgentAction {

@@ -3,7 +3,7 @@ project:
     name: aiAgent
     package:
         name: aiAgent
-        api_version: '62.0'
+        api_version: '63.0'
     git:
         default_branch: 'main'
     source_format: sfdx
@@ -51,13 +51,20 @@ flows:
                 task: assign_permission_sets
                 options:
                     api_names: KnowledgeDemo
-#            6.3:
-#                task: load_knowledge_data
+            6.3:
+                task: assign_permission_sets
+                options:
+                    api_names: AIAgentStudioUser
             7:
                 task: execute_anon
-                description: Set up Sales Data
+                description: Set up Salesforce Data
                 options:
                     apex: "AgentTestDataFactory.createSupportShowcaseData();"
+            8:
+                task: execute_anon
+                description: Set up Salesforce Data
+                options:
+                    apex: "CreateAgentStudioConnectedApp.setup();"
 
 orgs:
     scratch:
