@@ -2,7 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>BackendConfiguration__c</fullName>
     <description>An optional JSON object containing static configuration parameters for the action handler. This configuration is not visible to the LLM and is used for backend logic, such as specifying the SObject API name for a standard &apos;CreateRecord&apos; action.</description>
-    <inlineHelpText>Static JSON configuration for the action handler. The AI will not see this. Example for CreateRecord: {&quot;objectApiName&quot;: &quot;Lead&quot;, &quot;defaultFieldValues&quot;: {&quot;Status&quot;: &quot;New&quot;}}</inlineHelpText>
+    <inlineHelpText>Backend-only JSON configuration that the AI cannot see. Used for technical settings like object names or default values. Example: {"objectApiName": "Lead", "defaultFieldValues": {"Status": "New"}}</inlineHelpText>
     <label>Backend Configuration</label>
     <length>131072</length>
     <trackTrending>false</trackTrending>

@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ExecutionOrder__c</fullName>
+    <description>Determines the sequence in which multiple context configurations are executed for the same agent. Lower numbers execute first, allowing for dependencies between different context retrievals.</description>
     <externalId>false</externalId>
+    <inlineHelpText>Enter a number to control execution order when multiple context configurations apply. Lower numbers run first (e.g., 1 runs before 2). Use this to manage dependencies.</inlineHelpText>
     <label>Execution Order</label>
     <precision>4</precision>
     <required>true</required>

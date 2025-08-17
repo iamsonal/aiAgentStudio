@@ -1,10 +1,13 @@
 /**
- * @description Test data factory for creating the complete "Support Copilot" showcase.
- *              This includes a highly capable support agent and a rich, interconnected dataset
- *              of Accounts, Contacts, Products, Assets, Cases, and a Chatter Group.
- *              This factory is designed to be executed once to set up a demo environment.
+ * @description Test data factory for the "Order Management Copilot" showcase.
+ *              Creates a complete dataset of Accounts, Contacts, Orders, Cases, Knowledge,
+ *              and configures the AI Agent with all necessary capabilities, including a multi-step graph.
  *
- * @important See class comments for critical manual setup prerequisites before running.
+ * @important Manual Setup Prerequisites before running:
+ * 1. A Named Credential with the API Name 'OpenAI_API' must exist.
+ * 2. The current user must have permissions to create/publish Knowledge Articles.
+ * 3. A Queue named 'HITL Queue' must exist and be assigned to the HumanApprovalRequest__c object.
+ * 4. An active Approval Process for HumanApprovalRequest__c must exist.
  */
 public with sharing class AgentTestDataFactory {
     // A map to hold key record IDs for interlinking data
@@ -15,7 +18,7 @@ public with sharing class AgentTestDataFactory {
      * @return Map<String, Id> A map of key record names to their newly created Ids for easy reference.
      */
     public static Map<String, Id> createSupportShowcaseData() {
-        System.debug('Starting Support Copilot showcase data setup...');
+        System.debug('Starting Order Management Copilot showcase data setup...');
 
         // Clean up previous data to ensure a fresh start
         deleteExistingData();
@@ -26,9 +29,9 @@ public with sharing class AgentTestDataFactory {
 
         // 2. Setup the LLM and Agent configurations
         LLMConfiguration__c llmConfig = createLLMConfiguration();
-        setupSupportCopilotAgent(llmConfig.Id);
+        setupOrderManagementCopilot(llmConfig.Id);
 
-        System.debug(LoggingLevel.INFO, 'Support Copilot showcase data created successfully.');
+        System.debug(LoggingLevel.INFO, 'Order Management Copilot showcase data created successfully.');
         System.debug('Key Record IDs: ' + JSON.serializePretty(idMap));
         return idMap;
     }
@@ -36,7 +39,19 @@ public with sharing class AgentTestDataFactory {
     private static void deleteExistingData() {
         System.debug('Deleting existing framework and showcase data...');
         try {
+            System.debug('Deactivating existing Orders to allow deletion...');
+            List<Order> ordersToDeactivate = new List<Order>();
+            for (Order o : [SELECT Id FROM Order WHERE Account.Name = 'Global Tech Inc.' AND Status = 'Activated']) {
+                ordersToDeactivate.add(new Order(Id = o.Id, Status = 'Draft'));
+            }
+            if (!ordersToDeactivate.isEmpty()) {
+                update ordersToDeactivate;
+                System.debug('Deactivated ' + ordersToDeactivate.size() + ' orders.');
+            }
+
             // Delete in order to avoid dependency errors
+            delete [SELECT Id FROM GraphExecutionLog__c];
+            delete [SELECT Id FROM GraphNode__c];
             delete [SELECT Id FROM OrchestrationLog__c];
             delete [SELECT Id FROM HumanApprovalRequest__c];
             delete [SELECT Id FROM ChatMessage__c];
@@ -46,28 +61,19 @@ public with sharing class AgentTestDataFactory {
             delete [SELECT Id FROM AIAgentDefinition__c];
             delete [SELECT Id FROM LLMConfiguration__c];
 
-            delete [SELECT Id FROM Contract];
+            // Delete showcase data
             delete [SELECT Id FROM Case];
-            delete [SELECT Id FROM Asset];
-            delete [SELECT Id FROM Contact WHERE Account.Name LIKE 'Momentum Motors%'];
-            delete [SELECT Id FROM Account WHERE Name != 'Sample Account for Entitlements'];
-            delete [SELECT Id FROM CollaborationGroup WHERE Name = 'Tier 3 Engineering Support'];
+            delete [SELECT Id FROM OrderItem];
+            delete [SELECT Id FROM Order];
+            delete [SELECT Id FROM Contact WHERE Account.Name = 'Global Tech Inc.'];
+            delete [SELECT Id FROM Account WHERE Name = 'Global Tech Inc.'];
+            delete [SELECT Id FROM CollaborationGroup WHERE Name = 'Sales Operations'];
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, 'Could not fully clean previous data. This may be the first run. Error: ' + e.getMessage());
         }
     }
 
-    // =========================================================================
-    // == AGENT AND CAPABILITY SETUP
-    // =========================================================================
-
     public static LLMConfiguration__c createLLMConfiguration() {
-        LLMConfiguration__c[] existing = [SELECT Id FROM LLMConfiguration__c WHERE DeveloperName__c = 'OpenAI' LIMIT 1];
-        if (!existing.isEmpty()) {
-            System.debug('Found existing LLM Configuration.');
-            return existing[0];
-        }
-
         System.debug('Creating new LLM Configuration...');
         LLMConfiguration__c config = new LLMConfiguration__c(
             Name = 'OpenAI',
@@ -85,193 +91,330 @@ public with sharing class AgentTestDataFactory {
         return config;
     }
 
-    private static void setupSupportCopilotAgent(Id llmConfigId) {
-        System.debug('Setting up Support Copilot Agent...');
+    private static void setupOrderManagementCopilot(Id llmConfigId) {
+        System.debug('Setting up Order Management Copilot Agent...');
 
-        String identityPrompt =
-            'You are a helpful, empathetic technical support expert at Apex Industrial Manufacturing. ' +
-            'You specialize in resolving issues with automation products like robotic arms and conveyor systems. ' +
-            'Use internal tools and knowledge to solve problems step-by-step.';
+        String identityPrompt = 'You are an expert Order Management assistant for FinServe Resellers Inc., a premier reseller of financial software and hardware. Your primary goal is to help customers resolve issues with their orders efficiently and professionally. You must always verify the specific order or product in question before taking action.';
 
         List<String> instructionParts = new List<String>{
             '**Interaction Guidelines:**',
             '- Always address the user politely and professionally.',
-            '- When a new chat starts, first understand the user\'s issue. Use the provided context to see their case details and asset information.',
-            '- Before suggesting complex actions, first use the `search_knowledge_base` tool to see if a standard troubleshooting guide exists.',
-            '- Do not use the \'escalate_to_engineering\' or \'dispatch_technician\' tools unless the user explicitly asks for an escalation or a technician, or agrees to your suggestion to use one.',
-            '- CRITICAL RULE: If the user\'s request could refer to more than one Asset or Case in the provided context, you MUST use the find_support_record tool first. DO NOT make assumptions.',
-            '- Adhere strictly to the confirmation and approval protocols described in the tool descriptions. If a tool requires confirmation, your first response MUST be a simple confirmation question.'
+            '**CRITICAL TROUBLESHOOTING PROTOCOL:** When a user reports any problem or issue with a product, you MUST follow these steps in order:\n1. First, use `get_order_status` or `find_support_record` to verify the exact order and product the user is referring to.\n2. Second, you MUST use the `search_knowledge_base` tool to look for troubleshooting guides or articles related to the user\'s issue. Present any relevant findings to the user.\n3. Only if the knowledge base does not solve the issue or is not applicable, you may then suggest further actions.',
+            '- For issues with delivered items, guide the user toward either creating a support case or initiating a return.',
+            '- **CRITICAL VERIFICATION RULE:** Your primary role is to verify user requests against the factual data provided in the <CONTEXT> block. If a user\'s statement about an order number, product, or case contradicts the provided context, you MUST politely point out the discrepancy and ask for clarification. **DO NOT proceed with an action based on incorrect user information.**'
         };
         String instructionsPrompt = String.join(instructionParts, '\n\n');
 
+        List<String> promptFooterLines = new List<String>{
+            '# FINAL INSTRUCTIONS: Verification Protocol',
+            'Before responding to the user, you MUST complete the following verification steps in your internal monologue:',
+            '1. **Analyze User\'s Query:** Identify all key entities mentioned by the user (e.g., order numbers, product names, case numbers).',
+            '2. **Scan Provided Context:** Systematically check the entire <CONTEXT> block for these entities.',
+            '3. **Verify or Contradict:**',
+            '* **If the user\'s statement MATCHES the data in the <CONTEXT> block**, proceed with their request.',
+            '* **If the user\'s statement CONTRADICTS the data in the <CONTEXT> block**, your immediate next response MUST be to politely point out the discrepancy and ask for clarification. Do not proceed with the user\'s incorrect assumption.',
+            '* **Example of Correct Contradiction:** "I see you\'re asking about product X on order Y. My records show that order Y contained product Z, while product X was on order W. Could we be talking about order W?"',
+            '4. **Final Check:** Reread your planned response to ensure it is factually consistent with the provided <CONTEXT>.'
+        };
+        String promptFooter = String.join(promptFooterLines, '\n');
+
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
-            Name = 'Support Copilot',
-            DeveloperName__c = 'Support_Copilot',
+            Name = 'Order Management Copilot',
+            DeveloperName__c = 'Order_Management_Copilot',
             IsActive__c = true,
             MemoryStrategy__c = 'Buffer Window',
             LLMConfiguration__c = llmConfigId,
             HistoryLimit__c = 12,
-            WelcomeMessageTemplate__c = 'Hi {User.FirstName}, I am the Support Copilot. I see you have an open case. How can I help you with it today?',
+            RequiresServiceUserContext__c = true, // Critical for community user scenario
+            EnableReasoningMode__c = true,
+            WelcomeMessageTemplate__c = 'Hi {User.FirstName}! I am the Order Management Copilot. How can I help you with your orders today?',
             IdentityPrompt__c = identityPrompt,
-            InstructionsPrompt__c = instructionsPrompt
+            InstructionsPrompt__c = instructionsPrompt,
+            PromptFooter__c = promptFooter
         );
         insert agent;
-        idMap.put('Support Copilot Agent', agent.Id);
-
-        // --- Capabilities ---
-        System.debug('Creating capabilities for Support Copilot...');
-        List<AgentCapability__c> capabilities = new List<AgentCapability__c>();
-
-        capabilities.add(
-                createCapability(
-                        agent.Id,
-                        'get_case_details',
-                        'Retrieves the current status, priority, and subject of a specific case by its Case Number.',
-                        '{"type":"object","properties":{"filters":{"type":"object","properties":{"CaseNumber":{"type":"string"}}}}}',
-                        'Standard',
-                        'GetRecords',
-                        null,
-                        '{"objectApiName":"Case"}',
-                        false,
-                        false,
-                        10,
-                        false
-                )
-        );
-        capabilities.add(
-                createCapability(
-                        agent.Id,
-                        'find_support_record',
-                        'Performs a fuzzy search for a specific Asset (by serial number) or a Case (by subject). Use this if the user\'s request is ambiguous.',
-                        '{"type":"object","properties":{"searchQuery":{"type":"string"}},"required":["searchQuery"]}',
-                        'Standard',
-                        'FindEntities',
-                        null,
-                        null,
-                        false,
-                        false,
-                        20,
-                        false
-                )
-        );
-        capabilities.add(
-                createCapability(
-                        agent.Id,
-                        'search_knowledge_base',
-                        'Searches the internal knowledge base for troubleshooting guides and articles. Can filter by category (e.g., {"dataCategory": {"Robotic_Arms":"Troubleshooting"}}).',
-                        '{"type":"object","properties":{"searchQuery":{"type":"string"},"dataCategory":{"type":"object"}},"required":["searchQuery"]}',
-                        'Standard',
-                        'SearchKnowledge',
-                        null,
-                        null,
-                        false,
-                        false,
-                        30,
-                        false
-                )
-        );
-        capabilities.add(
-                createCapability(
-                        agent.Id,
-                        'add_internal_comment',
-                        'Adds an internal-only comment to the case feed for documentation.',
-                        '{"type":"object","properties":{"parentId":{"type":"string"}, "commentBody":{"type":"string"}},"required":["parentId","commentBody"]}',
-                        'Standard',
-                        'CreateRecord',
-                        null,
-                        '{"objectApiName":"CaseComment"}',
-                        false,
-                        false,
-                        40,
-                        false
-                )
-        );
-        // This capability is now INTERNAL, used by the graph.
-        capabilities.add(
-                new AgentCapability__c(
-                        AIAgentDefinition__c = agent.Id,
-                        CapabilityName__c = 'escalate_to_engineering',
-                        Description__c = 'Posts a message to the internal engineering team\'s Chatter group.',
-                        Parameters__c = '{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}',
-                        ImplementationType__c = 'Standard',
-                        StandardActionType__c = 'PostChatter',
-                        BackendConfiguration__c = '{"feedType":"Group","targetId":"' + idMap.get('Chatter Group ID') + '"}',
-                        ExposureLevel__c = 'Internal' // Make this internal-only
-                )
-        );
-        // This capability is now INTERNAL, used by the graph.
-        capabilities.add(
-                new AgentCapability__c(
-                        AIAgentDefinition__c = agent.Id,
-                        CapabilityName__c = 'log_issue_externally',
-                        Description__c = 'Logs the case details in an external system (Jira).',
-                        Parameters__c = '{"type":"object","properties":{"caseId":{"type":"string"}},"required":["caseId"]}',
-                        ImplementationType__c = 'Apex',
-                        ImplementationDetail__c = 'ActionLogIssueExternally',
-                        RunAsynchronously__c = true,
-                        ExposureLevel__c = 'Internal' // Make this internal-only
-                )
-        );
-        capabilities.add(
-                createCapability(
-                        agent.Id,
-                        'close_the_case',
-                        'Updates the case status to "Closed." IMPORTANT: You must ask the user for confirmation before using this tool.',
-                        '{"type":"object","properties":{"recordId":{"type":"string"},"Status":{"type":"string","enum":["Closed"]}},"required":["recordId","Status"]}',
-                        'Standard',
-                        'UpdateRecord',
-                        null,
-                        '{"objectApiName":"Case"}',
-                        true,
-                        false,
-                        70,
-                        false
-                )
-        );
-
-        String creditDescription = 'Creates a formal service credit request as a draft contract for manager approval.';
-        String creditParams = '{"type":"object","properties":{"AccountId":{"type":"string", "description": "The ID of the customer Account to associate the credit with."}, "StartDate":{"type":"string", "format":"date", "description":"The effective date for the credit, usually today."}, "Description":{"type":"string", "description":"A clear justification for the service credit explaining why it is being offered."}},"required":["AccountId", "StartDate", "Description"]}';
-        String creditBackendConfig = '{"objectApiName":"Contract", "defaultFieldValues": {"Status":"Draft", "ContractTerm": 1}}';
-        capabilities.add(
-                createCapability(
-                        agent.Id,
-                        'issue_service_credit',
-                        creditDescription,
-                        creditParams,
-                        'Standard',
-                        'CreateRecord',
-                        null,
-                        creditBackendConfig,
-                        false,
-                        true,
-                        80,
-                        false
-                )
-        );
-
-        insert capabilities;
-
-        Map<String, Id> primitiveCapsMap = new Map<String, Id>();
-        for (AgentCapability__c cap : capabilities) {
-            primitiveCapsMap.put(cap.CapabilityName__c, cap.Id);
-        }
-        AgentCapability__c graphCap = setupEscalationGraph(agent.Id, primitiveCapsMap);
+        idMap.put('Order Management Copilot Agent', agent.Id);
 
         // --- Context Providers ---
-        System.debug('Creating context providers for Support Copilot...');
+        System.debug('Creating context providers...');
         List<AgentContextConfig__c> contexts = new List<AgentContextConfig__c>();
         contexts.add(createContextConfig(agent.Id, 'User Details', 'UserDetailsProvider', null, false, 10, null));
-        contexts.add(createContextConfig(agent.Id, 'Case Details', 'CaseContext', 'Case', true, 20, null));
-        contexts.add(createContextConfig(agent.Id, 'Account Support History', 'AccountSupportContext', 'Account', true, 30, null));
+        contexts.add(createContextConfig(agent.Id, 'Order Details', 'OrderContext', 'Order', true, 20, null));
+        contexts.add(createContextConfig(agent.Id, 'Account Purchase History', 'AccountPurchaseHistory', 'Account', true, 30, null));
         insert contexts;
+
+        // --- Primitive Capabilities (used by graph) ---
+        System.debug('Creating internal primitive capabilities for graph...');
+        List<AgentCapability__c> primitiveCaps = new List<AgentCapability__c>();
+        primitiveCaps.add(
+            createCapability(
+                agent.Id,
+                'find_order_by_id',
+                'Internal: Finds a single Order and its items by its ID.',
+                '{"type":"object", "properties":{"orderId":{"type":"string"}}, "required":["orderId"]}', // Simple parameter
+                'Apex',
+                null,
+                'ActionFindOrderById',
+                null,
+                false,
+                false,
+                99,
+                false,
+                'Internal'
+            )
+        );
+        primitiveCaps.add(
+            createCapability(
+                agent.Id,
+                'create_draft_order',
+                'Internal: Creates a new draft order.',
+                '{"type":"object", "properties":{"AccountId":{"type":"string"}, "ContactId":{"type":"string"}}}',
+                'Standard',
+                'CreateRecord',
+                null,
+                '{"objectApiName":"Order", "defaultFieldValues": {"Status":"Draft"}}',
+                false,
+                false,
+                99,
+                false,
+                'Internal'
+            )
+        );
+        primitiveCaps.add(
+            createCapability(
+                agent.Id,
+                'clone_order_items',
+                'Internal: Clones items to a new order.',
+                '{"type":"object", "properties":{"sourceOrderId":{"type":"string"}, "destinationOrderId":{"type":"string"}}}',
+                'Apex',
+                null,
+                'ActionCloneOrderItems',
+                null,
+                false,
+                false,
+                99,
+                false,
+                'Internal'
+            )
+        );
+        primitiveCaps.add(
+            createCapability(
+                agent.Id,
+                'notify_sales_ops',
+                'Internal: Notifies the sales ops team.',
+                '{"type":"object", "properties":{"text":{"type":"string"}}}',
+                'Standard',
+                'PostChatter',
+                null,
+                '{"feedType":"Group","targetId":"' + idMap.get('Chatter Group ID') + '"}',
+                false,
+                false,
+                99,
+                true,
+                'Internal'
+            )
+        );
+        insert primitiveCaps;
+
+        Map<String, Id> primitiveCapsMap = new Map<String, Id>();
+        for (AgentCapability__c cap : primitiveCaps) {
+            primitiveCapsMap.put(cap.CapabilityName__c, cap.Id);
+        }
+
+        // --- External (LLM-Visible) Capabilities ---
+        List<AgentCapability__c> externalCaps = new List<AgentCapability__c>();
+        externalCaps.add(
+            createCapability(
+                agent.Id,
+                'get_order_status',
+                'Retrieves the status for an order.',
+                '{"type":"object", "properties":{"filters":{"type":"object", "properties":{"OrderNumber":{"type":"string"}}}}}',
+                'Standard',
+                'GetRecords',
+                null,
+                '{"objectApiName":"Order"}',
+                false,
+                false,
+                10,
+                false,
+                'External'
+            )
+        );
+        externalCaps.add(
+            createCapability(
+                agent.Id,
+                'search_knowledge_base',
+                'Searches the knowledge base.',
+                '{"type":"object", "properties":{"searchQuery":{"type":"string"}}}',
+                'Standard',
+                'SearchKnowledge',
+                null,
+                '{"defaultLanguage":"en_US"}',
+                false,
+                false,
+                20,
+                false,
+                'External'
+            )
+        );
+        externalCaps.add(
+            createCapability(
+                agent.Id,
+                'create_support_case',
+                'Creates a new support case.',
+                '{"type":"object", "properties":{"AccountId":{"type":"string"}, "ContactId":{"type":"string"}, "Subject":{"type":"string"}, "Description":{"type":"string"}}}',
+                'Standard',
+                'CreateRecord',
+                null,
+                '{"objectApiName":"Case", "defaultFieldValues":{"Status":"New", "Origin":"Web"}}',
+                false,
+                false,
+                30,
+                false,
+                'External'
+            )
+        );
+        externalCaps.add(
+            createCapability(
+                agent.Id,
+                'expedite_shipping',
+                'Requests expedited shipping for an order\'s replacement part. This action incurs an additional fee for the customer. When suggesting this tool, you must clearly inform the user about the potential extra cost and ask for their confirmation before proceeding.',
+                '{"type":"object", "properties":{"orderId":{"type":"string"}}}',
+                'Apex',
+                null,
+                'ActionExpediteShipping',
+                null,
+                true,
+                false,
+                40,
+                true,
+                'External'
+            )
+        );
+        externalCaps.add(
+            createCapability(
+                agent.Id,
+                'initiate_return_request',
+                'Initiates a return request. Requires manager approval.',
+                '{"type":"object", "properties":{"AccountId":{"type":"string"}, "ContactId":{"type":"string"}, "Subject":{"type":"string"}}}',
+                'Standard',
+                'CreateRecord',
+                null,
+                '{"objectApiName":"Case", "defaultFieldValues":{"Status":"New", "Origin":"AI Return Request"}}',
+                false,
+                true,
+                50,
+                false,
+                'External'
+            )
+        );
+
+        String graphDescription = 'Creates a new draft order, optionally using a previous order as a template. It gathers all necessary details, clones the items, and notifies the Sales Operations team for review.';
+        String graphParams = JSON.serialize(
+            new Map<String, Object>{
+                'type' => 'object',
+                'properties' => new Map<String, Object>{
+                    'sourceOrderId' => new Map<String, Object>{
+                        'type' => 'string',
+                        'description' => '(Optional) The ID of a previous order to use as a template for items and details.'
+                    },
+                    'accountId' => new Map<String, Object>{ 'type' => 'string', 'description' => 'The ID of the Account for the new order.' },
+                    'billToContactId' => new Map<String, Object>{
+                        'type' => 'string',
+                        'description' => 'The ID of the Contact to bill for the new order.'
+                    },
+                    'effectiveDate' => new Map<String, Object>{
+                        'type' => 'string',
+                        'format' => 'date',
+                        'description' => 'The start date for the new order, in YYYY-MM-DD format.'
+                    },
+                    'pricebook2Id' => new Map<String, Object>{ 'type' => 'string', 'description' => 'The ID of the Pricebook for the new order.' }
+                },
+                // Note: We don't make them all "required" here, as the graph can fetch them
+                // from the sourceOrderId if provided.
+                'required' => new List<String>{ 'accountId' }
+            }
+        );
+
+        // --- Graph Capability Definition ---
+        AgentCapability__c graphCapability = createCapability(
+            agent.Id,
+            'reorder_previous_purchase',
+            graphDescription,
+            graphParams,
+            'Graph',
+            null,
+            null,
+            null,
+            false,
+            false,
+            60,
+            false,
+            'External'
+        );
+        externalCaps.add(graphCapability);
+        insert externalCaps;
+
+        // --- Graph Nodes ---
+        List<GraphNode__c> graphNodes = new List<GraphNode__c>();
+
+        // Node 1: Get the full details of the source order first.
+        graphNodes.add(
+            GraphNodeBuilder.create('node_get_source_order_details')
+                .forCapability(graphCapability.Id)
+                .runCapability('find_order_by_id') // <-- Use our new primitive
+                .asEntryPoint() // <-- This is the new starting point
+                .mapInput('orderId', '{!input.sourceOrderId}') // <-- Takes the source ID from the LLM
+                .routeWhenSuccess('node_create_draft_order') // <-- On success, proceed to create the draft
+                .build()
+        );
+
+        // Node 2: Create the Draft Order. Its inputs now come from the previous node's output.
+        graphNodes.add(
+            GraphNodeBuilder.create('node_create_draft_order')
+                .forCapability(graphCapability.Id)
+                .runCapability('create_draft_order')
+                // This is no longer the entry point.
+                // Map inputs from the output of the 'get_source_order_details' node
+                .mapInput('AccountId', '{!input.accountId}')
+                .mapInput('BillToContactId', '{!input.billToContactId}')
+                .mapInput('EffectiveDate', '{!input.effectiveDate}') // We can still take this from the user input
+                // --- THE FIX ---
+                // Pull the correct Pricebook2Id from the source order we just fetched.
+                .mapInput('Pricebook2Id', '{!node.node_get_source_order_details.output.data.records[0].Pricebook2Id}')
+                .routeWhenSuccess('node_clone_order_items') // Route to the next step as before
+                .build()
+        );
+
+        // Node 3: Clone the Order Items (No change needed here, its mappings are still valid)
+        graphNodes.add(
+            GraphNodeBuilder.create('node_clone_order_items')
+                .forCapability(graphCapability.Id)
+                .runCapability('clone_order_items')
+                .mapInput('sourceOrderId', '{!input.sourceOrderId}')
+                .mapInput('destinationOrderId', '{!node.node_create_draft_order.output.data.recordId}')
+                .routeWhenSuccess('node_notify_sales_ops')
+                .build()
+        );
+
+        // Node 4: Notify Sales Ops (No change needed here)
+        graphNodes.add(
+            GraphNodeBuilder.create('node_notify_sales_ops')
+                .forCapability(graphCapability.Id)
+                .runCapability('notify_sales_ops')
+                .mapInput('text', 'New draft order created based on source order {!input.sourceOrderId}. Please review and contact the customer.')
+                .build()
+        );
+
+        insert graphNodes;
     }
 
     private static void seedCoreData() {
         System.debug('Seeding core data...');
         Profile p = [SELECT Id FROM Profile WHERE Name = 'System Administrator'];
-        User supportManager = new User(
+        User serviceUser = new User(
             Alias = 'srvusr',
-            Email = 'service.user@apex-industrial.example.com',
+            Email = 'service.user@finserve-reseller.example.com',
             EmailEncodingKey = 'UTF-8',
             LastName = 'User',
             FirstName = 'Service',
@@ -279,136 +422,143 @@ public with sharing class AgentTestDataFactory {
             LocaleSidKey = 'en_US',
             ProfileId = p.Id,
             TimeZoneSidKey = 'America/Los_Angeles',
-            UserName = 'service.user' + System.currentTimeMillis() + '@apex-industrial.com'
+            UserName = 'service.user' + System.currentTimeMillis() + '@finserve.com'
         );
-        insert supportManager;
-        idMap.put('Support Manager User', supportManager.Id);
+        insert serviceUser;
+        idMap.put('Support Manager User', serviceUser.Id);
 
         // Account & Contacts
-        Account acc = new Account(
-            Name = 'Momentum Motors',
-            Industry = 'Manufacturing',
-            BillingState = 'CA',
-            AnnualRevenue = 950000000,
-            NumberOfEmployees = 15000,
-            Description = 'A key customer specializing in high-performance electric vehicle components.'
-        );
+        Account acc = new Account(Name = 'Global Tech Inc.', Industry = 'Technology', BillingState = 'CA');
         insert acc;
         idMap.put(acc.Name, acc.Id);
 
-        Contact[] contacts = new List<Contact>{
-            new Contact(
-                FirstName = 'Lena',
-                LastName = 'Rose',
-                AccountId = acc.Id,
-                Email = 'lena.rose@momentum.example.com',
-                Title = 'Lead Engineer, Robotics Division'
-            ),
-            new Contact(
-                FirstName = 'David',
-                LastName = 'Chen',
-                AccountId = acc.Id,
-                Email = 'david.chen@momentum.example.com',
-                Title = 'Director of Operations'
-            )
-        };
-        insert contacts;
-        idMap.put(contacts[0].LastName, contacts[0].Id);
-        idMap.put(contacts[1].LastName, contacts[1].Id);
+        Contact contact = new Contact(
+            FirstName = 'Lena',
+            LastName = 'Rose',
+            AccountId = acc.Id,
+            Email = 'lena.rose@globaltech.example.com',
+            Title = 'Procurement Specialist'
+        );
+        insert contact;
+        idMap.put(contact.LastName, contact.Id);
 
         // Products & Pricebook
         Pricebook2 stdPb = [SELECT Id FROM Pricebook2 WHERE IsStandard = TRUE LIMIT 1];
         Product2[] products = new List<Product2>{
-            new Product2(
-                Name = 'IND-ARM-v4 Robotic Arm',
-                ProductCode = 'AIM-RA-V4',
-                IsActive = true,
-                Description = '4th generation industrial robotic arm.'
-            ),
-            new Product2(Name = 'CONVEYOR-BELT-S5', ProductCode = 'AIM-CB-S5', IsActive = true, Description = 'Series 5 high-speed conveyor belt.'),
-            new Product2(Name = 'CNC-LATHE-X1', ProductCode = 'AIM-CNC-X1', IsActive = true, Description = 'High-precision CNC lathe.')
+            new Product2(Name = 'ProTrade Analytics Suite (Annual License)', ProductCode = 'PTS-AL-1Y', IsActive = true, Family = 'Software'),
+            new Product2(Name = 'SecureKey Hardware Fob', ProductCode = 'SK-HF-G2', IsActive = true, Family = 'Hardware')
         };
         insert products;
+        idMap.put(products[0].Name, products[0].Id);
+        idMap.put(products[1].Name, products[1].Id);
 
         PricebookEntry[] pbes = new List<PricebookEntry>{
-            new PricebookEntry(Pricebook2Id = stdPb.Id, Product2Id = products[0].Id, UnitPrice = 75000, IsActive = true),
-            new PricebookEntry(Pricebook2Id = stdPb.Id, Product2Id = products[1].Id, UnitPrice = 22000, IsActive = true),
-            new PricebookEntry(Pricebook2Id = stdPb.Id, Product2Id = products[2].Id, UnitPrice = 120000, IsActive = true)
+            new PricebookEntry(Pricebook2Id = stdPb.Id, Product2Id = products[0].Id, UnitPrice = 5000, IsActive = true),
+            new PricebookEntry(Pricebook2Id = stdPb.Id, Product2Id = products[1].Id, UnitPrice = 150, IsActive = true)
         };
         insert pbes;
 
-        // Assets
-        Asset[] assets = new List<Asset>{
-            new Asset(
-                Name = 'Robotic Arm V4 - Bay 1',
-                AccountId = acc.Id,
-                Product2Id = products[0].Id,
-                SerialNumber = 'AIM-V4-0087',
-                Status = 'Installed',
-                InstallDate = Date.today().addMonths(-6)
-            ),
-            new Asset(
-                Name = 'Robotic Arm V4 - Bay 2',
-                AccountId = acc.Id,
-                Product2Id = products[0].Id,
-                SerialNumber = 'AIM-V4-0051',
-                Status = 'Installed',
-                InstallDate = Date.today().addMonths(-8)
-            ),
-            new Asset(
-                Name = 'Main Conveyor S5',
-                AccountId = acc.Id,
-                Product2Id = products[1].Id,
-                SerialNumber = 'AIM-CB-0112',
-                Status = 'Installed',
-                InstallDate = Date.today().addMonths(-18)
-            )
+        // Orders - Step 1: Create as 'Draft'
+        Order order1 = new Order(
+            AccountId = acc.Id,
+            BillToContactId = contact.Id,
+            EffectiveDate = Date.today().addDays(-10),
+            Status = 'Draft', // CORRECTED: Must be 'Draft' on insert
+            Pricebook2Id = stdPb.Id
+        );
+        insert order1;
+        idMap.put('Recent Order', order1.Id);
+        OrderItem[] items1 = new List<OrderItem>{
+            new OrderItem(OrderId = order1.Id, PricebookEntryId = pbes[0].Id, Quantity = 1, UnitPrice = 5000),
+            new OrderItem(OrderId = order1.Id, PricebookEntryId = pbes[1].Id, Quantity = 1, UnitPrice = 150)
         };
-        insert assets;
-        idMap.put(assets[0].SerialNumber, assets[0].Id);
-        idMap.put(assets[1].SerialNumber, assets[1].Id);
+        insert items1;
 
-        // Cases (Current & Historical)
-        Case[] cases = new List<Case>{
-            new Case( // The current open case
-                ContactId = contacts[0].Id,
-                AssetId = assets[0].Id,
-                AccountId = acc.Id,
-                Status = 'New',
-                Priority = 'High',
-                Type = 'Mechanical Failure',
-                Subject = 'Actuator fault on Robotic Arm in Bay 1',
-                Description = 'The main actuator on arm AIM-V4-0087 is failing under load and making a grinding noise. This is halting our production line.'
-            ),
-            new Case( // A previous closed case
-                ContactId = contacts[0].Id,
-                AssetId = assets[1].Id,
-                AccountId = acc.Id,
-                Status = 'Closed',
-                Priority = 'Medium',
-                Type = 'Software Glitch',
-                Subject = 'Robotic arm in Bay 2 has intermittent software freezes',
-                Description = 'The arm control software would become unresponsive. A patch was applied.'
-            ),
-            new Case( // Another closed case
-                ContactId = contacts[0].Id,
-                AssetId = assets[2].Id,
-                AccountId = acc.Id,
-                Status = 'Closed',
-                Priority = 'Low',
-                Type = 'Routine Maintenance',
-                Subject = 'Question about conveyor belt lubrication schedule'
-            )
-        };
-        insert cases;
-        idMap.put('Current Open Case', cases[0].Id);
+        Order order2 = new Order(
+            AccountId = acc.Id,
+            BillToContactId = contact.Id,
+            EffectiveDate = Date.today().addMonths(-6),
+            Status = 'Draft',
+            Pricebook2Id = stdPb.Id
+        );
+        insert order2;
+
+        // Query back for the auto-generated OrderNumber to use in the Case Subject
+        order2 = [SELECT OrderNumber FROM Order WHERE Id = :order2.Id];
+        OrderItem[] items2 = new List<OrderItem>{ new OrderItem(OrderId = order2.Id, PricebookEntryId = pbes[0].Id, Quantity = 1, UnitPrice = 4500) };
+        insert items2;
+
+        // Orders - Step 2: Activate the orders
+        List<Order> ordersToActivate = new List<Order>();
+        order1.Status = 'Activated';
+        order2.Status = 'Activated';
+        ordersToActivate.add(order1);
+        ordersToActivate.add(order2);
+        update ordersToActivate;
+
+        // Cases
+        Case closedCase = new Case(
+            AccountId = acc.Id,
+            ContactId = contact.Id,
+            Status = 'Closed',
+            Subject = 'License key activation issue for Order #' + order2.OrderNumber
+        );
+        insert closedCase;
 
         // Chatter Group
-        CollaborationGroup chatterGroup = new CollaborationGroup(Name = 'Tier 3 Engineering Support', CollaborationType = 'Private');
+        CollaborationGroup chatterGroup = new CollaborationGroup(Name = 'Sales Operations', CollaborationType = 'Private');
         insert chatterGroup;
         idMap.put('Chatter Group ID', chatterGroup.Id);
     }
 
+    private static void seedKnowledgeArticles() {
+        System.debug('Seeding Knowledge Articles...');
+        try {
+            // UPDATED: Added more realistic, detailed article content.
+            Knowledge__kav article1 = new Knowledge__kav(
+                Title = 'Return Policy for Hardware Devices',
+                UrlName = 'Hardware-Return-Policy',
+                Summary = 'All hardware devices can be returned within 30 days of the delivery date, provided they are defective or were damaged upon arrival. To initiate a return, a support case must be created with a "Return Request" type. The request must include a description of the damage and a photo if possible. All return requests are subject to manager approval. Once approved, an RMA (Return Merchandise Authorization) number will be issued. The customer is responsible for shipping the defective unit back using the provided RMA label.'
+            );
+
+            Knowledge__kav article2 = new Knowledge__kav(
+                Title = 'Software License Activation Guide',
+                UrlName = 'Software-License-Activation',
+                Summary = 'To activate your software license for products like the ProTrade Analytics Suite, please follow these steps: 1. Log in to your customer portal. 2. Navigate to the "My Orders" section and locate the relevant order. 3. Click the "Activate License" button next to the product. 4. Your license key will be automatically applied to your account. If the button is not visible or you encounter an error, please create a support case with the subject "License Activation Failure".'
+            );
+
+            Knowledge__kav article3 = new Knowledge__kav(
+                Title = 'Reporting Damaged Shipments',
+                UrlName = 'Reporting-Damaged-Shipments',
+                Summary = 'If you receive a shipment with visible damage to the packaging or contents, please do the following within 48 hours of delivery: 1. Take clear photos of the damaged box and the damaged item(s). 2. Do not discard any packaging materials. 3. Contact our support team by creating a case and mention that the item was "Damaged in Transit". 4. A support agent will then initiate a return request on your behalf to start the replacement process.'
+            );
+
+            Knowledge__kav article4 = new Knowledge__kav(
+                Title = 'Troubleshooting Damaged SecureKey Hardware Fob',
+                UrlName = 'Troubleshooting-Damaged-SecureKey-Fob',
+                Summary = 'If a customer reports a damaged SecureKey Hardware Fob, first verify the order. For cracked casings or bent ports, the standard procedure is to initiate a return request for manager approval. A replacement unit will be shipped upon approval. This process is handled by the "initiate_return_request" tool.'
+            );
+
+            Knowledge__kav article5 = new Knowledge__kav(
+                Title = 'SecureKey Hardware Fob Not Responding',
+                UrlName = 'SecureKey-Fob-Not-Working',
+                Summary = 'If a SecureKey Hardware Fob is not being detected by the system, first ask the user to try a different USB port. If the issue persists, a software driver update may be required. If the device still does not work, create a support case using the "create_support_case" tool for further diagnostics.'
+            );
+
+            insert new List<Knowledge__kav>{ article1, article2, article3, article4, article5 };
+
+            KbManagement.PublishingService.publishArticle(article1.Id, true);
+            KbManagement.PublishingService.publishArticle(article2.Id, true);
+            KbManagement.PublishingService.publishArticle(article3.Id, true);
+            KbManagement.PublishingService.publishArticle(article4.Id, true);
+            KbManagement.PublishingService.publishArticle(article5.Id, true);
+            System.debug('Knowledge Articles published.');
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, 'Could not create Knowledge Articles. Ensure Knowledge is enabled. Error: ' + e.getMessage());
+        }
+    }
+
+    // Helper to reduce boilerplate
     private static AgentCapability__c createCapability(
         Id agentId,
         String capName,
@@ -421,7 +571,8 @@ public with sharing class AgentTestDataFactory {
         Boolean requiresConfirmation,
         Boolean requiresApproval,
         Integer priority,
-        Boolean runAsynchronously
+        Boolean runAsynchronously,
+        String exposure
     ) {
         return new AgentCapability__c(
             AIAgentDefinition__c = agentId,
@@ -435,7 +586,8 @@ public with sharing class AgentTestDataFactory {
             RequiresConfirmation__c = requiresConfirmation,
             RequiresApproval__c = requiresApproval,
             ExecutionPriority__c = priority,
-            RunAsynchronously__c = runAsynchronously
+            RunAsynchronously__c = runAsynchronously,
+            ExposureLevel__c = exposure
         );
     }
 
@@ -459,119 +611,5 @@ public with sharing class AgentTestDataFactory {
             ImplementationConfigJson__c = configJson,
             IsActive__c = true
         );
-    }
-
-    private static void seedKnowledgeArticles() {
-        System.debug('Seeding Knowledge Articles...');
-        try {
-            // 1. Create the article drafts
-            Knowledge__kav article1 = new Knowledge__kav(
-                Title = 'Troubleshooting the IND-ARM-v4 Actuator',
-                UrlName = 'Troubleshooting-IND-ARM-v4-Actuator',
-                Summary = 'This guide covers common actuator faults for the v4 robotic arm. A persistent amber light indicates a power fluctuation, while a blinking red light signifies a logic fault that may require a software reset.'
-            );
-
-            Knowledge__kav article2 = new Knowledge__kav(
-                Title = 'Guide to IND-ARM-v4 Software Resets',
-                UrlName = 'Guide-to-IND-ARM-v4-Software-Resets',
-                Summary = 'A software reset can resolve intermittent freezes and logic faults. To perform a reset, access the main control panel, navigate to System > Diagnostics, and select "Reboot Controller". This process takes approximately 90 seconds.'
-            );
-
-            Knowledge__kav article3 = new Knowledge__kav(
-                Title = 'Routine Maintenance for Conveyor Belts',
-                UrlName = 'Routine-Maintenance-for-Conveyor-Belts',
-                Summary = 'To ensure optimal performance, the S5 series conveyor belts require lubrication every 500 operational hours. Use only Apex-certified lubricant AIM-LUBE-G2.'
-            );
-
-            insert new List<Knowledge__kav>{ article1, article2, article3 };
-            System.debug('Knowledge Article drafts created.');
-
-            // 2. Publish the articles to make them visible
-            KbManagement.PublishingService.publishArticle(article1.Id, true);
-            KbManagement.PublishingService.publishArticle(article2.Id, true);
-            KbManagement.PublishingService.publishArticle(article3.Id, true);
-            System.debug('3 Knowledge Articles created, categorized, and published.');
-        } catch (Exception e) {
-            System.debug(
-                LoggingLevel.WARN,
-                'Could not create Knowledge Articles. Ensure Knowledge is enabled and the "Product_Categories" data category group exists. Error: ' +
-                e.getMessage()
-            );
-        }
-    }
-
-    private static AgentCapability__c setupEscalationGraph(Id agentId, Map<String, Id> primitiveCapsMap) {
-        System.debug('Setting up Escalation Graph capability...');
-
-        // 1. Define the main "Graph" capability that the LLM will see and call.
-        String graphDescription = 'Initiates a full Tier 2 escalation process. This involves adding an initial case comment, posting to the engineering team for immediate help, and logging a ticket in an external system for tracking. This is a comprehensive action.';
-        String graphParams = '{"type":"object","properties":{"caseId":{"type":"string", "description": "The ID of the case to be escalated."}, "escalationReason":{"type":"string", "description": "A concise reason for the escalation to be posted to the engineering team."}},"required":["caseId", "escalationReason"]}';
-
-        AgentCapability__c graphCapability = createCapability(
-                agentId,
-                'escalate_to_tier_2',
-                graphDescription,
-                graphParams,
-                'Graph', // ImplementationType
-                null,    // StandardActionType
-                null,    // ImplementationDetail
-                null,    // BackendConfiguration
-                false,   // RequiresConfirmation
-                false,   // RequiresApproval
-                45,      // ExecutionPriority
-                false    // RunAsynchronously (the graph itself starts sync)
-        );
-        insert graphCapability;
-
-        // 2. Define the individual nodes (steps) of the graph.
-        List<GraphNode__c> graphNodes = new List<GraphNode__c>();
-
-        // Node 1: Add initial comment (Entry Point)
-        graphNodes.add(
-                GraphNodeBuilder.create('node_add_internal_comment')
-                        .forCapability(graphCapability.Id)
-                        .runCapability('add_internal_comment') // Assumes primitive capability exists
-                        .asEntryPoint()
-                        .mapInput('parentId', '{!input.caseId}')
-                        .mapInput('commentBody', 'Escalation to Tier 2 process initiated by agent.')
-                        .routeWhenSuccess('node_escalate_to_engineering')
-                        .build()
-        );
-
-        // Node 2: Post to engineering team
-        graphNodes.add(
-                GraphNodeBuilder.create('node_escalate_to_engineering')
-                        .forCapability(graphCapability.Id)
-                        .runCapability('escalate_to_engineering')
-                        .mapInput('text', '{!input.escalationReason}')
-                        .routeWhenSuccess('node_log_issue_externally')
-                        .build()
-        );
-
-        // Node 3: Log in external system (Async)
-        graphNodes.add(
-                GraphNodeBuilder.create('node_log_issue_externally')
-                        .forCapability(graphCapability.Id)
-                        .runCapability('log_issue_externally')
-                        .startAsync()
-                        .mapInput('caseId', '{!input.caseId}')
-                        .routeWhenSuccess('node_add_internal_comment_1')
-                        .build()
-        );
-
-        // Node 4: Add final comment with ticket reference (Exit Node)
-        graphNodes.add(
-                GraphNodeBuilder.create('node_add_internal_comment_1')
-                        .forCapability(graphCapability.Id)
-                        .runCapability('add_internal_comment')
-                        .mapInput('parentId', '{!input.caseId}')
-                        .mapInput('commentBody', 'Escalation complete. External Reference: {!node.node_log_issue_externally.output.data.externalTicketId}')
-                        .build()
-        );
-
-        insert graphNodes;
-        System.debug(graphNodes.size() + ' graph nodes created for ' + graphCapability.CapabilityName__c);
-
-        return graphCapability;
     }
 }

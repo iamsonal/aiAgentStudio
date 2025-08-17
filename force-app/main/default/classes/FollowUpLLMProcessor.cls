@@ -64,7 +64,7 @@ public class FollowUpLLMProcessor {
             ' Cycle:' +
             this.currentTurnCount +
             ' InvokedBy:' +
-            jobIdForLogging +
+            (jobIdForLogging != null ? jobIdForLogging : 'PlatformEvent') +
             '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Begin follow-up LLM processing for turn.');
 

@@ -7,12 +7,11 @@
  */
 
 public class CreateAgentStudioConnectedApp {
-
     private static final String CERTIFICATE_API_NAME = 'AgentStudioJWTSigner';
     private static final String CERTIFICATE_LABEL = 'Agent Studio JWT Signer';
     private static final String CONNECTED_APP_API_NAME = 'AgentStudioInternalAPIAccess';
     private static final String CONNECTED_APP_LABEL = 'Agent Studio Internal API Access';
-    private static final String PERMISSION_SET_NAME = 'AI Agent Studio User';
+    private static final String PERMISSION_SET_NAME = 'AI Agent Studio Configurator';
     private static final String EXTERNAL_CREDENTIAL_API_NAME = 'AgentStudioServiceUser';
     private static final String EXTERNAL_CREDENTIAL_LABEL = 'Agent Studio Service User';
     private static final String NAMED_CREDENTIAL_API_NAME = 'AgentStudioInternalAPI';

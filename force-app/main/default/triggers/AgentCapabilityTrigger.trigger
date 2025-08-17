@@ -6,6 +6,7 @@
  * Copyright (c) 2025 Sonal
  */
 
-trigger AgentCapabilityTrigger on AgentCapability__c(before insert, before update) {
+trigger AgentCapabilityTrigger on AgentCapability__c (before insert, before update) {
+    // Delegate all logic to the handler class for testability and separation of concerns.
     AgentCapabilityTriggerHandler.handleTrigger(Trigger.new, Trigger.oldMap);
 }

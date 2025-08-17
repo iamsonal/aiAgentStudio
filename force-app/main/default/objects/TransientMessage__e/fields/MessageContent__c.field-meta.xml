@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>MessageContent__c</fullName>
-    <description>The raw text content of the assistant&apos;s message.</description>
+    <description>The raw text content of the assistant&apos;s intermediate message, providing streaming-like updates to the UI before the final response is complete.</description>
+    <inlineHelpText>Contains partial or intermediate text from the agent. This enables real-time display of agent thinking or progress while longer operations are still processing.</inlineHelpText>
     <isFilteringDisabled>false</isFilteringDisabled>
     <isNameField>false</isNameField>
     <isSortingDisabled>false</isSortingDisabled>

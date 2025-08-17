@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>SessionId__c</fullName>
+    <description>The unique identifier of the chat session associated with this asynchronous request, used for tracking and context correlation.</description>
     <externalId>false</externalId>
+    <inlineHelpText>Links this async job to a specific conversation session. Essential for maintaining context and ensuring responses are delivered to the correct chat thread.</inlineHelpText>
     <isFilteringDisabled>false</isFilteringDisabled>
     <isNameField>false</isNameField>
     <isSortingDisabled>false</isSortingDisabled>

@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>JobType__c</fullName>
-    <description>The type of job to be executed (e.g., &apos;ExecuteAction&apos;, &apos;FollowUpLLM&apos;). Dictates how the payload is interpreted.</description>
+    <description>The type of job to be executed (e.g., &apos;ExecuteAction&apos;, &apos;FollowUpLLM&apos;, &apos;GraphStep&apos;). Dictates how the payload is interpreted and routed to the appropriate processor.</description>
     <externalId>false</externalId>
+    <inlineHelpText>Specifies the processing type: ExecuteAction (tool execution), FollowUpLLM (continued conversation), or GraphStep (workflow execution). Required for proper event routing.</inlineHelpText>
     <isFilteringDisabled>false</isFilteringDisabled>
     <isNameField>false</isNameField>
     <isSortingDisabled>false</isSortingDisabled>

@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>RecordContextId__c</fullName>
+    <description>The Salesforce record ID that was the primary focus or context for this message turn. Links the message to the specific record being discussed or acted upon.</description>
     <externalId>false</externalId>
+    <inlineHelpText>The ID of the Salesforce record that this message is primarily about or acting upon (e.g., Case ID, Opportunity ID). Helps track which records are being discussed.</inlineHelpText>
     <label>Record Context Id</label>
     <length>255</length>
     <required>false</required>

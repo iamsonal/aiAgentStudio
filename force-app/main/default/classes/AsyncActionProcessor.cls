@@ -84,7 +84,7 @@ public class AsyncActionProcessor {
             ' Turn:' +
             this.currentTurnCount +
             ' InvokedBy:' +
-            jobIdForLogging +
+            (jobIdForLogging != null ? jobIdForLogging : 'PlatformEvent') +
             '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting asynchronous execution for capability: ' + this.capability.CapabilityName__c);
 
@@ -111,7 +111,7 @@ public class AsyncActionProcessor {
             }
 
             // Update session status to indicate active action processing
-            turnLifecycleSvc.startTurnProcessing(this.chatSessionId, this.turnIdentifier, jobIdForLogging, logPrefix);
+            turnLifecycleSvc.startTurnProcessing(this.chatSessionId, this.turnIdentifier, null, logPrefix);
 
             // Execute the action with performance tracking
             Long actionDuration = 0L;

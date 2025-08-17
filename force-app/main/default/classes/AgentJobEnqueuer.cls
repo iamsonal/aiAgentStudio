@@ -82,11 +82,16 @@ public inherited sharing class AgentJobEnqueuer {
                 JobType__c = 'FollowUpLLM',
                 Payload__c = JSON.serialize(payload)
             );
-            EventBus.publish(event);
+            Database.SaveResult sr = EventBus.publish(event);
+            if (!sr.isSuccess()) {
+                String errMsg = logPrefix + '[AgentJobEnqueuer] EventBus.publish failed for FollowUpLLM: ' + JSON.serialize(sr.getErrors());
+                System.debug(LoggingLevel.ERROR, errMsg);
+                throw new AgentJobEnqueuerException('Failed to publish FollowUpLLM event: ' + errMsg);
+            }
             System.debug(
                 LoggingLevel.INFO,
                 logPrefix +
-                    '[AgentJobEnqueuer] Published FollowUpLLM event for turnId=' +
+                    '[AgentJobEnqueuer] Successfully published FollowUpLLM event for turnId=' +
                     turnId +
                     ', sessionId=' +
                     sessionId +
@@ -149,11 +154,16 @@ public inherited sharing class AgentJobEnqueuer {
                 JobType__c = 'ExecuteAction',
                 Payload__c = JSON.serialize(payload)
             );
-            EventBus.publish(event);
+            Database.SaveResult sr = EventBus.publish(event);
+            if (!sr.isSuccess()) {
+                String errMsg = logPrefix + '[AgentJobEnqueuer] EventBus.publish failed for ExecuteAction: ' + JSON.serialize(sr.getErrors());
+                System.debug(LoggingLevel.ERROR, errMsg);
+                throw new AgentJobEnqueuerException('Failed to publish ExecuteAction event: ' + errMsg);
+            }
             System.debug(
                 LoggingLevel.INFO,
                 logPrefix +
-                    '[AgentJobEnqueuer] Published ExecuteAction event for capability="' +
+                    '[AgentJobEnqueuer] Successfully published ExecuteAction event for capability="' +
                     capability.CapabilityName__c +
                     '", turnId=' +
                     turnId +
@@ -219,7 +229,12 @@ public inherited sharing class AgentJobEnqueuer {
                 JobType__c = 'GraphStep',
                 Payload__c = JSON.serialize(payload)
             );
-            EventBus.publish(event);
+            Database.SaveResult sr = EventBus.publish(event);
+            if (!sr.isSuccess()) {
+                String errMsg = logPrefix + '[AgentJobEnqueuer] EventBus.publish failed for GraphStep: ' + JSON.serialize(sr.getErrors());
+                System.debug(LoggingLevel.ERROR, errMsg);
+                throw new AgentJobEnqueuerException('Failed to publish GraphStep event: ' + errMsg);
+            }
             System.debug(
                 LoggingLevel.INFO,
                 logPrefix + '[AgentJobEnqueuer] Published GraphStep event for capabilityId=' + graphCapabilityId + ', sessionId=' + sessionId
@@ -227,5 +242,8 @@ public inherited sharing class AgentJobEnqueuer {
         } catch (Exception e) {
             this.handleDispatchFailure(sessionId, null, jobDescription, e, logPrefix);
         }
+    }
+
+    public class AgentJobEnqueuerException extends Exception {
     }
 }

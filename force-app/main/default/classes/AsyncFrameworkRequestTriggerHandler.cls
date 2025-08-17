@@ -92,7 +92,7 @@ public class AsyncFrameworkRequestTriggerHandler {
             (String) params.get('turnId'),
             (Integer) params.get('currentTurnCount')
         );
-        processor.process('PlatformEvent');
+        processor.process(null);
     }
 
     /**
@@ -117,7 +117,7 @@ public class AsyncFrameworkRequestTriggerHandler {
             (Integer) params.get('nextTurnCount'),
             isFinalError
         );
-        processor.process('PlatformEvent');
+        processor.process(null);
     }
 
     /**

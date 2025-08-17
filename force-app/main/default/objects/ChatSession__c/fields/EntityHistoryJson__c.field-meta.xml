@@ -2,6 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>EntityHistoryJson__c</fullName>
     <description>Stores a JSON representation of the conversational context stack, including all relevant record IDs and which is primary. Managed by the ContextManagerService.</description>
+    <inlineHelpText>Internal framework field that tracks which Salesforce records are being discussed in this conversation. Managed automatically - do not edit manually.</inlineHelpText>
     <label>Entity History Json</label>
     <length>32768</length>
     <trackHistory>false</trackHistory>

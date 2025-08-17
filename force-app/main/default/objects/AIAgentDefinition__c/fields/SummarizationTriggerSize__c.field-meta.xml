@@ -3,7 +3,7 @@
     <fullName>SummarizationTriggerSize__c</fullName>
     <description>For &apos;Summary Buffer&apos; agents, this is the number of recent, unsummarized messages that will trigger the background summarization process.</description>
     <externalId>false</externalId>
-    <inlineHelpText>When the count of active (unsummarized) messages in a session exceeds this number, the system will queue the oldest messages for summarization.</inlineHelpText>
+    <inlineHelpText>Only applies to Summary Buffer agents. When unsummarized messages reach this count, older messages are automatically queued for summarization to manage memory efficiently.</inlineHelpText>
     <label>Summarization Trigger Size</label>
     <precision>18</precision>
     <required>false</required>

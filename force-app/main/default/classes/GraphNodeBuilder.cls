@@ -124,6 +124,19 @@ public class GraphNodeBuilder {
     }
 
     /**
+     * Adds a custom conditional edge that routes to the specified node if the condition is met.
+     *
+     * @param nextNode  The name of the node to route to.
+     * @param condition The semantic reference condition to evaluate (e.g., '{!result.output.productFamily} == \'Hardware\'').
+     * @return GraphNodeBuilder  This builder instance for method chaining.
+     */
+    public GraphNodeBuilder addConditionalEdge(String nextNode, String condition) {
+        // Use a priority that is lower than success/error but higher than 'always'
+        edges.add(new ConditionalEdge(condition, nextNode, 3));
+        return this;
+    }
+
+    /**
      * Adds an unconditional edge that always routes to the specified node, regardless of result.
      *
      * @param nextNode  The name of the node to route to unconditionally.

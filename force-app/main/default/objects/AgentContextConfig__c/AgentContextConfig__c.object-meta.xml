@@ -143,6 +143,7 @@
     <allowInChatterGroups>false</allowInChatterGroups>
     <compactLayoutAssignment>SYSTEM</compactLayoutAssignment>
     <deploymentStatus>Deployed</deploymentStatus>
+    <description>Defines how AI agents should retrieve and format Salesforce record data to provide as context during conversations. Each configuration specifies which object, fields, and filtering criteria to use when agents need contextual information about records being discussed. Linked to AI Agent Definitions to control what data agents can access.</description>
     <enableActivities>false</enableActivities>
     <enableBulkApi>true</enableBulkApi>
     <enableFeeds>false</enableFeeds>

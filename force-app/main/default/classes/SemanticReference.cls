@@ -195,9 +195,10 @@ public class SemanticReference {
 
     /**
      * Navigates a nested field path within a data object (Map<String, Object>), returning the value at the path.
+     * Supports both dot notation and array indexing (e.g., 'records[0].AccountId').
      *
      * @param data   The base object (may be a Map<String, Object> or null).
-     * @param path   The dot-separated field path (e.g., 'foo.bar.baz').
+     * @param path   The dot-separated field path with optional array indexing (e.g., 'records[0].AccountId').
      * @return       The value at the nested path, or null if not found.
      */
     private Object getNestedValue(Object data, String path) {
@@ -208,12 +209,47 @@ public class SemanticReference {
         Object currentValue = data;
 
         for (String key : keys) {
-            if (currentValue instanceof Map<String, Object>) {
-                currentValue = ((Map<String, Object>) currentValue).get(key);
-                if (currentValue == null)
+            // Check if this key contains array indexing syntax like 'records[0]'
+            if (key.contains('[') && key.contains(']')) {
+                String fieldName = key.substring(0, key.indexOf('['));
+                String indexStr = key.substring(key.indexOf('[') + 1, key.indexOf(']'));
+
+                try {
+                    Integer arrayIndex = Integer.valueOf(indexStr);
+
+                    // First navigate to the field
+                    if (currentValue instanceof Map<String, Object>) {
+                        currentValue = ((Map<String, Object>) currentValue).get(fieldName);
+                        if (currentValue == null)
+                            return null;
+                    } else {
+                        return null;
+                    }
+
+                    // Then handle array indexing
+                    if (currentValue instanceof List<Object>) {
+                        List<Object> listValue = (List<Object>) currentValue;
+                        if (arrayIndex >= 0 && arrayIndex < listValue.size()) {
+                            currentValue = listValue.get(arrayIndex);
+                        } else {
+                            return null; // Index out of bounds
+                        }
+                    } else {
+                        return null; // Not a list, can't index
+                    }
+                } catch (Exception e) {
+                    // Invalid array index format
                     return null;
+                }
             } else {
-                return null;
+                // Standard field navigation
+                if (currentValue instanceof Map<String, Object>) {
+                    currentValue = ((Map<String, Object>) currentValue).get(key);
+                    if (currentValue == null)
+                        return null;
+                } else {
+                    return null;
+                }
             }
         }
         return currentValue;

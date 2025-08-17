@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>FinalMessageContent__c</fullName>
+    <description>The complete text content of the agent's final response message for this conversation turn, if the operation completed successfully.</description>
+    <inlineHelpText>Contains the full text of the assistant's response. This field is populated only when the agent successfully completes processing and generates a textual reply.</inlineHelpText>
     <isFilteringDisabled>false</isFilteringDisabled>
     <isNameField>false</isNameField>
     <isSortingDisabled>false</isSortingDisabled>

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ExposureLevel__c</fullName>
+    <description>Controls the visibility and availability of this capability. 'External' makes it available to AI agents, 'Internal' hides it from agents but keeps it for system use, and 'Disabled' completely deactivates it.</description>
+    <inlineHelpText>Choose the capability's availability: 'External' = Available to AI agents, 'Internal' = Hidden from agents (system use only), 'Disabled' = Completely inactive.</inlineHelpText>
     <label>Exposure Level</label>
     <required>false</required>
     <trackTrending>false</trackTrending>

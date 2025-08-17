@@ -3,6 +3,7 @@
     <fullName>ParentMessage__c</fullName>
     <deleteConstraint>SetNull</deleteConstraint>
     <description>Links a &apos;tool&apos; result message back to the specific &apos;assistant&apos; message that requested the tool call.</description>
+    <inlineHelpText>For tool result messages, this links back to the assistant message that requested the tool execution. Helps track the flow of tool calls and results.</inlineHelpText>
     <label>Parent Assistant Message</label>
     <referenceTo>ChatMessage__c</referenceTo>
     <relationshipLabel>Chat Messages</relationshipLabel>

@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Payload__c</fullName>
-    <description>A serialized JSON string containing all necessary context and parameters for the job to execute.</description>
-    <externalId>false</externalId>
+    <description>A serialized JSON string containing all necessary context and parameters for the job to execute, including session IDs, user context, and job-specific configuration data.</description>
+    <inlineHelpText>JSON payload with execution parameters. Structure varies by JobType but typically includes sessionId, userId, agentDefId, and job-specific data like capability definitions or turn identifiers.</inlineHelpText>
     <isFilteringDisabled>false</isFilteringDisabled>
     <isNameField>false</isNameField>
     <isSortingDisabled>false</isSortingDisabled>
     <label>Payload</label>
-    <length>255</length>
-    <required>false</required>
-    <type>Text</type>
-    <unique>false</unique>
+    <length>131072</length>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
 </CustomField>

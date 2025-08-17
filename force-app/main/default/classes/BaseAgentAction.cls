@@ -138,7 +138,8 @@ public abstract class BaseAgentAction implements IAgentAction {
 
     /**
      * Intelligently processes and validates parameters using naming conventions and automatic type coercion.
-     * Converts string parameters to appropriate types (ID, DateTime, Integer, Boolean) based on parameter names.
+     * Converts string parameters to appropriate types (ID, Integer, Boolean) based on parameter names.
+     * Note: Date/DateTime coercion is intentionally removed to avoid schema conflicts - actions should handle their own date type coercion.
      *
      * @param rawArgs   The raw argument map from JSON.
      * @param logPrefix The logging prefix for debug output.
@@ -159,9 +160,6 @@ public abstract class BaseAgentAction implements IAgentAction {
             if (paramName.toLowerCase().endsWith('id') || paramName.toLowerCase().contains('recordid')) {
                 // ID parameters
                 processed.put(paramName, coerceToId(value, paramName));
-            } else if (paramName.toLowerCase().contains('date') || paramName.toLowerCase().contains('time')) {
-                // Date/DateTime parameters
-                processed.put(paramName, coerceToDateTime(value, paramName));
             } else if (
                 paramName.toLowerCase().contains('limit') ||
                 paramName.toLowerCase().contains('count') ||
@@ -177,7 +175,7 @@ public abstract class BaseAgentAction implements IAgentAction {
                 // Boolean parameters
                 processed.put(paramName, coerceToBoolean(value, paramName));
             } else {
-                // Keep as-is for other types
+                // Keep as-is for other types, including dates which should be handled by schema-aware coercion
                 processed.put(paramName, value);
             }
         }
@@ -559,20 +557,6 @@ public abstract class BaseAgentAction implements IAgentAction {
             }
         }
         throw new ValidationException('Parameter "' + paramName + '" must be a valid Salesforce ID', paramName);
-    }
-
-    private DateTime coerceToDateTime(Object value, String paramName) {
-        if (value instanceof DateTime) {
-            return (DateTime) value;
-        }
-        if (value instanceof String && String.isNotBlank((String) value)) {
-            try {
-                return DateTime.valueOf((String) value);
-            } catch (Exception e) {
-                throw new ValidationException('Invalid DateTime format for parameter "' + paramName + '": ' + value, paramName);
-            }
-        }
-        return null; // Allow null for optional date parameters
     }
 
     private Integer coerceToInteger(Object value, String paramName) {
