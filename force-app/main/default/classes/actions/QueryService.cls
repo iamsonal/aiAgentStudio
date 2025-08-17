@@ -7,16 +7,29 @@
  */
 
 /**
- * @description Enterprise-grade service class for building and executing secure SOQL queries.
- *              Features AI-optimized query pattern detection, schema caching, and intelligent
- *              execution path selection for maximum performance in high-stakes environments.
+ * @description
+ * QueryService: Enterprise SOQL query service with AI-optimized execution, robust security, and advanced diagnostics.
+ *
+ * This class provides a flexible, high-performance SOQL query engine for Salesforce, designed for use by AI agents and advanced automation.
+ * It features intelligent query pattern analysis, automatic field-level security (FLS) enforcement, and performance-optimized execution routing.
+ * Dual execution paths allow for simplified validation of common query patterns and comprehensive validation for complex queries.
+ *
+ * Key Responsibilities:
+ *   - Analyzes query structure and complexity to select the optimal execution path.
+ *   - Enforces FLS and object security for all queried fields.
+ *   - Supports bind variable management, schema caching, and structured error handling.
+ *   - Converts errors to AI-friendly exception formats for downstream automation and LLMs.
+ *   - Provides detailed debug output and optimization hints for diagnostics and performance tuning.
  */
 public class QueryService {
+    // Supported Filter Operators
     private static final Set<String> SUPPORTED_OPERATORS = new Set<String>{ '=', '!=', '>', '<', '>=', '<=', 'LIKE', 'IN' };
 
+    // Performance thresholds
     private static final Integer SIMPLE_PATH_FILTER_LIMIT = 3;
     private static final Integer COMPLEX_OPERATOR_THRESHOLD = 2;
 
+    // Custom Exceptions (maintained for backward compatibility)
     public virtual class QueryValidationException extends Exception {
     }
     public class FilterValidationException extends QueryValidationException {
@@ -24,8 +37,9 @@ public class QueryService {
     public class OrderByValidationException extends QueryValidationException {
     }
 
+    // Internal state - optimized with lazy loading
     private final SObjectType targetSObjectType;
-    private Map<String, Schema.SObjectField> allFieldsMap;
+    private Map<String, Schema.SObjectField> allFieldsMap; // Now lazy-loaded
     private final String logPrefix;
     private final Set<String> requestedFields = new Set<String>();
     private final List<String> finalFieldsToSelect = new List<String>();
@@ -37,25 +51,30 @@ public class QueryService {
     private List<String> defaultFields = new List<String>();
     private String orderBy;
 
+    // Performance optimization state
     private QueryPatternAnalyzer.PatternAnalysis patternAnalysis;
     private Boolean useSimplePath = false;
 
     /**
-     * @description Constructor with basic required parameters - optimized with lazy loading
-     * @param targetSObjectType The SObject type to query
-     * @param logPrefix Optional logging prefix for debug statements
+     * @description
+     * Initializes QueryService with lazy-loaded schema caching for optimal memory usage.
+     *
+     * @param targetSObjectType SObject type to query against
+     * @param logPrefix Logging prefix for debug output (defaults to '[QueryService]' if blank)
      */
     public QueryService(SObjectType targetSObjectType, String logPrefix) {
         this.targetSObjectType = targetSObjectType;
-
+        // Lazy load field map for better memory efficiency
         this.allFieldsMap = null;
         this.logPrefix = String.isBlank(logPrefix) ? '[QueryService] ' : logPrefix;
         this.filters = new Map<String, Object>();
     }
 
     /**
-     * @description Lazy-loaded field map getter with caching optimization
-     * @return Map of field API names to SObjectField tokens
+     * @description
+     * Retrieves field metadata map with lazy loading and caching via SchemaCache.
+     *
+     * @return Map of lowercase field API names to SObjectField describe tokens
      */
     private Map<String, Schema.SObjectField> getFieldMap() {
         if (this.allFieldsMap == null) {
@@ -65,7 +84,9 @@ public class QueryService {
     }
 
     /**
-     * @description Sets the default fields to select
+     * @description
+     * Sets the default fields to select for the query.
+     *
      * @param fields List of field API names
      * @return QueryService instance for method chaining
      */
@@ -77,7 +98,9 @@ public class QueryService {
     }
 
     /**
-     * @description Sets additional fields to select
+     * @description
+     * Sets additional fields to select for the query.
+     *
      * @param fields List of field API names
      * @return QueryService instance for method chaining
      */
@@ -89,7 +112,9 @@ public class QueryService {
     }
 
     /**
-     * @description Sets the filters for the WHERE clause
+     * @description
+     * Sets the filters for the WHERE clause.
+     *
      * @param filters Map of field name to filter value or complex filter map
      * @return QueryService instance for method chaining
      */
@@ -101,7 +126,9 @@ public class QueryService {
     }
 
     /**
-     * @description Sets the ORDER BY clause
+     * @description
+     * Sets the ORDER BY clause for the query.
+     *
      * @param orderBy String in format "FieldName [ASC|DESC] [NULLS FIRST|LAST]"
      * @return QueryService instance for method chaining
      */
@@ -111,7 +138,9 @@ public class QueryService {
     }
 
     /**
-     * @description Sets the query LIMIT
+     * @description
+     * Sets the query LIMIT, enforcing an optional maximum permitted limit.
+     *
      * @param queryLimit Integer value for query limit
      * @param maxPermittedLimit Optional maximum allowed limit value
      * @return QueryService instance for method chaining
@@ -128,7 +157,9 @@ public class QueryService {
     }
 
     /**
-     * @description Builds and executes the SOQL query
+     * @description
+     * Builds and executes the SOQL query using the configured parameters.
+     *
      * @return List<SObject> Results of the query
      */
     public List<SObject> executeQuery() {
@@ -137,20 +168,39 @@ public class QueryService {
     }
 
     /**
-     * @description Builds and executes the SOQL query with AI-optimized execution path selection
-     * @param bindMap Map to populate with bind variables
-     * @return List<SObject> Results of the query
+     * @description
+     * Executes SOQL query with intelligent pattern analysis and optimized execution routing.
+     * Analyzes query complexity to choose between simple and comprehensive validation paths.
+     *
+     * @param bindMap Map populated with bind variables for secure parameter binding
+     * @return List<SObject> Query results with USER_MODE security enforcement
+     * @throws AIFriendlyQueryException if query validation fails
      */
     public List<SObject> executeQuery(Map<String, Object> bindMap) {
         Long startTime = System.currentTimeMillis();
 
         try {
+            // Analyze query pattern to determine optimal execution strategy
             this.patternAnalysis = QueryPatternAnalyzer.analyzeQuery(this.filters, this.orderBy, getFieldMap());
             this.useSimplePath = this.patternAnalysis.canUseSimplePath;
 
+            System.debug(
+                LoggingLevel.DEBUG,
+                logPrefix +
+                    'Pattern=' +
+                    this.patternAnalysis.pattern +
+                    ', SimplePath=' +
+                    this.useSimplePath +
+                    ', ComplexityScore=' +
+                    this.patternAnalysis.complexityScore
+            );
+
+            // Log optimization recommendations for performance monitoring
             if (!this.patternAnalysis.optimizationHints.isEmpty()) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Optimization Hints: ' + String.join(this.patternAnalysis.optimizationHints, '; '));
             }
 
+            // Route to appropriate execution path based on complexity analysis
             List<SObject> results;
             if (this.useSimplePath) {
                 results = executeSimpleQuery(bindMap);
@@ -158,10 +208,17 @@ public class QueryService {
                 results = executeComplexQuery(bindMap);
             }
 
+            // Log execution metrics for performance monitoring
             Long executionTime = System.currentTimeMillis() - startTime;
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Query executed in ' + executionTime + 'ms. ' + 'Pattern=' + this.patternAnalysis.pattern + ', Records=' + results.size()
+            );
 
             return results;
         } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Query execution failed: ' + e.getMessage());
+            // Convert to structured AI-friendly exception format
             if (!(e instanceof AIFriendlyQueryException)) {
                 throw convertToAIException(e);
             }
@@ -170,11 +227,15 @@ public class QueryService {
     }
 
     /**
-     * @description Optimized execution path for simple queries
+     * @description
+     * Fast execution path for simple query patterns with minimal validation overhead.
+     * Used for common patterns like single field lookups and basic AND conditions.
+     *
      * @param bindMap Map to populate with bind variables
-     * @return List<SObject> Results of the query
+     * @return List<SObject> Query results
      */
     private List<SObject> executeSimpleQuery(Map<String, Object> bindMap) {
+        // Simplified validation for known simple patterns
         String whereClause = buildSimpleWhereClause(this.filters, bindMap);
         prepareSelectFieldsSimple(this.filterFieldsUsed);
         String orderByClause = buildSimpleOrderBy(this.orderBy);
@@ -183,11 +244,15 @@ public class QueryService {
     }
 
     /**
-     * @description Full validation execution path for complex queries
+     * @description
+     * Comprehensive validation path for complex queries requiring full security and type checking.
+     * Handles complex operators, nested conditions, and advanced field validation.
+     *
      * @param bindMap Map to populate with bind variables
-     * @return List<SObject> Results of the query
+     * @return List<SObject> Query results
      */
     private List<SObject> executeComplexQuery(Map<String, Object> bindMap) {
+        // Full validation path (existing logic)
         String whereClause = buildWhereClauseWithBinds(this.filters, getFieldMap(), bindMap);
         prepareSelectFields(this.filterFieldsUsed);
         String orderByClause = validateAndBuildOrderBy(this.orderBy, getFieldMap());
@@ -196,13 +261,16 @@ public class QueryService {
     }
 
     /**
-     * @description Common query execution logic
+     * @description
+     * Common query execution logic for both simple and complex paths.
+     *
      * @param whereClause The WHERE clause string
      * @param orderByClause The ORDER BY clause string
      * @param bindMap The bind variables map
      * @return List<SObject> Results of the query
      */
     private List<SObject> executeQueryString(String whereClause, String orderByClause, Map<String, Object> bindMap) {
+        // Assemble final query string
         String objectName = SchemaCache.getDescribe(this.targetSObjectType).getName();
         String queryString = 'SELECT ' + String.join(finalFieldsToSelect, ', ') + ' FROM ' + objectName;
 
@@ -214,25 +282,32 @@ public class QueryService {
         }
         queryString += ' LIMIT ' + this.queryLimit;
 
+        System.debug(LoggingLevel.INFO, logPrefix + 'Executing Query: ' + queryString + ' | Binds: ' + JSON.serialize(bindMap)?.abbreviate(500));
+
+        // Execute query with USER_MODE
         return Database.queryWithBinds(queryString, bindMap, AccessLevel.USER_MODE);
     }
 
     /**
-     * @description Simplified field preparation for simple query patterns
+     * @description
+     * Simplified field preparation for simple query patterns. Performs basic FLS check.
+     *
      * @param filterFields Fields identified as being used in the WHERE clause
      */
     private void prepareSelectFieldsSimple(Set<String> filterFields) {
         this.requestedFields.clear();
         this.finalFieldsToSelect.clear();
 
+        // Combine fields from configuration and parameters
         if (this.defaultFields != null)
             requestedFields.addAll(this.defaultFields);
         if (this.additionalFields != null)
             requestedFields.addAll(this.additionalFields);
         if (filterFields != null)
             requestedFields.addAll(filterFields);
-        requestedFields.add('Id');
+        requestedFields.add('Id'); // Always include Id
 
+        // Basic FLS check with USER_MODE reliance
         Map<String, Schema.SObjectField> fieldMap = getFieldMap();
         for (String fieldPath : requestedFields) {
             if (String.isBlank(fieldPath))
@@ -247,61 +322,102 @@ public class QueryService {
         }
 
         if (this.finalFieldsToSelect.isEmpty()) {
-            this.finalFieldsToSelect.add('Id');
+            this.finalFieldsToSelect.add('Id'); // Fallback to Id only
         }
     }
 
     /**
-     * @description Full field preparation with comprehensive FLS checks (existing logic)
+     * @description
+     * Full field preparation with comprehensive FLS checks for complex queries.
+     * Throws AIFriendlyQueryException if no accessible fields remain.
+     *
      * @param filterFields Fields identified as being used in the WHERE clause
+     * @throws AIFriendlyQueryException if no accessible fields remain
      */
     private void prepareSelectFields(Set<String> filterFields) {
-        this.requestedFields.clear();
+        this.requestedFields.clear(); // Ensure fresh list
         this.finalFieldsToSelect.clear();
 
+        // Combine fields from configuration and parameters
         if (this.defaultFields != null)
             requestedFields.addAll(this.defaultFields);
         if (this.additionalFields != null)
             requestedFields.addAll(this.additionalFields);
         if (filterFields != null)
             requestedFields.addAll(filterFields);
-        requestedFields.add('Id');
+        requestedFields.add('Id'); // Always include Id
 
+        // Apply FLS checks
         Map<String, Schema.SObjectField> fieldMap = getFieldMap();
         for (String fieldPath : requestedFields) {
             if (String.isBlank(fieldPath))
                 continue;
 
+            // Simple Check for now - only direct fields or single level relationship
             String baseFieldName = fieldPath.contains('.') ? fieldPath.substringBefore('.') : fieldPath;
             Schema.SObjectField fieldToken = fieldMap.get(baseFieldName.toLowerCase());
 
             if (fieldToken != null) {
                 Boolean isAccessible = false;
-
+                // If direct field check its FLS directly
                 if (!fieldPath.contains('.')) {
                     isAccessible = fieldToken.getDescribe().isAccessible();
                 } else {
+                    // If relationship, check if the relationship field itself is accessible.
+                    // USER_MODE will handle access to the field ON the related object.
                     isAccessible = fieldToken.getDescribe().isAccessible();
                     if (isAccessible) {
+                        System.debug(
+                            LoggingLevel.DEBUG,
+                            logPrefix +
+                                'Relationship field "' +
+                                baseFieldName +
+                                '" is accessible. FLS for related field path "' +
+                                fieldPath +
+                                '" will be checked by USER_MODE query execution.'
+                        );
                     }
                 }
 
                 if (isAccessible) {
                     this.finalFieldsToSelect.add(fieldPath);
                 } else {
+                    System.debug(
+                        LoggingLevel.WARN,
+                        logPrefix +
+                            'Skipping field for SELECT: "' +
+                            fieldPath +
+                            '" - base field/relationship "' +
+                            baseFieldName +
+                            '" is not accessible.'
+                    );
                 }
             } else {
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix +
+                        'Skipping field for SELECT: "' +
+                        fieldPath +
+                        '" - base field/relationship "' +
+                        baseFieldName +
+                        '" not found on object ' +
+                        SchemaCache.getDescribe(targetSObjectType).getName() +
+                        '.'
+                );
             }
         }
 
         if (this.finalFieldsToSelect.isEmpty()) {
+            // It's possible after FLS that only Id remains, or no fields were accessible
             throw AIFriendlyQueryException.fieldNotAccessible('requested fields', SchemaCache.getDescribe(targetSObjectType).getName())
                 .withContext('requestedFields', requestedFields);
         }
     }
 
     /**
-     * @description Simplified WHERE clause builder for simple query patterns
+     * @description
+     * Simplified WHERE clause builder for simple query patterns. Only supports equals conditions.
+     *
      * @param filters Map from LLM arguments
      * @param bindMap Map to populate with bind variables
      * @return WHERE clause string or empty string
@@ -319,6 +435,7 @@ public class QueryService {
         for (String fieldName : filters.keySet()) {
             Object filterValue = filters.get(fieldName);
 
+            // Basic field validation
             Schema.SObjectField fieldToken = fieldMap.get(fieldName.toLowerCase());
             if (fieldToken == null) {
                 throw AIFriendlyQueryException.invalidField(fieldName, SchemaCache.getDescribe(targetSObjectType).getName());
@@ -331,6 +448,7 @@ public class QueryService {
 
             this.filterFieldsUsed.add(dfr.getName());
 
+            // Simple condition generation (equals only for simple path)
             if (filterValue == null) {
                 conditions.add(dfr.getName() + ' = null');
             } else {
@@ -344,7 +462,9 @@ public class QueryService {
     }
 
     /**
-     * @description Simplified ORDER BY builder for simple patterns
+     * @description
+     * Simplified ORDER BY builder for simple patterns. Falls back to complex validation if needed.
+     *
      * @param orderByParam The ORDER BY parameter
      * @return ORDER BY clause string
      */
@@ -352,7 +472,9 @@ public class QueryService {
         if (String.isBlank(orderByParam))
             return '';
 
+        // Basic validation - just check format
         if (orderByParam.containsIgnoreCase('NULLS') || orderByParam.split('\\s+').size() > 2) {
+            // Fall back to complex validation
             return validateAndBuildOrderBy(orderByParam, getFieldMap());
         }
 
@@ -360,7 +482,9 @@ public class QueryService {
     }
 
     /**
-     * @description Converts standard exceptions to AI-friendly exceptions
+     * @description
+     * Converts standard exceptions to AI-friendly exceptions for downstream automation and LLMs.
+     *
      * @param originalException The original exception
      * @return AIFriendlyQueryException with structured error information
      */
@@ -368,6 +492,7 @@ public class QueryService {
         String message = originalException.getMessage();
         String objectName = SchemaCache.getDescribe(targetSObjectType).getName();
 
+        // Pattern matching for common error types
         if (message.containsIgnoreCase('field') && message.containsIgnoreCase('not found')) {
             return AIFriendlyQueryException.invalidField('unknown', objectName).withContext('originalMessage', message);
         } else if (message.containsIgnoreCase('access') || message.containsIgnoreCase('permission')) {
@@ -375,6 +500,7 @@ public class QueryService {
         } else if (message.containsIgnoreCase('order by')) {
             return AIFriendlyQueryException.invalidOrderBy(this.orderBy ?? 'unknown').withContext('originalMessage', message);
         } else {
+            // Generic conversion
             return new AIFriendlyQueryException(
                     message,
                     AIFriendlyQueryException.ErrorCode.GENERAL_VALIDATION,
@@ -386,8 +512,10 @@ public class QueryService {
     }
 
     /**
-     * @description Builds WHERE clause using bind variables with enhanced operator support.
-     *              Handles simple filters {field: value} and complex {field: {op1: val1, op2: val2}}.
+     * @description
+     * Builds WHERE clause using bind variables with enhanced operator support.
+     * Handles simple filters {field: value} and complex {field: {op1: val1, op2: val2}}.
+     *
      * @param filters Map from LLM arguments
      * @param allFieldsMap Describe result map for the SObjectType
      * @param bindMap Map to populate with bind variables (passed by reference)
@@ -402,12 +530,14 @@ public class QueryService {
         if (filters == null || filters.isEmpty())
             return '';
 
+        // Reset bindCounter for this specific build
         this.bindCounter = 0;
         this.filterFieldsUsed.clear();
 
         for (String fieldName : filters.keySet()) {
             Object filterValue = filters.get(fieldName);
 
+            // Field validation (Perform once per field)
             Schema.SObjectField fieldToken = allFieldsMap.get(fieldName.toLowerCase());
             if (fieldToken == null) {
                 throw AIFriendlyQueryException.invalidField(fieldName, SchemaCache.getDescribe(targetSObjectType).getName());
@@ -419,27 +549,33 @@ public class QueryService {
             if (!dfr.isAccessible()) {
                 throw AIFriendlyQueryException.fieldNotAccessible(fieldName, SchemaCache.getDescribe(targetSObjectType).getName());
             }
-            this.filterFieldsUsed.add(dfr.getName());
+            this.filterFieldsUsed.add(dfr.getName()); // Track fields used for filtering/selection
 
+            // Condition Generation Logic (Handles simple and complex filters)
             if (filterValue instanceof Map<String, Object>) {
+                // Complex Filter: {field: {op1: val1, op2: val2}}
                 Map<String, Object> complexFilter = (Map<String, Object>) filterValue;
                 if (complexFilter.isEmpty()) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Empty complex filter map provided for field "' + fieldName + '". Skipping.');
                     continue;
                 }
-
+                // Iterate through EACH operator specified for this field
                 for (String operatorKey : complexFilter.keySet()) {
                     String operator = operatorKey.toUpperCase();
                     Object actualValue = complexFilter.get(operatorKey);
 
+                    // Validate the operator from the inner map
                     if (!SUPPORTED_OPERATORS.contains(operator)) {
                         throw AIFriendlyQueryException.invalidOperator(operatorKey, fieldName)
                             .withContext('supportedOperators', new List<String>(SUPPORTED_OPERATORS));
                     }
 
+                    // Generate condition for this specific operator-value pair
                     String condition = generateSingleConditionClause(dfr, fieldName, operator, actualValue, bindMap);
                     conditions.add(condition);
                 }
             } else {
+                // Simple Filter: {field: value} (Implicit '=')
                 String operator = '=';
                 Object actualValue = filterValue;
                 String condition = generateSingleConditionClause(dfr, fieldName, operator, actualValue, bindMap);
@@ -451,8 +587,10 @@ public class QueryService {
     }
 
     /**
+     * @description
      * Generates the SOQL clause string and populates bindMap for a SINGLE condition.
      * Called by buildWhereClauseWithBinds for both simple and complex filter structures.
+     *
      * @param dfr DescribeFieldResult of the target field
      * @param fieldName API name of the field
      * @param operator Uppercase comparison operator (e.g., '=', '>', 'IN')
@@ -468,8 +606,9 @@ public class QueryService {
         Map<String, Object> bindMap
     ) {
         String condition;
-        String bindNameBase = 'filterBind' + this.bindCounter++;
+        String bindNameBase = 'filterBind' + this.bindCounter++; // Increment instance counter
 
+        // --- Logic for generating condition based on operator and actualValue ---
         if (operator == 'IN') {
             if (!(actualValue instanceof List<Object>)) {
                 throw new FilterValidationException(
@@ -482,7 +621,7 @@ public class QueryService {
             }
 
             Schema.DisplayType fieldType = dfr.getType();
-            Object bindList = null;
+            Object bindList = null; // Use Object initially to hold the correctly typed list
 
             try {
                 if (fieldType == DisplayType.ID || fieldType == DisplayType.REFERENCE) {
@@ -530,7 +669,8 @@ public class QueryService {
                 }
             } catch (FilterValidationException e) {
                 throw e;
-            } catch (Exception ex) {
+            } // Rethrow validation exceptions
+            catch (Exception ex) {
                 throw new FilterValidationException(
                     'Unexpected error preparing IN list for field "' + fieldName + '". Check list values. Error: ' + ex.getMessage()
                 );
@@ -540,6 +680,7 @@ public class QueryService {
             condition = dfr.getName() + ' IN :' + bindName;
             bindMap.put(bindName, bindList);
         } else if (actualValue == null) {
+            // Handle null after IN check
             if (operator == '=')
                 condition = dfr.getName() + ' = null';
             else if (operator == '!=')
@@ -548,7 +689,9 @@ public class QueryService {
                 throw new FilterValidationException(
                     'Operator "' + operator + '" cannot be used with an explicit null value for field ' + fieldName + '. Use "=" or "!=".'
                 );
+            // No bind variable needed for null checks
         } else {
+            // --- Handle standard operators (=, !=, >, <, >=, <=, LIKE) ---
             Object coercedValue = coerceFilterValue(actualValue, dfr, fieldName);
             String bindName = bindNameBase;
             condition = dfr.getName() + ' ' + operator + ' :' + bindName;
@@ -558,7 +701,15 @@ public class QueryService {
     }
 
     /**
-     * @description Coerces a filter value based on the field type for WHERE clause conditions
+     * @description
+     * Coerces a filter value based on the field type for WHERE clause conditions.
+     * Throws FilterValidationException or AIFriendlyQueryException on invalid input.
+     *
+     * @param rawValue The raw filter value
+     * @param dfr DescribeFieldResult of the target field
+     * @param fieldNameForError Field name for error messages
+     * @return Object coerced to the correct type for binding
+     * @throws FilterValidationException or AIFriendlyQueryException on invalid input
      */
     private Object coerceFilterValue(Object rawValue, Schema.DescribeFieldResult dfr, String fieldNameForError) {
         Schema.DisplayType fieldType = dfr.getType();
@@ -567,6 +718,7 @@ public class QueryService {
             if (rawValue == null)
                 return null;
 
+            // Numeric Types
             if (
                 fieldType == DisplayType.INTEGER ||
                 fieldType == DisplayType.DOUBLE ||
@@ -574,7 +726,7 @@ public class QueryService {
                 fieldType == DisplayType.PERCENT
             ) {
                 Decimal decimalValue;
-
+                // Attempt to create a Decimal value first for validation and consistent parsing
                 if (rawValue instanceof Integer || rawValue instanceof Double || rawValue instanceof Decimal) {
                     decimalValue = Decimal.valueOf(String.valueOf(rawValue));
                 } else if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
@@ -585,17 +737,20 @@ public class QueryService {
                             .withContext('parseError', e.getMessage());
                     }
                 } else {
+                    // If it's not a direct number or string, throw error
                     throw AIFriendlyQueryException.invalidValueType(fieldNameForError, 'Number or numeric String', rawValue);
                 }
 
+                // *** Important: Return the specific type expected by the field ***
                 if (fieldType == DisplayType.INTEGER) {
                     try {
+                        // Check if it exceeds Integer limits
                         if (decimalValue.scale() > 0) {
                             throw new FilterValidationException(
                                 'Decimal value "' + decimalValue + '" cannot be used for Integer field "' + fieldNameForError + '".'
                             );
                         }
-                        return decimalValue.intValue();
+                        return decimalValue.intValue(); // Return Integer if field is Integer type
                     } catch (Exception integerEx) {
                         throw new FilterValidationException(
                             'Value "' +
@@ -607,9 +762,11 @@ public class QueryService {
                         );
                     }
                 } else {
-                    return decimalValue;
+                    return decimalValue; // Return Decimal for Double, Currency, Percent
                 }
-            } else if (fieldType == DisplayType.BOOLEAN) {
+            }
+            // Boolean
+            else if (fieldType == DisplayType.BOOLEAN) {
                 if (rawValue instanceof Boolean)
                     return rawValue;
                 if (rawValue instanceof String) {
@@ -618,14 +775,16 @@ public class QueryService {
                     if (((String) rawValue).equalsIgnoreCase('false'))
                         return false;
                 }
-
+                // Optionally handle 0/1 for boolean
                 if (rawValue instanceof Integer || rawValue instanceof Decimal) {
                     return Decimal.valueOf(String.valueOf(rawValue)) != 0;
                 }
                 throw new FilterValidationException(
                     'Invalid Boolean format for field "' + fieldNameForError + '". Expected true/false, got "' + rawValue + '".'
                 );
-            } else if (fieldType == DisplayType.ID || fieldType == DisplayType.REFERENCE) {
+            }
+            // ID / Reference
+            else if (fieldType == DisplayType.ID || fieldType == DisplayType.REFERENCE) {
                 if (rawValue instanceof String) {
                     try {
                         return Id.valueOf((String) rawValue);
@@ -638,7 +797,9 @@ public class QueryService {
                 if (rawValue instanceof Id)
                     return rawValue;
                 throw new FilterValidationException('Invalid data type for ID field "' + fieldNameForError + '". Received "' + rawValue + '".');
-            } else if (fieldType == DisplayType.DATE) {
+            }
+            // Date
+            else if (fieldType == DisplayType.DATE) {
                 if (rawValue instanceof String) {
                     try {
                         return Date.valueOf((String) rawValue);
@@ -651,16 +812,19 @@ public class QueryService {
                 if (rawValue instanceof Date)
                     return rawValue;
                 throw new FilterValidationException('Invalid data type for Date field "' + fieldNameForError + '". Received "' + rawValue + '".');
-            } else if (fieldType == DisplayType.DATETIME) {
+            }
+            // Datetime
+            else if (fieldType == DisplayType.DATETIME) {
                 if (rawValue instanceof String) {
                     String dateString = (String) rawValue;
-
+                    // Handle multiple datetime formats, standardizing towards 'T' separator if space exists
                     try {
                         if (dateString.contains('T')) {
-                            return Datetime.valueOfGmt(dateString);
+                            return Datetime.valueOfGmt(dateString); // Assumes GMT if Z specified or handled by platform
                         } else if (dateString.contains(' ')) {
-                            return Datetime.valueOf(dateString);
+                            return Datetime.valueOf(dateString); // Assume local timezone parse
                         } else {
+                            // Might be just date - attempt Date parse first? No, require full Datetime string.
                             throw new FilterValidationException(
                                 'Invalid datetime format for field "' +
                                     fieldNameForError +
@@ -683,10 +847,12 @@ public class QueryService {
                 if (rawValue instanceof Datetime)
                     return rawValue;
                 throw new FilterValidationException('Invalid data type for Datetime field "' + fieldNameForError + '". Received "' + rawValue + '".');
-            } else if (
+            }
+            // String and other types that bind as String
+            else if (
                 dfr.getSOAPType() == Schema.SoapType.STRING ||
-                fieldType == DisplayType.PICKLIST ||
-                fieldType == DisplayType.MULTIPICKLIST ||
+                fieldType == DisplayType.PICKLIST || // Bind Picklists as String
+                fieldType == DisplayType.MULTIPICKLIST || // Bind Multipicklist as String (single value for filters other than IN)
                 fieldType == DisplayType.EMAIL ||
                 fieldType == DisplayType.PHONE ||
                 fieldType == DisplayType.URL ||
@@ -694,7 +860,7 @@ public class QueryService {
                 fieldType == DisplayType.ENCRYPTEDSTRING
             ) {
                 String stringVal = String.valueOf(rawValue);
-
+                // Basic Length check (excluding TextArea/LongTextArea handled by DML limits)
                 Integer fieldLength = dfr.getLength();
                 if (fieldLength > 0 && stringVal.length() > fieldLength && fieldType != DisplayType.TEXTAREA) {
                     throw new FilterValidationException('Value length exceeds maximum (' + fieldLength + ') for field "' + fieldNameForError + '".');
@@ -702,12 +868,19 @@ public class QueryService {
                 return stringVal;
             }
 
+            // Fallback for any unhandled types - may or may not work with binding
+            System.debug(
+                LoggingLevel.WARN,
+                'Coercing value for unhandled field type: ' + fieldNameForError + ' (' + fieldType + '). Attempting direct pass.'
+            );
             return rawValue;
         } catch (Exception e) {
+            // Catch specific FilterValidationExceptions and rethrow them
             if (e instanceof FilterValidationException) {
                 throw e;
             }
-
+            // Wrap other unexpected exceptions
+            System.debug(LoggingLevel.ERROR, 'Unexpected error coercing value for ' + fieldNameForError + ': ' + e.getMessage());
             throw new FilterValidationException(
                 'Unexpected error coercing value for filter field "' + fieldNameForError + '". Details: ' + e.getMessage()
             );
@@ -715,7 +888,14 @@ public class QueryService {
     }
 
     /**
-     * @description Validates and builds ORDER BY clause
+     * @description
+     * Validates and builds ORDER BY clause, enforcing field existence, sortability, and FLS.
+     * Throws OrderByValidationException or AIFriendlyQueryException on invalid input.
+     *
+     * @param orderByParam The ORDER BY parameter
+     * @param allFieldsMap Describe result map for the SObjectType
+     * @return String ORDER BY clause
+     * @throws OrderByValidationException or AIFriendlyQueryException on invalid input
      */
     private String validateAndBuildOrderBy(String orderByParam, Map<String, Schema.SObjectField> allFieldsMap) {
         if (String.isBlank(orderByParam))
@@ -725,6 +905,7 @@ public class QueryService {
         String direction = 'ASC';
         String nullsOrder = '';
 
+        // Parse "FieldName [ASC|DESC] [NULLS FIRST|LAST]"
         Pattern orderByPattern = Pattern.compile('(?i)^([a-zA-Z0-9_\\.]+)(?:\\s+(ASC|DESC))?(?:\\s+NULLS\\s+(FIRST|LAST))?$');
         Matcher m = orderByPattern.matcher(orderByParam.trim());
 
@@ -740,6 +921,7 @@ public class QueryService {
             throw AIFriendlyQueryException.invalidOrderBy(orderByParam);
         }
 
+        // Field validation
         String baseFieldName = fieldName.contains('.') ? fieldName.substringBefore('.') : fieldName;
         Schema.SObjectField fieldToken = allFieldsMap.get(baseFieldName.toLowerCase());
 
@@ -760,6 +942,7 @@ public class QueryService {
             throw new OrderByValidationException('ORDER BY field "' + fieldName + '" is not accessible to the current user.');
         }
 
+        // Construct final clause with explicit NULLS handling
         String finalNullsClause = '';
         if (String.isNotBlank(nullsOrder)) {
             finalNullsClause = ' NULLS ' + nullsOrder;

@@ -5,7 +5,7 @@
             <componentInstance>
                 <componentInstanceProperties>
                     <name>agentDeveloperName</name>
-                    <value>Support_Copilot</value>
+                    <value>Order_Management_Copilot</value>
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>cardTitle</name>
@@ -39,6 +39,10 @@
                     <name>scrollable</name>
                     <type>decorator</type>
                     <value>true</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>useCommunityMode</name>
+                    <value>false</value>
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>width</name>

@@ -6,18 +6,37 @@
  * Copyright (c) 2025 Sonal
  */
 
+/**
+ * @description
+ * ReportSummarizer: Enterprise report analysis and summarization service for AI-driven insights.
+ *
+ * This class processes Salesforce report results across all formats (Tabular, Summary, Matrix) to generate
+ * structured summaries with key metrics, grouping analysis, and aggregate data extraction. It is optimized for
+ * AI agent consumption, with configurable output limits, intelligent data prioritization, and clear, actionable summaries.
+ *
+ * Key Responsibilities:
+ *   - Analyzes report format and routes to the appropriate summarization strategy.
+ *   - Extracts and structures key metrics, groupings, and aggregate data for all report types.
+ *   - Provides concise, LLM-friendly summaries and diagnostics for downstream automation.
+ *   - Limits output size to prevent excessive payloads and ensures performance.
+ */
 public class ReportSummarizer {
-    private static final Integer MAX_GROUPINGS_TO_RETURN = 15;
+    private static final Integer MAX_GROUPINGS_TO_RETURN = 15; // Prevent huge payloads
 
     /**
-     * @description Main entry point. Analyzes the report format and delegates to the appropriate summarizer.
-     * @param results The Reports.ReportResults object from a synchronous report run.
-     * @return Map<String, Object> A structured map containing the report summary.
+     * @description
+     * Analyzes report format and routes to the appropriate summarization strategy.
+     * Provides a unified interface for all Salesforce report types with structured output.
+     *
+     * @param results Report execution results from Reports API
+     * @return Map containing structured summary with format-specific analysis and metrics
      */
     public static Map<String, Object> summarize(Reports.ReportResults results) {
         Reports.ReportMetadata metadata = results.getReportMetadata();
         Reports.ReportFormat reportFormat = metadata.getReportFormat();
         String reportFormatName = reportFormat.name();
+
+        System.debug(LoggingLevel.INFO, '[ReportSummarizer] Processing ' + reportFormatName + ' report: ' + metadata.getName());
 
         switch on reportFormatName {
             when 'TABULAR' {
@@ -30,6 +49,7 @@ public class ReportSummarizer {
                 return summarizeMatrix(results, metadata);
             }
             when else {
+                System.debug(LoggingLevel.ERROR, '[ReportSummarizer] Unknown report format: ' + reportFormatName);
                 return new Map<String, Object>{
                     'isSuccess' => false,
                     'status' => 'UNKNOWN_FORMAT',
@@ -40,11 +60,19 @@ public class ReportSummarizer {
     }
 
     /**
-     * @description Summarizes a Tabular report. Focuses on record count.
+     * @description
+     * Processes tabular reports, focusing on record count and basic metrics.
+     * Tabular reports contain raw data without groupings or aggregations.
+     *
+     * @param results Report execution results
+     * @param metadata Report metadata
+     * @return Map with summary and metrics for tabular report
      */
     private static Map<String, Object> summarizeTabular(Reports.ReportResults results, Reports.ReportMetadata metadata) {
         Integer recordCount = getRecordCount(results);
         String summaryMessage = 'The report "' + metadata.getName() + '" returned ' + recordCount + ' records.';
+
+        System.debug(LoggingLevel.DEBUG, '[ReportSummarizer] Tabular report processed: ' + recordCount + ' records');
 
         return new Map<String, Object>{
             'isSuccess' => true,
@@ -57,16 +85,24 @@ public class ReportSummarizer {
     }
 
     /**
-     * @description Summarizes a Summary report. Includes top-level groupings and aggregates.
+     * @description
+     * Processes summary reports with groupings and aggregate analysis.
+     * Extracts grouping hierarchies, aggregate values, and provides top-level insights.
+     *
+     * @param results Report execution results
+     * @param metadata Report metadata
+     * @return Map with summary, groupings, and aggregate metrics for summary report
      */
     private static Map<String, Object> summarizeSummary(Reports.ReportResults results, Reports.ReportMetadata metadata) {
         Integer recordCount = getRecordCount(results);
         List<String> aggregateLabels = metadata.getAggregates();
 
+        // Get grouping field names
         List<String> groupingLabels = new List<String>();
         List<Reports.GroupingInfo> groupingsDownInfo = metadata.getGroupingsDown();
         List<Reports.GroupingInfo> groupingsAcrossInfo = metadata.getGroupingsAcross();
 
+        // Extract field names from GroupingInfo
         if (groupingsDownInfo != null) {
             for (Reports.GroupingInfo gi : groupingsDownInfo) {
                 groupingLabels.add(gi.getName());
@@ -89,13 +125,16 @@ public class ReportSummarizer {
             'grandTotal' => new Map<String, Object>()
         };
 
+        // The fact map is the source of all summary data
         Map<String, Reports.ReportFact> factMap = results.getFactMap();
 
+        // Extract grand total aggregates for overall metrics
         Reports.ReportFact grandTotalFact = factMap.get('T!T');
         if (grandTotalFact != null) {
             summaryMap.put('grandTotal', extractAggregates(grandTotalFact, aggregateLabels));
         }
 
+        // Process grouping data with configurable limits
         Reports.Dimension groupingInfo = results.getGroupingsDown();
         Integer groupingCount = 0;
 
@@ -131,16 +170,25 @@ public class ReportSummarizer {
 
         summaryMap.put('summary', summaryMessage);
 
+        System.debug(LoggingLevel.DEBUG, '[ReportSummarizer] Summary report processed: ' + recordCount + ' records, ' + groupingCount + ' groupings');
+
         return summaryMap;
     }
 
     /**
-     * @description Summarizes a Matrix report. Includes row and column groupings.
+     * @description
+     * Processes matrix reports with two-dimensional grouping analysis.
+     * Handles row and column groupings with cross-tabulated aggregate data.
+     *
+     * @param results Report execution results
+     * @param metadata Report metadata
+     * @return Map with summary, row/column groupings, and aggregate metrics for matrix report
      */
     private static Map<String, Object> summarizeMatrix(Reports.ReportResults results, Reports.ReportMetadata metadata) {
         Integer recordCount = getRecordCount(results);
         List<String> aggregateLabels = metadata.getAggregates();
 
+        // Get grouping field names
         List<String> rowGroupings = new List<String>();
         List<String> columnGroupings = new List<String>();
 
@@ -170,13 +218,16 @@ public class ReportSummarizer {
             'grandTotal' => new Map<String, Object>()
         };
 
+        // The fact map is the source of all summary data
         Map<String, Reports.ReportFact> factMap = results.getFactMap();
 
+        // Process Grand Total
         Reports.ReportFact grandTotalFact = factMap.get('T!T');
         if (grandTotalFact != null) {
             summaryMap.put('grandTotal', extractAggregates(grandTotalFact, aggregateLabels));
         }
 
+        // Process row groupings
         Reports.Dimension rowDimension = results.getGroupingsDown();
         Integer processedCount = 0;
 
@@ -192,6 +243,7 @@ public class ReportSummarizer {
                     'cells' => new List<Map<String, Object>>()
                 };
 
+                // Get row total
                 String rowTotalKey = rowGrouping.getKey() + '!T';
                 Reports.ReportFact rowTotalFact = factMap.get(rowTotalKey);
                 if (rowTotalFact != null) {
@@ -218,14 +270,21 @@ public class ReportSummarizer {
 
         summaryMap.put('summary', summaryMessage);
 
+        System.debug(
+            LoggingLevel.DEBUG,
+            '[ReportSummarizer] Matrix report processed: ' + recordCount + ' records, ' + processedCount + ' row groupings'
+        );
+
         return summaryMap;
     }
 
     /**
-     * @description Helper to extract aggregate values from a ReportFact.
-     * @param fact The ReportFact for a specific grouping (or grand total).
-     * @param aggregateLabels The ordered list of aggregate API names from metadata.
-     * @return Map<String, Object> A map of aggregate name to its value.
+     * @description
+     * Extracts and structures aggregate values from report facts with proper labeling.
+     *
+     * @param fact ReportFact containing aggregate data for a specific grouping or grand total
+     * @param aggregateLabels Ordered list of aggregate field API names from report metadata
+     * @return Map of aggregate names to structured value/label pairs
      */
     private static Map<String, Object> extractAggregates(Reports.ReportFact fact, List<String> aggregateLabels) {
         Map<String, Object> aggregateMap = new Map<String, Object>();
@@ -245,9 +304,12 @@ public class ReportSummarizer {
     }
 
     /**
-     * @description Helper to get record count from report results
-     * @param results The report results
-     * @return Integer The total record count
+     * @description
+     * Intelligently extracts record count from report results using multiple fallback strategies.
+     * Attempts to find explicit record count aggregate, then falls back to detail row counting.
+     *
+     * @param results Report execution results
+     * @return Integer Total record count from the report
      */
     private static Integer getRecordCount(Reports.ReportResults results) {
         Map<String, Reports.ReportFact> factMap = results.getFactMap();
@@ -256,6 +318,7 @@ public class ReportSummarizer {
         if (grandTotalFact != null) {
             List<Reports.SummaryValue> aggregates = grandTotalFact.getAggregates();
 
+            // Primary strategy: look for explicit record count aggregate
             if (!aggregates.isEmpty()) {
                 for (Reports.SummaryValue sv : aggregates) {
                     if (sv.getLabel() != null && sv.getLabel().toLowerCase().contains('record count')) {
@@ -268,6 +331,7 @@ public class ReportSummarizer {
                     }
                 }
 
+                // Secondary strategy: use first numeric aggregate as proxy
                 Object firstValue = aggregates[0].getValue();
                 if (firstValue instanceof Integer) {
                     return (Integer) firstValue;
@@ -277,12 +341,15 @@ public class ReportSummarizer {
             }
         }
 
+        // Fallback strategy: count detail-level fact entries
         Integer count = 0;
         for (String key : factMap.keySet()) {
             if (!key.contains('!')) {
                 count++;
             }
         }
+
+        System.debug(LoggingLevel.DEBUG, '[ReportSummarizer] Record count determined using fallback method: ' + count);
         return count;
     }
 }

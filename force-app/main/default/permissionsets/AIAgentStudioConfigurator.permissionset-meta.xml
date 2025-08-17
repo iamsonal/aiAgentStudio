@@ -8,6 +8,10 @@
         <apexClass>AIAssistantController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
+    <classAccesses>
+        <apexClass>AsyncFrameworkRequestFlowInvoker</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
     <description>Grants access to the &apos;AI Agent Studio&apos; Lightning app and provides necessary permissions to create, read, update, and delete AI Agent Definitions, LLM Configurations, Tool Definitions, and Agent Capability Bindings.</description>
     <externalCredentialPrincipalAccesses>
         <enabled>true</enabled>

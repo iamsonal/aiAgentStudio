@@ -2,6 +2,8 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>AIAgentDefinition__c</fullName>
     <deleteConstraint>SetNull</deleteConstraint>
+    <description>Lookup relationship to the AI Agent Definition that can use this capability. When populated, this capability is exclusively available to the specified agent. When blank, the capability is available to all agents.</description>
+    <inlineHelpText>Select an AI Agent Definition to make this capability exclusive to that agent. Leave blank to make it available to all agents in the system.</inlineHelpText>
     <label>AI Agent Definition</label>
     <referenceTo>AIAgentDefinition__c</referenceTo>
     <relationshipLabel>Agent Capabilities</relationshipLabel>

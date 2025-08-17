@@ -2,7 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>SystemPrompt__c</fullName>
     <description>The main prompt defining the agent&apos;s behavior, persona, constraints, and objectives. Sent to the LLM (often repeatedly) as context.</description>
-    <inlineHelpText>Enter the core instructions for the AI Agent. Define its role, personality, tasks, knowledge boundaries, and how it should interact or use tools. Can be lengthy.</inlineHelpText>
+    <inlineHelpText>Enter the complete system prompt that defines the agent's behavior. This is the primary instruction set that tells the AI how to act, what it can and cannot do, and how to respond to users.</inlineHelpText>
     <label>System Prompt</label>
     <length>131072</length>
     <trackTrending>false</trackTrending>

@@ -6,6 +6,10 @@
  * Copyright (c) 2025 Sonal
  */
 
+/**
+ * Handles chat session lifecycle, message history, and message sending for the AI Assistant Chat LWC.
+ * Manages session restoration, new session creation, message formatting, and error handling.
+ */
 import { formatDisplayMessages } from '../utils/messageFormatter';
 import { INITIAL_HISTORY_LOAD_SIZE } from '../utils/constants';
 
@@ -15,6 +19,15 @@ import getChatHistory from '@salesforce/apex/AIAssistantController.getChatHistor
 import getMostRecentSession from '@salesforce/apex/AIAssistantController.getMostRecentSession';
 
 export class ChatSessionManager {
+    /**
+     * @param {Object} options
+     * @param {string} options.agentDeveloperName
+     * @param {ErrorHandler} options.errorHandler
+     * @param {LoadingStateManager} options.loadingManager
+     * @param {EventSubscriptionManager} options.eventManager
+     * @param {Function} options.onMessagesUpdated
+     * @param {Function} options.onSessionChanged
+     */
     constructor({ agentDeveloperName, errorHandler, loadingManager, eventManager, onMessagesUpdated, onSessionChanged }) {
         this.agentDeveloperName = agentDeveloperName;
         this.errorHandler = errorHandler;
@@ -30,6 +43,11 @@ export class ChatSessionManager {
         this.topMessageKeyBeforeLoad = null;
     }
 
+    // === Public Methods ===
+    /**
+     * Initializes the chat session (restores or creates new as needed).
+     * @param {string|null} contextRecordId
+     */
     async initializeSession(contextRecordId) {
         try {
             const sessionDetails = await getMostRecentSession({
@@ -38,17 +56,15 @@ export class ChatSessionManager {
             });
 
             if (sessionDetails?.sessionId) {
-                console.log(`Resuming session: ${sessionDetails.sessionId}`);
+                console.info(`[ChatSessionManager] Resuming session: ${sessionDetails.sessionId}`);
                 this.currentSessionId = sessionDetails.sessionId;
                 this.onSessionChanged(this.currentSessionId);
-
                 if (sessionDetails.transientMessagesEnabled) {
                     this.eventManager.initializeTransientSubscription();
                 }
-
                 await this._loadSessionContent(sessionDetails.welcomeMessage);
             } else {
-                console.log('No recent session found. Creating new one.');
+                console.info('[ChatSessionManager] No recent session found. Creating new one.');
                 await this.startNewSession(contextRecordId);
             }
         } catch (error) {
@@ -57,23 +73,23 @@ export class ChatSessionManager {
         }
     }
 
+    /**
+     * Starts a new chat session and resets state.
+     * @param {string|null} contextRecordId
+     */
     async startNewSession(contextRecordId) {
         try {
             this.loadingManager.setLoading('history', true);
-
             const sessionDetails = await createNewChatSession({
                 recordId: contextRecordId,
                 requestedAgentDevName: this.agentDeveloperName
             });
-
             this.currentSessionId = sessionDetails.sessionId;
             this.onSessionChanged(this.currentSessionId);
             this._clearState();
-
             if (sessionDetails.transientMessagesEnabled) {
                 this.eventManager.initializeTransientSubscription();
             }
-
             await this._loadSessionContent(sessionDetails.welcomeMessage);
         } catch (error) {
             this.errorHandler.handleError('Failed to start new session', error);
@@ -83,23 +99,27 @@ export class ChatSessionManager {
         }
     }
 
+    /**
+     * Sends a user message to the server and updates state.
+     * @param {string} messageText
+     * @param {string|null} contextRecordId
+     * @param {string} turnIdentifier
+     */
     async sendMessage(messageText, contextRecordId, turnIdentifier) {
         if (!this.currentSessionId) {
             throw new Error('No active session');
         }
-
         try {
             this._addUserMessage(messageText, turnIdentifier);
             this.loadingManager.setLoading('sending', true);
-
             await sendMessage({
                 sessionId: this.currentSessionId,
                 userMessage: messageText,
                 currentRecordId: contextRecordId,
                 turnIdentifier: turnIdentifier
             });
-
-            console.log('Message sent successfully, waiting for response...');
+            // Log with context
+            console.info('[ChatSessionManager] Message sent successfully, waiting for response...');
         } catch (error) {
             this.loadingManager.setLoading('sending', false);
             this._addSystemErrorMessage('Failed to send message. Please try again.');
@@ -107,21 +127,21 @@ export class ChatSessionManager {
         }
     }
 
+    /**
+     * Loads more chat history (older messages) if available.
+     */
     async loadMoreHistory() {
         if (!this.canLoadMore() || this.loadingManager.isLoading('loadingMore')) {
             return;
         }
-
         try {
             this.loadingManager.setLoading('loadingMore', true);
             this.topMessageKeyBeforeLoad = this.messages[0]?.displayKey || null;
-
             const olderMessages = await getChatHistory({
                 sessionId: this.currentSessionId,
                 limitCount: INITIAL_HISTORY_LOAD_SIZE,
                 oldestMessageTimestamp: this.oldestMessageTimestamp
             });
-
             if (olderMessages?.length > 0) {
                 const formatted = formatDisplayMessages(olderMessages);
                 this.messages = [...formatted, ...this.messages];
@@ -138,19 +158,26 @@ export class ChatSessionManager {
         }
     }
 
+    /**
+     * Reloads the chat history for the current session.
+     */
     async reloadHistory() {
         await this._loadSessionContent();
     }
 
+    /**
+     * Handles agent response events and updates message state.
+     * @param {Object} response
+     */
     handleAgentResponse(response) {
         const payload = response?.data?.payload;
         if (!payload || payload.ChatSessionId__c !== this.currentSessionId) {
             return;
         }
-
         this.loadingManager.setLoading('sending', false);
-
+        // Only add a message IF there is final content. The transient message is already displayed.
         if (payload.IsSuccess__c && payload.FinalMessageContent__c) {
+            // Check if this message was already added via the transient event
             if (!this.messages.some((msg) => msg.id === payload.FinalAssistantMessageId__c)) {
                 this._addAssistantMessage(payload.FinalMessageContent__c, payload.FinalAssistantMessageId__c);
             }
@@ -160,53 +187,73 @@ export class ChatSessionManager {
         }
     }
 
+    /**
+     * Adds a transient ("thinking...") assistant message if not already present.
+     * @param {string} content
+     * @param {string} messageId
+     */
     addTransientAssistantMessage(content, messageId) {
+        // De-duplication is critical in case of event replay
         if (this.messages.some((msg) => msg.id === messageId)) {
-            console.log(`Transient message with ID ${messageId} already exists. Skipping.`);
+            // Only log if debugging is needed; otherwise, skip to avoid console clutter
+            // console.debug(`[ChatSessionManager] Transient message with ID ${messageId} already exists. Skipping.`);
             return;
         }
-        console.log(`Adding transient message with ID ${messageId}`);
+        // Log with context for troubleshooting
+        console.info(`[ChatSessionManager] Adding transient message with ID ${messageId}`);
         this._addTransientAssistantMessage(content, messageId);
     }
 
+    /**
+     * Returns true if more history can be loaded.
+     */
     canLoadMore() {
         return this.hasMoreHistory && !this.loadingManager.isLoading('history');
     }
 
+    /**
+     * Returns the key of the top message before loading more history.
+     */
     getTopMessageKeyBeforeLoad() {
         return this.topMessageKeyBeforeLoad;
     }
-
+    /**
+     * Clears the stored top message key.
+     */
     clearTopMessageKey() {
         this.topMessageKeyBeforeLoad = null;
     }
 
+    // === Private Methods ===
+    /**
+     * Loads the session content (history or welcome message).
+     * @param {string|null} prefetchedWelcomeMessage
+     * @private
+     */
     async _loadSessionContent(prefetchedWelcomeMessage = null) {
         if (!this.currentSessionId) return;
-
         try {
             this.loadingManager.setLoading('history', true);
             this._clearState();
-
             const historyResult = await getChatHistory({
                 sessionId: this.currentSessionId,
                 limitCount: INITIAL_HISTORY_LOAD_SIZE,
                 oldestMessageTimestamp: null
             });
-
             if (historyResult?.length > 0) {
+                // Load existing history
                 const formatted = formatDisplayMessages(historyResult);
                 this.messages = formatted;
                 this.oldestMessageTimestamp = formatted[0].timestamp;
                 this.hasMoreHistory = historyResult.length === INITIAL_HISTORY_LOAD_SIZE;
             } else {
+                // Show welcome message for empty session
                 this.hasMoreHistory = false;
                 const welcomeMsg = prefetchedWelcomeMessage || (await this._fetchWelcomeMessage());
                 if (welcomeMsg) {
                     this._addWelcomeMessage(welcomeMsg);
                 }
             }
-
             this.onMessagesUpdated([...this.messages]);
         } catch (error) {
             this.errorHandler.handleError('Failed to load session content', error);
@@ -215,6 +262,10 @@ export class ChatSessionManager {
         }
     }
 
+    /**
+     * Fetches the welcome message for a new/empty session.
+     * @private
+     */
     async _fetchWelcomeMessage() {
         try {
             const details = await getMostRecentSession({
@@ -223,11 +274,18 @@ export class ChatSessionManager {
             });
             return details?.welcomeMessage;
         } catch (error) {
-            console.warn('Failed to fetch welcome message:', error);
+            // Log with context and log level
+            console.warn('[ChatSessionManager] Failed to fetch welcome message:', error);
             return null;
         }
     }
 
+    /**
+     * Adds a user message to the local message list.
+     * @param {string} content
+     * @param {string} turnIdentifier
+     * @private
+     */
     _addUserMessage(content, turnIdentifier) {
         const userMsg = {
             role: 'user',
@@ -240,6 +298,12 @@ export class ChatSessionManager {
         this.onMessagesUpdated([...this.messages]);
     }
 
+    /**
+     * Adds an assistant message to the local message list.
+     * @param {string} content
+     * @param {string} messageId
+     * @private
+     */
     _addAssistantMessage(content, messageId) {
         const assistantMsg = {
             id: messageId,
@@ -253,6 +317,12 @@ export class ChatSessionManager {
         this.onMessagesUpdated([...this.messages]);
     }
 
+    /**
+     * Adds a transient assistant message to the local message list.
+     * @param {string} content
+     * @param {string} messageId
+     * @private
+     */
     _addTransientAssistantMessage(content, messageId) {
         const transientMsg = {
             id: messageId,
@@ -267,6 +337,11 @@ export class ChatSessionManager {
         this.onMessagesUpdated([...this.messages]);
     }
 
+    /**
+     * Adds a welcome message to the local message list.
+     * @param {string} content
+     * @private
+     */
     _addWelcomeMessage(content) {
         const welcomeMsg = {
             role: 'assistant',
@@ -279,6 +354,11 @@ export class ChatSessionManager {
         this.onMessagesUpdated([...this.messages]);
     }
 
+    /**
+     * Adds a system error message to the local message list.
+     * @param {string} errorMessage
+     * @private
+     */
     _addSystemErrorMessage(errorMessage) {
         const systemMsg = {
             role: 'system',
@@ -292,6 +372,10 @@ export class ChatSessionManager {
         this.onMessagesUpdated([...this.messages]);
     }
 
+    /**
+     * Clears all local state for a new session.
+     * @private
+     */
     _clearState() {
         this.messages = [];
         this.oldestMessageTimestamp = null;

@@ -7,20 +7,37 @@
  */
 
 /**
- * @description Formats tool definitions for LLM APIs based on Agent Capabilities.
+ * ToolDefinitionFormatter is responsible for converting Agent Capability metadata into tool definitions
+ * that are consumable by LLM APIs. It ensures that each tool definition is complete, validated, and
+ * enriched with schema and field-level details as needed for robust LLM integration.
+ *
+ * Core responsibilities:
+ *   - Validates and normalizes parameter schemas for each agent capability.
+ *   - Integrates approval and confirmation requirements into tool definitions.
+ *   - Enriches tool parameter schemas with SObject field metadata for enhanced LLM guidance.
+ *   - Provides clear debug output and error handling to support maintainability and troubleshooting.
+ *
+ * This class is central to the agent framework's ability to expose safe, auditable, and well-described
+ * tool interfaces to LLMs, supporting both standard and custom agent actions.
  */
 public inherited sharing class ToolDefinitionFormatter {
-    /** @description Exception for critical errors during tool definition formatting */
+    /**
+     * Exception thrown when tool definition formatting encounters critical errors.
+     * Used to signal unrecoverable issues in schema or capability processing.
+     */
     public class ToolFormattingException extends LlmPayloadUtils.LlmPayloadException {
     }
     public static final String SUBMISSION_COMMENT_PARAM_NAME = 'submission_comment';
 
     /**
-     * Formats the tool definition payload based on active Agent Capabilities.
-     * @param agentDefinitionId The ID of the agent definition.
-     * @param loggingContext Logging prefix.
-     * @return List<Map<String, Object>> Formatted tool list for LLM API.
-     * @throws ToolFormattingException If bindings or schemas are critically invalid.
+     * Converts all AgentCapability__c records for a given agent definition into a list of LLM-compatible tool definitions.
+     *
+     * Each tool definition includes parameter schemas, approval/confirmation requirements, and SObject field enrichment as needed.
+     *
+     * @param agentDefinitionId The Id of the agent definition whose capabilities should be exposed as tools.
+     * @param loggingContext Optional string prefix for log output.
+     * @return List<Map<String, Object>> of tool definitions ready for LLM API consumption.
+     * @throws ToolFormattingException if schema validation or formatting fails critically.
      */
     public static List<Map<String, Object>> formatToolsForApi(Id agentDefinitionId, String loggingContext) {
         String debugPrefix = String.isNotBlank(loggingContext) ? loggingContext : '[ToolDefFormatter] ';
@@ -44,8 +61,10 @@ public inherited sharing class ToolDefinitionFormatter {
             ];
 
             if (capabilities.isEmpty()) {
+                System.debug(LoggingLevel.INFO, debugPrefix + 'No external capabilities found for Agent Definition: ' + agentDefinitionId);
                 return toolsPayload;
             }
+            System.debug(LoggingLevel.DEBUG, debugPrefix + 'Preparing ' + capabilities.size() + ' capabilities for LLM tool formatting.');
 
             for (AgentCapability__c cap : capabilities) {
                 String capabilityName = cap.CapabilityName__c;
@@ -54,21 +73,36 @@ public inherited sharing class ToolDefinitionFormatter {
                 Boolean needsConfirmation = cap.RequiresConfirmation__c;
 
                 if (needsConfirmation) {
+                    // Add explicit confirmation instruction for LLMs to the tool description
                     capabilityDesc += '\n\nIMPORTANT: This is a sensitive action. Before calling this tool, you MUST first ask the user for confirmation with a simple "Are you sure?" style question. Do not call the tool until the user responds affirmatively.';
+                    System.debug(LoggingLevel.INFO, debugPrefix + 'Added confirmation instruction to tool description: ' + capabilityName);
                 }
 
                 if (String.isBlank(capabilityName) || String.isBlank(capabilityDesc)) {
+                    System.debug(LoggingLevel.WARN, debugPrefix + 'Skipping capability (ID: ' + cap.Id + ') due to missing name or description.');
                     continue;
                 }
                 if (String.isBlank(capabilityInputSchemaJson)) {
+                    System.debug(
+                        LoggingLevel.WARN,
+                        debugPrefix + 'Capability "' + capabilityName + '" missing Parameters__c. Using default empty schema.'
+                    );
                     capabilityInputSchemaJson = '{"type":"object", "properties":{}}';
                 }
 
                 Map<String, Object> paramSchema = parseAndValidateInputSchemaJson(capabilityInputSchemaJson, capabilityName, debugPrefix);
-                if (paramSchema == null)
+                if (paramSchema == null) {
+                    System.debug(LoggingLevel.WARN, debugPrefix + 'Skipping capability "' + capabilityName + '" due to invalid parameter schema.');
                     continue;
+                }
 
                 if (cap.RequiresApproval__c) {
+                    System.debug(
+                        LoggingLevel.INFO,
+                        debugPrefix + 'Capability "' + capabilityName + '" requires approval. Adding submission_comment parameter.'
+                    );
+
+                    // Inject submission comment parameter for approval workflow
                     Map<String, Object> properties = (Map<String, Object>) paramSchema.get('properties');
                     if (properties == null) {
                         properties = new Map<String, Object>();
@@ -82,6 +116,7 @@ public inherited sharing class ToolDefinitionFormatter {
 
                     properties.put(ToolDefinitionFormatter.SUBMISSION_COMMENT_PARAM_NAME, confirmationParam);
 
+                    // Ensure submission comment is required for approval actions
                     Object requiredObj = paramSchema.get('required');
                     List<Object> requiredList = (requiredObj instanceof List<Object>) ? (List<Object>) requiredObj : new List<Object>();
 
@@ -95,7 +130,17 @@ public inherited sharing class ToolDefinitionFormatter {
                 if (String.isNotBlank(sObjectApiName)) {
                     SObjectType sObjType = SchemaUtils.getSObjectType(sObjectApiName);
                     if (sObjType != null) {
+                        System.debug(
+                            LoggingLevel.DEBUG,
+                            debugPrefix +
+                                'Enriching tool schema for capability "' +
+                                cap.CapabilityName__c +
+                                '" with SObject field metadata: ' +
+                                sObjectApiName
+                        );
                         enrichSchemaWithFieldDetails(paramSchema, sObjType, debugPrefix);
+                    } else {
+                        System.debug(LoggingLevel.WARN, debugPrefix + 'SObjectType not found for API name: ' + sObjectApiName);
                     }
                 }
 
@@ -106,12 +151,24 @@ public inherited sharing class ToolDefinitionFormatter {
                 };
                 toolsPayload.add(new Map<String, Object>{ 'type' => 'function', 'function' => functionDef });
             }
+            System.debug(LoggingLevel.DEBUG, debugPrefix + 'Successfully formatted ' + toolsPayload.size() + ' tools for LLM API.');
         } catch (Exception e) {
+            System.debug(
+                LoggingLevel.ERROR,
+                debugPrefix + 'Exception during tool formatting for Agent Definition ' + agentDefinitionId + ': ' + e.getMessage()
+            );
             throw new ToolFormattingException('Failed to format tools payload: ' + e.getMessage(), e);
         }
         return toolsPayload;
     }
 
+    /**
+     * Extracts the SObject API name from the backend configuration of a capability, if present and applicable.
+     * Only applies to standard actions that are object-aware (e.g., CreateRecord, UpdateRecord, GetRecords).
+     *
+     * @param cap The AgentCapability__c record to inspect.
+     * @return The SObject API name as a string, or null if not found or not applicable.
+     */
     private static String getObjectApiNameFromConfig(AgentCapability__c cap) {
         Set<String> objectAwareActions = new Set<String>{ 'CreateRecord', 'UpdateRecord', 'GetRecords' };
         if (
@@ -125,11 +182,22 @@ public inherited sharing class ToolDefinitionFormatter {
                     return (String) backendConfig.get('objectApiName');
                 }
             } catch (Exception e) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    '[ToolDefFormatter] Failed to parse objectApiName from BackendConfiguration for capability ID ' + cap.Id
+                );
             }
         }
         return null;
     }
 
+    /**
+     * Enriches a parameter schema map with SObject field metadata, such as field labels and picklist values.
+     *
+     * @param paramSchema The parameter schema map to enrich.
+     * @param sObjType The SObjectType to use for field metadata.
+     * @param debugPrefix String prefix for log output.
+     */
     private static void enrichSchemaWithFieldDetails(Map<String, Object> paramSchema, SObjectType sObjType, String debugPrefix) {
         if (paramSchema == null || !paramSchema.containsKey('properties'))
             return;
@@ -143,9 +211,11 @@ public inherited sharing class ToolDefinitionFormatter {
                 DescribeFieldResult dfr = fieldToken.getDescribe();
                 Map<String, Object> paramDefinition = (Map<String, Object>) properties.get(paramName);
 
+                // Add field label to parameter description for LLM clarity
                 String currentDesc = (String) paramDefinition.get('description');
                 paramDefinition.put('description', (dfr.getLabel() + (String.isNotBlank(currentDesc) ? '. ' + currentDesc : '')));
 
+                // If field is a picklist, add enum values for LLM validation
                 if (dfr.getType() == DisplayType.PICKLIST) {
                     List<String> picklistApiNames = new List<String>();
                     for (PicklistEntry entry : dfr.getPicklistValues()) {
@@ -155,13 +225,25 @@ public inherited sharing class ToolDefinitionFormatter {
                     }
                     if (!picklistApiNames.isEmpty()) {
                         paramDefinition.put('enum', picklistApiNames);
+                        System.debug(
+                            LoggingLevel.DEBUG,
+                            debugPrefix + 'Added enum values (' + picklistApiNames.size() + ') for parameter: ' + paramName
+                        );
                     }
                 }
             }
         }
     }
 
-    /** Parses and validates the binding's InputSchema__c JSON */
+    /**
+     * Validates and normalizes a capability parameter schema JSON string.
+     * Ensures the schema is a JSON object with type 'object' and a valid 'properties' map.
+     *
+     * @param schemaJson The JSON string representing the parameter schema.
+     * @param capabilityDevName The developer name of the capability (for error context).
+     * @param debugPrefix String prefix for log output.
+     * @return Map<String, Object> representing the normalized parameter schema, or null if invalid.
+     */
     private static Map<String, Object> parseAndValidateInputSchemaJson(String schemaJson, String capabilityDevName, String debugPrefix) {
         try {
             Object parsedSchemaObj = JSON.deserializeUntyped(schemaJson);
@@ -170,13 +252,25 @@ public inherited sharing class ToolDefinitionFormatter {
             }
             Map<String, Object> paramSchema = (Map<String, Object>) parsedSchemaObj;
             if (!paramSchema.containsKey('type') || !'object'.equalsIgnoreCase(String.valueOf(paramSchema.get('type')))) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    debugPrefix + 'InputSchema for ' + capabilityDevName + ' missing or invalid root type. Setting type="object".'
+                );
                 paramSchema.put('type', 'object');
             }
             if (!paramSchema.containsKey('properties') || !(paramSchema.get('properties') instanceof Map<String, Object>)) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    debugPrefix + 'InputSchema for ' + capabilityDevName + ' missing or invalid "properties". Initializing empty map.'
+                );
                 paramSchema.put('properties', new Map<String, Object>());
             }
             return paramSchema;
         } catch (Exception e) {
+            System.debug(
+                LoggingLevel.ERROR,
+                debugPrefix + 'Failed to parse or validate InputSchema JSON for ' + capabilityDevName + ': ' + e.getMessage()
+            );
             return null;
         }
     }

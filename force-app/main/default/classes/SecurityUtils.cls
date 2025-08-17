@@ -7,25 +7,40 @@
  */
 
 /**
- * @description Utility methods for performing security checks (CRUD/FLS).
+ * @description
+ * SecurityUtils is a robust utility class for enforcing Salesforce CRUD and Field-Level Security (FLS) permissions.
+ * It provides static methods to validate and check user access for SObject and field operations, ensuring that all
+ * data access in the application is properly guarded. The class supports both exception-based and boolean permission
+ * checks, and logs meaningful debug output for both success and failure scenarios.
+ *
+ * Responsibilities:
+ *   - Enforce CRUD and FLS permissions for SObject and field operations
+ *   - Provide both throwing and non-throwing (boolean) permission checks
+ *   - Log clear, actionable debug output for permission checks
+ *   - Centralize security logic for maintainability and auditability
  */
 public with sharing class SecurityUtils {
-    /** @description Custom exception for security check failures */
+    /**
+     * Exception thrown when security validation fails.
+     */
     public class ActionSecurityException extends AIAgentException {
     }
 
     /**
-     * @description Checks if the current user has the specified CRUD permission on an SObject type.
-     * @param sObjectType The SObjectType to check.
-     * @param accessType AccessType.CREATABLE, AccessType.READABLE, AccessType.UPDATABLE, or AccessType.DELETABLE.
-     * @throws ActionSecurityException If the required permission is not granted or parameters are invalid.
+     * Validates that the current user has the specified CRUD permission on an SObject type.
+     * Throws ActionSecurityException if permission is denied or parameters are invalid.
+     *
+     * @param sObjectType   The SObjectType to validate permissions for.
+     * @param accessType    The required access level (CREATABLE, READABLE, UPDATABLE).
+     * @throws              ActionSecurityException if permission is denied or parameters are invalid.
+     * @debug               Logs warnings on denied access and debug on success.
      */
     public static void checkObjectPermission(SObjectType sObjectType, AccessType accessType) {
         if (sObjectType == null) {
-            throw new ActionSecurityException('SObjectType cannot be null.');
+            throw new ActionSecurityException('SObjectType cannot be null for object permission check.');
         }
         if (accessType == null) {
-            throw new ActionSecurityException('AccessType cannot be null.');
+            throw new ActionSecurityException('AccessType cannot be null for object permission check.');
         }
 
         Schema.DescribeSObjectResult describeResult;
@@ -51,7 +66,7 @@ public with sharing class SecurityUtils {
                 permissionType = 'UPDATE';
             }
             when else {
-                throw new ActionSecurityException('Unsupported AccessType for object check: ' + accessType);
+                throw new ActionSecurityException('Unsupported AccessType for object permission check: ' + accessType);
             }
         }
 
@@ -60,16 +75,23 @@ public with sharing class SecurityUtils {
                 'User {0} does not have {1} access on SObject {2}.',
                 new List<String>{ UserInfo.getUserName(), permissionType, describeResult.getName() }
             );
-
+            System.debug(LoggingLevel.WARN, '[SecurityUtils.checkObjectPermission] ' + errorMessage);
             throw new ActionSecurityException(errorMessage);
         }
+        System.debug(
+            LoggingLevel.DEBUG,
+            '[SecurityUtils.checkObjectPermission] PASSED: User has ' + permissionType + ' on ' + describeResult.getName()
+        );
     }
 
     /**
-     * @description Checks if the current user has the specified FLS permission on a field using DescribeFieldResult.
-     * @param dfr The Schema.DescribeFieldResult of the field.
-     * @param accessType AccessType.READABLE, AccessType.CREATABLE, or AccessType.UPDATABLE.
-     * @throws ActionSecurityException If the required permission is not granted.
+     * Validates Field-Level Security (FLS) permissions for a specific field using its describe result.
+     * Throws ActionSecurityException if permission is denied or parameters are invalid.
+     *
+     * @param dfr         The Schema.DescribeFieldResult containing field metadata.
+     * @param accessType  The required field access level (READABLE, CREATABLE, UPDATABLE).
+     * @throws            ActionSecurityException if field permission is denied or parameters are invalid.
+     * @debug             Logs debug output on success.
      */
     public static void checkFieldPermission(Schema.DescribeFieldResult dfr, AccessType accessType) {
         if (dfr == null) {
@@ -81,21 +103,26 @@ public with sharing class SecurityUtils {
             accessType != System.AccessType.CREATABLE &&
             accessType != System.AccessType.UPDATABLE)
         ) {
-            throw new ActionSecurityException('Invalid AccessType for field check: ' + accessType + '. Expected READABLE, CREATABLE, or UPDATABLE.');
+            throw new ActionSecurityException(
+                'Invalid AccessType for field permission check: ' + accessType + '. Expected READABLE, CREATABLE, or UPDATABLE.'
+            );
         }
 
         Boolean hasPermission = hasFieldPermission(dfr, accessType);
 
         if (!hasPermission) {
-            throw new ActionSecurityException('Permission denied. User does not have ' + accessType + ' access on Field ' + dfr.getName() + '.');
+            throw new ActionSecurityException('Permission denied. User does not have ' + accessType + ' access on field ' + dfr.getName() + '.');
         }
+        System.debug(LoggingLevel.DEBUG, '[SecurityUtils.checkFieldPermission] PASSED: Field ' + dfr.getName() + ', Permission ' + accessType);
     }
 
     /**
-     * @description Helper method returning boolean FLS check without throwing exception.
-     * @param dfr The Schema.DescribeFieldResult of the field.
-     * @param accessType AccessType.READABLE, AccessType.CREATABLE, or AccessType.UPDATABLE.
-     * @return Boolean true if permission granted, false otherwise. Returns false for invalid accessType.
+     * Non-throwing helper method that returns boolean result for FLS permission checks.
+     * Useful for conditional logic where exceptions are not desired.
+     *
+     * @param dfr         The Schema.DescribeFieldResult to check permissions for.
+     * @param accessType  The required field access level to validate.
+     * @return            true if permission is granted, false if denied or invalid parameters.
      */
     public static Boolean hasFieldPermission(Schema.DescribeFieldResult dfr, AccessType accessType) {
         if (dfr == null)
@@ -109,9 +136,18 @@ public with sharing class SecurityUtils {
         if (accessType == System.AccessType.READABLE) {
             return dfr.isAccessible();
         }
-        return false;
+        return false; // Unsupported AccessType for FLS check
     }
 
+    /**
+     * Convenience method for checking field permissions using SObjectType and field name.
+     * Internally resolves the field token and delegates to the DescribeFieldResult version.
+     *
+     * @param sObjectType   The SObjectType containing the field.
+     * @param fieldName     The API name of the field to check.
+     * @param accessType    The required field access level.
+     * @return              true if permission is granted, false otherwise.
+     */
     public static Boolean hasFieldPermission(SObjectType sObjectType, String fieldName, AccessType accessType) {
         Schema.SObjectField fieldToken = SchemaUtils.getFieldToken(sObjectType, fieldName);
         return (fieldToken != null) && hasFieldPermission(fieldToken.getDescribe(), accessType);

@@ -7,17 +7,34 @@
  */
 
 /**
- * @description Interface for all executable Agent Actions (Standard, Custom Apex, Flow Wrappers).
- *              Implementations handle specific logic based on configuration and LLM parameters.
+ * @description
+ * IAgentAction defines the contract for all executable AI agent actions within the framework.
+ *
+ * Responsibilities:
+ *   - Serves as the core interface for Standard Actions, Custom Apex implementations, and Flow-based actions
+ *   - Enforces a consistent method signature for action execution, configuration parsing, and error handling
+ *   - Ensures that all implementations can be invoked generically by the agent orchestration engine
+ *
+ * Implementations must handle:
+ *   - Parsing and validating configuration and input parameters
+ *   - Executing the core business logic for the action
+ *   - Returning a structured ActionResult with outcome, output, and diagnostics
+ *   - Consistent error handling (prefer returning failed ActionResult; throw only for unrecoverable errors)
  */
 public interface IAgentAction {
     /**
-     * @description Executes the core logic of the action.
-     * @param actionConfigurationJson JSON String from AgentCapabilityBinding__c.ActionConfiguration__c associated with *this specific agent and action*. Can be null or blank if not configured on the binding.
-     * @param argumentsJson The raw JSON string of arguments provided by the LLM (conforming to ActionDefinition__c.InputParameterSchema__c). The implementation is responsible for parsing this string.
-     * @param context Shared ActionContext providing Session, User, Agent, and specific Action IDs.
-     * @return ActionResult A structured object containing the execution outcome, output payload, and diagnostic details.
-     * @throws ActionExecutionException for unrecoverable errors during execution (should be used sparingly; prefer returning a failed ActionResult).
+     * Executes the core logic of the agent action.
+     *
+     * @param actionConfigurationJson  JSON string from AgentCapabilityBinding__c.ActionConfiguration__c for this agent/action binding. May be null or blank if not configured.
+     * @param argumentsJson            Raw JSON string of arguments provided by the LLM, conforming to ActionDefinition__c.InputParameterSchema__c. Implementation must parse and validate.
+     * @param context                  Shared ActionContext providing session, user, agent, and action identifiers.
+     * @return ActionResult            Structured result containing execution outcome, output payload, and diagnostics.
+     * @throws ActionExecutionException For unrecoverable errors during execution (should be rare; prefer returning a failed ActionResult).
+     *
+     * Implementations should:
+     *   - Parse and validate all inputs
+     *   - Handle all expected error conditions gracefully
+     *   - Return a failed ActionResult for recoverable errors, and throw only for truly unrecoverable conditions
      */
     ActionResult execute(String actionConfigurationJson, String argumentsJson, ActionContext context);
 }

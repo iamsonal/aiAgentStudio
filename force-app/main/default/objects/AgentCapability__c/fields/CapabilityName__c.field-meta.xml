@@ -3,7 +3,7 @@
     <fullName>CapabilityName__c</fullName>
     <description>The unique, machine-readable name for this capability (tool). This is the &quot;function name&quot; the LLM will call. It must be unique within the scope of a single AI Agent Definition.</description>
     <externalId>false</externalId>
-    <inlineHelpText>The unique name for this tool (e.g., get_case_details, create_opportunity). The LLM uses this name to call the action. Must be unique for this agent.</inlineHelpText>
+    <inlineHelpText>Enter a unique, descriptive name for this tool (e.g., get_case_details, create_opportunity). Use lowercase with underscores. The AI uses this exact name to call the action.</inlineHelpText>
     <label>Capability Name</label>
     <length>255</length>
     <required>false</required>

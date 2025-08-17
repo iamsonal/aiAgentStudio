@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>TurnIdentifier__c</fullName>
+    <description>A unique identifier for the specific conversation turn being processed, enabling proper sequencing and correlation of multi-step agent interactions.</description>
     <externalId>false</externalId>
+    <inlineHelpText>Tracks individual conversation turns within a session. Used to maintain proper order and context when processing complex multi-turn agent workflows.</inlineHelpText>
     <isFilteringDisabled>false</isFilteringDisabled>
     <isNameField>false</isNameField>
     <isSortingDisabled>false</isSortingDisabled>

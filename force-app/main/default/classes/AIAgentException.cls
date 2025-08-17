@@ -6,6 +6,15 @@
  * Copyright (c) 2025 Sonal
  */
 
-/** @description Base exception for general framework errors. */
+/**
+ * @description
+ * AIAgentException is the abstract base exception for all errors in the AI Agent Framework.
+ * Responsibilities:
+ *   - Provides a unified foundation for all framework-specific exceptions
+ *   - Enables consistent, type-safe error handling and propagation across all framework layers
+ *   - Should be extended by all custom exception types within the AI Agent Framework
+ *
+ * This class is not intended to be instantiated directly.
+ */
 public virtual class AIAgentException extends Exception {
 }

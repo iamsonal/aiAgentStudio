@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ImplementationType__c</fullName>
-    <description>Defines how this capability is implemented. &apos;Standard&apos; uses a built-in framework action. &apos;Apex&apos; uses a custom Apex class that implements the IAgentAction interface. &apos;Flow&apos; uses a Salesforce Flow.</description>
-    <inlineHelpText>Choose how this capability is implemented. &apos;Standard&apos; for built-in actions, &apos;Apex&apos; for custom code, or &apos;Flow&apos; for a Salesforce Flow.</inlineHelpText>
+    <description>Defines how this capability is implemented. &apos;Standard&apos; uses a built-in framework action. &apos;Apex&apos; uses a custom Apex class that implements the IAgentAction interface. &apos;Flow&apos; uses a Salesforce Flow. &apos;Graph&apos; uses advanced graph-based processing.</description>
+    <inlineHelpText>Choose the implementation method: 'Standard' for built-in actions, 'Apex' for custom code, 'Flow' for Salesforce Flows, or 'Graph' for advanced graph processing.</inlineHelpText>
     <label>Implementation Type</label>
     <required>false</required>
     <trackTrending>false</trackTrending>

@@ -143,6 +143,7 @@
     <allowInChatterGroups>false</allowInChatterGroups>
     <compactLayoutAssignment>SYSTEM</compactLayoutAssignment>
     <deploymentStatus>Deployed</deploymentStatus>
+    <description>Defines individual tools/capabilities that AI agents can use to perform actions. Each capability represents a specific function (like creating records, sending emails, or running custom logic) that can be invoked by an AI agent during conversations. Capabilities are linked to AI Agent Definitions to create functional agents with specific toolsets.</description>
     <enableActivities>false</enableActivities>
     <enableBulkApi>true</enableBulkApi>
     <enableFeeds>false</enableFeeds>

@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>MessageId__c</fullName>
-    <description>The Salesforce ID of the corresponding ChatMessage__c record. Used by the UI for deduplication.</description>
+    <description>The Salesforce ID of the corresponding ChatMessage__c record. Used by the UI for deduplication and proper message correlation.</description>
     <externalId>false</externalId>
+    <inlineHelpText>References the actual ChatMessage record this transient content relates to. Prevents duplicate display and enables proper message threading in the UI.</inlineHelpText>
     <isFilteringDisabled>false</isFilteringDisabled>
     <isNameField>false</isNameField>
     <isSortingDisabled>false</isSortingDisabled>

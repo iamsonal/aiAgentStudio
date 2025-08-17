@@ -5,7 +5,6 @@
  * @extends BaseAgentAction
  */
 public class ActionLogIssueExternally extends BaseAgentAction {
-    
     /**
      * @description THE ONLY METHOD we need to implement!
      *              Framework automatically:
@@ -16,32 +15,33 @@ public class ActionLogIssueExternally extends BaseAgentAction {
     public override Object executeAction(Map<String, Object> params) {
         // Framework automatically validates caseId parameter and checks security
         Id caseId = (Id) params.get('caseId');
-        
+
         // Get Case details
         Case caseToLog = [SELECT Id, CaseNumber, Subject FROM Case WHERE Id = :caseId WITH USER_MODE LIMIT 1];
-        
+
         // Simulate the API Callout and long-running process
         Long startTime = System.currentTimeMillis();
         while (System.currentTimeMillis() - startTime < 4000) {
             // Simulate 4-second delay
         }
-        
+
         // Generate external ticket ID
         String externalTicketId = 'JIRA-' + String.valueOf(Math.rint(Math.random() * 9000) + 1000).substring(0, 4);
-        
+
         // Return simple result - framework wraps it automatically
         return new ExternalLogResult(
             externalTicketId,
-            'I have successfully logged this issue in our external tracking system as ticket ' + 
-            externalTicketId + '. Our engineering team will be notified.'
+            'I have successfully logged this issue in our external tracking system as ticket ' +
+                externalTicketId +
+                '. Our engineering team will be notified.'
         );
     }
-    
+
     // Simple result class - framework extracts 'message' field automatically
     public class ExternalLogResult {
         public String externalTicketId;
         public String message; // Framework uses this for user display
-        
+
         public ExternalLogResult(String ticketId, String msg) {
             this.externalTicketId = ticketId;
             this.message = msg;

@@ -6,6 +6,6 @@
  * Copyright (c) 2025 Sonal
  */
 
-trigger HumanApprovalRequestTrigger on HumanApprovalRequest__c(after update) {
+trigger HumanApprovalRequestTrigger on HumanApprovalRequest__c (after update) {
     HumanApprovalRequestTriggerHandler.handleAfterUpdate(Trigger.new, Trigger.oldMap);
 }

@@ -7,12 +7,22 @@
  */
 
 /**
- * @description Queries Salesforce records with intelligent parameter processing.
- *              Framework automatically handles parameter extraction, validation, security, and result wrapping.
- *              ActionConfiguration example: {"objectApiName": "Contact", "defaultFields": ["Id", "Name", "Email"], "maxReturnToLLM": 10}
- *              LLM Arguments example: {"filters": {"LastName": "Smith", "MailingCity": "SF"}, "additionalFields": ["Phone"], "limit": 5, "orderBy": "LastName ASC"}
+ * @description
+ * ActionGetRecords is a robust Apex action for querying Salesforce records with intelligent parameter processing, comprehensive validation, and security enforcement.
  *
- *              COMPARE TO ORIGINAL: 400+ lines reduced to ~100 lines (75% reduction)!
+ * Responsibilities:
+ *   - Validates and extracts query parameters, including filters, fields, sorting, and limits.
+ *   - Enforces object and field-level security before executing queries.
+ *   - Handles field selection, filtering, sorting, and result limiting with detailed error handling.
+ *   - Returns structured, LLM-friendly result data and AI-friendly error messages for downstream use.
+ *
+ * Scope:
+ *   - Strictly focused on secure, flexible record retrieval for any SObject type specified in configuration.
+ *   - Designed for maintainability, extensibility, and clarity, with detailed debug output and robust error handling.
+ *
+ * Configuration Example: {"objectApiName": "Contact", "defaultFields": ["Id", "Name"], "maxReturnToLLM": 10}
+ * Parameters Example: {"filters": {"LastName": "Smith"}, "additionalFields": ["Phone"], "limit": 5, "orderBy": "LastName ASC"}
+ *
  * @extends BaseAgentAction
  */
 public class ActionGetRecords extends BaseAgentAction {
@@ -24,15 +34,21 @@ public class ActionGetRecords extends BaseAgentAction {
     private static final Integer MAX_PERMITTED_LIMIT = 50;
     private static final Integer DEFAULT_MAX_RETURNED_TO_LLM = 10;
 
+    // Configuration populated during parseActionConfiguration
     private String objectApiName;
     private List<String> defaultFields = new List<String>();
     private Integer maxReturnToLLM = DEFAULT_MAX_RETURNED_TO_LLM;
     private SObjectType targetSObjectType;
 
     /**
-     * @description THE ONLY METHOD we need to implement!
-     *              Framework automatically handles parameter extraction, validation, and security.
-     *              ENHANCED: Restores critical robustness while keeping simplicity.
+     * @description
+     * Main entry point for record query. Validates parameters, enforces security, executes the query, and formats results.
+     *
+     * @param params Map<String, Object> - May include 'filters', 'additionalFields', 'limit', and 'orderBy'.
+     * @return QueryResult - Contains found records and metadata.
+     * @throws ValidationException or AIFriendlyQueryException for parameter, security, or query errors.
+     *
+     * Side effects: Logs key steps, errors, and performance metrics for troubleshooting and monitoring.
      */
     public override Object executeAction(Map<String, Object> params) {
         Long startTime = System.currentTimeMillis();
@@ -50,6 +66,7 @@ public class ActionGetRecords extends BaseAgentAction {
         try {
             SecurityUtils.checkObjectPermission(this.targetSObjectType, AccessType.READABLE);
         } catch (SecurityUtils.ActionSecurityException ase) {
+            System.debug(LoggingLevel.ERROR, '[ActionGetRecords] Security violation: ' + ase.getMessage());
             throw new AIFriendlyQueryException(
                 ase.getMessage(),
                 AIFriendlyQueryException.ErrorCode.SECURITY_VIOLATION,
@@ -73,22 +90,33 @@ public class ActionGetRecords extends BaseAgentAction {
 
             queryResults = queryService.executeQuery(bindMap);
         } catch (AIFriendlyQueryException aie) {
+            System.debug(LoggingLevel.ERROR, '[ActionGetRecords] AI-friendly query error: ' + aie.getErrorSummary());
             throw new ValidationException(aie.getMessage(), aie.fieldName);
         } catch (QueryService.QueryValidationException qve) {
+            System.debug(LoggingLevel.ERROR, '[ActionGetRecords] QueryService validation failed: ' + qve.getMessage());
             throw new ValidationException(qve.getMessage(), null);
         } catch (System.QueryException qe) {
             String enhancedMessage = enhanceQueryExceptionMessage(qe.getMessage(), filters, orderBy, queryLimit);
-
+            System.debug(LoggingLevel.ERROR, '[ActionGetRecords] SOQL execution failed: ' + enhancedMessage);
             throw qe;
         }
 
         Long executionTime = System.currentTimeMillis() - startTime;
+        System.debug(
+            LoggingLevel.INFO,
+            '[ActionGetRecords] Query completed in ' + executionTime + ' ms. Records found: ' + (queryResults != null ? queryResults.size() : 0)
+        );
 
         return processQueryResults(queryResults);
     }
 
     /**
-     * @description Validates and coerces limit parameter with detailed error handling
+     * @description
+     * Validates and coerces the limit parameter with comprehensive error handling.
+     *
+     * @param limitObj Object - Raw limit value from parameters.
+     * @return Integer - Valid integer limit within acceptable bounds.
+     * @throws ValidationException if the limit is not a valid number or string.
      */
     private Integer validateAndCoerceLimit(Object limitObj) {
         if (limitObj == null)
@@ -112,7 +140,14 @@ public class ActionGetRecords extends BaseAgentAction {
     }
 
     /**
-     * @description Enhances query exception messages with AI-friendly context
+     * @description
+     * Enhances query exception messages with contextual information for better troubleshooting.
+     *
+     * @param originalMessage String - Original exception message.
+     * @param filters Map<String, Object> - Applied filter criteria.
+     * @param orderBy String - Sort specification.
+     * @param queryLimit Integer - Query limit value.
+     * @return String - Enhanced error message with query context.
      */
     private String enhanceQueryExceptionMessage(String originalMessage, Map<String, Object> filters, String orderBy, Integer queryLimit) {
         String enhanced = originalMessage + ' | Query Context: Object=' + this.objectApiName;
@@ -128,6 +163,14 @@ public class ActionGetRecords extends BaseAgentAction {
         return enhanced;
     }
 
+    /**
+     * @description
+     * Parses and validates the action configuration JSON. Extracts the target SObject type, default fields, and max return limit.
+     *
+     * @param actionConfigurationJson String - The JSON configuration string.
+     * @param logPrefix String - Prefix for log output.
+     * @throws ValidationException if required configuration is missing or invalid.
+     */
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
 
@@ -164,6 +207,13 @@ public class ActionGetRecords extends BaseAgentAction {
         }
     }
 
+    /**
+     * @description
+     * Processes query results, applies max return limit, and builds a user-facing message.
+     *
+     * @param queryResults List<SObject> - The raw query results.
+     * @return QueryResult - Structured result with records, count, and metadata.
+     */
     private QueryResult processQueryResults(List<SObject> queryResults) {
         Integer totalFoundCount = queryResults != null ? queryResults.size() : 0;
         List<SObject> finalResults = new List<SObject>();
@@ -175,6 +225,10 @@ public class ActionGetRecords extends BaseAgentAction {
             }
 
             if (totalFoundCount > this.maxReturnToLLM) {
+                System.debug(
+                    LoggingLevel.INFO,
+                    '[ActionGetRecords] Truncated results: ' + totalFoundCount + ' found, returning ' + this.maxReturnToLLM + ' for LLM.'
+                );
             }
         }
 
@@ -187,16 +241,29 @@ public class ActionGetRecords extends BaseAgentAction {
             message = 'Found and showing all ' + totalFoundCount + ' ' + this.objectApiName + ' record(s).';
         }
 
+        System.debug(LoggingLevel.INFO, '[ActionGetRecords] ' + message);
         return new QueryResult(finalResults, totalFoundCount, this.objectApiName, message);
     }
 
+    /**
+     * @description
+     * Result wrapper for query operations with record data and metadata. Provides structured data for both user display and LLM processing.
+     *
+     * Fields:
+     *   - records: List<SObject> - The records returned by the query.
+     *   - count: Integer - The total number of records found.
+     *   - objectApiName: String - The SObject API name queried.
+     *   - message: String - User-facing message summarizing the result.
+     *   - truncated: Boolean - True if results were truncated for LLM.
+     *   - metadata: Map<String, Object> - Additional context for downstream consumers.
+     */
     public class QueryResult {
         public List<SObject> records;
         public Integer count;
         public String objectApiName;
-        public String message;
+        public String message; // Framework uses this for user display
         public Boolean truncated;
-        public Map<String, Object> metadata;
+        public Map<String, Object> metadata; // Additional context for LLMs
 
         public QueryResult(List<SObject> records, Integer count, String objectApiName, String message) {
             this.records = records;

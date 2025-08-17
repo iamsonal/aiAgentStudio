@@ -7,12 +7,21 @@
  */
 
 /**
- * @description ENHANCED Standard Action: Posts messages to Chatter feeds with intelligent processing.
- *              Framework automatically handles parameter extraction, validation, security, and result wrapping.
- *              Configuration example: {"feedType": "Record", "targetId": "003..."}
+ * @description
+ * ActionPostChatter is a robust Apex action for posting messages to Chatter feeds with comprehensive validation, topic support, and security enforcement.
  *
- *              MAINTAINS: Comprehensive security validation, topic handling, and ConnectApi integration.
- *              ENHANCED: Simplified interface while preserving all robustness features.
+ * Responsibilities:
+ *   - Validates feed type, target access, and message content before posting.
+ *   - Handles text length limits, topic processing, and integrates with ConnectApi for Chatter functionality.
+ *   - Returns structured, LLM-friendly result data and meaningful error messages for downstream use.
+ *
+ * Scope:
+ *   - Strictly focused on secure, flexible Chatter posting for any supported feed type and target.
+ *   - Designed for maintainability, extensibility, and clarity, with detailed debug output and robust error handling.
+ *
+ * Configuration Example: {"feedType": "Record|User|Group", "targetId": "recordId"}
+ * Parameters Example: {"text": "message", "topics": ["topic1", "topic2"]}
+ *
  * @extends BaseAgentAction
  */
 public class ActionPostChatter extends BaseAgentAction {
@@ -24,13 +33,19 @@ public class ActionPostChatter extends BaseAgentAction {
     private String targetSObjectName;
 
     /**
-     * @description THE ONLY METHOD we need to implement!
-     *              Framework automatically handles parameter extraction and validation.
-     *              ENHANCED: Maintains comprehensive Chatter functionality while leveraging framework simplicity.
+     * @description
+     * Main entry point for Chatter posting. Validates parameters, enforces security, creates the Chatter post, and processes topics.
+     *
+     * @param params Map<String, Object> - Must include 'text' (String), may include 'topics' (List<String>).
+     * @return ChatterResult - Contains post confirmation and metadata.
+     * @throws ValidationException or ActionSecurityException for parameter, security, or posting errors.
+     *
+     * Side effects: Logs key steps, errors, and performance metrics for troubleshooting and monitoring.
      */
     public override Object executeAction(Map<String, Object> params) {
         Long startTime = System.currentTimeMillis();
 
+        // Framework automatically validates required text parameter
         String text = (String) params.get('text');
         List<String> topics = (List<String>) params.get('topics');
 
@@ -40,9 +55,16 @@ public class ActionPostChatter extends BaseAgentAction {
 
         validateChatterTargetAccess();
 
+        System.debug(LoggingLevel.INFO, '[ActionPostChatter] Posting to ' + this.feedType + ' feed. Target ID: ' + this.targetSObjectId);
+        System.debug(
+            LoggingLevel.DEBUG,
+            '[ActionPostChatter] Message length: ' + text.length() + ' characters. Topics: ' + (topics != null ? topics.size() : 0)
+        );
+
         ConnectApi.FeedElement feedElement = createChatterPost(text, topics);
 
         Long executionTime = System.currentTimeMillis() - startTime;
+        System.debug(LoggingLevel.INFO, '[ActionPostChatter] Chatter post completed in ' + executionTime + ' ms.');
 
         return new ChatterResult(
             feedElement.id,
@@ -52,6 +74,14 @@ public class ActionPostChatter extends BaseAgentAction {
         );
     }
 
+    /**
+     * @description
+     * Parses and validates the action configuration JSON. Extracts feed type and target, and checks for consistency.
+     *
+     * @param actionConfigurationJson String - The JSON configuration string.
+     * @param logPrefix String - Prefix for log output.
+     * @throws ValidationException if required configuration is missing or invalid.
+     */
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
 
@@ -64,10 +94,19 @@ public class ActionPostChatter extends BaseAgentAction {
         this.targetSObjectName = this.targetSObjectId.getSObjectType().getDescribe().getName();
 
         validateFeedTypeConsistency();
+
+        System.debug(
+            LoggingLevel.DEBUG,
+            '[ActionPostChatter] Configuration parsed. FeedType: ' + this.feedType + ', Target: ' + this.targetSObjectId
+        );
     }
 
     /**
-     * @description Validates feed type and target ID consistency
+     * @description
+     * Validates that feed type matches the target object type for consistency.
+     * Prevents mismatched configurations like User feed with Group target.
+     *
+     * @throws ValidationException if feed type and target object type are inconsistent.
      */
     private void validateFeedTypeConsistency() {
         if (
@@ -85,7 +124,11 @@ public class ActionPostChatter extends BaseAgentAction {
     }
 
     /**
-     * @description Validates user access to the Chatter target
+     * @description
+     * Validates that the user has access to the Chatter target before attempting to post.
+     * Performs a security check to ensure the target exists and is accessible.
+     *
+     * @throws ActionSecurityException if the target is not found or not accessible.
      */
     private void validateChatterTargetAccess() {
         try {
@@ -95,28 +138,39 @@ public class ActionPostChatter extends BaseAgentAction {
                 new Map<String, Object>{ 'targetId' => this.targetSObjectId },
                 AccessLevel.USER_MODE
             );
-
             if (targetCheck.isEmpty()) {
+                System.debug(
+                    LoggingLevel.ERROR,
+                    '[ActionPostChatter] Target ' + this.feedType + ' with ID ' + this.targetSObjectId + ' not found or user lacks access.'
+                );
                 throw new ActionSecurityException(
                     'Target ' + this.feedType + ' with ID ' + this.targetSObjectId + ' not found or user lacks access.'
                 );
             }
         } catch (System.QueryException qe) {
             String enhancedMessage = 'Failed to validate access to Chatter target: ' + qe.getMessage();
-
+            System.debug(LoggingLevel.ERROR, '[ActionPostChatter] ' + enhancedMessage);
             throw new ActionSecurityException(enhancedMessage);
         }
     }
 
     /**
-     * @description Creates and posts Chatter message with enhanced error handling
+     * @description
+     * Creates and posts a Chatter message with text validation and topic processing.
+     *
+     * @param text String - Message text to post.
+     * @param topics List<String> - Optional list of topics to associate with the post.
+     * @return ConnectApi.FeedElement - The posted message.
+     * @throws ValidationException if posting fails or topics are invalid.
      */
     private ConnectApi.FeedElement createChatterPost(String text, List<String> topics) {
         try {
             if (text.length() > 10000) {
+                System.debug(LoggingLevel.WARN, '[ActionPostChatter] Message text exceeded 10000 characters. Truncating.');
                 text = text.substring(0, 10000) + '... [truncated]';
             }
 
+            // Create feed item input
             ConnectApi.FeedItemInput feedItemInput = new ConnectApi.FeedItemInput();
             ConnectApi.MessageBodyInput messageBodyInput = new ConnectApi.MessageBodyInput();
             ConnectApi.TextSegmentInput textSegment = new ConnectApi.TextSegmentInput();
@@ -133,10 +187,10 @@ public class ActionPostChatter extends BaseAgentAction {
                 for (String topicName : topics) {
                     if (String.isNotBlank(topicName)) {
                         String cleanTopic = topicName.trim();
-
                         if (cleanTopic.length() <= 25) {
                             topicsCapabilityInput.topics.add(cleanTopic);
                         } else {
+                            System.debug(LoggingLevel.WARN, '[ActionPostChatter] Topic too long (skipped): ' + cleanTopic);
                         }
                     }
                 }
@@ -150,21 +204,33 @@ public class ActionPostChatter extends BaseAgentAction {
             return ConnectApi.ChatterFeeds.postFeedElement(Network.getNetworkId(), feedItemInput);
         } catch (ConnectApi.ConnectApiException cae) {
             String enhancedMessage = 'Chatter post failed: ' + cae.getMessage();
-
+            System.debug(LoggingLevel.ERROR, '[ActionPostChatter] Chatter post failed: ' + enhancedMessage);
             throw new ValidationException(enhancedMessage, null);
         } catch (Exception ex) {
             String enhancedMessage = 'Unexpected error posting to Chatter: ' + ex.getMessage();
-
+            System.debug(LoggingLevel.ERROR, '[ActionPostChatter] Unexpected error: ' + enhancedMessage);
+            System.debug(LoggingLevel.DEBUG, '[ActionPostChatter] Exception stack trace: ' + ex.getStackTraceString());
             throw new ValidationException(enhancedMessage, null);
         }
     }
 
+    /**
+     * @description
+     * Result wrapper for successful Chatter post operations. Provides structured data for both user display and LLM processing.
+     *
+     * Fields:
+     *   - feedElementId: String - The ID of the posted Chatter feed element.
+     *   - message: String - User-facing message summarizing the result.
+     *   - messageLength: Integer - Length of the posted message.
+     *   - topicCount: Integer - Number of topics associated with the post.
+     *   - metadata: Map<String, Object> - Additional context for downstream consumers.
+     */
     public class ChatterResult {
         public String feedElementId;
-        public String message;
+        public String message; // Framework uses this for user display
         public Integer messageLength;
         public Integer topicCount;
-        public Map<String, Object> metadata;
+        public Map<String, Object> metadata; // Additional context for LLMs
 
         public ChatterResult(String feedElementId, String message, Integer messageLength, Integer topicCount) {
             this.feedElementId = feedElementId;

@@ -7,10 +7,12 @@
  */
 
 /**
- * @description Service responsible for orchestrating the AI agent's actions
- *              *after* receiving a response from the LLM Interaction Service.
- *              It uses the Strategy pattern (via ResponseHandlerFactory) to delegate
- *              processing to the appropriate handler based on the LLM's response.
+ * @description
+ * OrchestrationService coordinates the end-to-end flow of AI agent actions following LLM response processing.
+ * It applies the Strategy pattern to delegate response handling to the appropriate handler (content-only or tool call),
+ * manages turn lifecycle and state transitions, and provides robust error handling with comprehensive logging.
+ * The service is designed for extensibility, testability, and operational transparency, serving as the central
+ * orchestrator for all LLM-driven agent workflows.
  */
 public inherited sharing class OrchestrationService {
     public virtual class OrchestrationException extends AIAgentException {
@@ -18,26 +20,37 @@ public inherited sharing class OrchestrationService {
     public class ConfigurationException extends OrchestrationException {
     }
 
+    // Turn outcome constants for orchestration flow control
     public static final String OUTCOME_COMPLETED = 'COMPLETED';
     public static final String OUTCOME_FAILED = 'FAILED';
     public static final String OUTCOME_QUEUED_FOLLOWUP = 'QUEUED_FOLLOWUP';
     public static final String OUTCOME_QUEUED_ACTION = 'QUEUED_ACTION';
     public static final String OUTCOME_AWAITING_CONFIRMATION = 'AWAITING_CONFIRMATION';
 
+    // Injected service dependencies
     private final TurnLifecycleService turnLifecycleSvc;
     private final ActionExecutionService actionExecSvc;
     private final AgentJobEnqueuer orchestrationDispatchSvc;
     private final ContextManagerService contextManagerSvc;
 
     /**
-     * @description Default constructor for ease of use. Instantiates default dependencies.
+     * Default constructor. Initializes all service dependencies with their default implementations.
+     *
+     * Side effects: Instantiates all required services for orchestration.
      */
     public OrchestrationService() {
+        // Initialize with default service implementations
         this(new TurnLifecycleService(), new ActionExecutionService(), new AgentJobEnqueuer(), new ContextManagerService());
     }
 
     /**
-     * @description Main constructor for dependency injection. Allows for test mocking.
+     * Constructor with dependency injection for testing and customization.
+     *
+     * @param turnSvc    TurnLifecycleService instance (required)
+     * @param actionSvc  ActionExecutionService instance (required)
+     * @param dispatchSvc AgentJobEnqueuer instance (required)
+     * @param contextSvc ContextManagerService instance (required)
+     * @throws IllegalArgumentException if any dependency is null
      */
     public OrchestrationService(
         TurnLifecycleService turnSvc,
@@ -55,10 +68,24 @@ public inherited sharing class OrchestrationService {
     }
 
     /**
-     * @description Processes the result from an LLM call by delegating to the appropriate strategy handler.
-     *              Enhanced with orchestration logging for detailed turn tracking.
-     * @param llmInteractionResult The result object from the LLMInteractionService.
-     * @return String An outcome constant (e.g., OUTCOME_COMPLETED).
+     * Processes the LLM interaction result using the appropriate strategy handler based on response type.
+     *
+     * Selects the correct response handler (content or tool call), manages turn lifecycle, logs all major steps,
+     * and returns an outcome constant indicating the result of the orchestration turn.
+     *
+     * @param llmInteractionResult      Result from LLM interaction containing response content and/or tool calls (required)
+     * @param sessionId                 The current session ID (required)
+     * @param originalUserId            The original user ID who initiated the session (required)
+     * @param executionUserId           The user ID under which execution is performed (required)
+     * @param agentDefinitionId         The agent definition ID for this session (required)
+     * @param turnIdentifier            Unique identifier for this turn (required)
+     * @param currentTurnCount          The current turn count in the session (required)
+     * @param userMessageDataForTurn    The user message data for this turn (required)
+     * @param currentPageRecordId       The current page record ID, if applicable (optional)
+     * @return                          Outcome constant indicating turn completion status and next steps
+     * @throws None. All errors are handled internally and surfaced via debug logs and return value.
+     *
+     * Side effects: Emits debug logs and orchestrates turn state transitions.
      */
     public String processLlmResult(
         LLMInteractionService.LLMInteractionResult llmInteractionResult,
@@ -72,6 +99,7 @@ public inherited sharing class OrchestrationService {
         Id currentPageRecordId
     ) {
         String logPrefix = '[OrchSvc Turn:' + turnIdentifier?.left(8) + ' Cycle:' + currentTurnCount + ' Sess:' + sessionId + '] ';
+        System.debug(LoggingLevel.INFO, logPrefix + 'Starting orchestration for LLM result. Page context: ' + currentPageRecordId);
 
         OrchestrationLogger.logStep(
             sessionId,
@@ -92,8 +120,9 @@ public inherited sharing class OrchestrationService {
 
         try {
             if (llmInteractionResult == null || !llmInteractionResult.isSuccess) {
-                String failureReason = llmInteractionResult?.failureReason ?? 'Unknown LLM Interaction Error';
+                String failureReason = llmInteractionResult?.failureReason ?? 'Unknown LLM interaction error';
                 String failureCode = llmInteractionResult?.failureCode ?? AIAgentConstants.ERR_CODE_LLM_CALL_FAILED;
+                System.debug(LoggingLevel.ERROR, logPrefix + 'LLM interaction failed. Reason: ' + failureReason + ' (Code: ' + failureCode + ')');
 
                 OrchestrationLogger.logStep(
                     sessionId,
@@ -133,6 +162,7 @@ public inherited sharing class OrchestrationService {
                 null
             );
 
+            // Create orchestration context with all required state and dependencies for this turn.
             OrchestrationContext context = new OrchestrationContext(
                 llmInteractionResult,
                 sessionId,
@@ -149,6 +179,7 @@ public inherited sharing class OrchestrationService {
                 currentPageRecordId
             );
 
+            // Select the appropriate response handler based on LLM response type (tool call or content-only).
             ILLMResponseHandler handler;
             if (llmInteractionResult.providerResult?.requestedActions != null && !llmInteractionResult.providerResult.requestedActions.isEmpty()) {
                 handler = new ToolCallResponseHandler();
@@ -161,7 +192,7 @@ public inherited sharing class OrchestrationService {
                 turnIdentifier,
                 OrchestrationLogger.TYPE_DISPATCH,
                 OrchestrationLogger.STATUS_INIT,
-                'Dispatching to response handler: ' + handler.toString(),
+                'Dispatching to handler: ' + handler.toString(),
                 null,
                 null,
                 null,
@@ -173,6 +204,7 @@ public inherited sharing class OrchestrationService {
                 null
             );
 
+            // Execute the selected response handling strategy.
             String outcome = handler.handle(context);
 
             OrchestrationLogger.logStep(
@@ -180,7 +212,7 @@ public inherited sharing class OrchestrationService {
                 turnIdentifier,
                 OrchestrationLogger.TYPE_DISPATCH,
                 OrchestrationLogger.STATUS_SUCCESS,
-                'Orchestration completed with outcome: ' + outcome,
+                'Orchestration completed: ' + outcome,
                 null,
                 new Map<String, Object>{ 'outcome' => outcome },
                 null,
@@ -194,7 +226,8 @@ public inherited sharing class OrchestrationService {
 
             return outcome;
         } catch (Exception ex) {
-            String errorMsg = 'Critical Orchestration Logic Error: (' + ex.getTypeName() + ') ' + ex.getMessage();
+            String errorMsg = 'Critical orchestration error: (' + ex.getTypeName() + ') ' + ex.getMessage();
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Orchestration failed with exception. ' + errorMsg + '\nStack: ' + ex.getStackTraceString());
 
             OrchestrationLogger.logStep(
                 sessionId,
@@ -216,6 +249,7 @@ public inherited sharing class OrchestrationService {
             try {
                 this.turnLifecycleSvc.failTurn(sessionId, turnIdentifier, errorMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
             } catch (Exception finalFailEx) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'FATAL: Could not mark turn as failed. Reason: ' + finalFailEx.getMessage());
             }
             return OUTCOME_FAILED;
         } finally {
@@ -223,9 +257,24 @@ public inherited sharing class OrchestrationService {
         }
     }
 
+    // Static utility methods for use by response handlers
+
+    /**
+     * Serializes an ActionResult for LLM consumption, handling nulls and error cases gracefully.
+     *
+     * If the ActionResult is null or missing output, a synthetic error response is generated. Internal exception details
+     * are sanitized for LLM consumption. All serialization errors are logged and surfaced in the output.
+     *
+     * @param actionResult The ActionResult to serialize (may be null)
+     * @param logPrefix    Prefix for debug log output
+     * @return             JSON string representing the action result for LLM
+     *
+     * Side effects: Emits debug logs for null results and serialization errors.
+     */
     public static String serializeActionResult(ActionResult actionResult, String logPrefix) {
         try {
             if (actionResult == null) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Action result is null. Returning error response for LLM.');
                 return JSON.serialize(new Map<String, Object>{ 'error' => 'Action execution did not return a result object.' });
             }
             if (actionResult.outputForLlm != null) {
@@ -234,9 +283,10 @@ public inherited sharing class OrchestrationService {
                 Map<String, Object> syntheticOutput = new Map<String, Object>{ 'success' => actionResult.isSuccess };
                 if (!actionResult.isSuccess) {
                     syntheticOutput.put('errorCode', actionResult.errorCode);
-                    String llmErrorDetail = actionResult.internalDetails != null ? actionResult.internalDetails : 'No details available.';
+                    String llmErrorDetail = actionResult.internalDetails != null ? actionResult.internalDetails : 'No details available';
+                    // Sanitize internal exception details for LLM consumption
                     if (actionResult.internalDetails != null && actionResult.internalDetails.contains('Exception:')) {
-                        llmErrorDetail = 'An internal error occurred executing the action.';
+                        llmErrorDetail = 'An internal error occurred executing the action';
                     }
                     syntheticOutput.put('messageForUser', llmErrorDetail);
                 }
@@ -244,9 +294,10 @@ public inherited sharing class OrchestrationService {
                 return JSON.serialize(syntheticOutput);
             }
         } catch (Exception jsonEx) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to serialize action result for LLM. Error: ' + jsonEx.getMessage());
             return JSON.serialize(
                 new Map<String, Object>{
-                    'error' => 'Failed to serialize action result data.',
+                    'error' => 'Failed to serialize action result data',
                     'serialization_error_details' => jsonEx.getMessage(),
                     'original_action_success_status' => actionResult?.isSuccess,
                     'original_action_error_code' => actionResult?.errorCode
@@ -256,9 +307,12 @@ public inherited sharing class OrchestrationService {
     }
 
     /**
-     * @description Safely extracts a record ID from a structured ActionResult payload.
-     * @param actionResult The result from an action execution.
-     * @return The Salesforce ID found in the payload, or null if not found or invalid format.
+     * Extracts a Salesforce record ID from an ActionResult payload for context management.
+     *
+     * Handles multiple output shapes (direct recordId, single-record list, or single record object).
+     *
+     * @param actionResult Action execution result containing potential record data (may be null)
+     * @return             Salesforce ID if found in result payload, null otherwise
      */
     public static Id extractRecordIdFromResult(ActionResult actionResult) {
         if (
@@ -277,14 +331,16 @@ public inherited sharing class OrchestrationService {
 
         Map<String, Object> dataMap = (Map<String, Object>) outputMap.get('data');
 
+        // Direct recordId field (Create/Update actions)
         if (dataMap.get('recordId') instanceof String) {
             try {
                 return Id.valueOf((String) dataMap.get('recordId'));
             } catch (Exception e) {
-                /* fall through */
+                // Invalid ID format, continue to other cases
             }
         }
 
+        // Records list with single record (GetRecords actions)
         if (dataMap.get('records') instanceof List<Object>) {
             List<Object> recordsList = (List<Object>) dataMap.get('records');
             if (recordsList.size() == 1) {
@@ -298,20 +354,21 @@ public inherited sharing class OrchestrationService {
                         try {
                             return Id.valueOf((String) recordMap.get('Id'));
                         } catch (Exception e) {
-                            /* fall through */
+                            // Invalid ID format, continue
                         }
                     }
                 }
             }
         }
 
+        // Single record object (FindEntities actions)
         if (dataMap.get('record') instanceof Map<String, Object>) {
             Map<String, Object> recordMap = (Map<String, Object>) dataMap.get('record');
             if (recordMap.get('Id') instanceof String) {
                 try {
                     return Id.valueOf((String) recordMap.get('Id'));
                 } catch (Exception e) {
-                    /* fall through */
+                    // Invalid ID format
                 }
             }
         }
@@ -319,13 +376,29 @@ public inherited sharing class OrchestrationService {
         return null;
     }
 
+    /**
+     * Clears the PendingConfirmationActionDetails__c field from a ChatMessage__c record.
+     *
+     * Used to remove pending action details after confirmation or cancellation. Logs all outcomes.
+     *
+     * @param chatMessageId The ChatMessage__c record ID to update (may be null)
+     * @param logPrefix     Prefix for debug log output
+     *
+     * Side effects: Emits debug logs for null input, success, and failure cases.
+     */
     public static void clearPendingDetailsFromMessage(Id chatMessageId, String logPrefix) {
         try {
             if (chatMessageId == null) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Attempted to clear pending details: ChatMessageId is null. Skipping update.');
                 return;
             }
             update new ChatMessage__c(Id = chatMessageId, PendingConfirmationActionDetails__c = null);
+            System.debug(LoggingLevel.INFO, logPrefix + 'Pending confirmation details cleared from message: ' + chatMessageId);
         } catch (Exception e) {
+            System.debug(
+                LoggingLevel.WARN,
+                logPrefix + 'Failed to clear pending details from message ' + chatMessageId + '. Error: ' + e.getMessage()
+            );
         }
     }
 }

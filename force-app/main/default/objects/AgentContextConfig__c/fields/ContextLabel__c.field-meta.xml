@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ContextLabel__c</fullName>
+    <description>A descriptive name for this context configuration that helps identify its purpose and the type of data it retrieves for the AI agent.</description>
     <externalId>false</externalId>
+    <inlineHelpText>Enter a clear, descriptive name for this context configuration (e.g., "Account Details", "Case History", "Opportunity Products"). This helps identify what data this configuration provides.</inlineHelpText>
     <label>Context Label</label>
     <length>255</length>
     <required>true</required>

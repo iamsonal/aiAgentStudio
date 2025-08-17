@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ImplementationName__c</fullName>
+    <description>The name of the specific implementation class or method that will handle the context retrieval. For Apex implementations, this is the class name that implements the context retrieval interface.</description>
     <externalId>false</externalId>
+    <inlineHelpText>Enter the name of the Apex class that implements the context retrieval logic (e.g., "AccountContextProvider", "CaseHistoryProvider"). The class must implement the required interface.</inlineHelpText>
     <label>Implementation Name</label>
     <length>255</length>
     <required>false</required>

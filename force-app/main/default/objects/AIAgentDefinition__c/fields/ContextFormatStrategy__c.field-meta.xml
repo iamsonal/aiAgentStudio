@@ -2,7 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ContextFormatStrategy__c</fullName>
     <description>Determines the format used to present contextual SObject data to the LLM. The agent&apos;s &apos;Instructions Prompt&apos; should be written to match this chosen format for best results.</description>
-    <inlineHelpText>Select the data structure for context. &apos;Structured Text&apos; is token-efficient and human-readable. &apos;XML&apos; is more verbose but offers maximum structural rigidity, preventing parsing ambiguity.</inlineHelpText>
+    <inlineHelpText>Choose how data is formatted for the AI. 'Structured Text' is efficient and readable. 'XML' is more structured but uses more tokens. Match your Instructions Prompt to the selected format.</inlineHelpText>
     <label>Context Format Strategy</label>
     <required>false</required>
     <trackTrending>false</trackTrending>

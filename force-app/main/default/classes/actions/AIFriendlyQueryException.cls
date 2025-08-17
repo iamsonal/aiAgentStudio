@@ -7,40 +7,55 @@
  */
 
 /**
- * @description AI-optimized exception handling for query operations.
- *              Provides structured error information that AI agents can understand and act upon.
- *              Includes error codes, suggested fixes, and contextual information for debugging.
+ * @description
+ * AIFriendlyQueryException: Structured, AI-optimized exception for SOQL query validation and troubleshooting.
+ *
+ * This custom exception class provides machine-readable, context-rich error information for SOQL query operations.
+ * It enables AI agents and developer tools to understand, classify, and suggest corrections for query failures.
+ *
+ * Key Features:
+ *   - Standardized error codes and severity levels for programmatic handling.
+ *   - Contextual metadata and actionable fix suggestions for common query validation scenarios.
+ *   - Fluent API for adding context and alternative solutions.
+ *   - Serialization to a structured JSON format for LLMs and automation.
+ *
+ * Use this exception to surface query errors in a way that is both human- and machine-actionable, supporting advanced AI-driven troubleshooting and self-healing workflows.
  */
 public class AIFriendlyQueryException extends Exception {
     /**
-     * @description Standardized error codes for AI agent consumption
+     * @description
+     * Enumeration of standardized error codes for categorizing SOQL query failures.
+     * Enables AI agents and tools to programmatically identify and respond to specific error scenarios.
      */
     public enum ErrorCode {
-        INVALID_FIELD,
-        FIELD_NOT_ACCESSIBLE,
-        FIELD_NOT_FILTERABLE,
-        INVALID_OPERATOR,
-        INVALID_VALUE_TYPE,
-        INVALID_ORDER_BY,
-        QUERY_TOO_COMPLEX,
-        SECURITY_VIOLATION,
-        SOQL_INJECTION_RISK,
-        QUERY_TIMEOUT,
-        INVALID_LIMIT,
-        EMPTY_IN_LIST,
-        GENERAL_VALIDATION
+        INVALID_FIELD, // Field doesn't exist on object
+        FIELD_NOT_ACCESSIBLE, // FLS violation
+        FIELD_NOT_FILTERABLE, // Field cannot be used in WHERE clause
+        INVALID_OPERATOR, // Unsupported filter operator
+        INVALID_VALUE_TYPE, // Value type doesn't match field type
+        INVALID_ORDER_BY, // ORDER BY syntax error
+        QUERY_TOO_COMPLEX, // Query exceeds complexity limits
+        SECURITY_VIOLATION, // Object access denied
+        SOQL_INJECTION_RISK, // Potential injection detected
+        QUERY_TIMEOUT, // Query execution timeout
+        INVALID_LIMIT, // Invalid LIMIT value
+        EMPTY_IN_LIST, // Empty list for IN operator
+        GENERAL_VALIDATION // Generic validation error
     }
 
     /**
-     * @description Severity levels for error classification
+     * @description
+     * Enumeration of severity levels for classifying the impact and urgency of query errors.
+     * Guides AI agents and developer tools in prioritizing error handling and response strategies.
      */
     public enum Severity {
-        LOW,
-        MEDIUM,
-        HIGH,
-        CRITICAL
+        LOW, // Warning - query can proceed with modifications
+        MEDIUM, // Error - query needs correction
+        HIGH, // Critical - security or system risk
+        CRITICAL // Blocking - fundamental configuration issue
     }
 
+    // Core exception properties: structured error information for AI and developer tools
     public ErrorCode errorCode { get; private set; }
     public Severity severity { get; private set; }
     public String suggestedFix { get; private set; }
@@ -50,13 +65,16 @@ public class AIFriendlyQueryException extends Exception {
     public List<String> alternativeSolutions { get; private set; }
 
     /**
-     * @description Constructor with full error context
-     * @param message Human-readable error message
-     * @param errorCode Standardized error code
-     * @param severity Error severity level
-     * @param suggestedFix AI-actionable fix suggestion
-     * @param fieldName Field name involved in error (if applicable)
-     * @param objectName SObject name involved in error (if applicable)
+     * @description
+     * Primary constructor for a fully-contextualized exception with all available error details.
+     * Use this when maximum error context is available for AI or developer processing.
+     *
+     * @param message Human-readable error description
+     * @param errorCode Standardized error classification code
+     * @param severity Impact level of the error
+     * @param suggestedFix Actionable recommendation for resolving the error
+     * @param fieldName Name of the field involved in the error (null if not field-specific)
+     * @param objectName Name of the SObject involved in the error (null if not object-specific)
      */
     public AIFriendlyQueryException(
         String message,
@@ -77,20 +95,26 @@ public class AIFriendlyQueryException extends Exception {
     }
 
     /**
-     * @description Simplified constructor for common cases
-     * @param message Human-readable error message
-     * @param errorCode Standardized error code
-     * @param suggestedFix AI-actionable fix suggestion
+     * @description
+     * Convenience constructor for basic error scenarios where field and object context is not available.
+     * Sets severity to MEDIUM and initializes empty context collections.
+     *
+     * @param message Human-readable error description
+     * @param errorCode Standardized error classification code
+     * @param suggestedFix Actionable recommendation for resolving the error
      */
     public AIFriendlyQueryException(String message, ErrorCode errorCode, String suggestedFix) {
         this(message, errorCode, AIFriendlyQueryException.Severity.MEDIUM, suggestedFix, null, null);
     }
 
     /**
-     * @description Adds contextual information to the exception
-     * @param key Context key
-     * @param value Context value
-     * @return This exception instance for method chaining
+     * @description
+     * Adds additional contextual metadata to the exception for enhanced AI or developer processing.
+     * Supports method chaining for fluent exception building.
+     *
+     * @param key Descriptive identifier for the context information
+     * @param value Associated data value (any serializable type)
+     * @return This exception instance (for method chaining)
      */
     public AIFriendlyQueryException withContext(String key, Object value) {
         if (this.context == null) {
@@ -101,9 +125,12 @@ public class AIFriendlyQueryException extends Exception {
     }
 
     /**
-     * @description Adds alternative solution suggestions
-     * @param solution Alternative approach description
-     * @return This exception instance for method chaining
+     * @description
+     * Appends an alternative solution to the list of possible fixes for this error.
+     * Multiple alternatives can be added to provide AI agents or users with various resolution options.
+     *
+     * @param solution Description of an alternative approach to resolve the error
+     * @return This exception instance (for method chaining)
      */
     public AIFriendlyQueryException withAlternative(String solution) {
         if (this.alternativeSolutions == null) {
@@ -114,8 +141,11 @@ public class AIFriendlyQueryException extends Exception {
     }
 
     /**
-     * @description Converts exception to structured JSON for AI consumption
-     * @return JSON string containing all error information
+     * @description
+     * Serializes the complete exception state into a structured JSON format optimized for AI and automation.
+     * The resulting JSON includes all error details, context, and suggestions in a standardized schema.
+     *
+     * @return JSON string representation of the exception with all available error information
      */
     public String toAIJson() {
         Map<String, Object> errorData = new Map<String, Object>{
@@ -135,8 +165,11 @@ public class AIFriendlyQueryException extends Exception {
     }
 
     /**
-     * @description Gets user-friendly error summary for logging
-     * @return Formatted error summary
+     * @description
+     * Generates a concise, human-readable error summary suitable for logging and debugging.
+     * Combines error code, message, context, and primary fix suggestion into a single line.
+     *
+     * @return Formatted string containing the essential error information
      */
     public String getErrorSummary() {
         String summary = '[' + (this.errorCode?.name() ?? 'UNKNOWN') + '] ' + this.getMessage();
@@ -156,8 +189,16 @@ public class AIFriendlyQueryException extends Exception {
         return summary;
     }
 
+    // Static factory methods: create pre-configured exceptions for common query error scenarios
+
     /**
-     * @description Creates exception for invalid field errors
+     * @description
+     * Factory method for creating exceptions when a referenced field does not exist on the target object.
+     * Includes common alternative solutions for field name resolution.
+     *
+     * @param fieldName The invalid field name that was referenced
+     * @param objectName The SObject type where the field was expected
+     * @return Configured exception with field validation error details
      */
     public static AIFriendlyQueryException invalidField(String fieldName, String objectName) {
         return new AIFriendlyQueryException(
@@ -173,7 +214,13 @@ public class AIFriendlyQueryException extends Exception {
     }
 
     /**
-     * @description Creates exception for field access errors
+     * @description
+     * Factory method for creating exceptions when field-level security prevents access to a field.
+     * Provides guidance on permission configuration and alternative approaches.
+     *
+     * @param fieldName The field that cannot be accessed
+     * @param objectName The SObject containing the restricted field
+     * @return Configured exception with field access security error details
      */
     public static AIFriendlyQueryException fieldNotAccessible(String fieldName, String objectName) {
         return new AIFriendlyQueryException(
@@ -189,7 +236,13 @@ public class AIFriendlyQueryException extends Exception {
     }
 
     /**
-     * @description Creates exception for non-filterable field errors
+     * @description
+     * Factory method for creating exceptions when attempting to filter on fields that don't support WHERE clause operations.
+     * Suggests alternative query strategies and field usage patterns.
+     *
+     * @param fieldName The field that cannot be used in filters
+     * @param objectName The SObject containing the non-filterable field
+     * @return Configured exception with field filtering restriction details
      */
     public static AIFriendlyQueryException fieldNotFilterable(String fieldName, String objectName) {
         return new AIFriendlyQueryException(
@@ -205,7 +258,13 @@ public class AIFriendlyQueryException extends Exception {
     }
 
     /**
-     * @description Creates exception for invalid operator errors
+     * @description
+     * Factory method for creating exceptions when an unsupported operator is used with a specific field type.
+     * Provides a list of valid operators and usage examples.
+     *
+     * @param operator The invalid operator that was attempted
+     * @param fieldName The field where the operator was applied
+     * @return Configured exception with operator validation error details
      */
     public static AIFriendlyQueryException invalidOperator(String operator, String fieldName) {
         return new AIFriendlyQueryException(
@@ -222,7 +281,14 @@ public class AIFriendlyQueryException extends Exception {
     }
 
     /**
-     * @description Creates exception for value type mismatch errors
+     * @description
+     * Factory method for creating exceptions when a filter value doesn't match the expected field data type.
+     * Includes type conversion guidance and format examples.
+     *
+     * @param fieldName The field where type mismatch occurred
+     * @param expectedType The data type expected by the field
+     * @param actualValue The value that caused the type mismatch
+     * @return Configured exception with type validation error details
      */
     public static AIFriendlyQueryException invalidValueType(String fieldName, String expectedType, Object actualValue) {
         return new AIFriendlyQueryException(
@@ -240,7 +306,12 @@ public class AIFriendlyQueryException extends Exception {
     }
 
     /**
-     * @description Creates exception for ORDER BY syntax errors
+     * @description
+     * Factory method for creating exceptions when ORDER BY clause contains invalid syntax.
+     * Provides correct syntax patterns and formatting examples.
+     *
+     * @param orderByClause The malformed ORDER BY clause that caused the error
+     * @return Configured exception with ORDER BY syntax error details
      */
     public static AIFriendlyQueryException invalidOrderBy(String orderByClause) {
         return new AIFriendlyQueryException(
@@ -257,7 +328,13 @@ public class AIFriendlyQueryException extends Exception {
     }
 
     /**
-     * @description Creates exception for security violations
+     * @description
+     * Factory method for creating exceptions when object-level security prevents the requested operation.
+     * Provides guidance on permission configuration and alternative approaches.
+     *
+     * @param objectName The SObject that cannot be accessed
+     * @param operation The operation that was denied (e.g., 'read', 'create', 'update')
+     * @return Configured exception with object security violation details
      */
     public static AIFriendlyQueryException securityViolation(String objectName, String operation) {
         return new AIFriendlyQueryException(

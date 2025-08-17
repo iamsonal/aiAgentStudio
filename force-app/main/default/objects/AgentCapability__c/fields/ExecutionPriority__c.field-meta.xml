@@ -3,7 +3,7 @@
     <fullName>ExecutionPriority__c</fullName>
     <description>A number that determines the order of execution if the AI requests multiple tools in a single turn. Capabilities with lower numbers execute first.</description>
     <externalId>false</externalId>
-    <inlineHelpText>A number that determines the execution order if the AI requests multiple tools in one turn. Lower numbers execute first.</inlineHelpText>
+    <inlineHelpText>Enter a number to control execution order when the AI calls multiple tools at once. Lower numbers run first (e.g., 1 runs before 2). Leave blank for default ordering.</inlineHelpText>
     <label>Execution Priority</label>
     <precision>18</precision>
     <required>false</required>
