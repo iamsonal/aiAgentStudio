@@ -13,11 +13,17 @@
  * implements efficient schema caching to minimize describe calls per transaction, and ensures consistent, readable data
  * presentation for AI context injection and prompt engineering.
  *
+ * SECURITY ENHANCEMENT: This class now includes comprehensive protection against prompt injection attacks
+ * through integration with PromptInjectionGuard. All user-generated content is analyzed for malicious patterns
+ * and sanitized before being included in LLM context.
+ *
  * Responsibilities:
  *   - Format SObject records into XML or Markdown-style structured text for LLMs
  *   - Group and organize records by type for clarity
  *   - Efficiently cache schema metadata to reduce describe call overhead
  *   - Provide extensible, maintainable formatting logic for AI context use cases
+ *   - Protect against prompt injection attacks through content analysis and sanitization
+ *   - Isolate user-generated content to prevent LLM prompt hijacking
  */
 public inherited sharing class SObjectContextFormatter {
     // Schema information cache container
@@ -80,12 +86,28 @@ public inherited sharing class SObjectContextFormatter {
      * Groups records by type and applies the specified formatting strategy.
      * Handles child relationships by pre-caching schema information for all object types.
      *
+     * SECURITY ENHANCEMENT: All content is now analyzed for prompt injection threats
+     * and sanitized before formatting to prevent LLM hijacking attacks.
+     *
      * @param records         List of SObjects to format for LLM context.
      * @param formatStrategy  The formatting approach ('XML' or 'StructuredText').
      * @param logPrefix       Logging prefix for debug messages.
      * @return                Formatted context string ready for LLM consumption.
      */
     public static String formatContext(List<SObject> records, String formatStrategy, String logPrefix) {
+        return formatContext(records, formatStrategy, logPrefix, null);
+    }
+
+    /**
+     * Enhanced formatContext with security policy support for prompt injection protection.
+     *
+     * @param records         List of SObjects to format for LLM context.
+     * @param formatStrategy  The formatting approach ('XML' or 'StructuredText').
+     * @param logPrefix       Logging prefix for debug messages.
+     * @param securityPolicy  Security policy name for content analysis (null for default).
+     * @return                Formatted context string ready for LLM consumption.
+     */
+    public static String formatContext(List<SObject> records, String formatStrategy, String logPrefix, String securityPolicy) {
         if (records == null || records.isEmpty()) {
             return '';
         }
@@ -101,12 +123,12 @@ public inherited sharing class SObjectContextFormatter {
             List<SObject> sObjectList = recordsByType.get(sObjTypeName);
             String formattedBlock = '';
 
-            // Apply appropriate formatting strategy
+            // Apply appropriate formatting strategy with security protection
             if ('XML'.equalsIgnoreCase(formatStrategy)) {
-                formattedBlock = formatAsXml(sObjectList, logPrefix);
+                formattedBlock = formatAsXml(sObjectList, logPrefix, securityPolicy);
             } else {
                 // Default to StructuredText formatting
-                formattedBlock = formatAsStructuredText(sObjectList, logPrefix);
+                formattedBlock = formatAsStructuredText(sObjectList, logPrefix, securityPolicy);
             }
 
             if (String.isNotBlank(formattedBlock)) {
@@ -121,11 +143,14 @@ public inherited sharing class SObjectContextFormatter {
      * Creates hierarchical XML structure with object and field information.
      * Handles child relationships by including them as nested XML sections.
      *
+     * SECURITY ENHANCEMENT: All field values are analyzed for prompt injection threats.
+     *
      * @param sObjectList   List of records of the same SObjectType to format.
      * @param logPrefix     Logging prefix for debug messages.
+     * @param securityPolicy Security policy for content analysis.
      * @return              XML-formatted string with object and field data.
      */
-    private static String formatAsXml(List<SObject> sObjectList, String logPrefix) {
+    private static String formatAsXml(List<SObject> sObjectList, String logPrefix, String securityPolicy) {
         if (sObjectList.isEmpty())
             return '';
 
@@ -152,7 +177,7 @@ public inherited sharing class SObjectContextFormatter {
                 if (value instanceof List<SObject>) {
                     List<SObject> childRecords = (List<SObject>) value;
                     if (!childRecords.isEmpty()) {
-                        String childXml = formatChildRelationshipAsXml(fieldName, childRecords, logPrefix);
+                        String childXml = formatChildRelationshipAsXml(fieldName, childRecords, logPrefix, securityPolicy);
                         if (String.isNotBlank(childXml)) {
                             childRelationshipXml.add(childXml);
                         }
@@ -166,6 +191,26 @@ public inherited sharing class SObjectContextFormatter {
             for (String fieldLabel : allAccessibleFields.keySet()) {
                 Object value = allAccessibleFields.get(fieldLabel);
                 String displayValue = (value == null) ? '' : String.valueOf(value);
+
+                // SECURITY: Analyze and sanitize field content for prompt injection
+                if (String.isNotBlank(displayValue)) {
+                    PromptInjectionGuard.SecurityAnalysisResult securityResult = PromptInjectionGuard.analyzeContent(
+                        displayValue,
+                        fieldLabel,
+                        schemaInfo.objectDescribe.getName(),
+                        securityPolicy
+                    );
+
+                    if (!securityResult.isSafe) {
+                        System.debug(
+                            LoggingLevel.WARN,
+                            logPrefix + 'Security risk detected in field ' + fieldLabel + ': ' + securityResult.riskLevel
+                        );
+                    }
+
+                    // Use isolated content to prevent prompt interpretation
+                    displayValue = securityResult.isolatedContent;
+                }
 
                 // Use the human-readable field label for XML output
                 fieldXmlTags.add('    <field label="' + fieldLabel.escapeHtml4() + '">' + displayValue.escapeHtml4() + '</field>');
@@ -202,11 +247,14 @@ public inherited sharing class SObjectContextFormatter {
      * Creates grouped sections with clear record separation and field labels.
      * Handles child relationships by formatting them as nested sections.
      *
+     * SECURITY ENHANCEMENT: All field values are analyzed for prompt injection threats.
+     *
      * @param sObjectList   List of records of the same SObjectType to format.
      * @param logPrefix     Logging prefix for debug messages.
+     * @param securityPolicy Security policy for content analysis.
      * @return              Markdown-formatted string with organized record data.
      */
-    private static String formatAsStructuredText(List<SObject> sObjectList, String logPrefix) {
+    private static String formatAsStructuredText(List<SObject> sObjectList, String logPrefix, String securityPolicy) {
         if (sObjectList.isEmpty())
             return '';
 
@@ -247,7 +295,7 @@ public inherited sharing class SObjectContextFormatter {
                 if (value instanceof List<SObject>) {
                     List<SObject> childRecords = (List<SObject>) value;
                     if (!childRecords.isEmpty()) {
-                        String childBlock = formatChildRelationship(fieldName, childRecords, logPrefix);
+                        String childBlock = formatChildRelationship(fieldName, childRecords, logPrefix, securityPolicy);
                         if (String.isNotBlank(childBlock)) {
                             childRelationshipBlocks.add(childBlock);
                         }
@@ -271,6 +319,26 @@ public inherited sharing class SObjectContextFormatter {
 
                 Object value = allAccessibleFields.get(fieldLabel);
                 String displayValue = (value == null) ? '[Not Set]' : String.valueOf(value).replace('\n', ' ').replace('\r', '');
+
+                // SECURITY: Analyze and sanitize field content for prompt injection
+                if (String.isNotBlank(displayValue) && !displayValue.equals('[Not Set]')) {
+                    PromptInjectionGuard.SecurityAnalysisResult securityResult = PromptInjectionGuard.analyzeContent(
+                        displayValue,
+                        fieldLabel,
+                        schemaInfo.objectDescribe.getName(),
+                        securityPolicy
+                    );
+
+                    if (!securityResult.isSafe) {
+                        System.debug(
+                            LoggingLevel.WARN,
+                            logPrefix + 'Security risk detected in field ' + fieldLabel + ': ' + securityResult.riskLevel
+                        );
+                    }
+
+                    // Use isolated content to prevent prompt interpretation
+                    displayValue = securityResult.isolatedContent;
+                }
 
                 fieldEntries.add(fieldLabel + ': ' + displayValue);
             }
@@ -406,9 +474,10 @@ public inherited sharing class SObjectContextFormatter {
      * @param relationshipName  The name of the child relationship field.
      * @param childRecords      List of child SObject records.
      * @param logPrefix         Logging prefix for debug messages.
+     * @param securityPolicy    Security policy for content analysis.
      * @return                  Formatted string for the child relationship section.
      */
-    private static String formatChildRelationship(String relationshipName, List<SObject> childRecords, String logPrefix) {
+    private static String formatChildRelationship(String relationshipName, List<SObject> childRecords, String logPrefix, String securityPolicy) {
         if (childRecords == null || childRecords.isEmpty()) {
             return '';
         }
@@ -428,6 +497,27 @@ public inherited sharing class SObjectContextFormatter {
             for (String fieldLabel : sortedFieldLabels) {
                 Object fieldValue = allAccessibleFields.get(fieldLabel);
                 String displayValue = (fieldValue == null) ? '[Not Set]' : String.valueOf(fieldValue).replace('\n', ' ').replace('\r', '');
+
+                // SECURITY: Analyze and sanitize child field content for prompt injection
+                if (String.isNotBlank(displayValue) && !displayValue.equals('[Not Set]')) {
+                    PromptInjectionGuard.SecurityAnalysisResult securityResult = PromptInjectionGuard.analyzeContent(
+                        displayValue,
+                        fieldLabel,
+                        childRecord.getSObjectType().getDescribe().getName(),
+                        securityPolicy
+                    );
+
+                    if (!securityResult.isSafe) {
+                        System.debug(
+                            LoggingLevel.WARN,
+                            logPrefix + 'Security risk detected in child field ' + fieldLabel + ': ' + securityResult.riskLevel
+                        );
+                    }
+
+                    // Use isolated content to prevent prompt interpretation
+                    displayValue = securityResult.isolatedContent;
+                }
+
                 childFieldEntries.add('  ' + fieldLabel + ': ' + displayValue);
             }
 
@@ -449,9 +539,10 @@ public inherited sharing class SObjectContextFormatter {
      * @param relationshipName  The name of the child relationship field.
      * @param childRecords      List of child SObject records.
      * @param logPrefix         Logging prefix for debug messages.
+     * @param securityPolicy    Security policy for content analysis.
      * @return                  XML-formatted string for the child relationship section.
      */
-    private static String formatChildRelationshipAsXml(String relationshipName, List<SObject> childRecords, String logPrefix) {
+    private static String formatChildRelationshipAsXml(String relationshipName, List<SObject> childRecords, String logPrefix, String securityPolicy) {
         if (childRecords == null || childRecords.isEmpty()) {
             return '';
         }
@@ -470,6 +561,27 @@ public inherited sharing class SObjectContextFormatter {
             for (String fieldLabel : allAccessibleFields.keySet()) {
                 Object fieldValue = allAccessibleFields.get(fieldLabel);
                 String displayValue = (fieldValue == null) ? '' : String.valueOf(fieldValue);
+
+                // SECURITY: Analyze and sanitize child field content for prompt injection
+                if (String.isNotBlank(displayValue)) {
+                    PromptInjectionGuard.SecurityAnalysisResult securityResult = PromptInjectionGuard.analyzeContent(
+                        displayValue,
+                        fieldLabel,
+                        childRecord.getSObjectType().getDescribe().getName(),
+                        securityPolicy
+                    );
+
+                    if (!securityResult.isSafe) {
+                        System.debug(
+                            LoggingLevel.WARN,
+                            logPrefix + 'Security risk detected in child XML field ' + fieldLabel + ': ' + securityResult.riskLevel
+                        );
+                    }
+
+                    // Use isolated content to prevent prompt interpretation
+                    displayValue = securityResult.isolatedContent;
+                }
+
                 childFieldXml.add('        <field label="' + fieldLabel.escapeHtml4() + '">' + displayValue.escapeHtml4() + '</field>');
             }
 
