@@ -104,7 +104,12 @@ public class ActionFindEntities extends BaseAgentAction {
         System.debug(LoggingLevel.INFO, '[ActionFindEntities] Search completed in ' + executionTime + ' ms. Results: ' + rankedResults.size());
         logCachePerformanceMetrics();
 
-        return processRankedResults(rankedResults);
+        SearchResult result = processRankedResults(rankedResults);
+
+        // SECURITY: Analyze search results for prompt injection threats
+        analyzeSearchResultsForSecurity(rankedResults);
+
+        return result;
     }
 
     /**
@@ -464,6 +469,56 @@ public class ActionFindEntities extends BaseAgentAction {
             );
         }
         return new SearchResult('AMBIGUOUS', 'Found multiple possible matches. Please clarify which one you mean.', null, options);
+    }
+
+    /**
+     * Analyzes search results for potential security threats in text fields
+     *
+     * @param rankedResults List of scored search results to analyze
+     */
+    private void analyzeSearchResultsForSecurity(List<ScoredResult> rankedResults) {
+        try {
+            for (ScoredResult scoredResult : rankedResults) {
+                SObject record = scoredResult.record;
+                Map<String, Object> populatedFields = record.getPopulatedFieldsAsMap();
+                String objectType = record.getSObjectType().getDescribe().getName();
+
+                for (String fieldName : populatedFields.keySet()) {
+                    Object fieldValue = populatedFields.get(fieldName);
+
+                    // Only analyze string fields that could contain malicious content
+                    if (fieldValue instanceof String && String.isNotBlank((String) fieldValue)) {
+                        String textValue = (String) fieldValue;
+
+                        // Skip very short values and system fields
+                        if (textValue.length() < 20 || fieldName.equalsIgnoreCase('Id') || fieldName.equalsIgnoreCase('Name')) {
+                            continue;
+                        }
+
+                        PromptInjectionGuard.SecurityAnalysisResult securityResult = PromptInjectionGuard.analyzeContent(
+                            textValue,
+                            fieldName,
+                            objectType,
+                            null
+                        );
+
+                        if (!securityResult.isSafe) {
+                            System.debug(
+                                LoggingLevel.WARN,
+                                '[ActionFindEntities] Security risk detected in search result ' +
+                                    record.Id +
+                                    '.' +
+                                    fieldName +
+                                    ': ' +
+                                    securityResult.riskLevel
+                            );
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, '[ActionFindEntities] Error during security analysis: ' + e.getMessage());
+        }
     }
 
     private Map<String, Object> buildRecordDataMap(SObject record) {

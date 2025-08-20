@@ -107,7 +107,14 @@ public class ActionGetRecords extends BaseAgentAction {
             '[ActionGetRecords] Query completed in ' + executionTime + ' ms. Records found: ' + (queryResults != null ? queryResults.size() : 0)
         );
 
-        return processQueryResults(queryResults);
+        QueryResult result = processQueryResults(queryResults);
+
+        // SECURITY: Analyze retrieved records for prompt injection threats
+        if (result.records != null && !result.records.isEmpty()) {
+            analyzeRecordsForSecurity(result.records);
+        }
+
+        return result;
     }
 
     /**
@@ -243,6 +250,54 @@ public class ActionGetRecords extends BaseAgentAction {
 
         System.debug(LoggingLevel.INFO, '[ActionGetRecords] ' + message);
         return new QueryResult(finalResults, totalFoundCount, this.objectApiName, message);
+    }
+
+    /**
+     * Analyzes retrieved records for potential security threats in text fields
+     *
+     * @param records List of SObject records to analyze
+     */
+    private void analyzeRecordsForSecurity(List<SObject> records) {
+        try {
+            for (SObject record : records) {
+                Map<String, Object> populatedFields = record.getPopulatedFieldsAsMap();
+
+                for (String fieldName : populatedFields.keySet()) {
+                    Object fieldValue = populatedFields.get(fieldName);
+
+                    // Only analyze string fields that could contain malicious content
+                    if (fieldValue instanceof String && String.isNotBlank((String) fieldValue)) {
+                        String textValue = (String) fieldValue;
+
+                        // Skip very short values that are unlikely to contain injection attempts
+                        if (textValue.length() < 20) {
+                            continue;
+                        }
+
+                        PromptInjectionGuard.SecurityAnalysisResult securityResult = PromptInjectionGuard.analyzeContent(
+                            textValue,
+                            fieldName,
+                            this.objectApiName,
+                            null
+                        );
+
+                        if (!securityResult.isSafe) {
+                            System.debug(
+                                LoggingLevel.WARN,
+                                '[ActionGetRecords] Security risk detected in retrieved record ' +
+                                    record.Id +
+                                    '.' +
+                                    fieldName +
+                                    ': ' +
+                                    securityResult.riskLevel
+                            );
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, '[ActionGetRecords] Error during security analysis: ' + e.getMessage());
+        }
     }
 
     /**

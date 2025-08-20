@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EnableContentIsolation__c</fullName>
+    <label>Enable Content Isolation</label>
+    <defaultValue>true</defaultValue>
+    <type>Checkbox</type>
+    <description>Wrap user content in isolation markers to prevent LLM prompt interpretation</description>
+</CustomField>

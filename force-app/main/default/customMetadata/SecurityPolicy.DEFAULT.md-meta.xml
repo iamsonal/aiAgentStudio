@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Default Security Policy</label>
+    <protected>false</protected>
+    <values>
+        <field>SecurityLevel__c</field>
+        <value xsi:type="xsd:string">MODERATE</value>
+    </values>
+    <values>
+        <field>EnablePatternDetection__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>EnableContentIsolation__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>EnableAuditLogging__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>ExemptFields__c</field>
+        <value xsi:type="xsd:string">Id,Name,CreatedDate,LastModifiedDate,SystemModstamp,CreatedById,LastModifiedById</value>
+    </values>
+    <values>
+        <field>HighRiskSObjects__c</field>
+        <value xsi:type="xsd:string">Case,EmailMessage,FeedItem,FeedComment,ContentDocument,ContentVersion,Knowledge__kav</value>
+    </values>
+</CustomMetadata>

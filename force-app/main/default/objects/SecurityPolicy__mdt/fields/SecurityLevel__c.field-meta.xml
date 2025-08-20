@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SecurityLevel__c</fullName>
+    <label>Security Level</label>
+    <required>true</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>STRICT</fullName>
+                <default>false</default>
+                <label>Strict</label>
+            </value>
+            <value>
+                <fullName>MODERATE</fullName>
+                <default>true</default>
+                <label>Moderate</label>
+            </value>
+            <value>
+                <fullName>PERMISSIVE</fullName>
+                <default>false</default>
+                <label>Permissive</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+    <description>Security enforcement level: STRICT blocks all suspicious content, MODERATE sanitizes it, PERMISSIVE allows with warnings</description>
+</CustomField>
