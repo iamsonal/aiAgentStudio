@@ -1,22 +1,11 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/.
- *
- * Copyright (c) 2025 Sonal
- */
-
 /**
  * @description Provides utility methods for creating AI Agent Framework records in-memory for Apex tests.
  *              This factory prepares SObjects but does not perform DML, allowing the calling test
  *              method to control when records are inserted.
  * @see AgentTestDataFactory
  */
-@TestVisible
+@IsTest
 public with sharing class TestFactory {
-    // --- Static counter to ensure unique developer names across multiple calls in a single test ---
-    private static Integer counter = 1;
-
     /**
      * @description Creates a complete, ready-to-insert agent setup including LLM, Agent, Actions, and Bindings.
      * @return A DTO containing all related records, ready for insertion.
@@ -45,10 +34,10 @@ public with sharing class TestFactory {
      */
     public static LLMConfiguration__c createLLMConfiguration() {
         return new LLMConfiguration__c(
-            Name = 'Test OpenAI LLM ' + counter,
-            DeveloperName__c = 'Test_OpenAI_LLM_' + counter++,
+            Name = 'Test OpenAI LLM',
+            DeveloperName__c = 'Test_OpenAI_LLM',
             ProviderAdapterClass__c = OpenAIProviderAdapter.class.getName(),
-            NamedCredential__c = 'OpenAI_API_Test', // A placeholder name
+            NamedCredential__c = 'OpenAI_API_Test',
             DefaultModelIdentifier__c = 'gpt-4o-mini',
             IsActive__c = true
         );
@@ -61,10 +50,11 @@ public with sharing class TestFactory {
      */
     public static AIAgentDefinition__c createAgentDefinition(Id llmConfigId) {
         return new AIAgentDefinition__c(
-            Name = 'Test Sales Agent ' + counter,
-            DeveloperName__c = 'Test_Sales_Agent_' + counter++,
+            Name = 'Test Sales Agent',
+            DeveloperName__c = 'Test_Sales_Agent',
             LLMConfiguration__c = llmConfigId,
             SystemPrompt__c = 'You are a test sales agent.',
+            WelcomeMessageTemplate__c = 'Hello {User.FirstName}, welcome!',
             IsActive__c = true,
             MemoryStrategy__c = 'Buffer Window'
         );
@@ -111,9 +101,6 @@ public with sharing class TestFactory {
         return capabilities;
     }
 
-    /**
-     * @description Helper to create a single, fully-defined AgentCapability__c sObject.
-     */
     public static AgentCapability__c createSingleCapability(
         Id agentDefId,
         String capabilityName,
@@ -127,7 +114,7 @@ public with sharing class TestFactory {
     ) {
         return new AgentCapability__c(
             AIAgentDefinition__c = agentDefId,
-            CapabilityName__c = capabilityName + '_' + counter++,
+            CapabilityName__c = capabilityName,
             Description__c = description,
             Parameters__c = parametersJson,
             ImplementationType__c = implType,
@@ -169,7 +156,7 @@ public with sharing class TestFactory {
             OwnerId = userId,
             User__c = userId,
             ProcessingStatus__c = 'Idle',
-            SessionLabel__c = 'Test Session ' + counter++
+            SessionLabel__c = 'Test Session'
         );
     }
 

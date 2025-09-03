@@ -214,10 +214,9 @@ public class QueryPatternAnalyzer {
      * @return Boolean true if simple path is recommended
      */
     private static Boolean canUseSimpleExecutionPath(QueryPattern pattern, String orderBy, Integer filterCount) {
-        // Simple path criteria
+        // Simple path criteria - only allow truly simple patterns
         Boolean simplePattern =
             pattern == QueryPattern.SIMPLE_LOOKUP ||
-            pattern == QueryPattern.SIMPLE_RANGE ||
             pattern == QueryPattern.MULTI_FIELD_AND ||
             pattern == QueryPattern.EMPTY_QUERY;
 

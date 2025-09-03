@@ -65,7 +65,7 @@ public class ActionFindEntities extends BaseAgentAction {
 
         // Extract and validate parameters
         String searchQuery = (String) params.get('searchQuery');
-        List<String> sObjectTypes = (List<String>) params.get('sObjectTypes');
+        List<String> sObjectTypes = ParameterExtractionUtils.getOptionalStringList(params, 'sObjectTypes');
         if (String.isBlank(searchQuery)) {
             throw new ValidationException('Search query cannot be blank', 'searchQuery');
         }

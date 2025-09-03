@@ -291,8 +291,10 @@ public class QueryService {
     /**
      * @description
      * Simplified field preparation for simple query patterns. Performs basic FLS check.
+     * Throws exception for invalid fields to maintain consistency with complex path.
      *
      * @param filterFields Fields identified as being used in the WHERE clause
+     * @throws AIFriendlyQueryException if invalid fields are found
      */
     private void prepareSelectFieldsSimple(Set<String> filterFields) {
         this.requestedFields.clear();
@@ -316,8 +318,31 @@ public class QueryService {
             String baseFieldName = fieldPath.contains('.') ? fieldPath.substringBefore('.') : fieldPath;
             Schema.SObjectField fieldToken = fieldMap.get(baseFieldName.toLowerCase());
 
-            if (fieldToken != null && fieldToken.getDescribe().isAccessible()) {
-                this.finalFieldsToSelect.add(fieldPath);
+            // If direct field lookup fails and this is a relationship field, try with 'Id' suffix
+            if (fieldToken == null && fieldPath.contains('.')) {
+                String relationshipFieldName = baseFieldName + 'Id';
+                fieldToken = fieldMap.get(relationshipFieldName.toLowerCase());
+            }
+
+            if (fieldToken != null) {
+                Boolean isAccessible = false;
+                // If direct field check its FLS directly
+                if (!fieldPath.contains('.')) {
+                    isAccessible = fieldToken.getDescribe().isAccessible();
+                } else {
+                    // If relationship, check if the relationship field itself is accessible.
+                    // USER_MODE will handle access to the field ON the related object.
+                    isAccessible = fieldToken.getDescribe().isAccessible();
+                }
+
+                if (isAccessible) {
+                    this.finalFieldsToSelect.add(fieldPath);
+                } else {
+                    throw AIFriendlyQueryException.fieldNotAccessible(fieldPath, SchemaCache.getDescribe(targetSObjectType).getName());
+                }
+            } else {
+                // Throw exception for invalid fields instead of silently ignoring
+                throw AIFriendlyQueryException.invalidField(fieldPath, SchemaCache.getDescribe(targetSObjectType).getName());
             }
         }
 
@@ -449,6 +474,13 @@ public class QueryService {
             this.filterFieldsUsed.add(dfr.getName());
 
             // Simple condition generation (equals only for simple path)
+            // Reject complex operators - they should not reach simple path
+            if (filterValue instanceof Map<String, Object>) {
+                throw new FilterValidationException(
+                    'Complex operators detected in simple path for field "' + fieldName + '". This should be routed to complex path.'
+                );
+            }
+
             if (filterValue == null) {
                 conditions.add(dfr.getName() + ' = null');
             } else {

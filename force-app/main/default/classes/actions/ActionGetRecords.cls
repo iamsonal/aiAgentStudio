@@ -53,15 +53,10 @@ public class ActionGetRecords extends BaseAgentAction {
     public override Object executeAction(Map<String, Object> params) {
         Long startTime = System.currentTimeMillis();
 
-        Map<String, Object> filters = (Map<String, Object>) params.get('filters');
-        List<String> additionalFields = (List<String>) params.get('additionalFields');
+        Map<String, Object> filters = ParameterExtractionUtils.getOptionalMap(params, 'filters');
+        List<String> additionalFields = ParameterExtractionUtils.getOptionalStringList(params, 'additionalFields');
         Integer queryLimit = validateAndCoerceLimit(params.get('limit'));
-        String orderBy = (String) params.get('orderBy');
-
-        if (filters == null)
-            filters = new Map<String, Object>();
-        if (additionalFields == null)
-            additionalFields = new List<String>();
+        String orderBy = ParameterExtractionUtils.getOptionalString(params, 'orderBy');
 
         try {
             SecurityUtils.checkObjectPermission(this.targetSObjectType, AccessType.READABLE);
