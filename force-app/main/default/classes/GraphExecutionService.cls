@@ -197,8 +197,7 @@ public with sharing class GraphExecutionService {
             new AgentJobEnqueuer().enqueueGraphStep(context.chatSessionId, graphCapability.Id);
             return new ActionResult(
                 new Map<String, Object>{ 'status' => 'SUBMITTED' },
-                'Graph execution started in the background.',
-                'Graph enqueued.'
+                'Graph execution started in the background.'
             );
         } else {
             System.debug(LoggingLevel.INFO, logPrefix + 'Executing graph synchronously for capability: ' + graphCapability.CapabilityName__c);
@@ -367,6 +366,7 @@ public with sharing class GraphExecutionService {
      * @return GraphNode__c  The entry point node.
      * @throws GraphConfigurationException if no entry point or multiple entry points are found.
      */
+    @TestVisible
     private GraphNode__c findEntryPoint(Map<String, GraphNode__c> allNodesMap) {
         GraphNode__c entryNode = null;
         for (GraphNode__c node : allNodesMap.values()) {
@@ -393,10 +393,11 @@ public with sharing class GraphExecutionService {
      * @param logPrefix Prefix for debug logging.
      * @return ActionResult  The result of the primitive execution, or a NO_OP if no primitive is defined.
      */
+    @TestVisible
     private ActionResult executePrimitiveForNode(GraphNode__c node, GraphRunState state, String logPrefix) {
         if (node.PrimitiveCapabilityToRun__c == null) {
             System.debug(LoggingLevel.INFO, logPrefix + 'Node "' + node.NodeName__c + '" has no primitive capability. Skipping execution (NO_OP).');
-            return new ActionResult(new Map<String, Object>{ 'status' => 'NO_OP' }, 'No operation performed.', 'No primitive defined for node.');
+            return new ActionResult(new Map<String, Object>{ 'status' => 'NO_OP' }, 'No operation performed.');
         }
         ActionExecutionService primitiveExecutor = new ActionExecutionService();
         Map<String, Object> mappedArgs = mapStateToArguments(state, node.InputMappings__c, logPrefix);
@@ -517,7 +518,7 @@ public with sharing class GraphExecutionService {
         );
         // Commit logs before exiting the transaction
         commitLogs(finalState, logPrefix);
-        return null; // Final result is handled via async follow-up
+        return finalGraphResult; // Return the final result for synchronous execution
     }
 
     /**
@@ -541,7 +542,15 @@ public with sharing class GraphExecutionService {
             Object sourceValueOrPath = mappings.get(targetArg);
             Object finalValue;
             if (sourceValueOrPath instanceof String && ((String) sourceValueOrPath).contains('{!')) {
-                finalValue = processTemplateString((String) sourceValueOrPath, stateMapForEval, logPrefix);
+                String sourceString = (String) sourceValueOrPath;
+                // Check if this is a pure semantic reference (starts with {! and ends with })
+                if (sourceString.startsWith('{!') && sourceString.endsWith('}') && sourceString.indexOf('{!') == sourceString.lastIndexOf('{!')) {
+                    // Pure semantic reference - resolve directly to preserve type
+                    finalValue = resolveSemanticValue(sourceString, stateMapForEval, logPrefix);
+                } else {
+                    // Template string with multiple references or mixed content
+                    finalValue = processTemplateString(sourceString, stateMapForEval, logPrefix);
+                }
             } else {
                 finalValue = sourceValueOrPath; // Literal value
             }
@@ -618,7 +627,8 @@ public with sharing class GraphExecutionService {
                 if (parts.size() != 2)
                     return false;
                 Object actualValue = resolveSemanticValue(parts[0].trim(), stateMapForEval, 'EVAL:');
-                return String.valueOf(actualValue).equalsIgnoreCase(parts[1].trim());
+                String expectedValue = parts[1].trim();
+                return compareValues(actualValue, expectedValue);
             }
 
             if (condition.contains('!=')) {
@@ -626,13 +636,48 @@ public with sharing class GraphExecutionService {
                 if (parts.size() != 2)
                     return false;
                 Object actualValue = resolveSemanticValue(parts[0].trim(), stateMapForEval, 'EVAL:');
-                return !String.valueOf(actualValue).equalsIgnoreCase(parts[1].trim());
+                String expectedValue = parts[1].trim();
+                return !compareValues(actualValue, expectedValue);
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, '[GraphExecSvc] Condition evaluation failed for "' + condition + '". Error: ' + e.getMessage());
             return false;
         }
         return false;
+    }
+
+    /**
+     * Compares two values with type-aware comparison logic.
+     *
+     * @param actualValue   The actual value from semantic reference resolution.
+     * @param expectedValue The expected value as a string from the condition.
+     * @return Boolean      True if the values are equal, false otherwise.
+     */
+    @TestVisible
+    private Boolean compareValues(Object actualValue, String expectedValue) {
+        if (actualValue == null) {
+            return String.isBlank(expectedValue) || expectedValue.equalsIgnoreCase('null');
+        }
+
+        // Handle boolean comparisons
+        if (actualValue instanceof Boolean) {
+            return ((Boolean) actualValue).toString().equalsIgnoreCase(expectedValue);
+        }
+
+        // Handle numeric comparisons
+        if (actualValue instanceof Integer || actualValue instanceof Long || actualValue instanceof Decimal || actualValue instanceof Double) {
+            try {
+                Decimal actualDecimal = Decimal.valueOf(String.valueOf(actualValue));
+                Decimal expectedDecimal = Decimal.valueOf(expectedValue);
+                return actualDecimal.equals(expectedDecimal);
+            } catch (Exception e) {
+                // Fall back to string comparison if numeric conversion fails
+                return String.valueOf(actualValue).equalsIgnoreCase(expectedValue);
+            }
+        }
+
+        // Default to string comparison
+        return String.valueOf(actualValue).equalsIgnoreCase(expectedValue);
     }
 
     /**

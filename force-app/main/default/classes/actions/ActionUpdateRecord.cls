@@ -151,6 +151,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
      * @param actionConfigurationJson JSON string with configuration options
      * @param logPrefix Prefix for debug logging
      */
+    @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
 

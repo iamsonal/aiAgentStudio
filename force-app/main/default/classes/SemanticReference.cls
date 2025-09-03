@@ -201,6 +201,7 @@ public class SemanticReference {
      * @param path   The dot-separated field path with optional array indexing (e.g., 'records[0].AccountId').
      * @return       The value at the nested path, or null if not found.
      */
+    @TestVisible
     private Object getNestedValue(Object data, String path) {
         if (data == null || String.isBlank(path))
             return data;

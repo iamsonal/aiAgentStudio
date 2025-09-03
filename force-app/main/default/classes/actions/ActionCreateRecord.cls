@@ -137,6 +137,7 @@ public class ActionCreateRecord extends BaseAgentAction {
      * @param logPrefix String - Prefix for log output.
      * @throws ValidationException if required configuration is missing or invalid.
      */
+    @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
 

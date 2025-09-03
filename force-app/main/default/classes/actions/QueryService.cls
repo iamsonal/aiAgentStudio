@@ -856,14 +856,19 @@ public class QueryService {
                         } else if (dateString.contains(' ')) {
                             return Datetime.valueOf(dateString); // Assume local timezone parse
                         } else {
-                            // Might be just date - attempt Date parse first? No, require full Datetime string.
-                            throw new FilterValidationException(
-                                'Invalid datetime format for field "' +
-                                    fieldNameForError +
-                                    '". Use ISO 8601 or YYYY-MM-DD HH:MM:SS. Received: "' +
-                                    rawValue +
-                                    '"'
-                            );
+                            // Handle date-only strings by converting to Date first, then to Datetime
+                            try {
+                                Date dateOnly = Date.valueOf(dateString);
+                                return Datetime.newInstance(dateOnly, Time.newInstance(0, 0, 0, 0));
+                            } catch (Exception dateEx) {
+                                throw new FilterValidationException(
+                                    'Invalid datetime format for field "' +
+                                        fieldNameForError +
+                                        '". Use ISO 8601, YYYY-MM-DD HH:MM:SS, or YYYY-MM-DD. Received: "' +
+                                        rawValue +
+                                        '"'
+                                );
+                            }
                         }
                     } catch (Exception dtEx) {
                         throw new FilterValidationException(

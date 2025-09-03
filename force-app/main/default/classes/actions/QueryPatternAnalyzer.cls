@@ -347,20 +347,17 @@ public class QueryPatternAnalyzer {
     // Helper methods for pattern detection and operator analysis
     /**
      * @description
-     * Determines if any filter uses complex operators (not '=' or 'IN').
+     * Determines if any filter uses complex operators or map-based structure.
+     * Any map-based filter (even with '=' operator) requires complex path handling.
      *
      * @param filters Map of filters
-     * @return Boolean true if complex operators are present
+     * @return Boolean true if complex operators or map structures are present
      */
     private static Boolean hasComplexOperators(Map<String, Object> filters) {
         for (Object filterValue : filters.values()) {
             if (filterValue instanceof Map<String, Object>) {
-                Map<String, Object> complexFilter = (Map<String, Object>) filterValue;
-                for (String operator : complexFilter.keySet()) {
-                    if (operator.toUpperCase() != '=' && operator.toUpperCase() != 'IN') {
-                        return true;
-                    }
-                }
+                // Any map-based filter structure requires complex path
+                return true;
             }
         }
         return false;

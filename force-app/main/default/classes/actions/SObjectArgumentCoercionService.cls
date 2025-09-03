@@ -312,26 +312,26 @@ public with sharing class SObjectArgumentCoercionService {
         if (rawValue instanceof Datetime)
             return (Datetime) rawValue;
         if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
+            String dtString = (String) rawValue;
+            // JSON.deserialize is the standard way to handle ISO 8601 format,
+            // which includes the 'T' separator and 'Z' timezone indicator.
             try {
-                return Datetime.valueOfGmt(((String) rawValue).replace(' ', 'T'));
-            } // Use GMT version for ISO standard T/Z formats
-            catch (Exception e) {
+                return (Datetime) JSON.deserialize('"' + dtString + '"', Datetime.class);
+            } catch (Exception jsonEx) {
+                // Fallback for Salesforce's standard 'YYYY-MM-DD HH:mm:ss' format.
                 try {
-                    return Datetime.valueOf((String) rawValue);
-                } // Try local parse as fallback
-                catch (Exception e2) {
+                    return Datetime.valueOf(dtString);
+                } catch (Exception valueOfEx) {
                     throw new InvalidArgumentTypeException(
                         'Invalid Datetime format for field "' +
                             fieldName +
-                            '". Use ISO 8601 (YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DD hh:mm:ss). Got: "' +
+                            '". Use ISO 8601 (e.g., YYYY-MM-DDTHH:mm:ssZ) or Salesforce format (YYYY-MM-DD hh:mm:ss). Got: "' +
                             rawValue +
-                            '"',
-                        e2
+                            '"'
                     );
                 }
             }
         }
-        // *** FIXED ERROR MESSAGE ***
         throw new InvalidArgumentTypeException(
             'Cannot coerce to Datetime for field "' + fieldName + '". Expected String or Datetime, got ' + getInputTypeString(rawValue)
         );
@@ -447,39 +447,6 @@ public with sharing class SObjectArgumentCoercionService {
         throw new InvalidArgumentTypeException(
             'Cannot coerce to Integer for field "' + fieldName + '". Expected Number or numeric String, got ' + getInputTypeString(rawValue)
         );
-    }
-
-    /**
-     * @description
-     * Coerces a value to a numeric type (Integer, Decimal, etc.).
-     *
-     * @param rawValue Input value to convert
-     * @param fieldName Field API name for error context
-     * @param fieldType Schema.DisplayType for numeric type
-     * @return Object coerced to the correct numeric type
-     * @throws InvalidArgumentTypeException for invalid input
-     */
-    private static Object coerceToNumber(Object rawValue, String fieldName, Schema.DisplayType fieldType) {
-        Decimal decimalValue;
-
-        if (rawValue instanceof Integer || rawValue instanceof Double || rawValue instanceof Decimal) {
-            decimalValue = Decimal.valueOf(String.valueOf(rawValue));
-        } else if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
-            try {
-                decimalValue = Decimal.valueOf((String) rawValue);
-            } catch (Exception e) {
-                throw new InvalidArgumentTypeException('Invalid numeric format for field ' + fieldName + ': ' + rawValue);
-            }
-        } else {
-            throw new InvalidArgumentTypeException('Expected Number or numeric String for field ' + fieldName + ', got ' + rawValue);
-        }
-
-        // Convert to specific numeric type if needed
-        if (fieldType == Schema.DisplayType.INTEGER) {
-            return decimalValue.intValue();
-        }
-
-        return decimalValue;
     }
 
     /**
