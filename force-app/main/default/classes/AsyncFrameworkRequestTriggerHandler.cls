@@ -11,7 +11,7 @@
  * AsyncFrameworkRequestTriggerHandler is the comprehensive platform event handler for AsyncFrameworkRequest__e events.
  * Responsibilities:
  *   - Provides intelligent routing and deserialization of event payloads to the appropriate processor classes
- *   - Supports multiple job types including action execution, follow-up LLM processing, and graph step execution
+ *   - Supports multiple job types including action execution, and follow-up LLM processing
  *   - Ensures robust error handling and batch isolation for reliable event processing
  *   - Surfaces operational and routing issues clearly via debug output for maintainability
  *
@@ -44,14 +44,12 @@ public class AsyncFrameworkRequestTriggerHandler {
                     handleExecuteAction(payloadJson);
                 } else if ('FollowUpLLM'.equalsIgnoreCase(jobType)) {
                     handleFollowUpLLM(payloadJson);
-                } else if ('GraphStep'.equalsIgnoreCase(jobType)) {
-                    handleGraphStep(payloadJson);
                 } else {
                     System.debug(
                         LoggingLevel.ERROR,
                         '[AsyncFrameworkRequestTriggerHandler] Unknown JobType received: ' +
                             jobType +
-                            '. Valid types: ExecuteAction, FollowUpLLM, GraphStep.'
+                            '. Valid types: ExecuteAction, FollowUpLLM.'
                     );
                 }
             } catch (Exception e) {
@@ -118,22 +116,5 @@ public class AsyncFrameworkRequestTriggerHandler {
             isFinalError
         );
         processor.process(null);
-    }
-
-    /**
-     * Handles the GraphStep job type by deserializing the payload and invoking GraphExecutionService.
-     *
-     * @param payloadJson JSON payload containing graph step execution parameters.
-     */
-    private static void handleGraphStep(String payloadJson) {
-        Map<String, Object> params = (Map<String, Object>) JSON.deserializeUntyped(payloadJson);
-        Id sessionId = (Id) params.get('sessionId');
-        Id graphCapabilityId = (Id) params.get('graphCapabilityId');
-
-        // Re-query graph nodes in the new transaction context and execute next step
-        GraphExecutionService graphService = new GraphExecutionService();
-        Map<String, GraphNode__c> graphNodes = graphService.queryAndMapAllNodes(graphCapabilityId);
-
-        graphService.executeNextStepChain(sessionId, graphNodes);
     }
 }

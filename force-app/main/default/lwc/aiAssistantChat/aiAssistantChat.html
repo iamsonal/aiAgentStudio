@@ -147,7 +147,7 @@
                     </ul>
                 </div>
 
-                <!-- Footer: Input area and send button -->
+                <!-- Footer: Enhanced Input Container -->
                 <div class="slds-chat-input-container">
                     <template if:true={criticalError}>
                         <div class="slds-notify slds-notify_alert slds-theme_alert-texture slds-m-bottom_small" role="alert">
@@ -162,34 +162,59 @@
                         </div>
                     </template>
 
-                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-end">
-                        <div class="slds-grow">
+                    <!-- Unified Input Wrapper -->
+                    <div class="chat-input-wrapper">
+                        <div class="chat-input-field">
                             <lightning-textarea
                                 label="Type your message"
                                 variant="label-hidden"
                                 placeholder={inputPlaceholder}
-                                value={userMessageInput}
+                                value={displayText}
                                 onchange={handleInputChange}
                                 onkeydown={handleKeyDown}
                                 max-length="32000"
-                                class="slds-chat-input"
+                                class={inputClass}
                                 disabled={isInputDisabled}
                                 aria-describedby="input-help"
                             >
                             </lightning-textarea>
-                            <div id="input-help" class="slds-assistive-text">Press Enter to send, Shift+Enter for new line</div>
                         </div>
-                        <div class="slds-m-left_small slds-chat-send-button">
-                            <lightning-button
+
+                        <!-- Action Buttons Container -->
+                        <div class="chat-input-actions">
+                            <!-- Speech Recognition Button -->
+                            <template if:true={speechSupported}>
+                                <lightning-button-icon
+                                    icon-name={speechButtonIcon}
+                                    variant={speechButtonVariant}
+                                    alternative-text={speechButtonAltText}
+                                    title={speechButtonTitle}
+                                    onclick={handleSpeechToggle}
+                                    disabled={isSpeechDisabled}
+                                    class="chat-action-button speech-button {speechButtonClass}"
+                                    size="small"
+                                >
+                                </lightning-button-icon>
+                            </template>
+
+                            <!-- Send Button -->
+                            <lightning-button-icon
                                 icon-name="utility:send"
                                 variant="brand"
-                                label="Send"
+                                alternative-text="Send message"
                                 title={sendButtonTitle}
                                 onclick={handleSendMessageClick}
                                 disabled={isInputDisabled}
-                                class="slds-chat-button"
+                                class="chat-action-button send-button"
+                                size="small"
                             >
-                            </lightning-button>
+                            </lightning-button-icon>
+                        </div>
+
+                        <!-- Hidden Help Text -->
+                        <div id="input-help" class="slds-assistive-text">
+                            Press Enter to send, Shift+Enter for new line.
+                            <template if:true={speechSupported}>Use the microphone button to speak your message.</template>
                         </div>
                     </div>
                 </div>

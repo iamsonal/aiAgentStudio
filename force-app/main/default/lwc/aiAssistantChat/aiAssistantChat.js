@@ -28,6 +28,8 @@ import { EventSubscriptionManager } from './services/eventSubscriptionManager';
 import { ScrollManager } from './services/scrollManager';
 import { LoadingStateManager } from './services/loadingStateManager';
 import { ErrorHandler } from './services/errorHandler';
+import { SpeechToTextService } from './services/speechToTextService';
+import { SpeechUtils } from './utils/speechConstants';
 import { UuidUtils } from './utils/uuid';
 
 import startOverFromMessage from '@salesforce/apex/AIAssistantController.startOverFromMessage';
@@ -66,12 +68,24 @@ export default class AiAssistantChat extends LightningElement {
     criticalError = null;
     loadingState = { initial: true, history: false, sending: false, loadingMore: false };
 
+    // Speech-to-Text State
+    speechSupported = false;
+    speechState = {
+        isListening: false,
+        isError: false,
+        errorMessage: '',
+        interimText: '',
+        finalText: '',
+        confidence: 0
+    };
+
     // --- Service Instances ---
     _sessionManager;
     _eventManager;
     _scrollManager;
     _loadingManager;
     _errorHandler;
+    _speechService;
 
     _currentRecordId = null;
     _visibilityChangeHandler = null;
@@ -90,6 +104,7 @@ export default class AiAssistantChat extends LightningElement {
     async connectedCallback() {
         try {
             await this._initializeServices();
+            this._initializeSpeechToText();
             await this._initializeChat();
             this._setupVisibilityListener();
         } catch (error) {
@@ -102,6 +117,7 @@ export default class AiAssistantChat extends LightningElement {
      */
     disconnectedCallback() {
         this._cleanupServices();
+        this._cleanupSpeechService();
         this._cleanupVisibilityListener();
     }
 
@@ -158,6 +174,125 @@ export default class AiAssistantChat extends LightningElement {
     _cleanupServices() {
         this._eventManager?.cleanup();
         this._scrollManager?.cleanup();
+    }
+
+    /**
+     * Initializes the speech-to-text service with proper event handlers.
+     * @private
+     */
+    _initializeSpeechToText() {
+        // Check if speech recognition is supported
+        this.speechSupported = SpeechUtils.isSupported();
+
+        if (!this.speechSupported) {
+            console.info('[aiAssistantChat] Speech recognition not supported in this browser');
+            return;
+        }
+
+        try {
+            this._speechService = new SpeechToTextService({
+                language: 'en-US', // Default language, could be made configurable
+                continuous: true,
+                interimResults: true,
+                confidenceThreshold: 0.6,
+
+                onStart: () => {
+                    this.speechState = {
+                        ...this.speechState,
+                        isListening: true,
+                        isError: false,
+                        errorMessage: '',
+                        interimText: '',
+                        finalText: ''
+                    };
+                    console.info('[aiAssistantChat] Speech recognition started - will auto-stop when you finish speaking');
+                },
+
+                onResult: (result) => {
+                    // Handle final speech result
+                    if (result.isFinal && result.transcript.trim()) {
+                        const currentInput = this.userMessageInput.trim();
+                        const newText = result.transcript.trim();
+
+                        // Append to existing input with proper spacing
+                        this.userMessageInput = currentInput
+                            ? `${currentInput} ${newText}`
+                            : newText;
+
+                        // Clear interim text since we have final result
+                        this.speechState = {
+                            ...this.speechState,
+                            interimText: '',
+                            finalText: result.transcript
+                        };
+
+                        console.info('[aiAssistantChat] Final speech result:', result.transcript);
+                    }
+                },
+
+                onInterimResult: (result) => {
+                    // Handle interim (live) speech results - show directly in text area
+                    this.speechState = {
+                        ...this.speechState,
+                        interimText: result.transcript,
+                        confidence: result.confidence
+                    };
+                },
+
+                onEnd: () => {
+                    this.speechState = {
+                        ...this.speechState,
+                        isListening: false,
+                        interimText: ''
+                    };
+                    console.info('[aiAssistantChat] Speech recognition ended automatically');
+                },
+
+                onError: (error) => {
+                    this.speechState = {
+                        ...this.speechState,
+                        isListening: false,
+                        isError: true,
+                        errorMessage: error.message,
+                        interimText: ''
+                    };
+
+                    console.error('[aiAssistantChat] Speech recognition error:', error);
+
+                    // Show user-friendly error message
+                    this._errorHandler._showToast(
+                        'Speech Recognition Error',
+                        error.message,
+                        'error'
+                    );
+                },
+
+                onNoSpeech: (message) => {
+                    console.warn('[aiAssistantChat] No speech detected:', message);
+                    this._errorHandler._showToast(
+                        'No Speech Detected',
+                        'Please try speaking closer to your microphone.',
+                        'warning'
+                    );
+                }
+            });
+
+            console.info('[aiAssistantChat] Speech-to-text service initialized successfully');
+        } catch (error) {
+            console.error('[aiAssistantChat] Failed to initialize speech service:', error);
+            this.speechSupported = false;
+        }
+    }
+
+    /**
+     * Cleans up the speech-to-text service.
+     * @private
+     */
+    _cleanupSpeechService() {
+        if (this._speechService) {
+            this._speechService.destroy();
+            this._speechService = null;
+        }
     }
 
     /**
@@ -261,6 +396,12 @@ export default class AiAssistantChat extends LightningElement {
      */
     async handleNewChatClick() {
         if (this.isLoading) return;
+
+        // Stop any active speech recognition
+        if (this.speechState.isListening) {
+            this._speechService?.stop();
+        }
+
         try {
             const contextRecordId = this.recordId || null;
             await this._sessionManager.startNewSession(contextRecordId);
@@ -287,12 +428,48 @@ export default class AiAssistantChat extends LightningElement {
         }
     }
 
+    // === Speech-to-Text Handlers ===
+
+    /**
+     * Handler for the speech recognition button.
+     */
+    async handleSpeechToggle() {
+        if (!this._speechService || !this.speechSupported) {
+            this._errorHandler._showToast(
+                'Speech Not Supported',
+                'Speech recognition is not available in this browser.',
+                'error'
+            );
+            return;
+        }
+
+        if (this.speechState.isListening) {
+            // Manual stop if user clicks while listening
+            this._speechService.stop();
+        } else {
+            // Start listening - will auto-stop when user finishes speaking
+            const success = await this._speechService.start();
+            if (!success) {
+                // Error handling is done in the speech service callbacks
+                return;
+            }
+        }
+    }
+
+
+
     /**
      * Sends the user's message after validation and connection checks.
      * @private
      */
     async _sendMessage() {
         const messageText = this.userMessageInput.trim();
+
+        // Stop any active speech recognition when sending
+        if (this.speechState.isListening) {
+            this._speechService?.stop();
+        }
+
         // Input validation
         if (!messageText) {
             this._showValidationError('Please enter a message before sending.');
@@ -321,6 +498,15 @@ export default class AiAssistantChat extends LightningElement {
             const turnIdentifier = UuidUtils.generateUUID();
             await this._sessionManager.sendMessage(messageText, contextRecordId, turnIdentifier);
             this.userMessageInput = '';
+
+            // Clear speech state after successful send
+            this.speechState = {
+                ...this.speechState,
+                interimText: '',
+                finalText: '',
+                isError: false,
+                errorMessage: ''
+            };
         } catch (error) {
             this._errorHandler.handleError('Failed to send message', error);
         }
@@ -472,5 +658,110 @@ export default class AiAssistantChat extends LightningElement {
             return 'Initializing...';
         }
         return 'Send message (Enter)';
+    }
+
+    // === Speech-to-Text Getters ===
+
+    /**
+     * Returns the appropriate icon for the speech button based on state.
+     */
+    get speechButtonIcon() {
+        if (this.speechState.isListening) {
+            return 'utility:record';
+        }
+        if (this.speechState.isError) {
+            return 'utility:warning';
+        }
+        return 'utility:unmuted';
+    }
+
+    /**
+     * Returns the appropriate variant for the speech button based on state.
+     */
+    get speechButtonVariant() {
+        if (this.speechState.isListening) {
+            return 'destructive';
+        }
+        if (this.speechState.isError) {
+            return 'destructive';
+        }
+        return 'border-filled';
+    }
+
+    /**
+     * Returns the alternative text for the speech button.
+     */
+    get speechButtonAltText() {
+        if (this.speechState.isListening) {
+            return 'Listening for speech';
+        }
+        return 'Start voice input';
+    }
+
+    /**
+     * Returns the title for the speech button based on state.
+     */
+    get speechButtonTitle() {
+        if (this.speechState.isListening) {
+            return 'Listening... Take your time - pauses for thinking are okay';
+        }
+        if (this.speechState.isError) {
+            return `Speech error: ${this.speechState.errorMessage}`;
+        }
+        if (!this.speechSupported) {
+            return 'Speech recognition not supported in this browser';
+        }
+        return 'Click to start voice input - automatically detects when you finish speaking';
+    }
+
+    /**
+     * Returns true if the speech button should be disabled.
+     */
+    get isSpeechDisabled() {
+        return this.isInputDisabled || !this.speechSupported;
+    }
+
+    /**
+     * Returns the CSS class for the speech button based on state.
+     */
+    get speechButtonClass() {
+        let classes = 'speech-button';
+
+        if (this.speechState.isListening) {
+            classes += ' speech-button-listening';
+        }
+        if (this.speechState.isError) {
+            classes += ' speech-button-error';
+        }
+
+        return classes;
+    }
+
+    /**
+     * Returns the combined text to display in the input area (user input + interim speech).
+     */
+    get displayText() {
+        const baseText = this.userMessageInput || '';
+        const interimText = this.speechState.interimText || '';
+
+        if (interimText && this.speechState.isListening) {
+            // Add interim text with a space if there's existing content
+            return baseText + (baseText ? ' ' : '') + interimText;
+        }
+
+        return baseText;
+    }
+
+    /**
+     * Returns the CSS class for the input area based on speech state.
+     */
+    get inputClass() {
+        let classes = 'slds-chat-input';
+
+        if (this.speechState.isListening) {
+            classes += ' speech-input-listening';
+        }
+
+        return classes;
     }
 }

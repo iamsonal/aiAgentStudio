@@ -354,59 +354,6 @@ public with sharing class AgentTestDataFactory {
         );
         externalCaps.add(graphCapability);
         insert externalCaps;
-
-        // --- Graph Nodes ---
-        List<GraphNode__c> graphNodes = new List<GraphNode__c>();
-
-        // Node 1: Get the full details of the source order first.
-        graphNodes.add(
-            GraphNodeBuilder.create('node_get_source_order_details')
-                .forCapability(graphCapability.Id)
-                .runCapability('find_order_by_id') // <-- Use our new primitive
-                .asEntryPoint() // <-- This is the new starting point
-                .mapInput('orderId', '{!input.sourceOrderId}') // <-- Takes the source ID from the LLM
-                .routeWhenSuccess('node_create_draft_order') // <-- On success, proceed to create the draft
-                .build()
-        );
-
-        // Node 2: Create the Draft Order. Its inputs now come from the previous node's output.
-        graphNodes.add(
-            GraphNodeBuilder.create('node_create_draft_order')
-                .forCapability(graphCapability.Id)
-                .runCapability('create_draft_order')
-                // This is no longer the entry point.
-                // Map inputs from the output of the 'get_source_order_details' node
-                .mapInput('AccountId', '{!input.accountId}')
-                .mapInput('BillToContactId', '{!input.billToContactId}')
-                .mapInput('EffectiveDate', '{!input.effectiveDate}') // We can still take this from the user input
-                // --- THE FIX ---
-                // Pull the correct Pricebook2Id from the source order we just fetched.
-                .mapInput('Pricebook2Id', '{!node.node_get_source_order_details.output.data.records[0].Pricebook2Id}')
-                .routeWhenSuccess('node_clone_order_items') // Route to the next step as before
-                .build()
-        );
-
-        // Node 3: Clone the Order Items (No change needed here, its mappings are still valid)
-        graphNodes.add(
-            GraphNodeBuilder.create('node_clone_order_items')
-                .forCapability(graphCapability.Id)
-                .runCapability('clone_order_items')
-                .mapInput('sourceOrderId', '{!input.sourceOrderId}')
-                .mapInput('destinationOrderId', '{!node.node_create_draft_order.output.data.recordId}')
-                .routeWhenSuccess('node_notify_sales_ops')
-                .build()
-        );
-
-        // Node 4: Notify Sales Ops (No change needed here)
-        graphNodes.add(
-            GraphNodeBuilder.create('node_notify_sales_ops')
-                .forCapability(graphCapability.Id)
-                .runCapability('notify_sales_ops')
-                .mapInput('text', 'New draft order created based on source order {!input.sourceOrderId}. Please review and contact the customer.')
-                .build()
-        );
-
-        insert graphNodes;
     }
 
     private static void seedCoreData() {

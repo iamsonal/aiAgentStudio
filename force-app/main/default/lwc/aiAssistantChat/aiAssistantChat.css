@@ -99,9 +99,95 @@ pre.slds-code {
     white-space: pre-wrap;
 }
 
-/* Input Area Styling */
+/* Enhanced Input Area Styling */
 .slds-chat-input-container {
-    margin-top: var(--lwc-spacingXSmall, 0.5rem);
+    background-color: var(--lwc-colorBackground, #ffffff);
+    border-top: 1px solid var(--lwc-colorBorder, #dddbda);
+    padding: var(--lwc-spacingMedium, 1rem);
+    margin-top: 0;
+}
+
+/* Unified Input Wrapper - Modern Chat Interface */
+.chat-input-wrapper {
+    position: relative;
+    background-color: var(--lwc-colorBackground, #ffffff);
+    border: 2px solid var(--lwc-colorBorder, #dddbda);
+    border-radius: 24px;
+    padding: 8px 12px;
+    transition: all 0.2s ease-in-out;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    min-height: 48px;
+}
+
+.chat-input-wrapper:focus-within {
+    border-color: var(--lwc-brandAccessible, #0176d3);
+    box-shadow: 0 0 0 1px var(--lwc-brandAccessible, #0176d3);
+}
+
+/* Input Field Container */
+.chat-input-field {
+    flex: 1;
+    min-width: 0;
+}
+
+.chat-input-field lightning-textarea {
+    --slds-c-textarea-color-border: transparent;
+    --slds-c-textarea-color-border-focus: transparent;
+    --slds-c-textarea-shadow-focus: none;
+}
+
+.chat-input-field textarea {
+    border: none !important;
+    padding: 4px 0 !important;
+    background: transparent !important;
+    resize: none !important;
+    min-height: 20px !important;
+    max-height: 120px !important;
+    line-height: 1.4 !important;
+    font-size: 14px !important;
+    box-shadow: none !important;
+}
+
+.chat-input-field textarea:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Action Buttons Container */
+.chat-input-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* Action Button Styling */
+.chat-action-button {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    transition: all 0.2s ease-in-out;
+}
+
+.send-button {
+    --sds-c-button-brand-color-background: var(--lwc-brandAccessible, #0176d3);
+    --sds-c-button-brand-color-background-hover: var(--lwc-brandAccessibleActive, #014486);
+}
+
+.send-button:disabled {
+    --sds-c-button-brand-color-background: var(--lwc-colorBackgroundButtonDefaultDisabled, #dddbda);
+    opacity: 0.6;
+}
+
+.speech-button {
+    --sds-c-button-neutral-color-background: transparent;
+    --sds-c-button-neutral-color-border: var(--lwc-colorBorder, #dddbda);
+}
+
+.speech-button:hover:not(:disabled) {
+    --sds-c-button-neutral-color-background: var(--lwc-colorBackgroundButtonDefaultHover, #f3f2f2);
 }
 
 .slds-chat-input textarea {
@@ -258,13 +344,7 @@ pre.slds-code {
         0 0 0 1px var(--lwc-colorBorder, #dddbda);
 }
 
-/* Improved input area */
-.slds-chat-input-container {
-    background-color: var(--lwc-colorBackground, #ffffff);
-    border-top: 1px solid var(--lwc-colorBorder, #dddbda);
-    padding: var(--lwc-spacingMedium, 1rem);
-    margin-top: 0;
-}
+/* Remove duplicate - already defined above */
 
 /* Better loading states */
 .loading-overlay {
@@ -383,4 +463,138 @@ pre.slds-code {
     .slds-chat-message__text_transient {
         border-left-width: 2px;
     }
+}
+/* Enhanced Speech-to-Text Styling */
+.speech-button-listening {
+    --sds-c-button-destructive-color-background: #ea001e;
+    --sds-c-button-destructive-color-border: #ea001e;
+    animation: pulse-recording 1.5s infinite;
+    transform: scale(1.1);
+}
+
+.speech-button-error {
+    --sds-c-button-destructive-color-background: #c23934;
+    --sds-c-button-destructive-color-border: #c23934;
+}
+
+/* Recording pulse animation */
+@keyframes pulse-recording {
+    0% {
+        box-shadow: 0 0 0 0 rgba(234, 0, 30, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(234, 0, 30, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(234, 0, 30, 0);
+    }
+}
+
+/* Input area when listening - enhanced visual cue */
+.speech-input-listening .chat-input-wrapper {
+    border-color: #ea001e;
+    background-color: rgba(234, 0, 30, 0.02);
+    box-shadow: 0 0 0 1px #ea001e;
+}
+
+/* Speech Button Accessibility */
+.speech-button:focus {
+    outline: 2px solid var(--lwc-brandAccessible, #0176d3);
+    outline-offset: 2px;
+}
+
+/* Enhanced Responsive Design */
+@media (max-width: 480px) {
+    .chat-input-wrapper {
+        border-radius: 20px;
+        padding: 6px 10px;
+        min-height: 44px;
+    }
+
+    .chat-action-button {
+        width: 28px;
+        height: 28px;
+    }
+
+    .chat-input-field textarea {
+        font-size: 16px !important; /* Prevents zoom on iOS */
+    }
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+    .speech-input-listening textarea {
+        border-left-width: 4px;
+        background-color: rgba(234, 0, 30, 0.05);
+    }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+    .speech-button-listening {
+        animation: none;
+        box-shadow: 0 0 0 2px rgba(234, 0, 30, 0.5);
+    }
+
+    .speech-input-listening textarea {
+        transition: none;
+    }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .speech-input-listening .chat-input-wrapper {
+        background-color: rgba(234, 0, 30, 0.05);
+        border-color: #ff4757;
+    }
+}
+
+/* Enhanced Input States */
+.chat-input-wrapper.has-content {
+    border-color: var(--lwc-colorBorderInput, #706e6b);
+}
+
+.chat-input-wrapper.is-disabled {
+    background-color: var(--lwc-colorBackgroundInputDisabled, #f3f2f2);
+    border-color: var(--lwc-colorBorderInputDisabled, #c9c7c5);
+    opacity: 0.6;
+}
+
+/* Placeholder Enhancement */
+.chat-input-field textarea::placeholder {
+    color: var(--lwc-colorTextPlaceholder, #706e6b);
+    font-style: italic;
+}
+
+/* Character Count Indicator (if needed) */
+.chat-input-counter {
+    position: absolute;
+    bottom: -20px;
+    right: 0;
+    font-size: 11px;
+    color: var(--lwc-colorTextLabel, #706e6b);
+}
+
+/* Loading State for Input */
+.chat-input-wrapper.is-sending {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.chat-input-wrapper.is-sending::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 50px;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--lwc-colorBorder, #dddbda);
+    border-top: 2px solid var(--lwc-brandAccessible, #0176d3);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: translateY(-50%) rotate(0deg); }
+    100% { transform: translateY(-50%) rotate(360deg); }
 }

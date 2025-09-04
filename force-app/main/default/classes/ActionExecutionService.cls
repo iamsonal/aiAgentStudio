@@ -10,12 +10,12 @@
  * @description
  * ActionExecutionService is responsible for orchestrating the execution of agent capabilities
  * within the AI Agent framework. It acts as a central router, dynamically dispatching actions
- * to the appropriate execution engine based on the capability's implementation type (Graph, Standard, Apex, Flow).
+ * to the appropriate execution engine based on the capability's implementation type (Standard, Apex, Flow).
  * The class ensures robust error handling, consistent logging, and uniform result processing,
  * providing a single entry point for executing agent actions regardless of their underlying technology.
  *
  * Responsibilities:
- *   - Route agent capability execution requests to the correct handler (GraphExecutionService, ActionRegistry, etc.)
+ *   - Route agent capability execution requests to the correct handler (ActionRegistry, etc.)
  *   - Enforce input validation and context integrity
  *   - Provide detailed, actionable debug output for observability and troubleshooting
  *   - Normalize error handling and result construction across all execution paths
@@ -26,10 +26,10 @@ public inherited sharing class ActionExecutionService {
     /**
      * @description
      * Executes a single agent capability by routing the request to the appropriate execution engine
-     * based on the capability's implementation type. Handles all supported types (Graph, Standard, Apex, Flow)
+     * based on the capability's implementation type. Handles all supported types (Standard, Apex, Flow)
      * and ensures consistent error handling and logging.
      *
-     * @param capability         The AgentCapability__c record describing the action or graph to execute. Must not be null.
+     * @param capability         The AgentCapability__c record describing the action to execute. Must not be null.
      * @param llmArgumentsJson   JSON string of arguments provided by the LLM for this action call. May be null or empty if not required by the handler.
      * @param context            The ActionContext containing all relevant execution context. Must not be null.
      * @return                   ActionResult representing the outcome of the execution, including error details if applicable.
@@ -57,16 +57,6 @@ public inherited sharing class ActionExecutionService {
         try {
             // Route to the correct execution engine based on implementation type
             switch on capability.ImplementationType__c {
-                when 'Graph' {
-                    System.debug(
-                        LoggingLevel.INFO,
-                        logPrefix + 'Dispatching to GraphExecutionService for capability: ' + capability.CapabilityName__c
-                    );
-                    GraphExecutionService graphService = new GraphExecutionService();
-                    ActionResult graphResult = graphService.startGraphRun(capability, llmArgumentsJson, context);
-                    System.debug(LoggingLevel.DEBUG, logPrefix + 'GraphExecutionService returned result: ' + String.valueOf(graphResult));
-                    return graphResult;
-                }
                 when 'Standard', 'Apex', 'Flow' {
                     System.debug(
                         LoggingLevel.INFO,
@@ -104,7 +94,7 @@ public inherited sharing class ActionExecutionService {
                         String.valueOf(capability.ImplementationType__c) +
                         '" for capability: ' +
                         capability.CapabilityName__c +
-                        '. Valid types: Graph, Standard, Apex, Flow.';
+                        '. Valid types: Standard, Apex, Flow.';
                     System.debug(LoggingLevel.ERROR, logPrefix + errorMsg);
                     return new ActionResult('Configuration Error', errorMsg, AIAgentConstants.ERR_CODE_CONFIG_ERROR);
                 }
