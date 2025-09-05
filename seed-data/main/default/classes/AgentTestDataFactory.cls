@@ -50,8 +50,6 @@ public with sharing class AgentTestDataFactory {
             }
 
             // Delete in order to avoid dependency errors
-            delete [SELECT Id FROM GraphExecutionLog__c];
-            delete [SELECT Id FROM GraphNode__c];
             delete [SELECT Id FROM OrchestrationLog__c];
             delete [SELECT Id FROM HumanApprovalRequest__c];
             delete [SELECT Id FROM ChatMessage__c];

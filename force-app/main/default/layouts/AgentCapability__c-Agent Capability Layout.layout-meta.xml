@@ -109,17 +109,6 @@
         <fields>NAME</fields>
         <relatedList>OrchestrationLog__c.AgentCapability__c</relatedList>
     </relatedLists>
-    <relatedLists>
-        <fields>NAME</fields>
-        <fields>NodeName__c</fields>
-        <fields>IsEntryPoint__c</fields>
-        <fields>IsActive__c</fields>
-        <relatedList>GraphNode__c.AgentCapability__c</relatedList>
-    </relatedLists>
-    <relatedLists>
-        <fields>NAME</fields>
-        <relatedList>GraphNode__c.PrimitiveCapabilityToRun__c</relatedList>
-    </relatedLists>
     <showEmailCheckbox>false</showEmailCheckbox>
     <showHighlightsPanel>false</showHighlightsPanel>
     <showInteractionLogPanel>false</showInteractionLogPanel>
