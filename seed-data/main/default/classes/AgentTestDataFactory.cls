@@ -333,24 +333,6 @@ public with sharing class AgentTestDataFactory {
                 'required' => new List<String>{ 'accountId' }
             }
         );
-
-        // --- Graph Capability Definition ---
-        AgentCapability__c graphCapability = createCapability(
-            agent.Id,
-            'reorder_previous_purchase',
-            graphDescription,
-            graphParams,
-            'Graph',
-            null,
-            null,
-            null,
-            false,
-            false,
-            60,
-            false,
-            'External'
-        );
-        externalCaps.add(graphCapability);
         insert externalCaps;
     }
 
