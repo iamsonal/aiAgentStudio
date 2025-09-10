@@ -11,7 +11,12 @@
  * BaseAgentAction is the abstract base class for all agent actions in the AI Agent Framework.
  * Responsibilities:
  *   - Provides a comprehensive framework for implementing agent actions with minimal boilerplate
- *   - Features intelligent parameter processing, automatic type coercion, security validation, and standardized error handling
+ *   - Features high-performance, cached schema-driven parameter processing using AIAgentConfigService
+ *   - Automatic type coercion based on JSON Schema from AgentCapability__c.Parameters__c (no more SOQL per execution)
+ *   - Supports standard JSON Schema types (string, integer, number, boolean) and formats (date, date-time, email, url, salesforce-id)
+ *   - Validates required parameters as defined in the JSON Schema "required" array to prevent NullPointerExceptions
+ *   - Differentiates between configuration issues (graceful fallback) and system errors (halt execution)
+ *   - Includes security validation and standardized error handling
  *   - Requires subclasses to implement only the executeAction() method; all validation, security, and result formatting are handled by the base class
  *   - Surfaces operational and validation issues clearly via ActionResult and logging for maintainability
  *
@@ -137,9 +142,9 @@ public abstract class BaseAgentAction implements IAgentAction {
     public abstract Object executeAction(Map<String, Object> params);
 
     /**
-     * Intelligently processes and validates parameters using naming conventions and automatic type coercion.
-     * Converts string parameters to appropriate types (ID, Integer, Boolean) based on parameter names.
-     * Note: Date/DateTime coercion is intentionally removed to avoid schema conflicts - actions should handle their own date type coercion.
+     * Schema-driven parameter processing using the JSON Schema from AgentCapability__c.Parameters__c.
+     * Replaces brittle naming convention-based type coercion with explicit schema-driven type conversion.
+     * Also validates required parameters to prevent NullPointerExceptions in executeAction implementations.
      *
      * @param rawArgs   The raw argument map from JSON.
      * @param logPrefix The logging prefix for debug output.
@@ -148,39 +153,293 @@ public abstract class BaseAgentAction implements IAgentAction {
     private Map<String, Object> intelligentParameterProcessing(Map<String, Object> rawArgs, String logPrefix) {
         Map<String, Object> processed = new Map<String, Object>();
 
+        // Get the parameter schema for this capability
+        Map<String, Object> parameterSchema = getParameterSchema(logPrefix);
+        Map<String, Object> schemaProperties = getSchemaProperties(parameterSchema);
+        List<String> requiredParameters = getRequiredParameters(parameterSchema);
+
+        // First, validate that all required parameters are present
+        validateRequiredParameters(rawArgs, requiredParameters, logPrefix);
+
+        // Process and coerce all provided parameters
         for (String paramName : rawArgs.keySet()) {
             Object value = rawArgs.get(paramName);
 
-            // Skip null values
+            // Skip null values, but note that required validation already passed
+            // so any nulls here are for optional parameters
             if (value == null) {
                 continue;
             }
 
-            // Intelligent type coercion based on parameter name patterns
-            if (paramName.toLowerCase().endsWith('id') || paramName.toLowerCase().contains('recordid')) {
-                // ID parameters
-                processed.put(paramName, coerceToId(value, paramName));
-            } else if (
-                paramName.toLowerCase().contains('limit') ||
-                paramName.toLowerCase().contains('count') ||
-                paramName.toLowerCase().contains('max')
-            ) {
-                // Integer parameters
-                processed.put(paramName, coerceToInteger(value, paramName));
-            } else if (
-                paramName.toLowerCase().contains('enable') ||
-                paramName.toLowerCase().contains('is') ||
-                paramName.toLowerCase().contains('has')
-            ) {
-                // Boolean parameters
-                processed.put(paramName, coerceToBoolean(value, paramName));
-            } else {
-                // Keep as-is for other types, including dates which should be handled by schema-aware coercion
-                processed.put(paramName, value);
-            }
+            // Use schema-driven type coercion
+            Object coercedValue = coerceValueBySchema(value, paramName, schemaProperties, logPrefix);
+            processed.put(paramName, coercedValue);
         }
 
         return processed;
+    }
+
+    /**
+     * Retrieves and parses the JSON Schema from AgentCapability__c.Parameters__c for the current capability.
+     * Uses cached AIAgentConfigService for optimal performance and differentiates between 'not found' and 'system error'.
+     *
+     * @param logPrefix The logging prefix for debug output.
+     * @return          The parsed parameter schema as a Map, or empty schema if not found/invalid.
+     * @throws ValidationException for system errors that should halt execution.
+     */
+    private Map<String, Object> getParameterSchema(String logPrefix) {
+        try {
+            // Use cached service instead of direct SOQL
+            AgentCapability__c capability = AIAgentConfigService.getCapabilityById(actionContext.agentCapabilityId);
+
+            if (capability == null) {
+                // CRITICAL: Missing AgentCapability is a definite system/config error that should halt execution
+                // If we got this far, the capability should definitely exist - this indicates a serious system issue
+                String errorMsg =
+                    'Critical system error: AgentCapability not found for ID: ' +
+                    actionContext.agentCapabilityId +
+                    '. This indicates a serious configuration or data integrity issue.';
+                System.debug(LoggingLevel.ERROR, logPrefix + errorMsg);
+                throw new ValidationException(errorMsg, null);
+            }
+
+            String parametersJson = capability.Parameters__c;
+            if (String.isBlank(parametersJson)) {
+                // RECOVERABLE: Blank Parameters__c is a configuration issue but action can proceed with default schema
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix + 'Parameters__c is blank for capability "' + capability.CapabilityName__c + '", using default schema'
+                );
+                return getDefaultSchema();
+            }
+
+            // Parse the JSON schema
+            Map<String, Object> schema = (Map<String, Object>) JSON.deserializeUntyped(parametersJson);
+            System.debug(
+                LoggingLevel.DEBUG,
+                logPrefix +
+                    'Loaded parameter schema for "' +
+                    capability.CapabilityName__c +
+                    '" with ' +
+                    (schema.containsKey('properties') ? ((Map<String, Object>) schema.get('properties')).size() : 0) +
+                    ' properties'
+            );
+            return schema;
+        } catch (AIAgentConfigService.ConfigurationException configEx) {
+            // CRITICAL: System error from the config service - this is serious and should halt execution
+            // Database errors, permission issues, etc. indicate system problems that can't be worked around
+            String errorMsg = 'Critical system error loading AgentCapability configuration: ' + configEx.getMessage();
+            System.debug(LoggingLevel.ERROR, logPrefix + errorMsg);
+            throw new ValidationException(errorMsg, null, configEx);
+        } catch (JSONException jsonEx) {
+            // RECOVERABLE: Invalid JSON in Parameters__c field - configuration issue but action can proceed
+            // Admin can fix the JSON later, action can work with default schema for now
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Invalid JSON in Parameters__c field: ' + jsonEx.getMessage() + '. Using default schema to allow action to proceed.'
+            );
+            return getDefaultSchema();
+        } catch (Exception e) {
+            // CRITICAL: Unexpected system error - should halt execution
+            // Unknown errors could indicate serious system issues that shouldn't be masked
+            String errorMsg = 'Unexpected system error loading parameter schema: ' + e.getMessage();
+            System.debug(LoggingLevel.ERROR, logPrefix + errorMsg);
+            throw new ValidationException(errorMsg, null, e);
+        }
+    }
+
+    /**
+     * Extracts the properties section from a JSON Schema.
+     *
+     * @param schema The parsed JSON Schema.
+     * @return       The properties map, or empty map if not found.
+     */
+    private Map<String, Object> getSchemaProperties(Map<String, Object> schema) {
+        if (schema.containsKey('properties') && schema.get('properties') instanceof Map<String, Object>) {
+            return (Map<String, Object>) schema.get('properties');
+        }
+        return new Map<String, Object>();
+    }
+
+    /**
+     * Extracts the required parameters array from a JSON Schema.
+     *
+     * @param schema The parsed JSON Schema.
+     * @return       List of required parameter names, or empty list if not found.
+     */
+    private List<String> getRequiredParameters(Map<String, Object> schema) {
+        if (schema.containsKey('required') && schema.get('required') instanceof List<Object>) {
+            List<Object> requiredList = (List<Object>) schema.get('required');
+            List<String> requiredParams = new List<String>();
+            for (Object param : requiredList) {
+                if (param instanceof String) {
+                    requiredParams.add((String) param);
+                }
+            }
+            return requiredParams;
+        }
+        return new List<String>();
+    }
+
+    /**
+     * Validates that all required parameters are present in the provided arguments.
+     * Treats empty strings as missing values since LLMs sometimes send empty strings instead of omitting parameters.
+     *
+     * @param rawArgs            The raw argument map from JSON.
+     * @param requiredParameters List of required parameter names from schema.
+     * @param logPrefix          The logging prefix for debug output.
+     * @throws ValidationException if any required parameter is missing or null.
+     */
+    private void validateRequiredParameters(Map<String, Object> rawArgs, List<String> requiredParameters, String logPrefix) {
+        List<String> missingParams = new List<String>();
+
+        for (String requiredParam : requiredParameters) {
+            Object value = rawArgs.get(requiredParam);
+
+            // Consider parameter missing if:
+            // 1. Not present in the map
+            // 2. Value is null
+            // 3. Value is an empty string (common LLM behavior)
+            if (!rawArgs.containsKey(requiredParam) || value == null || (value instanceof String && String.isBlank((String) value))) {
+                missingParams.add(requiredParam);
+            }
+        }
+
+        if (!missingParams.isEmpty()) {
+            String missingParamsList = String.join(missingParams, ', ');
+            String errorMessage = 'Missing required parameter' + (missingParams.size() > 1 ? 's' : '') + ': ' + missingParamsList;
+            System.debug(LoggingLevel.WARN, logPrefix + errorMessage);
+
+            // For multiple missing parameters, don't specify a single fieldName
+            String fieldName = missingParams.size() == 1 ? missingParams[0] : null;
+            throw new ValidationException(errorMessage, fieldName);
+        }
+
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'All ' + requiredParameters.size() + ' required parameters validated successfully');
+    }
+
+    /**
+     * Coerces a parameter value based on its JSON Schema type definition using the unified TypeCoercionService.
+     * Supports standard JSON Schema types and formats including date/date-time, and now includes recursive
+     * support for complex data structures (arrays and objects).
+     *
+     * @param value            The raw parameter value.
+     * @param paramName        The parameter name.
+     * @param schemaProperties The schema properties map.
+     * @param logPrefix        The logging prefix for debug output.
+     * @return                 The coerced value.
+     */
+    private Object coerceValueBySchema(Object value, String paramName, Map<String, Object> schemaProperties, String logPrefix) {
+        // If no schema property defined for this parameter, return as-is
+        if (!schemaProperties.containsKey(paramName)) {
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'No schema definition for parameter "' + paramName + '", keeping original type');
+            return value;
+        }
+
+        Map<String, Object> propertySchema = (Map<String, Object>) schemaProperties.get(paramName);
+        String schemaType = (String) propertySchema.get('type');
+
+        if (String.isBlank(schemaType)) {
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'No type specified in schema for parameter "' + paramName + '", keeping original type');
+            return value;
+        }
+
+        try {
+            switch on schemaType.toLowerCase() {
+                when 'string' {
+                    // Check for format hints for special string types
+                    String format = (String) propertySchema.get('format');
+                    if (format == 'salesforce-id' || format == 'id') {
+                        return TypeCoercionService.coerceToId(value, paramName);
+                    } else if (format == 'date') {
+                        return TypeCoercionService.coerceToDate(value, paramName);
+                    } else if (format == 'date-time' || format == 'datetime') {
+                        return TypeCoercionService.coerceToDateTime(value, paramName);
+                    } else if (format == 'email') {
+                        // Email format - validate using centralized TypeCoercionService
+                        return TypeCoercionService.coerceToEmailString(value, paramName);
+                    } else if (format == 'url' || format == 'uri') {
+                        // URL format - validate using centralized TypeCoercionService
+                        return TypeCoercionService.coerceToUrlString(value, paramName);
+                    }
+                    return TypeCoercionService.coerceToString(value, paramName, null);
+                }
+                when 'integer' {
+                    return TypeCoercionService.coerceToInteger(value, paramName);
+                }
+                when 'number' {
+                    return TypeCoercionService.coerceToDecimal(value, paramName);
+                }
+                when 'boolean' {
+                    return TypeCoercionService.coerceToBoolean(value, paramName);
+                }
+                when 'array' {
+                    // NEW: Handle array type recursively using enhanced TypeCoercionService
+                    Map<String, Object> itemsSchema = (Map<String, Object>) propertySchema.get('items');
+                    if (itemsSchema == null) {
+                        System.debug(
+                            LoggingLevel.DEBUG,
+                            logPrefix + 'No items schema defined for array parameter "' + paramName + '", keeping original array'
+                        );
+                        return value;
+                    }
+                    System.debug(
+                        LoggingLevel.DEBUG,
+                        logPrefix + 'Recursively processing array parameter "' + paramName + '" with items schema type: ' + itemsSchema.get('type')
+                    );
+                    return TypeCoercionService.coerceArrayBySchema(value, paramName, itemsSchema);
+                }
+                when 'object' {
+                    // NEW: Handle object type recursively using enhanced TypeCoercionService
+                    Map<String, Object> propertiesSubSchema = (Map<String, Object>) propertySchema.get('properties');
+                    if (propertiesSubSchema == null) {
+                        System.debug(
+                            LoggingLevel.DEBUG,
+                            logPrefix + 'No properties schema defined for object parameter "' + paramName + '", keeping original object'
+                        );
+                        return value;
+                    }
+                    System.debug(
+                        LoggingLevel.DEBUG,
+                        logPrefix +
+                            'Recursively processing object parameter "' +
+                            paramName +
+                            '" with ' +
+                            propertiesSubSchema.size() +
+                            ' property schemas'
+                    );
+                    return TypeCoercionService.coerceObjectBySchema(value, paramName, propertiesSubSchema);
+                }
+                when else {
+                    System.debug(
+                        LoggingLevel.DEBUG,
+                        logPrefix + 'Unsupported schema type "' + schemaType + '" for parameter "' + paramName + '", keeping original type'
+                    );
+                    return value;
+                }
+            }
+        } catch (TypeCoercionService.TypeCoercionException e) {
+            // Convert TypeCoercionService exceptions to ValidationException for consistency
+            throw new ValidationException('Type coercion failed for parameter "' + paramName + '": ' + e.getMessage(), paramName, e);
+        } catch (ValidationException e) {
+            // Re-throw validation exceptions
+            throw e;
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.WARN,
+                logPrefix + 'Failed to coerce parameter "' + paramName + '" to type "' + schemaType + '": ' + e.getMessage()
+            );
+            return value;
+        }
+    }
+
+    /**
+     * Returns a default empty JSON Schema structure.
+     *
+     * @return The default schema map.
+     */
+    private Map<String, Object> getDefaultSchema() {
+        return new Map<String, Object>{ 'type' => 'object', 'properties' => new Map<String, Object>() };
     }
 
     /**
@@ -539,57 +798,6 @@ public abstract class BaseAgentAction implements IAgentAction {
 
         // --- Default Fallback ---
         return this.runtimeError(ex.getMessage(), AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex);
-    }
-
-    // ============================================================================
-    // --- Type Coercion Helpers for Simplified Actions ---
-    // ============================================================================
-
-    private Id coerceToId(Object value, String paramName) {
-        if (value instanceof Id) {
-            return (Id) value;
-        }
-        if (value instanceof String && String.isNotBlank((String) value)) {
-            try {
-                return Id.valueOf((String) value);
-            } catch (Exception e) {
-                throw new ValidationException('Invalid ID format for parameter "' + paramName + '": ' + value, paramName);
-            }
-        }
-        throw new ValidationException('Parameter "' + paramName + '" must be a valid Salesforce ID', paramName);
-    }
-
-    private Integer coerceToInteger(Object value, String paramName) {
-        if (value instanceof Integer) {
-            return (Integer) value;
-        }
-        if (value instanceof Decimal) {
-            return ((Decimal) value).intValue();
-        }
-        if (value instanceof String && String.isNotBlank((String) value)) {
-            try {
-                return Integer.valueOf((String) value);
-            } catch (Exception e) {
-                throw new ValidationException('Invalid Integer format for parameter "' + paramName + '": ' + value, paramName);
-            }
-        }
-        return null;
-    }
-
-    private Boolean coerceToBoolean(Object value, String paramName) {
-        if (value instanceof Boolean) {
-            return (Boolean) value;
-        }
-        if (value instanceof String) {
-            String strValue = ((String) value).toLowerCase();
-            if (strValue == 'true' || strValue == '1' || strValue == 'yes') {
-                return true;
-            }
-            if (strValue == 'false' || strValue == '0' || strValue == 'no') {
-                return false;
-            }
-        }
-        return null;
     }
 
     /**

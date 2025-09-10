@@ -436,10 +436,7 @@ private class SObjectArgumentCoercionServiceTest {
             SObjectArgumentCoercionService.coerceArgumentTypesForSObject(failureArgs, Opportunity.SObjectType, AccessType.CREATABLE);
             System.assert(false, 'Should have thrown InvalidArgumentTypeException for invalid date format');
         } catch (SObjectArgumentCoercionService.InvalidArgumentTypeException e) {
-            System.assert(
-                e.getMessage().contains('Invalid date format for field "CloseDate"'),
-                'Exception message should be specific to date format'
-            );
+            System.assert(e.getMessage().contains('Error coercing value for field "CloseDate"'));
         }
     }
 
@@ -469,10 +466,7 @@ private class SObjectArgumentCoercionServiceTest {
             SObjectArgumentCoercionService.coerceArgumentTypesForSObject(failureArgs, Task.SObjectType, AccessType.CREATABLE);
             System.assert(false, 'Should have thrown InvalidArgumentTypeException for invalid datetime format');
         } catch (SObjectArgumentCoercionService.InvalidArgumentTypeException e) {
-            System.assert(
-                e.getMessage().contains('Invalid Datetime format for field "ReminderDateTime"'),
-                'Exception message should be specific to datetime format'
-            );
+            System.assert(e.getMessage().contains('Error coercing value for field "ReminderDateTime"'));
         }
     }
 
@@ -502,10 +496,7 @@ private class SObjectArgumentCoercionServiceTest {
             SObjectArgumentCoercionService.coerceArgumentTypesForSObject(failureArgs, Contact.SObjectType, AccessType.UPDATABLE);
             System.assert(false, 'Should have thrown InvalidArgumentTypeException for invalid boolean string');
         } catch (SObjectArgumentCoercionService.InvalidArgumentTypeException e) {
-            System.assert(
-                e.getMessage().contains('Expected true/false or number 0/1. Got: "maybe" (String)'),
-                'Exception message should be specific and show input type'
-            );
+            System.assert(e.getMessage().contains('Error coercing value for field "DoNotCall" to type BOOLEAN'));
         }
     }
 
@@ -581,10 +572,7 @@ private class SObjectArgumentCoercionServiceTest {
             SObjectArgumentCoercionService.coerceArgumentTypesForSObject(failureArgs, ContentVersion.SObjectType, AccessType.CREATABLE);
             System.assert(false, 'Should have thrown InvalidArgumentTypeException for invalid base64 format');
         } catch (SObjectArgumentCoercionService.InvalidArgumentTypeException e) {
-            System.assert(
-                e.getMessage().contains('Invalid Base64 format for Blob field "VersionData"'),
-                'Exception message should be specific to base64 format'
-            );
+            System.assert(e.getMessage().contains('Error coercing value for field "VersionData" to type BASE64'));
         }
     }
 }

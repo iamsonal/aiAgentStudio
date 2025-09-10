@@ -155,13 +155,14 @@ public class ActionUpdateRecord extends BaseAgentAction {
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
 
-        // Support custom record ID parameter name via configuration
-        if (this.parsedActionConfig?.containsKey(CONFIG_KEY_RECORD_ID_PARAM)) {
-            Object paramNameObj = this.parsedActionConfig.get(CONFIG_KEY_RECORD_ID_PARAM);
-            if (paramNameObj instanceof String && String.isNotBlank((String) paramNameObj)) {
-                this.recordIdParameterName = (String) paramNameObj;
-                System.debug(LoggingLevel.INFO, '[ActionUpdateRecord] Using custom record ID parameter: "' + this.recordIdParameterName + '"');
-            }
+        String customParamName = ActionConfigUtils.getOptionalString(this.parsedActionConfig, CONFIG_KEY_RECORD_ID_PARAM);
+
+        if (String.isNotBlank(customParamName)) {
+            this.recordIdParameterName = customParamName;
+            System.debug(
+                LoggingLevel.INFO,
+                '[ActionUpdateRecord] Using custom record ID parameter from config: "' + this.recordIdParameterName + '"'
+            );
         }
     }
 

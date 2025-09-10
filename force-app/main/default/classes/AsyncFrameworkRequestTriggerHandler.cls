@@ -47,9 +47,7 @@ public class AsyncFrameworkRequestTriggerHandler {
                 } else {
                     System.debug(
                         LoggingLevel.ERROR,
-                        '[AsyncFrameworkRequestTriggerHandler] Unknown JobType received: ' +
-                            jobType +
-                            '. Valid types: ExecuteAction, FollowUpLLM.'
+                        '[AsyncFrameworkRequestTriggerHandler] Unknown JobType received: ' + jobType + '. Valid types: ExecuteAction, FollowUpLLM.'
                     );
                 }
             } catch (Exception e) {

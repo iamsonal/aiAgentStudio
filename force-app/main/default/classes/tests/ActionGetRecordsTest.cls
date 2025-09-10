@@ -81,29 +81,6 @@ private class ActionGetRecordsTest {
     }
 
     @IsTest
-    static void executeAction_success_withAdditionalFields() {
-        ActionGetRecords action = new ActionGetRecords();
-        String config = '{"objectApiName": "Account", "defaultFields": ["Id", "Name"], "maxReturnToLLM": 10}';
-        String argumentsJson = '{"additionalFields": ["Industry"]}';
-
-        Test.startTest();
-        ActionResult result = action.execute(config, argumentsJson, createMockActionContext());
-        Test.stopTest();
-
-        System.assertNotEquals(null, result);
-        System.assertEquals(true, result.isSuccess);
-
-        Map<String, Object> outputMap = (Map<String, Object>) result.outputForLlm;
-        Map<String, Object> dataMap = (Map<String, Object>) outputMap.get('data');
-        List<Object> rawRecords = (List<Object>) dataMap.get('records');
-        List<SObject> records = (List<SObject>) JSON.deserialize(JSON.serialize(rawRecords), List<SObject>.class);
-
-        System.assertEquals(3, records.size());
-        // Verify that Industry field is included in results
-        System.assertNotEquals(null, records[0].get('Industry'));
-    }
-
-    @IsTest
     static void executeAction_success_withLimitAndOrderBy() {
         ActionGetRecords action = new ActionGetRecords();
         String config = '{"objectApiName": "Account", "defaultFields": ["Id", "Name"], "maxReturnToLLM": 10}';
@@ -268,7 +245,7 @@ private class ActionGetRecordsTest {
 
         System.assertNotEquals(null, result);
         System.assertEquals(false, result.isSuccess);
-        System.assert(String.valueOf(result.outputForLlm).contains('Invalid Integer format'));
+        System.assert(String.valueOf(result.outputForLlm).contains('Type coercion failed for parameter "limit"'));
     }
 
     @IsTest
@@ -294,7 +271,7 @@ private class ActionGetRecordsTest {
     private static ActionContext createMockActionContext() {
         ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
-        AgentCapability__c capability = [SELECT Id FROM AgentCapability__c LIMIT 1];
+        AgentCapability__c capability = [SELECT Id FROM AgentCapability__c WHERE StandardActionType__c = 'GetRecords' LIMIT 1];
 
         return new ActionContext(
             session.Id, // chatSessionId

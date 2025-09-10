@@ -111,6 +111,7 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         }
         req.setBody(JSON.serialize(body));
         req.setTimeout(120000); // 2 minute timeout for API calls
+        System.debug(LoggingLevel.DEBUG, req.getBody());
         System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'HTTP request prepared. Payload size: ' + req.getBody().length() + ' characters.');
         return req;
     }

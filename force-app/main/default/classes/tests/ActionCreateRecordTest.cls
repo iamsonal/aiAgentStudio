@@ -183,8 +183,8 @@ private class ActionCreateRecordTest {
         try {
             action.parseActionConfiguration(config, '[TEST] ');
             System.assert(false, 'Should have thrown ValidationException');
-        } catch (BaseAgentAction.ValidationException e) {
-            System.assert(e.getMessage().contains('objectApiName'), 'Should indicate missing objectApiName');
+        } catch (ActionConfigUtils.ArgumentValidationException e) {
+            System.assert(e.getMessage().contains('Missing required parameter: "objectApiName"'), 'Should indicate missing objectApiName');
         }
         Test.stopTest();
     }
@@ -198,9 +198,9 @@ private class ActionCreateRecordTest {
         Test.startTest();
         try {
             action.parseActionConfiguration(config, '[TEST] ');
-            System.assert(false, 'Should have thrown ValidationException');
-        } catch (BaseAgentAction.ValidationException e) {
-            System.assert(e.getMessage().contains('objectApiName cannot be blank'), 'Should indicate blank objectApiName');
+            System.assert(false, 'Should have thrown the correct exception');
+        } catch (ActionConfigUtils.ArgumentValidationException e) {
+            System.assert(e.getMessage().contains('objectApiName" cannot be blank'), 'Should indicate blank objectApiName');
         }
         Test.stopTest();
     }

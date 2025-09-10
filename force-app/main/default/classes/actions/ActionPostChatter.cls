@@ -89,8 +89,8 @@ public class ActionPostChatter extends BaseAgentAction {
             throw new ValidationException('BackendConfiguration is required for ActionPostChatter.', null);
         }
 
-        this.feedType = ParameterExtractionUtils.getRequiredString(this.parsedActionConfig, CONFIG_FEED_TYPE);
-        this.targetSObjectId = ParameterExtractionUtils.getRequiredId(this.parsedActionConfig, CONFIG_TARGET_ID, null);
+        this.feedType = ActionConfigUtils.getRequiredString(this.parsedActionConfig, CONFIG_FEED_TYPE);
+        this.targetSObjectId = ActionConfigUtils.getRequiredId(this.parsedActionConfig, CONFIG_TARGET_ID, null);
         this.targetSObjectName = this.targetSObjectId.getSObjectType().getDescribe().getName();
 
         validateFeedTypeConsistency();

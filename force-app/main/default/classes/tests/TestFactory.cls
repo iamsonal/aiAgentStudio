@@ -74,7 +74,7 @@ public with sharing class TestFactory {
                 agentDefId,
                 'find_sales_records',
                 'Searches for records like Accounts or Contacts.',
-                '{"type":"object","properties":{"searchQuery":{"type":"string"}},"required":["searchQuery"]}',
+                '{"type":"object","properties":{"searchQuery":{"type":"string"},"sObjectTypes":{"type":"array"}},"required":["searchQuery"]}',
                 'Standard',
                 null, // No ImplementationDetail for Standard
                 'FindEntities',
@@ -95,6 +95,20 @@ public with sharing class TestFactory {
                 'CreateRecord',
                 false,
                 '{"objectApiName": "Opportunity"}' // Backend config tells the action what to create
+            )
+        );
+
+        capabilities.add(
+            createSingleCapability(
+                agentDefId,
+                'get_records',
+                'Retrieves records of a specified type with optional filters.',
+                '{"type":"object","properties":{"filters":{"type":"object"}, "additionalFields":{"type":"array"}, "limit":{"type":"integer"}, "orderBy":{"type":"string"}}}',
+                'Standard',
+                null,
+                'GetRecords',
+                false,
+                null
             )
         );
 

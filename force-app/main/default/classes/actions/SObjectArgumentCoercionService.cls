@@ -8,17 +8,17 @@
 
 /**
  * @description
- * SObjectArgumentCoercionService: Enterprise argument coercion and validation service for secure SObject field value conversion.
+ * SObjectArgumentCoercionService: Streamlined SObject field coercion service with FLS enforcement.
  *
- * This class provides comprehensive type coercion from JSON/LLM arguments to Salesforce field types with FLS enforcement,
- * validation, and structured error handling. It supports all standard Salesforce field types, including complex types like picklists,
- * dates, and references, and is optimized for robust, secure, and developer-friendly SObject operations.
+ * This class provides a simple, secure interface for converting JSON/LLM arguments to Salesforce field types.
+ * It leverages the powerful, schema-aware TypeCoercionService for all type conversion and validation,
+ * while adding essential SObject-specific concerns like field-level security enforcement.
  *
  * Key Responsibilities:
- *   - Converts raw arguments to Salesforce-compatible field values with type coercion and validation.
- *   - Enforces field-level security (FLS) for create and update operations.
- *   - Handles all standard and complex Salesforce field types with detailed error reporting.
- *   - Provides structured exceptions for type conversion and security violations.
+ *   - Enforces field-level security (FLS) for create and update operations
+ *   - Delegates all type coercion and validation to TypeCoercionService.coerce()
+ *   - Provides structured exceptions for security violations
+ *   - Maintains clean separation between security concerns and type coercion logic
  */
 public with sharing class SObjectArgumentCoercionService {
     /**
@@ -92,56 +92,9 @@ public with sharing class SObjectArgumentCoercionService {
         return coercedArguments;
     }
 
-    // --- Helper for getting input type as string for error messages ---
-    private static String getInputTypeString(Object val) {
-        if (val == null)
-            return 'null';
-        // Check common types explicitly for better names
-        if (val instanceof String)
-            return 'String';
-        if (val instanceof Integer)
-            return 'Integer';
-        if (val instanceof Long)
-            return 'Long'; // Added check for Long
-        if (val instanceof Double)
-            return 'Double';
-        if (val instanceof Decimal)
-            return 'Decimal';
-        if (val instanceof Boolean)
-            return 'Boolean';
-        if (val instanceof Date)
-            return 'Date';
-        if (val instanceof Datetime)
-            return 'Datetime';
-        if (val instanceof Time)
-            return 'Time';
-        if (val instanceof Id)
-            return 'Id';
-        if (val instanceof List<Object>)
-            return 'List';
-        if (val instanceof Map<String, Object>)
-            return 'Map';
-        if (val instanceof Blob)
-            return 'Blob';
-        // ** CORRECTED SObject Check **
-        if (val instanceof SObject) {
-            try {
-                // Cast to SObject *inside* the block where we know the type
-                return ((SObject) val).getSObjectType().getDescribe().getName();
-            } catch (Exception e) {
-                System.debug(LoggingLevel.WARN, '[SObjectArgumentCoercionService] Error getting SObject type name: ' + e.getMessage());
-                return 'SObject'; // Fallback if describe fails
-            }
-        }
-
-        // Fallback using generic Object methods is unreliable in Apex for precise type names.
-        // Return a generic placeholder for other types.
-        return 'Object (Unknown Type)';
-    }
-
     /**
      * @description
-     * Performs field-specific type coercion with validation and constraint checking.
+     * Performs field-specific type coercion using the unified TypeCoercionService.
      * Handles all standard Salesforce field types with appropriate error handling.
      *
      * @param rawValue Input value to convert (from JSON/LLM)
@@ -153,6 +106,7 @@ public with sharing class SObjectArgumentCoercionService {
     private static Object coerceValueForField(Object rawValue, String fieldName, Schema.DescribeFieldResult dfr) {
         if (rawValue == null)
             return null;
+
         Schema.DisplayType fieldType = dfr.getType();
         System.debug(
             LoggingLevel.FINEST,
@@ -165,396 +119,21 @@ public with sharing class SObjectArgumentCoercionService {
         );
 
         try {
-            switch on fieldType {
-                when DATE {
-                    return coerceToDate(rawValue, fieldName);
-                }
-                when DATETIME {
-                    return coerceToDateTime(rawValue, fieldName);
-                }
-                when BOOLEAN {
-                    return coerceToBoolean(rawValue, fieldName);
-                }
-                when INTEGER {
-                    return coerceToInteger(rawValue, fieldName);
-                }
-                when DOUBLE, CURRENCY, PERCENT {
-                    return coerceToDecimal(rawValue, fieldName);
-                }
-                when ID, REFERENCE {
-                    return coerceToId(rawValue, fieldName);
-                }
-                when STRING, TEXTAREA, PICKLIST, MULTIPICKLIST, EMAIL, PHONE, URL, ENCRYPTEDSTRING {
-                    return coerceToString(rawValue, fieldName, dfr);
-                }
-                when TIME {
-                    return coerceToTime(rawValue, fieldName);
-                }
-                when BASE64 {
-                    return coerceToBlob(rawValue, fieldName);
-                }
-                when else {
-                    System.debug(
-                        LoggingLevel.WARN,
-                        '[SObjectArgumentCoercionService] Coercion for field type ' +
-                            fieldType +
-                            ' (' +
-                            fieldName +
-                            ') not explicitly handled. Using pass-through.'
-                    );
-                    return rawValue;
-                }
-            }
-        } catch (InvalidArgumentTypeException e) {
-            throw e;
-        } catch (Exception e) {
+            // Use the unified TypeCoercionService for all coercion
+            return TypeCoercionService.coerce(rawValue, fieldType, fieldName, dfr);
+        } catch (TypeCoercionService.TypeCoercionException e) {
+            // Convert TypeCoercionService exceptions to our InvalidArgumentTypeException
             throw new InvalidArgumentTypeException(
                 'Error coercing value for field "' + fieldName + '" to type ' + fieldType + ': ' + e.getMessage(),
                 e
             );
-        }
-    }
-
-    /**
-     * @description
-     * Coerces a value to a Time type (hh:mm:ss format or Time object).
-     *
-     * @param rawValue Input value to convert
-     * @param fieldName Field API name for error context
-     * @return Time value
-     * @throws InvalidArgumentTypeException for invalid input
-     */
-    private static Time coerceToTime(Object rawValue, String fieldName) {
-        if (rawValue instanceof Time) {
-            return (Time) rawValue;
-        } else if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
-            try {
-                // Parse string as time in hh:mm:ss format
-                List<String> timeParts = ((String) rawValue).split(':');
-                if (timeParts.size() >= 2) {
-                    Integer hour = Integer.valueOf(timeParts[0]);
-                    Integer minute = Integer.valueOf(timeParts[1]);
-                    Integer second = timeParts.size() > 2 ? Integer.valueOf(timeParts[2]) : 0;
-                    return Time.newInstance(hour, minute, second, 0);
-                }
-            } catch (Exception e) {
-                throw new InvalidArgumentTypeException('Invalid time format for field ' + fieldName + '. Expected hh:mm:ss format, got: ' + rawValue);
-            }
-        }
-
-        throw new InvalidArgumentTypeException('Expected String (hh:mm:ss) or Time for Time field ' + fieldName + ', got ' + rawValue);
-    }
-
-    /**
-     * @description
-     * Coerces a value to a Blob type (Base64 string or Blob object).
-     *
-     * @param rawValue Input value to convert
-     * @param fieldName Field API name for error context
-     * @return Blob value
-     * @throws InvalidArgumentTypeException for invalid input
-     */
-    private static Blob coerceToBlob(Object rawValue, String fieldName) {
-        if (rawValue instanceof Blob)
-            return (Blob) rawValue;
-        if (rawValue instanceof String) {
-            try {
-                return EncodingUtil.base64Decode((String) rawValue);
-            } catch (Exception e) {
-                throw new InvalidArgumentTypeException(
-                    'Invalid Base64 format for Blob field "' + fieldName + '". Got: "' + String.valueOf(rawValue).abbreviate(50) + '"',
-                    e
-                );
-            }
-        }
-        throw new InvalidArgumentTypeException(
-            'Cannot coerce to Blob for field "' + fieldName + '". Expected String or Blob, got ' + getInputTypeString(rawValue)
-        );
-    }
-
-    /**
-     * @description
-     * Coerces a value to a Date type (YYYY-MM-DD string or Date object).
-     *
-     * @param rawValue Input value to convert
-     * @param fieldName Field API name for error context
-     * @return Date value
-     * @throws InvalidArgumentTypeException for invalid input
-     */
-    private static Date coerceToDate(Object rawValue, String fieldName) {
-        if (rawValue instanceof Date)
-            return (Date) rawValue;
-        if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
-            try {
-                return Date.valueOf((String) rawValue);
-            } catch (Exception e) {
-                throw new InvalidArgumentTypeException(
-                    'Invalid date format for field "' + fieldName + '". Expected YYYY-MM-DD. Got: "' + rawValue + '"'
-                );
-            }
-        }
-        // *** FIXED ERROR MESSAGE ***
-        throw new InvalidArgumentTypeException(
-            'Cannot coerce to Date for field "' + fieldName + '". Expected String or Date, got ' + getInputTypeString(rawValue)
-        );
-    }
-
-    /**
-     * @description
-     * Coerces a value to a Datetime type (ISO 8601 string, Datetime object).
-     *
-     * @param rawValue Input value to convert
-     * @param fieldName Field API name for error context
-     * @return Datetime value
-     * @throws InvalidArgumentTypeException for invalid input
-     */
-    private static Datetime coerceToDateTime(Object rawValue, String fieldName) {
-        if (rawValue instanceof Datetime)
-            return (Datetime) rawValue;
-        if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
-            String dtString = (String) rawValue;
-            // JSON.deserialize is the standard way to handle ISO 8601 format,
-            // which includes the 'T' separator and 'Z' timezone indicator.
-            try {
-                return (Datetime) JSON.deserialize('"' + dtString + '"', Datetime.class);
-            } catch (Exception jsonEx) {
-                // Fallback for Salesforce's standard 'YYYY-MM-DD HH:mm:ss' format.
-                try {
-                    return Datetime.valueOf(dtString);
-                } catch (Exception valueOfEx) {
-                    throw new InvalidArgumentTypeException(
-                        'Invalid Datetime format for field "' +
-                            fieldName +
-                            '". Use ISO 8601 (e.g., YYYY-MM-DDTHH:mm:ssZ) or Salesforce format (YYYY-MM-DD hh:mm:ss). Got: "' +
-                            rawValue +
-                            '"'
-                    );
-                }
-            }
-        }
-        throw new InvalidArgumentTypeException(
-            'Cannot coerce to Datetime for field "' + fieldName + '". Expected String or Datetime, got ' + getInputTypeString(rawValue)
-        );
-    }
-
-    /**
-     * @description
-     * Coerces a value to a Boolean type (true/false, 0/1, or Boolean object).
-     *
-     * @param rawValue Input value to convert
-     * @param fieldName Field API name for error context
-     * @return Boolean value
-     * @throws InvalidArgumentTypeException for invalid input
-     */
-    private static Boolean coerceToBoolean(Object rawValue, String fieldName) {
-        if (rawValue instanceof Boolean)
-            return (Boolean) rawValue;
-        if (rawValue instanceof String) {
-            String sVal = ((String) rawValue).trim().toLowerCase();
-            if (sVal == 'true')
-                return true;
-            if (sVal == 'false')
-                return false;
-        }
-        if (rawValue instanceof Integer || rawValue instanceof Decimal) {
-            return Decimal.valueOf(String.valueOf(rawValue)) != 0;
-        }
-        throw new InvalidArgumentTypeException(
-            'Cannot coerce to Boolean for field "' +
-                fieldName +
-                '". Expected true/false or number 0/1. Got: "' +
-                rawValue +
-                '" (' +
-                getInputTypeString(rawValue) +
-                ')'
-        );
-    }
-
-    /**
-     * @description
-     * Coerces a value to a Decimal type (number or numeric string).
-     *
-     * @param rawValue Input value to convert
-     * @param fieldName Field API name for error context
-     * @return Decimal value
-     * @throws InvalidArgumentTypeException for invalid input
-     */
-    private static Decimal coerceToDecimal(Object rawValue, String fieldName) {
-        if (rawValue instanceof Integer || rawValue instanceof Double || rawValue instanceof Decimal)
-            return Decimal.valueOf(String.valueOf(rawValue));
-        if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
-            try {
-                return Decimal.valueOf((String) rawValue);
-            } catch (Exception e) {
-                throw new InvalidArgumentTypeException('Invalid Decimal format for field "' + fieldName + '". Got: "' + rawValue + '"');
-            }
-        }
-        // *** FIXED ERROR MESSAGE ***
-        throw new InvalidArgumentTypeException(
-            'Cannot coerce to Decimal for field "' + fieldName + '". Expected Number or numeric String, got ' + getInputTypeString(rawValue)
-        );
-    }
-
-    /**
-     * @description
-     * Coerces a value to an Integer type (number, numeric string, or Long within range).
-     *
-     * @param rawValue Input value to convert
-     * @param fieldName Field API name for error context
-     * @return Integer value
-     * @throws InvalidArgumentTypeException for invalid input or out-of-range values
-     */
-    private static Integer coerceToInteger(Object rawValue, String fieldName) {
-        final Long INT_MAX_AS_LONG = 2147483647L; // Integer.MAX_VALUE equivalent
-        final Long INT_MIN_AS_LONG = -2147483648L; // Integer.MIN_VALUE equivalent
-
-        if (rawValue instanceof Integer)
-            return (Integer) rawValue;
-        if (rawValue instanceof Long) {
-            Long longVal = (Long) rawValue;
-            // ** CORRECTED Range Check **
-            if (longVal > INT_MAX_AS_LONG || longVal < INT_MIN_AS_LONG) {
-                throw new InvalidArgumentTypeException('Long value "' + longVal + '" out of range for Integer field "' + fieldName + '".');
-            }
-            return longVal.intValue(); // Safe cast after range check
-        }
-        if (rawValue instanceof Decimal || rawValue instanceof Double) {
-            Decimal dVal = Decimal.valueOf(String.valueOf(rawValue));
-            if (dVal.scale() > 0)
-                throw new InvalidArgumentTypeException('Decimal value "' + dVal + '" cannot be used for Integer field "' + fieldName + '".');
-            // ** CORRECTED Range Check **
-            if (dVal > INT_MAX_AS_LONG || dVal < INT_MIN_AS_LONG) {
-                throw new InvalidArgumentTypeException('Value "' + dVal + '" out of range for Integer field "' + fieldName + '".');
-            }
-            // Use intValue() - Note: This implicitly truncates if needed, but we already checked scale.
-            // A direct cast `(Integer)dVal` is unsafe if the decimal value is outside the Integer range, hence the check above.
-            return dVal.intValue();
-        }
-        if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
-            try {
-                // Integer.valueOf() handles range checks internally and throws MathException
-                return Integer.valueOf((String) rawValue);
-            } catch (System.MathException me) {
-                // Catch specific range exception
-                throw new InvalidArgumentTypeException(
-                    'Value "' + rawValue + '" is out of the valid range for an Integer field "' + fieldName + '".'
-                );
-            } catch (Exception e) {
-                // Catch general format exception
-                throw new InvalidArgumentTypeException('Invalid Integer format for field "' + fieldName + '". Got: "' + rawValue + '"');
-            }
-        }
-        throw new InvalidArgumentTypeException(
-            'Cannot coerce to Integer for field "' + fieldName + '". Expected Number or numeric String, got ' + getInputTypeString(rawValue)
-        );
-    }
-
-    /**
-     * @description
-     * Coerces a value to a Salesforce Id type (Id object or valid ID string).
-     *
-     * @param rawValue Input value to convert
-     * @param fieldName Field API name for error context
-     * @return Id value
-     * @throws InvalidArgumentTypeException for invalid input
-     */
-    private static Id coerceToId(Object rawValue, String fieldName) {
-        if (rawValue instanceof Id)
-            return (Id) rawValue;
-        if (rawValue instanceof String && String.isNotBlank((String) rawValue)) {
-            try {
-                return Id.valueOf((String) rawValue);
-            } catch (Exception e) {
-                throw new InvalidArgumentTypeException('Invalid Salesforce ID format for field "' + fieldName + '". Got: "' + rawValue + '"');
-            }
-        }
-        // *** FIXED ERROR MESSAGE ***
-        throw new InvalidArgumentTypeException(
-            'Cannot coerce to Id for field "' + fieldName + '". Expected ID string, got ' + getInputTypeString(rawValue)
-        );
-    }
-
-    /**
-     * @description
-     * Coerces a value to a String type, with picklist and multipicklist validation.
-     *
-     * @param rawValue Input value to convert
-     * @param fieldName Field API name for error context
-     * @param dfr Field describe result for validation
-     * @return String value
-     * @throws InvalidArgumentTypeException for invalid input or picklist values
-     */
-    private static String coerceToString(Object rawValue, String fieldName, DescribeFieldResult dfr) {
-        String stringValue = String.valueOf(rawValue); // Let Apex handle basic conversion
-        Integer maxLength = dfr.getLength();
-        Schema.DisplayType fieldType = dfr.getType();
-
-        // Perform post-conversion validations
-        if (fieldType == DisplayType.PICKLIST)
-            validatePicklistValue(stringValue, fieldName, dfr);
-        else if (fieldType == DisplayType.MULTIPICKLIST)
-            validateMultiPicklistValues(stringValue, fieldName, dfr);
-
-        // Note: TextAreas (Long/Rich) don't have 'Length' from describe, checked by DML implicitly.
-        // Check length for standard string types
-        if (fieldType != DisplayType.TEXTAREA && maxLength > 0 && stringValue.length() > maxLength) {
+        } catch (InvalidArgumentTypeException e) {
+            throw e;
+        } catch (Exception e) {
             throw new InvalidArgumentTypeException(
-                'Value length (' + stringValue.length() + ') exceeds maximum (' + maxLength + ') for field "' + fieldName + '".'
+                'Unexpected error coercing value for field "' + fieldName + '" to type ' + fieldType + ': ' + e.getMessage(),
+                e
             );
-        }
-        return stringValue;
-    }
-
-    /**
-     * @description
-     * Validates a picklist value against allowed values for the field.
-     *
-     * @param value Value to validate
-     * @param fieldName Field API name for error context
-     * @param dfr Field describe result for picklist values
-     * @throws InvalidArgumentTypeException if value is not valid for the picklist
-     */
-    private static void validatePicklistValue(String value, String fieldName, Schema.DescribeFieldResult dfr) {
-        List<Schema.PicklistEntry> entries = dfr.getPicklistValues();
-        if (entries == null || entries.isEmpty())
-            return;
-        Boolean isValid = false;
-        for (Schema.PicklistEntry entry : entries) {
-            // Case-sensitive match is standard for SF picklists generally
-            if (entry.isActive() && entry.getValue().equals(value)) {
-                isValid = true;
-                break;
-            }
-        }
-        if (!isValid) {
-            throw new InvalidArgumentTypeException('Invalid picklist value "' + value + '" for field "' + fieldName + '".');
-        }
-    }
-
-    /**
-     * @description
-     * Validates a multipicklist value string against allowed values for the field.
-     *
-     * @param value Multipicklist value string (semicolon-separated)
-     * @param fieldName Field API name for error context
-     * @param dfr Field describe result for picklist values
-     * @throws InvalidArgumentTypeException if any value is not valid for the multipicklist
-     */
-    private static void validateMultiPicklistValues(String value, String fieldName, Schema.DescribeFieldResult dfr) {
-        List<Schema.PicklistEntry> entries = dfr.getPicklistValues();
-        if (entries == null || entries.isEmpty())
-            return;
-        Set<String> validValues = new Set<String>();
-        for (Schema.PicklistEntry entry : entries) {
-            if (entry.isActive())
-                validValues.add(entry.getValue());
-        }
-
-        for (String item : value.split(';')) {
-            String trimmedItem = item.trim();
-            if (String.isNotBlank(trimmedItem) && !validValues.contains(trimmedItem)) {
-                throw new InvalidArgumentTypeException('Invalid value "' + trimmedItem + '" in multipicklist string for field "' + fieldName + '".');
-            }
         }
     }
 

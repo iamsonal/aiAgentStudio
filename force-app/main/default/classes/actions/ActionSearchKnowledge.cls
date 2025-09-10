@@ -138,9 +138,12 @@ public class ActionSearchKnowledge extends BaseAgentAction {
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
         if (this.parsedActionConfig != null && !this.parsedActionConfig.isEmpty()) {
-            this.defaultLanguage = (String) this.parsedActionConfig.get(CONFIG_DEFAULT_LANGUAGE) ?? DEFAULT_LANGUAGE;
-            this.maxResults = (Integer) this.parsedActionConfig.get(CONFIG_MAX_RESULTS) ?? DEFAULT_MAX_RESULTS;
-            this.summaryMaxLength = (Integer) this.parsedActionConfig.get(CONFIG_SUMMARY_MAX_LENGTH) ?? DEFAULT_SUMMARY_LENGTH;
+            this.defaultLanguage = ActionConfigUtils.getOptionalString(this.parsedActionConfig, CONFIG_DEFAULT_LANGUAGE) ?? DEFAULT_LANGUAGE;
+
+            this.maxResults = ActionConfigUtils.getOptionalInteger(this.parsedActionConfig, CONFIG_MAX_RESULTS, DEFAULT_MAX_RESULTS);
+
+            this.summaryMaxLength = ActionConfigUtils.getOptionalInteger(this.parsedActionConfig, CONFIG_SUMMARY_MAX_LENGTH, DEFAULT_SUMMARY_LENGTH);
+
             System.debug(
                 LoggingLevel.INFO,
                 '[ActionSearchKnowledge] Configuration loaded. Language: ' + this.defaultLanguage + ', MaxResults: ' + this.maxResults

@@ -211,7 +211,7 @@ private class ActionFindEntitiesTest {
 
         System.assertNotEquals(null, result);
         System.assertEquals(false, result.isSuccess);
-        System.assert(String.valueOf(result.outputForLlm).contains('cannot be blank'));
+        System.assert(String.valueOf(result.outputForLlm).contains('Missing required parameter: searchQuery'));
     }
 
     @IsTest

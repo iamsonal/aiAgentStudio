@@ -178,9 +178,7 @@ public inherited sharing class ToolDefinitionFormatter {
         ) {
             try {
                 Map<String, Object> backendConfig = (Map<String, Object>) JSON.deserializeUntyped(cap.BackendConfiguration__c);
-                if (backendConfig.containsKey('objectApiName') && backendConfig.get('objectApiName') instanceof String) {
-                    return (String) backendConfig.get('objectApiName');
-                }
+                return ActionConfigUtils.getOptionalString(backendConfig, 'objectApiName');
             } catch (Exception e) {
                 System.debug(
                     LoggingLevel.WARN,

@@ -141,29 +141,20 @@ public class ActionCreateRecord extends BaseAgentAction {
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
 
-        if (!this.parsedActionConfig.containsKey(CONFIG_KEY_OBJECT_API_NAME)) {
-            throw new ValidationException('ActionConfiguration must contain "' + CONFIG_KEY_OBJECT_API_NAME + '"', CONFIG_KEY_OBJECT_API_NAME);
-        }
+        this.objectApiName = ActionConfigUtils.getRequiredString(this.parsedActionConfig, CONFIG_KEY_OBJECT_API_NAME);
 
-        this.objectApiName = (String) this.parsedActionConfig.get(CONFIG_KEY_OBJECT_API_NAME);
-        if (String.isBlank(this.objectApiName)) {
-            throw new ValidationException('objectApiName cannot be blank', CONFIG_KEY_OBJECT_API_NAME);
-        }
-
-        this.targetSObjectType = Schema.getGlobalDescribe().get(this.objectApiName.toLowerCase());
+        this.targetSObjectType = SchemaUtils.getSObjectType(this.objectApiName);
         if (this.targetSObjectType == null) {
-            throw new ValidationException('Invalid SObject API Name: ' + this.objectApiName, CONFIG_KEY_OBJECT_API_NAME);
+            throw new ValidationException('Invalid SObject API Name in configuration: ' + this.objectApiName, CONFIG_KEY_OBJECT_API_NAME);
         }
 
-        if (this.parsedActionConfig.containsKey(CONFIG_KEY_DEFAULT_VALUES)) {
-            Object defaultsObj = this.parsedActionConfig.get(CONFIG_KEY_DEFAULT_VALUES);
-            if (defaultsObj instanceof Map<String, Object>) {
-                this.defaultValues = (Map<String, Object>) defaultsObj;
-                System.debug(
-                    LoggingLevel.DEBUG,
-                    '[ActionCreateRecord] Loaded ' + this.defaultValues.size() + ' default field values from configuration.'
-                );
-            }
+        this.defaultValues = ActionConfigUtils.getOptionalMap(this.parsedActionConfig, CONFIG_KEY_DEFAULT_VALUES);
+
+        if (!this.defaultValues.isEmpty()) {
+            System.debug(
+                LoggingLevel.DEBUG,
+                '[ActionCreateRecord] Loaded ' + this.defaultValues.size() + ' default field values from configuration.'
+            );
         }
     }
 
