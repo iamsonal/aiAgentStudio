@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
-    <fullName>EnableAuditLogging__c</fullName>
-    <label>Enable Audit Logging</label>
-    <defaultValue>true</defaultValue>
-    <type>Checkbox</type>
-    <description>Log security events for monitoring and compliance</description>
-</CustomField>

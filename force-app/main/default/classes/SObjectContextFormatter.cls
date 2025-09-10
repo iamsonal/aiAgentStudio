@@ -95,19 +95,6 @@ public inherited sharing class SObjectContextFormatter {
      * @return                Formatted context string ready for LLM consumption.
      */
     public static String formatContext(List<SObject> records, String formatStrategy, String logPrefix) {
-        return formatContext(records, formatStrategy, logPrefix, null);
-    }
-
-    /**
-     * Enhanced formatContext with security policy support for prompt injection protection.
-     *
-     * @param records         List of SObjects to format for LLM context.
-     * @param formatStrategy  The formatting approach ('XML' or 'StructuredText').
-     * @param logPrefix       Logging prefix for debug messages.
-     * @param securityPolicy  Security policy name for content analysis (null for default).
-     * @return                Formatted context string ready for LLM consumption.
-     */
-    public static String formatContext(List<SObject> records, String formatStrategy, String logPrefix, String securityPolicy) {
         if (records == null || records.isEmpty()) {
             return '';
         }
@@ -123,12 +110,14 @@ public inherited sharing class SObjectContextFormatter {
             List<SObject> sObjectList = recordsByType.get(sObjTypeName);
             String formattedBlock = '';
 
-            // Apply appropriate formatting strategy with security protection
+            // Apply appropriate formatting strategy
             if ('XML'.equalsIgnoreCase(formatStrategy)) {
-                formattedBlock = formatAsXml(sObjectList, logPrefix, securityPolicy);
+                formattedBlock = formatAsXml(sObjectList, logPrefix);
+            } else if ('JSON'.equalsIgnoreCase(formatStrategy)) {
+                formattedBlock = formatAsJson(sObjectList, logPrefix);
             } else {
                 // Default to StructuredText formatting
-                formattedBlock = formatAsStructuredText(sObjectList, logPrefix, securityPolicy);
+                formattedBlock = formatAsStructuredText(sObjectList, logPrefix);
             }
 
             if (String.isNotBlank(formattedBlock)) {
@@ -143,14 +132,11 @@ public inherited sharing class SObjectContextFormatter {
      * Creates hierarchical XML structure with object and field information.
      * Handles child relationships by including them as nested XML sections.
      *
-     * SECURITY ENHANCEMENT: All field values are analyzed for prompt injection threats.
-     *
      * @param sObjectList   List of records of the same SObjectType to format.
      * @param logPrefix     Logging prefix for debug messages.
-     * @param securityPolicy Security policy for content analysis.
      * @return              XML-formatted string with object and field data.
      */
-    private static String formatAsXml(List<SObject> sObjectList, String logPrefix, String securityPolicy) {
+    private static String formatAsXml(List<SObject> sObjectList, String logPrefix) {
         if (sObjectList.isEmpty())
             return '';
 
@@ -177,7 +163,7 @@ public inherited sharing class SObjectContextFormatter {
                 if (value instanceof List<SObject>) {
                     List<SObject> childRecords = (List<SObject>) value;
                     if (!childRecords.isEmpty()) {
-                        String childXml = formatChildRelationshipAsXml(fieldName, childRecords, logPrefix, securityPolicy);
+                        String childXml = formatChildRelationshipAsXml(fieldName, childRecords, logPrefix);
                         if (String.isNotBlank(childXml)) {
                             childRelationshipXml.add(childXml);
                         }
@@ -191,26 +177,6 @@ public inherited sharing class SObjectContextFormatter {
             for (String fieldLabel : allAccessibleFields.keySet()) {
                 Object value = allAccessibleFields.get(fieldLabel);
                 String displayValue = (value == null) ? '' : String.valueOf(value);
-
-                // SECURITY: Analyze and sanitize field content for prompt injection
-                if (String.isNotBlank(displayValue)) {
-                    PromptInjectionGuard.SecurityAnalysisResult securityResult = PromptInjectionGuard.analyzeContent(
-                        displayValue,
-                        fieldLabel,
-                        schemaInfo.objectDescribe.getName(),
-                        securityPolicy
-                    );
-
-                    if (!securityResult.isSafe) {
-                        System.debug(
-                            LoggingLevel.WARN,
-                            logPrefix + 'Security risk detected in field ' + fieldLabel + ': ' + securityResult.riskLevel
-                        );
-                    }
-
-                    // Use isolated content to prevent prompt interpretation
-                    displayValue = securityResult.isolatedContent;
-                }
 
                 // Use the human-readable field label for XML output
                 fieldXmlTags.add('    <field label="' + fieldLabel.escapeHtml4() + '">' + displayValue.escapeHtml4() + '</field>');
@@ -247,14 +213,11 @@ public inherited sharing class SObjectContextFormatter {
      * Creates grouped sections with clear record separation and field labels.
      * Handles child relationships by formatting them as nested sections.
      *
-     * SECURITY ENHANCEMENT: All field values are analyzed for prompt injection threats.
-     *
      * @param sObjectList   List of records of the same SObjectType to format.
      * @param logPrefix     Logging prefix for debug messages.
-     * @param securityPolicy Security policy for content analysis.
      * @return              Markdown-formatted string with organized record data.
      */
-    private static String formatAsStructuredText(List<SObject> sObjectList, String logPrefix, String securityPolicy) {
+    private static String formatAsStructuredText(List<SObject> sObjectList, String logPrefix) {
         if (sObjectList.isEmpty())
             return '';
 
@@ -295,7 +258,7 @@ public inherited sharing class SObjectContextFormatter {
                 if (value instanceof List<SObject>) {
                     List<SObject> childRecords = (List<SObject>) value;
                     if (!childRecords.isEmpty()) {
-                        String childBlock = formatChildRelationship(fieldName, childRecords, logPrefix, securityPolicy);
+                        String childBlock = formatChildRelationship(fieldName, childRecords, logPrefix);
                         if (String.isNotBlank(childBlock)) {
                             childRelationshipBlocks.add(childBlock);
                         }
@@ -320,26 +283,6 @@ public inherited sharing class SObjectContextFormatter {
                 Object value = allAccessibleFields.get(fieldLabel);
                 String displayValue = (value == null) ? '[Not Set]' : String.valueOf(value).replace('\n', ' ').replace('\r', '');
 
-                // SECURITY: Analyze and sanitize field content for prompt injection
-                if (String.isNotBlank(displayValue) && !displayValue.equals('[Not Set]')) {
-                    PromptInjectionGuard.SecurityAnalysisResult securityResult = PromptInjectionGuard.analyzeContent(
-                        displayValue,
-                        fieldLabel,
-                        schemaInfo.objectDescribe.getName(),
-                        securityPolicy
-                    );
-
-                    if (!securityResult.isSafe) {
-                        System.debug(
-                            LoggingLevel.WARN,
-                            logPrefix + 'Security risk detected in field ' + fieldLabel + ': ' + securityResult.riskLevel
-                        );
-                    }
-
-                    // Use isolated content to prevent prompt interpretation
-                    displayValue = securityResult.isolatedContent;
-                }
-
                 fieldEntries.add(fieldLabel + ': ' + displayValue);
             }
 
@@ -362,6 +305,107 @@ public inherited sharing class SObjectContextFormatter {
 
         // Combine record blocks with clear separators
         return groupHeader + '\n\n' + String.join(recordBlocks, '\n\n---\n\n');
+    }
+
+    /**
+     * Formats SObjects into clean JSON format optimized for modern LLM consumption.
+     * Creates a structured JSON representation with organized object groups and field metadata.
+     * Modern LLMs excel at parsing and understanding JSON structure, making this format
+     * ideal for reliable data extraction and processing.
+     *
+     * @param sObjectList   List of records of the same SObjectType to format.
+     * @param logPrefix     Logging prefix for debug messages.
+     * @return              JSON-formatted string with organized record data.
+     */
+    private static String formatAsJson(List<SObject> sObjectList, String logPrefix) {
+        if (sObjectList.isEmpty())
+            return '';
+
+        ObjectSchemaInfo schemaInfo = getSchemaInfo(sObjectList[0].getSObjectType(), logPrefix);
+        if (schemaInfo == null)
+            return '';
+
+        Set<String> allFieldNames = new Set<String>();
+        for (SObject record : sObjectList) {
+            allFieldNames.addAll(record.getPopulatedFieldsAsMap().keySet());
+        }
+
+        schemaInfo.describeFields(allFieldNames);
+
+        // Build JSON structure
+        Map<String, Object> jsonStructure = new Map<String, Object>();
+
+        // Object metadata
+        Map<String, Object> objectInfo = new Map<String, Object>();
+        objectInfo.put('objectType', schemaInfo.objectDescribe.getName());
+        objectInfo.put('objectLabel', schemaInfo.objectDescribe.getLabel());
+        objectInfo.put('objectPluralLabel', schemaInfo.objectDescribe.getLabelPlural());
+        objectInfo.put('recordCount', sObjectList.size());
+        jsonStructure.put('objectInfo', objectInfo);
+
+        // Records array
+        List<Object> recordsArray = new List<Object>();
+
+        for (SObject record : sObjectList) {
+            Map<String, Object> recordMap = new Map<String, Object>();
+            Map<String, Object> fieldsMap = new Map<String, Object>();
+            Map<String, Object> childRelationshipsMap = new Map<String, Object>();
+
+            Map<String, Object> populatedFields = record.getPopulatedFieldsAsMap();
+
+            // Handle child relationships separately
+            for (String fieldName : populatedFields.keySet()) {
+                Object value = populatedFields.get(fieldName);
+                if (value instanceof List<SObject>) {
+                    List<SObject> childRecords = (List<SObject>) value;
+                    if (!childRecords.isEmpty()) {
+                        Object childJson = formatChildRelationshipAsJson(fieldName, childRecords, logPrefix);
+                        if (childJson != null) {
+                            childRelationshipsMap.put(fieldName, childJson);
+                        }
+                    }
+                }
+            }
+
+            // Extract all accessible fields including relationship fields
+            Map<String, Object> allAccessibleFields = extractAllAccessibleFields(record, logPrefix);
+
+            for (String fieldLabel : allAccessibleFields.keySet()) {
+                Object value = allAccessibleFields.get(fieldLabel);
+
+                // Handle null values explicitly
+                if (value == null) {
+                    fieldsMap.put(fieldLabel, null);
+                    continue;
+                }
+
+                String displayValue = String.valueOf(value);
+
+                // Attempt to preserve data types for better JSON structure
+                Object finalValue = convertToAppropriateType(displayValue, value);
+                fieldsMap.put(fieldLabel, finalValue);
+            }
+
+            recordMap.put('fields', fieldsMap);
+            if (!childRelationshipsMap.isEmpty()) {
+                recordMap.put('childRelationships', childRelationshipsMap);
+            }
+
+            recordsArray.add(recordMap);
+        }
+
+        jsonStructure.put('records', recordsArray);
+
+        // Convert to JSON string with proper formatting
+        try {
+            return JSON.serializePretty(jsonStructure);
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Failed to serialize JSON for object type ' + schemaInfo.objectDescribe.getName() + ': ' + e.getMessage()
+            );
+            return '';
+        }
     }
 
     // Utility methods for formatting support
@@ -474,10 +518,9 @@ public inherited sharing class SObjectContextFormatter {
      * @param relationshipName  The name of the child relationship field.
      * @param childRecords      List of child SObject records.
      * @param logPrefix         Logging prefix for debug messages.
-     * @param securityPolicy    Security policy for content analysis.
      * @return                  Formatted string for the child relationship section.
      */
-    private static String formatChildRelationship(String relationshipName, List<SObject> childRecords, String logPrefix, String securityPolicy) {
+    private static String formatChildRelationship(String relationshipName, List<SObject> childRecords, String logPrefix) {
         if (childRecords == null || childRecords.isEmpty()) {
             return '';
         }
@@ -497,26 +540,6 @@ public inherited sharing class SObjectContextFormatter {
             for (String fieldLabel : sortedFieldLabels) {
                 Object fieldValue = allAccessibleFields.get(fieldLabel);
                 String displayValue = (fieldValue == null) ? '[Not Set]' : String.valueOf(fieldValue).replace('\n', ' ').replace('\r', '');
-
-                // SECURITY: Analyze and sanitize child field content for prompt injection
-                if (String.isNotBlank(displayValue) && !displayValue.equals('[Not Set]')) {
-                    PromptInjectionGuard.SecurityAnalysisResult securityResult = PromptInjectionGuard.analyzeContent(
-                        displayValue,
-                        fieldLabel,
-                        childRecord.getSObjectType().getDescribe().getName(),
-                        securityPolicy
-                    );
-
-                    if (!securityResult.isSafe) {
-                        System.debug(
-                            LoggingLevel.WARN,
-                            logPrefix + 'Security risk detected in child field ' + fieldLabel + ': ' + securityResult.riskLevel
-                        );
-                    }
-
-                    // Use isolated content to prevent prompt interpretation
-                    displayValue = securityResult.isolatedContent;
-                }
 
                 childFieldEntries.add('  ' + fieldLabel + ': ' + displayValue);
             }
@@ -539,10 +562,9 @@ public inherited sharing class SObjectContextFormatter {
      * @param relationshipName  The name of the child relationship field.
      * @param childRecords      List of child SObject records.
      * @param logPrefix         Logging prefix for debug messages.
-     * @param securityPolicy    Security policy for content analysis.
      * @return                  XML-formatted string for the child relationship section.
      */
-    private static String formatChildRelationshipAsXml(String relationshipName, List<SObject> childRecords, String logPrefix, String securityPolicy) {
+    private static String formatChildRelationshipAsXml(String relationshipName, List<SObject> childRecords, String logPrefix) {
         if (childRecords == null || childRecords.isEmpty()) {
             return '';
         }
@@ -561,26 +583,6 @@ public inherited sharing class SObjectContextFormatter {
             for (String fieldLabel : allAccessibleFields.keySet()) {
                 Object fieldValue = allAccessibleFields.get(fieldLabel);
                 String displayValue = (fieldValue == null) ? '' : String.valueOf(fieldValue);
-
-                // SECURITY: Analyze and sanitize child field content for prompt injection
-                if (String.isNotBlank(displayValue)) {
-                    PromptInjectionGuard.SecurityAnalysisResult securityResult = PromptInjectionGuard.analyzeContent(
-                        displayValue,
-                        fieldLabel,
-                        childRecord.getSObjectType().getDescribe().getName(),
-                        securityPolicy
-                    );
-
-                    if (!securityResult.isSafe) {
-                        System.debug(
-                            LoggingLevel.WARN,
-                            logPrefix + 'Security risk detected in child XML field ' + fieldLabel + ': ' + securityResult.riskLevel
-                        );
-                    }
-
-                    // Use isolated content to prevent prompt interpretation
-                    displayValue = securityResult.isolatedContent;
-                }
 
                 childFieldXml.add('        <field label="' + fieldLabel.escapeHtml4() + '">' + displayValue.escapeHtml4() + '</field>');
             }
@@ -721,6 +723,119 @@ public inherited sharing class SObjectContextFormatter {
         }
 
         return fieldName; // Fallback to API name if label cannot be determined
+    }
+
+    /**
+     * Formats child relationship records as JSON structure within the parent record.
+     *
+     * @param relationshipName  The name of the child relationship field.
+     * @param childRecords      List of child SObject records.
+     * @param logPrefix         Logging prefix for debug messages.
+     * @return                  JSON-compatible object for the child relationship section.
+     */
+    private static Object formatChildRelationshipAsJson(String relationshipName, List<SObject> childRecords, String logPrefix) {
+        if (childRecords == null || childRecords.isEmpty()) {
+            return null;
+        }
+
+        SObject firstChild = childRecords[0];
+        ObjectSchemaInfo childSchemaInfo = getSchemaInfo(firstChild.getSObjectType(), logPrefix);
+        if (childSchemaInfo == null) {
+            return null;
+        }
+
+        Map<String, Object> childRelationshipStructure = new Map<String, Object>();
+
+        // Child relationship metadata
+        Map<String, Object> relationshipInfo = new Map<String, Object>();
+        relationshipInfo.put('relationshipName', relationshipName);
+        relationshipInfo.put('childObjectType', childSchemaInfo.objectDescribe.getName());
+        relationshipInfo.put('childObjectLabel', childSchemaInfo.objectDescribe.getLabel());
+        relationshipInfo.put('recordCount', childRecords.size());
+        childRelationshipStructure.put('relationshipInfo', relationshipInfo);
+
+        // Child records array
+        List<Object> childRecordsArray = new List<Object>();
+
+        for (SObject childRecord : childRecords) {
+            Map<String, Object> childRecordMap = new Map<String, Object>();
+            Map<String, Object> allAccessibleFields = extractAllAccessibleFields(childRecord, logPrefix);
+
+            for (String fieldLabel : allAccessibleFields.keySet()) {
+                Object fieldValue = allAccessibleFields.get(fieldLabel);
+
+                // Handle null values explicitly
+                if (fieldValue == null) {
+                    childRecordMap.put(fieldLabel, null);
+                    continue;
+                }
+
+                String displayValue = String.valueOf(fieldValue);
+
+                // Attempt to preserve data types for better JSON structure
+                Object finalValue = convertToAppropriateType(displayValue, fieldValue);
+                childRecordMap.put(fieldLabel, finalValue);
+            }
+
+            if (!childRecordMap.isEmpty()) {
+                childRecordsArray.add(childRecordMap);
+            }
+        }
+
+        childRelationshipStructure.put('records', childRecordsArray);
+        return childRelationshipStructure;
+    }
+
+    /**
+     * Converts a string value back to its appropriate data type for JSON serialization.
+     * This helps maintain proper data types in JSON output (numbers, booleans, etc.)
+     * rather than everything being strings.
+     *
+     * @param stringValue  The string representation of the value.
+     * @param originalValue The original field value for type inference.
+     * @return             The value converted to appropriate type for JSON.
+     */
+    private static Object convertToAppropriateType(String stringValue, Object originalValue) {
+        if (String.isBlank(stringValue)) {
+            return stringValue;
+        }
+
+        // If original value was already a primitive type, try to preserve it
+        if (originalValue instanceof Boolean) {
+            return originalValue;
+        }
+        if (originalValue instanceof Integer || originalValue instanceof Long) {
+            return originalValue;
+        }
+        if (originalValue instanceof Decimal || originalValue instanceof Double) {
+            return originalValue;
+        }
+        if (originalValue instanceof Date || originalValue instanceof Datetime) {
+            return originalValue;
+        }
+
+        // For string values, attempt intelligent conversion
+        // Boolean detection
+        if ('true'.equalsIgnoreCase(stringValue) || 'false'.equalsIgnoreCase(stringValue)) {
+            return Boolean.valueOf(stringValue);
+        }
+
+        // Number detection (be conservative to avoid false positives)
+        if (stringValue.isNumeric()) {
+            try {
+                if (stringValue.contains('.')) {
+                    return Decimal.valueOf(stringValue);
+                } else {
+                    return Integer.valueOf(stringValue);
+                }
+            } catch (Exception e) {
+                // If conversion fails, return as string
+                return stringValue;
+            }
+        }
+
+        // Default to string
+        return stringValue;
     }
 
     /**

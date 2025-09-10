@@ -27,11 +27,6 @@
                 <label>Update Record</label>
             </value>
             <value>
-                <fullName>SendEmail</fullName>
-                <default>false</default>
-                <label>Send Email</label>
-            </value>
-            <value>
                 <fullName>PostChatter</fullName>
                 <default>false</default>
                 <label>Post Chatter</label>

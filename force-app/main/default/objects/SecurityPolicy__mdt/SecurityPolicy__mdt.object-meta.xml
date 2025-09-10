@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
-    <label>Security Policy</label>
-    <pluralLabel>Security Policies</pluralLabel>
-    <visibility>Public</visibility>
-    <description>Configuration for AI Agent Framework security policies including prompt injection protection settings</description>
-</CustomObject>
