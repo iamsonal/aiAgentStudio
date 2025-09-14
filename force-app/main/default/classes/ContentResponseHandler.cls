@@ -34,6 +34,9 @@ public class ContentResponseHandler implements ILLMResponseHandler {
             logPrefix + 'Handling text-only LLM response for session: ' + context.sessionId + ', turn: ' + context.turnIdentifier
         );
 
+        // Use the shared decision step logger from the context
+        AgentDecisionStepLogger decisionLogger = context.decisionLogger;
+
         LLMInteractionService.MessageData assistantData = context.llmResult.assistantMessageData;
 
         // Persist the user message as the parent of the assistant's reply
@@ -47,6 +50,17 @@ public class ContentResponseHandler implements ILLMResponseHandler {
 
         if (String.isBlank(assistantData?.content)) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Validation failed: LLM response content is empty.');
+
+            // Log the error step
+            decisionLogger.logError(
+                'Empty LLM Response',
+                'LLM returned empty successful response',
+                AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
+                'LLM returned empty successful response',
+                null,
+                null
+            );
+
             context.turnLifecycleSvc.failTurn(
                 context.sessionId,
                 context.turnIdentifier,
@@ -84,6 +98,14 @@ public class ContentResponseHandler implements ILLMResponseHandler {
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Memory management completion hook failed: ' + e.getMessage());
         }
+
+        // Log the final response
+        decisionLogger.logFinalResponse(
+            'Final Response Generated',
+            'The final response from the LLM has been generated and stored',
+            assistantData.content,
+            assistantData.processingTimeMs
+        );
 
         context.turnLifecycleSvc.completeTurnSuccessfully(context.sessionId, context.turnIdentifier, savedAssistantMessageId, logPrefix);
         return OrchestrationService.OUTCOME_COMPLETED;

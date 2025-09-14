@@ -80,7 +80,12 @@ public class AIAgentAsyncProcessor implements Queueable, Database.AllowsCallouts
 
             OrchestrationService orchestrationSvc = new OrchestrationService();
 
-            // Instantiate LLMInteractionService with the execution user context
+            // Initialize the decision step logger - single instance for the entire turn
+            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(sessionId, turnIdentifier, originalUserId);
+
+            decisionLogger.logUserInput('User Input Received (via Service Context)', this.userMessage, null);
+
+            // Instantiate LLMInteractionService with the execution user context and decision logger
             LLMInteractionService interactionService = new LLMInteractionService(
                 sessionId,
                 originalUserId,
@@ -89,7 +94,8 @@ public class AIAgentAsyncProcessor implements Queueable, Database.AllowsCallouts
                 turnIdentifier,
                 1, // Turn count (always 1 for async entry)
                 currentRecordId,
-                false // Not a retry
+                false, // Not a retry
+                decisionLogger
             );
 
             // Execute LLM interaction (HTTP callouts are permitted in queueable context)
@@ -99,8 +105,8 @@ public class AIAgentAsyncProcessor implements Queueable, Database.AllowsCallouts
                 throw new AIAgentAsyncException('LLMInteractionService returned a null result');
             }
 
-            // Process the LLM result using the orchestration service
-            String outcome = orchestrationSvc.processLlmResult(
+            // Process the LLM result using the orchestration service with the decision logger
+            String outcome = orchestrationSvc.processLlmResultWithLogger(
                 llmResult,
                 sessionId,
                 originalUserId,
@@ -109,7 +115,8 @@ public class AIAgentAsyncProcessor implements Queueable, Database.AllowsCallouts
                 turnIdentifier,
                 1, // Turn count
                 currentUserMessageData,
-                currentRecordId
+                currentRecordId,
+                decisionLogger
             );
 
             System.debug(

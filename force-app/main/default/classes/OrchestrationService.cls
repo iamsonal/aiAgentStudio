@@ -69,9 +69,7 @@ public inherited sharing class OrchestrationService {
 
     /**
      * Processes the LLM interaction result using the appropriate strategy handler based on response type.
-     *
-     * Selects the correct response handler (content or tool call), manages turn lifecycle, logs all major steps,
-     * and returns an outcome constant indicating the result of the orchestration turn.
+     * This method accepts a decision logger that may have been created earlier in the process.
      *
      * @param llmInteractionResult      Result from LLM interaction containing response content and/or tool calls (required)
      * @param sessionId                 The current session ID (required)
@@ -82,12 +80,13 @@ public inherited sharing class OrchestrationService {
      * @param currentTurnCount          The current turn count in the session (required)
      * @param userMessageDataForTurn    The user message data for this turn (required)
      * @param currentPageRecordId       The current page record ID, if applicable (optional)
+     * @param decisionLogger            The decision step logger to use (required)
      * @return                          Outcome constant indicating turn completion status and next steps
      * @throws None. All errors are handled internally and surfaced via debug logs and return value.
      *
      * Side effects: Emits debug logs and orchestrates turn state transitions.
      */
-    public String processLlmResult(
+    public String processLlmResultWithLogger(
         LLMInteractionService.LLMInteractionResult llmInteractionResult,
         Id sessionId,
         Id originalUserId,
@@ -96,27 +95,11 @@ public inherited sharing class OrchestrationService {
         String turnIdentifier,
         Integer currentTurnCount,
         LLMInteractionService.MessageData userMessageDataForTurn,
-        Id currentPageRecordId
+        Id currentPageRecordId,
+        AgentDecisionStepLogger decisionLogger
     ) {
         String logPrefix = '[OrchSvc Turn:' + turnIdentifier?.left(8) + ' Cycle:' + currentTurnCount + ' Sess:' + sessionId + '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting orchestration for LLM result. Page context: ' + currentPageRecordId);
-
-        OrchestrationLogger.logStep(
-            sessionId,
-            turnIdentifier,
-            OrchestrationLogger.TYPE_LLM_RESPONSE,
-            OrchestrationLogger.STATUS_INIT,
-            'Processing LLM response',
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
 
         try {
             if (llmInteractionResult == null || !llmInteractionResult.isSuccess) {
@@ -124,43 +107,19 @@ public inherited sharing class OrchestrationService {
                 String failureCode = llmInteractionResult?.failureCode ?? AIAgentConstants.ERR_CODE_LLM_CALL_FAILED;
                 System.debug(LoggingLevel.ERROR, logPrefix + 'LLM interaction failed. Reason: ' + failureReason + ' (Code: ' + failureCode + ')');
 
-                OrchestrationLogger.logStep(
-                    sessionId,
-                    turnIdentifier,
-                    OrchestrationLogger.TYPE_LLM_RESPONSE,
-                    OrchestrationLogger.STATUS_FAILURE,
-                    'LLM interaction failed',
-                    null,
-                    null,
-                    failureReason,
+                // Log the error step using the safe serialization method
+                decisionLogger.logError(
+                    'LLM Interaction Failed',
+                    'The LLM interaction failed during processing',
                     failureCode,
-                    null,
-                    null,
-                    null,
-                    null,
+                    failureReason,
+                    serializeLlmInteractionResultForLogging(llmInteractionResult),
                     null
                 );
 
                 this.turnLifecycleSvc.failTurn(sessionId, turnIdentifier, failureReason, failureCode, logPrefix);
                 return OUTCOME_FAILED;
             }
-
-            OrchestrationLogger.logStep(
-                sessionId,
-                turnIdentifier,
-                OrchestrationLogger.TYPE_LLM_RESPONSE,
-                OrchestrationLogger.STATUS_SUCCESS,
-                'LLM response received successfully',
-                null,
-                llmInteractionResult,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-            );
 
             // Create orchestration context with all required state and dependencies for this turn.
             OrchestrationContext context = new OrchestrationContext(
@@ -176,7 +135,8 @@ public inherited sharing class OrchestrationService {
                 this.actionExecSvc,
                 this.orchestrationDispatchSvc,
                 this.contextManagerSvc,
-                currentPageRecordId
+                currentPageRecordId,
+                decisionLogger
             );
 
             // Select the appropriate response handler based on LLM response type (tool call or content-only).
@@ -187,62 +147,21 @@ public inherited sharing class OrchestrationService {
                 handler = new ContentResponseHandler();
             }
 
-            OrchestrationLogger.logStep(
-                sessionId,
-                turnIdentifier,
-                OrchestrationLogger.TYPE_DISPATCH,
-                OrchestrationLogger.STATUS_INIT,
-                'Dispatching to handler: ' + handler.toString(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-            );
-
             // Execute the selected response handling strategy.
             String outcome = handler.handle(context);
-
-            OrchestrationLogger.logStep(
-                sessionId,
-                turnIdentifier,
-                OrchestrationLogger.TYPE_DISPATCH,
-                OrchestrationLogger.STATUS_SUCCESS,
-                'Orchestration completed: ' + outcome,
-                null,
-                new Map<String, Object>{ 'outcome' => outcome },
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-            );
 
             return outcome;
         } catch (Exception ex) {
             String errorMsg = 'Critical orchestration error: (' + ex.getTypeName() + ') ' + ex.getMessage();
             System.debug(LoggingLevel.ERROR, logPrefix + 'Orchestration failed with exception. ' + errorMsg + '\nStack: ' + ex.getStackTraceString());
 
-            OrchestrationLogger.logStep(
-                sessionId,
-                turnIdentifier,
-                OrchestrationLogger.TYPE_DISPATCH,
-                OrchestrationLogger.STATUS_FAILURE,
-                'Orchestration failed',
-                null,
-                null,
-                errorMsg,
+            // Log the error step
+            decisionLogger.logError(
+                'Orchestration Failed',
+                'A critical error occurred during orchestration',
                 AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                null,
-                null,
-                null,
-                null,
+                errorMsg,
+                ex.getStackTraceString(),
                 null
             );
 
@@ -253,7 +172,9 @@ public inherited sharing class OrchestrationService {
             }
             return OUTCOME_FAILED;
         } finally {
-            OrchestrationLogger.commitLogs();
+            // Commit all decision steps at the end of the transaction
+            // This ensures all logs are persisted in one transaction after all business logic and potential callouts are complete
+            decisionLogger.commitSteps();
         }
     }
 
@@ -399,6 +320,43 @@ public inherited sharing class OrchestrationService {
                 LoggingLevel.WARN,
                 logPrefix + 'Failed to clear pending details from message ' + chatMessageId + '. Error: ' + e.getMessage()
             );
+        }
+    }
+
+    /**
+     * Serializes an LLMInteractionResult for logging purposes, excluding non-serializable Exception objects.
+     *
+     * @param result The LLMInteractionResult to serialize
+     * @return JSON string representation of the result, safe for logging
+     */
+    private static String serializeLlmInteractionResultForLogging(LLMInteractionService.LLMInteractionResult result) {
+        if (result == null) {
+            return null;
+        }
+
+        try {
+            // Create a map with only the serializable fields
+            Map<String, Object> serializableResult = new Map<String, Object>();
+            serializableResult.put('isSuccess', result.isSuccess);
+            serializableResult.put('providerResult', result.providerResult);
+            serializableResult.put('assistantMessageData', result.assistantMessageData);
+            serializableResult.put('failureReason', result.failureReason);
+            serializableResult.put('failureCode', result.failureCode);
+
+            // Instead of including the Exception object, include its message if it exists
+            if (result.failureException != null) {
+                serializableResult.put('failureExceptionMessage', result.failureException.getMessage());
+                serializableResult.put('failureExceptionType', result.failureException.getTypeName());
+            }
+
+            return JSON.serialize(serializableResult);
+        } catch (Exception e) {
+            // If serialization still fails, return a basic representation
+            return '{"isSuccess": ' +
+                result.isSuccess +
+                ', "serializationError": "Failed to serialize LLMInteractionResult: ' +
+                e.getMessage() +
+                '"}';
         }
     }
 }

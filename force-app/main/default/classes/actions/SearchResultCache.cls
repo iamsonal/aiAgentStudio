@@ -96,6 +96,10 @@ public class SearchResultCache {
         public DateTime newestEntry;
 
         public CacheStatistics() {
+            this.totalCacheSize = 0;
+            this.hitCount = 0;
+            this.missCount = 0;
+            this.hitRatio = 0;
             this.patternDistribution = new Map<String, Integer>();
         }
     }

@@ -11,7 +11,12 @@
  * BaseAgentAction is the abstract base class for all agent actions in the AI Agent Framework.
  * Responsibilities:
  *   - Provides a comprehensive framework for implementing agent actions with minimal boilerplate
- *   - Features intelligent parameter processing, automatic type coercion, security validation, and standardized error handling
+ *   - Features high-performance, cached schema-driven parameter processing using AIAgentConfigService
+ *   - Automatic type coercion based on JSON Schema from AgentCapability__c.Parameters__c (no more SOQL per execution)
+ *   - Supports standard JSON Schema types (string, integer, number, boolean) and formats (date, date-time, email, url, salesforce-id)
+ *   - Validates required parameters as defined in the JSON Schema "required" array to prevent NullPointerExceptions
+ *   - Differentiates between configuration issues (graceful fallback) and system errors (halt execution)
+ *   - Includes security validation and standardized error handling
  *   - Requires subclasses to implement only the executeAction() method; all validation, security, and result formatting are handled by the base class
  *   - Surfaces operational and validation issues clearly via ActionResult and logging for maintainability
  *
@@ -83,9 +88,6 @@ public abstract class BaseAgentAction implements IAgentAction {
         ActionResult finalResult = null;
         Long startTime = System.currentTimeMillis();
 
-        // Log action start
-        OrchestrationLogger.logActionStart(context, getLogPrefixName(), argumentsJson);
-
         try {
             System.debug(LoggingLevel.INFO, logPrefix + 'Starting action execution with intelligent parameter processing');
 
@@ -97,16 +99,23 @@ public abstract class BaseAgentAction implements IAgentAction {
             this.parseActionConfiguration(actionConfigurationJson, logPrefix);
 
             // Intelligent parameter processing
-            Map<String, Object> processedParams = intelligentParameterProcessing(argsMap, logPrefix);
+            ActionOutcome paramOutcome = intelligentParameterProcessing(argsMap, logPrefix);
+            if (!paramOutcome.isSuccess) {
+                return paramOutcome.toActionResult(getLogPrefixName());
+            }
+            Map<String, Object> processedParams = (Map<String, Object>) paramOutcome.data;
 
             // Intelligent security checks
-            performIntelligentSecurityChecks(processedParams, logPrefix);
+            ActionOutcome securityOutcome = performIntelligentSecurityChecks(processedParams, logPrefix);
+            if (!securityOutcome.isSuccess) {
+                return securityOutcome.toActionResult(getLogPrefixName());
+            }
 
-            // Call the simplified action method
-            Object result = executeAction(processedParams);
+            // Call the simplified action method and handle ActionOutcome pattern
+            ActionOutcome actionOutcome = executeAction(processedParams);
 
-            // Intelligent result wrapping
-            finalResult = intelligentResultWrapping(result, logPrefix);
+            // Convert ActionOutcome to ActionResult for framework compatibility
+            finalResult = convertOutcomeToActionResult(actionOutcome, logPrefix);
 
             if (finalResult == null) {
                 throw new ActionHandlerNullException('Handler (' + getLogPrefixName() + ') returned null ActionResult.');
@@ -117,7 +126,6 @@ public abstract class BaseAgentAction implements IAgentAction {
 
         // Log action result with performance metrics
         Long duration = System.currentTimeMillis() - startTime;
-        OrchestrationLogger.logActionResult(context, getLogPrefixName(), finalResult, duration);
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Execution Finished. Success: ' + finalResult.isSuccess);
         return finalResult;
@@ -130,57 +138,324 @@ public abstract class BaseAgentAction implements IAgentAction {
     /**
      * The only method actions need to implement!
      * Framework automatically handles parameter extraction, validation, security, and result wrapping.
+     * Uses the ActionOutcome pattern for consistent success/failure handling without throwing business logic exceptions.
      *
      * @param params Validated and typed parameters extracted from JSON arguments.
-     * @return       Simple result object (String, custom object, or ActionResult).
+     * @return       ActionOutcome object containing either success data or structured error information.
      */
-    public abstract Object executeAction(Map<String, Object> params);
+    public abstract ActionOutcome executeAction(Map<String, Object> params);
 
     /**
-     * Intelligently processes and validates parameters using naming conventions and automatic type coercion.
-     * Converts string parameters to appropriate types (ID, Integer, Boolean) based on parameter names.
-     * Note: Date/DateTime coercion is intentionally removed to avoid schema conflicts - actions should handle their own date type coercion.
+     * Schema-driven parameter processing using the JSON Schema from AgentCapability__c.Parameters__c.
+     * Replaces brittle naming convention-based type coercion with explicit schema-driven type conversion.
+     * Also validates required parameters to prevent NullPointerExceptions in executeAction implementations.
      *
      * @param rawArgs   The raw argument map from JSON.
      * @param logPrefix The logging prefix for debug output.
-     * @return          The processed and typed parameter map.
+     * @return          ActionOutcome containing the processed and typed parameter map or error information.
      */
-    private Map<String, Object> intelligentParameterProcessing(Map<String, Object> rawArgs, String logPrefix) {
+    private ActionOutcome intelligentParameterProcessing(Map<String, Object> rawArgs, String logPrefix) {
         Map<String, Object> processed = new Map<String, Object>();
 
-        for (String paramName : rawArgs.keySet()) {
-            Object value = rawArgs.get(paramName);
+        // Get the parameter schema for this capability
+        try {
+            Map<String, Object> parameterSchema = getParameterSchema(logPrefix);
+            Map<String, Object> schemaProperties = getSchemaProperties(parameterSchema);
+            List<String> requiredParameters = getRequiredParameters(parameterSchema);
 
-            // Skip null values
-            if (value == null) {
-                continue;
+            // First, validate that all required parameters are present
+            ActionOutcome validationResult = validateRequiredParameters(rawArgs, requiredParameters, logPrefix);
+            if (!validationResult.isSuccess) {
+                return validationResult;
             }
 
-            // Intelligent type coercion based on parameter name patterns
-            if (paramName.toLowerCase().endsWith('id') || paramName.toLowerCase().contains('recordid')) {
-                // ID parameters
-                processed.put(paramName, coerceToId(value, paramName));
-            } else if (
-                paramName.toLowerCase().contains('limit') ||
-                paramName.toLowerCase().contains('count') ||
-                paramName.toLowerCase().contains('max')
-            ) {
-                // Integer parameters
-                processed.put(paramName, coerceToInteger(value, paramName));
-            } else if (
-                paramName.toLowerCase().contains('enable') ||
-                paramName.toLowerCase().contains('is') ||
-                paramName.toLowerCase().contains('has')
-            ) {
-                // Boolean parameters
-                processed.put(paramName, coerceToBoolean(value, paramName));
-            } else {
-                // Keep as-is for other types, including dates which should be handled by schema-aware coercion
-                processed.put(paramName, value);
+            // Process and coerce all provided parameters
+            for (String paramName : rawArgs.keySet()) {
+                Object value = rawArgs.get(paramName);
+
+                // Skip null values, but note that required validation already passed
+                // so any nulls here are for optional parameters
+                if (value == null) {
+                    continue;
+                }
+
+                // Use schema-driven type coercion
+                try {
+                    Object coercedValue = coerceValueBySchema(value, paramName, schemaProperties, logPrefix);
+                    processed.put(paramName, coercedValue);
+                } catch (ValidationException ve) {
+                    return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, ve.getMessage());
+                }
+            }
+
+            return ActionOutcome.success(processed);
+        } catch (ValidationException ve) {
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, ve.getMessage());
+        } catch (Exception e) {
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Parameter processing failed: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Retrieves and parses the JSON Schema from AgentCapability__c.Parameters__c for the current capability.
+     * Uses cached AIAgentConfigService for optimal performance and differentiates between 'not found' and 'system error'.
+     *
+     * @param logPrefix The logging prefix for debug output.
+     * @return          The parsed parameter schema as a Map, or empty schema if not found/invalid.
+     * @throws ValidationException for system errors that should halt execution.
+     */
+    private Map<String, Object> getParameterSchema(String logPrefix) {
+        try {
+            // Use cached service instead of direct SOQL
+            AgentCapability__c capability = AIAgentConfigService.getCapabilityById(actionContext.agentCapabilityId);
+
+            if (capability == null) {
+                // CRITICAL: Missing AgentCapability is a definite system/config error that should halt execution
+                // If we got this far, the capability should definitely exist - this indicates a serious system issue
+                String errorMsg =
+                    'Critical system error: AgentCapability not found for ID: ' +
+                    actionContext.agentCapabilityId +
+                    '. This indicates a serious configuration or data integrity issue.';
+                System.debug(LoggingLevel.ERROR, logPrefix + errorMsg);
+                throw new ValidationException(errorMsg, null);
+            }
+
+            String parametersJson = capability.Parameters__c;
+            if (String.isBlank(parametersJson)) {
+                // RECOVERABLE: Blank Parameters__c is a configuration issue but action can proceed with default schema
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix + 'Parameters__c is blank for capability "' + capability.CapabilityName__c + '", using default schema'
+                );
+                return getDefaultSchema();
+            }
+
+            // Parse the JSON schema
+            Map<String, Object> schema = (Map<String, Object>) JSON.deserializeUntyped(parametersJson);
+            System.debug(
+                LoggingLevel.DEBUG,
+                logPrefix +
+                    'Loaded parameter schema for "' +
+                    capability.CapabilityName__c +
+                    '" with ' +
+                    (schema.containsKey('properties') ? ((Map<String, Object>) schema.get('properties')).size() : 0) +
+                    ' properties'
+            );
+            return schema;
+        } catch (AIAgentConfigService.ConfigurationException configEx) {
+            // CRITICAL: System error from the config service - this is serious and should halt execution
+            // Database errors, permission issues, etc. indicate system problems that can't be worked around
+            String errorMsg = 'Critical system error loading AgentCapability configuration: ' + configEx.getMessage();
+            System.debug(LoggingLevel.ERROR, logPrefix + errorMsg);
+            throw new ValidationException(errorMsg, null, configEx);
+        } catch (JSONException jsonEx) {
+            // RECOVERABLE: Invalid JSON in Parameters__c field - configuration issue but action can proceed
+            // Admin can fix the JSON later, action can work with default schema for now
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Invalid JSON in Parameters__c field: ' + jsonEx.getMessage() + '. Using default schema to allow action to proceed.'
+            );
+            return getDefaultSchema();
+        } catch (Exception e) {
+            // CRITICAL: Unexpected system error - should halt execution
+            // Unknown errors could indicate serious system issues that shouldn't be masked
+            String errorMsg = 'Unexpected system error loading parameter schema: ' + e.getMessage();
+            System.debug(LoggingLevel.ERROR, logPrefix + errorMsg);
+            throw new ValidationException(errorMsg, null, e);
+        }
+    }
+
+    /**
+     * Extracts the properties section from a JSON Schema.
+     *
+     * @param schema The parsed JSON Schema.
+     * @return       The properties map, or empty map if not found.
+     */
+    private Map<String, Object> getSchemaProperties(Map<String, Object> schema) {
+        if (schema.containsKey('properties') && schema.get('properties') instanceof Map<String, Object>) {
+            return (Map<String, Object>) schema.get('properties');
+        }
+        return new Map<String, Object>();
+    }
+
+    /**
+     * Extracts the required parameters array from a JSON Schema.
+     *
+     * @param schema The parsed JSON Schema.
+     * @return       List of required parameter names, or empty list if not found.
+     */
+    private List<String> getRequiredParameters(Map<String, Object> schema) {
+        if (schema.containsKey('required') && schema.get('required') instanceof List<Object>) {
+            List<Object> requiredList = (List<Object>) schema.get('required');
+            List<String> requiredParams = new List<String>();
+            for (Object param : requiredList) {
+                if (param instanceof String) {
+                    requiredParams.add((String) param);
+                }
+            }
+            return requiredParams;
+        }
+        return new List<String>();
+    }
+
+    /**
+     * Validates that all required parameters are present in the provided arguments.
+     * Treats empty strings as missing values since LLMs sometimes send empty strings instead of omitting parameters.
+     *
+     * @param rawArgs            The raw argument map from JSON.
+     * @param requiredParameters List of required parameter names from schema.
+     * @param logPrefix          The logging prefix for debug output.
+     * @return                   ActionOutcome indicating success or failure with missing parameter details.
+     */
+    private ActionOutcome validateRequiredParameters(Map<String, Object> rawArgs, List<String> requiredParameters, String logPrefix) {
+        List<String> missingParams = new List<String>();
+
+        for (String requiredParam : requiredParameters) {
+            Object value = rawArgs.get(requiredParam);
+
+            // Consider parameter missing if:
+            // 1. Not present in the map
+            // 2. Value is null
+            // 3. Value is an empty string (common LLM behavior)
+            if (!rawArgs.containsKey(requiredParam) || value == null || (value instanceof String && String.isBlank((String) value))) {
+                missingParams.add(requiredParam);
             }
         }
 
-        return processed;
+        if (!missingParams.isEmpty()) {
+            String missingParamsList = String.join(missingParams, ', ');
+            String errorMessage = 'Missing required parameter' + (missingParams.size() > 1 ? 's' : '') + ': ' + missingParamsList;
+            System.debug(LoggingLevel.WARN, logPrefix + errorMessage);
+
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, errorMessage);
+        }
+
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'All ' + requiredParameters.size() + ' required parameters validated successfully');
+        return ActionOutcome.success();
+    }
+
+    /**
+     * Coerces a parameter value based on its JSON Schema type definition using the unified TypeCoercionService.
+     * Supports standard JSON Schema types and formats including date/date-time, and now includes recursive
+     * support for complex data structures (arrays and objects).
+     *
+     * @param value            The raw parameter value.
+     * @param paramName        The parameter name.
+     * @param schemaProperties The schema properties map.
+     * @param logPrefix        The logging prefix for debug output.
+     * @return                 The coerced value.
+     */
+    private Object coerceValueBySchema(Object value, String paramName, Map<String, Object> schemaProperties, String logPrefix) {
+        // If no schema property defined for this parameter, return as-is
+        if (!schemaProperties.containsKey(paramName)) {
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'No schema definition for parameter "' + paramName + '", keeping original type');
+            return value;
+        }
+
+        Map<String, Object> propertySchema = (Map<String, Object>) schemaProperties.get(paramName);
+        String schemaType = (String) propertySchema.get('type');
+
+        if (String.isBlank(schemaType)) {
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'No type specified in schema for parameter "' + paramName + '", keeping original type');
+            return value;
+        }
+
+        try {
+            switch on schemaType.toLowerCase() {
+                when 'string' {
+                    // Check for format hints for special string types
+                    String format = (String) propertySchema.get('format');
+                    if (format == 'salesforce-id' || format == 'id') {
+                        return TypeCoercionService.coerceToId(value, paramName);
+                    } else if (format == 'date') {
+                        return TypeCoercionService.coerceToDate(value, paramName);
+                    } else if (format == 'date-time' || format == 'datetime') {
+                        return TypeCoercionService.coerceToDateTime(value, paramName);
+                    } else if (format == 'email') {
+                        // Email format - validate using centralized TypeCoercionService
+                        return TypeCoercionService.coerceToEmailString(value, paramName);
+                    } else if (format == 'url' || format == 'uri') {
+                        // URL format - validate using centralized TypeCoercionService
+                        return TypeCoercionService.coerceToUrlString(value, paramName);
+                    }
+                    return TypeCoercionService.coerceToString(value, paramName, null);
+                }
+                when 'integer' {
+                    return TypeCoercionService.coerceToInteger(value, paramName);
+                }
+                when 'number' {
+                    return TypeCoercionService.coerceToDecimal(value, paramName);
+                }
+                when 'boolean' {
+                    return TypeCoercionService.coerceToBoolean(value, paramName);
+                }
+                when 'array' {
+                    // NEW: Handle array type recursively using enhanced TypeCoercionService
+                    Map<String, Object> itemsSchema = (Map<String, Object>) propertySchema.get('items');
+                    if (itemsSchema == null) {
+                        System.debug(
+                            LoggingLevel.DEBUG,
+                            logPrefix + 'No items schema defined for array parameter "' + paramName + '", keeping original array'
+                        );
+                        return value;
+                    }
+                    System.debug(
+                        LoggingLevel.DEBUG,
+                        logPrefix + 'Recursively processing array parameter "' + paramName + '" with items schema type: ' + itemsSchema.get('type')
+                    );
+                    return TypeCoercionService.coerceArrayBySchema(value, paramName, itemsSchema);
+                }
+                when 'object' {
+                    // NEW: Handle object type recursively using enhanced TypeCoercionService
+                    Map<String, Object> propertiesSubSchema = (Map<String, Object>) propertySchema.get('properties');
+                    if (propertiesSubSchema == null) {
+                        System.debug(
+                            LoggingLevel.DEBUG,
+                            logPrefix + 'No properties schema defined for object parameter "' + paramName + '", keeping original object'
+                        );
+                        return value;
+                    }
+                    System.debug(
+                        LoggingLevel.DEBUG,
+                        logPrefix +
+                            'Recursively processing object parameter "' +
+                            paramName +
+                            '" with ' +
+                            propertiesSubSchema.size() +
+                            ' property schemas'
+                    );
+                    return TypeCoercionService.coerceObjectBySchema(value, paramName, propertiesSubSchema);
+                }
+                when else {
+                    System.debug(
+                        LoggingLevel.DEBUG,
+                        logPrefix + 'Unsupported schema type "' + schemaType + '" for parameter "' + paramName + '", keeping original type'
+                    );
+                    return value;
+                }
+            }
+        } catch (TypeCoercionService.TypeCoercionException e) {
+            // Convert TypeCoercionService exceptions to ValidationException for consistency
+            throw new ValidationException('Type coercion failed for parameter "' + paramName + '": ' + e.getMessage(), paramName, e);
+        } catch (ValidationException e) {
+            // Re-throw validation exceptions
+            throw e;
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.WARN,
+                logPrefix + 'Failed to coerce parameter "' + paramName + '" to type "' + schemaType + '": ' + e.getMessage()
+            );
+            return value;
+        }
+    }
+
+    /**
+     * Returns a default empty JSON Schema structure.
+     *
+     * @return The default schema map.
+     */
+    private Map<String, Object> getDefaultSchema() {
+        return new Map<String, Object>{ 'type' => 'object', 'properties' => new Map<String, Object>() };
     }
 
     /**
@@ -189,67 +464,55 @@ public abstract class BaseAgentAction implements IAgentAction {
      *
      * @param params   The processed parameter map.
      * @param logPrefix The logging prefix for debug output.
-     * @throws ActionSecurityException if object access is denied.
+     * @return         ActionOutcome indicating success or failure with security violation details.
      */
-    private void performIntelligentSecurityChecks(Map<String, Object> params, String logPrefix) {
-        for (String paramName : params.keySet()) {
-            Object value = params.get(paramName);
+    private ActionOutcome performIntelligentSecurityChecks(Map<String, Object> params, String logPrefix) {
+        try {
+            for (String paramName : params.keySet()) {
+                Object value = params.get(paramName);
 
-            // Check ID parameters for object access
-            if (value instanceof Id && (paramName.toLowerCase().endsWith('id') || paramName.toLowerCase().contains('recordid'))) {
-                Id recordId = (Id) value;
-                SObjectType objType = recordId.getSObjectType();
+                // Check ID parameters for object access
+                if (value instanceof Id && (paramName.toLowerCase().endsWith('id') || paramName.toLowerCase().contains('recordid'))) {
+                    Id recordId = (Id) value;
+                    SObjectType objType = recordId.getSObjectType();
 
-                // Intelligent access type detection based on action name
-                String actionName = String.valueOf(this).toLowerCase();
-                System.AccessType accessType = System.AccessType.READABLE; // Default
+                    // Intelligent access type detection based on action name
+                    String actionName = String.valueOf(this).toLowerCase();
+                    System.AccessType accessType = System.AccessType.READABLE; // Default
 
-                if (actionName.contains('create')) {
-                    accessType = System.AccessType.CREATABLE;
-                } else if (actionName.contains('update') || actionName.contains('edit')) {
-                    accessType = System.AccessType.UPDATABLE;
-                } else if (actionName.contains('delete')) {
-                    accessType = System.AccessType.UPDATABLE; // Use UPDATABLE for delete operations
+                    if (actionName.contains('create')) {
+                        accessType = System.AccessType.CREATABLE;
+                    } else if (actionName.contains('update') || actionName.contains('edit')) {
+                        accessType = System.AccessType.UPDATABLE;
+                    } else if (actionName.contains('delete')) {
+                        accessType = System.AccessType.UPDATABLE; // Use UPDATABLE for delete operations
+                    }
+
+                    SecurityUtils.checkObjectPermission(objType, accessType);
                 }
-
-                SecurityUtils.checkObjectPermission(objType, accessType);
             }
+            return ActionOutcome.success();
+        } catch (SecurityUtils.ActionSecurityException ase) {
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ase.getMessage());
+        } catch (Exception e) {
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Security validation failed: ' + e.getMessage());
         }
     }
 
     /**
-     * Automatically wraps action results in standardized ActionResult format.
-     * Handles various return types including strings, custom objects, and existing ActionResults.
+     * Converts an ActionOutcome object to ActionResult for framework compatibility.
+     * This maintains backward compatibility with the orchestration service while using the new ActionOutcome pattern internally.
      *
-     * @param result   The raw result from executeAction().
+     * @param actionOutcome The ActionOutcome from executeAction().
      * @param logPrefix The logging prefix for debug output.
      * @return         The standardized ActionResult.
      */
-    private ActionResult intelligentResultWrapping(Object result, String logPrefix) {
-        if (result == null) {
-            return successWithData(new Map<String, Object>(), 'Action completed successfully', 'No data returned');
+    private ActionResult convertOutcomeToActionResult(ActionOutcome actionOutcome, String logPrefix) {
+        if (actionOutcome == null) {
+            return runtimeError('Action returned null ActionOutcome', AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT, null);
         }
 
-        if (result instanceof ActionResult) {
-            return (ActionResult) result;
-        }
-
-        if (result instanceof String) {
-            return successWithData(new Map<String, Object>(), (String) result, 'String result returned');
-        }
-
-        // For custom result objects, extract public properties intelligently
-        Map<String, Object> dataMap = extractObjectProperties(result);
-
-        // Try to find a user message in the result object
-        String userMessage = 'Action completed successfully';
-        if (dataMap.containsKey('message')) {
-            userMessage = String.valueOf(dataMap.get('message'));
-        } else if (dataMap.containsKey('userMessage')) {
-            userMessage = String.valueOf(dataMap.get('userMessage'));
-        }
-
-        return successWithData(dataMap, userMessage, 'Object result returned');
+        return actionOutcome.toActionResult(getLogPrefixName());
     }
 
     // ============================================================================
@@ -279,203 +542,6 @@ public abstract class BaseAgentAction implements IAgentAction {
                 throw new ValidationException('Invalid ActionConfiguration JSON: ' + e.getMessage(), e);
             }
         }
-    }
-
-    // ============================================================================
-    // --- ActionResult Helper Methods ---
-    // ============================================================================
-
-    /**
-     * Creates a successful ActionResult with clean, standardized structure.
-     *
-     * @param businessData   Pure business data without any framework fields.
-     * @param messageForUser Human-readable success message.
-     * @param internalDetails Internal logging details.
-     * @param metadata       Optional metadata for complex scenarios.
-     * @return               The standardized ActionResult.
-     */
-    protected ActionResult successWithData(Object businessData, String messageForUser, String internalDetails, Map<String, Object> metadata) {
-        Map<String, Object> cleanOutput = new Map<String, Object>{
-            'success' => true,
-            'messageForUser' => messageForUser,
-            'data' => businessData ?? new Map<String, Object>()
-        };
-
-        if (metadata != null && !metadata.isEmpty()) {
-            cleanOutput.put('metadata', metadata);
-        }
-
-        return new ActionResult(cleanOutput, internalDetails);
-    }
-
-    /**
-     * Creates a successful ActionResult with clean structure (no metadata).
-     *
-     * @param businessData   Pure business data without any framework fields.
-     * @param messageForUser Human-readable success message.
-     * @param internalDetails Internal logging details.
-     * @return               The standardized ActionResult.
-     */
-    protected ActionResult successWithData(Object businessData, String messageForUser, String internalDetails) {
-        return successWithData(businessData, messageForUser, internalDetails, null);
-    }
-
-    /**
-     * Creates a validation error ActionResult with clean structure.
-     *
-     * @param details   The validation error details.
-     * @param fieldName The name of the field that failed validation, if any.
-     * @return          The standardized ActionResult.
-     */
-    protected ActionResult validationError(String details, String fieldName) {
-        String toolName = this.getLogPrefixName();
-        String llmErrorMessage =
-            'Invalid input' +
-            (String.isNotBlank(fieldName) ? ' for parameter "' + fieldName + '"' : '') +
-            ' in the ' +
-            toolName +
-            ' action. Details: ' +
-            details;
-
-        Map<String, Object> cleanOutput = new Map<String, Object>{
-            'success' => false,
-            'errorCode' => AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-            'messageForUser' => llmErrorMessage,
-            'data' => new Map<String, Object>()
-        };
-
-        return new ActionResult(cleanOutput, 'Validation Error: ' + details, AIAgentConstants.ERR_CODE_INPUT_VALIDATION);
-    }
-
-    /**
-     * Creates a security error ActionResult with clean structure.
-     *
-     * @param details The security error details.
-     * @return        The standardized ActionResult.
-     */
-    protected ActionResult securityError(String details) {
-        String toolName = this.getLogPrefixName();
-        String llmErrorMessage = 'The ' + toolName + ' action was denied due to security restrictions. Details: ' + details;
-
-        Map<String, Object> cleanOutput = new Map<String, Object>{
-            'success' => false,
-            'errorCode' => AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
-            'messageForUser' => llmErrorMessage,
-            'data' => new Map<String, Object>()
-        };
-
-        return new ActionResult(cleanOutput, details, AIAgentConstants.ERR_CODE_PERMISSION_DENIED);
-    }
-
-    /**
-     * Creates a DML error ActionResult with clean structure.
-     *
-     * @param genericMessage    The generic error message.
-     * @param dmlErrors         The list of DML errors.
-     * @param suggestedErrorCode The suggested error code, if any.
-     * @return                  The standardized ActionResult.
-     */
-    protected ActionResult dmlError(String genericMessage, List<Database.Error> dmlErrors, String suggestedErrorCode) {
-        String toolName = this.getLogPrefixName();
-        String primaryErrorCode = suggestedErrorCode ?? AIAgentConstants.ERR_CODE_DML_ERROR;
-        String firstDmlMessage = 'A database error occurred.';
-
-        List<String> errorDetailsList = new List<String>();
-        if (dmlErrors != null && !dmlErrors.isEmpty()) {
-            StatusCode firstStatusCode = dmlErrors[0].getStatusCode();
-            primaryErrorCode = mapStatusCodeToErrorCode(firstStatusCode, primaryErrorCode);
-            firstDmlMessage = dmlErrors[0].getMessage();
-
-            for (Database.Error err : dmlErrors) {
-                String fieldStr = String.join(err.getFields() ?? new List<String>(), ',');
-                errorDetailsList.add('[Fields:(' + fieldStr + '), Status:' + err.getStatusCode() + ', Msg:' + err.getMessage() + ']');
-            }
-        }
-        String internalDetailsForLog = (genericMessage ?? '') + ' Details: ' + String.join(errorDetailsList, '; ');
-
-        String llmErrorMessage = 'A database error occurred while executing the ' + toolName + ' action: ' + firstDmlMessage;
-
-        Map<String, Object> cleanOutput = new Map<String, Object>{
-            'success' => false,
-            'errorCode' => primaryErrorCode,
-            'messageForUser' => llmErrorMessage,
-            'data' => new Map<String, Object>()
-        };
-
-        return new ActionResult(cleanOutput, internalDetailsForLog, primaryErrorCode);
-    }
-
-    /**
-     * Maps DML StatusCode enum values to framework error codes.
-     *
-     * @param statusCodeStr The status code as a string.
-     * @param defaultCode   The default error code to use if no mapping is found.
-     * @return              The mapped error code.
-     */
-    private String mapStatusCodeToErrorCode(String statusCodeStr, String defaultCode) {
-        if (statusCodeStr == null)
-            return defaultCode;
-
-        if (statusCodeStr == 'UNABLE_TO_LOCK_ROW')
-            return AIAgentConstants.ERR_CODE_RECORD_LOCKED;
-        if (statusCodeStr == 'FIELD_CUSTOM_VALIDATION_EXCEPTION')
-            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
-        if (statusCodeStr == 'REQUIRED_FIELD_MISSING')
-            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
-        if (statusCodeStr == 'INSUFFICIENT_ACCESS_OR_READONLY' || statusCodeStr == 'CANNOT_INSERT_UPDATE_ACTIVATE_ENTITY')
-            return AIAgentConstants.ERR_CODE_PERMISSION_DENIED;
-        if (
-            statusCodeStr == 'INVALID_CROSS_REFERENCE_KEY' ||
-            statusCodeStr == 'INVALID_FIELD_FOR_INSERT_UPDATE' ||
-            statusCodeStr == 'INVALID_ID_FIELD'
-        )
-            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
-        if (statusCodeStr == 'STRING_TOO_LONG')
-            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
-        if (statusCodeStr == 'DUPLICATE_VALUE')
-            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
-        if (statusCodeStr == 'FIELD_FILTER_VALIDATION_EXCEPTION')
-            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
-        if (statusCodeStr == 'DELETE_FAILED')
-            return AIAgentConstants.ERR_CODE_DML_ERROR;
-
-        return defaultCode;
-    }
-
-    private String mapStatusCodeToErrorCode(System.StatusCode statusCode, String defaultCode) {
-        return statusCode != null ? mapStatusCodeToErrorCode(statusCode.name(), defaultCode) : defaultCode;
-    }
-
-    /**
-     * Creates a runtime error ActionResult with clean structure.
-     *
-     * @param internalMessage The internal error message.
-     * @param errorCode       The error code to use.
-     * @param caughtException The caught exception, if any.
-     * @return                The standardized ActionResult.
-     */
-    protected ActionResult runtimeError(String internalMessage, String errorCode, Exception caughtException) {
-        String toolName = this.getLogPrefixName();
-        String finalErrorCode = String.isNotBlank(errorCode) ? errorCode : AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
-        String llmErrorMessage =
-            'An unexpected internal error occurred while running the ' +
-            toolName +
-            ' action. The system reported: ' +
-            internalMessage;
-
-        Map<String, Object> cleanOutput = new Map<String, Object>{
-            'success' => false,
-            'errorCode' => finalErrorCode,
-            'messageForUser' => llmErrorMessage,
-            'data' => new Map<String, Object>()
-        };
-
-        String detailsForLogging = 'Runtime Error: ' + (internalMessage ?? 'No details available.');
-        if (caughtException != null) {
-            detailsForLogging += ' (Type: ' + caughtException.getTypeName() + ')';
-        }
-
-        return new ActionResult(cleanOutput, detailsForLogging, finalErrorCode);
     }
 
     // ============================================================================
@@ -541,55 +607,162 @@ public abstract class BaseAgentAction implements IAgentAction {
         return this.runtimeError(ex.getMessage(), AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex);
     }
 
-    // ============================================================================
-    // --- Type Coercion Helpers for Simplified Actions ---
-    // ============================================================================
+    /**
+     * Maps DML StatusCode enum values to framework error codes.
+     *
+     * @param statusCodeStr The status code as a string.
+     * @param defaultCode   The default error code to use if no mapping is found.
+     * @return              The mapped error code.
+     */
+    private String mapStatusCodeToErrorCode(String statusCodeStr, String defaultCode) {
+        if (statusCodeStr == null)
+            return defaultCode;
 
-    private Id coerceToId(Object value, String paramName) {
-        if (value instanceof Id) {
-            return (Id) value;
-        }
-        if (value instanceof String && String.isNotBlank((String) value)) {
-            try {
-                return Id.valueOf((String) value);
-            } catch (Exception e) {
-                throw new ValidationException('Invalid ID format for parameter "' + paramName + '": ' + value, paramName);
-            }
-        }
-        throw new ValidationException('Parameter "' + paramName + '" must be a valid Salesforce ID', paramName);
+        if (statusCodeStr == 'UNABLE_TO_LOCK_ROW')
+            return AIAgentConstants.ERR_CODE_RECORD_LOCKED;
+        if (statusCodeStr == 'FIELD_CUSTOM_VALIDATION_EXCEPTION')
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+        if (statusCodeStr == 'REQUIRED_FIELD_MISSING')
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+        if (statusCodeStr == 'INSUFFICIENT_ACCESS_OR_READONLY' || statusCodeStr == 'CANNOT_INSERT_UPDATE_ACTIVATE_ENTITY')
+            return AIAgentConstants.ERR_CODE_PERMISSION_DENIED;
+        if (
+            statusCodeStr == 'INVALID_CROSS_REFERENCE_KEY' ||
+            statusCodeStr == 'INVALID_FIELD_FOR_INSERT_UPDATE' ||
+            statusCodeStr == 'INVALID_ID_FIELD'
+        )
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+        if (statusCodeStr == 'STRING_TOO_LONG')
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+        if (statusCodeStr == 'DUPLICATE_VALUE')
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+        if (statusCodeStr == 'FIELD_FILTER_VALIDATION_EXCEPTION')
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+        if (statusCodeStr == 'DELETE_FAILED')
+            return AIAgentConstants.ERR_CODE_DML_ERROR;
+
+        return defaultCode;
     }
 
-    private Integer coerceToInteger(Object value, String paramName) {
-        if (value instanceof Integer) {
-            return (Integer) value;
-        }
-        if (value instanceof Decimal) {
-            return ((Decimal) value).intValue();
-        }
-        if (value instanceof String && String.isNotBlank((String) value)) {
-            try {
-                return Integer.valueOf((String) value);
-            } catch (Exception e) {
-                throw new ValidationException('Invalid Integer format for parameter "' + paramName + '": ' + value, paramName);
-            }
-        }
-        return null;
+    private String mapStatusCodeToErrorCode(System.StatusCode statusCode, String defaultCode) {
+        return statusCode != null ? mapStatusCodeToErrorCode(statusCode.name(), defaultCode) : defaultCode;
     }
 
-    private Boolean coerceToBoolean(Object value, String paramName) {
-        if (value instanceof Boolean) {
-            return (Boolean) value;
-        }
-        if (value instanceof String) {
-            String strValue = ((String) value).toLowerCase();
-            if (strValue == 'true' || strValue == '1' || strValue == 'yes') {
-                return true;
+    /**
+     * Creates a DML error ActionResult with clean structure.
+     *
+     * @param genericMessage    The generic error message.
+     * @param dmlErrors         The list of DML errors.
+     * @param suggestedErrorCode The suggested error code, if any.
+     * @return                  The standardized ActionResult.
+     */
+    private ActionResult dmlError(String genericMessage, List<Database.Error> dmlErrors, String suggestedErrorCode) {
+        String toolName = this.getLogPrefixName();
+        String primaryErrorCode = suggestedErrorCode ?? AIAgentConstants.ERR_CODE_DML_ERROR;
+        String firstDmlMessage = 'A database error occurred.';
+
+        List<String> errorDetailsList = new List<String>();
+        if (dmlErrors != null && !dmlErrors.isEmpty()) {
+            StatusCode firstStatusCode = dmlErrors[0].getStatusCode();
+            primaryErrorCode = mapStatusCodeToErrorCode(firstStatusCode, primaryErrorCode);
+            firstDmlMessage = dmlErrors[0].getMessage();
+
+            for (Database.Error err : dmlErrors) {
+                String fieldStr = String.join(err.getFields() ?? new List<String>(), ',');
+                errorDetailsList.add('[Fields:(' + fieldStr + '), Status:' + err.getStatusCode() + ', Msg:' + err.getMessage() + ']');
             }
-            if (strValue == 'false' || strValue == '0' || strValue == 'no') {
-                return false;
-            }
         }
-        return null;
+        String internalDetailsForLog = (genericMessage ?? '') + ' Details: ' + String.join(errorDetailsList, '; ');
+
+        String llmErrorMessage = 'A database error occurred while executing the ' + toolName + ' action: ' + firstDmlMessage;
+
+        Map<String, Object> cleanOutput = new Map<String, Object>{
+            'success' => false,
+            'errorCode' => primaryErrorCode,
+            'messageForUser' => llmErrorMessage,
+            'data' => new Map<String, Object>()
+        };
+
+        return new ActionResult(cleanOutput, internalDetailsForLog, primaryErrorCode);
+    }
+
+    /**
+     * Creates a validation error ActionResult with clean structure.
+     *
+     * @param details   The validation error details.
+     * @param fieldName The name of the field that failed validation, if any.
+     * @return          The standardized ActionResult.
+     */
+    private ActionResult validationError(String details, String fieldName) {
+        String toolName = this.getLogPrefixName();
+        String llmErrorMessage =
+            'Invalid input' +
+            (String.isNotBlank(fieldName) ? ' for parameter "' + fieldName + '"' : '') +
+            ' in the ' +
+            toolName +
+            ' action. Details: ' +
+            details;
+
+        Map<String, Object> cleanOutput = new Map<String, Object>{
+            'success' => false,
+            'errorCode' => AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+            'messageForUser' => llmErrorMessage,
+            'data' => new Map<String, Object>()
+        };
+
+        return new ActionResult(cleanOutput, 'Validation Error: ' + details, AIAgentConstants.ERR_CODE_INPUT_VALIDATION);
+    }
+
+    /**
+     * Creates a security error ActionResult with clean structure.
+     *
+     * @param details The security error details.
+     * @return        The standardized ActionResult.
+     */
+    private ActionResult securityError(String details) {
+        String toolName = this.getLogPrefixName();
+        String llmErrorMessage = 'The ' + toolName + ' action was denied due to security restrictions. Details: ' + details;
+
+        Map<String, Object> cleanOutput = new Map<String, Object>{
+            'success' => false,
+            'errorCode' => AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
+            'messageForUser' => llmErrorMessage,
+            'data' => new Map<String, Object>()
+        };
+
+        return new ActionResult(cleanOutput, details, AIAgentConstants.ERR_CODE_PERMISSION_DENIED);
+    }
+
+    /**
+     * Creates a runtime error ActionResult with clean structure.
+     *
+     * @param internalMessage The internal error message.
+     * @param errorCode       The error code to use.
+     * @param caughtException The caught exception, if any.
+     * @return                The standardized ActionResult.
+     */
+    private ActionResult runtimeError(String internalMessage, String errorCode, Exception caughtException) {
+        String toolName = this.getLogPrefixName();
+        String finalErrorCode = String.isNotBlank(errorCode) ? errorCode : AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
+        String llmErrorMessage =
+            'An unexpected internal error occurred while running the ' +
+            toolName +
+            ' action. The system reported: ' +
+            internalMessage;
+
+        Map<String, Object> cleanOutput = new Map<String, Object>{
+            'success' => false,
+            'errorCode' => finalErrorCode,
+            'messageForUser' => llmErrorMessage,
+            'data' => new Map<String, Object>()
+        };
+
+        String detailsForLogging = 'Runtime Error: ' + (internalMessage ?? 'No details available.');
+        if (caughtException != null) {
+            detailsForLogging += ' (Type: ' + caughtException.getTypeName() + ')';
+        }
+
+        return new ActionResult(cleanOutput, detailsForLogging, finalErrorCode);
     }
 
     /**

@@ -34,43 +34,55 @@ public class ActionFlowHandler extends BaseAgentAction {
      * Main entry point for Flow execution. Validates Flow name and parameters, executes the Flow, and processes results.
      *
      * @param params Map<String, Object> - Flow input variables.
-     * @return FlowResult - Contains Flow output and execution details.
-     * @throws ValidationException if Flow name is missing/invalid or Flow execution fails.
+     * @return Result<FlowResult> - Contains Flow output and execution details or error information.
      *
      * Side effects: Logs key steps, parameters, and performance metrics for troubleshooting and monitoring.
      */
-    public override Object executeAction(Map<String, Object> params) {
+    public override ActionOutcome executeAction(Map<String, Object> params) {
         Long startTime = System.currentTimeMillis();
 
-        String flowApiName = validateFlowApiName();
+        ActionOutcome flowNameResult = validateFlowApiName();
+        if (!flowNameResult.isSuccess) {
+            return flowNameResult;
+        }
+        String flowApiName = (String) flowNameResult.data;
+
         Map<String, Object> flowParams = validateFlowParameters(params);
 
         System.debug(LoggingLevel.INFO, '[ActionFlowHandler] Starting execution of Flow: "' + flowApiName + '"');
         System.debug(LoggingLevel.DEBUG, '[ActionFlowHandler] Flow input parameters: ' + JSON.serialize(flowParams).abbreviate(500));
 
-        Flow.Interview flowInterview = executeFlow(flowApiName, flowParams);
-        Object flowResult = processFlowResults(flowInterview, flowApiName);
+        ActionOutcome flowExecutionResult = executeFlow(flowApiName, flowParams);
+        if (!flowExecutionResult.isSuccess) {
+            return flowExecutionResult;
+        }
+        Flow.Interview flowInterview = (Flow.Interview) flowExecutionResult.data;
+
+        ActionOutcome flowResultsResult = processFlowResults(flowInterview, flowApiName);
+        if (!flowResultsResult.isSuccess) {
+            return flowResultsResult;
+        }
+        Object flowResult = flowResultsResult.data;
 
         Long executionTime = System.currentTimeMillis() - startTime;
         System.debug(LoggingLevel.INFO, '[ActionFlowHandler] Flow execution for "' + flowApiName + '" completed in ' + executionTime + ' ms.');
 
-        return new FlowResult(flowApiName, flowResult, 'Flow "' + flowApiName + '" completed successfully.');
+        return ActionOutcome.success(new FlowResult(flowApiName, flowResult, 'Flow "' + flowApiName + '" completed successfully.'));
     }
 
     /**
      * @description
      * Validates and extracts the Flow API name from admin configuration (Implementation Detail field).
      *
-     * @return String - Valid Flow API name from admin configuration.
-     * @throws ValidationException if the Flow API name is missing or contains invalid characters.
+     * @return ActionOutcome<String> - Valid Flow API name from admin configuration or error information.
      */
-    private String validateFlowApiName() {
+    private ActionOutcome validateFlowApiName() {
         String flowApiName = this.actionContext?.implementationDetail;
 
         if (String.isBlank(flowApiName)) {
-            throw new ValidationException(
-                'Agent Capability is missing Implementation Detail. Admin must configure the Flow API Name.',
-                'ImplementationDetail__c'
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                'Agent Capability is missing Implementation Detail. Admin must configure the Flow API Name.'
             );
         }
 
@@ -78,7 +90,7 @@ public class ActionFlowHandler extends BaseAgentAction {
             System.debug(LoggingLevel.WARN, '[ActionFlowHandler] Flow API Name contains spaces or dots, which may cause issues: ' + flowApiName);
         }
 
-        return flowApiName;
+        return ActionOutcome.success(flowApiName);
     }
 
     /**
@@ -151,24 +163,23 @@ public class ActionFlowHandler extends BaseAgentAction {
      *
      * @param flowApiName String - Name of the Flow to execute.
      * @param flowParams Map<String, Object> - Input parameters for the Flow.
-     * @return Flow.Interview - The Flow.Interview instance after execution.
-     * @throws ValidationException if Flow interview creation or execution fails.
+     * @return ActionOutcome<Flow.Interview> - The Flow.Interview instance after execution or error information.
      */
-    private Flow.Interview executeFlow(String flowApiName, Map<String, Object> flowParams) {
+    private ActionOutcome executeFlow(String flowApiName, Map<String, Object> flowParams) {
         try {
             Flow.Interview flowInterview = Flow.Interview.createInterview(flowApiName, flowParams);
 
             if (flowInterview == null) {
-                throw new ValidationException('Failed to create Flow interview for: ' + flowApiName, 'ImplementationDetail__c');
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Failed to create Flow interview for: ' + flowApiName);
             }
 
             flowInterview.start();
-            return flowInterview;
+            return ActionOutcome.success(flowInterview);
         } catch (Exception ex) {
             String enhancedMessage = 'Flow execution failed for "' + flowApiName + '": ' + ex.getMessage();
             System.debug(LoggingLevel.ERROR, '[ActionFlowHandler] Flow execution error: ' + enhancedMessage);
             System.debug(LoggingLevel.DEBUG, '[ActionFlowHandler] Exception stack trace: ' + ex.getStackTraceString());
-            throw new ValidationException(enhancedMessage, 'ImplementationDetail__c');
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, enhancedMessage);
         }
     }
 
@@ -178,16 +189,15 @@ public class ActionFlowHandler extends BaseAgentAction {
      *
      * @param flowInterview Flow.Interview - Executed Flow interview instance.
      * @param flowApiName String - Flow name for error context.
-     * @return Object - Flow output result or throws exception for faults.
-     * @throws ValidationException if the Flow reports a fault via the faultMessage variable.
+     * @return ActionOutcome<Object> - Flow output result or error information.
      */
-    private Object processFlowResults(Flow.Interview flowInterview, String flowApiName) {
+    private ActionOutcome processFlowResults(Flow.Interview flowInterview, String flowApiName) {
         Object faultMessageValue = flowInterview.getVariableValue(FAULT_MESSAGE_VAR);
         if (faultMessageValue instanceof String && String.isNotBlank((String) faultMessageValue)) {
             String faultMessage = (String) faultMessageValue;
             String enhancedError = 'Flow "' + flowApiName + '" reported failure via "' + FAULT_MESSAGE_VAR + '": ' + faultMessage;
             System.debug(LoggingLevel.ERROR, '[ActionFlowHandler] Flow reported failure: ' + enhancedError);
-            throw new ValidationException(enhancedError, FAULT_MESSAGE_VAR);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, enhancedError);
         }
 
         Object flowDataPayload = flowInterview.getVariableValue(OUTPUT_RESULT_VAR);
@@ -198,7 +208,7 @@ public class ActionFlowHandler extends BaseAgentAction {
         }
 
         System.debug(LoggingLevel.INFO, '[ActionFlowHandler] Flow "' + flowApiName + '" completed successfully. Returning output result.');
-        return flowDataPayload;
+        return ActionOutcome.success(flowDataPayload);
     }
 
     /**
@@ -209,6 +219,7 @@ public class ActionFlowHandler extends BaseAgentAction {
      * @param actionConfigurationJson String - The JSON configuration string (optional).
      * @param logPrefix String - Prefix for log output.
      */
+    @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
         if (this.parsedActionConfig != null && !this.parsedActionConfig.isEmpty()) {

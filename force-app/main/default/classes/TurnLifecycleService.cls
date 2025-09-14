@@ -121,29 +121,8 @@ public inherited sharing class TurnLifecycleService {
                 (finalAssistantMessageId != null ? (', FinalMsg=' + finalAssistantMessageId) : '')
         );
 
-        // Record successful turn completion in orchestration logs
-        OrchestrationLogger.logStep(
-            sessionId,
-            turnIdentifier,
-            OrchestrationLogger.TYPE_TURN_COMPLETE,
-            OrchestrationLogger.STATUS_SUCCESS,
-            'Turn completed successfully',
-            null,
-            new Map<String, Object>{ 'finalMessageId' => finalAssistantMessageId },
-            null,
-            null,
-            null,
-            finalAssistantMessageId,
-            null,
-            null,
-            null
-        );
-
         this.stateService.updateFinalStatus(sessionId, true, null, turnIdentifier);
         this.stateService.publishFinalResponseEvent(sessionId, true, finalAssistantMessageId, null, turnIdentifier);
-
-        // Finalize orchestration logs and clean up turn resources
-        OrchestrationLogger.commitLogsAndCleanupTurn(turnIdentifier);
     }
 
     /**
@@ -162,29 +141,8 @@ public inherited sharing class TurnLifecycleService {
             logPrefix + 'TurnLifecycleService: FAILED state for Turn=' + turnIdentifier + '. Error=' + errorDetailForState
         );
 
-        // Record turn failure in orchestration logs
-        OrchestrationLogger.logStep(
-            sessionId,
-            turnIdentifier,
-            OrchestrationLogger.TYPE_TURN_FAIL,
-            OrchestrationLogger.STATUS_FAILURE,
-            'Turn failed',
-            null,
-            null,
-            errorMessage,
-            errorCode,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-
         this.stateService.updateFinalStatus(sessionId, false, errorDetailForState?.abbreviate(131072), turnIdentifier);
         this.stateService.publishFinalResponseEvent(sessionId, false, null, errorMessage?.abbreviate(255), turnIdentifier);
-
-        // Finalize orchestration logs and clean up turn resources even on failure
-        OrchestrationLogger.commitLogsAndCleanupTurn(turnIdentifier);
     }
 
     /**

@@ -10,7 +10,7 @@
  * @description
  * AgentJobEnqueuer is the central service for dispatching asynchronous jobs within the AI Agent Framework.
  * It is responsible for reliably publishing platform events that trigger follow-up LLM interactions,
- * action executions, and graph processing steps. The class ensures:
+ * and action executions. The class ensures:
  *   - Consistent, testable job dispatch logic for all asynchronous agent operations
  *   - Comprehensive error handling and session state management on dispatch failures
  *   - Clear, actionable debug output for troubleshooting and operational transparency
@@ -208,40 +208,6 @@ public inherited sharing class AgentJobEnqueuer {
         }
         // Always re-throw to notify the calling orchestrator of the dispatch failure
         throw new DispatchException('Failed to dispatch ' + jobDescription, enqueueException);
-    }
-
-    /**
-     * Publishes a platform event to enqueue a graph processing step for a given capability.
-     *
-     * @param sessionId        The ID of the chat session.
-     * @param graphCapabilityId The ID of the capability representing the graph step.
-     * @throws DispatchException if event publication fails.
-     */
-    public void enqueueGraphStep(Id sessionId, Id graphCapabilityId) {
-        String logPrefix = '[AgentJobEnqueuer Sess:' + sessionId + '] ';
-        String jobDescription = 'GraphStep job/event';
-
-        try {
-            Map<String, Object> payload = new Map<String, Object>{ 'sessionId' => sessionId, 'graphCapabilityId' => graphCapabilityId };
-            AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
-                SessionId__c = sessionId,
-                TurnIdentifier__c = null,
-                JobType__c = 'GraphStep',
-                Payload__c = JSON.serialize(payload)
-            );
-            Database.SaveResult sr = EventBus.publish(event);
-            if (!sr.isSuccess()) {
-                String errMsg = logPrefix + '[AgentJobEnqueuer] EventBus.publish failed for GraphStep: ' + JSON.serialize(sr.getErrors());
-                System.debug(LoggingLevel.ERROR, errMsg);
-                throw new AgentJobEnqueuerException('Failed to publish GraphStep event: ' + errMsg);
-            }
-            System.debug(
-                LoggingLevel.INFO,
-                logPrefix + '[AgentJobEnqueuer] Published GraphStep event for capabilityId=' + graphCapabilityId + ', sessionId=' + sessionId
-            );
-        } catch (Exception e) {
-            this.handleDispatchFailure(sessionId, null, jobDescription, e, logPrefix);
-        }
     }
 
     public class AgentJobEnqueuerException extends Exception {

@@ -10,11 +10,11 @@
  * @description
  * AIAgentConfigService is the central, high-performance configuration service for the AI Agent Framework.
  * Responsibilities include:
- *   - Providing cached, read-optimized access to AIAgentDefinition__c and LLMConfiguration__c records
+ *   - Providing cached, read-optimized access to AIAgentDefinition__c, LLMConfiguration__c, and AgentCapability__c records
  *   - Supporting lookups by both Salesforce Record IDs and Developer Names (case-insensitive)
- *   - Implementing intelligent, testable caching strategies for optimal performance
- *   - Ensuring robust error handling and clear debug output for maintainability
- *   - Serving as the single source of truth for agent and LLM configuration retrieval
+ *   - Implementing intelligent, testable caching strategies for optimal performance (eliminates SOQL per action execution)
+ *   - Ensuring robust error handling with clear differentiation between 'not found' and 'system error'
+ *   - Serving as the single source of truth for agent, LLM, and capability configuration retrieval
  *
  * This service is designed for extensibility, reliability, and operational transparency.
  */
@@ -25,6 +25,9 @@ public inherited sharing class AIAgentConfigService {
 
     private static Map<Id, LLMConfiguration__c> llmConfigIdCache = new Map<Id, LLMConfiguration__c>();
     private static Map<String, LLMConfiguration__c> llmConfigNameCache = new Map<String, LLMConfiguration__c>(); // Key: DeveloperName (lower case)
+
+    // Cache for AgentCapability records by ID for schema-driven parameter processing
+    private static Map<Id, AgentCapability__c> agentCapabilityIdCache = new Map<Id, AgentCapability__c>();
 
     // Common field lists for queries to ensure consistency
     private static final List<String> AGENT_DEFINITION_FIELDS = new List<String>{
@@ -63,6 +66,65 @@ public inherited sharing class AIAgentConfigService {
         // Add other fields like MaxContextTokens__c, Retry settings if added
     };
 
+    private static final List<String> AGENT_CAPABILITY_FIELDS = new List<String>{
+        'Id',
+        'CapabilityName__c',
+        'Description__c',
+        'Parameters__c', // Critical for schema-driven parameter processing
+        'ImplementationType__c',
+        'ImplementationDetail__c',
+        'StandardActionType__c',
+        'BackendConfiguration__c',
+        'RunAsynchronously__c',
+        'RequiresConfirmation__c',
+        'RequiresApproval__c',
+        'HaltAndReportError__c',
+        'ExposureLevel__c'
+    };
+
+    /**
+     * Retrieves an AgentCapability__c record by its Salesforce Record ID with caching.
+     * Optimized for schema-driven parameter processing in BaseAgentAction.
+     *
+     * @param capabilityId The ID of the AgentCapability__c record.
+     * @return             The AgentCapability__c record, or null if not found.
+     * @throws ConfigurationException on query errors (not for 'not found').
+     */
+    public static AgentCapability__c getCapabilityById(Id capabilityId) {
+        String logPrefix = '[AIAgentCfgSvc] ';
+        if (capabilityId == null) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'getCapabilityById: capabilityId is null.');
+            return null;
+        }
+
+        if (!agentCapabilityIdCache.containsKey(capabilityId)) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Cache MISS for Capability ID: ' + capabilityId + ' - querying database');
+
+            try {
+                String queryString = buildQuery('AgentCapability__c', AGENT_CAPABILITY_FIELDS, 'Id = :capabilityId');
+                List<AgentCapability__c> results = Database.query(queryString);
+
+                if (results.isEmpty()) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'AgentCapability not found for ID: ' + capabilityId);
+                    return null; // Return null for 'not found' - this is expected behavior
+                }
+
+                AgentCapability__c capability = results[0];
+                agentCapabilityIdCache.put(capabilityId, capability);
+                System.debug(LoggingLevel.DEBUG, logPrefix + 'Cached AgentCapability: ' + capability.CapabilityName__c);
+                return capability;
+            } catch (Exception e) {
+                String errorMsg = 'System error querying AgentCapability by ID: ' + capabilityId;
+                System.debug(LoggingLevel.ERROR, logPrefix + errorMsg + ': ' + e.getMessage());
+                throw new ConfigurationException(errorMsg, e); // Throw for system errors
+            }
+        } else {
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Cache HIT for Capability ID: ' + capabilityId);
+        }
+
+        return agentCapabilityIdCache.get(capabilityId);
+    }
+
     /**
      * Retrieves a complete, active AgentCapability__c record for a given agent definition and capability name.
      *
@@ -78,29 +140,15 @@ public inherited sharing class AIAgentConfigService {
             return null;
         }
 
-        // Start without cache for capabilities, as they are less frequently accessed than agent defs.
-        // Can be added later if performance profiling shows a need.
         System.debug(LoggingLevel.INFO, logPrefix + 'Querying capability "' + capabilityName + '" for Agent: ' + agentDefId);
 
         try {
-            List<AgentCapability__c> capabilities = [
-                SELECT
-                    Id,
-                    CapabilityName__c,
-                    Description__c,
-                    Parameters__c,
-                    ImplementationType__c,
-                    ImplementationDetail__c,
-                    StandardActionType__c,
-                    BackendConfiguration__c,
-                    RunAsynchronously__c,
-                    RequiresConfirmation__c,
-                    RequiresApproval__c,
-                    HaltAndReportError__c
-                FROM AgentCapability__c
-                WHERE AIAgentDefinition__c = :agentDefId AND CapabilityName__c = :capabilityName AND ExposureLevel__c != 'Disabled'
-                LIMIT 1
-            ];
+            String queryString = buildQuery(
+                'AgentCapability__c',
+                AGENT_CAPABILITY_FIELDS,
+                'AIAgentDefinition__c = :agentDefId AND CapabilityName__c = :capabilityName AND ExposureLevel__c != \'Disabled\''
+            );
+            List<AgentCapability__c> capabilities = Database.query(queryString);
 
             if (capabilities.isEmpty()) {
                 System.debug(
@@ -109,9 +157,13 @@ public inherited sharing class AIAgentConfigService {
                 );
                 return null;
             }
-            return capabilities[0];
+
+            AgentCapability__c capability = capabilities[0];
+            // Cache the result for future getCapabilityById calls
+            agentCapabilityIdCache.put(capability.Id, capability);
+            return capability;
         } catch (Exception e) {
-            String errorMsg = 'Error querying AgentCapability "' + capabilityName + '" on Agent ' + agentDefId;
+            String errorMsg = 'System error querying AgentCapability "' + capabilityName + '" on Agent ' + agentDefId;
             System.debug(LoggingLevel.ERROR, logPrefix + errorMsg + ': ' + e.getMessage());
             throw new ConfigurationException(errorMsg, e);
         }
@@ -423,18 +475,6 @@ public inherited sharing class AIAgentConfigService {
         if (String.isNotBlank(llmConfig.DeveloperName__c)) {
             llmConfigNameCache.put(llmConfig.DeveloperName__c.toLowerCase(), llmConfig);
         }
-    }
-
-    /**
-     * Clears all configuration caches. Intended for use in test methods only.
-     */
-    @TestVisible
-    private static void clearCache() {
-        agentDefIdCache.clear();
-        agentDefNameCache.clear();
-        llmConfigIdCache.clear();
-        llmConfigNameCache.clear();
-        System.debug(LoggingLevel.INFO, '[AIAgentConfigService] All caches cleared for testing purposes');
     }
 
     /**

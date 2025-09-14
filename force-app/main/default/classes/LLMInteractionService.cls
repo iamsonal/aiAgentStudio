@@ -73,6 +73,8 @@ public inherited sharing class LLMInteractionService {
     private final String logPrefix;
     private final Id currentPageRecordId;
     private final Boolean isFinalErrorTurn;
+    // Add decision logger reference
+    private final AgentDecisionStepLogger decisionLogger;
 
     public LLMInteractionService(
         Id sessId,
@@ -83,6 +85,21 @@ public inherited sharing class LLMInteractionService {
         Integer turnNum,
         Id pageRecordId,
         Boolean isFinalError
+    ) {
+        this(sessId, usrId, agentDefId, llmConfigId, turnId, turnNum, pageRecordId, isFinalError, null);
+    }
+
+    // New constructor that accepts a decision logger
+    public LLMInteractionService(
+        Id sessId,
+        Id usrId,
+        Id agentDefId,
+        Id llmConfigId,
+        String turnId,
+        Integer turnNum,
+        Id pageRecordId,
+        Boolean isFinalError,
+        AgentDecisionStepLogger decisionLogger
     ) {
         if (sessId == null || usrId == null || agentDefId == null || llmConfigId == null || String.isBlank(turnId) || turnNum == null) {
             throw new IllegalArgumentException('Required arguments cannot be null for LLMInteractionService.');
@@ -95,6 +112,7 @@ public inherited sharing class LLMInteractionService {
         this.currentTurnCount = turnNum;
         this.currentPageRecordId = pageRecordId;
         this.isFinalErrorTurn = (isFinalError == true);
+        this.decisionLogger = decisionLogger;
         this.logPrefix = '[LLMIntSvc Turn:' + turnId?.left(8) + ' Cycle:' + turnNum + '] ';
     }
 
@@ -119,7 +137,8 @@ public inherited sharing class LLMInteractionService {
         AIAgentDefinition__c agentConfig = null;
         LLMConfiguration__c llmConfig = null;
 
-        SystemPromptBuilder promptBuilder = new SystemPromptBuilder();
+        // Create SystemPromptBuilder with decision logger if available
+        SystemPromptBuilder promptBuilder = (this.decisionLogger != null) ? new SystemPromptBuilder(this.decisionLogger) : new SystemPromptBuilder();
 
         try {
             // 1. Load Core Configurations
@@ -210,6 +229,40 @@ public inherited sharing class LLMInteractionService {
             // --- 5. Format Tool Definitions ---
             List<Map<String, Object>> toolsPayload = ToolDefinitionFormatter.formatToolsForApi(agentConfig.Id, logPrefix);
 
+            // Log LLM request if decision logger is available
+            if (this.decisionLogger != null) {
+                // Additionally log the available tools list for better diagnostic visibility
+                if (!toolsPayload.isEmpty()) {
+                    List<String> toolNames = new List<String>();
+                    for (Map<String, Object> tool : toolsPayload) {
+                        if (tool.containsKey('function')) {
+                            Map<String, Object> functionDef = (Map<String, Object>) tool.get('function');
+                            if (functionDef.containsKey('name')) {
+                                toolNames.add((String) functionDef.get('name'));
+                            }
+                        }
+                    }
+
+                    this.decisionLogger.logAvailableTools(
+                        'Available Tools for LLM',
+                        'List of tools made available to the LLM for this turn',
+                        JSON.serialize(
+                            new Map<String, Object>{ 'toolCount' => toolsPayload.size(), 'toolNames' => toolNames, 'tools' => toolsPayload }
+                        ),
+                        null
+                    );
+                }
+
+                Map<String, Object> requestPayload = new Map<String, Object>{ 'messages' => finalMessagesPayload, 'tools' => toolsPayload };
+
+                this.decisionLogger.logLLMRequest(
+                    'LLM Request Prepared',
+                    'Prepared complete LLM request payload with ' + toolsPayload.size() + ' available tools',
+                    JSON.serialize(requestPayload),
+                    null
+                );
+            }
+
             // --- 6. Call LLM (Includes Retries) ---
             Long callStartTime = System.currentTimeMillis();
             try {
@@ -230,6 +283,16 @@ public inherited sharing class LLMInteractionService {
                         ', sessionId=' +
                         this.sessionId
                 );
+
+                // Log LLM response if decision logger is available
+                if (this.decisionLogger != null) {
+                    this.decisionLogger.logLLMResponse(
+                        'LLM Response Received',
+                        'Successfully received response from LLM',
+                        JSON.serialize(llmApiResult),
+                        callDuration
+                    );
+                }
 
                 // Package result DTOs
                 MessageData asstMsgData = new MessageData();
@@ -254,6 +317,19 @@ public inherited sharing class LLMInteractionService {
                         ', sessionId=' +
                         this.sessionId
                 );
+
+                // Log error if decision logger is available
+                if (this.decisionLogger != null) {
+                    this.decisionLogger.logError(
+                        'LLM Call Failed',
+                        'Failed to call LLM API',
+                        AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
+                        callEx.getMessage(),
+                        callEx.getStackTraceString(),
+                        callDuration
+                    );
+                }
+
                 return new LLMInteractionResult('LLM Call Failed: ' + callEx.getMessage(), AIAgentConstants.ERR_CODE_LLM_CALL_FAILED, callEx);
             }
         } catch (Exception ex) {
@@ -267,6 +343,19 @@ public inherited sharing class LLMInteractionService {
                     ', sessionId=' +
                     this.sessionId
             );
+
+            // Log error if decision logger is available
+            if (this.decisionLogger != null) {
+                this.decisionLogger.logError(
+                    'LLM Interaction Setup Failed',
+                    'Critical error during LLM interaction preparation',
+                    AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+                    ex.getMessage(),
+                    ex.getStackTraceString(),
+                    null
+                );
+            }
+
             return new LLMInteractionResult('Interaction Setup Failed: ' + ex.getMessage(), AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex);
         }
     }

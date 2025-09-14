@@ -27,7 +27,7 @@ public class HandleRejectedFrameworkAction {
      *   - Validates the request and associated session
      *   - Writes a rejection message to chat history
      *   - Notifies the user of the rejection and any approver comments
-     *   - Updates the approval request status and comments
+     *   - Updates the status and comments of the HumanApprovalRequest__c record
      *   - Cleans up any pending approval details from the original assistant message
      *   - Logs all actions and errors for traceability
      *
@@ -69,6 +69,24 @@ public class HandleRejectedFrameworkAction {
                     updateHARStatus(har, 'Error', 'ChatSession link is missing.', logPrefix);
                     continue;
                 }
+
+                // Log the step
+                AgentDecisionStepLogger logger = new AgentDecisionStepLogger(har.ChatSession__c, har.OriginalTurnIdentifier__c);
+                String actionDetails = JSON.serialize(
+                    new Map<String, Object>{
+                        'humanApprovalRequestId' => har.Id,
+                        'toolName' => har.LLMToolName__c,
+                        'approverComments' => har.ApproverComments__c
+                    }
+                );
+                logger.logHandleRejectedFrameworkAction(
+                    'Handle Rejected Framework Action',
+                    'Handling rejected action for tool: ' + har.LLMToolName__c,
+                    actionDetails,
+                    0L
+                );
+                logger.commitSteps();
+
                 // Compose a user-facing rejection reason, including approver comments if present
                 String rejectionReason = 'Your request to "' + har.LLMToolName__c + '" was rejected by an approver.';
                 if (String.isNotBlank(har.ApproverComments__c)) {
@@ -111,7 +129,6 @@ public class HandleRejectedFrameworkAction {
                     updateHARStatus(har, 'Error', 'Exception during rejection processing: ' + e.getMessage(), logPrefix);
                 }
             } finally {
-                OrchestrationLogger.commitLogs();
             }
         }
     }

@@ -3,7 +3,7 @@
     <fullName>ContextLabel__c</fullName>
     <description>A descriptive name for this context configuration that helps identify its purpose and the type of data it retrieves for the AI agent.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Enter a clear, descriptive name for this context configuration (e.g., "Account Details", "Case History", "Opportunity Products"). This helps identify what data this configuration provides.</inlineHelpText>
+    <inlineHelpText>Enter a clear, descriptive name for this context configuration (e.g., &quot;Account Details&quot;, &quot;Case History&quot;, &quot;Opportunity Products&quot;). This helps identify what data this configuration provides.</inlineHelpText>
     <label>Context Label</label>
     <length>255</length>
     <required>true</required>

@@ -34,7 +34,7 @@ public with sharing class ResumeApprovedFrameworkAction {
      *   - Validates the record and its ChatSession__c link
      *   - Resolves the correct AgentCapability__c
      *   - Executes the approved action and manages notifications
-     *   - Updates approval status and logs all outcomes
+     *   - Updates approval request status and logs all outcomes
      *
      * @param humanApprovalRequestIds  List of HumanApprovalRequest__c record IDs to process
      * @sideeffect                     Sends user notifications, updates records, commits logs
@@ -92,6 +92,23 @@ public with sharing class ResumeApprovedFrameworkAction {
                     throw new ActionResumeException('Active AgentCapability not found for tool: ' + har.LLMToolName__c);
                 }
 
+                // Log the step
+                AgentDecisionStepLogger logger = new AgentDecisionStepLogger(har.ChatSession__c, har.OriginalTurnIdentifier__c);
+                String actionDetails = JSON.serialize(
+                    new Map<String, Object>{
+                        'humanApprovalRequestId' => har.Id,
+                        'toolName' => har.LLMToolName__c,
+                        'approverComments' => har.ApproverComments__c
+                    }
+                );
+                logger.logResumeApprovedFrameworkAction(
+                    'Resume Approved Framework Action',
+                    'Resuming approved action for tool: ' + har.LLMToolName__c,
+                    actionDetails,
+                    0L
+                );
+                logger.commitSteps();
+
                 handleActionResume(har, capability, logPrefix);
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Exception during action resume: ' + e.getMessage() + '\n' + e.getStackTraceString());
@@ -106,7 +123,6 @@ public with sharing class ResumeApprovedFrameworkAction {
                 updateHARStatus(har, 'Error', 'Exception during resume: ' + e.getMessage(), logPrefix);
                 OrchestrationService.clearPendingDetailsFromMessage(har.OriginalAssistantMessage__c, logPrefix);
             } finally {
-                OrchestrationLogger.commitLogs();
             }
         }
     }
