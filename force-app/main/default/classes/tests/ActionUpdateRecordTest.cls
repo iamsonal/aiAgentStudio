@@ -33,15 +33,18 @@ private class ActionUpdateRecordTest {
         };
 
         Test.startTest();
-        ActionUpdateRecord.UpdateResult result = (ActionUpdateRecord.UpdateResult) action.executeAction(params);
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(testContact.Id, result.recordId, 'Record ID should match');
-        System.assert(result.message.contains('Successfully updated record'), 'Message should indicate success');
-        System.assertEquals(2, result.updatedFields.size(), 'Should have updated 2 fields');
-        System.assert(result.updatedFields.contains('FirstName'), 'Should include FirstName in updated fields');
-        System.assert(result.updatedFields.contains('Email'), 'Should include Email in updated fields');
+        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+
+        ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
+        System.assertEquals(testContact.Id, updateResult.recordId, 'Record ID should match');
+        System.assert(updateResult.message.contains('Successfully updated record'), 'Message should indicate success');
+        System.assertEquals(2, updateResult.updatedFields.size(), 'Should have updated 2 fields');
+        System.assert(updateResult.updatedFields.contains('FirstName'), 'Should include FirstName in updated fields');
+        System.assert(updateResult.updatedFields.contains('Email'), 'Should include Email in updated fields');
 
         // Verify record was actually updated
         Contact updatedContact = [SELECT Id, FirstName, LastName, Email FROM Contact WHERE Id = :testContact.Id];
@@ -67,12 +70,15 @@ private class ActionUpdateRecordTest {
         };
 
         Test.startTest();
-        ActionUpdateRecord.UpdateResult result = (ActionUpdateRecord.UpdateResult) action.executeAction(params);
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(testAccount.Id, result.recordId, 'Record ID should match');
-        System.assertEquals(2, result.updatedFields.size(), 'Should have updated 2 fields');
+        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+
+        ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
+        System.assertEquals(testAccount.Id, updateResult.recordId, 'Record ID should match');
+        System.assertEquals(2, updateResult.updatedFields.size(), 'Should have updated 2 fields');
 
         // Verify record was actually updated
         Account updatedAccount = [SELECT Id, Name, Type FROM Account WHERE Id = :testAccount.Id];
@@ -96,8 +102,11 @@ private class ActionUpdateRecordTest {
         };
 
         Test.startTest();
-        ActionUpdateRecord.UpdateResult result = (ActionUpdateRecord.UpdateResult) action.executeAction(params);
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+        ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
 
         // Verify type coercion worked
         Account updatedAccount = [SELECT Id, NumberOfEmployees, AnnualRevenue FROM Account WHERE Id = :testAccount.Id];
@@ -106,7 +115,7 @@ private class ActionUpdateRecordTest {
     }
 
     @IsTest
-    static void executeAction_missingRecordId_throwsValidationException() {
+    static void executeAction_missingRecordId_returnsFailure() {
         ActionUpdateRecord action = new ActionUpdateRecord();
 
         String config = '{}';
@@ -118,17 +127,16 @@ private class ActionUpdateRecordTest {
         };
 
         Test.startTest();
-        try {
-            action.executeAction(params);
-            System.assert(false, 'Should have thrown ValidationException');
-        } catch (BaseAgentAction.ValidationException e) {
-            System.assert(e.getMessage().contains('Missing required parameter: "recordId"'), 'Should indicate missing recordId');
-        }
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
+
+        System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertEquals(false, result.isSuccess, 'Result should indicate failure');
+        System.assert(String.valueOf(result.errorMessage).contains('Missing required parameter: "recordId"'), 'Should indicate missing recordId');
     }
 
     @IsTest
-    static void executeAction_invalidRecordId_throwsValidationException() {
+    static void executeAction_invalidRecordId_returnsFailure() {
         ActionUpdateRecord action = new ActionUpdateRecord();
 
         String config = '{}';
@@ -137,17 +145,16 @@ private class ActionUpdateRecordTest {
         Map<String, Object> params = new Map<String, Object>{ 'recordId' => 'invalid-id', 'Name' => 'Updated Name' };
 
         Test.startTest();
-        try {
-            action.executeAction(params);
-            System.assert(false, 'Should have thrown ValidationException');
-        } catch (BaseAgentAction.ValidationException e) {
-            System.assert(e.getMessage().contains('Invalid ID format'), 'Should indicate invalid ID format');
-        }
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
+
+        System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertEquals(false, result.isSuccess, 'Result should indicate failure');
+        System.assert(String.valueOf(result.errorMessage).contains('Invalid ID format'), 'Should indicate invalid ID format');
     }
 
     @IsTest
-    static void executeAction_noUpdateFields_throwsValidationException() {
+    static void executeAction_noUpdateFields_returnsFailure() {
         Contact testContact = [SELECT Id FROM Contact WHERE FirstName = 'John' LIMIT 1];
 
         ActionUpdateRecord action = new ActionUpdateRecord();
@@ -161,17 +168,16 @@ private class ActionUpdateRecordTest {
         };
 
         Test.startTest();
-        try {
-            action.executeAction(params);
-            System.assert(false, 'Should have thrown ValidationException');
-        } catch (BaseAgentAction.ValidationException e) {
-            System.assert(e.getMessage().contains('No fields provided to update'), 'Should indicate no update fields');
-        }
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
+
+        System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertEquals(false, result.isSuccess, 'Result should indicate failure');
+        System.assert(String.valueOf(result.errorMessage).contains('No fields provided to update'), 'Should indicate no update fields');
     }
 
     @IsTest
-    static void executeAction_nonExistentRecord_throwsDmlException() {
+    static void executeAction_nonExistentRecord_returnsFailure() {
         ActionUpdateRecord action = new ActionUpdateRecord();
 
         String config = '{}';
@@ -183,13 +189,12 @@ private class ActionUpdateRecordTest {
         Map<String, Object> params = new Map<String, Object>{ 'recordId' => fakeContactId, 'FirstName' => 'Updated Name' };
 
         Test.startTest();
-        try {
-            action.executeAction(params);
-            System.assert(false, 'Should have thrown DmlException');
-        } catch (DmlException e) {
-            System.assert(e.getMessage().contains('Failed to update record'), 'Should indicate update failure');
-        }
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
+
+        System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertEquals(false, result.isSuccess, 'Result should indicate failure');
+        System.assert(String.valueOf(result.errorMessage).contains('Failed to update record'), 'Should indicate update failure');
     }
 
     @IsTest
@@ -270,11 +275,14 @@ private class ActionUpdateRecordTest {
         };
 
         Test.startTest();
-        ActionUpdateRecord.UpdateResult result = (ActionUpdateRecord.UpdateResult) action.executeAction(params);
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(4, result.updatedFields.size(), 'Should have updated 4 fields');
+        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+
+        ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
+        System.assertEquals(4, updateResult.updatedFields.size(), 'Should have updated 4 fields');
 
         // Verify all field types were handled correctly
         Account updatedAccount = [SELECT Id, Name, NumberOfEmployees, AnnualRevenue, Type FROM Account WHERE Id = :testAccount.Id];
@@ -302,11 +310,14 @@ private class ActionUpdateRecordTest {
         };
 
         Test.startTest();
-        ActionUpdateRecord.UpdateResult result = (ActionUpdateRecord.UpdateResult) action.executeAction(params);
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(1, result.updatedFields.size(), 'Should have updated 1 field');
+        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+
+        ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
+        System.assertEquals(1, updateResult.updatedFields.size(), 'Should have updated 1 field');
     }
 
     @IsTest
@@ -326,10 +337,11 @@ private class ActionUpdateRecordTest {
         };
 
         Test.startTest();
-        ActionUpdateRecord.UpdateResult result = (ActionUpdateRecord.UpdateResult) action.executeAction(params);
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertEquals(true, result.isSuccess, 'Result should be successful');
     }
 
     @IsTest
@@ -350,11 +362,14 @@ private class ActionUpdateRecordTest {
         };
 
         Test.startTest();
-        ActionUpdateRecord.UpdateResult result = (ActionUpdateRecord.UpdateResult) action.executeAction(params);
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(2, result.updatedFields.size(), 'Should have updated 2 fields');
+        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+
+        ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
+        System.assertEquals(2, updateResult.updatedFields.size(), 'Should have updated 2 fields');
 
         // Verify ID coercion worked
         Contact updatedContact = [SELECT Id, AccountId, FirstName FROM Contact WHERE Id = :testContact.Id];
@@ -378,11 +393,14 @@ private class ActionUpdateRecordTest {
         };
 
         Test.startTest();
-        ActionUpdateRecord.UpdateResult result = (ActionUpdateRecord.UpdateResult) action.executeAction(params);
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(2, result.updatedFields.size(), 'Should have updated 2 fields');
+        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+
+        ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
+        System.assertEquals(2, updateResult.updatedFields.size(), 'Should have updated 2 fields');
 
         // Verify null value was handled
         Contact updatedContact = [SELECT Id, Email, FirstName FROM Contact WHERE Id = :testContact.Id];
@@ -409,15 +427,22 @@ private class ActionUpdateRecordTest {
         };
 
         Test.startTest();
-        try {
-            ActionUpdateRecord.UpdateResult result = (ActionUpdateRecord.UpdateResult) action.executeAction(params);
-            // If it succeeds, the field was large enough or was truncated appropriately
-            System.assertNotEquals(null, result, 'Result should not be null if update succeeded');
-        } catch (Exception e) {
-            // If it fails, it should be due to length validation
-            System.assert(e.getMessage().contains('length') || e.getMessage().contains('too long'), 'Should indicate length issue');
-        }
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
+
+        // The result depends on field limits - either success or failure is acceptable
+        System.assertNotEquals(null, result, 'Result should not be null');
+        // If it succeeds, the field was large enough or was truncated appropriately
+        if (result.isSuccess) {
+            ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
+            System.assertNotEquals(null, updateResult, 'Update result should not be null if update succeeded');
+        } else {
+            // If it fails, it should be due to length validation
+            System.assert(
+                String.valueOf(result.errorMessage).contains('length') || String.valueOf(result.errorMessage).contains('too long'),
+                'Should indicate length issue'
+            );
+        }
     }
 
     @IsTest
@@ -436,10 +461,11 @@ private class ActionUpdateRecordTest {
         };
 
         Test.startTest();
-        ActionUpdateRecord.UpdateResult result = (ActionUpdateRecord.UpdateResult) action.executeAction(params);
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertEquals(true, result.isSuccess, 'Result should be successful');
 
         // Verify decimal coercion
         Account updatedAccount = [SELECT Id, AnnualRevenue, NumberOfEmployees FROM Account WHERE Id = :testAccount.Id];

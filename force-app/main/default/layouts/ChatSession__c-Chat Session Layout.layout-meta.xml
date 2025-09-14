@@ -114,17 +114,6 @@
     </relatedLists>
     <relatedLists>
         <fields>NAME</fields>
-        <fields>Sequence__c</fields>
-        <fields>Timestamp__c</fields>
-        <fields>StepType__c</fields>
-        <fields>Status__c</fields>
-        <fields>Details__c</fields>
-        <relatedList>OrchestrationLog__c.ChatSession__c</relatedList>
-        <sortField>Timestamp__c</sortField>
-        <sortOrder>Asc</sortOrder>
-    </relatedLists>
-    <relatedLists>
-        <fields>NAME</fields>
         <relatedList>HumanApprovalRequest__c.ChatSession__c</relatedList>
     </relatedLists>
     <relatedLists>

@@ -43,33 +43,38 @@ public class ActionUpdateRecord extends BaseAgentAction {
      *   6. Executes the DML update and returns a structured result.
      *
      * @param params Map<String, Object> containing record ID and field updates.
-     * @return UpdateResult with update confirmation, updated fields, and metadata.
-     * @throws ValidationException if parameters are missing or invalid.
-     * @throws SecurityUtils.ActionSecurityException if user lacks update permission.
-     * @throws DmlException if the update fails.
+     * @return Result<UpdateResult> with update confirmation, updated fields, and metadata, or error information.
      */
-    public override Object executeAction(Map<String, Object> params) {
+    public override ActionOutcome executeAction(Map<String, Object> params) {
         Long startTime = System.currentTimeMillis();
 
         // Validate and extract the record ID (supports custom parameter name)
-        Id recordId = validateAndExtractRecordId(params);
+        ActionOutcome idResult = validateAndExtractRecordId(params);
+        if (!idResult.isSuccess) {
+            return idResult;
+        }
+        Id recordId = (Id) idResult.data;
         SObjectType targetSObjectType = recordId.getSObjectType();
 
         // Extract and validate update fields (excluding record ID)
-        Map<String, Object> updateData = extractUpdateFields(params, recordId);
+        ActionOutcome fieldsResult = extractUpdateFields(params, recordId);
+        if (!fieldsResult.isSuccess) {
+            return fieldsResult;
+        }
+        Map<String, Object> updateData = (Map<String, Object>) fieldsResult.data;
 
         // Explicit object-level update permission check
         try {
             SecurityUtils.checkObjectPermission(targetSObjectType, AccessType.UPDATABLE);
         } catch (SecurityUtils.ActionSecurityException ase) {
             System.debug(LoggingLevel.ERROR, '[ActionUpdateRecord] User lacks update permission for ' + targetSObjectType + ': ' + ase.getMessage());
-            throw ase;
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ase.getMessage());
         }
 
         // Proactively check for record locks to provide actionable error messages
         try {
             if (Approval.isLocked(recordId)) {
-                throw new ValidationException('Record is locked and cannot be updated: ' + recordId, this.recordIdParameterName);
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_RECORD_LOCKED, 'Record is locked and cannot be updated: ' + recordId);
             }
         } catch (Exception lockCheckEx) {
             System.debug(
@@ -83,14 +88,15 @@ public class ActionUpdateRecord extends BaseAgentAction {
             // Coerce types and enforce field-level security (FLS)
             typedData = SObjectArgumentCoercionService.coerceArgumentTypesForSObject(updateData, targetSObjectType, AccessType.UPDATABLE);
         } catch (SObjectArgumentCoercionService.InvalidArgumentTypeException typeEx) {
-            throw new ValidationException(typeEx.getMessage(), null);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
         } catch (SecurityUtils.ActionSecurityException secEx) {
-            throw secEx;
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, secEx.getMessage());
         }
 
         if (typedData.isEmpty()) {
             Set<String> originalFields = updateData.keySet();
-            throw new ActionSecurityException(
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
                 'No updatable fields provided after security checks for record ' +
                     recordId +
                     '. Original fields: ' +
@@ -120,7 +126,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
         }
 
         // Perform DML update with enhanced error handling and context
-        Database.SaveResult result = Database.update(recordToUpdate, false);
+        Database.SaveResult saveResult = Database.update(recordToUpdate, false);
 
         Long executionTime = System.currentTimeMillis() - startTime;
         System.debug(
@@ -133,13 +139,15 @@ public class ActionUpdateRecord extends BaseAgentAction {
                 String.join(new List<String>(typedData.keySet()), ', ')
         );
 
-        if (result.isSuccess()) {
+        if (saveResult.isSuccess()) {
             System.debug(LoggingLevel.DEBUG, '[ActionUpdateRecord] Update succeeded for record ' + recordId);
-            return new UpdateResult(recordId.toString(), 'Successfully updated record ' + recordId + '.', new List<String>(typedData.keySet()));
+            return ActionOutcome.success(
+                new UpdateResult(recordId.toString(), 'Successfully updated record ' + recordId + '.', new List<String>(typedData.keySet()))
+            );
         } else {
-            String enhancedMessage = enhanceUpdateErrorMessage(result.getErrors()[0], recordId, typedData);
+            String enhancedMessage = enhanceUpdateErrorMessage(saveResult.getErrors()[0], recordId, typedData);
             System.debug(LoggingLevel.ERROR, '[ActionUpdateRecord] Update failed for record ' + recordId + ': ' + enhancedMessage);
-            throw new DmlException(enhancedMessage);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_DML_ERROR, enhancedMessage);
         }
     }
 
@@ -169,45 +177,50 @@ public class ActionUpdateRecord extends BaseAgentAction {
     /**
      * @description
      * Validates and extracts the record ID from parameters, supporting custom parameter names.
-     * Throws ValidationException if the parameter is missing or invalid.
      *
      * @param params Map containing the record ID parameter
-     * @return Id of the record to update
-     * @throws ValidationException if the record ID is missing or invalid
+     * @return ActionOutcome<Id> containing the record ID or error information
      */
-    private Id validateAndExtractRecordId(Map<String, Object> params) {
+    private ActionOutcome validateAndExtractRecordId(Map<String, Object> params) {
         Object idObj = params.get(this.recordIdParameterName);
 
         if (idObj == null) {
-            throw new ValidationException('Missing required parameter: "' + this.recordIdParameterName + '"', this.recordIdParameterName);
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'Missing required parameter: "' + this.recordIdParameterName + '"'
+            );
         }
 
         if (idObj instanceof Id) {
-            return (Id) idObj;
+            return ActionOutcome.success((Id) idObj);
         }
 
         if (idObj instanceof String && String.isNotBlank((String) idObj)) {
             try {
-                return Id.valueOf((String) idObj);
+                return ActionOutcome.success(Id.valueOf((String) idObj));
             } catch (System.StringException strEx) {
-                throw new ValidationException('Invalid ID format for "' + this.recordIdParameterName + '": ' + idObj, this.recordIdParameterName);
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                    'Invalid ID format for "' + this.recordIdParameterName + '": ' + idObj
+                );
             }
         }
 
-        throw new ValidationException('Parameter "' + this.recordIdParameterName + '" must be a valid Salesforce ID', this.recordIdParameterName);
+        return ActionOutcome.failure(
+            AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+            'Parameter "' + this.recordIdParameterName + '" must be a valid Salesforce ID'
+        );
     }
 
     /**
      * @description
      * Extracts field update data from parameters, excluding the record ID parameter.
-     * Throws ValidationException if no update fields are provided.
      *
      * @param params Full parameter map
      * @param recordId The record ID for context in error messages
-     * @return Map<String, Object> of field names to update values
-     * @throws ValidationException if no update fields are provided
+     * @return ActionOutcome<Map<String, Object>> containing field update data or error information
      */
-    private Map<String, Object> extractUpdateFields(Map<String, Object> params, Id recordId) {
+    private ActionOutcome extractUpdateFields(Map<String, Object> params, Id recordId) {
         Map<String, Object> updateData = new Map<String, Object>();
 
         for (String key : params.keySet()) {
@@ -217,10 +230,10 @@ public class ActionUpdateRecord extends BaseAgentAction {
         }
 
         if (updateData.isEmpty()) {
-            throw new ValidationException('No fields provided to update for record ID: ' + recordId, null);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'No fields provided to update for record ID: ' + recordId);
         }
 
-        return updateData;
+        return ActionOutcome.success(updateData);
     }
 
     /**

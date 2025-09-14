@@ -8,29 +8,18 @@
 
 /**
  * @description
- * ActionFindEntities is an advanced Apex action for performing intelligent, pattern-aware fuzzy search across Salesforce records.
+ * ActionFindEntities is a thin wrapper around SearchService for performing intelligent entity search.
  *
  * Responsibilities:
- *   - Analyzes search queries using pattern recognition (email, phone, name, ID) to optimize SOSL search strategies.
- *   - Leverages custom metadata (SObjectConfig__mdt) to configure searchable objects and scoring fields.
- *   - Implements result caching for performance and sophisticated scoring algorithms for ranking results.
- *   - Supports dynamic configuration, field-level security, and provides structured, LLM-friendly results.
- *
- * Scope:
- *   - Designed for extensibility, maintainability, and clarity, with detailed debug output and robust error handling.
- *   - Does not modify or create records; strictly focused on search and result ranking.
- *
- * Configuration: SObjectConfig__mdt records define searchable objects and scoring fields.
- * Parameters: {"searchQuery": "search text", "sObjectTypes": ["Contact", "Account"]}
+ *   - Acts as a facade for the SearchService
+ *   - Delegates search operations to specialized services
+ *   - Provides structured, LLM-friendly results
  *
  * @extends BaseAgentAction
  */
 public class ActionFindEntities extends BaseAgentAction {
     private static final String CONFIG_MAX_AMBIGUOUS_RESULTS = 'maxAmbiguousResults';
     private static final Integer DEFAULT_MAX_AMBIGUOUS_RESULTS = 5;
-    private static final Integer SOSL_QUERY_LIMIT = 50;
-    private static final Integer NAME_FIELD_MATCH_SCORE = 100;
-    private static final Integer KEY_FIELD_MATCH_SCORE = 50;
 
     @TestVisible
     private static List<SObjectConfig__mdt> MDT_CACHE;
@@ -50,69 +39,46 @@ public class ActionFindEntities extends BaseAgentAction {
 
     /**
      * @description
-     * Main entry point for entity search. Analyzes the search query, checks the cache, performs SOSL queries if needed,
-     * and ranks results using advanced scoring algorithms. Returns a structured result for downstream use.
+     * Main entry point for entity search. Delegates to SearchService for all processing.
      *
      * @param params Map<String, Object> - Must include 'searchQuery' (String), may include 'sObjectTypes' (List<String>).
-     * @return SearchResult - Contains found records, ambiguous options, or not found status.
-     * @throws ValidationException if required parameters are missing or invalid.
-     * @throws ActionSecurityException if user lacks access to any configured or requested objects.
-     *
-     * Side effects: Logs pattern analysis, cache usage, performance, and error details for troubleshooting.
+     * @return ActionOutcome - Contains search results or error information.
      */
-    public override Object executeAction(Map<String, Object> params) {
-        Long startTime = System.currentTimeMillis();
-
-        // Extract and validate parameters
-        String searchQuery = (String) params.get('searchQuery');
-        List<String> sObjectTypes = ActionConfigUtils.getOptionalStringList(params, 'sObjectTypes');
-
-        // Analyze search pattern for optimal query strategy
-        SearchPatternAnalyzer.SearchAnalysis patternAnalysis = SearchPatternAnalyzer.analyzeSearchQuery(searchQuery);
-        System.debug(
-            LoggingLevel.INFO,
-            '[ActionFindEntities] Search pattern: ' + patternAnalysis.primaryPattern + ' (confidence: ' + patternAnalysis.confidenceScore + '%)'
-        );
-
-        // Check cache for performance
-        String cacheKey = SearchResultCache.generateCacheKey(searchQuery, sObjectTypes, UserInfo.getUserId());
-        SearchResultCache.CachedSearchResult cachedResult = SearchResultCache.getCachedResults(cacheKey);
-
-        List<List<SObject>> searchResults;
-        if (cachedResult != null) {
-            System.debug(LoggingLevel.INFO, '[ActionFindEntities] Cache hit for key: ' + cacheKey);
-            searchResults = cachedResult.searchResults;
-            patternAnalysis = cachedResult.patternAnalysis;
-        } else {
-            System.debug(LoggingLevel.INFO, '[ActionFindEntities] Cache miss for key: ' + cacheKey + '. Executing new search.');
-            try {
-                Map<String, List<String>> accessibleReturnFields = buildAccessibleReturnFieldMap(sObjectTypes);
-                searchResults = executeOptimizedSearch(searchQuery, accessibleReturnFields, patternAnalysis);
-                SearchResultCache.cacheResults(cacheKey, searchResults, patternAnalysis);
-            } catch (ActionSecurityException ase) {
-                System.debug(LoggingLevel.ERROR, '[ActionFindEntities] Security error during search: ' + ase.getMessage());
-                throw ase;
+    public override ActionOutcome executeAction(Map<String, Object> params) {
+        try {
+            // Extract and validate parameters
+            String searchQuery = (String) params.get('searchQuery');
+            if (String.isBlank(searchQuery)) {
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Search term is required');
             }
+
+            List<String> sObjectTypes = ActionConfigUtils.getOptionalStringList(params, 'sObjectTypes');
+
+            // Prepare search configuration
+            SearchService.SearchConfiguration searchConfig = new SearchService.SearchConfiguration(
+                this.configuredReturnFields,
+                convertScoringConfig(),
+                this.maxAmbiguousResults
+            );
+
+            // Delegate to SearchService
+            SearchService.SearchResult result = SearchService.performSearch(searchQuery, sObjectTypes, searchConfig, UserInfo.getUserId());
+
+            return ActionOutcome.success(result);
+        } catch (Exception ex) {
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Entity search failed: ' + ex.getMessage());
         }
-
-        List<ScoredResult> rankedResults = scoreAndRankResults(searchResults, searchQuery, patternAnalysis);
-
-        Long executionTime = System.currentTimeMillis() - startTime;
-        System.debug(LoggingLevel.INFO, '[ActionFindEntities] Search completed in ' + executionTime + ' ms. Results: ' + rankedResults.size());
-        logCachePerformanceMetrics();
-
-        return processRankedResults(rankedResults);
     }
 
     /**
      * @description
-     * Parses and validates the action configuration JSON. Loads and caches custom metadata for searchable objects,
-     * builds scoring and return field maps, and applies configuration overrides.
+     * Parses and validates the action configuration JSON.
      *
      * @param actionConfigurationJson String - The JSON configuration string.
      * @param logPrefix String - Prefix for log output.
      * @throws ValidationException if required configuration or metadata is missing or invalid.
      */
+    @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
 
@@ -176,351 +142,16 @@ public class ActionFindEntities extends BaseAgentAction {
 
     /**
      * @description
-     * Logs cache performance metrics periodically for monitoring and optimization.
-     * Only logs every 10th execution to avoid log clutter.
+     * Converts internal ScoringInfo to ResultScoringService.ScoringInfo for compatibility.
+     *
+     * @return Map<String, ResultScoringService.ScoringInfo> Converted scoring configuration
      */
-    private void logCachePerformanceMetrics() {
-        if (Math.mod(System.currentTimeMillis(), 10) == 0) {
-            SearchResultCache.CacheStatistics stats = SearchResultCache.getCacheStatistics();
-            System.debug(
-                LoggingLevel.INFO,
-                '[ActionFindEntities] Cache stats: size=' +
-                    stats.totalCacheSize +
-                    ', hitRatio=' +
-                    stats.hitRatio.setScale(1) +
-                    '%, hits=' +
-                    stats.hitCount +
-                    ', misses=' +
-                    stats.missCount
-            );
+    private Map<String, ResultScoringService.ScoringInfo> convertScoringConfig() {
+        Map<String, ResultScoringService.ScoringInfo> converted = new Map<String, ResultScoringService.ScoringInfo>();
+        for (String key : this.scoringConfig.keySet()) {
+            ScoringInfo info = this.scoringConfig.get(key);
+            converted.put(key, new ResultScoringService.ScoringInfo(info.primaryNameField, info.keyIdentifierFields));
         }
-    }
-
-    private Map<String, List<String>> buildAccessibleReturnFieldMap(List<String> sObjectTypesFromArgs) {
-        Map<String, List<String>> accessibleMap = new Map<String, List<String>>();
-        Set<String> targetSObjectNames = (sObjectTypesFromArgs != null && !sObjectTypesFromArgs.isEmpty())
-            ? new Set<String>(sObjectTypesFromArgs)
-            : this.configuredReturnFields.keySet();
-
-        for (String sObjName : targetSObjectNames) {
-            if (!this.configuredReturnFields.containsKey(sObjName))
-                continue;
-
-            SObjectType sObjType = SchemaUtils.getSObjectType(sObjName);
-            if (sObjType != null && sObjType.getDescribe().isAccessible()) {
-                List<String> accessibleFields = new List<String>();
-                for (String fieldName : this.configuredReturnFields.get(sObjName)) {
-                    if (SecurityUtils.hasFieldPermission(sObjType, fieldName, AccessType.READABLE)) {
-                        accessibleFields.add(fieldName);
-                    }
-                }
-                if (!accessibleFields.isEmpty()) {
-                    accessibleMap.put(sObjName, accessibleFields);
-                }
-            }
-        }
-
-        if (accessibleMap.isEmpty()) {
-            throw new ActionSecurityException('User lacks read access to any configured or requested objects.');
-        }
-
-        return accessibleMap;
-    }
-
-    private List<List<SObject>> executeOptimizedSearch(
-        String searchQuery,
-        Map<String, List<String>> accessibleReturnFields,
-        SearchPatternAnalyzer.SearchAnalysis patternAnalysis
-    ) {
-        String soslReturningClause = buildSoslReturningClause(accessibleReturnFields);
-        String sanitizedSearchQuery = String.escapeSingleQuotes(searchQuery);
-        String soslScope = patternAnalysis.recommendedSOSLScope;
-        String soslQuery =
-            'FIND \'' +
-            sanitizedSearchQuery +
-            '\' IN ' +
-            soslScope +
-            ' RETURNING ' +
-            soslReturningClause +
-            ' LIMIT ' +
-            SOSL_QUERY_LIMIT;
-
-        try {
-            System.debug(LoggingLevel.INFO, '[ActionFindEntities] Executing SOSL (' + soslScope + '): ' + soslQuery);
-            List<List<SObject>> searchResults = Search.query(soslQuery);
-            for (String optimizationHint : patternAnalysis.optimizationHints) {
-                System.debug(LoggingLevel.DEBUG, '[ActionFindEntities] Optimization hint: ' + optimizationHint);
-            }
-            return searchResults;
-        } catch (SearchException se) {
-            if (!soslScope.equals('ALL FIELDS')) {
-                System.debug(LoggingLevel.WARN, '[ActionFindEntities] SOSL scope ' + soslScope + ' failed, falling back to ALL FIELDS.');
-                String fallbackQuery =
-                    'FIND \'' +
-                    sanitizedSearchQuery +
-                    '\' IN ALL FIELDS RETURNING ' +
-                    soslReturningClause +
-                    ' LIMIT ' +
-                    SOSL_QUERY_LIMIT;
-                try {
-                    return Search.query(fallbackQuery);
-                } catch (SearchException fallbackException) {
-                    throw new QueryException('SOSL search failed: ' + fallbackException.getMessage());
-                }
-            } else {
-                throw new QueryException('SOSL search failed: ' + se.getMessage());
-            }
-        }
-    }
-
-    private String buildSoslReturningClause(Map<String, List<String>> accessibleReturnFields) {
-        List<String> returningParts = new List<String>();
-        for (String sObjName : accessibleReturnFields.keySet()) {
-            String fields = String.join(accessibleReturnFields.get(sObjName), ', ');
-            returningParts.add(sObjName + '(' + fields + ')');
-        }
-        return String.join(returningParts, ', ');
-    }
-
-    private List<ScoredResult> scoreAndRankResults(
-        List<List<SObject>> searchResults,
-        String searchQuery,
-        SearchPatternAnalyzer.SearchAnalysis patternAnalysis
-    ) {
-        List<ScoredResult> scoredList = new List<ScoredResult>();
-        Integer initialScore = SOSL_QUERY_LIMIT;
-
-        for (List<SObject> sObjectList : searchResults) {
-            for (SObject sObj : sObjectList) {
-                Integer score = initialScore--;
-                String sObjNameLower = sObj.getSObjectType().getDescribe().getName().toLowerCase();
-                ScoringInfo scoringInfo = this.scoringConfig.get(sObjNameLower);
-
-                if (scoringInfo != null) {
-                    score += calculatePatternAwareScore(sObj, searchQuery, patternAnalysis, scoringInfo);
-                    score += calculateTraditionalScore(sObj, searchQuery, scoringInfo);
-                }
-
-                scoredList.add(new ScoredResult(sObj, score, scoringInfo));
-            }
-        }
-
-        scoredList.sort();
-        System.debug(
-            LoggingLevel.DEBUG,
-            '[ActionFindEntities] Scored ' + scoredList.size() + ' results using pattern: ' + patternAnalysis.primaryPattern
-        );
-        return scoredList;
-    }
-
-    private Integer calculatePatternAwareScore(
-        SObject sObj,
-        String searchQuery,
-        SearchPatternAnalyzer.SearchAnalysis patternAnalysis,
-        ScoringInfo scoringInfo
-    ) {
-        Integer patternScore = 0;
-
-        switch on patternAnalysis.primaryPattern {
-            when EMAIL_SEARCH {
-                patternScore += scoreEmailPattern(sObj, patternAnalysis);
-            }
-            when PHONE_SEARCH {
-                patternScore += scorePhonePattern(sObj, patternAnalysis);
-            }
-            when PERSON_NAME {
-                patternScore += scorePersonNamePattern(sObj, patternAnalysis);
-            }
-            when IDENTIFIER_SEARCH {
-                patternScore += scoreIdentifierPattern(sObj, patternAnalysis, scoringInfo);
-            }
-        }
-
-        return (Integer) (patternScore * (patternAnalysis.confidenceScore / 100.0));
-    }
-
-    private Integer calculateTraditionalScore(SObject sObj, String searchQuery, ScoringInfo scoringInfo) {
-        Integer score = 0;
-
-        Object nameValue = sObj.get(scoringInfo.primaryNameField);
-        if (nameValue != null && String.valueOf(nameValue).toLowerCase().contains(searchQuery.toLowerCase())) {
-            score += NAME_FIELD_MATCH_SCORE;
-        }
-
-        for (String keyField : scoringInfo.keyIdentifierFields) {
-            Object keyValue = sObj.get(keyField);
-            if (keyValue != null && String.valueOf(keyValue).toLowerCase().contains(searchQuery.toLowerCase())) {
-                score += KEY_FIELD_MATCH_SCORE;
-            }
-        }
-
-        return score;
-    }
-
-    private Integer scoreEmailPattern(SObject sObj, SearchPatternAnalyzer.SearchAnalysis patternAnalysis) {
-        String extractedEmail = (String) patternAnalysis.patternMetadata?.get('extractedEmail');
-        if (String.isBlank(extractedEmail))
-            return 0;
-
-        for (String field : new List<String>{ 'Email', 'PersonEmail', 'WorkEmail' }) {
-            if (sObj.isSet(field)) {
-                Object fieldValue = sObj.get(field);
-                if (fieldValue != null && String.valueOf(fieldValue).equalsIgnoreCase(extractedEmail)) {
-                    return 150;
-                }
-            }
-        }
-        return 0;
-    }
-
-    private Integer scorePhonePattern(SObject sObj, SearchPatternAnalyzer.SearchAnalysis patternAnalysis) {
-        String extractedPhone = (String) patternAnalysis.patternMetadata?.get('extractedPhone');
-        if (String.isBlank(extractedPhone))
-            return 0;
-
-        for (String field : new List<String>{ 'Phone', 'MobilePhone', 'HomePhone', 'WorkPhone' }) {
-            if (sObj.isSet(field)) {
-                Object fieldValue = sObj.get(field);
-                if (fieldValue != null && normalizePhoneNumber(String.valueOf(fieldValue)).equals(normalizePhoneNumber(extractedPhone))) {
-                    return 140;
-                }
-            }
-        }
-        return 0;
-    }
-
-    private Integer scorePersonNamePattern(SObject sObj, SearchPatternAnalyzer.SearchAnalysis patternAnalysis) {
-        List<String> nameParts = (List<String>) patternAnalysis.patternMetadata?.get('nameParts');
-        if (nameParts == null || nameParts.size() < 2)
-            return 0;
-
-        Map<String, Object> populatedFields = sObj.getPopulatedFieldsAsMap();
-        String firstName = populatedFields.containsKey('FirstName') && populatedFields.get('FirstName') != null
-            ? String.valueOf(populatedFields.get('FirstName')).toLowerCase()
-            : null;
-        String lastName = populatedFields.containsKey('LastName') && populatedFields.get('LastName') != null
-            ? String.valueOf(populatedFields.get('LastName')).toLowerCase()
-            : null;
-
-        if (firstName != null || lastName != null) {
-            Boolean firstNameMatch = firstName != null && nameParts.contains(firstName);
-            Boolean lastNameMatch = lastName != null && nameParts.contains(lastName);
-
-            if (firstNameMatch && lastNameMatch)
-                return 120;
-            if (firstNameMatch || lastNameMatch)
-                return 60;
-        }
-        return 0;
-    }
-
-    private Integer scoreIdentifierPattern(SObject sObj, SearchPatternAnalyzer.SearchAnalysis patternAnalysis, ScoringInfo scoringInfo) {
-        String extractedId = (String) patternAnalysis.patternMetadata?.get('extractedIdentifier');
-        if (String.isBlank(extractedId))
-            return 0;
-
-        for (String keyField : scoringInfo.keyIdentifierFields) {
-            if (sObj.isSet(keyField)) {
-                Object fieldValue = sObj.get(keyField);
-                if (fieldValue != null && String.valueOf(fieldValue).equalsIgnoreCase(extractedId)) {
-                    return 160;
-                }
-            }
-        }
-        return 0;
-    }
-
-    private String normalizePhoneNumber(String phone) {
-        return String.isBlank(phone) ? '' : phone.replaceAll('[^0-9]', '');
-    }
-
-    private SearchResult processRankedResults(List<ScoredResult> rankedResults) {
-        if (rankedResults.isEmpty()) {
-            return new SearchResult('NOT_FOUND', 'No matching records found.', null, null);
-        }
-
-        if (rankedResults.size() == 1 || (rankedResults[0].score > rankedResults[1].score + (NAME_FIELD_MATCH_SCORE / 2))) {
-            String msg = (rankedResults.size() == 1) ? 'Found a single matching record.' : 'Found a high-confidence match.';
-            return new SearchResult(
-                'SUCCESS',
-                msg + ' Here are the details for ' + rankedResults[0].displayLabel + '.',
-                buildRecordDataMap(rankedResults[0].record),
-                null
-            );
-        }
-
-        // Ambiguous results
-        List<Map<String, String>> options = new List<Map<String, String>>();
-        for (Integer i = 0; i < Math.min(rankedResults.size(), this.maxAmbiguousResults); i++) {
-            ScoredResult res = rankedResults[i];
-            options.add(
-                new Map<String, String>{
-                    'id' => res.record.Id,
-                    'label' => res.displayLabel,
-                    'sObjectType' => res.record.getSObjectType().getDescribe().getName()
-                }
-            );
-        }
-        return new SearchResult('AMBIGUOUS', 'Found multiple possible matches. Please clarify which one you mean.', null, options);
-    }
-
-    private Map<String, Object> buildRecordDataMap(SObject record) {
-        Map<String, Object> recordData = new Map<String, Object>();
-        recordData.put('sObjectType', record.getSObjectType().getDescribe().getName());
-        for (String field : record.getPopulatedFieldsAsMap().keySet()) {
-            recordData.put(field, record.get(field));
-        }
-        return recordData;
-    }
-
-    /**
-     * @description Result wrapper for search operations with support for single matches, ambiguous results, and not found scenarios.
-     *              Provides structured data for both user display and LLM processing.
-     */
-    public class SearchResult {
-        public String resultType;
-        public String message; // Framework uses this for user display
-        public Map<String, Object> record;
-        public List<Map<String, String>> options;
-        public Map<String, Object> metadata; // Additional context for LLMs
-
-        public SearchResult(String resultType, String message, Map<String, Object> record, List<Map<String, String>> options) {
-            this.resultType = resultType;
-            this.message = message;
-            this.record = record;
-            this.options = options;
-            this.metadata = new Map<String, Object>{
-                'searchType' => resultType,
-                'hasRecord' => record != null,
-                'optionCount' => options != null ? options.size() : 0
-            };
-        }
-    }
-
-    private class ScoredResult implements Comparable {
-        public SObject record;
-        public Integer score;
-        public String displayLabel;
-
-        public ScoredResult(SObject record, Integer score, ScoringInfo scoringInfo) {
-            this.record = record;
-            this.score = score;
-            this.displayLabel = buildDisplayLabel(record, scoringInfo);
-        }
-
-        public Integer compareTo(Object other) {
-            ScoredResult otherResult = (ScoredResult) other;
-            return otherResult.score - this.score; // Descending order
-        }
-
-        private String buildDisplayLabel(SObject record, ScoringInfo scoringInfo) {
-            if (scoringInfo != null && String.isNotBlank(scoringInfo.primaryNameField)) {
-                Object nameValue = record.get(scoringInfo.primaryNameField);
-                if (nameValue != null) {
-                    return String.valueOf(nameValue);
-                }
-            }
-            return record.getSObjectType().getDescribe().getName() + ' (' + record.Id + ')';
-        }
+        return converted;
     }
 }

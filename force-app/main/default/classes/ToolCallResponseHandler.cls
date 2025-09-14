@@ -36,6 +36,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         String logPrefix = context.logPrefix + '[ToolCallHandler] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting tool call handling for LLM response.');
 
+        // Use the shared decision step logger from the context
+        AgentDecisionStepLogger decisionLogger = context.decisionLogger;
+
         LLMInteractionService.MessageData assistantData = context.llmResult.assistantMessageData;
 
         // Currently, only one tool call per turn is supported. Extend here for parallel tool calls if needed.
@@ -48,6 +51,30 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         AgentCapability__c capability = AIAgentConfigService.getCapability(context.agentDefinitionId, toolRequest.name);
         this.validateCapability(capability, toolRequest.name, logPrefix);
 
+        // Log the tool execution preparation step with enhanced details
+        decisionLogger.logToolExecution(
+            'Tool Execution Plan',
+            'Preparing to execute tool: ' + toolRequest.name,
+            JSON.serialize(
+                new Map<String, Object>{
+                    'toolName' => toolRequest.name,
+                    'toolId' => toolRequest.id,
+                    'arguments' => toolRequest.arguments,
+                    'capability' => capability != null
+                        ? new Map<String, Object>{
+                              'name' => capability.CapabilityName__c,
+                              'requiresApproval' => capability.RequiresApproval__c,
+                              'runAsynchronously' => capability.RunAsynchronously__c
+                          }
+                        : null
+                }
+            ),
+            null,
+            true, // isSuccess
+            null, // errorCode
+            null // errorMessage
+        );
+
         // Persist user message to chat history for traceability
         Id savedUserMessageId = ChatMessageService.saveUserMessage(
             context.sessionId,
@@ -59,7 +86,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
         // Route to approval workflow or direct execution based on capability settings
         if (capability.RequiresApproval__c) {
-            return this.handleApprovalRequiredAction(context, savedUserMessageId, assistantData, toolRequest, capability, logPrefix);
+            return this.handleApprovalRequiredAction(context, savedUserMessageId, assistantData, toolRequest, capability, logPrefix, decisionLogger);
         } else {
             // Save assistant message containing the tool call request for audit and context
             Id savedAssistantMessageId = ChatMessageService.saveAssistantMessage(
@@ -88,7 +115,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 }
             }
 
-            return this.executeActionDirectly(context, savedAssistantMessageId, toolRequest, capability, logPrefix);
+            return this.executeActionDirectly(context, savedAssistantMessageId, toolRequest, capability, logPrefix, decisionLogger);
         }
     }
 
@@ -102,6 +129,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
      * @param toolRequest Parsed ActionRequest from the LLM.
      * @param capability AgentCapability__c record for the tool.
      * @param logPrefix String prefix for log output.
+     * @param decisionLogger AgentDecisionStepLogger instance for logging decision steps.
      * @return String outcome constant for orchestration flow.
      */
     private String executeActionDirectly(
@@ -109,14 +137,15 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         Id savedAssistantMessageId,
         AIAssistantController.ActionRequest toolRequest,
         AgentCapability__c capability,
-        String logPrefix
+        String logPrefix,
+        AgentDecisionStepLogger decisionLogger
     ) {
         Boolean runAsync = capability.RunAsynchronously__c;
         System.debug(LoggingLevel.INFO, logPrefix + 'Executing tool action "' + toolRequest.name + '". Async=' + runAsync);
 
         if (!runAsync) {
             // Synchronous execution: continue conversation in same transaction
-            return this.executeSyncActionAndContinue(context, savedAssistantMessageId, toolRequest, capability, logPrefix);
+            return this.executeSyncActionAndContinue(context, savedAssistantMessageId, toolRequest, capability, logPrefix, decisionLogger);
         } else {
             // Asynchronous execution: queue and pause turn for later resumption
             context.turnLifecycleSvc.pauseForAsyncAction(context.sessionId, context.turnIdentifier, null, capability.CapabilityName__c, logPrefix);
@@ -150,6 +179,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
      * @param toolRequest Parsed ActionRequest from the LLM.
      * @param capability AgentCapability__c record for the tool.
      * @param logPrefix String prefix for log output.
+     * @param decisionLogger AgentDecisionStepLogger instance for logging decision steps.
      * @return String outcome constant for orchestration flow.
      */
     private String handleApprovalRequiredAction(
@@ -158,11 +188,23 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         LLMInteractionService.MessageData assistantData,
         AIAssistantController.ActionRequest toolRequest,
         AgentCapability__c capability,
-        String logPrefix
+        String logPrefix,
+        AgentDecisionStepLogger decisionLogger
     ) {
         System.debug(
             LoggingLevel.INFO,
             logPrefix + 'Tool action "' + toolRequest.name + '" requires Salesforce Approval. Submitting approval request and finalizing turn.'
+        );
+
+        // Log the approval requirement step with enhanced details
+        decisionLogger.logToolExecution(
+            'Approval Required',
+            'Tool execution requires human approval',
+            JSON.serialize(new Map<String, Object>{ 'toolName' => toolRequest.name, 'reason' => 'RequiresApproval__c is true for this capability' }),
+            null,
+            true, // isSuccess
+            null, // errorCode
+            null // errorMessage
         );
 
         String submissionComment = this.extractSubmissionComment(toolRequest.arguments, toolRequest.name, logPrefix);
@@ -175,6 +217,17 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
                 logPrefix
             );
+
+            // Log the error step
+            decisionLogger.logError(
+                'Missing Confirmation Prompt',
+                'Agent did not provide a required confirmation prompt for approval',
+                AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
+                errMsg,
+                null,
+                null
+            );
+
             System.debug(LoggingLevel.ERROR, logPrefix + 'Missing confirmation prompt for approval-required action. Failing turn.');
             return OrchestrationService.OUTCOME_FAILED;
         }
@@ -308,6 +361,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
      * @param toolRequest Parsed ActionRequest from the LLM.
      * @param capability AgentCapability__c record for the tool.
      * @param logPrefix String prefix for log output.
+     * @param decisionLogger AgentDecisionStepLogger instance for logging decision steps.
      * @return String outcome constant for orchestration flow.
      */
     private String executeSyncActionAndContinue(
@@ -315,7 +369,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         Id savedAssistantMessageId,
         AIAssistantController.ActionRequest toolRequest,
         AgentCapability__c capability,
-        String logPrefix
+        String logPrefix,
+        AgentDecisionStepLogger decisionLogger
     ) {
         // Use current page record as action context for tool execution
         Id actionRecordContextId = context.currentPageRecordId;
@@ -354,15 +409,20 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             actionDuration = System.currentTimeMillis() - syncActionStart;
         }
 
-        // Null result indicates successful handoff to asynchronous processing
-        if (actionResult == null) {
-            System.debug(LoggingLevel.INFO, logPrefix + 'Tool action dispatched to async job. No further action in this transaction.');
-            return OrchestrationService.OUTCOME_QUEUED_ACTION;
-        }
-
         // Save tool result to chat history before any follow-up processing
         String resultJsonForStorage = OrchestrationService.serializeActionResult(actionResult, logPrefix);
         Id newRecordContextId = OrchestrationService.extractRecordIdFromResult(actionResult);
+
+        // Log the tool result step with full ActionResult details
+        decisionLogger.logToolResult(
+            'Tool Execution Completed',
+            'Tool execution has completed',
+            resultJsonForStorage,
+            actionDuration,
+            actionResult.isSuccess, // isSuccess
+            actionResult.errorCode, // errorCode
+            actionResult.internalDetails // errorMessage
+        );
 
         ChatMessageService.saveToolResultMessage(
             context.sessionId,

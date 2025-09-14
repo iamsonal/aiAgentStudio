@@ -35,14 +35,23 @@ public inherited sharing class SystemPromptBuilder {
         'background' => '## Background Context'
     };
 
+    // Add decision logger reference
+    private final AgentDecisionStepLogger decisionLogger;
+
     public SystemPromptBuilder() {
-        this(new ContextResolverService(), new ContextManagerService());
+        this(new ContextResolverService(), new ContextManagerService(), null);
+    }
+
+    // New constructor that accepts a decision logger
+    public SystemPromptBuilder(AgentDecisionStepLogger decisionLogger) {
+        this(new ContextResolverService(), new ContextManagerService(), decisionLogger);
     }
 
     @TestVisible
-    private SystemPromptBuilder(ContextResolverService resolver, ContextManagerService contextService) {
+    private SystemPromptBuilder(ContextResolverService resolver, ContextManagerService contextService, AgentDecisionStepLogger decisionLogger) {
         this.contextResolver = resolver;
         this.contextManager = contextService;
+        this.decisionLogger = decisionLogger;
     }
 
     /**
@@ -108,9 +117,11 @@ public inherited sharing class SystemPromptBuilder {
             currentTurn,
             conversationalUserId
         );
+        String contextSection = '';
         if (String.isNotBlank(formattedContextData)) {
             // Wrap formatted context data in XML block for clear delineation
-            promptParts.add('# Context\n\n<CONTEXT>\n' + formattedContextData + '\n</CONTEXT>');
+            contextSection = '# Context\n\n<CONTEXT>\n' + formattedContextData + '\n</CONTEXT>';
+            promptParts.add(contextSection);
         }
 
         // Add optional prompt footer
@@ -118,9 +129,33 @@ public inherited sharing class SystemPromptBuilder {
             promptParts.add(agentConfig.PromptFooter__c);
         }
 
+        // Log system prompt construction if decision logger is available
+        // This should be done after all prompt components are added
+        // Exclude context data from logging
+        if (this.decisionLogger != null) {
+            // Create a version of prompt parts without sensitive context data for logging
+            List<String> loggablePromptParts = new List<String>();
+            for (String part : promptParts) {
+                // Skip the context section to avoid logging sensitive data
+                if (part != contextSection) {
+                    loggablePromptParts.add(part);
+                }
+            }
+
+            String systemPromptComponents = String.join(loggablePromptParts, '\n\n');
+
+            this.decisionLogger.logSystemPromptConstruction(
+                'System Prompt Constructed',
+                'Built complete system prompt for LLM interaction',
+                systemPromptComponents,
+                null
+            );
+        }
+
         String composedPrompt = String.join(promptParts, '\n\n');
         System.debug(LoggingLevel.INFO, logPrefix + 'System prompt composition complete. Prompt length: ' + composedPrompt.length());
         System.debug(LoggingLevel.DEBUG, logPrefix + 'Composed Prompt:\n' + composedPrompt);
+
         return composedPrompt;
     }
 
@@ -188,6 +223,7 @@ public inherited sharing class SystemPromptBuilder {
      * @param includeMetadata Whether to include technical metadata for each context item.
      * @return            Structured context prompt string, or empty if no context available.
      */
+    @TestVisible
     private String buildStructuredContextPrompt(Id sessionId, Integer currentTurn, Boolean includeMetadata) {
         Map<String, List<ContextManagerService.ContextItem>> structuredContext = this.contextManager.getStructuredContext(sessionId, currentTurn);
 
@@ -225,10 +261,6 @@ public inherited sharing class SystemPromptBuilder {
         return String.join(promptSections, '\n\n');
     }
 
-    /**
-     * Traditional context data building for backward compatibility.
-     * Uses ContextResolverService and SObjectContextFormatter for context resolution.
-     */
     private String buildTraditionalContextData(
         Id sessionId,
         AIAgentDefinition__c agentConfig,
@@ -247,13 +279,111 @@ public inherited sharing class SystemPromptBuilder {
             currentTurn
         );
 
+        // Log context gathering if decision logger is available
+        if (this.decisionLogger != null && resolvedContext.recordsToLoad != null && !resolvedContext.recordsToLoad.isEmpty()) {
+            // Get context provider information
+            List<AgentContextConfig__c> contextConfigs = new List<AgentContextConfig__c>();
+            try {
+                contextConfigs = [
+                    SELECT Id, Name, ContextLabel__c, ImplementationName__c, ApplicableSObjectTypes__c, ExecutionOrder__c
+                    FROM AgentContextConfig__c 
+                    WHERE AIAgentDefinition__c = :agentConfig.Id AND IsActive__c = true
+                    ORDER BY ExecutionOrder__c ASC
+                ];
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Could not retrieve context configs for logging: ' + e.getMessage());
+            }
+
+            // Get memory manager information
+            String memoryManagerClassName = agentConfig.MemoryStrategy__c;
+            
+            // Count context providers
+            Integer contextProviderCount = contextConfigs.size();
+            
+            // Get history limit if using buffer strategy
+            String historyLimitInfo = '';
+            if (agentConfig.MemoryStrategy__c == 'Buffer Window') {
+                if (agentConfig.HistoryLimit__c != null) {
+                    historyLimitInfo = 'Loading up to ' + agentConfig.HistoryLimit__c + ' turns';
+                } else {
+                    historyLimitInfo = 'Loading all conversation history';
+                }
+            } else if (agentConfig.MemoryStrategy__c == 'Summary Buffer') {
+                historyLimitInfo = 'Loading conversation history with summarization';
+            } else {
+                historyLimitInfo = 'Loading conversation history';
+            }
+
+            // Create detailed context description
+            List<String> contextDetails = new List<String>();
+            contextDetails.add('Gathered and formatted context records for LLM interaction');
+            
+            // Add formatting strategy
+            if (String.isNotBlank(agentConfig.ContextFormatStrategy__c)) {
+                contextDetails.add('Formatting Strategy: ' + agentConfig.ContextFormatStrategy__c);
+            }
+            
+            // Add memory manager class name
+            if (String.isNotBlank(memoryManagerClassName)) {
+                contextDetails.add('Memory Manager: ' + memoryManagerClassName);
+            }
+            
+            // Add history limit info
+            if (String.isNotBlank(historyLimitInfo)) {
+                contextDetails.add(historyLimitInfo);
+            }
+            
+            // Add context provider count
+            if (contextProviderCount > 0) {
+                contextDetails.add('Invoking ' + contextProviderCount + ' context providers');
+            }
+
+            // Add context provider details
+            for (AgentContextConfig__c config : contextConfigs) {
+                if (String.isNotBlank(config.ContextLabel__c) && String.isNotBlank(config.ImplementationName__c)) {
+                    String sObjectInfo = String.isBlank(config.ApplicableSObjectTypes__c) ? '' : ' for ' + config.ApplicableSObjectTypes__c;
+                    contextDetails.add('- ' + config.ContextLabel__c + ': ' + config.ImplementationName__c + sObjectInfo);
+                }
+            }
+
+            // Create raw context data for debugging
+            Map<String, Object> rawContextInfo = new Map<String, Object>{
+                'recordCount' => resolvedContext.recordsToLoad.size(),
+                'records' => resolvedContext.recordsToLoad,
+                'contextProviders' => contextConfigs,
+                'memoryManager' => memoryManagerClassName,
+                'historyInfo' => historyLimitInfo
+            };
+
+            // Format SObject data using configured strategy for the formatted context
+            String formattedContext = '';
+            if (resolvedContext.recordsToLoad != null && !resolvedContext.recordsToLoad.isEmpty()) {
+                formattedContext = ContextFormatterFactory.createFormatter(agentConfig.ContextFormatStrategy__c)
+                    .formatContext(resolvedContext.recordsToLoad, logPrefix);
+            }
+
+            // Create context info that includes both raw and formatted data
+            Map<String, Object> contextInfo = new Map<String, Object>{
+                'recordCount' => resolvedContext.recordsToLoad.size(),
+                'rawContext' => rawContextInfo,
+                'formattedContext' => formattedContext,
+                'formatStrategy' => agentConfig.ContextFormatStrategy__c
+            };
+
+            // Use the new method that supports separate raw and formatted context storage
+            this.decisionLogger.logContextGatheringWithFormatting(
+                'Context Gathered',
+                String.join(contextDetails, '\n'),
+                JSON.serialize(contextInfo),
+                formattedContext,
+                null
+            );
+        }
+
         if (resolvedContext.recordsToLoad != null && !resolvedContext.recordsToLoad.isEmpty()) {
             // Format SObject data using configured strategy
-            String sObjectContextBlock = SObjectContextFormatter.formatContext(
-                resolvedContext.recordsToLoad,
-                agentConfig.ContextFormatStrategy__c,
-                logPrefix
-            );
+            String sObjectContextBlock = ContextFormatterFactory.createFormatter(agentConfig.ContextFormatStrategy__c)
+                .formatContext(resolvedContext.recordsToLoad, logPrefix);
 
             return sObjectContextBlock;
         }
@@ -315,6 +445,7 @@ public inherited sharing class SystemPromptBuilder {
      * @param includeMetadata Whether to include technical metadata for each item.
      * @return                A string representing the formatted section.
      */
+    @TestVisible
     private String buildContextPromptSection(
         String sectionKey,
         List<ContextManagerService.ContextItem> items,
@@ -343,6 +474,7 @@ public inherited sharing class SystemPromptBuilder {
      * @param includeMetadata Whether to include technical metadata.
      * @return                A formatted string for the context item, or blank if not displayable.
      */
+    @TestVisible
     private String formatContextItem(ContextManagerService.ContextItem item, Integer currentTurn, Boolean includeMetadata) {
         List<String> parts = new List<String>();
 
@@ -388,6 +520,7 @@ public inherited sharing class SystemPromptBuilder {
      * @param item The context item whose type is to be explained.
      * @return     A string explanation, or null if not applicable.
      */
+    @TestVisible
     private String getContextTypeExplanation(ContextManagerService.ContextItem item) {
         switch on item.contextType {
             when IMPLICIT_PRIMARY {
@@ -422,6 +555,7 @@ public inherited sharing class SystemPromptBuilder {
      * @param maxChars The maximum allowed length for the section.
      * @return         The truncated section, with an ellipsis if truncation occurred.
      */
+    @TestVisible
     private String truncateContextSection(String section, Integer maxChars) {
         if (section.length() <= maxChars) {
             return section;

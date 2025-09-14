@@ -35,6 +35,9 @@ public class OrchestrationContext {
     public AgentJobEnqueuer dispatchSvc { get; private set; }
     public ContextManagerService contextManagerSvc { get; private set; }
 
+    // Shared decision step logger for the turn
+    public AgentDecisionStepLogger decisionLogger { get; private set; }
+
     /**
      * Constructs an OrchestrationContext with all state and dependencies for a single LLM orchestration turn.
      *
@@ -51,6 +54,7 @@ public class OrchestrationContext {
      * @param dispatchSvc       Service for enqueuing agent jobs (required)
      * @param contextMgrSvc     Service for managing context and memory (required)
      * @param pageRecordId      The current page record ID, if applicable (optional)
+     * @param decisionLogger    Shared decision step logger for this turn (required)
      *
      * All fields are immutable after construction. The logPrefix is precomputed for consistent debug output.
      */
@@ -67,7 +71,8 @@ public class OrchestrationContext {
         ActionExecutionService actionSvc,
         AgentJobEnqueuer dispatchSvc,
         ContextManagerService contextMgrSvc,
-        Id pageRecordId
+        Id pageRecordId,
+        AgentDecisionStepLogger decisionLogger
     ) {
         this.llmResult = llmResult;
         this.sessionId = sessionId;
@@ -82,6 +87,7 @@ public class OrchestrationContext {
         this.dispatchSvc = dispatchSvc;
         this.contextManagerSvc = contextMgrSvc;
         this.currentPageRecordId = pageRecordId;
+        this.decisionLogger = decisionLogger;
         // Precompute a log prefix for consistent debug output throughout the turn.
         this.logPrefix = '[OrchSvc Turn:' + turnId?.left(8) + ' Cycle:' + turnCount + ' Sess:' + sessionId + '] ';
     }

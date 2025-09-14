@@ -49,8 +49,8 @@ public class FollowUpLLMProcessor {
     /**
      * Executes the follow-up LLM processing logic for a completed tool execution.
      *
-     * This method validates session and turn state, invokes the LLM, processes the result, and handles errors.
-     * It is safe to call from Queueable jobs, Platform Events, or other asynchronous triggers.
+     * This method validates session and turn state, invokes the LLM, processes the resulting output,
+     * and handles errors. It is safe to call from Queueable jobs, Platform Events, or other asynchronous triggers.
      *
      * @param jobIdForLogging  The Apex Job ID or other identifier for logging purposes. Can be null.
      * @return                 None.
@@ -90,7 +90,11 @@ public class FollowUpLLMProcessor {
             }
             Id executionUserId = UserInfo.getUserId();
             Id originalUserId = this.userId;
-            // Perform LLM callout for follow-up interaction
+
+            // Initialize the decision step logger - single instance for the entire turn
+            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(this.chatSessionId, this.turnIdentifier, originalUserId);
+
+            // Perform LLM callout for follow-up interaction with decision logger
             LLMInteractionService interactionService = new LLMInteractionService(
                 this.chatSessionId,
                 originalUserId,
@@ -99,11 +103,13 @@ public class FollowUpLLMProcessor {
                 this.turnIdentifier,
                 this.currentTurnCount,
                 null,
-                this.isFinalErrorTurn
+                this.isFinalErrorTurn,
+                decisionLogger
             );
             LLMInteractionService.LLMInteractionResult llmInteractionResult = interactionService.prepareAndCallLLM(null);
-            // Process the LLM result and update orchestration state
-            String outcome = orchestrationSvc.processLlmResult(
+
+            // Process the LLM result and update orchestration state with decision logger
+            String outcome = orchestrationSvc.processLlmResultWithLogger(
                 llmInteractionResult,
                 this.chatSessionId,
                 originalUserId,
@@ -112,8 +118,10 @@ public class FollowUpLLMProcessor {
                 this.turnIdentifier,
                 this.currentTurnCount,
                 null,
-                null
+                null,
+                decisionLogger
             );
+
             System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up LLM orchestration outcome: ' + outcome);
         } catch (Exception ex) {
             System.debug(
@@ -141,7 +149,6 @@ public class FollowUpLLMProcessor {
                 );
             }
         } finally {
-            OrchestrationLogger.commitLogs();
             System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up LLM processing finished.');
         }
     }

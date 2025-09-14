@@ -50,7 +50,7 @@ public with sharing class AgentTestDataFactory {
             }
 
             // Delete in order to avoid dependency errors
-            delete [SELECT Id FROM OrchestrationLog__c];
+            delete [SELECT Id FROM AgentDecisionStep__c];
             delete [SELECT Id FROM HumanApprovalRequest__c];
             delete [SELECT Id FROM ChatMessage__c];
             delete [SELECT Id FROM ChatSession__c];

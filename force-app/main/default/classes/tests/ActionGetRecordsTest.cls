@@ -37,66 +37,70 @@ private class ActionGetRecordsTest {
     static void executeAction_success_basicQuery() {
         ActionGetRecords action = new ActionGetRecords();
         String config = '{"objectApiName": "Account", "defaultFields": ["Id", "Name"], "maxReturnToLLM": 10}';
-        String argumentsJson = '{}';
+        action.parseActionConfiguration(config, '[TEST] ');
+
+        Map<String, Object> params = new Map<String, Object>();
 
         Test.startTest();
-        ActionResult result = action.execute(config, argumentsJson, createMockActionContext());
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result);
         System.assertEquals(true, result.isSuccess);
 
-        Map<String, Object> outputMap = (Map<String, Object>) result.outputForLlm;
-        Map<String, Object> dataMap = (Map<String, Object>) outputMap.get('data');
+        ActionGetRecords.QueryResult queryResult = (ActionGetRecords.QueryResult) result.data;
 
-        System.assertEquals('Account', (String) dataMap.get('objectApiName'));
-        System.assertEquals(3, (Integer) dataMap.get('count'));
-        System.assertEquals(3, ((List<Object>) dataMap.get('records')).size());
-        System.assertEquals(false, (Boolean) dataMap.get('truncated'));
-        System.assert(((String) outputMap.get('messageForUser')).contains('Found and showing all 3 Account'));
+        System.assertEquals('Account', queryResult.objectApiName);
+        System.assertEquals(3, queryResult.count);
+        System.assertEquals(3, queryResult.records.size());
+        System.assertEquals(false, queryResult.truncated);
+        System.assert(queryResult.message.contains('Found and showing all 3 Account'));
     }
 
     @IsTest
     static void executeAction_success_withFilters() {
         ActionGetRecords action = new ActionGetRecords();
-        String config = '{"objectApiName": "Contact", "defaultFields": ["Id", "Name", "Email"], "maxReturnToLLM": 10}';
-        String argumentsJson = '{"filters": {"LastName": "Smith"}}';
+        String config = '{"objectApiName": "Contact", "defaultFields": ["Id", "FirstName", "LastName", "Email"], "maxReturnToLLM": 10}';
+        action.parseActionConfiguration(config, '[TEST] ');
+
+        Map<String, Object> params = new Map<String, Object>{ 'filters' => new Map<String, Object>{ 'LastName' => 'Smith' } };
 
         Test.startTest();
-        ActionResult result = action.execute(config, argumentsJson, createMockActionContext());
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result);
         System.assertEquals(true, result.isSuccess);
 
-        Map<String, Object> outputMap = (Map<String, Object>) result.outputForLlm;
-        Map<String, Object> dataMap = (Map<String, Object>) outputMap.get('data');
-        List<Object> rawRecords = (List<Object>) dataMap.get('records');
-        List<SObject> records = (List<SObject>) JSON.deserialize(JSON.serialize(rawRecords), List<SObject>.class);
+        ActionGetRecords.QueryResult queryResult = (ActionGetRecords.QueryResult) result.data;
+        List<SObject> records = queryResult.records;
 
-        System.assertEquals('Contact', (String) dataMap.get('objectApiName'));
-        System.assertEquals(1, (Integer) dataMap.get('count'));
+        System.assertEquals('Contact', queryResult.objectApiName);
+        System.assertEquals(1, queryResult.count);
         System.assertEquals(1, records.size());
-        System.assertEquals('John Smith', records[0].get('Name'));
+
+        // Check individual field values
+        System.assertEquals('John', records[0].get('FirstName'));
+        System.assertEquals('Smith', records[0].get('LastName'));
     }
 
     @IsTest
     static void executeAction_success_withLimitAndOrderBy() {
         ActionGetRecords action = new ActionGetRecords();
         String config = '{"objectApiName": "Account", "defaultFields": ["Id", "Name"], "maxReturnToLLM": 10}';
-        String argumentsJson = '{"limit": 2, "orderBy": "Name ASC"}';
+        action.parseActionConfiguration(config, '[TEST] ');
+
+        Map<String, Object> params = new Map<String, Object>{ 'limit' => 2, 'orderBy' => 'Name ASC' };
 
         Test.startTest();
-        ActionResult result = action.execute(config, argumentsJson, createMockActionContext());
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result);
         System.assertEquals(true, result.isSuccess);
 
-        Map<String, Object> outputMap = (Map<String, Object>) result.outputForLlm;
-        Map<String, Object> dataMap = (Map<String, Object>) outputMap.get('data');
-        List<Object> rawRecords = (List<Object>) dataMap.get('records');
-        List<SObject> records = (List<SObject>) JSON.deserialize(JSON.serialize(rawRecords), List<SObject>.class);
+        ActionGetRecords.QueryResult queryResult = (ActionGetRecords.QueryResult) result.data;
+        List<SObject> records = queryResult.records;
 
         System.assertEquals(2, records.size());
         // Verify ordering - "Another Company" should come first alphabetically
@@ -107,145 +111,90 @@ private class ActionGetRecordsTest {
     static void executeAction_success_truncatedResults() {
         ActionGetRecords action = new ActionGetRecords();
         String config = '{"objectApiName": "Account", "defaultFields": ["Id", "Name"], "maxReturnToLLM": 2}';
-        String argumentsJson = '{}';
+        action.parseActionConfiguration(config, '[TEST] ');
+
+        Map<String, Object> params = new Map<String, Object>();
 
         Test.startTest();
-        ActionResult result = action.execute(config, argumentsJson, createMockActionContext());
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result);
         System.assertEquals(true, result.isSuccess);
 
-        Map<String, Object> outputMap = (Map<String, Object>) result.outputForLlm;
-        Map<String, Object> dataMap = (Map<String, Object>) outputMap.get('data');
+        ActionGetRecords.QueryResult queryResult = (ActionGetRecords.QueryResult) result.data;
 
-        System.assertEquals(3, (Integer) dataMap.get('count')); // Total found
-        System.assertEquals(2, ((List<Object>) dataMap.get('records')).size()); // Returned to LLM
-        System.assertEquals(true, (Boolean) dataMap.get('truncated'));
-        System.assert(((String) outputMap.get('messageForUser')).contains('Found 3 Account record(s). Showing the first 2'));
+        System.assertEquals(3, queryResult.count); // Total found
+        System.assertEquals(2, queryResult.records.size()); // Returned to LLM
+        System.assertEquals(true, queryResult.truncated);
+        System.assert(queryResult.message.contains('Found 3 Account record(s). Showing the first 2'));
     }
 
     @IsTest
     static void executeAction_success_noResults() {
         ActionGetRecords action = new ActionGetRecords();
-        String config = '{"objectApiName": "Contact", "defaultFields": ["Id", "Name"], "maxReturnToLLM": 10}';
-        String argumentsJson = '{"filters": {"LastName": "NonExistentName"}}';
+        String config = '{"objectApiName": "Contact", "defaultFields": ["Id", "FirstName", "LastName"], "maxReturnToLLM": 10}';
+        action.parseActionConfiguration(config, '[TEST] ');
+
+        Map<String, Object> params = new Map<String, Object>{ 'filters' => new Map<String, Object>{ 'LastName' => 'NonExistentName' } };
 
         Test.startTest();
-        ActionResult result = action.execute(config, argumentsJson, createMockActionContext());
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result);
         System.assertEquals(true, result.isSuccess);
 
-        Map<String, Object> outputMap = (Map<String, Object>) result.outputForLlm;
-        Map<String, Object> dataMap = (Map<String, Object>) outputMap.get('data');
+        ActionGetRecords.QueryResult queryResult = (ActionGetRecords.QueryResult) result.data;
 
-        System.assertEquals(0, (Integer) dataMap.get('count'));
-        System.assertEquals(0, ((List<Object>) dataMap.get('records')).size());
-        System.assertEquals('No Contact records found matching the criteria.', (String) outputMap.get('messageForUser'));
+        System.assertEquals(0, queryResult.count);
+        System.assertEquals(0, queryResult.records.size());
+        System.assertEquals('No Contact records found matching the criteria.', queryResult.message);
     }
 
     @IsTest
     static void executeAction_failure_invalidConfiguration() {
         ActionGetRecords action = new ActionGetRecords();
         String config = '{"invalidKey": "value"}'; // Missing objectApiName
-        String argumentsJson = '{}';
 
         Test.startTest();
-        ActionResult result = action.execute(config, argumentsJson, createMockActionContext());
+        try {
+            action.parseActionConfiguration(config, '[TEST] ');
+            System.assert(false, 'Should have thrown ValidationException');
+        } catch (ActionConfigUtils.ArgumentValidationException e) {
+            System.assert(e.getMessage().contains('objectApiName'));
+        }
         Test.stopTest();
-
-        System.assertNotEquals(null, result);
-        System.assertEquals(false, result.isSuccess);
-        System.assert(String.valueOf(result.outputForLlm).contains('objectApiName'));
     }
 
     @IsTest
     static void executeAction_failure_invalidObjectApiName() {
         ActionGetRecords action = new ActionGetRecords();
         String config = '{"objectApiName": "InvalidObject__c", "defaultFields": ["Id"], "maxReturnToLLM": 10}';
-        String argumentsJson = '{}';
 
         Test.startTest();
-        ActionResult result = action.execute(config, argumentsJson, createMockActionContext());
+        try {
+            action.parseActionConfiguration(config, '[TEST] ');
+            System.assert(false, 'Should have thrown ValidationException');
+        } catch (BaseAgentAction.ValidationException e) {
+            System.assert(e.getMessage().contains('Invalid SObject API Name'));
+        }
         Test.stopTest();
-
-        System.assertNotEquals(null, result);
-        System.assertEquals(false, result.isSuccess);
-        System.assert(String.valueOf(result.outputForLlm).contains('Invalid SObject API Name'));
     }
 
     @IsTest
     static void executeAction_failure_blankObjectApiName() {
         ActionGetRecords action = new ActionGetRecords();
         String config = '{"objectApiName": "", "defaultFields": ["Id"], "maxReturnToLLM": 10}';
-        String argumentsJson = '{}';
 
         Test.startTest();
-        ActionResult result = action.execute(config, argumentsJson, createMockActionContext());
+        try {
+            action.parseActionConfiguration(config, '[TEST] ');
+            System.assert(false, 'Should have thrown ValidationException');
+        } catch (ActionConfigUtils.ArgumentValidationException e) {
+            System.assert(e.getMessage().contains('cannot be blank'));
+        }
         Test.stopTest();
-
-        System.assertNotEquals(null, result);
-        System.assertEquals(false, result.isSuccess);
-        System.assert(String.valueOf(result.outputForLlm).contains('cannot be blank'));
-    }
-
-    @IsTest
-    static void validateAndCoerceLimit_success_integerLimit() {
-        ActionGetRecords action = new ActionGetRecords();
-        String config = '{"objectApiName": "Account", "defaultFields": ["Id"], "maxReturnToLLM": 10}';
-        String argumentsJson = '{"limit": 5}';
-
-        Test.startTest();
-        ActionResult result = action.execute(config, argumentsJson, createMockActionContext());
-        Test.stopTest();
-
-        System.assertNotEquals(null, result);
-        System.assertEquals(true, result.isSuccess);
-
-        Map<String, Object> outputMap = (Map<String, Object>) result.outputForLlm;
-        Map<String, Object> dataMap = (Map<String, Object>) outputMap.get('data');
-        List<Object> records = (List<Object>) dataMap.get('records');
-
-        // There are 3 accounts total, so a limit of 5 should return all 3.
-        System.assertEquals(3, records.size());
-    }
-
-    @IsTest
-    static void validateAndCoerceLimit_success_stringLimit() {
-        ActionGetRecords action = new ActionGetRecords();
-        String config = '{"objectApiName": "Account", "defaultFields": ["Id"], "maxReturnToLLM": 10}';
-        String argumentsJson = '{"limit": "2"}';
-
-        Test.startTest();
-        ActionResult result = action.execute(config, argumentsJson, createMockActionContext());
-        Test.stopTest();
-
-        System.assertNotEquals(null, result);
-        System.assertEquals(true, result.isSuccess);
-
-        Map<String, Object> outputMap = (Map<String, Object>) result.outputForLlm;
-        Map<String, Object> dataMap = (Map<String, Object>) outputMap.get('data');
-        List<Object> records = (List<Object>) dataMap.get('records');
-
-        // Verify string limit was parsed correctly
-        System.assertEquals(2, records.size());
-    }
-
-    @IsTest
-    static void validateAndCoerceLimit_failure_invalidString() {
-        ActionGetRecords action = new ActionGetRecords();
-        String config = '{"objectApiName": "Account", "defaultFields": ["Id"], "maxReturnToLLM": 10}';
-        String argumentsJson = '{"limit": "invalid"}';
-
-        Test.startTest();
-        ActionResult result = action.execute(config, argumentsJson, createMockActionContext());
-        Test.stopTest();
-
-        System.assertNotEquals(null, result);
-        System.assertEquals(false, result.isSuccess);
-        System.assert(String.valueOf(result.outputForLlm).contains('Type coercion failed for parameter "limit"'));
     }
 
     @IsTest

@@ -36,17 +36,14 @@ public class ActionCreateRecord extends BaseAgentAction {
     /**
      * @description
      * Main entry point for record creation. Merges default and user-supplied field values, performs security and type validation,
-     * and executes the DML insert. Returns a structured result or throws detailed exceptions on error.
+     * and executes the DML insert. Returns a structured result or failure information.
      *
      * @param params Map<String, Object> - Field name-value pairs for the new record.
-     * @return CreateResult - Contains the new record ID, message, and metadata.
-     * @throws ValidationException if no field data is provided or if type coercion fails.
-     * @throws ActionSecurityException if no creatable fields remain after FLS checks.
-     * @throws DmlException if the DML operation fails.
+     * @return Result<CreateResult> - Contains the new record ID and metadata, or error information.
      *
      * Side effects: Logs security, FLS, and performance information for audit and troubleshooting.
      */
-    public override Object executeAction(Map<String, Object> params) {
+    public override ActionOutcome executeAction(Map<String, Object> params) {
         Long startTime = System.currentTimeMillis();
 
         // Merge default and user-supplied field values
@@ -55,7 +52,7 @@ public class ActionCreateRecord extends BaseAgentAction {
         finalData.putAll(params);
 
         if (finalData.isEmpty()) {
-            throw new ValidationException('No field data provided for record creation', null);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'No field data provided for record creation');
         }
 
         // Explicitly check object-level create permission
@@ -63,7 +60,7 @@ public class ActionCreateRecord extends BaseAgentAction {
             SecurityUtils.checkObjectPermission(this.targetSObjectType, AccessType.CREATABLE);
         } catch (SecurityUtils.ActionSecurityException ase) {
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Security check failed for object ' + this.objectApiName + ': ' + ase.getMessage());
-            throw ase;
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ase.getMessage());
         }
 
         // Coerce types and check field-level security (FLS)
@@ -72,10 +69,10 @@ public class ActionCreateRecord extends BaseAgentAction {
             typedData = SObjectArgumentCoercionService.coerceArgumentTypesForSObject(finalData, this.targetSObjectType, AccessType.CREATABLE);
         } catch (SObjectArgumentCoercionService.InvalidArgumentTypeException typeEx) {
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Type coercion failed: ' + typeEx.getMessage());
-            throw new ValidationException(typeEx.getMessage(), null);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
         } catch (SecurityUtils.ActionSecurityException secEx) {
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Field-level security check failed: ' + secEx.getMessage());
-            throw secEx;
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, secEx.getMessage());
         }
 
         if (typedData.isEmpty()) {
@@ -85,7 +82,8 @@ public class ActionCreateRecord extends BaseAgentAction {
                 '[ActionCreateRecord] All provided fields were filtered out by FLS. Original fields: ' +
                 String.join(new List<String>(originalFields), ', ')
             );
-            throw new ActionSecurityException(
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
                 'No creatable fields provided after security checks. Original fields: ' + String.join(new List<String>(originalFields), ', ')
             );
         }
@@ -109,22 +107,24 @@ public class ActionCreateRecord extends BaseAgentAction {
         }
 
         // Insert the record and handle DML errors
-        Database.SaveResult result = Database.insert(newRecord, false);
+        Database.SaveResult saveResult = Database.insert(newRecord, false);
 
         Long executionTime = System.currentTimeMillis() - startTime;
         System.debug(LoggingLevel.INFO, '[ActionCreateRecord] Record creation for ' + this.objectApiName + ' completed in ' + executionTime + ' ms.');
 
-        if (result.isSuccess()) {
-            System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] Successfully created record with ID: ' + result.getId());
-            return new CreateResult(
-                result.getId(),
-                'Successfully created ' + this.objectApiName + ' record with ID ' + result.getId() + '.',
-                new List<String>(typedData.keySet())
+        if (saveResult.isSuccess()) {
+            System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] Successfully created record with ID: ' + saveResult.getId());
+            return ActionOutcome.success(
+                new CreateResult(
+                    saveResult.getId(),
+                    'Successfully created ' + this.objectApiName + ' record with ID ' + saveResult.getId() + '.',
+                    new List<String>(typedData.keySet())
+                )
             );
         } else {
-            String enhancedMessage = enhanceCreateErrorMessage(result.getErrors()[0], typedData);
+            String enhancedMessage = enhanceCreateErrorMessage(saveResult.getErrors()[0], typedData);
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Record creation failed for ' + this.objectApiName + ': ' + enhancedMessage);
-            throw new DmlException(enhancedMessage);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_DML_ERROR, enhancedMessage);
         }
     }
 

@@ -37,12 +37,11 @@ public class ActionPostChatter extends BaseAgentAction {
      * Main entry point for Chatter posting. Validates parameters, enforces security, creates the Chatter post, and processes topics.
      *
      * @param params Map<String, Object> - Must include 'text' (String), may include 'topics' (List<String>).
-     * @return ChatterResult - Contains post confirmation and metadata.
-     * @throws ValidationException or ActionSecurityException for parameter, security, or posting errors.
+     * @return Result<ChatterResult> - Contains post confirmation and metadata or error information.
      *
      * Side effects: Logs key steps, errors, and performance metrics for troubleshooting and monitoring.
      */
-    public override Object executeAction(Map<String, Object> params) {
+    public override ActionOutcome executeAction(Map<String, Object> params) {
         Long startTime = System.currentTimeMillis();
 
         // Framework automatically validates required text parameter
@@ -50,10 +49,13 @@ public class ActionPostChatter extends BaseAgentAction {
         List<String> topics = (List<String>) params.get('topics');
 
         if (String.isBlank(text)) {
-            throw new ValidationException('Text parameter cannot be blank for Chatter post', 'text');
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Text parameter cannot be blank for Chatter post');
         }
 
-        validateChatterTargetAccess();
+        ActionOutcome targetValidationResult = validateChatterTargetAccess();
+        if (!targetValidationResult.isSuccess) {
+            return targetValidationResult;
+        }
 
         System.debug(LoggingLevel.INFO, '[ActionPostChatter] Posting to ' + this.feedType + ' feed. Target ID: ' + this.targetSObjectId);
         System.debug(
@@ -61,16 +63,22 @@ public class ActionPostChatter extends BaseAgentAction {
             '[ActionPostChatter] Message length: ' + text.length() + ' characters. Topics: ' + (topics != null ? topics.size() : 0)
         );
 
-        ConnectApi.FeedElement feedElement = createChatterPost(text, topics);
+        ActionOutcome chatterResult = createChatterPost(text, topics);
+        if (!chatterResult.isSuccess) {
+            return chatterResult;
+        }
+        ConnectApi.FeedElement feedElement = (ConnectApi.FeedElement) chatterResult.data;
 
         Long executionTime = System.currentTimeMillis() - startTime;
         System.debug(LoggingLevel.INFO, '[ActionPostChatter] Chatter post completed in ' + executionTime + ' ms.');
 
-        return new ChatterResult(
-            feedElement.id,
-            'I have successfully posted the message to the ' + this.feedType + ' feed.',
-            text.length(),
-            topics != null ? topics.size() : 0
+        return ActionOutcome.success(
+            new ChatterResult(
+                feedElement.id,
+                'I have successfully posted the message to the ' + this.feedType + ' feed.',
+                text.length(),
+                topics != null ? topics.size() : 0
+            )
         );
     }
 
@@ -82,6 +90,7 @@ public class ActionPostChatter extends BaseAgentAction {
      * @param logPrefix String - Prefix for log output.
      * @throws ValidationException if required configuration is missing or invalid.
      */
+    @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
 
@@ -128,9 +137,9 @@ public class ActionPostChatter extends BaseAgentAction {
      * Validates that the user has access to the Chatter target before attempting to post.
      * Performs a security check to ensure the target exists and is accessible.
      *
-     * @throws ActionSecurityException if the target is not found or not accessible.
+     * @return ActionOutcome indicating success or failure with access violation details.
      */
-    private void validateChatterTargetAccess() {
+    private ActionOutcome validateChatterTargetAccess() {
         try {
             String query = 'SELECT Id FROM ' + this.targetSObjectName + ' WHERE Id = :targetId LIMIT 1';
             List<SObject> targetCheck = Database.queryWithBinds(
@@ -143,14 +152,16 @@ public class ActionPostChatter extends BaseAgentAction {
                     LoggingLevel.ERROR,
                     '[ActionPostChatter] Target ' + this.feedType + ' with ID ' + this.targetSObjectId + ' not found or user lacks access.'
                 );
-                throw new ActionSecurityException(
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
                     'Target ' + this.feedType + ' with ID ' + this.targetSObjectId + ' not found or user lacks access.'
                 );
             }
+            return ActionOutcome.success();
         } catch (System.QueryException qe) {
             String enhancedMessage = 'Failed to validate access to Chatter target: ' + qe.getMessage();
             System.debug(LoggingLevel.ERROR, '[ActionPostChatter] ' + enhancedMessage);
-            throw new ActionSecurityException(enhancedMessage);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, enhancedMessage);
         }
     }
 
@@ -160,10 +171,9 @@ public class ActionPostChatter extends BaseAgentAction {
      *
      * @param text String - Message text to post.
      * @param topics List<String> - Optional list of topics to associate with the post.
-     * @return ConnectApi.FeedElement - The posted message.
-     * @throws ValidationException if posting fails or topics are invalid.
+     * @return ActionOutcome<ConnectApi.FeedElement> - The posted message or error information.
      */
-    private ConnectApi.FeedElement createChatterPost(String text, List<String> topics) {
+    private ActionOutcome createChatterPost(String text, List<String> topics) {
         try {
             if (text.length() > 10000) {
                 System.debug(LoggingLevel.WARN, '[ActionPostChatter] Message text exceeded 10000 characters. Truncating.');
@@ -201,16 +211,16 @@ public class ActionPostChatter extends BaseAgentAction {
                 }
             }
 
-            return ConnectApi.ChatterFeeds.postFeedElement(Network.getNetworkId(), feedItemInput);
+            return ActionOutcome.success(ConnectApi.ChatterFeeds.postFeedElement(Network.getNetworkId(), feedItemInput));
         } catch (ConnectApi.ConnectApiException cae) {
             String enhancedMessage = 'Chatter post failed: ' + cae.getMessage();
             System.debug(LoggingLevel.ERROR, '[ActionPostChatter] Chatter post failed: ' + enhancedMessage);
-            throw new ValidationException(enhancedMessage, null);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, enhancedMessage);
         } catch (Exception ex) {
             String enhancedMessage = 'Unexpected error posting to Chatter: ' + ex.getMessage();
             System.debug(LoggingLevel.ERROR, '[ActionPostChatter] Unexpected error: ' + enhancedMessage);
             System.debug(LoggingLevel.DEBUG, '[ActionPostChatter] Exception stack trace: ' + ex.getStackTraceString());
-            throw new ValidationException(enhancedMessage, null);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, enhancedMessage);
         }
     }
 

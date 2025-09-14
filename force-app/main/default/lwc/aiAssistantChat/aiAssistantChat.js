@@ -47,7 +47,7 @@ export default class AiAssistantChat extends LightningElement {
      * The developer name of the AI agent to use.
      * @type {string}
      */
-    @api agentDeveloperName = 'SalesCopilot';
+    @api agentDeveloperName = 'Order_Management_Copilot';
     /**
      * Enables the "Start Over" feature for conversation branching.
      * @type {boolean}

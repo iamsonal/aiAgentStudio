@@ -25,20 +25,23 @@ private class ActionCreateRecordTest {
         };
 
         Test.startTest();
-        ActionCreateRecord.CreateResult result = (ActionCreateRecord.CreateResult) action.executeAction(params);
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertNotEquals(null, result.recordId, 'Record ID should be set');
-        System.assert(result.message.contains('Successfully created Contact'), 'Message should indicate success');
-        System.assertEquals(4, result.fieldsSet.size(), 'Should have set 4 fields');
-        System.assert(result.fieldsSet.contains('FirstName'), 'Should include FirstName in fields set');
-        System.assert(result.fieldsSet.contains('LastName'), 'Should include LastName in fields set');
-        System.assert(result.fieldsSet.contains('Email'), 'Should include Email in fields set');
-        System.assert(result.fieldsSet.contains('AccountId'), 'Should include AccountId in fields set');
+        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+
+        ActionCreateRecord.CreateResult createResult = (ActionCreateRecord.CreateResult) result.data;
+        System.assertNotEquals(null, createResult.recordId, 'Record ID should be set');
+        System.assert(createResult.message.contains('Successfully created Contact'), 'Message should indicate success');
+        System.assertEquals(4, createResult.fieldsSet.size(), 'Should have set 4 fields');
+        System.assert(createResult.fieldsSet.contains('FirstName'), 'Should include FirstName in fields set');
+        System.assert(createResult.fieldsSet.contains('LastName'), 'Should include LastName in fields set');
+        System.assert(createResult.fieldsSet.contains('Email'), 'Should include Email in fields set');
+        System.assert(createResult.fieldsSet.contains('AccountId'), 'Should include AccountId in fields set');
 
         // Verify record was actually created
-        Contact createdContact = [SELECT Id, FirstName, LastName, Email, AccountId FROM Contact WHERE Id = :result.recordId];
+        Contact createdContact = [SELECT Id, FirstName, LastName, Email, AccountId FROM Contact WHERE Id = :createResult.recordId];
         System.assertEquals('John', createdContact.FirstName, 'FirstName should be set correctly');
         System.assertEquals('Doe', createdContact.LastName, 'LastName should be set correctly');
         System.assertEquals('john.doe@example.com', createdContact.Email, 'Email should be set correctly');
@@ -56,16 +59,19 @@ private class ActionCreateRecordTest {
         Map<String, Object> params = new Map<String, Object>{ 'Name' => 'Test Company' };
 
         Test.startTest();
-        ActionCreateRecord.CreateResult result = (ActionCreateRecord.CreateResult) action.executeAction(params);
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertNotEquals(null, result.recordId, 'Record ID should be set');
-        System.assert(result.message.contains('Successfully created Account'), 'Message should indicate success');
-        System.assertEquals(3, result.fieldsSet.size(), 'Should have set 3 fields (including defaults)');
+        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+
+        ActionCreateRecord.CreateResult createResult = (ActionCreateRecord.CreateResult) result.data;
+        System.assertNotEquals(null, createResult.recordId, 'Record ID should be set');
+        System.assert(createResult.message.contains('Successfully created Account'), 'Message should indicate success');
+        System.assertEquals(3, createResult.fieldsSet.size(), 'Should have set 3 fields (including defaults)');
 
         // Verify record was created with defaults
-        Account createdAccount = [SELECT Id, Name, Type, Industry FROM Account WHERE Id = :result.recordId];
+        Account createdAccount = [SELECT Id, Name, Type, Industry FROM Account WHERE Id = :createResult.recordId];
         System.assertEquals('Test Company', createdAccount.Name, 'Name should be set correctly');
         System.assertEquals('Technology Partner', createdAccount.Type, 'Type should be set from defaults');
         System.assertEquals('Technology', createdAccount.Industry, 'Industry should be set from defaults');
@@ -85,17 +91,20 @@ private class ActionCreateRecordTest {
         };
 
         Test.startTest();
-        ActionCreateRecord.CreateResult result = (ActionCreateRecord.CreateResult) action.executeAction(params);
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
+        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+        ActionCreateRecord.CreateResult createResult = (ActionCreateRecord.CreateResult) result.data;
+
         // Verify user value overrode default
-        Account createdAccount = [SELECT Id, Name, Type FROM Account WHERE Id = :result.recordId];
+        Account createdAccount = [SELECT Id, Name, Type FROM Account WHERE Id = :createResult.recordId];
         System.assertEquals('Test Company', createdAccount.Name, 'Name should be set correctly');
         System.assertEquals('Technology Partner', createdAccount.Type, 'Type should be overridden by user value');
     }
 
     @IsTest
-    static void executeAction_noFieldData_throwsValidationException() {
+    static void executeAction_noFieldData_returnsFailure() {
         ActionCreateRecord action = new ActionCreateRecord();
 
         String config = '{"objectApiName": "Contact"}';
@@ -104,17 +113,16 @@ private class ActionCreateRecordTest {
         Map<String, Object> params = new Map<String, Object>();
 
         Test.startTest();
-        try {
-            action.executeAction(params);
-            System.assert(false, 'Should have thrown ValidationException');
-        } catch (BaseAgentAction.ValidationException e) {
-            System.assert(e.getMessage().contains('No field data provided'), 'Should indicate no field data');
-        }
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
+
+        System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertEquals(false, result.isSuccess, 'Result should indicate failure');
+        System.assert(String.valueOf(result.errorMessage).contains('No field data provided'), 'Should indicate no field data');
     }
 
     @IsTest
-    static void executeAction_requiredFieldMissing_throwsDmlException() {
+    static void executeAction_requiredFieldMissing_returnsFailure() {
         ActionCreateRecord action = new ActionCreateRecord();
 
         String config = '{"objectApiName": "Contact"}';
@@ -126,13 +134,12 @@ private class ActionCreateRecordTest {
         };
 
         Test.startTest();
-        try {
-            action.executeAction(params);
-            System.assert(false, 'Should have thrown DmlException');
-        } catch (DmlException e) {
-            System.assert(e.getMessage().contains('Failed to create Contact'), 'Should indicate creation failure');
-        }
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
+
+        System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertEquals(false, result.isSuccess, 'Result should indicate failure');
+        System.assert(String.valueOf(result.errorMessage).contains('Failed to create Contact'), 'Should indicate creation failure');
     }
 
     @IsTest
@@ -149,11 +156,14 @@ private class ActionCreateRecordTest {
         };
 
         Test.startTest();
-        ActionCreateRecord.CreateResult result = (ActionCreateRecord.CreateResult) action.executeAction(params);
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
+        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+        ActionCreateRecord.CreateResult createResult = (ActionCreateRecord.CreateResult) result.data;
+
         // Verify type coercion worked
-        Account createdAccount = [SELECT Id, Name, NumberOfEmployees, AnnualRevenue FROM Account WHERE Id = :result.recordId];
+        Account createdAccount = [SELECT Id, Name, NumberOfEmployees, AnnualRevenue FROM Account WHERE Id = :createResult.recordId];
         System.assertEquals('Test Company', createdAccount.Name, 'Name should be set correctly');
         System.assertEquals(100, createdAccount.NumberOfEmployees, 'NumberOfEmployees should be coerced to Integer');
         System.assertEquals(1000000.50, createdAccount.AnnualRevenue, 'AnnualRevenue should be coerced to Decimal');
@@ -174,7 +184,7 @@ private class ActionCreateRecordTest {
     }
 
     @IsTest
-    static void parseActionConfiguration_missingObjectApiName_throwsValidationException() {
+    static void parseActionConfiguration_missingObjectApiName_returnsFailure() {
         ActionCreateRecord action = new ActionCreateRecord();
 
         String config = '{"defaultFieldValues": {"LeadSource": "Web"}}';
@@ -190,7 +200,7 @@ private class ActionCreateRecordTest {
     }
 
     @IsTest
-    static void parseActionConfiguration_blankObjectApiName_throwsValidationException() {
+    static void parseActionConfiguration_blankObjectApiName_returnsFailure() {
         ActionCreateRecord action = new ActionCreateRecord();
 
         String config = '{"objectApiName": ""}';
@@ -206,7 +216,7 @@ private class ActionCreateRecordTest {
     }
 
     @IsTest
-    static void parseActionConfiguration_invalidObjectApiName_throwsValidationException() {
+    static void parseActionConfiguration_invalidObjectApiName_returnsFailure() {
         ActionCreateRecord action = new ActionCreateRecord();
 
         String config = '{"objectApiName": "InvalidObject__c"}';

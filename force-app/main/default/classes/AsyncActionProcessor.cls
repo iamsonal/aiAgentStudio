@@ -88,6 +88,8 @@ public class AsyncActionProcessor {
             '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting asynchronous execution for capability: ' + this.capability.CapabilityName__c);
 
+        AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(this.chatSessionId, this.turnIdentifier, this.originalUserId);
+
         TurnLifecycleService turnLifecycleSvc = new TurnLifecycleService();
         ActionExecutionService actionService = new ActionExecutionService();
         AgentJobEnqueuer orchestrationDispatchSvc = new AgentJobEnqueuer(turnLifecycleSvc);
@@ -143,6 +145,16 @@ public class AsyncActionProcessor {
             // Process and store the action execution result
             String resultJsonForStorage = OrchestrationService.serializeActionResult(actionResult, logPrefix);
             Id newRecordContextId = OrchestrationService.extractRecordIdFromResult(actionResult);
+
+            decisionLogger.logToolResult(
+                'Tool Execution Completed (Async)',
+                'Asynchronous tool execution has completed',
+                resultJsonForStorage,
+                actionDuration,
+                actionResult.isSuccess,
+                actionResult.errorCode,
+                actionResult.internalDetails
+            );
 
             ChatMessageService.saveToolResultMessage(
                 this.chatSessionId,
@@ -203,7 +215,7 @@ public class AsyncActionProcessor {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update session state during error handling: ' + finalFailEx.getMessage());
             }
         } finally {
-            OrchestrationLogger.commitLogs();
+            decisionLogger.commitSteps();
             System.debug(LoggingLevel.INFO, logPrefix + 'Asynchronous action processing completed');
         }
     }

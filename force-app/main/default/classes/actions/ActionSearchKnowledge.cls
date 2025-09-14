@@ -70,19 +70,35 @@ public class ActionSearchKnowledge extends BaseAgentAction {
      *
      * Side effects: Logs key steps, errors, and performance metrics for troubleshooting and monitoring.
      */
-    public override Object executeAction(Map<String, Object> params) {
+    public override ActionOutcome executeAction(Map<String, Object> params) {
         Long startTime = System.currentTimeMillis();
 
         // Extract and validate parameters
         String searchQuery = (String) params.get('searchQuery');
-        Id articleId = (Id) params.get('articleId');
+        Object articleIdObj = params.get('articleId');
+        Id articleId = null;
+
+        // Handle articleId parameter with proper validation
+        if (articleIdObj != null) {
+            if (articleIdObj instanceof Id) {
+                articleId = (Id) articleIdObj;
+            } else if (articleIdObj instanceof String && String.isNotBlank((String) articleIdObj)) {
+                try {
+                    articleId = Id.valueOf((String) articleIdObj);
+                } catch (System.StringException strEx) {
+                    // Invalid ID format - treat as if no articleId was provided
+                    System.debug(LoggingLevel.WARN, '[ActionSearchKnowledge] Invalid articleId format provided: ' + articleIdObj);
+                }
+            }
+        }
+
         String language = (String) params.get('language');
         Boolean includeDrafts = (Boolean) params.get('includeDrafts');
         Integer maxResultsParam = (Integer) params.get('maxResults');
 
         // Apply defaults and validation
         if (String.isBlank(searchQuery) && articleId == null) {
-            throw new ValidationException('Either "searchQuery" or "articleId" must be provided', null);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Either "searchQuery" or "articleId" must be provided');
         }
 
         language = String.isNotBlank(language) ? language : this.defaultLanguage;
@@ -113,7 +129,7 @@ public class ActionSearchKnowledge extends BaseAgentAction {
         List<ScoredKnowledgeResult> scoredResults = scoreAndRankKnowledgeResults(articles, searchQuery);
 
         // Process results and build response
-        KnowledgeSearchResult result = processKnowledgeResults(scoredResults, searchQuery);
+        KnowledgeSearchResult searchResult = processKnowledgeResults(scoredResults, searchQuery);
 
         // Log performance metrics
         Long executionTime = System.currentTimeMillis() - startTime;
@@ -125,7 +141,7 @@ public class ActionSearchKnowledge extends BaseAgentAction {
                 (scoredResults != null ? scoredResults.size() : 0)
         );
 
-        return result;
+        return ActionOutcome.success(searchResult);
     }
 
     /**
@@ -135,6 +151,7 @@ public class ActionSearchKnowledge extends BaseAgentAction {
      * @param actionConfigurationJson String - The JSON configuration string.
      * @param logPrefix String - Prefix for log output.
      */
+    @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
         if (this.parsedActionConfig != null && !this.parsedActionConfig.isEmpty()) {
@@ -184,7 +201,8 @@ public class ActionSearchKnowledge extends BaseAgentAction {
      * @return List<Knowledge__kav> - The found articles (max 1).
      */
     private List<Knowledge__kav> performDirectLookup(Id articleId, String language, Boolean includeDrafts) {
-        String statusClause = includeDrafts ? 'PublishStatus IN (\'Online\', \'Draft\')' : 'PublishStatus = \'Online\'';
+        // Use correct PublishStatus values
+        String statusClause = includeDrafts ? 'PublishStatus IN (\'Draft\', \'Online\', \'Archived\')' : 'PublishStatus = \'Online\'';
         String fieldsToSelect = 'Id, Title, ArticleNumber, Summary, UrlName, LastModifiedDate, CreatedDate, PublishStatus, Language';
 
         String query =
@@ -217,31 +235,75 @@ public class ActionSearchKnowledge extends BaseAgentAction {
         SearchPatternAnalyzer.SearchAnalysis patternAnalysis
     ) {
         String fieldsToSelect = 'Id, Title, ArticleNumber, Summary, UrlName, LastModifiedDate, CreatedDate, PublishStatus, Language';
-        String statusClause = includeDrafts ? 'PublishStatus IN (\'Online\', \'Draft\')' : 'PublishStatus = \'Online\'';
-
-        // Build optimized SOSL query
-        String soslScope = patternAnalysis != null ? patternAnalysis.recommendedSOSLScope : 'ALL FIELDS';
-        String soslQuery =
-            'FIND :searchQuery IN ' +
-            soslScope +
-            ' RETURNING Knowledge__kav(' +
+        // For SOSL, we'll filter by PublishStatus after the search to avoid syntax issues
+        String baseQuery =
+            'FIND :searchQuery IN ALL FIELDS RETURNING Knowledge__kav(' +
             fieldsToSelect +
-            ' WHERE ' +
-            statusClause +
-            ' AND Language = :language' +
+            ' WHERE Language = :language' +
             ' ORDER BY LastModifiedDate DESC LIMIT ' +
-            maxResults +
+            (maxResults * 2) + // Get more results to filter later
             ')';
 
         try {
-            List<List<SObject>> searchResults = Search.query(soslQuery);
-            return (List<Knowledge__kav>) searchResults[0];
+            List<List<SObject>> searchResults = Search.query(baseQuery);
+            List<Knowledge__kav> articles = (List<Knowledge__kav>) searchResults[0];
+
+            // Filter by PublishStatus after the search
+            if (!includeDrafts) {
+                // Only include Online articles
+                List<Knowledge__kav> filteredArticles = new List<Knowledge__kav>();
+                for (Knowledge__kav article : articles) {
+                    if (article.PublishStatus == 'Online') {
+                        filteredArticles.add(article);
+                    }
+                }
+                articles = filteredArticles;
+            }
+            // If includeDrafts is true, we keep all articles (Draft, Online, Archived)
+
+            // Limit to maxResults
+            if (articles.size() > maxResults) {
+                List<Knowledge__kav> limitedArticles = new List<Knowledge__kav>();
+                for (Integer i = 0; i < maxResults; i++) {
+                    limitedArticles.add(articles[i]);
+                }
+                articles = limitedArticles;
+            }
+
+            return articles;
         } catch (SearchException se) {
-            // Fallback to ALL FIELDS if specialized scope fails
-            if (!soslScope.equals('ALL FIELDS')) {
-                String fallbackQuery = soslQuery.replace('IN ' + soslScope, 'IN ALL FIELDS');
-                List<List<SObject>> fallbackResults = Search.query(fallbackQuery);
-                return (List<Knowledge__kav>) fallbackResults[0];
+            // Check if it's a language error and try with default language
+            if (se.getMessage().contains('Invalid language code')) {
+                // Try with default language
+                baseQuery = baseQuery.replace(':language', '\'' + DEFAULT_LANGUAGE + '\'');
+                try {
+                    List<List<SObject>> fallbackResults = Search.query(baseQuery);
+                    List<Knowledge__kav> articles = (List<Knowledge__kav>) fallbackResults[0];
+
+                    // Apply same filtering logic
+                    if (!includeDrafts) {
+                        List<Knowledge__kav> filteredArticles = new List<Knowledge__kav>();
+                        for (Knowledge__kav article : articles) {
+                            if (article.PublishStatus == 'Online') {
+                                filteredArticles.add(article);
+                            }
+                        }
+                        articles = filteredArticles;
+                    }
+
+                    // Limit to maxResults
+                    if (articles.size() > maxResults) {
+                        List<Knowledge__kav> limitedArticles = new List<Knowledge__kav>();
+                        for (Integer i = 0; i < maxResults; i++) {
+                            limitedArticles.add(articles[i]);
+                        }
+                        articles = limitedArticles;
+                    }
+
+                    return articles;
+                } catch (SearchException fallbackSe) {
+                    throw new QueryException('Knowledge SOSL search failed: ' + fallbackSe.getMessage());
+                }
             }
             throw new QueryException('Knowledge SOSL search failed: ' + se.getMessage());
         }

@@ -39,7 +39,7 @@ public with sharing class AIAssistantController {
      * @param sessionId      The ID of the chat session.
      * @param userMessage    The message content from the user.
      * @param currentRecordId The current record context, if any.
-     * @param turnIdentifier The unique identifier for the current turn.
+     * *param turnIdentifier The unique identifier for the current turn.
      * @return               A response map containing success, message, and error details for the UI.
      * @throws AuraHandledException for validation or access errors.
      */
@@ -519,7 +519,15 @@ public with sharing class AIAssistantController {
         Id originalUserId = userId;
         Id executionUserId = userId;
 
-        // Instantiate LLMInteractionService with current user context
+        // Initialize the decision step logger - single instance for the entire turn
+        AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(sessionId, turnIdentifier, originalUserId);
+
+        // Log the user input as the first step
+        if (currentUserMessageData != null && String.isNotBlank(currentUserMessageData.content)) {
+            decisionLogger.logUserInput('User Input Received', currentUserMessageData.content, null);
+        }
+
+        // Instantiate LLMInteractionService with current user context and decision logger
         LLMInteractionService interactionService = new LLMInteractionService(
             sessionId,
             originalUserId,
@@ -528,7 +536,8 @@ public with sharing class AIAssistantController {
             turnIdentifier,
             1,
             currentRecordId,
-            false
+            false,
+            decisionLogger
         );
 
         // Call the LLM interaction service
@@ -538,8 +547,8 @@ public with sharing class AIAssistantController {
             throw new ControllerException('LLMInteractionService returned a null result.');
         }
 
-        // Call OrchestrationService
-        return orchestrationSvc.processLlmResult(
+        // Call OrchestrationService with the decision logger
+        return orchestrationSvc.processLlmResultWithLogger(
             llmResult,
             sessionId,
             originalUserId,
@@ -548,7 +557,8 @@ public with sharing class AIAssistantController {
             turnIdentifier,
             1,
             currentUserMessageData,
-            currentRecordId
+            currentRecordId,
+            decisionLogger
         );
     }
 }

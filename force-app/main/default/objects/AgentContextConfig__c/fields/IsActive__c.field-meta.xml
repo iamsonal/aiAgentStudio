@@ -3,7 +3,7 @@
     <fullName>IsActive__c</fullName>
     <defaultValue>true</defaultValue>
     <description>Controls whether this context configuration is active and will be used by the AI agent to retrieve contextual data during conversations.</description>
-    <inlineHelpText>Uncheck to temporarily disable this context configuration. Inactive configurations will not be executed, and the agent won't receive this type of contextual data.</inlineHelpText>
+    <inlineHelpText>Uncheck to temporarily disable this context configuration. Inactive configurations will not be executed, and the agent won&apos;t receive this type of contextual data.</inlineHelpText>
     <label>Active</label>
     <trackTrending>false</trackTrending>
     <type>Checkbox</type>

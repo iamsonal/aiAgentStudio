@@ -29,12 +29,9 @@ public class QueryService {
     private static final Integer SIMPLE_PATH_FILTER_LIMIT = 3;
     private static final Integer COMPLEX_OPERATOR_THRESHOLD = 2;
 
-    // Custom Exceptions (maintained for backward compatibility)
-    public virtual class QueryValidationException extends Exception {
+    public class FilterValidationException extends Exception {
     }
-    public class FilterValidationException extends QueryValidationException {
-    }
-    public class OrderByValidationException extends QueryValidationException {
+    public class OrderByValidationException extends Exception {
     }
 
     // Internal state - optimized with lazy loading
@@ -160,9 +157,9 @@ public class QueryService {
      * @description
      * Builds and executes the SOQL query using the configured parameters.
      *
-     * @return List<SObject> Results of the query
+     * @return ActionOutcome Results of the query or error information
      */
-    public List<SObject> executeQuery() {
+    public ActionOutcome executeQuery() {
         Map<String, Object> bindMap = new Map<String, Object>();
         return executeQuery(bindMap);
     }
@@ -173,10 +170,9 @@ public class QueryService {
      * Analyzes query complexity to choose between simple and comprehensive validation paths.
      *
      * @param bindMap Map populated with bind variables for secure parameter binding
-     * @return List<SObject> Query results with USER_MODE security enforcement
-     * @throws AIFriendlyQueryException if query validation fails
+     * @return ActionOutcome Query results with USER_MODE security enforcement or error information
      */
-    public List<SObject> executeQuery(Map<String, Object> bindMap) {
+    public ActionOutcome executeQuery(Map<String, Object> bindMap) {
         Long startTime = System.currentTimeMillis();
 
         try {
@@ -215,15 +211,57 @@ public class QueryService {
                 logPrefix + 'Query executed in ' + executionTime + 'ms. ' + 'Pattern=' + this.patternAnalysis.pattern + ', Records=' + results.size()
             );
 
-            return results;
+            return ActionOutcome.success(results);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Query execution failed: ' + e.getMessage());
             // Convert to structured AI-friendly exception format
-            if (!(e instanceof AIFriendlyQueryException)) {
-                throw convertToAIException(e);
+            if (e instanceof AIFriendlyQueryException) {
+                AIFriendlyQueryException aiEx = (AIFriendlyQueryException) e;
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, aiEx.getMessage());
+            } else {
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_SOQL_ERROR, 'Query execution failed: ' + e.getMessage());
             }
-            throw e;
         }
+    }
+
+    /**
+     * @description
+     * Validates that the provided fields are valid fields on the configured SObject.
+     *
+     * @param fields List of field API names to validate
+     * @return ActionOutcome indicating success or failure with validation details
+     */
+    public ActionOutcome validateFields(List<String> fields) {
+        if (fields == null || fields.isEmpty()) {
+            return ActionOutcome.success();
+        }
+
+        Map<String, Schema.SObjectField> fieldMap = getFieldMap();
+        String objectName = SchemaCache.getDescribe(this.targetSObjectType).getName();
+
+        for (String field : fields) {
+            if (String.isBlank(field)) {
+                continue;
+            }
+
+            String baseFieldName = field.contains('.') ? field.substringBefore('.') : field;
+            Schema.SObjectField fieldToken = fieldMap.get(baseFieldName.toLowerCase());
+
+            // If direct field lookup fails and this is a relationship field, try with 'Id' suffix
+            if (fieldToken == null && field.contains('.')) {
+                String relationshipFieldName = baseFieldName + 'Id';
+                fieldToken = fieldMap.get(relationshipFieldName.toLowerCase());
+            }
+
+            if (fieldToken == null) {
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                    'Invalid field "' + field + '" on object "' + objectName + '". Field does not exist.'
+                );
+            }
+        }
+
+        return ActionOutcome.success();
     }
 
     /**
@@ -515,36 +553,6 @@ public class QueryService {
 
     /**
      * @description
-     * Converts standard exceptions to AI-friendly exceptions for downstream automation and LLMs.
-     *
-     * @param originalException The original exception
-     * @return AIFriendlyQueryException with structured error information
-     */
-    private AIFriendlyQueryException convertToAIException(Exception originalException) {
-        String message = originalException.getMessage();
-        String objectName = SchemaCache.getDescribe(targetSObjectType).getName();
-
-        // Pattern matching for common error types
-        if (message.containsIgnoreCase('field') && message.containsIgnoreCase('not found')) {
-            return AIFriendlyQueryException.invalidField('unknown', objectName).withContext('originalMessage', message);
-        } else if (message.containsIgnoreCase('access') || message.containsIgnoreCase('permission')) {
-            return AIFriendlyQueryException.securityViolation(objectName, 'query').withContext('originalMessage', message);
-        } else if (message.containsIgnoreCase('order by')) {
-            return AIFriendlyQueryException.invalidOrderBy(this.orderBy ?? 'unknown').withContext('originalMessage', message);
-        } else {
-            // Generic conversion
-            return new AIFriendlyQueryException(
-                    message,
-                    AIFriendlyQueryException.ErrorCode.GENERAL_VALIDATION,
-                    'Review query parameters and ensure all fields and values are valid'
-                )
-                .withContext('originalException', originalException.getTypeName())
-                .withContext('originalMessage', message);
-        }
-    }
-
-    /**
-     * @description
      * Builds WHERE clause using bind variables with enhanced operator support.
      * Handles simple filters {field: value} and complex {field: {op1: val1, op2: val2}}.
      *
@@ -631,7 +639,7 @@ public class QueryService {
      * @return The generated SOQL condition clause string (e.g., "Name = :filterBind0", "Amount > :filterBind1")
      */
     private String generateSingleConditionClause(
-        DescribeFieldResult dfr,
+        Schema.DescribeFieldResult dfr,
         String fieldName,
         String operator,
         Object actualValue,
@@ -656,40 +664,44 @@ public class QueryService {
             Object bindList = null; // Use Object initially to hold the correctly typed list
 
             try {
-                if (fieldType == DisplayType.ID || fieldType == DisplayType.REFERENCE) {
+                if (fieldType == Schema.DisplayType.ID || fieldType == Schema.DisplayType.REFERENCE) {
                     List<Id> typedList = new List<Id>();
                     for (Object item : valueList)
                         typedList.add((Id) coerceFilterValue(item, dfr, fieldName));
                     bindList = typedList;
                 } else if (
-                    fieldType == DisplayType.STRING ||
-                    fieldType == DisplayType.PICKLIST ||
-                    fieldType == DisplayType.MULTIPICKLIST ||
-                    fieldType == DisplayType.TEXTAREA ||
-                    fieldType == DisplayType.PHONE ||
-                    fieldType == DisplayType.EMAIL ||
-                    fieldType == DisplayType.URL
+                    fieldType == Schema.DisplayType.STRING ||
+                    fieldType == Schema.DisplayType.PICKLIST ||
+                    fieldType == Schema.DisplayType.MULTIPICKLIST ||
+                    fieldType == Schema.DisplayType.TEXTAREA ||
+                    fieldType == Schema.DisplayType.PHONE ||
+                    fieldType == Schema.DisplayType.EMAIL ||
+                    fieldType == Schema.DisplayType.URL
                 ) {
                     List<String> typedList = new List<String>();
                     for (Object item : valueList)
                         typedList.add((String) coerceFilterValue(item, dfr, fieldName));
                     bindList = typedList;
-                } else if (fieldType == DisplayType.INTEGER) {
+                } else if (fieldType == Schema.DisplayType.INTEGER) {
                     List<Integer> typedList = new List<Integer>();
                     for (Object item : valueList)
                         typedList.add((Integer) coerceFilterValue(item, dfr, fieldName));
                     bindList = typedList;
-                } else if (fieldType == DisplayType.DOUBLE || fieldType == DisplayType.CURRENCY || fieldType == DisplayType.PERCENT) {
+                } else if (
+                    fieldType == Schema.DisplayType.DOUBLE ||
+                    fieldType == Schema.DisplayType.CURRENCY ||
+                    fieldType == Schema.DisplayType.PERCENT
+                ) {
                     List<Decimal> typedList = new List<Decimal>();
                     for (Object item : valueList)
                         typedList.add((Decimal) coerceFilterValue(item, dfr, fieldName));
                     bindList = typedList;
-                } else if (fieldType == DisplayType.DATE) {
+                } else if (fieldType == Schema.DisplayType.DATE) {
                     List<Date> typedList = new List<Date>();
                     for (Object item : valueList)
                         typedList.add((Date) coerceFilterValue(item, dfr, fieldName));
                     bindList = typedList;
-                } else if (fieldType == DisplayType.DATETIME) {
+                } else if (fieldType == Schema.DisplayType.DATETIME) {
                     List<Datetime> typedList = new List<Datetime>();
                     for (Object item : valueList)
                         typedList.add((Datetime) coerceFilterValue(item, dfr, fieldName));
@@ -752,10 +764,10 @@ public class QueryService {
 
             // Numeric Types
             if (
-                fieldType == DisplayType.INTEGER ||
-                fieldType == DisplayType.DOUBLE ||
-                fieldType == DisplayType.CURRENCY ||
-                fieldType == DisplayType.PERCENT
+                fieldType == Schema.DisplayType.INTEGER ||
+                fieldType == Schema.DisplayType.DOUBLE ||
+                fieldType == Schema.DisplayType.CURRENCY ||
+                fieldType == Schema.DisplayType.PERCENT
             ) {
                 Decimal decimalValue;
                 // Attempt to create a Decimal value first for validation and consistent parsing
@@ -774,7 +786,7 @@ public class QueryService {
                 }
 
                 // *** Important: Return the specific type expected by the field ***
-                if (fieldType == DisplayType.INTEGER) {
+                if (fieldType == Schema.DisplayType.INTEGER) {
                     try {
                         // Check if it exceeds Integer limits
                         if (decimalValue.scale() > 0) {
@@ -798,7 +810,7 @@ public class QueryService {
                 }
             }
             // Boolean
-            else if (fieldType == DisplayType.BOOLEAN) {
+            else if (fieldType == Schema.DisplayType.BOOLEAN) {
                 if (rawValue instanceof Boolean)
                     return rawValue;
                 if (rawValue instanceof String) {
@@ -816,7 +828,7 @@ public class QueryService {
                 );
             }
             // ID / Reference
-            else if (fieldType == DisplayType.ID || fieldType == DisplayType.REFERENCE) {
+            else if (fieldType == Schema.DisplayType.ID || fieldType == Schema.DisplayType.REFERENCE) {
                 if (rawValue instanceof String) {
                     try {
                         return Id.valueOf((String) rawValue);
@@ -831,7 +843,7 @@ public class QueryService {
                 throw new FilterValidationException('Invalid data type for ID field "' + fieldNameForError + '". Received "' + rawValue + '".');
             }
             // Date
-            else if (fieldType == DisplayType.DATE) {
+            else if (fieldType == Schema.DisplayType.DATE) {
                 if (rawValue instanceof String) {
                     try {
                         return Date.valueOf((String) rawValue);
@@ -846,7 +858,7 @@ public class QueryService {
                 throw new FilterValidationException('Invalid data type for Date field "' + fieldNameForError + '". Received "' + rawValue + '".');
             }
             // Datetime
-            else if (fieldType == DisplayType.DATETIME) {
+            else if (fieldType == Schema.DisplayType.DATETIME) {
                 if (rawValue instanceof String) {
                     String dateString = (String) rawValue;
                     // Handle multiple datetime formats, standardizing towards 'T' separator if space exists
@@ -888,18 +900,18 @@ public class QueryService {
             // String and other types that bind as String
             else if (
                 dfr.getSOAPType() == Schema.SoapType.STRING ||
-                fieldType == DisplayType.PICKLIST || // Bind Picklists as String
-                fieldType == DisplayType.MULTIPICKLIST || // Bind Multipicklist as String (single value for filters other than IN)
-                fieldType == DisplayType.EMAIL ||
-                fieldType == DisplayType.PHONE ||
-                fieldType == DisplayType.URL ||
-                fieldType == DisplayType.TEXTAREA ||
-                fieldType == DisplayType.ENCRYPTEDSTRING
+                fieldType == Schema.DisplayType.PICKLIST || // Bind Picklists as String
+                fieldType == Schema.DisplayType.MULTIPICKLIST || // Bind Multipicklist as String (single value for filters other than IN)
+                fieldType == Schema.DisplayType.EMAIL ||
+                fieldType == Schema.DisplayType.PHONE ||
+                fieldType == Schema.DisplayType.URL ||
+                fieldType == Schema.DisplayType.TEXTAREA ||
+                fieldType == Schema.DisplayType.ENCRYPTEDSTRING
             ) {
                 String stringVal = String.valueOf(rawValue);
                 // Basic Length check (excluding TextArea/LongTextArea handled by DML limits)
                 Integer fieldLength = dfr.getLength();
-                if (fieldLength > 0 && stringVal.length() > fieldLength && fieldType != DisplayType.TEXTAREA) {
+                if (fieldLength > 0 && stringVal.length() > fieldLength && fieldType != Schema.DisplayType.TEXTAREA) {
                     throw new FilterValidationException('Value length exceeds maximum (' + fieldLength + ') for field "' + fieldNameForError + '".');
                 }
                 return stringVal;
