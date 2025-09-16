@@ -277,6 +277,23 @@
                 </visibilityRule>
             </fieldInstance>
         </itemInstances>
+        <itemInstances>
+            <fieldInstance>
+                <fieldInstanceProperties>
+                    <name>uiBehavior</name>
+                    <value>none</value>
+                </fieldInstanceProperties>
+                <fieldItem>Record.SummarizerAgent__c</fieldItem>
+                <identifier>RecordSummarizerAgent_cField</identifier>
+                <visibilityRule>
+                    <criteria>
+                        <leftValue>{!Record.MemoryStrategy__c}</leftValue>
+                        <operator>EQUAL</operator>
+                        <rightValue>Summary Buffer</rightValue>
+                    </criteria>
+                </visibilityRule>
+            </fieldInstance>
+        </itemInstances>
         <name>Facet-fc511584-a9d7-42e6-9447-1a81e073905b</name>
         <type>Facet</type>
     </flexiPageRegions>

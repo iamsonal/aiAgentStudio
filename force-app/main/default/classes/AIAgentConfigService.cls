@@ -48,7 +48,11 @@ public inherited sharing class AIAgentConfigService {
         'ExamplesPrompt__c',
         'PromptFooter__c',
         'EnableReasoningMode__c',
-        'RequiresServiceUserContext__c'
+        'RequiresServiceUserContext__c',
+        'SummarizerAgent__c',
+        'SummarizerAgent__r.DeveloperName__c',
+        'SummarizerAgent__r.LLMConfiguration__c',
+        'SummarizerAgent__r.InstructionsPrompt__c'
     };
 
     private static final List<String> LLM_CONFIGURATION_FIELDS = new List<String>{

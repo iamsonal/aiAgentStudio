@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SummarizerAgent__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>For 'Summary Buffer' agents, this specifies a specialized AI Agent Definition that will be used for summarization tasks instead of the primary agent's LLM. This allows for cost optimization and domain-specific summarization.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Optional. Select a specialized summarizer agent to handle summarization tasks. If left blank, the primary agent's LLM will be used for summarization.</inlineHelpText>
+    <label>Summarizer Agent</label>
+    <referenceTo>AIAgentDefinition__c</referenceTo>
+    <relationshipLabel>AI Agent Definitions (Summarizer)</relationshipLabel>
+    <relationshipName>SummarizerAgentDefinitions</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

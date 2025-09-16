@@ -21,9 +21,6 @@
  *   - Provides detailed debug output and error messages for maintainability and auditability.
  *   - Returns structured, LLM-friendly results for downstream processing.
  *
- * Configuration Example: {"recordIdParameter": "customIdField"} (optional)
- * Parameters Example: {"recordId": "003...", "FieldName1": "NewValue1", ...}
- *
  * @extends BaseAgentAction
  */
 public class ActionUpdateRecord extends BaseAgentAction {
