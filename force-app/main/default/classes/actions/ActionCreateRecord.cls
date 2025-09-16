@@ -20,9 +20,6 @@
  *   - Focused on secure, flexible record creation for any SObject type specified in configuration.
  *   - Designed for maintainability and clarity, with clear extension points and runtime diagnostics.
  *
- * Configuration Example: {"objectApiName": "Contact", "defaultFieldValues": {"LeadSource": "Web"}}
- * Parameters: Field name-value pairs for the record to create.
- *
  * @extends BaseAgentAction
  */
 public class ActionCreateRecord extends BaseAgentAction {

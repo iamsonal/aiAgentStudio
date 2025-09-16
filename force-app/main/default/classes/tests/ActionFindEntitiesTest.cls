@@ -2,22 +2,6 @@
 private class ActionFindEntitiesTest {
     @TestSetup
     static void makeData() {
-        // Create LLM Configuration
-        LLMConfiguration__c llmConfig = TestFactory.createLLMConfiguration();
-        insert llmConfig;
-
-        // Create Agent Definition
-        AIAgentDefinition__c agent = TestFactory.createAgentDefinition(llmConfig.Id);
-        insert agent;
-
-        // Create Agent Capabilities
-        List<AgentCapability__c> caps = TestFactory.createStandardCapabilities(agent.Id);
-        insert caps;
-
-        // Create Chat Session
-        ChatSession__c session = TestFactory.createChatSession(agent.Id, UserInfo.getUserId());
-        insert session;
-
         // Create test accounts
         List<Account> accounts = new List<Account>();
         accounts.add(new Account(Name = 'Acme Corporation', Industry = 'Technology', Phone = '555-123-4567'));
@@ -35,22 +19,22 @@ private class ActionFindEntitiesTest {
         );
         contacts.add(new Contact(FirstName = 'Robert', LastName = 'Johnson', Email = 'bob.johnson@tech.com', Phone = '555-555-6666'));
         insert contacts;
-
-        // Create test SObjectConfig__mdt records (this would normally be done via metadata)
-        // Note: In a real test, you'd need to create these as actual metadata or mock the query
     }
 
     @IsTest
     static void executeAction_success_singleMatch() {
-        // Mock the metadata query to return test configuration
-        ActionFindEntitiesTest.mockMetadataQuery();
         Contact expectedContact = [SELECT Id, FirstName, LastName, Email FROM Contact WHERE Email = 'john.smith@acme.com' LIMIT 1];
         Test.setFixedSearchResults(new List<Id>{ expectedContact.Id });
 
         ActionFindEntities action = new ActionFindEntities();
-        String config = '{"maxAmbiguousResults": 5}';
-        action.parseActionConfiguration(config, '[TEST] ');
-        Map<String, Object> params = new Map<String, Object>{ 'searchQuery' => 'john.smith@acme.com' };
+        // No configuration needed for this action
+        action.parseActionConfiguration('{}', '[TEST] ');
+
+        Map<String, Object> params = new Map<String, Object>{
+            'sObjectTypes' => new List<String>{ 'Contact' },
+            'fieldsToReturn' => new List<String>{ 'Id', 'FirstName', 'LastName', 'Email' },
+            'filters' => new Map<String, Object>{ 'Email' => 'john.smith@acme.com' }
+        };
 
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
@@ -59,26 +43,26 @@ private class ActionFindEntitiesTest {
         System.assertNotEquals(null, result);
         System.assertEquals(true, result.isSuccess);
 
-        System.debug(JSON.serialize(result));
-
-        SearchService.SearchResult searchResult = (SearchService.SearchResult) result.data;
-        System.assertEquals('SUCCESS', searchResult.resultType);
-        System.assertNotEquals(null, searchResult.record);
-        Map<String, Object> recordMap = (Map<String, Object>) searchResult.record;
-        System.assertEquals(expectedContact.Id, (String) recordMap.get('Id'));
-        // Remove the FirstName and LastName assertions since they may not be populated in test scenarios
+        ActionFindEntities.QueryResult queryResult = (ActionFindEntities.QueryResult) result.data;
+        System.assertEquals(1, queryResult.count);
+        System.assertEquals(1, queryResult.records.size());
+        System.assertEquals(expectedContact.Id, queryResult.records[0].Id);
     }
 
     @IsTest
-    static void executeAction_success_phoneSearch() {
-        ActionFindEntitiesTest.mockMetadataQuery();
-        Account expectedAccount = [SELECT Id, Name, Phone FROM Account WHERE Phone = '555-123-4567' LIMIT 1];
-        Test.setFixedSearchResults(new List<Id>{ expectedAccount.Id });
+    static void executeAction_success_multipleMatches() {
+        Map<Id, Account> accountMap = new Map<Id, Account>([SELECT Id, Name FROM Account WHERE Industry = 'Technology' LIMIT 2]);
+        Test.setFixedSearchResults(new List<Id>(accountMap.keySet()));
 
         ActionFindEntities action = new ActionFindEntities();
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
-        Map<String, Object> params = new Map<String, Object>{ 'searchQuery' => '555-123-4567' };
+        action.parseActionConfiguration('{}', '[TEST] ');
+
+        Map<String, Object> params = new Map<String, Object>{
+            'sObjectTypes' => new List<String>{ 'Account' },
+            'fieldsToReturn' => new List<String>{ 'Id', 'Name' },
+            'filters' => new Map<String, Object>{ 'Industry' => 'Technology' },
+            'limit' => 10
+        };
 
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
@@ -87,23 +71,21 @@ private class ActionFindEntitiesTest {
         System.assertNotEquals(null, result);
         System.assertEquals(true, result.isSuccess);
 
-        SearchService.SearchResult searchResult = (SearchService.SearchResult) result.data;
-        System.assertEquals('SUCCESS', searchResult.resultType);
-        Map<String, Object> recordMap = (Map<String, Object>) searchResult.record;
-        System.assertEquals(expectedAccount.Id, (String) recordMap.get('Id'));
-        System.assertEquals('Acme Corporation', (String) recordMap.get('Name'));
+        ActionFindEntities.QueryResult queryResult = (ActionFindEntities.QueryResult) result.data;
+        System.assertEquals(2, queryResult.count);
+        System.assertEquals(2, queryResult.records.size());
     }
 
     @IsTest
-    static void executeAction_success_nameSearch() {
-        ActionFindEntitiesTest.mockMetadataQuery();
-        Contact expectedContact = [SELECT Id, FirstName, LastName, Email FROM Contact WHERE LastName = 'Smith' LIMIT 1];
-        Test.setFixedSearchResults(new List<Id>{ expectedContact.Id });
-
+    static void executeAction_success_noMatches() {
         ActionFindEntities action = new ActionFindEntities();
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
-        Map<String, Object> params = new Map<String, Object>{ 'searchQuery' => 'John Smith' };
+        action.parseActionConfiguration('{}', '[TEST] ');
+
+        Map<String, Object> params = new Map<String, Object>{
+            'sObjectTypes' => new List<String>{ 'Account' },
+            'fieldsToReturn' => new List<String>{ 'Id', 'Name' },
+            'filters' => new Map<String, Object>{ 'Name' => 'NonExistentAccount12345' }
+        };
 
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
@@ -112,100 +94,21 @@ private class ActionFindEntitiesTest {
         System.assertNotEquals(null, result);
         System.assertEquals(true, result.isSuccess);
 
-        SearchService.SearchResult searchResult = (SearchService.SearchResult) result.data;
-        System.assertEquals('SUCCESS', searchResult.resultType);
-        System.assertNotEquals(null, searchResult.record);
-
-        Map<String, Object> recordMap = (Map<String, Object>) searchResult.record;
-        System.assertEquals(expectedContact.Id, (String) recordMap.get('Id'));
-        // Remove the FirstName and LastName assertions since they may not be populated in test scenarios
+        ActionFindEntities.QueryResult queryResult = (ActionFindEntities.QueryResult) result.data;
+        System.assertEquals(0, queryResult.count);
+        System.assertEquals(0, queryResult.records.size());
     }
 
     @IsTest
-    static void executeAction_success_ambiguousResults() {
-        ActionFindEntitiesTest.mockMetadataQuery();
-        List<Account> accounts = [SELECT Id, Name FROM Account WHERE Industry = 'Technology' LIMIT 2];
-        List<Id> accountIds = new List<Id>();
-        for (Account acc : accounts) {
-            accountIds.add(acc.Id);
-        }
-        Test.setFixedSearchResults(accountIds);
-
+    static void executeAction_failure_missingRequiredParams() {
         ActionFindEntities action = new ActionFindEntities();
-        String config = '{"maxAmbiguousResults": 3}';
-        action.parseActionConfiguration(config, '[TEST] ');
-        Map<String, Object> params = new Map<String, Object>{ 'searchQuery' => 'Technology' };
+        action.parseActionConfiguration('{}', '[TEST] ');
 
-        Test.startTest();
-        ActionOutcome result = action.executeAction(params);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result);
-        System.assertEquals(true, result.isSuccess);
-
-        SearchService.SearchResult searchResult = (SearchService.SearchResult) result.data;
-        System.assertEquals('AMBIGUOUS', searchResult.resultType);
-        System.assertEquals(null, searchResult.record);
-        List<Object> options = (List<Object>) searchResult.options;
-        System.assertEquals(2, options.size());
-    }
-
-    @IsTest
-    static void executeAction_success_withSObjectTypes() {
-        ActionFindEntitiesTest.mockMetadataQuery();
-        Account expectedAccount = [SELECT Id, Name FROM Account WHERE Name LIKE '%Acme%' LIMIT 1];
-        Test.setFixedSearchResults(new List<Id>{ expectedAccount.Id });
-
-        ActionFindEntities action = new ActionFindEntities();
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
-        Map<String, Object> params = new Map<String, Object>{ 'searchQuery' => 'Acme', 'sObjectTypes' => new List<String>{ 'Account' } };
-
-        Test.startTest();
-        ActionOutcome result = action.executeAction(params);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result);
-        System.assertEquals(true, result.isSuccess);
-
-        SearchService.SearchResult searchResult = (SearchService.SearchResult) result.data;
-        System.assertEquals('SUCCESS', searchResult.resultType);
-        Map<String, Object> recordMap = (Map<String, Object>) searchResult.record;
-        System.assertEquals(expectedAccount.Id, (String) recordMap.get('Id'));
-    }
-
-    @IsTest
-    static void executeAction_success_notFound() {
-        ActionFindEntitiesTest.mockMetadataQuery();
-        // Don't set any fixed search results to simulate no matches
-
-        ActionFindEntities action = new ActionFindEntities();
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
-        Map<String, Object> params = new Map<String, Object>{ 'searchQuery' => 'NonExistentSearchTerm12345' };
-
-        Test.startTest();
-        ActionOutcome result = action.executeAction(params);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result);
-        System.assertEquals(true, result.isSuccess);
-
-        SearchService.SearchResult searchResult = (SearchService.SearchResult) result.data;
-        System.assertEquals('NOT_FOUND', searchResult.resultType);
-        System.assertEquals('No matching records found.', searchResult.message);
-        System.assertEquals(null, searchResult.record);
-        System.assertEquals(null, searchResult.options);
-    }
-
-    @IsTest
-    static void executeAction_failure_blankSearchQuery() {
-        ActionFindEntitiesTest.mockMetadataQuery();
-
-        ActionFindEntities action = new ActionFindEntities();
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
-        Map<String, Object> params = new Map<String, Object>{ 'searchQuery' => '' };
+        // Missing sObjectTypes
+        Map<String, Object> params = new Map<String, Object>{
+            'fieldsToReturn' => new List<String>{ 'Id', 'Name' },
+            'filters' => new Map<String, Object>{ 'Name' => 'Test' }
+        };
 
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
@@ -213,104 +116,98 @@ private class ActionFindEntitiesTest {
 
         System.assertNotEquals(null, result);
         System.assertEquals(false, result.isSuccess);
-        System.assert(String.valueOf(result.errorMessage).contains('Search term is required'));
+        System.assert(result.errorMessage.contains('sObjectTypes, fieldsToReturn, and filters are all required'));
     }
 
     @IsTest
-    static void executeAction_failure_noMetadataConfiguration() {
-        // Don't mock metadata - let it return empty list
-        ActionFindEntities.MDT_CACHE = new List<SObjectConfig__mdt>();
+    static void executeAction_success_withLimit() {
+        Map<Id, Account> accountMap = new Map<Id, Account>([SELECT Id, Name FROM Account WHERE Industry = 'Technology' LIMIT 2]);
+        Test.setFixedSearchResults(new List<Id>(accountMap.keySet()));
 
         ActionFindEntities action = new ActionFindEntities();
-        String config = '{}';
-        Map<String, Object> params = new Map<String, Object>{ 'searchQuery' => 'test' };
+        action.parseActionConfiguration('{}', '[TEST] ');
+
+        Map<String, Object> params = new Map<String, Object>{
+            'sObjectTypes' => new List<String>{ 'Account' },
+            'fieldsToReturn' => new List<String>{ 'Id', 'Name' },
+            'filters' => new Map<String, Object>{ 'Industry' => 'Technology' },
+            'limit' => 1
+        };
 
         Test.startTest();
-        try {
-            action.parseActionConfiguration(config, '[TEST] ');
-            ActionOutcome result = action.executeAction(params);
-            System.assert(false, 'Should have thrown ValidationException');
-        } catch (BaseAgentAction.ValidationException e) {
-            System.assert(e.getMessage().contains('No active SObjectConfig__mdt records found'));
-        }
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
+
+        System.assertNotEquals(null, result);
+        System.assertEquals(true, result.isSuccess);
+
+        ActionFindEntities.QueryResult queryResult = (ActionFindEntities.QueryResult) result.data;
+        System.assertEquals(1, queryResult.count);
+        System.assertEquals(1, queryResult.records.size());
     }
 
     @IsTest
-    static void searchResult_constructor_success() {
+    static void queryResult_constructor_success() {
+        List<SObject> testRecords = new List<SObject>();
+        Account testAccount = new Account(Id = '001000000000001AAA', Name = 'Test Account');
+        testRecords.add(testAccount);
+
+        List<String> sObjectTypes = new List<String>{ 'Account' };
+
         Test.startTest();
-        SearchService.SearchResult result = new SearchService.SearchResult(
-            'SUCCESS',
-            'Test message',
-            new Map<String, Object>{ 'Id' => '001000000000001', 'Name' => 'Test' },
-            null
-        );
+        ActionFindEntities.QueryResult result = new ActionFindEntities.QueryResult(testRecords, sObjectTypes);
         Test.stopTest();
 
-        System.assertEquals('SUCCESS', result.resultType);
-        System.assertEquals('Test message', result.message);
-        System.assertNotEquals(null, result.record);
-        System.assertEquals(null, result.options);
-        System.assertEquals('SUCCESS', (String) result.metadata.get('searchType'));
-        System.assertEquals(true, (Boolean) result.metadata.get('hasRecord'));
-        System.assertEquals(0, (Integer) result.metadata.get('optionCount'));
+        System.assertEquals(1, result.count);
+        System.assertEquals(1, result.records.size());
+        System.assertEquals('Found 1 record(s) matching the criteria.', result.message);
+        System.assertEquals(1, (Integer) result.metadata.get('totalFound'));
+        System.assertEquals(sObjectTypes, (List<String>) result.metadata.get('sObjectTypesSearched'));
     }
 
     @IsTest
-    static void searchResult_constructor_ambiguous() {
-        List<Map<String, String>> options = new List<Map<String, String>>();
-        options.add(new Map<String, String>{ 'id' => '001000000000001', 'label' => 'Option 1' });
-        options.add(new Map<String, String>{ 'id' => '001000000000002', 'label' => 'Option 2' });
-
-        Test.startTest();
-        SearchService.SearchResult result = new SearchService.SearchResult('AMBIGUOUS', 'Multiple matches found', null, options);
-        Test.stopTest();
-
-        System.assertEquals('AMBIGUOUS', result.resultType);
-        System.assertEquals('Multiple matches found', result.message);
-        System.assertEquals(null, result.record);
-        System.assertEquals(2, result.options.size());
-        System.assertEquals('AMBIGUOUS', (String) result.metadata.get('searchType'));
-        System.assertEquals(false, (Boolean) result.metadata.get('hasRecord'));
-        System.assertEquals(2, (Integer) result.metadata.get('optionCount'));
-    }
-
-    @IsTest
-    static void parseActionConfiguration_success_withOverrides() {
-        ActionFindEntitiesTest.mockMetadataQuery();
+    static void executeAction_success_respectsFieldsToReturnAndFLS() {
+        Account expectedAccount = [SELECT Id, Name, Phone, AccountNumber FROM Account WHERE Name = 'Acme Corporation' LIMIT 1];
+        Test.setFixedSearchResults(new List<Id>{ expectedAccount.Id });
 
         ActionFindEntities action = new ActionFindEntities();
-        String config = '{"maxAmbiguousResults": 8}';
-        action.parseActionConfiguration(config, '[TEST] ');
-        Map<String, Object> params = new Map<String, Object>{ 'searchQuery' => 'test' };
+        action.parseActionConfiguration('{}', '[TEST] ');
+
+        Map<String, Object> params = new Map<String, Object>{
+            'sObjectTypes' => new List<String>{ 'Account' },
+            'fieldsToReturn' => new List<String>{ 'Id', 'Name', 'Phone', 'AccountNumber' },
+            'filters' => new Map<String, Object>{ 'Name' => 'Acme' }
+        };
 
         Test.startTest();
-        // Just test that parsing works without throwing exceptions
+        ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
-        // Verify configuration was parsed successfully
-        System.assert(true, 'Configuration parsing should succeed');
+        System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertEquals(true, result.isSuccess, 'Action should be successful');
+
+        ActionFindEntities.QueryResult queryResult = (ActionFindEntities.QueryResult) result.data;
+        System.assertEquals(1, queryResult.count, 'Should find one record');
+
+        SObject returnedRecord = queryResult.records[0];
+        System.assertEquals(expectedAccount.Id, returnedRecord.Id, 'Correct record ID should be returned');
+
+        System.assertEquals(expectedAccount.Name, returnedRecord.get('Name'), 'Name field should be returned');
+        System.assertEquals(expectedAccount.Phone, returnedRecord.get('Phone'), 'Phone field should be returned');
     }
 
-    // Helper method to mock metadata query
-    private static void mockMetadataQuery() {
-        List<SObjectConfig__mdt> mockMetadata = new List<SObjectConfig__mdt>();
+    @IsTest
+    static void queryResult_constructor_empty() {
+        List<SObject> testRecords = new List<SObject>();
+        List<String> sObjectTypes = new List<String>{ 'Account' };
 
-        // Create mock metadata for Account
-        SObjectConfig__mdt accountConfig = new SObjectConfig__mdt();
-        accountConfig.SObjectAPIName__c = 'Account';
-        accountConfig.PrimaryNameField__c = 'Name';
-        accountConfig.KeyIdentifierFields__c = 'Phone,Id';
-        mockMetadata.add(accountConfig);
+        Test.startTest();
+        ActionFindEntities.QueryResult result = new ActionFindEntities.QueryResult(testRecords, sObjectTypes);
+        Test.stopTest();
 
-        // Create mock metadata for Contact
-        SObjectConfig__mdt contactConfig = new SObjectConfig__mdt();
-        contactConfig.SObjectAPIName__c = 'Contact';
-        contactConfig.PrimaryNameField__c = 'Name';
-        contactConfig.KeyIdentifierFields__c = 'Email,Phone,MobilePhone,Id';
-        mockMetadata.add(contactConfig);
-
-        // Set the static cache
-        ActionFindEntities.MDT_CACHE = mockMetadata;
+        System.assertEquals(0, result.count);
+        System.assertEquals(0, result.records.size());
+        System.assertEquals('Found 0 record(s) matching the criteria.', result.message);
+        System.assertEquals(0, (Integer) result.metadata.get('totalFound'));
     }
 }

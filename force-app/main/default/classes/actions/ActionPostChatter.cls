@@ -19,9 +19,6 @@
  *   - Strictly focused on secure, flexible Chatter posting for any supported feed type and target.
  *   - Designed for maintainability, extensibility, and clarity, with detailed debug output and robust error handling.
  *
- * Configuration Example: {"feedType": "Record|User|Group", "targetId": "recordId"}
- * Parameters Example: {"text": "message", "topics": ["topic1", "topic2"]}
- *
  * @extends BaseAgentAction
  */
 public class ActionPostChatter extends BaseAgentAction {

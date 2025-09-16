@@ -102,7 +102,7 @@ public class SummaryBufferMemoryManager implements IMemoryManager {
                         triggerSize +
                         '). Enqueueing summarization job.'
                 );
-                System.enqueueJob(new SummarizeConversationQueueable(sessionId, agentConfig.Id, llmConfig.Id));
+                System.enqueueJob(new SummarizeConversationQueueable(sessionId, agentConfig.Id));
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, debugPrefix + 'Failed to check unsummarized count or enqueue summarization job: ' + e.getMessage());

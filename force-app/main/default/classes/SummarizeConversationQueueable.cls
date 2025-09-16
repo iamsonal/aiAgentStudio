@@ -21,7 +21,7 @@
  *   - Log all key operations and error conditions for monitoring and troubleshooting
  */
 public class SummarizeConversationQueueable implements Queueable, Database.AllowsCallouts {
-    private static final String SUMMARIZATION_PROMPT_TEMPLATE =
+    private static final String FALLBACK_PROMPT_TEMPLATE =
         'You are a conversation summarization engine. Your task is to progressively condense a conversation. ' +
         'You will be given the existing summary and the latest turn(s) of the conversation. ' +
         'Create a new, single, concise summary that incorporates the key facts, decisions, and entities from the new messages into the existing summary. ' +
@@ -32,19 +32,19 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
 
     private final Id sessionId;
     private final Id agentConfigId;
-    private final Id llmConfigId;
+
+    public class SummarizationException extends Exception {
+    }
 
     /**
      * Constructs a new SummarizeConversationQueueable job.
      *
      * @param sessId    The chat session ID to summarize.
      * @param agentId   The agent definition ID containing summarization settings.
-     * @param llmId     The LLM configuration ID for making summarization calls.
      */
-    public SummarizeConversationQueueable(Id sessId, Id agentId, Id llmId) {
+    public SummarizeConversationQueueable(Id sessId, Id agentId) {
         this.sessionId = sessId;
         this.agentConfigId = agentId;
-        this.llmConfigId = llmId;
     }
 
     /**
@@ -64,67 +64,72 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
         String logPrefix = '[SummarizerQueueable Job:' + context.getJobId() + ' Sess:' + this.sessionId + '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Summarization job started.');
 
-        AIAgentDefinition__c agentConfig = null;
-        LLMConfiguration__c llmConfig = null;
+        AIAgentDefinition__c primaryAgentConfig = null;
+        LLMConfiguration__c llmConfigToUse = null;
+        String promptTemplateToUse = '';
+
         try {
-            agentConfig = AIAgentConfigService.getAgentDefinition(this.agentConfigId);
-            llmConfig = AIAgentConfigService.getLLMConfiguration(this.llmConfigId);
+            primaryAgentConfig = AIAgentConfigService.getAgentDefinition(this.agentConfigId);
+
+            if (primaryAgentConfig.SummarizerAgent__c != null && primaryAgentConfig.SummarizerAgent__c != null) {
+                // A dedicated summarizer agent IS configured. Use its settings.
+                AIAgentDefinition__c summarizerAgent = primaryAgentConfig.SummarizerAgent__r;
+                llmConfigToUse = AIAgentConfigService.getLLMConfiguration(summarizerAgent.LLMConfiguration__c);
+                promptTemplateToUse = summarizerAgent.InstructionsPrompt__c;
+                System.debug(LoggingLevel.INFO, logPrefix + 'Using dedicated summarizer agent: ' + summarizerAgent.DeveloperName__c);
+            } else {
+                // FALLBACK: No dedicated summarizer is linked. Use the primary agent's LLM and the hardcoded default prompt.
+                llmConfigToUse = AIAgentConfigService.getLLMConfiguration(primaryAgentConfig.LLMConfiguration__c);
+                promptTemplateToUse = FALLBACK_PROMPT_TEMPLATE;
+                System.debug(LoggingLevel.WARN, logPrefix + 'No summarizer agent linked. Falling back to primary agent LLM and default prompt.');
+            }
+
+            if (String.isBlank(promptTemplateToUse)) {
+                throw new SummarizationException('Summarization prompt template is blank for both the dedicated summarizer and the fallback.');
+            }
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to load agent or LLM configuration: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to load summarization configuration: ' + e.getMessage());
             return;
         }
 
-        Integer chunkSize = (agentConfig.SummarizationChunkSize__c != null &&
-            agentConfig.SummarizationChunkSize__c > 0)
-            ? agentConfig.SummarizationChunkSize__c.intValue()
+        Integer chunkSize = (primaryAgentConfig.SummarizationChunkSize__c != null &&
+            primaryAgentConfig.SummarizationChunkSize__c > 0)
+            ? primaryAgentConfig.SummarizationChunkSize__c.intValue()
             : 10;
+        List<ChatMessage__c> messagesToProcess = ChatMessageService.getHistoryWithCompleteTurns(this.sessionId, chunkSize, 'ASC', true);
 
-        // Retrieve oldest unsummarized messages ensuring complete turns
-        List<ChatMessage__c> finalMessagesToProcess = ChatMessageService.getHistoryWithCompleteTurns(this.sessionId, chunkSize, 'ASC', true);
-
-        if (finalMessagesToProcess.isEmpty()) {
+        if (messagesToProcess.isEmpty()) {
             System.debug(LoggingLevel.INFO, logPrefix + 'No unsummarized messages found. Exiting.');
             return;
         }
 
-        // Format messages for summarization prompt
         List<String> newLinesList = new List<String>();
-        for (ChatMessage__c msg : finalMessagesToProcess) {
+        for (ChatMessage__c msg : messagesToProcess)
             newLinesList.add(msg.Role__c + ': ' + msg.Content__c);
-        }
         String newLines = String.join(newLinesList, '\n');
 
-        // Prepare summarization prompt with current summary and new messages
         ChatSession__c session = [SELECT ConversationSummary__c FROM ChatSession__c WHERE Id = :this.sessionId];
         String currentSummary = String.isNotBlank(session.ConversationSummary__c)
             ? session.ConversationSummary__c
             : 'The conversation has just begun.';
-        String prompt = SUMMARIZATION_PROMPT_TEMPLATE.replace('{current_summary}', currentSummary).replace('{new_lines}', newLines);
+        String prompt = promptTemplateToUse.replace('{current_summary}', currentSummary).replace('{new_lines}', newLines);
 
         try {
-            // Generate new summary via LLM
-            ILLMProviderAdapter adapter = LLMProviderFactory.getAdapter(llmConfig);
+            ILLMProviderAdapter adapter = LLMProviderFactory.getAdapter(llmConfigToUse);
             List<Map<String, Object>> messagesPayload = new List<Map<String, Object>>{
                 new Map<String, Object>{ 'role' => 'user', 'content' => prompt }
             };
-
-            ProviderResult result = adapter.sendMessage(messagesPayload, null, llmConfig, null);
+            ProviderResult result = adapter.sendMessage(messagesPayload, null, llmConfigToUse, null);
 
             if (result != null && String.isNotBlank(result.content)) {
-                // Update session summary and mark messages as processed
                 session.ConversationSummary__c = result.content;
                 update session;
-
                 List<ChatMessage__c> messagesToUpdate = new List<ChatMessage__c>();
-                for (ChatMessage__c msg : finalMessagesToProcess) {
+                for (ChatMessage__c msg : messagesToProcess) {
                     messagesToUpdate.add(new ChatMessage__c(Id = msg.Id, IsSummarized__c = true));
                 }
                 update messagesToUpdate;
-
-                System.debug(
-                    LoggingLevel.INFO,
-                    logPrefix + 'Conversation summary updated and ' + messagesToUpdate.size() + ' messages marked as summarized.'
-                );
+                System.debug(LoggingLevel.INFO, logPrefix + 'Summarization successful.');
             } else {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'LLM summarization call returned empty content. No update performed.');
             }
