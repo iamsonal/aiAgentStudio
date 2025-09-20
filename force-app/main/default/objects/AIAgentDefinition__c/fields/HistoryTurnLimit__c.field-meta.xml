@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>HistoryTurnLimit__c</fullName>
+    <description>For &apos;Buffer Window&apos; agents, this sets the number of recent conversation turns to include in the history. Each turn consists of a complete user-assistant exchange including any tool calls. A blank value includes all history; a value of 0 includes no history.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Only applies to Buffer Window agents. Enter the number of recent conversation turns to remember (leave blank for unlimited, 0 for none). Each turn represents a complete user-assistant exchange.</inlineHelpText>
+    <label>History Turn Limit</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

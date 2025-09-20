@@ -2,7 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>FollowUpActions__c</fullName>
     <description>(Future Use) A pipe-delimited list of Capability Names to be suggested or automatically run after this capability completes successfully.</description>
-    <inlineHelpText>Reserved for future functionality. Will define which actions should automatically follow this one's successful completion. Currently not implemented.</inlineHelpText>
+    <inlineHelpText>Reserved for future functionality. Will define which actions should automatically follow this one&apos;s successful completion. Currently not implemented.</inlineHelpText>
     <label>Follow-Up Actions</label>
     <length>32768</length>
     <trackTrending>false</trackTrending>

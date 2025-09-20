@@ -122,7 +122,7 @@ public with sharing class AgentTestDataFactory {
             IsActive__c = true,
             MemoryStrategy__c = 'Buffer Window',
             LLMConfiguration__c = llmConfigId,
-            HistoryLimit__c = 12,
+            HistoryTurnLimit__c = 10,
             RequiresServiceUserContext__c = true, // Critical for community user scenario
             EnableReasoningMode__c = true,
             WelcomeMessageTemplate__c = 'Hi {User.FirstName}! I am the Order Management Copilot. How can I help you with your orders today?',

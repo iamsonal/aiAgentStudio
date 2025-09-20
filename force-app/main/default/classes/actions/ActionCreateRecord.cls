@@ -20,9 +20,6 @@
  *   - Focused on secure, flexible record creation for any SObject type specified in configuration.
  *   - Designed for maintainability and clarity, with clear extension points and runtime diagnostics.
  *
- * Configuration Example: {"objectApiName": "Contact", "defaultFieldValues": {"LeadSource": "Web"}}
- * Parameters: Field name-value pairs for the record to create.
- *
  * @extends BaseAgentAction
  */
 public class ActionCreateRecord extends BaseAgentAction {
@@ -66,8 +63,8 @@ public class ActionCreateRecord extends BaseAgentAction {
         // Coerce types and check field-level security (FLS)
         Map<String, Object> typedData;
         try {
-            typedData = SObjectArgumentCoercionService.coerceArgumentTypesForSObject(finalData, this.targetSObjectType, AccessType.CREATABLE);
-        } catch (SObjectArgumentCoercionService.InvalidArgumentTypeException typeEx) {
+            typedData = TypeCoercionService.coerceArgumentTypesForSObject(finalData, this.targetSObjectType, AccessType.CREATABLE);
+        } catch (TypeCoercionService.TypeCoercionException typeEx) {
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Type coercion failed: ' + typeEx.getMessage());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
         } catch (SecurityUtils.ActionSecurityException secEx) {

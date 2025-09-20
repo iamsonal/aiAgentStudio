@@ -21,9 +21,6 @@
  *   - Provides detailed debug output and error messages for maintainability and auditability.
  *   - Returns structured, LLM-friendly results for downstream processing.
  *
- * Configuration Example: {"recordIdParameter": "customIdField"} (optional)
- * Parameters Example: {"recordId": "003...", "FieldName1": "NewValue1", ...}
- *
  * @extends BaseAgentAction
  */
 public class ActionUpdateRecord extends BaseAgentAction {
@@ -86,8 +83,8 @@ public class ActionUpdateRecord extends BaseAgentAction {
         Map<String, Object> typedData;
         try {
             // Coerce types and enforce field-level security (FLS)
-            typedData = SObjectArgumentCoercionService.coerceArgumentTypesForSObject(updateData, targetSObjectType, AccessType.UPDATABLE);
-        } catch (SObjectArgumentCoercionService.InvalidArgumentTypeException typeEx) {
+            typedData = TypeCoercionService.coerceArgumentTypesForSObject(updateData, targetSObjectType, AccessType.UPDATABLE);
+        } catch (TypeCoercionService.TypeCoercionException typeEx) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
         } catch (SecurityUtils.ActionSecurityException secEx) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, secEx.getMessage());

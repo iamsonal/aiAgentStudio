@@ -39,16 +39,20 @@ public inherited sharing class AIAgentConfigService {
         'MemoryStrategy__c',
         'ContextFormatStrategy__c',
         'Description__c',
-        'HistoryLimit__c',
-        'SummarizationTriggerSize__c',
-        'SummarizationChunkSize__c',
+        'HistoryTurnLimit__c',
+        'SummarizationTriggerTurnCount__c',
+        'SummarizationChunkTurnCount__c',
         'WelcomeMessageTemplate__c',
         'IdentityPrompt__c',
         'InstructionsPrompt__c',
         'ExamplesPrompt__c',
         'PromptFooter__c',
         'EnableReasoningMode__c',
-        'RequiresServiceUserContext__c'
+        'RequiresServiceUserContext__c',
+        'SummarizerAgent__c',
+        'SummarizerAgent__r.DeveloperName__c',
+        'SummarizerAgent__r.LLMConfiguration__c',
+        'SummarizerAgent__r.InstructionsPrompt__c'
     };
 
     private static final List<String> LLM_CONFIGURATION_FIELDS = new List<String>{

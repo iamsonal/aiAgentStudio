@@ -74,7 +74,7 @@ public with sharing class TestFactory {
                 agentDefId,
                 'find_sales_records',
                 'Searches for records like Accounts or Contacts.',
-                '{"type":"object","properties":{"searchQuery":{"type":"string"},"sObjectTypes":{"type":"array"}},"required":["searchQuery"]}',
+                    '{"type":"object","properties":{"sObjectTypes":{"type":"array"},"fieldsToReturn":{"type":"array"},"filters":{"type":"object"},"limit":{"type":"integer"}},"required":["sObjectTypes","fieldsToReturn","filters"]}',
                 'Standard',
                 null, // No ImplementationDetail for Standard
                 'FindEntities',

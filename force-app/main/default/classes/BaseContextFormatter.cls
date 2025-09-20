@@ -113,7 +113,6 @@ public virtual inherited sharing class BaseContextFormatter {
         Map<String, Object> populatedFields = record.getPopulatedFieldsAsMap();
         System.debug(logPrefix + '[BaseContextFormatter] Populated fields: ' + populatedFields);
         Schema.DescribeSObjectResult recordDescribe = record.getSObjectType().getDescribe();
-        System.debug(logPrefix + '[BaseContextFormatter] Record describe: ' + recordDescribe);
 
         // Process each populated field
         for (String fieldName : populatedFields.keySet()) {

@@ -8,150 +8,211 @@
 
 /**
  * @description
- * ActionFindEntities is a thin wrapper around SearchService for performing intelligent entity search.
+ * ActionFindEntities is a powerful and secure Apex action for performing dynamic SOSL searches based on structured input from an LLM.
+ * This action replaces the need for complex Apex-based pattern analysis by leveraging the LLM's ability to destructure natural language
+ * into a well-defined search request.
  *
  * Responsibilities:
- *   - Acts as a facade for the SearchService
- *   - Delegates search operations to specialized services
- *   - Provides structured, LLM-friendly results
+ *   - Accepts structured search criteria: sObject types, fields to return, and filters.
+ *   - Enforces Object and Field-Level Security (FLS) on all aspects of the query.
+ *   - Dynamically constructs and executes a secure SOSL query.
+ *   - Returns a structured, LLM-friendly result with found records and metadata.
  *
  * @extends BaseAgentAction
  */
 public class ActionFindEntities extends BaseAgentAction {
-    private static final String CONFIG_MAX_AMBIGUOUS_RESULTS = 'maxAmbiguousResults';
-    private static final Integer DEFAULT_MAX_AMBIGUOUS_RESULTS = 5;
-
-    @TestVisible
-    private static List<SObjectConfig__mdt> MDT_CACHE;
-
-    private class ScoringInfo {
-        public String primaryNameField;
-        public Set<String> keyIdentifierFields;
-        public ScoringInfo(String nameField, Set<String> keyFields) {
-            this.primaryNameField = nameField;
-            this.keyIdentifierFields = keyFields;
-        }
-    }
-
-    private Map<String, List<String>> configuredReturnFields = new Map<String, List<String>>();
-    private Map<String, ScoringInfo> scoringConfig = new Map<String, ScoringInfo>();
-    private Integer maxAmbiguousResults = DEFAULT_MAX_AMBIGUOUS_RESULTS;
+    private static final Integer MAX_QUERY_LIMIT = 50;
+    private static final Integer DEFAULT_QUERY_LIMIT = 10;
 
     /**
      * @description
-     * Main entry point for entity search. Delegates to SearchService for all processing.
+     * Main entry point for entity search. Parameters are pre-validated against the JSON schema by BaseAgentAction.
      *
-     * @param params Map<String, Object> - Must include 'searchQuery' (String), may include 'sObjectTypes' (List<String>).
-     * @return ActionOutcome - Contains search results or error information.
+     * @param params Map<String, Object> - Pre-validated parameters: 'sObjectTypes', 'fieldsToReturn', 'filters', and 'limit'.
+     * @return ActionOutcome<QueryResult> - Contains found records and metadata, or a structured error.
      */
     public override ActionOutcome executeAction(Map<String, Object> params) {
+        Long startTime = System.currentTimeMillis();
+
         try {
-            // Extract and validate parameters
-            String searchQuery = (String) params.get('searchQuery');
-            if (String.isBlank(searchQuery)) {
-                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Search term is required');
-            }
-
-            List<String> sObjectTypes = ActionConfigUtils.getOptionalStringList(params, 'sObjectTypes');
-
-            // Prepare search configuration
-            SearchService.SearchConfiguration searchConfig = new SearchService.SearchConfiguration(
-                this.configuredReturnFields,
-                convertScoringConfig(),
-                this.maxAmbiguousResults
-            );
-
-            // Delegate to SearchService
-            SearchService.SearchResult result = SearchService.performSearch(searchQuery, sObjectTypes, searchConfig, UserInfo.getUserId());
-
-            return ActionOutcome.success(result);
-        } catch (Exception ex) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Entity search failed: ' + ex.getMessage());
-        }
-    }
-
-    /**
-     * @description
-     * Parses and validates the action configuration JSON.
-     *
-     * @param actionConfigurationJson String - The JSON configuration string.
-     * @param logPrefix String - Prefix for log output.
-     * @throws ValidationException if required configuration or metadata is missing or invalid.
-     */
-    @TestVisible
-    protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
-        super.parseActionConfiguration(actionConfigurationJson, logPrefix);
-
-        // Load and cache custom metadata configuration for searchable objects
-        if (MDT_CACHE == null) {
-            try {
-                MDT_CACHE = [
-                    SELECT SObjectAPIName__c, PrimaryNameField__c, KeyIdentifierFields__c
-                    FROM SObjectConfig__mdt
-                    WHERE IsActive__c = TRUE
-                ];
-                System.debug(
-                    LoggingLevel.INFO,
-                    '[ActionFindEntities] Custom metadata cache miss. Loaded ' + MDT_CACHE.size() + ' SObjectConfig__mdt records.'
-                );
-            } catch (Exception e) {
-                throw new ValidationException('Failed to query SObjectConfig__mdt records: ' + e.getMessage(), null, e);
-            }
-        } else {
-            System.debug(LoggingLevel.INFO, '[ActionFindEntities] Custom metadata cache hit. Using cached SObjectConfig__mdt records.');
-        }
-
-        if (MDT_CACHE.isEmpty()) {
-            throw new ValidationException('No active SObjectConfig__mdt records found. Please configure searchable objects.', null);
-        }
-
-        // Build search configuration from custom metadata
-        for (SObjectConfig__mdt config : MDT_CACHE) {
-            String sObjApiName = config.SObjectAPIName__c;
-            if (String.isBlank(sObjApiName) || String.isBlank(config.PrimaryNameField__c)) {
-                System.debug(LoggingLevel.WARN, '[ActionFindEntities] Skipping invalid SObjectConfig__mdt record: ' + config.DeveloperName);
-                continue;
-            }
-
-            Set<String> keyFields = new Set<String>();
-            if (String.isNotBlank(config.KeyIdentifierFields__c)) {
-                for (String field : config.KeyIdentifierFields__c.split(',')) {
-                    if (String.isNotBlank(field.trim())) {
-                        keyFields.add(field.trim());
-                    }
+            // 1. Extract and validate parameters (already typed by BaseAgentAction)
+            List<String> sObjectTypes = new List<String>();
+            if (params.get('sObjectTypes') instanceof List<Object>) {
+                for (Object item : (List<Object>) params.get('sObjectTypes')) {
+                    sObjectTypes.add(String.valueOf(item));
                 }
             }
 
-            this.scoringConfig.put(sObjApiName.toLowerCase(), new ScoringInfo(config.PrimaryNameField__c, keyFields));
+            List<String> fieldsToReturn = new List<String>();
+            if (params.get('fieldsToReturn') instanceof List<Object>) {
+                for (Object item : (List<Object>) params.get('fieldsToReturn')) {
+                    fieldsToReturn.add(String.valueOf(item));
+                }
+            }
 
-            List<String> fieldsForObject = new List<String>(keyFields);
-            fieldsForObject.addAll(new List<String>{ config.PrimaryNameField__c, 'Id' });
-            this.configuredReturnFields.put(sObjApiName, new List<String>(new Set<String>(fieldsForObject)));
-        }
+            Map<String, Object> filters = (Map<String, Object>) params.get('filters');
+            Integer queryLimit = (Integer) params.get('limit');
 
-        this.maxAmbiguousResults = ActionConfigUtils.getOptionalInteger(
-            this.parsedActionConfig,
-            CONFIG_MAX_AMBIGUOUS_RESULTS,
-            DEFAULT_MAX_AMBIGUOUS_RESULTS
-        );
+            if (sObjectTypes.isEmpty() || fieldsToReturn.isEmpty() || filters == null || filters.isEmpty()) {
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                    'sObjectTypes, fieldsToReturn, and filters are all required and cannot be empty.'
+                );
+            }
 
-        if (this.maxAmbiguousResults != DEFAULT_MAX_AMBIGUOUS_RESULTS) {
-            System.debug(LoggingLevel.INFO, '[ActionFindEntities] maxAmbiguousResults overridden to: ' + this.maxAmbiguousResults);
+            Integer finalLimit = (queryLimit != null && queryLimit > 0) ? Math.min(queryLimit, MAX_QUERY_LIMIT) : DEFAULT_QUERY_LIMIT;
+
+            // 2. Build a secure SOSL query from the structured input
+            String soslQuery = buildSoslQuery(sObjectTypes, fieldsToReturn, filters, finalLimit);
+
+            if (String.isBlank(soslQuery)) {
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
+                    'Could not construct a valid search. This may be due to a lack of access to the requested objects or fields.'
+                );
+            }
+
+            // 3. Execute the query
+            List<List<SObject>> searchResults = Search.query(soslQuery);
+            List<SObject> flatResults = flattenSearchResults(searchResults);
+
+            Long executionTime = System.currentTimeMillis() - startTime;
+            System.debug(
+                LoggingLevel.INFO,
+                '[ActionFindEntities] SOSL query completed in ' + executionTime + ' ms. Records found: ' + flatResults.size()
+            );
+
+            // 4. Format and return the result
+            return ActionOutcome.success(new QueryResult(flatResults, sObjectTypes));
+        } catch (System.QueryException qe) {
+            System.debug(LoggingLevel.ERROR, '[ActionFindEntities] SOSL execution failed: ' + qe.getMessage());
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_SOQL_ERROR, 'The search query failed: ' + qe.getMessage());
+        } catch (Exception ex) {
+            System.debug(LoggingLevel.ERROR, '[ActionFindEntities] Unexpected error during search: ' + ex.getMessage());
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+                'An unexpected error occurred during the search: ' + ex.getMessage()
+            );
         }
     }
 
     /**
      * @description
-     * Converts internal ScoringInfo to ResultScoringService.ScoringInfo for compatibility.
+     * Constructs a secure SOSL query string by validating object/field access and sanitizing inputs.
      *
-     * @return Map<String, ResultScoringService.ScoringInfo> Converted scoring configuration
+     * @param sObjectTypes   List of SObject API names to search.
+     * @param fieldsToReturn List of field API names to retrieve.
+     * @param filters        Map of field-value pairs for the WHERE clause.
+     * @param limitValue          The maximum number of records to return.
+     * @return A secure, executable SOSL query string.
      */
-    private Map<String, ResultScoringService.ScoringInfo> convertScoringConfig() {
-        Map<String, ResultScoringService.ScoringInfo> converted = new Map<String, ResultScoringService.ScoringInfo>();
-        for (String key : this.scoringConfig.keySet()) {
-            ScoringInfo info = this.scoringConfig.get(key);
-            converted.put(key, new ResultScoringService.ScoringInfo(info.primaryNameField, info.keyIdentifierFields));
+    private String buildSoslQuery(List<String> sObjectTypes, List<String> fieldsToReturn, Map<String, Object> filters, Integer limitValue) {
+        List<String> filterValues = new List<String>();
+        for (Object value : filters.values()) {
+            if (value != null && String.isNotBlank(String.valueOf(value))) {
+                filterValues.add(String.escapeSingleQuotes(String.valueOf(value)));
+            }
         }
-        return converted;
+
+        if (filterValues.isEmpty()) {
+            return null;
+        }
+        String findClause = 'FIND \'' + String.join(filterValues, ' AND ') + '\'';
+
+        String returningClause = buildSecureReturningClause(sObjectTypes, fieldsToReturn);
+
+        if (String.isBlank(returningClause)) {
+            System.debug(LoggingLevel.WARN, '[ActionFindEntities] No accessible objects or fields to search. Returning empty query.');
+            return null;
+        }
+
+        return findClause + ' IN ALL FIELDS RETURNING ' + returningClause + ' LIMIT ' + limitValue;
+    }
+
+    /**
+     * @description
+     * Builds the 'RETURNING' clause for a SOSL query, ensuring the current user has access to all requested objects and fields.
+     *
+     * @param sObjectTypes   List of SObject API names.
+     * @param fieldsToReturn List of field API names.
+     * @return A secure RETURNING clause string.
+     */
+    private String buildSecureReturningClause(List<String> sObjectTypes, List<String> fieldsToReturn) {
+        List<String> returningParts = new List<String>();
+        Map<String, SObjectType> globalDescribe = Schema.getGlobalDescribe();
+
+        for (String sObjName : sObjectTypes) {
+            SObjectType sObjToken = globalDescribe.get(sObjName);
+            if (sObjToken == null || !sObjToken.getDescribe().isQueryable()) {
+                System.debug(LoggingLevel.WARN, '[ActionFindEntities] Skipping inaccessible or invalid object: ' + sObjName);
+                continue;
+            }
+
+            List<String> accessibleFields = new List<String>();
+            for (String fieldName : fieldsToReturn) {
+                if (SecurityUtils.hasFieldPermission(sObjToken, fieldName, AccessType.READABLE)) {
+                    accessibleFields.add(fieldName);
+                } else {
+                    System.debug(LoggingLevel.WARN, '[ActionFindEntities] Skipping inaccessible field ' + fieldName + ' on object ' + sObjName);
+                }
+            }
+
+            if (!accessibleFields.isEmpty()) {
+                returningParts.add(sObjName + '(' + String.join(accessibleFields, ', ') + ')');
+            }
+        }
+
+        return String.join(returningParts, ', ');
+    }
+
+    /**
+     * @description
+     * Converts the nested List<List<SObject>> from a SOSL result into a single flat list.
+     *
+     * @param searchResults The result from Search.query().
+     * @return A flattened List<SObject>.
+     */
+    private List<SObject> flattenSearchResults(List<List<SObject>> searchResults) {
+        List<SObject> flatList = new List<SObject>();
+        if (searchResults != null) {
+            for (List<SObject> sObjectList : searchResults) {
+                flatList.addAll(sObjectList);
+            }
+        }
+        return flatList;
+    }
+
+    /**
+     * @description
+     * This action is fully dynamic based on LLM input, so no static backend configuration is required.
+     * @param actionConfigurationJson The JSON configuration string (ignored).
+     * @param logPrefix               Prefix for log output.
+     */
+    @TestVisible
+    protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
+        // No static configuration is needed for this dynamic action.
+        // The sObject types and fields are provided by the LLM at runtime.
+    }
+
+    /**
+     * @description
+     * Result wrapper for the find entities operation. Provides structured data for both user display and LLM processing.
+     */
+    public class QueryResult {
+        @AuraEnabled
+        public List<SObject> records;
+        @AuraEnabled
+        public Integer count;
+        @AuraEnabled
+        public String message;
+        @AuraEnabled
+        public Map<String, Object> metadata;
+
+        public QueryResult(List<SObject> records, List<String> sObjectTypesSearched) {
+            this.records = records;
+            this.count = records.size();
+            this.message = 'Found ' + this.count + ' record(s) matching the criteria.';
+            this.metadata = new Map<String, Object>{ 'totalFound' => this.count, 'sObjectTypesSearched' => sObjectTypesSearched };
+        }
     }
 }

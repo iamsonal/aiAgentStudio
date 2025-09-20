@@ -20,9 +20,6 @@
  *   - Strictly focused on secure, flexible record retrieval for any SObject type specified in configuration.
  *   - Designed for maintainability, extensibility, and clarity, with detailed debug output and robust error handling.
  *
- * Configuration Example: {"objectApiName": "Contact", "defaultFields": ["Id", "Name"], "maxReturnToLLM": 10}
- * Parameters Example: {"filters": {"LastName": "Smith"}, "additionalFields": ["Phone"], "limit": 5, "orderBy": "LastName ASC"}
- *
  * @extends BaseAgentAction
  */
 public class ActionGetRecords extends BaseAgentAction {

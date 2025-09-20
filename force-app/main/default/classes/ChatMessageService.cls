@@ -162,80 +162,99 @@ public inherited sharing class ChatMessageService {
     }
 
     /**
-     * Retrieves a turn-aware chunk of ChatMessage__c records, ensuring complete conversation turns are included.
-     * Prevents mid-turn cutoffs by automatically including all messages from the boundary turn.
+     * Retrieves a precise number of complete conversation turns using an optimized two-step approach.
+     * This method first identifies the exact turn identifiers to include, then fetches all messages
+     * for those turns, ensuring complete turns and precise control over token consumption.
      *
      * @param sessionId         Chat session identifier.
-     * @param baseLimit         Initial message count target (minimum number of messages to retrieve).
+     * @param turnLimit         Number of complete conversation turns to retrieve.
      * @param initialSortOrder  Retrieval direction for initial chunk ('ASC' or 'DESC').
      * @param onlyUnsummarized  If true, only unsummarized messages are included.
      * @return                  List of ChatMessage__c records representing complete conversation turns, in chronological order.
      */
     public static List<ChatMessage__c> getHistoryWithCompleteTurns(
         Id sessionId,
-        Integer baseLimit,
+        Integer turnLimit,
         String initialSortOrder,
         Boolean onlyUnsummarized
     ) {
-        String logPrefix = '[ChatMessageService.TurnAware] ';
+        String logPrefix = '[ChatMessageService.TurnOptimized] ';
 
-        if (sessionId == null || baseLimit == null || baseLimit <= 0) {
+        if (sessionId == null || turnLimit == null || turnLimit <= 0) {
             return new List<ChatMessage__c>();
         }
 
-        // Initial fetch: get a chunk of messages in the requested order
-        List<ChatMessage__c> initialChunk = getHistory(sessionId, baseLimit, initialSortOrder, null, onlyUnsummarized);
+        String effectiveSortOrder = ('DESC'.equalsIgnoreCase(initialSortOrder)) ? 'DESC' : 'ASC';
 
-        if (initialChunk.isEmpty()) {
-            return new List<ChatMessage__c>();
+        List<String> whereClauses = new List<String>{ 'ChatSession__c = :sessionId' };
+        Map<String, Object> bindMap = new Map<String, Object>{
+            'sessionId' => sessionId,
+            'turnLimit' => turnLimit
+        };
+
+        if (onlyUnsummarized) {
+            whereClauses.add('IsSummarized__c = FALSE');
         }
 
-        // Identify the boundary turn from the last message in the initial chunk
-        ChatMessage__c boundaryMessage = initialChunk.get(initialChunk.size() - 1);
-        String boundaryTurnId = boundaryMessage.TurnIdentifier__c;
+        String whereClause = String.join(whereClauses, ' AND ');
 
-        // Use a map to deduplicate messages and efficiently merge boundary turn
-        Map<Id, ChatMessage__c> allMessagesMap = new Map<Id, ChatMessage__c>();
-        for (ChatMessage__c msg : initialChunk) {
-            allMessagesMap.put(msg.Id, msg);
-        }
+        try {
+            // Step 1: Get the exact turn identifiers we want using aggregation
+            String aggregateFunction = 'DESC'.equalsIgnoreCase(effectiveSortOrder) ? 'MAX(Timestamp__c)' : 'MIN(Timestamp__c)';
+            String aggregateQuery = 'SELECT TurnIdentifier__c, ' + aggregateFunction + ' turnTime ' +
+                'FROM ChatMessage__c ' +
+                'WHERE ' + whereClause + ' AND TurnIdentifier__c != NULL ' +
+                'GROUP BY TurnIdentifier__c ' +
+                'ORDER BY ' + aggregateFunction + ' ' + effectiveSortOrder + ' ' +
+                'LIMIT :turnLimit';
 
-        // If a boundary turn exists, fetch all of its messages to ensure the turn is complete
-        if (String.isNotBlank(boundaryTurnId)) {
-            List<ChatMessage__c> fullBoundaryTurn = [
-                SELECT
-                    Id,
-                    Role__c,
-                    Content__c,
-                    Timestamp__c,
-                    ExternalId__c,
-                    TurnIdentifier__c,
-                    AssistantToolCalls__c,
-                    ToolCallId__c,
-                    ParentMessage__c,
-                    IsSummarized__c,
-                    RecordContextId__c,
-                    RecordContextData__c
-                FROM ChatMessage__c
-                WHERE TurnIdentifier__c = :boundaryTurnId
-            ];
+            List<AggregateResult> turnResults = Database.queryWithBinds(aggregateQuery, bindMap, AccessLevel.USER_MODE);
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Fetched ' + fullBoundaryTurn.size() + ' messages for boundary turn: ' + boundaryTurnId);
+            if (turnResults.isEmpty()) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'No turns found matching criteria.');
+                return new List<ChatMessage__c>();
+            }
 
-            for (ChatMessage__c turnMsg : fullBoundaryTurn) {
-                if (!allMessagesMap.containsKey(turnMsg.Id)) {
-                    allMessagesMap.put(turnMsg.Id, turnMsg);
+            // Step 2: Extract turn identifiers and fetch all messages for those turns
+            Set<String> turnIdentifiersToInclude = new Set<String>();
+            for (AggregateResult ar : turnResults) {
+                String turnId = (String) ar.get('TurnIdentifier__c');
+                if (String.isNotBlank(turnId)) {
+                    turnIdentifiersToInclude.add(turnId);
                 }
             }
-        }
 
-        // Convert map to list and sort chronologically for the final return
-        List<ChatMessage__c> finalMessages = sortMessages(allMessagesMap.values());
-        System.debug(
-            LoggingLevel.INFO,
-            logPrefix + 'Turn-aware history retrieval complete: ' + finalMessages.size() + ' messages (unsummarized=' + onlyUnsummarized + ')'
-        );
-        return finalMessages;
+            System.debug(LoggingLevel.INFO, logPrefix + 'Retrieved ' + turnIdentifiersToInclude.size() + ' turn identifiers for processing');
+
+            // Step 3: Fetch all messages for the identified turns
+            List<String> finalQueryParts = new List<String>();
+            finalQueryParts.add('SELECT Id, Role__c, Content__c, Timestamp__c, ExternalId__c, TurnIdentifier__c,');
+            finalQueryParts.add('AssistantToolCalls__c, ToolCallId__c, ParentMessage__c,');
+            finalQueryParts.add('TokensUsed__c, ProcessingTimeMillis__c, RecordContextId__c, RecordContextData__c');
+            finalQueryParts.add('FROM ChatMessage__c');
+            finalQueryParts.add('WHERE ChatSession__c = :sessionId');
+            finalQueryParts.add('AND TurnIdentifier__c IN :turnIdentifiersToInclude');
+            finalQueryParts.add('ORDER BY Timestamp__c ASC, Id ASC NULLS LAST'); // Always return in chronological order
+
+            String finalQuery = String.join(finalQueryParts, ' ');
+            Map<String, Object> finalBindMap = new Map<String, Object>{
+                'sessionId' => sessionId,
+                'turnIdentifiersToInclude' => turnIdentifiersToInclude
+            };
+
+            List<ChatMessage__c> results = Database.queryWithBinds(finalQuery, finalBindMap, AccessLevel.USER_MODE);
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Turn-optimized history retrieval complete: ' + results.size() + ' messages from ' + turnIdentifiersToInclude.size() + ' turns (unsummarized=' + onlyUnsummarized + ')'
+            );
+
+            return results;
+
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to retrieve turn-based history: ' + e.getMessage());
+            return new List<ChatMessage__c>();
+        }
     }
 
     private static List<ChatMessage__c> sortMessages(List<ChatMessage__c> messages) {

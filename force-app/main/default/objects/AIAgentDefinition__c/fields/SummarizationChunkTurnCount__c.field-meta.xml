@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SummarizationChunkTurnCount__c</fullName>
+    <description>For &apos;Summary Buffer&apos; agents, this is the number of the oldest conversation turns that will be processed and condensed into the main summary in a single background job.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Only applies to Summary Buffer agents. Specify how many old conversation turns to summarize at once. Larger values are more efficient but may hit processing limits.</inlineHelpText>
+    <label>Summarization Chunk Turn Count</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

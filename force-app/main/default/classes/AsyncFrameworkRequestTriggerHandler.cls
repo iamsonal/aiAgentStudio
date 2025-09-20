@@ -11,7 +11,7 @@
  * AsyncFrameworkRequestTriggerHandler is the comprehensive platform event handler for AsyncFrameworkRequest__e events.
  * Responsibilities:
  *   - Provides intelligent routing and deserialization of event payloads to the appropriate processor classes
- *   - Supports multiple job types including action execution, and follow-up LLM processing
+ *   - Supports multiple job types including initial LLM processing, action execution, and follow-up LLM processing
  *   - Ensures robust error handling and batch isolation for reliable event processing
  *   - Surfaces operational and routing issues clearly via debug output for maintainability
  *
@@ -44,10 +44,12 @@ public class AsyncFrameworkRequestTriggerHandler {
                     handleExecuteAction(payloadJson);
                 } else if ('FollowUpLLM'.equalsIgnoreCase(jobType)) {
                     handleFollowUpLLM(payloadJson);
+                } else if ('ProcessLLMMessage'.equalsIgnoreCase(jobType)) {
+                    handleProcessLLMMessage(payloadJson);
                 } else {
                     System.debug(
                         LoggingLevel.ERROR,
-                        '[AsyncFrameworkRequestTriggerHandler] Unknown JobType received: ' + jobType + '. Valid types: ExecuteAction, FollowUpLLM.'
+                        '[AsyncFrameworkRequestTriggerHandler] Unknown JobType received: ' + jobType + '. Valid types: ExecuteAction, FollowUpLLM, ProcessLLMMessage.'
                     );
                 }
             } catch (Exception e) {
@@ -114,5 +116,113 @@ public class AsyncFrameworkRequestTriggerHandler {
             isFinalError
         );
         processor.process(null);
+    }
+
+    /**
+     * Handles the ProcessLLMMessage job type by deserializing the payload and executing initial LLM processing.
+     *
+     * @param payloadJson JSON payload containing initial LLM processing parameters.
+     */
+    private static void handleProcessLLMMessage(String payloadJson) {
+        Map<String, Object> params = (Map<String, Object>) JSON.deserializeUntyped(payloadJson);
+
+        Id sessionId = (Id) params.get('sessionId');
+        Id originalUserId = (Id) params.get('originalUserId');
+        Id agentDefinitionId = (Id) params.get('agentDefinitionId');
+        Id llmConfigurationId = (Id) params.get('llmConfigurationId');
+        String turnIdentifier = (String) params.get('turnIdentifier');
+        String userMessage = (String) params.get('userMessage');
+        Id currentRecordId = (Id) params.get('currentRecordId');
+        String logPrefix = (String) params.get('logPrefix');
+
+        System.debug(
+            LoggingLevel.INFO,
+            logPrefix + '[AsyncFrameworkRequestTriggerHandler] Starting initial LLM message processing via Platform Event. SessionId=' + sessionId + ', TurnId=' + turnIdentifier
+        );
+
+        try {
+            // Prepare the user message data for LLM interaction
+            LLMInteractionService.MessageData currentUserMessageData = new LLMInteractionService.MessageData();
+            currentUserMessageData.role = AIAgentConstants.ROLE_USER;
+            currentUserMessageData.content = userMessage;
+
+            OrchestrationService orchestrationSvc = new OrchestrationService();
+
+            // Initialize the decision step logger - single instance for the entire turn
+            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(sessionId, turnIdentifier, originalUserId);
+
+            decisionLogger.logUserInput('User Input Received (via Platform Event)', userMessage, null);
+
+            // Instantiate LLMInteractionService with the execution user context and decision logger
+            LLMInteractionService interactionService = new LLMInteractionService(
+                sessionId,
+                originalUserId,
+                agentDefinitionId,
+                llmConfigurationId,
+                turnIdentifier,
+                1, // Turn count (always 1 for initial LLM processing)
+                currentRecordId,
+                false, // Not a retry
+                decisionLogger
+            );
+
+            // Execute LLM interaction (HTTP callouts are permitted in Flow-triggered async context)
+            LLMInteractionService.LLMInteractionResult llmResult = interactionService.prepareAndCallLLM(currentUserMessageData);
+
+            if (llmResult == null) {
+                throw new AsyncFrameworkException('LLMInteractionService returned a null result');
+            }
+
+            // Process the LLM result using the orchestration service with the decision logger
+            String outcome = orchestrationSvc.processLlmResultWithLogger(
+                llmResult,
+                sessionId,
+                originalUserId,
+                UserInfo.getUserId(),
+                agentDefinitionId,
+                turnIdentifier,
+                1, // Turn count
+                currentUserMessageData,
+                currentRecordId,
+                decisionLogger
+            );
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + '[AsyncFrameworkRequestTriggerHandler] Initial LLM message processing completed successfully. Outcome: ' + outcome
+            );
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix +
+                    '[AsyncFrameworkRequestTriggerHandler] ERROR: Initial LLM processing failed. Exception: ' +
+                    e.getMessage() +
+                    '\nStack Trace: ' +
+                    e.getStackTraceString()
+            );
+
+            // Attempt to mark the turn as failed to maintain session state consistency
+            try {
+                TurnLifecycleService tls = new TurnLifecycleService();
+                tls.failTurn(
+                    sessionId,
+                    turnIdentifier,
+                    'Initial LLM processing failed: ' + e.getMessage(),
+                    AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+                    logPrefix
+                );
+            } catch (Exception failEx) {
+                System.debug(
+                    LoggingLevel.ERROR,
+                    logPrefix + '[AsyncFrameworkRequestTriggerHandler] CRITICAL: Failed to update session state after processing failure: ' + failEx.getMessage()
+                );
+            }
+        }
+    }
+
+    /**
+     * Exception for unrecoverable errors during async framework processing.
+     */
+    public class AsyncFrameworkException extends Exception {
     }
 }
