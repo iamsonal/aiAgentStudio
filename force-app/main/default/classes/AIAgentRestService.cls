@@ -12,7 +12,7 @@
  * Responsibilities:
  *   - Provides secure, scalable message processing with advanced user context management
  *   - Implements comprehensive error handling, request validation, and proper HTTP status code responses
- *   - Eliminates concurrency bottlenecks by directly queueing asynchronous processing jobs
+ *   - Eliminates concurrency bottlenecks by publishing platform events for asynchronous processing
  *   - Surfaces operational and validation issues clearly via debug output for maintainability
  *
  * This class is not intended to be instantiated or extended.
@@ -23,7 +23,7 @@ global with sharing class AIAgentRestService {
 
     /**
      * Processes AI agent messages in the context of the specified execution user.
-     * Supports HTTP callouts and eliminates queueable job limitations by directly enqueuing asynchronous jobs.
+     * Supports HTTP callouts and eliminates queueable job limitations by publishing platform events for asynchronous processing.
      *
      * @return AIAgentResponse containing the processing outcome and any errors.
      */
@@ -164,21 +164,33 @@ global with sharing class AIAgentRestService {
                 'Processing message asynchronously'
             );
 
-            // Queue the LLM processing asynchronously to avoid callout loop
-            System.enqueueJob(
-                new AIAgentAsyncProcessor(
-                    sessionId,
-                    originalUserId,
-                    agentDefinitionId,
-                    agentDefinition.LLMConfiguration__c,
-                    requestData.turnIdentifier,
-                    requestData.userMessage,
-                    currentRecordId,
-                    logPrefix
-                )
+            // Publish platform event for LLM processing to eliminate queueable bottleneck
+            Map<String, Object> llmPayload = new Map<String, Object>{
+                'sessionId' => sessionId,
+                'originalUserId' => originalUserId,
+                'agentDefinitionId' => agentDefinitionId,
+                'llmConfigurationId' => agentDefinition.LLMConfiguration__c,
+                'turnIdentifier' => requestData.turnIdentifier,
+                'userMessage' => requestData.userMessage,
+                'currentRecordId' => currentRecordId,
+                'logPrefix' => logPrefix
+            };
+
+            AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
+                SessionId__c = sessionId,
+                TurnIdentifier__c = requestData.turnIdentifier,
+                JobType__c = 'ProcessLLMMessage',
+                Payload__c = JSON.serialize(llmPayload)
             );
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Message successfully queued for asynchronous processing');
+            Database.SaveResult sr = EventBus.publish(event);
+            if (!sr.isSuccess()) {
+                String errMsg = logPrefix + 'EventBus.publish failed for ProcessLLMMessage: ' + JSON.serialize(sr.getErrors());
+                System.debug(LoggingLevel.ERROR, errMsg);
+                throw new AIAgentRestException('Failed to publish ProcessLLMMessage event: ' + errMsg);
+            }
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Message successfully published as platform event for asynchronous processing');
             return AIAgentConstants.STATUS_PROCESSING;
         } catch (AIAgentConfigService.ConfigurationException e) {
             throw new AIAgentRestException('Configuration error: ' + e.getMessage());

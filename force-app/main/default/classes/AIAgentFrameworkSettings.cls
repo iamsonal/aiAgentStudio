@@ -42,7 +42,7 @@ public inherited sharing class AIAgentFrameworkSettings {
                 settings = new AIAgentFrameworkSettings__c(); // Create empty instance
                 // Explicitly set all values from FINAL defaults if no record exists
                 settings.DefaultMaxConversationTurns__c = FINAL_DEFAULT_MaxConversationTurns;
-                settings.DefaultHistoryLimit__c = FINAL_DEFAULT_HistoryLimit;
+                settings.DefaultHistoryTurnLimit__c = FINAL_DEFAULT_HistoryLimit;
                 settings.DefaultContextTruncationLength__c = FINAL_DEFAULT_ContextTruncationLength;
                 settings.DefaultMaxRetryAttempts__c = FINAL_DEFAULT_MaxRetryAttempts;
                 settings.DefaultInitialRetryDelayMillis__c = FINAL_DEFAULT_InitialRetryDelayMillis;
@@ -56,8 +56,8 @@ public inherited sharing class AIAgentFrameworkSettings {
                 if (settings.DefaultMaxConversationTurns__c == null || settings.DefaultMaxConversationTurns__c < 0) {
                     settings.DefaultMaxConversationTurns__c = FINAL_DEFAULT_MaxConversationTurns;
                 }
-                if (settings.DefaultHistoryLimit__c == null || settings.DefaultHistoryLimit__c < 0) {
-                    settings.DefaultHistoryLimit__c = FINAL_DEFAULT_HistoryLimit;
+                if (settings.DefaultHistoryTurnLimit__c == null || settings.DefaultHistoryTurnLimit__c < 0) {
+                    settings.DefaultHistoryTurnLimit__c = FINAL_DEFAULT_HistoryLimit;
                 }
                 if (settings.DefaultContextTruncationLength__c == null || settings.DefaultContextTruncationLength__c <= 0) {
                     settings.DefaultContextTruncationLength__c = FINAL_DEFAULT_ContextTruncationLength;
@@ -92,7 +92,7 @@ public inherited sharing class AIAgentFrameworkSettings {
      * @return The default maximum number of history messages.
      */
     public static Integer getDefaultHistoryLimit() {
-        return Integer.valueOf(getInstance().DefaultHistoryLimit__c);
+        return Integer.valueOf(getInstance().DefaultHistoryTurnLimit__c);
     }
 
     /**

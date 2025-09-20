@@ -63,8 +63,8 @@ public class ActionCreateRecord extends BaseAgentAction {
         // Coerce types and check field-level security (FLS)
         Map<String, Object> typedData;
         try {
-            typedData = SObjectArgumentCoercionService.coerceArgumentTypesForSObject(finalData, this.targetSObjectType, AccessType.CREATABLE);
-        } catch (SObjectArgumentCoercionService.InvalidArgumentTypeException typeEx) {
+            typedData = TypeCoercionService.coerceArgumentTypesForSObject(finalData, this.targetSObjectType, AccessType.CREATABLE);
+        } catch (TypeCoercionService.TypeCoercionException typeEx) {
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Type coercion failed: ' + typeEx.getMessage());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
         } catch (SecurityUtils.ActionSecurityException secEx) {

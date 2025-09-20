@@ -8,16 +8,17 @@
 
 /**
  * @description
- * SummarizeConversationQueueable is an asynchronous queueable job that processes and summarizes the oldest batch of messages
- * in a chat session. It generates a condensed summary by combining the existing summary with new messages, then marks
- * processed messages as summarized to optimize memory usage and improve LLM context efficiency. The class is designed for
- * progressive, lossless summarization of long-running conversations, ensuring that key facts and decisions are retained
- * while reducing conversational noise.
+ * SummarizeConversationQueueable is an asynchronous queueable job that processes and summarizes complete conversation turns
+ * in a chat session atomically. It generates a condensed summary by combining the existing summary with entire turns, then marks
+ * all messages from processed turns as summarized to optimize memory usage and improve LLM context efficiency. The class is designed for
+ * progressive, lossless, turn-based summarization of long-running conversations, ensuring that key facts and decisions are retained
+ * while reducing conversational noise and providing predictable token consumption.
  *
  * Responsibilities:
- *   - Retrieve and summarize the oldest unsummarized messages in a chat session
- *   - Generate a new summary using an LLM, combining prior summary and new messages
- *   - Update the session with the new summary and mark processed messages
+ *   - Retrieve and summarize the oldest unsummarized conversation turns atomically
+ *   - Process complete turns to maintain conversational context integrity
+ *   - Generate a new summary using an LLM, combining prior summary and new turns
+ *   - Update the session with the new summary and mark all processed turn messages
  *   - Log all key operations and error conditions for monitoring and troubleshooting
  */
 public class SummarizeConversationQueueable implements Queueable, Database.AllowsCallouts {
@@ -48,13 +49,13 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
     }
 
     /**
-     * Main execution method for the queueable job. Processes conversation summarization for a chat session.
+     * Main execution method for the queueable job. Processes turn-based conversation summarization for a chat session.
      *
      * Steps:
      *   - Loads agent and LLM configuration
-     *   - Retrieves oldest unsummarized messages (ensuring complete turns)
-     *   - Generates a new summary using the LLM
-     *   - Updates the session and marks messages as summarized
+     *   - Atomically retrieves oldest unsummarized conversation turns
+     *   - Generates a new summary using the LLM, incorporating complete turns
+     *   - Updates the session and marks all messages from processed turns as summarized
      *   - Logs all key operations and errors
      *
      * @param context   Queueable execution context.
@@ -92,11 +93,11 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
             return;
         }
 
-        Integer chunkSize = (primaryAgentConfig.SummarizationChunkSize__c != null &&
-            primaryAgentConfig.SummarizationChunkSize__c > 0)
-            ? primaryAgentConfig.SummarizationChunkSize__c.intValue()
+        Integer chunkTurnCount = (primaryAgentConfig.SummarizationChunkTurnCount__c != null &&
+            primaryAgentConfig.SummarizationChunkTurnCount__c > 0)
+            ? primaryAgentConfig.SummarizationChunkTurnCount__c.intValue()
             : 10;
-        List<ChatMessage__c> messagesToProcess = ChatMessageService.getHistoryWithCompleteTurns(this.sessionId, chunkSize, 'ASC', true);
+        List<ChatMessage__c> messagesToProcess = getOldestUnsummarizedTurns(this.sessionId, chunkTurnCount, logPrefix);
 
         if (messagesToProcess.isEmpty()) {
             System.debug(LoggingLevel.INFO, logPrefix + 'No unsummarized messages found. Exiting.');
@@ -135,6 +136,71 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Exception during summarization: ' + e.getMessage() + '\n' + e.getStackTraceString());
+        }
+    }
+
+    /**
+     * Retrieves a specific number of the oldest unsummarized conversation turns atomically.
+     * This method first queries for the oldest unsummarized turn identifiers, then fetches all messages
+     * belonging to only those turns, ensuring entire conversational turns are processed deterministically.
+     *
+     * @param sessionId         The chat session ID to process.
+     * @param turnCount         Number of oldest turns to retrieve.
+     * @param logPrefix         Logging prefix for debug output.
+     * @return                  List of ChatMessage__c records representing complete turns, in chronological order.
+     */
+    private static List<ChatMessage__c> getOldestUnsummarizedTurns(Id sessionId, Integer turnCount, String logPrefix) {
+        if (sessionId == null || turnCount == null || turnCount <= 0) {
+            return new List<ChatMessage__c>();
+        }
+
+        try {
+            // Step 1: Get the oldest N unsummarized turn identifiers using a single efficient query
+            List<AggregateResult> oldestTurns = [
+                SELECT TurnIdentifier__c, MIN(Timestamp__c) earliestTimestamp
+                FROM ChatMessage__c
+                WHERE ChatSession__c = :sessionId
+                AND IsSummarized__c = FALSE
+                AND TurnIdentifier__c != NULL
+                GROUP BY TurnIdentifier__c
+                ORDER BY MIN(Timestamp__c) ASC
+                LIMIT :turnCount
+            ];
+
+            if (oldestTurns.isEmpty()) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'No unsummarized turns found for atomic processing.');
+                return new List<ChatMessage__c>();
+            }
+
+            // Step 2: Extract turn identifiers from the aggregation results
+            Set<String> turnIdentifiersToProcess = new Set<String>();
+            for (AggregateResult ar : oldestTurns) {
+                String turnId = (String) ar.get('TurnIdentifier__c');
+                if (String.isNotBlank(turnId)) {
+                    turnIdentifiersToProcess.add(turnId);
+                }
+            }
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Processing ' + turnIdentifiersToProcess.size() + ' oldest unsummarized turns atomically.');
+
+            // Step 3: Fetch ALL messages for the identified turns to ensure atomic processing
+            List<ChatMessage__c> messagesForTurns = [
+                SELECT Id, Role__c, Content__c, Timestamp__c, ExternalId__c, TurnIdentifier__c,
+                       AssistantToolCalls__c, ToolCallId__c, ParentMessage__c,
+                       TokensUsed__c, ProcessingTimeMillis__c, RecordContextId__c, RecordContextData__c
+                FROM ChatMessage__c
+                WHERE ChatSession__c = :sessionId
+                AND TurnIdentifier__c IN :turnIdentifiersToProcess
+                ORDER BY Timestamp__c ASC, Id ASC
+            ];
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Retrieved ' + messagesForTurns.size() + ' messages from ' + turnIdentifiersToProcess.size() + ' turns for atomic summarization.');
+
+            return messagesForTurns;
+
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to retrieve oldest unsummarized turns: ' + e.getMessage());
+            return new List<ChatMessage__c>();
         }
     }
 }

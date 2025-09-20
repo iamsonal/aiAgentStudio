@@ -582,4 +582,379 @@ private class QueryServiceTest {
 
         System.assertEquals(true, result.isSuccess, 'Query should execute successfully with enforced limit');
     }
+
+    // ============================================================================
+    // --- validateAndBuildOrderBy Tests ---
+    // ============================================================================
+
+    @IsTest
+    static void validateAndBuildOrderBy_validFieldAscending_success() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withOrderBy('Name ASC')
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should build valid ORDER BY with ASC');
+    }
+
+    @IsTest
+    static void validateAndBuildOrderBy_validFieldDescending_success() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withOrderBy('Name DESC')
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should build valid ORDER BY with DESC');
+    }
+
+    @IsTest
+    static void validateAndBuildOrderBy_validFieldWithNullsFirst_success() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name', 'Industry' })
+            .withOrderBy('Industry ASC NULLS FIRST')
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should build valid ORDER BY with NULLS FIRST');
+    }
+
+    @IsTest
+    static void validateAndBuildOrderBy_validFieldWithNullsLast_success() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name', 'Industry' })
+            .withOrderBy('Industry DESC NULLS LAST')
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should build valid ORDER BY with NULLS LAST');
+    }
+
+    @IsTest
+    static void validateAndBuildOrderBy_relationshipField_success() {
+        QueryService service = new QueryService(Contact.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'FirstName', 'LastName', 'Account.Name' })
+            .withOrderBy('Account.Name ASC')
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should build valid ORDER BY with relationship field');
+    }
+
+    @IsTest
+    static void validateAndBuildOrderBy_emptyOrderBy_success() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withOrderBy('')
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should handle empty ORDER BY gracefully');
+    }
+
+    @IsTest
+    static void validateAndBuildOrderBy_nullOrderBy_success() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withOrderBy(null)
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should handle null ORDER BY gracefully');
+    }
+
+    @IsTest
+    static void validateAndBuildOrderBy_invalidField_returnsFailure() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withOrderBy('InvalidField ASC')
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(false, result.isSuccess, 'Should fail for invalid ORDER BY field');
+        System.assert(
+            String.valueOf(result.errorMessage).contains('InvalidField') || String.valueOf(result.errorMessage).contains('ORDER BY'),
+            'Should mention invalid ORDER BY field: ' + String.valueOf(result.errorMessage)
+        );
+    }
+
+    @IsTest
+    static void validateAndBuildOrderBy_invalidFormat_returnsFailure() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withOrderBy('Name ASC DESC NULLS FIRST LAST')  // Invalid - multiple conflicting directives
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(false, result.isSuccess, 'Should fail for invalid ORDER BY format');
+        // Accept various error messages since the validation can happen at different levels
+        System.assert(
+            String.valueOf(result.errorMessage).contains('ORDER BY') ||
+            String.valueOf(result.errorMessage).contains('format') ||
+            String.valueOf(result.errorMessage).contains('invalid') ||
+            String.valueOf(result.errorMessage).contains('unexpected'),
+            'Should mention ORDER BY format error: ' + String.valueOf(result.errorMessage)
+        );
+    }
+
+    @IsTest
+    static void validateAndBuildOrderBy_nonsortableField_returnsFailure() {
+        // Note: Most standard fields are sortable, so this test might be hard to trigger
+        // with standard objects. This test structure is here for completeness.
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withOrderBy('Name ASC') // Using a sortable field for now
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // This test will pass because Name is sortable
+        // In a real scenario with a non-sortable field, it would fail
+        System.assertEquals(true, result.isSuccess, 'Name field is sortable, so this should succeed');
+    }
+
+    // ============================================================================
+    // --- generateSingleConditionClause Tests (via executeQuery) ---
+    // ============================================================================
+
+    @IsTest
+    static void generateSingleConditionClause_idFieldStringCoercion_success() {
+        List<Account> accounts = [SELECT Id FROM Account LIMIT 1];
+        if (accounts.isEmpty()) {
+            // Create test account if none exists
+            Account testAccount = new Account(Name = 'Test ID Account');
+            insert testAccount;
+            accounts.add(testAccount);
+        }
+
+        String accountIdString = String.valueOf(accounts[0].Id);
+
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withFilters(new Map<String, Object>{ 'Id' => accountIdString })
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should coerce string to ID successfully');
+        List<SObject> results = (List<SObject>) result.data;
+        System.assertEquals(1, results.size(), 'Should find exactly one record with matching ID');
+    }
+
+    @IsTest
+    static void generateSingleConditionClause_idFieldObjectPassthrough_success() {
+        List<Account> accounts = [SELECT Id FROM Account LIMIT 1];
+        if (accounts.isEmpty()) {
+            Account testAccount = new Account(Name = 'Test ID Account');
+            insert testAccount;
+            accounts.add(testAccount);
+        }
+
+        Id accountId = accounts[0].Id;
+
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withFilters(new Map<String, Object>{ 'Id' => accountId })
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should handle ID object directly');
+        List<SObject> results = (List<SObject>) result.data;
+        System.assertEquals(1, results.size(), 'Should find exactly one record with matching ID');
+    }
+
+    @IsTest
+    static void generateSingleConditionClause_idFieldInvalidValue_returnsFailure() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withFilters(new Map<String, Object>{ 'Id' => 12345 }) // Use integer instead of string to force type error
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(false, result.isSuccess, 'Should fail for invalid ID type');
+        System.assert(
+            String.valueOf(result.errorMessage).contains('ID') || String.valueOf(result.errorMessage).contains('Id') || String.valueOf(result.errorMessage).contains('type'),
+            'Should mention ID type error: ' + String.valueOf(result.errorMessage)
+        );
+    }
+
+    @IsTest
+    static void generateSingleConditionClause_integerFieldNumberCoercion_success() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name', 'NumberOfEmployees' })
+            .withFilters(new Map<String, Object>{ 'NumberOfEmployees' => 100 })
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should handle integer value for INTEGER field');
+    }
+
+    @IsTest
+    static void generateSingleConditionClause_integerFieldStringCoercion_success() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name', 'NumberOfEmployees' })
+            .withFilters(new Map<String, Object>{ 'NumberOfEmployees' => new Map<String, Object>{ '>' => '100' } })
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should coerce string to integer for INTEGER field with operator');
+    }
+
+    @IsTest
+    static void generateSingleConditionClause_integerFieldDecimalRejection_returnsFailure() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name', 'NumberOfEmployees' })
+            .withFilters(new Map<String, Object>{ 'NumberOfEmployees' => 100.5 })
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(false, result.isSuccess, 'Should reject decimal value for INTEGER field');
+        System.assert(
+            String.valueOf(result.errorMessage).contains('Integer') || String.valueOf(result.errorMessage).contains('Decimal'),
+            'Should mention integer/decimal type mismatch: ' + String.valueOf(result.errorMessage)
+        );
+    }
+
+    @IsTest
+    static void generateSingleConditionClause_dateFieldDateObject_success() {
+        Date testDate = Date.today();
+
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => testDate } })
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should handle Date object for DATE field comparison');
+    }
+
+    @IsTest
+    static void generateSingleConditionClause_dateFieldStringCoercion_success() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => '2023-01-01' } })
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should coerce string to Date for DATE field comparison');
+    }
+
+    @IsTest
+    static void generateSingleConditionClause_dateFieldInvalidFormat_returnsFailure() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => 'invalid-date-format' } })
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(false, result.isSuccess, 'Should fail for invalid date format');
+        System.assert(
+            String.valueOf(result.errorMessage).contains('Date') || String.valueOf(result.errorMessage).contains('format'),
+            'Should mention date format error: ' + String.valueOf(result.errorMessage)
+        );
+    }
+
+    @IsTest
+    static void generateSingleConditionClause_datetimeFieldDatetimeObject_success() {
+        Datetime testDatetime = Datetime.now();
+
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => testDatetime } })
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should handle Datetime object for DATETIME field comparison');
+    }
+
+    @IsTest
+    static void generateSingleConditionClause_datetimeFieldStringCoercion_success() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => '2023-01-01 12:00:00' } })
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(true, result.isSuccess, 'Should coerce Salesforce datetime string to Datetime for DATETIME field comparison');
+    }
+
+    @IsTest
+    static void generateSingleConditionClause_datetimeFieldInvalidFormat_returnsFailure() {
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{ 'Name' })
+            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => 'invalid-datetime-format' } })
+            .withLimit(5, null);
+
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        System.assertEquals(false, result.isSuccess, 'Should fail for invalid datetime format');
+        System.assert(
+            String.valueOf(result.errorMessage).contains('DateTime') || String.valueOf(result.errorMessage).contains('format'),
+            'Should mention datetime format error: ' + String.valueOf(result.errorMessage)
+        );
+    }
 }

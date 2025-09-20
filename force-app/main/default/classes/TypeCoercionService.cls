@@ -9,22 +9,24 @@
 /**
  * @description
  * TypeCoercionService provides unified, enterprise-grade type coercion capabilities for the AI Agent Framework.
- * This service consolidates type conversion logic previously scattered across ActionConfigUtils and
- * SObjectArgumentCoercionService, eliminating code duplication and providing consistent coercion behavior.
+ * This service consolidates type conversion logic and Field-Level Security (FLS) validation, eliminating code
+ * duplication and providing consistent, secure coercion behavior throughout the framework.
  *
  * Key Responsibilities:
  *   - Unified type coercion methods supporting both generic parameter extraction and SObject field assignment
  *   - Schema-aware coercion using Schema.DisplayType for precise Salesforce field type handling
+ *   - Integrated Field-Level Security (FLS) enforcement for CREATABLE and UPDATABLE operations
  *   - Centralized picklist and multipicklist validation when DescribeFieldResult is provided
  *   - Comprehensive validation with structured error reporting (string length, range checking, format validation)
  *   - Support for all standard Salesforce types and common JSON/LLM input formats
  *   - Extensible architecture for custom type coercion requirements
  *
  * Design Benefits:
- *   - Single source of truth for type coercion logic
+ *   - Single source of truth for type coercion logic and security validation
  *   - Consistent error handling and validation patterns
  *   - Reduced maintenance overhead and improved testability
  *   - Enhanced performance through optimized coercion algorithms
+ *   - Unified security model preventing divergent FLS implementations
  */
 public with sharing class TypeCoercionService {
     /**
@@ -54,6 +56,85 @@ public with sharing class TypeCoercionService {
     // ============================================================================
     // --- Schema-Aware Coercion (Primary Interface) ---
     // ============================================================================
+
+    /**
+     * Coerces and validates raw arguments to Salesforce-compatible field values with comprehensive validation.
+     * This is the authoritative method for SObject field processing, combining FLS enforcement, type coercion,
+     * and constraint validation in a single, secure operation.
+     *
+     * @param rawArguments Map of field names to raw values from JSON/LLM input
+     * @param targetSObjectType SObjectType for field metadata and validation context
+     * @param accessType CREATABLE or UPDATABLE for appropriate FLS validation
+     * @return Map of validated field names to properly typed values
+     * @throws TypeCoercionException For type conversion failures, constraint violations, or security violations
+     */
+    public static Map<String, Object> coerceArgumentTypesForSObject(
+        Map<String, Object> rawArguments,
+        SObjectType targetSObjectType,
+        AccessType accessType
+    ) {
+        if (rawArguments == null || rawArguments.isEmpty()) {
+            System.debug(LoggingLevel.DEBUG, '[TypeCoercionService] No arguments provided for coercion. Returning empty map.');
+            return new Map<String, Object>();
+        }
+
+        if (targetSObjectType == null) {
+            throw new TypeCoercionException('Target SObjectType cannot be null', '', 'SObjectType', 'null');
+        }
+        if (accessType != System.AccessType.CREATABLE && accessType != System.AccessType.UPDATABLE) {
+            throw new TypeCoercionException('AccessType must be CREATABLE or UPDATABLE', '', 'AccessType', String.valueOf(accessType));
+        }
+
+        Map<String, Object> coercedArguments = new Map<String, Object>();
+        Map<String, Schema.SObjectField> allFields = SchemaUtils.getObjectFields(targetSObjectType);
+
+        for (String fieldName : rawArguments.keySet()) {
+            Schema.SObjectField fieldToken = allFields.get(fieldName.toLowerCase());
+            if (fieldToken == null) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    '[TypeCoercionService] Field "' +
+                        fieldName +
+                        '" not found on ' +
+                        targetSObjectType.getDescribe().getName() +
+                        '. Skipping coercion.'
+                );
+                continue;
+            }
+
+            Schema.DescribeFieldResult dfr = fieldToken.getDescribe();
+            // Enforce field-level security before processing
+            if (!SecurityUtils.hasFieldPermission(dfr, accessType)) {
+                System.debug(
+                    LoggingLevel.DEBUG,
+                    '[TypeCoercionService] Field "' + fieldName + '" skipped due to FLS (' + accessType + ').'
+                );
+                continue;
+            }
+
+            // Perform type coercion with comprehensive validation
+            Object rawValue = rawArguments.get(fieldName);
+            if (rawValue != null) {
+                Schema.DisplayType fieldType = dfr.getType();
+                System.debug(
+                    LoggingLevel.FINEST,
+                    '[TypeCoercionService] Coercing Field: ' +
+                        fieldName +
+                        ', Type: ' +
+                        fieldType +
+                        ', Input Value: ' +
+                        String.valueOf(rawValue).abbreviate(50)
+                );
+
+                Object coercedValue = coerce(rawValue, fieldType, fieldName, dfr);
+                coercedArguments.put(dfr.getName(), coercedValue);
+            } else {
+                coercedArguments.put(dfr.getName(), null);
+            }
+        }
+
+        return coercedArguments;
+    }
 
     /**
      * Coerces a value to the target Salesforce field type using Schema.DisplayType.

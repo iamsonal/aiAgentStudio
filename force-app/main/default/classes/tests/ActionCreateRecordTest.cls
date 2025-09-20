@@ -260,7 +260,7 @@ private class ActionCreateRecordTest {
         };
 
         Test.startTest();
-        Map<String, Object> result = SObjectArgumentCoercionService.coerceArgumentTypesForSObject(
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
             rawArguments,
             Account.SObjectType,
             AccessType.CREATABLE
@@ -279,7 +279,7 @@ private class ActionCreateRecordTest {
         Map<String, Object> rawArguments = new Map<String, Object>();
 
         Test.startTest();
-        Map<String, Object> result = SObjectArgumentCoercionService.coerceArgumentTypesForSObject(
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
             rawArguments,
             Account.SObjectType,
             AccessType.CREATABLE
@@ -293,7 +293,7 @@ private class ActionCreateRecordTest {
     @IsTest
     static void sobjectArgumentCoercionService_nullArguments_returnsEmptyMap() {
         Test.startTest();
-        Map<String, Object> result = SObjectArgumentCoercionService.coerceArgumentTypesForSObject(null, Account.SObjectType, AccessType.CREATABLE);
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(null, Account.SObjectType, AccessType.CREATABLE);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
@@ -306,9 +306,9 @@ private class ActionCreateRecordTest {
 
         Test.startTest();
         try {
-            SObjectArgumentCoercionService.coerceArgumentTypesForSObject(rawArguments, null, AccessType.CREATABLE);
-            System.assert(false, 'Should have thrown ActionSecurityException');
-        } catch (SecurityUtils.ActionSecurityException e) {
+            TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, null, AccessType.CREATABLE);
+            System.assert(false, 'Should have thrown TypeCoercionException');
+        } catch (TypeCoercionService.TypeCoercionException e) {
             System.assert(e.getMessage().contains('Target SObjectType cannot be null'), 'Should indicate null SObjectType');
         }
         Test.stopTest();
@@ -320,13 +320,13 @@ private class ActionCreateRecordTest {
 
         Test.startTest();
         try {
-            SObjectArgumentCoercionService.coerceArgumentTypesForSObject(
+            TypeCoercionService.coerceArgumentTypesForSObject(
                 rawArguments,
                 Account.SObjectType,
                 AccessType.READABLE // Invalid for this method
             );
             System.assert(false, 'Should have thrown InvalidArgumentTypeException');
-        } catch (SObjectArgumentCoercionService.InvalidArgumentTypeException e) {
+        } catch (TypeCoercionService.TypeCoercionException e) {
             System.assert(e.getMessage().contains('AccessType must be CREATABLE or UPDATABLE'), 'Should indicate invalid AccessType');
         }
         Test.stopTest();
@@ -340,7 +340,7 @@ private class ActionCreateRecordTest {
         };
 
         Test.startTest();
-        Map<String, Object> result = SObjectArgumentCoercionService.coerceArgumentTypesForSObject(
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
             rawArguments,
             Account.SObjectType,
             AccessType.CREATABLE
@@ -362,7 +362,7 @@ private class ActionCreateRecordTest {
         };
 
         Test.startTest();
-        Map<String, Object> result = SObjectArgumentCoercionService.coerceArgumentTypesForSObject(
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
             rawArguments,
             Account.SObjectType,
             AccessType.CREATABLE
@@ -379,7 +379,7 @@ private class ActionCreateRecordTest {
         Map<String, Object> rawArguments = new Map<String, Object>{ 'Name' => 'Test Account', 'NonExistentField__c' => 'Some Value' };
 
         Test.startTest();
-        Map<String, Object> result = SObjectArgumentCoercionService.coerceArgumentTypesForSObject(
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
             rawArguments,
             Account.SObjectType,
             AccessType.CREATABLE
@@ -392,12 +392,12 @@ private class ActionCreateRecordTest {
     }
 
     @IsTest
-    static void sobjectArgumentCoercionService_invalidArgumentTypeException_canBeThrown() {
+    static void typeCoercionService_typeCoercionException_canBeThrown() {
         Test.startTest();
 
         try {
-            throw new SObjectArgumentCoercionService.InvalidArgumentTypeException('Test exception');
-        } catch (SObjectArgumentCoercionService.InvalidArgumentTypeException e) {
+            throw new TypeCoercionService.TypeCoercionException('Test exception', 'testField', 'String', 'Integer');
+        } catch (TypeCoercionService.TypeCoercionException e) {
             System.assertEquals('Test exception', e.getMessage(), 'Should preserve exception message');
         }
 

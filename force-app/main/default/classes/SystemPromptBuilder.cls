@@ -286,7 +286,7 @@ public inherited sharing class SystemPromptBuilder {
             try {
                 contextConfigs = [
                     SELECT Id, Name, ContextLabel__c, ImplementationName__c, ApplicableSObjectTypes__c, ExecutionOrder__c
-                    FROM AgentContextConfig__c 
+                    FROM AgentContextConfig__c
                     WHERE AIAgentDefinition__c = :agentConfig.Id AND IsActive__c = true
                     ORDER BY ExecutionOrder__c ASC
                 ];
@@ -296,15 +296,15 @@ public inherited sharing class SystemPromptBuilder {
 
             // Get memory manager information
             String memoryManagerClassName = agentConfig.MemoryStrategy__c;
-            
+
             // Count context providers
             Integer contextProviderCount = contextConfigs.size();
-            
+
             // Get history limit if using buffer strategy
             String historyLimitInfo = '';
             if (agentConfig.MemoryStrategy__c == 'Buffer Window') {
-                if (agentConfig.HistoryLimit__c != null) {
-                    historyLimitInfo = 'Loading up to ' + agentConfig.HistoryLimit__c + ' turns';
+                if (agentConfig.HistoryTurnLimit__c != null) {
+                    historyLimitInfo = 'Loading up to ' + agentConfig.HistoryTurnLimit__c + ' turns';
                 } else {
                     historyLimitInfo = 'Loading all conversation history';
                 }
@@ -317,22 +317,22 @@ public inherited sharing class SystemPromptBuilder {
             // Create detailed context description
             List<String> contextDetails = new List<String>();
             contextDetails.add('Gathered and formatted context records for LLM interaction');
-            
+
             // Add formatting strategy
             if (String.isNotBlank(agentConfig.ContextFormatStrategy__c)) {
                 contextDetails.add('Formatting Strategy: ' + agentConfig.ContextFormatStrategy__c);
             }
-            
+
             // Add memory manager class name
             if (String.isNotBlank(memoryManagerClassName)) {
                 contextDetails.add('Memory Manager: ' + memoryManagerClassName);
             }
-            
+
             // Add history limit info
             if (String.isNotBlank(historyLimitInfo)) {
                 contextDetails.add(historyLimitInfo);
             }
-            
+
             // Add context provider count
             if (contextProviderCount > 0) {
                 contextDetails.add('Invoking ' + contextProviderCount + ' context providers');

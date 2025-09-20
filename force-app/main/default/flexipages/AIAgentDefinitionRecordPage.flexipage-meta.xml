@@ -232,7 +232,7 @@
                     <name>uiBehavior</name>
                     <value>none</value>
                 </fieldInstanceProperties>
-                <fieldItem>Record.HistoryLimit__c</fieldItem>
+                <fieldItem>Record.HistoryTurnLimit__c</fieldItem>
                 <identifier>RecordHistoryLimit_cField</identifier>
                 <visibilityRule>
                     <criteria>
@@ -249,7 +249,7 @@
                     <name>uiBehavior</name>
                     <value>none</value>
                 </fieldInstanceProperties>
-                <fieldItem>Record.SummarizationTriggerSize__c</fieldItem>
+                <fieldItem>Record.SummarizationTriggerTurnCount__c</fieldItem>
                 <identifier>RecordSummarizationTriggerSize_cField</identifier>
                 <visibilityRule>
                     <criteria>
@@ -266,7 +266,7 @@
                     <name>uiBehavior</name>
                     <value>none</value>
                 </fieldInstanceProperties>
-                <fieldItem>Record.SummarizationChunkSize__c</fieldItem>
+                <fieldItem>Record.SummarizationChunkTurnCount__c</fieldItem>
                 <identifier>RecordSummarizationChunkSize_cField</identifier>
                 <visibilityRule>
                     <criteria>

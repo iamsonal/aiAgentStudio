@@ -37,15 +37,15 @@
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
-                <field>HistoryLimit__c</field>
+                <field>HistoryTurnLimit__c</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
-                <field>SummarizationTriggerSize__c</field>
+                <field>SummarizationTriggerTurnCount__c</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
-                <field>SummarizationChunkSize__c</field>
+                <field>SummarizationChunkTurnCount__c</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>

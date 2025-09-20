@@ -29,7 +29,7 @@ public with sharing class EventSubscriptionHelper {
      * @throws  AuraHandledException if session ID retrieval fails for any reason.
      * @sideeffects  Writes to debug logs on error.
      */
-    @AuraEnabled(cacheable=true)
+    @AuraEnabled(Cacheable=true)
     public static String fetchSessionId() {
         try {
             return UserInfo.getSessionId();

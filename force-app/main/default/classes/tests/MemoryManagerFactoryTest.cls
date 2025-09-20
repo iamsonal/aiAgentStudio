@@ -47,7 +47,7 @@ private class MemoryManagerFactoryTest {
         insert setup.llmConfig;
         setup.agentDefinition.LLMConfiguration__c = setup.llmConfig.Id;
         setup.agentDefinition.MemoryStrategy__c = 'Buffer Window';
-        setup.agentDefinition.HistoryLimit__c = null; // Unlimited history
+        setup.agentDefinition.HistoryTurnLimit__c = null; // Unlimited history
         insert setup.agentDefinition;
 
         ChatSession__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
@@ -82,7 +82,7 @@ private class MemoryManagerFactoryTest {
         insert setup.llmConfig;
         setup.agentDefinition.LLMConfiguration__c = setup.llmConfig.Id;
         setup.agentDefinition.MemoryStrategy__c = 'Buffer Window';
-        setup.agentDefinition.HistoryLimit__c = 0; // No history
+        setup.agentDefinition.HistoryTurnLimit__c = 0; // No history
         insert setup.agentDefinition;
 
         ChatSession__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
@@ -172,7 +172,7 @@ private class MemoryManagerFactoryTest {
         insert setup.llmConfig;
         setup.agentDefinition.LLMConfiguration__c = setup.llmConfig.Id;
         setup.agentDefinition.MemoryStrategy__c = 'Summary Buffer';
-        setup.agentDefinition.SummarizationTriggerSize__c = 2; // Trigger summarization at 2 messages
+        setup.agentDefinition.SummarizationTriggerTurnCount__c = 2; // Trigger summarization at 2 turns
         insert setup.agentDefinition;
 
         ChatSession__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
@@ -208,7 +208,7 @@ private class MemoryManagerFactoryTest {
         insert setup.llmConfig;
         setup.agentDefinition.LLMConfiguration__c = setup.llmConfig.Id;
         setup.agentDefinition.MemoryStrategy__c = 'Summary Buffer';
-        setup.agentDefinition.SummarizationTriggerSize__c = 5; // Trigger summarization at 5 messages (we only have 2)
+        setup.agentDefinition.SummarizationTriggerTurnCount__c = 5; // Trigger summarization at 5 turns (we only have 2)
         insert setup.agentDefinition;
 
         ChatSession__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());

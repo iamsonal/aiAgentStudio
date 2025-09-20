@@ -9,15 +9,16 @@
 /**
  * @description
  * BufferWindowMemoryManager implements a memory management strategy for conversational agents that maintains
- * a fixed-size, turn-aware buffer of recent conversation history. It ensures that the conversational context
- * is preserved by always including complete conversation turns, never splitting a turn mid-way, and supports
- * configurable history limits per agent. This class is responsible for retrieving and formatting the appropriate
- * message history for LLM context windows, adapting to agent configuration and session state.
+ * a precise, turn-based buffer of recent conversation history. It ensures optimal performance and predictable
+ * token consumption by fetching exactly the configured number of complete conversation turns using a highly
+ * efficient single SOQL subquery approach. This eliminates the previous two-query inefficiency and prevents
+ * unexpected prompt size increases from "mega-turns."
  *
  * Responsibilities:
- *   - Enforces a turn-aware, fixed-size buffer for conversation history
- *   - Prevents mid-turn cutoffs to maintain context integrity
- *   - Supports unlimited, zero, or positive history limits as configured per agent
+ *   - Enforces a precise, turn-based buffer for conversation history (not message-based)
+ *   - Uses optimized single-query retrieval for maximum performance
+ *   - Provides administrators with precise control over token consumption
+ *   - Supports unlimited, zero, or positive turn limits as configured per agent
  *   - Delegates message retrieval and formatting to specialized services
  *
  * This class is not intended for direct use outside the memory management subsystem.
@@ -25,19 +26,20 @@
  */
 public class BufferWindowMemoryManager implements IMemoryManager {
     /**
-     * Retrieves a turn-aware, fixed-size buffer of recent conversation history for the given session.
-     * Ensures that only complete conversation turns are included, never splitting a turn mid-way.
+     * Retrieves a precise, turn-based buffer of recent conversation history for the given session.
+     * Uses a highly optimized single SOQL subquery to fetch exactly the specified number of complete
+     * conversation turns, providing predictable token consumption and eliminating performance bottlenecks.
      *
      * @param sessionId      The session whose history is being retrieved.
-     * @param agentConfig    The agent configuration, including history limit.
+     * @param agentConfig    The agent configuration, including turn limit.
      * @param llmConfig      The LLM configuration (unused in this strategy, but required by interface).
      * @param loggingContext Optional logging context prefix for debug output.
      * @return               A list of formatted message maps for LLM consumption.
      *
      * Behavior:
-     *   - If history limit is null, returns all messages (unbounded history)
-     *   - If history limit is 0 or negative, returns an empty list (no history)
-     *   - If history limit is positive, returns the most recent N turns, always including complete turns
+     *   - If turn limit is null, returns all messages (unbounded history)
+     *   - If turn limit is 0 or negative, returns an empty list (no history)
+     *   - If turn limit is positive, returns exactly N most recent complete turns using optimized query
      */
     public List<Map<String, Object>> getHistoryPayload(
         Id sessionId,
@@ -48,27 +50,27 @@ public class BufferWindowMemoryManager implements IMemoryManager {
         String debugPrefix = String.isNotBlank(loggingContext) ? loggingContext : '[BufferWindowMemory] ';
         System.debug(LoggingLevel.INFO, debugPrefix + 'BufferWindowMemoryManager: Starting history retrieval for session: ' + sessionId);
 
-        Decimal historyLimitDecimal = agentConfig.HistoryLimit__c;
-        System.debug(LoggingLevel.INFO, debugPrefix + 'Configured history limit: ' + historyLimitDecimal);
+        Decimal turnLimitDecimal = agentConfig.HistoryTurnLimit__c;
+        System.debug(LoggingLevel.INFO, debugPrefix + 'Configured turn limit: ' + turnLimitDecimal);
 
-        if (historyLimitDecimal == null) {
+        if (turnLimitDecimal == null) {
             // Unlimited history: fetch all messages for the session
-            System.debug(LoggingLevel.INFO, debugPrefix + 'No history limit set. Fetching all available messages for session.');
+            System.debug(LoggingLevel.INFO, debugPrefix + 'No turn limit set. Fetching all available messages for session.');
             List<ChatMessage__c> allMessages = ChatMessageService.getHistory(sessionId, null, 'ASC', null, false);
             return MessageHistoryFormatter.formatMessagesForApi(allMessages, agentConfig, debugPrefix);
         }
 
-        Integer historyLimit = historyLimitDecimal.intValue();
+        Integer turnLimit = turnLimitDecimal.intValue();
 
-        if (historyLimit <= 0) {
+        if (turnLimit <= 0) {
             // Zero or negative limit: return no history
-            System.debug(LoggingLevel.INFO, debugPrefix + 'History limit is zero or negative. No conversation history will be returned.');
+            System.debug(LoggingLevel.INFO, debugPrefix + 'Turn limit is zero or negative. No conversation history will be returned.');
             return new List<Map<String, Object>>();
         }
 
-        // Positive limit: fetch most recent N turns, always including complete turns
-        System.debug(LoggingLevel.INFO, debugPrefix + 'Fetching up to ' + historyLimit + ' complete conversation turns for session.');
-        List<ChatMessage__c> finalSortedHistory = ChatMessageService.getHistoryWithCompleteTurns(sessionId, historyLimit, 'DESC', false);
+        // Positive limit: fetch exactly N most recent complete conversation turns using optimized single query
+        System.debug(LoggingLevel.INFO, debugPrefix + 'Fetching exactly ' + turnLimit + ' complete conversation turns for session.');
+        List<ChatMessage__c> finalSortedHistory = ChatMessageService.getHistoryWithCompleteTurns(sessionId, turnLimit, 'DESC', false);
         return MessageHistoryFormatter.formatMessagesForApi(finalSortedHistory, agentConfig, debugPrefix);
     }
 
