@@ -29,6 +29,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>AIAgentDefinition__c.EnableParallelToolCalling__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>AIAgentDefinition__c.EnableReasoningMode__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -64,12 +69,22 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>AIAgentDefinition__c.RequiresServiceUserContext__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>AIAgentDefinition__c.SummarizationChunkTurnCount__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
         <field>AIAgentDefinition__c.SummarizationTriggerTurnCount__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>AIAgentDefinition__c.SummarizerAgent__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>

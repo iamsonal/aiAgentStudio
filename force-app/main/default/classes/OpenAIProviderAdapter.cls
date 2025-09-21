@@ -46,7 +46,7 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         AIAgentDefinition__c agentConfig
     ) {
         // Build the HTTP request for OpenAI chat completions.
-        HttpRequest request = buildHttpRequest(llmConfig, messagesPayload, toolsPayload);
+        HttpRequest request = buildHttpRequest(llmConfig, messagesPayload, toolsPayload, agentConfig);
         // Create retry configuration based on LLM config.
         HttpRetryService.RetryConfig retryConfig = HttpRetryService.createRetryConfig(llmConfig, LOG_PREFIX);
         try {
@@ -89,7 +89,8 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
     private HttpRequest buildHttpRequest(
         LLMConfiguration__c llmConfig,
         List<Map<String, Object>> openAIMessages,
-        List<Map<String, Object>> openAITools
+        List<Map<String, Object>> openAITools,
+            AIAgentDefinition__c agentConfig
     ) {
         HttpRequest req = new HttpRequest();
         String endpoint = 'callout:' + llmConfig.NamedCredential__c + '/v1/chat/completions';
@@ -106,8 +107,9 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         if (openAITools != null && !openAITools.isEmpty()) {
             body.put('tools', openAITools);
             body.put('tool_choice', 'auto'); // Let OpenAI decide when to use tools
-            body.put('parallel_tool_calls', false); // Sequential tool calls for deterministic execution
-            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Tool calling enabled: ' + openAITools.size() + ' tool(s) configured.');
+            Boolean allowParallel = (agentConfig != null && agentConfig.EnableParallelToolCalling__c == true);
+            body.put('parallel_tool_calls', allowParallel);
+            System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Parallel tool calling enabled: ' + allowParallel);
         }
         req.setBody(JSON.serialize(body));
         req.setTimeout(120000); // 2 minute timeout for API calls
