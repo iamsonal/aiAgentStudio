@@ -22,8 +22,8 @@
  *   - Commit all steps in a single bulk DML operation
  *
  * This class is designed to be used throughout the agent framework to capture
- * the internal decision-making journey for visualization purposes, without duplicating
- * data already stored in ChatMessage__c.
+ * the internal decision-making journey for visualization purposes, working exclusively
+ * with the unified AgentExecution__c model.
  */
 public inherited sharing class AgentDecisionStepLogger {
     public enum StepType {
@@ -42,31 +42,33 @@ public inherited sharing class AgentDecisionStepLogger {
         HANDLE_REJECTED_FRAMEWORK_ACTION
     }
 
-    private Id sessionId;
+    private Id executionId;
     private String turnIdentifier;
     private Id originalUserId;
     private List<AgentDecisionStep__c> stepsToCommit;
     private Integer nextSequenceNumber;
 
     /**
-     * Constructor to initialize the logger with session context
+     * Constructor to initialize the logger with execution context
+     * Works exclusively with the unified AgentExecution__c model
      *
-     * @param sessionId The chat session ID
+     * @param executionId The AgentExecution__c ID
      * @param turnIdentifier The turn identifier
      */
-    public AgentDecisionStepLogger(Id sessionId, String turnIdentifier) {
-        this(sessionId, turnIdentifier, null);
+    public AgentDecisionStepLogger(Id executionId, String turnIdentifier) {
+        this(executionId, turnIdentifier, null);
     }
 
     /**
-     * Constructor to initialize the logger with session context and user information
+     * Constructor to initialize the logger with execution context and user information
+     * Works exclusively with the unified AgentExecution__c model
      *
-     * @param sessionId The chat session ID
+     * @param executionId The AgentExecution__c ID
      * @param turnIdentifier The turn identifier
      * @param originalUserId The ID of the user who initiated the conversation
      */
-    public AgentDecisionStepLogger(Id sessionId, String turnIdentifier, Id originalUserId) {
-        this.sessionId = sessionId;
+    public AgentDecisionStepLogger(Id executionId, String turnIdentifier, Id originalUserId) {
+        this.executionId = executionId;
         this.turnIdentifier = turnIdentifier;
         this.originalUserId = originalUserId;
         this.stepsToCommit = new List<AgentDecisionStep__c>();
@@ -78,7 +80,7 @@ public inherited sharing class AgentDecisionStepLogger {
             List<AggregateResult> results = [
                 SELECT MAX(StepOrder__c) maxSeq
                 FROM AgentDecisionStep__c
-                WHERE ChatSession__c = :this.sessionId AND TurnIdentifier__c = :this.turnIdentifier
+                WHERE TurnIdentifier__c = :turnIdentifier AND AgentExecution__c = :executionId
             ];
 
             if (!results.isEmpty() && results[0].get('maxSeq') != null) {
@@ -92,7 +94,12 @@ public inherited sharing class AgentDecisionStepLogger {
         this.nextSequenceNumber = lastKnownSequence + 1;
         System.debug(
             LoggingLevel.INFO,
-            '[AgentDecisionStepLogger] Initialized for turn ' + turnIdentifier + '. Starting sequence at: ' + this.nextSequenceNumber
+            '[AgentDecisionStepLogger] Initialized for AgentExecution ' +
+                executionId +
+                ', turn ' +
+                turnIdentifier +
+                '. Starting sequence at: ' +
+                this.nextSequenceNumber
         );
     }
 
@@ -367,9 +374,8 @@ public inherited sharing class AgentDecisionStepLogger {
             // Map enum to picklist value
             String stepTypeValue = mapStepTypeToPicklistValue(stepType);
 
-            // Create the decision step record
+            // Create the decision step record with the correct lookup field
             AgentDecisionStep__c step = new AgentDecisionStep__c(
-                ChatSession__c = this.sessionId,
                 TurnIdentifier__c = this.turnIdentifier,
                 StepType__c = stepTypeValue,
                 StepOrder__c = globalStepSequence,
@@ -381,6 +387,9 @@ public inherited sharing class AgentDecisionStepLogger {
                 ErrorCode__c = errorCode,
                 ErrorMessage__c = errorMessage
             );
+
+            // Set the AgentExecution lookup field
+            step.AgentExecution__c = this.executionId;
 
             // Add user information if available
             if (this.originalUserId != null) {
@@ -485,9 +494,8 @@ public inherited sharing class AgentDecisionStepLogger {
             // Map enum to picklist value
             String stepTypeValue = mapStepTypeToPicklistValue(stepType);
 
-            // Create the decision step record
+            // Create the decision step record with the correct lookup field
             AgentDecisionStep__c step = new AgentDecisionStep__c(
-                ChatSession__c = this.sessionId,
                 TurnIdentifier__c = this.turnIdentifier,
                 StepType__c = stepTypeValue,
                 StepOrder__c = globalStepSequence,
@@ -499,6 +507,9 @@ public inherited sharing class AgentDecisionStepLogger {
                 ErrorCode__c = errorCode,
                 ErrorMessage__c = errorMessage
             );
+
+            // Set the AgentExecution lookup field
+            step.AgentExecution__c = this.executionId;
 
             // Add user information if available
             if (this.originalUserId != null) {
@@ -556,9 +567,8 @@ public inherited sharing class AgentDecisionStepLogger {
             // Map enum to picklist value
             String stepTypeValue = mapStepTypeToPicklistValue(stepType);
 
-            // Create the decision step record
+            // Create the decision step record with the correct lookup field
             AgentDecisionStep__c step = new AgentDecisionStep__c(
-                ChatSession__c = this.sessionId,
                 TurnIdentifier__c = this.turnIdentifier,
                 StepType__c = stepTypeValue,
                 StepOrder__c = globalStepSequence,
@@ -569,6 +579,9 @@ public inherited sharing class AgentDecisionStepLogger {
                 ErrorCode__c = errorCode,
                 ErrorMessage__c = errorMessage
             );
+
+            // Set the AgentExecution lookup field
+            step.AgentExecution__c = this.executionId;
 
             // Add user information if available
             if (this.originalUserId != null) {

@@ -44,8 +44,8 @@ public inherited sharing class ActionExecutionService {
         String logPrefix =
             '[ActionExecutionService] [CapabilityId: ' +
             String.valueOf(capability?.Id) +
-            ' | ChatSessionId: ' +
-            String.valueOf(context?.chatSessionId) +
+            ' | ExecutionId: ' +
+            String.valueOf(context?.executionId) +
             '] ';
 
         // Validate required parameters

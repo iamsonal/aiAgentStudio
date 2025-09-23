@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsSummarized__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Indicates whether this execution step has been processed and included in a conversation summary. Used by the SummaryBufferMemoryManager to track which steps need to be included in future summarization passes.</description>
+    <inlineHelpText>Check if this step has been included in a conversation summary.</inlineHelpText>
+    <label>Is Summarized</label>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>
+

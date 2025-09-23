@@ -46,9 +46,9 @@ public inherited sharing class AgentJobEnqueuer {
     }
 
     /**
-     * Publishes a platform event to enqueue a follow-up LLM operation for a given session turn.
+     * Publishes a platform event to enqueue a follow-up LLM operation for a given agent execution turn.
      *
-     * @param sessionId        The ID of the chat session.
+     * @param executionId      The ID of the agent execution (AgentExecution__c).
      * @param userId           The ID of the user.
      * @param agentDefId       The ID of the agent definition.
      * @param turnId           The unique identifier for the current turn.
@@ -58,7 +58,7 @@ public inherited sharing class AgentJobEnqueuer {
      * @throws DispatchException if event publication fails.
      */
     public void enqueueFollowUp(
-        Id sessionId,
+        Id executionId,
         Id userId,
         Id agentDefId,
         String turnId,
@@ -69,7 +69,7 @@ public inherited sharing class AgentJobEnqueuer {
         try {
             Boolean finalErrorFlag = (isFinalErrorTurn == true);
             Map<String, Object> payload = new Map<String, Object>{
-                'sessionId' => sessionId,
+                'sessionId' => executionId,
                 'userId' => userId,
                 'agentDefId' => agentDefId,
                 'turnId' => turnId,
@@ -77,7 +77,7 @@ public inherited sharing class AgentJobEnqueuer {
                 'isFinalErrorTurn' => finalErrorFlag
             };
             AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
-                SessionId__c = sessionId,
+                SessionId__c = executionId,
                 TurnIdentifier__c = turnId,
                 JobType__c = 'FollowUpLLM',
                 Payload__c = JSON.serialize(payload)
@@ -93,15 +93,15 @@ public inherited sharing class AgentJobEnqueuer {
                 logPrefix +
                     '[AgentJobEnqueuer] Successfully published FollowUpLLM event for turnId=' +
                     turnId +
-                    ', sessionId=' +
-                    sessionId +
+                    ', executionId=' +
+                    executionId +
                     ', nextTurnCount=' +
                     nextTurnCount +
                     ', isFinalErrorTurn=' +
                     finalErrorFlag
             );
         } catch (Exception e) {
-            this.handleDispatchFailure(sessionId, turnId, 'FollowUpLLM event', e, logPrefix);
+            this.handleDispatchFailure(executionId, turnId, 'FollowUpLLM event', e, logPrefix);
         }
     }
 

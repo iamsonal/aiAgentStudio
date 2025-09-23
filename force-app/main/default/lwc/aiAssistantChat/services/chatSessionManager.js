@@ -7,7 +7,8 @@
  */
 
 /**
- * Handles chat session lifecycle, message history, and message sending for the AI Assistant Chat LWC.
+ * Handles agent execution lifecycle, conversation history, and message sending for the AI Assistant Chat LWC.
+ * Now operates on the unified AgentExecution__c and ExecutionStep__c data model.
  * Manages session restoration, new session creation, message formatting, and error handling.
  */
 import { formatDisplayMessages } from '../utils/messageFormatter';

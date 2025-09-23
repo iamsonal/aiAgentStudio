@@ -153,13 +153,12 @@ global with sharing class AIAgentRestService {
                 throw new AIAgentRestException('Agent definition not found: ' + agentDefinitionId);
             }
 
-            // Update session status to processing
-            ChatSessionStateService chatStateSvc = new ChatSessionStateService();
-            chatStateSvc.updateStatus(
+            // Update execution status to processing
+            ExecutionContextService execContextSvc = new ExecutionContextService();
+            execContextSvc.updateStatus(
                 sessionId,
+                'Processing',
                 AIAgentConstants.STATUS_PROCESSING,
-                null,
-                null,
                 requestData.turnIdentifier,
                 'Processing message asynchronously'
             );

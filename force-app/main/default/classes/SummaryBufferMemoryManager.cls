@@ -23,62 +23,50 @@
  */
 public class SummaryBufferMemoryManager implements IMemoryManager {
     /**
-     * Retrieves conversation history payload containing only unsummarized messages.
-     * Loads messages that have not yet been processed into the conversation summary.
+     * Retrieves execution history payload containing only unsummarized messages.
+     * Loads messages/steps that have not yet been processed into the execution summary.
+     * Automatically detects whether the executionId refers to a ChatSession__c or AgentExecution__c.
      *
-     * @param sessionId       The chat session ID to retrieve history for.
+     * @param executionId     The execution ID to retrieve history for (ChatSession__c or AgentExecution__c).
      * @param agentConfig     Agent configuration containing memory settings.
-     * @param llmConfig       LLM configuration for the session.
+     * @param llmConfig       LLM configuration for the execution.
      * @param loggingContext  Optional logging context for debug messages.
      * @return                List of formatted message maps ready for LLM API consumption.
      * @sideeffect            Logs errors if retrieval fails.
      */
     public List<Map<String, Object>> getHistoryPayload(
-        Id sessionId,
+        Id executionId,
         AIAgentDefinition__c agentConfig,
         LLMConfiguration__c llmConfig,
         String loggingContext
     ) {
         String debugPrefix = String.isNotBlank(loggingContext) ? loggingContext : '[SummaryBufferMemory] ';
-        System.debug(LoggingLevel.DEBUG, debugPrefix + 'Loading unsummarized message history (SummaryBuffer strategy).');
+        System.debug(LoggingLevel.DEBUG, debugPrefix + 'Loading unsummarized execution history (SummaryBuffer strategy).');
 
         List<Map<String, Object>> payload = new List<Map<String, Object>>();
         try {
-            List<ChatMessage__c> unsummarizedMessages = [
-                SELECT
-                    Id,
-                    Role__c,
-                    Content__c,
-                    AssistantToolCalls__c,
-                    ToolCallId__c,
-                    ParentMessage__c,
-                    TurnIdentifier__c,
-                    RecordContextId__c,
-                    RecordContextData__c
-                FROM ChatMessage__c
-                WHERE ChatSession__c = :sessionId AND IsSummarized__c = FALSE
-                ORDER BY Timestamp__c ASC, Id ASC
-            ];
-
-            return MessageHistoryFormatter.formatMessagesForApi(unsummarizedMessages, agentConfig, debugPrefix);
+            // Use ExecutionStep__c retrieval via ExecutionStepService with summarization support
+            ExecutionStepService executionStepService = new ExecutionStepService();
+            List<ExecutionStep__c> unsummarizedSteps = executionStepService.getUnsummarizedSteps(executionId, false);
+            return ExecutionStepHistoryFormatter.formatStepsForApi(unsummarizedSteps, agentConfig, debugPrefix);
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, debugPrefix + 'Failed to retrieve unsummarized conversation history: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, debugPrefix + 'Failed to retrieve unsummarized execution history: ' + e.getMessage());
             return payload;
         }
     }
 
     /**
-     * Handles post-turn processing to determine if conversation summarization is needed.
-     * Uses COUNT_DISTINCT to check if the number of unsummarized conversation turns exceeds the configured trigger count
+     * Handles post-turn processing to determine if execution summarization is needed.
+     * Uses COUNT_DISTINCT to check if the number of unsummarized execution turns exceeds the configured trigger count
      * and enqueues a summarization job if necessary. This turn-based approach ensures predictable and efficient summarization.
      *
-     * @param sessionId       The chat session ID that completed a turn.
+     * @param executionId     The AgentExecution__c ID that completed a turn.
      * @param agentConfig     Agent configuration containing turn-based summarization settings.
-     * @param llmConfig       LLM configuration for the session.
+     * @param llmConfig       LLM configuration for the execution.
      * @param loggingContext  Optional logging context for debug messages.
      * @sideeffect            May enqueue a SummarizeConversationQueueable job; logs info and errors.
      */
-    public void onTurnCompletion(Id sessionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String loggingContext) {
+    public void onTurnCompletion(Id executionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String loggingContext) {
         String debugPrefix = String.isNotBlank(loggingContext) ? loggingContext : '[SummaryBufferMemory] ';
 
         Integer triggerTurnCount = (agentConfig.SummarizationTriggerTurnCount__c != null &&
@@ -87,24 +75,14 @@ public class SummaryBufferMemoryManager implements IMemoryManager {
             : 0;
 
         if (triggerTurnCount == 0) {
-            System.debug(LoggingLevel.DEBUG, debugPrefix + 'Summarization trigger turn count is 0. Summarization is disabled for this session.');
+            System.debug(LoggingLevel.DEBUG, debugPrefix + 'Summarization trigger turn count is 0. Summarization is disabled for this execution.');
             return;
         }
 
         try {
-            List<AggregateResult> results = [
-                    SELECT COUNT_DISTINCT(TurnIdentifier__c) unsummarizedTurns
-                    FROM ChatMessage__c
-                    WHERE ChatSession__c = :sessionId
-                    AND IsSummarized__c = FALSE
-                    AND TurnIdentifier__c != NULL
-            ];
-
-            Integer unsummarizedTurnCount = 0;
-            if (!results.isEmpty() && results[0].get('unsummarizedTurns') != null) {
-                unsummarizedTurnCount = (Integer) results[0].get('unsummarizedTurns');
-            }
-
+            // Use ExecutionStep__c counting via ExecutionStepService
+            ExecutionStepService executionStepService = new ExecutionStepService();
+            Integer unsummarizedTurnCount = executionStepService.getUnsummarizedTurnCount(executionId);
 
             if (unsummarizedTurnCount >= triggerTurnCount) {
                 System.debug(
@@ -116,7 +94,7 @@ public class SummaryBufferMemoryManager implements IMemoryManager {
                         triggerTurnCount +
                         '). Enqueueing summarization job.'
                 );
-                System.enqueueJob(new SummarizeConversationQueueable(sessionId, agentConfig.Id));
+                System.enqueueJob(new SummarizeConversationQueueable(executionId, agentConfig.Id));
             } else {
                 System.debug(
                     LoggingLevel.DEBUG,

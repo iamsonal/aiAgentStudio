@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ContextHistoryJson__c</fullName>
+    <description>JSON representation of the context ledger containing relevant records, relationships, and metadata for this execution. Replaces EntityHistoryJson__c from ChatSession.</description>
+    <inlineHelpText>Structured context data for this agent execution.</inlineHelpText>
+    <label>Context History JSON</label>
+    <length>131072</length>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>5</visibleLines>
+</CustomField>

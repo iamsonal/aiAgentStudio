@@ -43,13 +43,13 @@ public class HandleRejectedFrameworkAction {
         List<HumanApprovalRequest__c> harsToProcess = [
             SELECT
                 Id,
-                ChatSession__c,
+                AgentExecution__c,
                 LLMToolName__c,
                 ApproverComments__c,
-                OriginalAssistantMessage__c,
+                OriginalAssistantStep__c,
                 LLMToolCallId__c,
                 OriginalTurnIdentifier__c,
-                ChatSession__r.User__c
+                AgentExecution__r.User__c
             FROM HumanApprovalRequest__c
             WHERE Id IN :humanApprovalRequestIds
         ];
@@ -61,17 +61,17 @@ public class HandleRejectedFrameworkAction {
             return;
         }
         for (HumanApprovalRequest__c har : harsToProcess) {
-            String logPrefix = '[HandleRejectedAction HAR:' + har.Id + ' Sess:' + har.ChatSession__c + '] ';
+            String logPrefix = '[HandleRejectedAction HAR:' + har.Id + ' Exec:' + har.AgentExecution__c + '] ';
             try {
-                // Validate that the approval request is linked to a chat session
-                if (har.ChatSession__r == null) {
-                    System.debug(LoggingLevel.ERROR, logPrefix + 'Missing ChatSession relationship. Cannot process rejection.');
-                    updateHARStatus(har, 'Error', 'ChatSession link is missing.', logPrefix);
+                // Validate that the approval request is linked to an agent execution
+                if (har.AgentExecution__r == null) {
+                    System.debug(LoggingLevel.ERROR, logPrefix + 'Missing AgentExecution relationship. Cannot process rejection.');
+                    updateHARStatus(har, 'Error', 'AgentExecution link is missing.', logPrefix);
                     continue;
                 }
 
                 // Log the step
-                AgentDecisionStepLogger logger = new AgentDecisionStepLogger(har.ChatSession__c, har.OriginalTurnIdentifier__c);
+                AgentDecisionStepLogger logger = new AgentDecisionStepLogger(har.AgentExecution__c, har.OriginalTurnIdentifier__c);
                 String actionDetails = JSON.serialize(
                     new Map<String, Object>{
                         'humanApprovalRequestId' => har.Id,
@@ -93,32 +93,27 @@ public class HandleRejectedFrameworkAction {
                     rejectionReason += ' Comments: ' + har.ApproverComments__c;
                 }
                 String rejectionContentJson = JSON.serialize(new Map<String, String>{ 'status' => 'rejected', 'reason' => rejectionReason });
-                // Write a rejection message to chat history for traceability and user feedback
-                ChatMessageService.saveToolResultMessage(
-                    har.ChatSession__c,
-                    har.OriginalTurnIdentifier__c,
-                    har.OriginalAssistantMessage__c,
+                // Write a rejection message to execution history for traceability and user feedback
+                ExecutionStepService executionStepService = new ExecutionStepService();
+                executionStepService.createToolResultStep(
+                    har.AgentExecution__c,
                     har.LLMToolCallId__c,
-                    rejectionContentJson,
-                    rejectionReason, // internalDetails
-                    AIAgentConstants.ERR_CODE_USER_REJECTED, // errorCode
-                    0L, // actionDuration
-                    null, // recordContextId (not applicable here)
-                    null, // recordContextDataJson (not applicable here)
                     har.LLMToolName__c,
-                    logPrefix
+                    rejectionContentJson,
+                    har.OriginalTurnIdentifier__c,
+                    har.OriginalTurnCount__c.intValue(),
+                    0L // actionDuration
                 );
                 // Notify the user of the rejection
                 NotificationService.sendUserNotification(
-                    har.ChatSession__r.User__c,
+                    har.AgentExecution__r.User__c,
                     'Request Rejected: ' + har.LLMToolName__c,
                     rejectionReason,
-                    har.ChatSession__c
+                    har.AgentExecution__c
                 );
                 // Update the approval request status and comments
                 updateHARStatus(har, 'Rejected', 'Rejection processed and user notified.', logPrefix);
-                // Remove any pending approval details from the original assistant message
-                OrchestrationService.clearPendingDetailsFromMessage(har.OriginalAssistantMessage__c, logPrefix);
+                // Note: Pending approval details cleanup handled by ExecutionStepService
                 System.debug(LoggingLevel.INFO, logPrefix + 'Rejection processed successfully. User notified and chat history updated.');
             } catch (Exception e) {
                 System.debug(

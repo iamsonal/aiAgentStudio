@@ -8,19 +8,21 @@
 
 /**
  * @description
- * OrchestrationContext encapsulates all state, session, and service dependencies required for a single LLM response processing turn.
- * It is passed to ILLMResponseHandler implementations to provide unified access to user input, LLM results, session metadata,
+ * OrchestrationContext encapsulates all state, execution, and service dependencies required for a single LLM response processing turn.
+ * It is passed to ILLMResponseHandler implementations to provide unified access to user input, LLM results, execution metadata,
  * and injected service dependencies. This context object enables stateless orchestration logic, simplifies dependency management,
  * and ensures that all relevant information for a turn is available in a single, immutable structure. Its scope is limited to
  * a single turn of LLM-driven orchestration, but it is designed for easy extension as orchestration requirements evolve.
+ *
+ * Supports the unified AgentExecution__c model for all agent workflows.
  */
 public class OrchestrationContext {
     // LLM interaction results and user input
     public LLMInteractionService.LLMInteractionResult llmResult { get; private set; }
     public LLMInteractionService.MessageData userMessageData { get; private set; }
 
-    // Session and turn state information
-    public Id sessionId { get; private set; }
+    // Execution and turn state information
+    public Id executionId { get; private set; }
     public Id originalUserId { get; private set; }
     public Id executionUserId { get; private set; }
     public Id agentDefinitionId { get; private set; }
@@ -40,15 +42,16 @@ public class OrchestrationContext {
 
     /**
      * Constructs an OrchestrationContext with all state and dependencies for a single LLM orchestration turn.
+     * Supports the unified AgentExecution__c model.
      *
      * @param llmResult         The result of the LLM interaction for this turn (required)
-     * @param sessionId         The current session ID (required)
-     * @param origUserId        The original user ID who initiated the session (required)
+     * @param executionId       The current AgentExecution__c ID (required)
+     * @param origUserId        The original user ID who initiated the execution (required)
      * @param execUserId        The user ID under which execution is performed (required)
-     * @param agentDefId        The agent definition ID for this session (required)
+     * @param agentDefId        The agent definition ID for this execution (required)
      * @param turnId            Unique identifier for this turn (required)
-     * @param turnCount         The current turn count in the session (required)
-     * @param userMsgData       The user message data for this turn (required)
+     * @param turnCount         The current turn count in the execution (required)
+     * @param userMsgData       The user message data for this turn (optional for non-conversational)
      * @param turnSvc           Service for managing turn lifecycle events (required)
      * @param actionSvc         Service for executing agent actions (required)
      * @param dispatchSvc       Service for enqueuing agent jobs (required)
@@ -60,7 +63,7 @@ public class OrchestrationContext {
      */
     public OrchestrationContext(
         LLMInteractionService.LLMInteractionResult llmResult,
-        Id sessionId,
+        Id executionId,
         Id origUserId,
         Id execUserId,
         Id agentDefId,
@@ -75,7 +78,7 @@ public class OrchestrationContext {
         AgentDecisionStepLogger decisionLogger
     ) {
         this.llmResult = llmResult;
-        this.sessionId = sessionId;
+        this.executionId = executionId;
         this.originalUserId = origUserId;
         this.executionUserId = execUserId;
         this.agentDefinitionId = agentDefId;
@@ -89,6 +92,6 @@ public class OrchestrationContext {
         this.currentPageRecordId = pageRecordId;
         this.decisionLogger = decisionLogger;
         // Precompute a log prefix for consistent debug output throughout the turn.
-        this.logPrefix = '[OrchSvc Turn:' + turnId?.left(8) + ' Cycle:' + turnCount + ' Sess:' + sessionId + '] ';
+        this.logPrefix = '[OrchSvc Turn:' + turnId?.left(8) + ' Cycle:' + turnCount + ' Exec:' + executionId + '] ';
     }
 }

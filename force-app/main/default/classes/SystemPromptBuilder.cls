@@ -57,8 +57,9 @@ public inherited sharing class SystemPromptBuilder {
     /**
      * Builds the complete, structured system prompt for an AI conversation turn.
      * Combines identity, instructions, examples, dynamic context, and temporal data into a cohesive prompt optimized for LLM consumption.
+     * Uses the unified AgentExecution__c and ExecutionStep__c data models exclusively.
      *
-     * @param sessionId             The chat session ID for context resolution.
+     * @param executionId           The execution ID (AgentExecution__c) for context resolution.
      * @param agentConfig           Agent configuration containing prompt components.
      * @param llmConfig             LLM configuration for the session.
      * @param currentPageRecordId   Optional record ID for page context.
@@ -67,14 +68,14 @@ public inherited sharing class SystemPromptBuilder {
      * @return                      Complete formatted system prompt string.
      */
     public String build(
-        Id sessionId,
+        Id executionId,
         AIAgentDefinition__c agentConfig,
         LLMConfiguration__c llmConfig,
         Id currentPageRecordId,
         Integer currentTurn,
         Id conversationalUserId
     ) {
-        String logPrefix = '[SystemPromptBuilder Sess:' + sessionId + '] ';
+        String logPrefix = '[SystemPromptBuilder Exec:' + executionId + '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Composing system prompt for Agent: ' + agentConfig.DeveloperName__c);
 
         List<String> promptParts = new List<String>();
@@ -110,7 +111,7 @@ public inherited sharing class SystemPromptBuilder {
 
         // Add dynamic context data using enhanced context management
         String formattedContextData = buildEnhancedContextData(
-            sessionId,
+            executionId,
             agentConfig,
             llmConfig,
             currentPageRecordId,
@@ -172,7 +173,7 @@ public inherited sharing class SystemPromptBuilder {
      * @return                      Enhanced formatted context data string ready for prompt inclusion.
      */
     private String buildEnhancedContextData(
-        Id sessionId,
+        Id executionId,
         AIAgentDefinition__c agentConfig,
         LLMConfiguration__c llmConfig,
         Id currentPageRecordId,
@@ -183,13 +184,13 @@ public inherited sharing class SystemPromptBuilder {
         List<String> contextBlocks = new List<String>();
 
         // Include conversation summary for summary buffer strategy
-        String summary = getConversationSummary(sessionId, agentConfig, logPrefix);
+        String summary = getConversationSummary(executionId, agentConfig, logPrefix);
         if (String.isNotBlank(summary)) {
             contextBlocks.add('<CONVERSATION_SUMMARY>\n' + summary.escapeHtml4() + '\n</CONVERSATION_SUMMARY>');
         }
 
         // Build structured context prompt using ContextManagerService
-        String structuredContextPrompt = buildStructuredContextPrompt(sessionId, currentTurn, false);
+        String structuredContextPrompt = buildStructuredContextPrompt(executionId, currentTurn, false);
         if (String.isNotBlank(structuredContextPrompt)) {
             contextBlocks.add(structuredContextPrompt);
         }
@@ -198,7 +199,7 @@ public inherited sharing class SystemPromptBuilder {
         if (String.isBlank(structuredContextPrompt)) {
             System.debug(LoggingLevel.INFO, logPrefix + 'No structured context available, falling back to traditional resolution');
             String traditionalContext = buildTraditionalContextData(
-                sessionId,
+                executionId,
                 agentConfig,
                 llmConfig,
                 currentPageRecordId,
@@ -224,8 +225,8 @@ public inherited sharing class SystemPromptBuilder {
      * @return            Structured context prompt string, or empty if no context available.
      */
     @TestVisible
-    private String buildStructuredContextPrompt(Id sessionId, Integer currentTurn, Boolean includeMetadata) {
-        Map<String, List<ContextManagerService.ContextItem>> structuredContext = this.contextManager.getStructuredContext(sessionId, currentTurn);
+    private String buildStructuredContextPrompt(Id executionId, Integer currentTurn, Boolean includeMetadata) {
+        Map<String, List<ContextManagerService.ContextItem>> structuredContext = this.contextManager.getStructuredContext(executionId, currentTurn);
 
         if (structuredContext.isEmpty()) {
             return '';
@@ -262,7 +263,7 @@ public inherited sharing class SystemPromptBuilder {
     }
 
     private String buildTraditionalContextData(
-        Id sessionId,
+        Id executionId,
         AIAgentDefinition__c agentConfig,
         LLMConfiguration__c llmConfig,
         Id currentPageRecordId,
@@ -272,7 +273,7 @@ public inherited sharing class SystemPromptBuilder {
     ) {
         // Resolve and format SObject context data
         ContextResolverService.ResolutionResult resolvedContext = this.contextResolver.resolve(
-            sessionId,
+            executionId,
             agentConfig.Id,
             conversationalUserId,
             currentPageRecordId,
@@ -287,7 +288,7 @@ public inherited sharing class SystemPromptBuilder {
                 contextConfigs = [
                     SELECT Id, Name, ContextLabel__c, ImplementationName__c, ApplicableSObjectTypes__c, ExecutionOrder__c
                     FROM AgentContextConfig__c
-                    WHERE AIAgentDefinition__c = :agentConfig.Id AND IsActive__c = true
+                    WHERE AIAgentDefinition__c = :agentConfig.Id AND IsActive__c = TRUE
                     ORDER BY ExecutionOrder__c ASC
                 ];
             } catch (Exception e) {
@@ -392,20 +393,21 @@ public inherited sharing class SystemPromptBuilder {
     }
 
     /**
-     * Retrieves the conversation summary for the session if using the Summary Buffer memory strategy.
+     * Retrieves the conversation summary for the execution if using the Summary Buffer memory strategy.
      *
-     * @param sessionId    The chat session ID.
+     * @param executionId  The execution ID (ChatSession__c or AgentExecution__c).
      * @param agentConfig  Agent configuration.
      * @param logPrefix    Logging prefix for debug messages.
      * @return             The conversation summary string, or null if not found or not applicable.
      */
-    private String getConversationSummary(Id sessionId, AIAgentDefinition__c agentConfig, String logPrefix) {
+    private String getConversationSummary(Id executionId, AIAgentDefinition__c agentConfig, String logPrefix) {
         if ('Summary Buffer'.equalsIgnoreCase(agentConfig.MemoryStrategy__c)) {
             try {
-                List<ChatSession__c> sessions = [SELECT ConversationSummary__c FROM ChatSession__c WHERE Id = :sessionId LIMIT 1];
-                if (!sessions.isEmpty() && String.isNotBlank(sessions[0].ConversationSummary__c)) {
+                // Query AgentExecution__c for conversation summary
+                List<AgentExecution__c> executions = [SELECT ConversationSummary__c FROM AgentExecution__c WHERE Id = :executionId LIMIT 1];
+                if (!executions.isEmpty() && String.isNotBlank(executions[0].ConversationSummary__c)) {
                     System.debug(LoggingLevel.DEBUG, logPrefix + 'Adding conversation summary to system prompt.');
-                    return sessions[0].ConversationSummary__c;
+                    return executions[0].ConversationSummary__c;
                 }
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to retrieve conversation summary: ' + e.getMessage());

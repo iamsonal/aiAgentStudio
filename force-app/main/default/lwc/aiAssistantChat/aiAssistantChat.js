@@ -10,15 +10,16 @@
  * AI Assistant Chat LWC
  *
  * Provides a robust, real-time chat interface for AI-powered conversations in both Lightning Experience and Experience Cloud.
- * Handles session management, message history, transient ("thinking...") messages, error handling, and responsive UI.
+ * Now operates on the unified AgentExecution__c and ExecutionStep__c data model for future-proof architecture.
+ * Handles execution management, conversation history, transient ("thinking...") messages, error handling, and responsive UI.
  *
  * Main Features:
  * - Real-time, bidirectional communication with AI agents
- * - Automatic session management and message persistence
+ * - Automatic execution management and step persistence via unified data model
  * - Transient message support (e.g., "Assistant is typing...")
  * - Responsive, accessible design
  * - Robust error handling and connection recovery
- * - Message history with pagination and start-over branching
+ * - Conversation history with pagination and start-over branching
  */
 import { LightningElement, api, wire } from 'lwc';
 import { CurrentPageReference } from 'lightning/navigation';

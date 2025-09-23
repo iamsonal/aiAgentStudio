@@ -211,99 +211,36 @@ public inherited sharing class ContextManagerService {
     // --- CORE PUBLIC METHODS ---
 
     /**
-     * Retrieves context items for a chat session. This is a lightweight read operation that returns
-     * the stored context items without performing any expensive calculations.
+     * Retrieves context items for an execution with dynamic scoring.
+     * Main method for the unified execution model.
      *
-     * @param sessionId   The chat session identifier (required)
-     * @return            List of ContextItem objects sorted by relevance
-     * @throws            None (returns empty list on error)
+     * @param executionId   The AgentExecution__c identifier (required)
+     * @param currentTurn   The current conversation turn, used for temporal calculations (optional)
+     * @return              List of ContextItem objects sorted by relevance
+     * @throws              None (returns empty list on error)
      */
-    public List<ContextItem> getContextLedger(Id sessionId) {
-        if (sessionId == null)
+    public List<ContextItem> getContextLedger(Id executionId, Integer currentTurn) {
+        if (executionId == null)
             return new List<ContextItem>();
 
         try {
-            List<ChatSession__c> sessions = [
-                SELECT EntityHistoryJson__c
-                FROM ChatSession__c
-                WHERE Id = :sessionId
+            List<AgentExecution__c> executions = [
+                SELECT ContextHistoryJson__c
+                FROM AgentExecution__c
+                WHERE Id = :executionId
                 LIMIT 1
             ];
 
-            if (sessions.isEmpty() || String.isBlank(sessions[0].EntityHistoryJson__c)) {
+            if (executions.isEmpty() || String.isBlank(executions[0].ContextHistoryJson__c)) {
                 return new List<ContextItem>();
             }
 
-            List<ContextItem> ledger = parseLedger(sessions[0].EntityHistoryJson__c);
-
-            // Filter out non-active items and sort by relevance (already calculated when stored)
-            List<ContextItem> activeItems = new List<ContextItem>();
-            for (ContextItem item : ledger) {
-                if (item.status == ContextStatus.ACTIVE) {
-                    activeItems.add(item);
-                }
-            }
-
-            return activeItems;
-        } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                '[ContextManagerService.getContextLedger] Failed to retrieve context ledger for session ' + sessionId + ': ' + e.getMessage()
-            );
-            return new List<ContextItem>();
-        }
-    }
-
-    /**
-     * Retrieves context items for a chat session with dynamic scoring. This overload maintains
-     * backward compatibility while allowing for dynamic scoring when current turn is provided.
-     *
-     * @param sessionId   The chat session identifier (required)
-     * @param currentTurn The current conversation turn, used for temporal calculations (optional)
-     * @return            List of ContextItem objects sorted by relevance
-     * @throws            None (returns empty list on error)
-     */
-    public List<ContextItem> getContextLedger(Id sessionId, Integer currentTurn) {
-        if (currentTurn == null) {
-            return getContextLedger(sessionId);
-        }
-        return getContextLedgerWithDynamicScoring(sessionId, currentTurn);
-    }
-
-    /**
-     * Retrieves and dynamically scores context items for a chat session, applying recency, access patterns,
-     * and temporal decay to maintain optimal prioritization. Only active items are returned, sorted by relevance.
-     *
-     * @param sessionId   The chat session identifier (required)
-     * @param currentTurn The current conversation turn, used for temporal calculations
-     * @return            List of active ContextItem objects, sorted by descending relevance
-     * @throws            None (returns empty list on error)
-     */
-    public List<ContextItem> getContextLedgerWithDynamicScoring(Id sessionId, Integer currentTurn) {
-        if (sessionId == null)
-            return new List<ContextItem>();
-
-        try {
-            List<ChatSession__c> sessions = [
-                SELECT EntityHistoryJson__c
-                FROM ChatSession__c
-                WHERE Id = :sessionId
-                LIMIT 1
-            ];
-
-            if (sessions.isEmpty() || String.isBlank(sessions[0].EntityHistoryJson__c)) {
-                return new List<ContextItem>();
-            }
-
-            List<ContextItem> ledger = parseLedger(sessions[0].EntityHistoryJson__c);
+            List<ContextItem> ledger = parseLedger(executions[0].ContextHistoryJson__c);
             return processLedgerForRetrieval(ledger, currentTurn);
         } catch (Exception e) {
             System.debug(
                 LoggingLevel.ERROR,
-                '[ContextManagerService.getContextLedgerWithDynamicScoring] Failed to retrieve context ledger for session ' +
-                    sessionId +
-                    ': ' +
-                    e.getMessage()
+                '[ContextManagerService.getContextLedger] Failed to retrieve context ledger for execution ' + executionId + ': ' + e.getMessage()
             );
             return new List<ContextItem>();
         }
@@ -365,38 +302,39 @@ public inherited sharing class ContextManagerService {
     }
 
     /**
-     * Commits the current turn's context to the session ledger, updating relationships and optimizing the ledger.
-     * Maintains parent-child relationships, applies pruning, and persists changes atomically.
+     * @description
+     * Commits context changes for AgentExecution__c records.
+     * Main method for the unified execution model.
      *
-     * @param sessionId             The chat session identifier
-     * @param currentTurn           The current conversation turn
-     * @param pageContextId         The current page record being viewed (optional)
-     * @param newRecordFromActionId Record created during agent action execution (optional)
-     * @throws                     ContextManagementException if the session is not found or ledger is oversized
+     * @param executionId             The ID of the AgentExecution__c to update
+     * @param currentTurn             The current turn number for temporal scoring
+     * @param pageContextId           The ID of the record representing the user's current page context (can be null)
+     * @param newRecordFromActionId   The ID of a record created by an agent action (can be null)
+     * @throws                     ContextManagementException if the execution is not found or ledger is oversized
      */
-    public void commitTurnContext(Id sessionId, Integer currentTurn, Id pageContextId, Id newRecordFromActionId) {
-        if (sessionId == null || (pageContextId == null && newRecordFromActionId == null)) {
+    public void commitExecutionTurnContext(Id executionId, Integer currentTurn, Id pageContextId, Id newRecordFromActionId) {
+        if (executionId == null || (pageContextId == null && newRecordFromActionId == null)) {
             return;
         }
 
-        String logPrefix = '[ContextManager.Commit ' + sessionId + '] ';
+        String logPrefix = '[ContextManager.Commit ' + executionId + '] ';
 
         try {
-            // Lock session for atomic update to prevent concurrent modifications
-            List<ChatSession__c> sessions = [
-                SELECT Id, EntityHistoryJson__c
-                FROM ChatSession__c
-                WHERE Id = :sessionId
+            // Handle AgentExecution__c
+            List<AgentExecution__c> executions = [
+                SELECT Id, ContextHistoryJson__c
+                FROM AgentExecution__c
+                WHERE Id = :executionId
                 LIMIT 1
                 FOR UPDATE
             ];
 
-            if (sessions.isEmpty()) {
-                throw new ContextManagementException('No ChatSession__c found for sessionId: ' + sessionId);
+            if (executions.isEmpty()) {
+                throw new ContextManagementException('No AgentExecution__c found for executionId: ' + executionId);
             }
 
-            ChatSession__c session = sessions[0];
-            List<ContextItem> ledger = parseLedger(session.EntityHistoryJson__c);
+            String currentContextJson = executions[0].ContextHistoryJson__c;
+            List<ContextItem> ledger = parseLedger(currentContextJson);
             Map<Id, ContextItem> ledgerMap = buildLedgerMap(ledger);
 
             // Process page context with intelligent type detection
@@ -406,18 +344,23 @@ public inherited sharing class ContextManagerService {
 
             // Process action-generated records with relationship tracking
             if (newRecordFromActionId != null) {
-                processActionGeneratedContext(ledgerMap, ledger, newRecordFromActionId, pageContextId, currentTurn);
+                processActionContext(ledgerMap, ledger, newRecordFromActionId, currentTurn, pageContextId);
             }
 
-            // Update all item relevance scores and prune if necessary
-            ledger = optimizeLedger(ledger, currentTurn);
+            // Apply pruning and optimization
+            pruneLedger(ledger);
 
             // Persist with size validation
             String serializedLedger = JSON.serialize(ledger);
             validateLedgerSize(serializedLedger);
 
-            session.EntityHistoryJson__c = serializedLedger;
-            update session;
+            // Update the AgentExecution__c record
+            AgentExecution__c execution = new AgentExecution__c(
+                Id = executionId,
+                ContextHistoryJson__c = serializedLedger,
+                LastActivityTime__c = Datetime.now()
+            );
+            update execution;
 
             System.debug(
                 LoggingLevel.INFO,
@@ -429,169 +372,76 @@ public inherited sharing class ContextManagerService {
         }
     }
 
-    /**
-     * Adds or updates a context item in the session ledger, updating metadata and relationships as needed.
-     * If the item exists, its access and metadata are updated; otherwise, a new item is created.
-     *
-     * @param sessionId   The chat session identifier
-     * @param recordId    The record to add or update
-     * @param contextType The context item type
-     * @param currentTurn The current conversation turn
-     * @param sourceId    Optional parent record for relationship tracking
-     * @param metadata    Additional metadata for context enrichment (optional)
-     */
-    public void addContextItem(Id sessionId, Id recordId, ContextType contextType, Integer currentTurn, Id sourceId, Map<String, Object> metadata) {
-        if (sessionId == null || recordId == null)
-            return;
-
-        List<ChatSession__c> sessions;
-        try {
-            sessions = [
-                SELECT Id, EntityHistoryJson__c
-                FROM ChatSession__c
-                WHERE Id = :sessionId
-                LIMIT 1
-                FOR UPDATE
-            ];
-        } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                '[ContextManagerService.addContextItem] Failed to query ChatSession__c ' + sessionId + ': ' + e.getMessage()
-            );
-            return;
-        }
-
-        if (sessions.isEmpty()) {
-            System.debug(LoggingLevel.WARN, '[ContextManagerService.addContextItem] No ChatSession__c found for sessionId: ' + sessionId);
-            return;
-        }
-
-        try {
-            ChatSession__c session = sessions[0];
-            List<ContextItem> ledger = parseLedger(session.EntityHistoryJson__c);
-            Map<Id, ContextItem> ledgerMap = buildLedgerMap(ledger);
-            Boolean itemAddedOrUpdated = false;
-
-            if (ledgerMap.containsKey(recordId)) {
-                // Update existing item
-                ContextItem existing = ledgerMap.get(recordId);
-                existing.recordAccess(currentTurn);
-                if (metadata != null) {
-                    existing.metadata.putAll(metadata);
-                }
-                itemAddedOrUpdated = true;
-            } else {
-                // Create new item
-                ContextItem newItem;
-                try {
-                    newItem = new ContextItem(recordId, contextType, currentTurn, sourceId);
-                } catch (Exception e) {
-                    System.debug(
-                        LoggingLevel.ERROR,
-                        '[ContextManagerService.addContextItem] Failed to create ContextItem for record ' + recordId + ': ' + e.getMessage()
-                    );
-                    return;
-                }
-
-                if (metadata != null) {
-                    newItem.metadata.putAll(metadata);
-                }
-                ledger.add(newItem);
-                itemAddedOrUpdated = true;
-
-                // Update parent-child relationships by iterating over the ledger directly
-                // This ensures we find parents that were just added in this transaction
-                if (sourceId != null) {
-                    for (ContextItem potentialParent : ledger) {
-                        if (potentialParent.id == String.valueOf(sourceId)) {
-                            potentialParent.addChild(String.valueOf(recordId));
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (itemAddedOrUpdated) {
-                ledger = optimizeLedger(ledger, currentTurn);
-                session.EntityHistoryJson__c = JSON.serialize(ledger);
-                update session;
-            }
-        } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                '[ContextManagerService.addContextItem] Failed to add/update context item ' +
-                    recordId +
-                    ' for session ' +
-                    sessionId +
-                    ': ' +
-                    e.getMessage()
-            );
-        }
-    }
-
-    /**
-     * Pins a context item for a session, marking it as permanently relevant to prevent pruning.
-     *
-     * @param sessionId   The chat session identifier
-     * @param recordId    The record to pin
-     * @param currentTurn The current conversation turn
-     */
-    public void pinContextItem(Id sessionId, Id recordId, Integer currentTurn) {
-        addContextItem(sessionId, recordId, ContextType.PINNED, currentTurn, null, new Map<String, Object>{ 'pinned' => true });
-    }
-
-    /**
-     * Removes a context item from the session ledger, or archives it if pinned.
-     *
-     * @param sessionId The chat session identifier
-     * @param recordId  The record to remove or archive
-     */
-    public void removeContextItem(Id sessionId, Id recordId) {
-        if (sessionId == null || recordId == null)
-            return;
-
-        try {
-            List<ChatSession__c> sessions = [
-                SELECT Id, EntityHistoryJson__c
-                FROM ChatSession__c
-                WHERE Id = :sessionId
-                LIMIT 1
-                FOR UPDATE
-            ];
-
-            if (sessions.isEmpty())
-                return;
-
-            ChatSession__c session = sessions[0];
-            List<ContextItem> ledger = parseLedger(session.EntityHistoryJson__c);
-
-            for (Integer i = ledger.size() - 1; i >= 0; i--) {
-                if (ledger[i].id == String.valueOf(recordId)) {
-                    if (ledger[i].contextType == ContextType.PINNED) {
-                        ledger[i].status = ContextStatus.ARCHIVED;
-                    } else {
-                        ledger.remove(i);
-                    }
-                    break;
-                }
-            }
-
-            session.EntityHistoryJson__c = JSON.serialize(ledger);
-            update session;
-        } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                '[ContextManagerService.removeContextItem] Failed to remove context item ' +
-                    recordId +
-                    ' for session ' +
-                    sessionId +
-                    ': ' +
-                    e.getMessage()
-            );
-        }
-    }
-
     // --- PRIVATE HELPER METHODS ---
+
+    /**
+     * Processes action-generated records with relationship tracking.
+     *
+     * @param ledgerMap          Map of existing context items by ID
+     * @param ledger            List of context items
+     * @param newRecordId       ID of the new record created by action
+     * @param currentTurn       Current turn number
+     * @param pageContextId     Current page context ID
+     */
+    private void processActionContext(
+        Map<Id, ContextItem> ledgerMap,
+        List<ContextItem> ledger,
+        Id newRecordId,
+        Integer currentTurn,
+        Id pageContextId
+    ) {
+        if (newRecordId == null)
+            return;
+
+        try {
+            // Create new context item for the action-generated record
+            ContextItem newItem = new ContextItem(newRecordId, ContextType.ACTION_GENERATED, currentTurn, pageContextId);
+            ledger.add(newItem);
+
+            // Update parent-child relationships if there's a page context
+            if (pageContextId != null) {
+                for (ContextItem existingItem : ledger) {
+                    if (existingItem.id == String.valueOf(pageContextId)) {
+                        existingItem.addChild(String.valueOf(newRecordId));
+                        break;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, '[ContextManagerService.processActionContext] Failed to process action context: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Applies pruning and optimization to the context ledger.
+     *
+     * @param ledger List of context items to prune
+     */
+    private void pruneLedger(List<ContextItem> ledger) {
+        if (ledger == null || ledger.isEmpty())
+            return;
+
+        try {
+            // Remove items with very low relevance scores (below 0.1)
+            for (Integer i = ledger.size() - 1; i >= 0; i--) {
+                ContextItem item = ledger[i];
+                if (item.status == ContextStatus.ACTIVE && item.relevanceScore < 0.1) {
+                    ledger.remove(i);
+                }
+            }
+
+            // Limit total items to prevent oversized ledgers (max 100 items)
+            if (ledger.size() > 100) {
+                // Sort by relevance and keep top 100
+                ledger.sort();
+                while (ledger.size() > 100) {
+                    ledger.remove(ledger.size() - 1);
+                }
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, '[ContextManagerService.pruneLedger] Failed to prune ledger: ' + e.getMessage());
+        }
+    }
 
     /**
      * Updates relevance scores for all active items in the ledger and returns them sorted by relevance.

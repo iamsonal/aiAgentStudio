@@ -105,10 +105,7 @@ public with sharing class TypeCoercionService {
             Schema.DescribeFieldResult dfr = fieldToken.getDescribe();
             // Enforce field-level security before processing
             if (!SecurityUtils.hasFieldPermission(dfr, accessType)) {
-                System.debug(
-                    LoggingLevel.DEBUG,
-                    '[TypeCoercionService] Field "' + fieldName + '" skipped due to FLS (' + accessType + ').'
-                );
+                System.debug(LoggingLevel.DEBUG, '[TypeCoercionService] Field "' + fieldName + '" skipped due to FLS (' + accessType + ').');
                 continue;
             }
 

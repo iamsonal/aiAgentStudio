@@ -90,7 +90,7 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         LLMConfiguration__c llmConfig,
         List<Map<String, Object>> openAIMessages,
         List<Map<String, Object>> openAITools,
-            AIAgentDefinition__c agentConfig
+        AIAgentDefinition__c agentConfig
     ) {
         HttpRequest req = new HttpRequest();
         String endpoint = 'callout:' + llmConfig.NamedCredential__c + '/v1/chat/completions';

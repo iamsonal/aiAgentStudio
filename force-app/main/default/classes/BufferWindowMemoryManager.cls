@@ -19,18 +19,17 @@
  *   - Uses optimized single-query retrieval for maximum performance
  *   - Provides administrators with precise control over token consumption
  *   - Supports unlimited, zero, or positive turn limits as configured per agent
- *   - Delegates message retrieval and formatting to specialized services
+ *   - Uses the unified AgentExecution__c and ExecutionStep__c data models exclusively
  *
  * This class is not intended for direct use outside the memory management subsystem.
  * @implements IMemoryManager
  */
 public class BufferWindowMemoryManager implements IMemoryManager {
     /**
-     * Retrieves a precise, turn-based buffer of recent conversation history for the given session.
-     * Uses a highly optimized single SOQL subquery to fetch exactly the specified number of complete
-     * conversation turns, providing predictable token consumption and eliminating performance bottlenecks.
+     * Retrieves a precise, turn-based buffer of recent execution history for the given execution.
+     * Uses the unified AgentExecution__c and ExecutionStep__c data models exclusively.
      *
-     * @param sessionId      The session whose history is being retrieved.
+     * @param executionId    The execution whose history is being retrieved (AgentExecution__c).
      * @param agentConfig    The agent configuration, including turn limit.
      * @param llmConfig      The LLM configuration (unused in this strategy, but required by interface).
      * @param loggingContext Optional logging context prefix for debug output.
@@ -42,47 +41,74 @@ public class BufferWindowMemoryManager implements IMemoryManager {
      *   - If turn limit is positive, returns exactly N most recent complete turns using optimized query
      */
     public List<Map<String, Object>> getHistoryPayload(
-        Id sessionId,
+        Id executionId,
         AIAgentDefinition__c agentConfig,
         LLMConfiguration__c llmConfig,
         String loggingContext
     ) {
         String debugPrefix = String.isNotBlank(loggingContext) ? loggingContext : '[BufferWindowMemory] ';
-        System.debug(LoggingLevel.INFO, debugPrefix + 'BufferWindowMemoryManager: Starting history retrieval for session: ' + sessionId);
+        System.debug(LoggingLevel.INFO, debugPrefix + 'BufferWindowMemoryManager: Starting history retrieval for execution: ' + executionId);
 
         Decimal turnLimitDecimal = agentConfig.HistoryTurnLimit__c;
         System.debug(LoggingLevel.INFO, debugPrefix + 'Configured turn limit: ' + turnLimitDecimal);
 
         if (turnLimitDecimal == null) {
-            // Unlimited history: fetch all messages for the session
-            System.debug(LoggingLevel.INFO, debugPrefix + 'No turn limit set. Fetching all available messages for session.');
-            List<ChatMessage__c> allMessages = ChatMessageService.getHistory(sessionId, null, 'ASC', null, false);
-            return MessageHistoryFormatter.formatMessagesForApi(allMessages, agentConfig, debugPrefix);
+            // Unlimited history: fetch all messages for the execution
+            System.debug(LoggingLevel.INFO, debugPrefix + 'No turn limit set. Fetching all available messages for execution.');
+            return getUnlimitedHistory(executionId, agentConfig, debugPrefix);
         }
 
         Integer turnLimit = turnLimitDecimal.intValue();
 
         if (turnLimit <= 0) {
             // Zero or negative limit: return no history
-            System.debug(LoggingLevel.INFO, debugPrefix + 'Turn limit is zero or negative. No conversation history will be returned.');
+            System.debug(LoggingLevel.INFO, debugPrefix + 'Turn limit is zero or negative. No execution history will be returned.');
             return new List<Map<String, Object>>();
         }
 
-        // Positive limit: fetch exactly N most recent complete conversation turns using optimized single query
-        System.debug(LoggingLevel.INFO, debugPrefix + 'Fetching exactly ' + turnLimit + ' complete conversation turns for session.');
-        List<ChatMessage__c> finalSortedHistory = ChatMessageService.getHistoryWithCompleteTurns(sessionId, turnLimit, 'DESC', false);
-        return MessageHistoryFormatter.formatMessagesForApi(finalSortedHistory, agentConfig, debugPrefix);
+        // Positive limit: fetch exactly N most recent complete execution turns using optimized query
+        System.debug(LoggingLevel.INFO, debugPrefix + 'Fetching exactly ' + turnLimit + ' complete execution turns.');
+        return getLimitedHistory(executionId, turnLimit, agentConfig, debugPrefix);
     }
 
     /**
-     * Invoked after a conversation turn is completed. No-op for buffer window strategy.
+     * Invoked after an execution turn is completed. No-op for buffer window strategy.
      *
-     * @param sessionId      The session whose turn has completed.
+     * @param executionId    The execution whose turn has completed (AgentExecution__c).
      * @param agentConfig    The agent configuration.
      * @param llmConfig      The LLM configuration.
      * @param loggingContext Optional logging context prefix for debug output.
      */
-    public void onTurnCompletion(Id sessionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String loggingContext) {
+    public void onTurnCompletion(Id executionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String loggingContext) {
         // No additional processing required for buffer window memory management
+    }
+
+    /**
+     * Retrieves unlimited history for the given execution using ExecutionStep__c.
+     *
+     * @param executionId The execution ID (AgentExecution__c)
+     * @param agentConfig The agent configuration
+     * @param debugPrefix Debug logging prefix
+     * @return Formatted message list for LLM consumption
+     */
+    private List<Map<String, Object>> getUnlimitedHistory(Id executionId, AIAgentDefinition__c agentConfig, String debugPrefix) {
+        ExecutionStepService executionStepService = new ExecutionStepService();
+        List<ExecutionStep__c> allSteps = executionStepService.getHistory(executionId, null, 'ASC', null, false);
+        return ExecutionStepHistoryFormatter.formatStepsForApi(allSteps, agentConfig, debugPrefix);
+    }
+
+    /**
+     * Retrieves limited history for the given execution using ExecutionStep__c.
+     *
+     * @param executionId The execution ID (AgentExecution__c)
+     * @param turnLimit The maximum number of turns to retrieve
+     * @param agentConfig The agent configuration
+     * @param debugPrefix Debug logging prefix
+     * @return Formatted message list for LLM consumption
+     */
+    private List<Map<String, Object>> getLimitedHistory(Id executionId, Integer turnLimit, AIAgentDefinition__c agentConfig, String debugPrefix) {
+        ExecutionStepService executionStepService = new ExecutionStepService();
+        List<ExecutionStep__c> limitedSteps = executionStepService.getHistoryWithCompleteTurns(executionId, turnLimit, 'DESC', false);
+        return ExecutionStepHistoryFormatter.formatStepsForApi(limitedSteps, agentConfig, debugPrefix);
     }
 }

@@ -8,19 +8,20 @@
 
 /**
  * @description
- * FollowUpLLMProcessor coordinates the post-tool-execution phase of an LLM-driven chat session, handling follow-up LLM interactions
- * after asynchronous operations complete. It validates session state, invokes the LLM, processes results, and manages error handling
+ * FollowUpLLMProcessor coordinates the post-tool-execution phase of an LLM-driven execution, handling follow-up LLM interactions
+ * after asynchronous operations complete. It validates execution state, invokes the LLM, processes results, and manages error handling
  * and logging. The class is context-agnostic and can be invoked from Queueable jobs, Platform Events, or other triggers.
+ * Uses the unified AgentExecution__c and ExecutionStep__c data models exclusively.
  *
  * Responsibilities:
- *   - Validate session and turn state before proceeding with follow-up LLM processing
+ *   - Validate execution and turn state before proceeding with follow-up LLM processing
  *   - Invoke LLM interaction logic and process the resulting output
  *   - Handle both success and error scenarios, including marking turns as failed if needed
  *   - Provide clear, actionable debug output and commit logs for diagnostics
  *   - Remain agnostic to invocation context for flexible integration
  */
 public class FollowUpLLMProcessor {
-    private final Id chatSessionId;
+    private final Id executionId;
     private final Id userId;
     private final Id agentDefinitionId;
     private final String turnIdentifier;
@@ -28,17 +29,17 @@ public class FollowUpLLMProcessor {
     private final Boolean isFinalErrorTurn;
 
     /**
-     * Constructs a new FollowUpLLMProcessor with all required context for follow-up processing.
+     * Constructor for follow-up LLM processing using the unified AgentExecution__c model.
      *
-     * @param sessId        The chat session ID for this interaction.
-     * @param usrId         The original user ID who initiated the conversation.
+     * @param executionId   The execution ID (AgentExecution__c) for this interaction.
+     * @param usrId         The original user ID who initiated the execution.
      * @param agentDefId    The AI agent definition ID being used.
-     * @param turnId        The unique turn identifier for tracking this conversation turn.
-     * @param turnCount     The current turn number in the conversation.
-     * @param isFinalError  Whether this is a final error turn that should terminate the conversation.
+     * @param turnId        The unique turn identifier for tracking this execution turn.
+     * @param turnCount     The current turn number in the execution.
+     * @param isFinalError  Whether this is a final error turn that should terminate the execution.
      */
-    public FollowUpLLMProcessor(Id sessId, Id usrId, Id agentDefId, String turnId, Integer turnCount, Boolean isFinalError) {
-        this.chatSessionId = sessId;
+    public FollowUpLLMProcessor(Id executionId, Id usrId, Id agentDefId, String turnId, Integer turnCount, Boolean isFinalError) {
+        this.executionId = executionId;
         this.userId = usrId;
         this.agentDefinitionId = agentDefId;
         this.turnIdentifier = turnId;
@@ -72,34 +73,34 @@ public class FollowUpLLMProcessor {
         TurnLifecycleService turnLifecycleSvcForFailure = new TurnLifecycleService();
 
         try {
-            // Validate session and turn state before proceeding
-            List<ChatSession__c> sessions = [
-                SELECT Id, ProcessingStatus__c, CurrentTurnIdentifier__c, AIAgentDefinition__r.LLMConfiguration__c, AIAgentDefinition__r.IsActive__c
-                FROM ChatSession__c
-                WHERE Id = :this.chatSessionId
-                LIMIT 1
-                FOR UPDATE
-            ];
-            if (
-                sessions.isEmpty() ||
-                !this.turnIdentifier.equals(sessions[0].CurrentTurnIdentifier__c) ||
-                sessions[0].ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_FOLLOWUP
-            ) {
-                System.debug(LoggingLevel.WARN, logPrefix + 'Session state mismatch or stale job detected. Aborting follow-up processing.');
+            // Validate execution and turn state before proceeding
+            ExecutionContextService executionContextService = new ExecutionContextService();
+            AgentExecution__c execution = executionContextService.lockExecution(this.executionId, this.turnIdentifier);
+            if (execution == null || execution.ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_FOLLOWUP) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Execution state mismatch or stale job detected. Aborting follow-up processing.');
                 return;
             }
+
+            // Load agent definition to get LLM configuration
+            AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinition(this.agentDefinitionId);
+            if (agentDef == null || !agentDef.IsActive__c) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Agent definition not found or inactive. Aborting follow-up processing.');
+                return;
+            }
+            Id llmConfigurationId = agentDef.LLMConfiguration__c;
+
             Id executionUserId = UserInfo.getUserId();
             Id originalUserId = this.userId;
 
             // Initialize the decision step logger - single instance for the entire turn
-            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(this.chatSessionId, this.turnIdentifier, originalUserId);
+            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(this.executionId, this.turnIdentifier, originalUserId);
 
             // Perform LLM callout for follow-up interaction with decision logger
             LLMInteractionService interactionService = new LLMInteractionService(
-                this.chatSessionId,
+                this.executionId,
                 originalUserId,
                 this.agentDefinitionId,
-                sessions[0].AIAgentDefinition__r.LLMConfiguration__c,
+                llmConfigurationId,
                 this.turnIdentifier,
                 this.currentTurnCount,
                 null,
@@ -109,9 +110,9 @@ public class FollowUpLLMProcessor {
             LLMInteractionService.LLMInteractionResult llmInteractionResult = interactionService.prepareAndCallLLM(null);
 
             // Process the LLM result and update orchestration state with decision logger
-            String outcome = orchestrationSvc.processLlmResultWithLogger(
+            String outcome = orchestrationSvc.processLlmResult(
                 llmInteractionResult,
-                this.chatSessionId,
+                this.executionId,
                 originalUserId,
                 executionUserId,
                 this.agentDefinitionId,
@@ -136,7 +137,7 @@ public class FollowUpLLMProcessor {
             );
             try {
                 turnLifecycleSvcForFailure.failTurn(
-                    this.chatSessionId,
+                    this.executionId,
                     this.turnIdentifier,
                     'Processor Exception: ' + ex.getMessage(),
                     AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,

@@ -9,15 +9,17 @@
 /**
  * @description
  * ActionContext is an immutable Data Transfer Object (DTO) that encapsulates all contextual information
- * required for executing agent actions and hooks within the agent framework. Its primary responsibility is to securely
- * and reliably transport execution context—including user, session, agent, and turn metadata—between framework components.
- * This class is designed for thread safety, data integrity, and extensibility, ensuring that all relevant context is available
- * throughout the lifecycle of an agent action without risk of accidental mutation. It is not responsible for business logic,
- * persistence, or validation beyond construction.
+ * required for executing agent actions and hooks within the unified agent framework.
+ * Its primary responsibility is to securely and reliably transport execution context—including user, execution,
+ * agent, and turn metadata—between framework components.
+ *
+ * This class is designed for thread safety, data integrity, and extensibility, ensuring that all relevant context
+ * is available throughout the lifecycle of an agent action without risk of accidental mutation.
  *
  * Usage:
  *   - Pass as a parameter to agent actions, hooks, and services that require execution context.
  *   - Use to access immutable context properties for auditing, debugging, or business logic decisions.
+ *   - Supports both conversational and non-conversational execution patterns.
  *
  * Scope:
  *   - Encapsulates only the data required for a single agent action execution.
@@ -28,10 +30,16 @@
  */
 public class ActionContext {
     /**
-     * The chat session ID where this action is being executed.
-     * Used to correlate actions with a specific conversation instance.
+     * The AgentExecution__c ID where this action is being executed.
+     * Used to correlate actions with a specific execution instance.
      */
-    public Id chatSessionId { get; private set; }
+    public Id executionId { get; private set; }
+
+    /**
+     * The type of execution (Conversational, Batch, Scheduled, Email, Trigger, API).
+     * Helps actions understand their execution context.
+     */
+    public String executionType { get; private set; }
 
     /**
      * The related record ID for additional context (may be null).
@@ -81,22 +89,24 @@ public class ActionContext {
 
     /**
      * Constructs an immutable ActionContext with all required execution parameters.
+     * Supports the unified execution model.
      *
-     * @param sessId         The chat session ID where this action is being executed.
-     * @param origUserId     The original user who initiated the conversation.
+     * @param execId         The AgentExecution__c ID where this action is being executed.
+     * @param origUserId     The original user who initiated the execution.
      * @param execUserId     The user context under which the action will execute (may be a service account).
      * @param relId          The related record ID for context (can be null).
      * @param agentDefId     The agent definition ID representing the agent's configuration.
      * @param capabilityId   The specific capability being executed.
      * @param implDetail     Implementation-specific details (class name, flow name, etc.).
-     * @param turnId         Unique identifier for the current conversation turn.
-     * @param turnCount      The current turn number in the conversation.
+     * @param turnId         Unique identifier for the current execution turn.
+     * @param turnCount      The current turn number in the execution.
+     * @param execType       The type of execution (Conversational, Batch, Scheduled, etc.) - optional, defaults to Conversational.
      *
      * @throws None. This constructor does not perform validation; callers are responsible for providing valid arguments.
      * @sideeffects None. All properties are set once and are immutable thereafter.
      */
     public ActionContext(
-        Id sessId,
+        Id execId,
         Id origUserId,
         Id execUserId,
         Id relId,
@@ -104,9 +114,10 @@ public class ActionContext {
         Id capabilityId,
         String implDetail,
         String turnId,
-        Integer turnCount
+        Integer turnCount,
+        String execType
     ) {
-        this.chatSessionId = sessId;
+        this.executionId = execId;
         this.originalUserId = origUserId;
         this.executionUserId = execUserId;
         this.relatedRecordId = relId;
@@ -115,12 +126,15 @@ public class ActionContext {
         this.implementationDetail = implDetail;
         this.turnIdentifier = turnId;
         this.currentTurnCount = turnCount;
+        this.executionType = execType != null ? execType : 'Conversational';
 
         // Debug: Log construction of ActionContext for traceability
         System.debug(
             LoggingLevel.FINER,
-            '[ActionContext] Constructed with sessionId=' +
-                String.valueOf(sessId) +
+            '[ActionContext] Constructed with executionId=' +
+                String.valueOf(execId) +
+                ', executionType=' +
+                String.valueOf(execType) +
                 ', originalUserId=' +
                 String.valueOf(origUserId) +
                 ', executionUserId=' +

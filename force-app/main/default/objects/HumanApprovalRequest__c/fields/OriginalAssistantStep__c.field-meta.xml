@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>OriginalAssistantStep__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Reference to the ExecutionStep__c record that contains the original assistant response that triggered the approval request.</description>
+    <inlineHelpText>The execution step containing the assistant's response that required approval.</inlineHelpText>
+    <label>Original Assistant Step</label>
+    <referenceTo>ExecutionStep__c</referenceTo>
+    <relationshipLabel>Human Approval Requests</relationshipLabel>
+    <relationshipName>HumanApprovalRequests</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

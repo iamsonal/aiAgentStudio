@@ -31,7 +31,7 @@ public with sharing class ResumeApprovedFrameworkAction {
      * Invocable entry point: Processes a list of approved HumanApprovalRequest__c records.
      *
      * For each request:
-     *   - Validates the record and its ChatSession__c link
+     *   - Validates the record and its AgentExecution__c link
      *   - Resolves the correct AgentCapability__c
      *   - Executes the approved action and manages notifications
      *   - Updates approval request status and logs all outcomes
@@ -52,16 +52,16 @@ public with sharing class ResumeApprovedFrameworkAction {
         List<HumanApprovalRequest__c> harsToProcess = [
             SELECT
                 Id,
-                ChatSession__c,
-                OriginalAssistantMessage__c,
+                AgentExecution__c,
+                OriginalAssistantStep__c,
                 LLMToolCallId__c,
                 ApproverComments__c,
                 LLMToolName__c,
                 LLMToolArgumentsJSON__c,
                 OriginalTurnIdentifier__c,
                 OriginalTurnCount__c,
-                ChatSession__r.User__c,
-                ChatSession__r.AIAgentDefinition__c
+                AgentExecution__r.User__c,
+                AgentExecution__r.AIAgentDefinition__c
             FROM HumanApprovalRequest__c
             WHERE Id IN :humanApprovalRequestIds
         ];
@@ -75,17 +75,17 @@ public with sharing class ResumeApprovedFrameworkAction {
         }
 
         for (HumanApprovalRequest__c har : harsToProcess) {
-            String logPrefix = '[ResumeApprovedAction HAR:' + har.Id + ' Sess:' + har.ChatSession__c + '] ';
-            Id userId = har.ChatSession__r?.User__c;
+            String logPrefix = '[ResumeApprovedAction HAR:' + har.Id + ' Exec:' + har.AgentExecution__c + '] ';
+            Id userId = har.AgentExecution__r?.User__c;
 
             try {
-                if (har.ChatSession__r == null) {
-                    System.debug(LoggingLevel.ERROR, logPrefix + 'Cannot process: ChatSession__r is null on HumanApprovalRequest.');
-                    updateHARStatus(har, 'Error', 'ChatSession link is missing.', logPrefix);
+                if (har.AgentExecution__r == null) {
+                    System.debug(LoggingLevel.ERROR, logPrefix + 'Cannot process: AgentExecution__r is null on HumanApprovalRequest.');
+                    updateHARStatus(har, 'Error', 'AgentExecution link is missing.', logPrefix);
                     continue;
                 }
 
-                AgentCapability__c capability = AIAgentConfigService.getCapability(har.ChatSession__r.AIAgentDefinition__c, har.LLMToolName__c);
+                AgentCapability__c capability = AIAgentConfigService.getCapability(har.AgentExecution__r.AIAgentDefinition__c, har.LLMToolName__c);
 
                 if (capability == null) {
                     System.debug(LoggingLevel.ERROR, logPrefix + 'No AgentCapability found for tool: ' + har.LLMToolName__c + '.');
@@ -93,7 +93,7 @@ public with sharing class ResumeApprovedFrameworkAction {
                 }
 
                 // Log the step
-                AgentDecisionStepLogger logger = new AgentDecisionStepLogger(har.ChatSession__c, har.OriginalTurnIdentifier__c);
+                AgentDecisionStepLogger logger = new AgentDecisionStepLogger(har.AgentExecution__c, har.OriginalTurnIdentifier__c);
                 String actionDetails = JSON.serialize(
                     new Map<String, Object>{
                         'humanApprovalRequestId' => har.Id,
@@ -117,11 +117,11 @@ public with sharing class ResumeApprovedFrameworkAction {
                         userId,
                         'Error Processing Approved Request',
                         'An error occurred while processing your approved request for "' + har.LLMToolName__c + '".',
-                        har.ChatSession__c
+                        har.AgentExecution__c
                     );
                 }
                 updateHARStatus(har, 'Error', 'Exception during resume: ' + e.getMessage(), logPrefix);
-                OrchestrationService.clearPendingDetailsFromMessage(har.OriginalAssistantMessage__c, logPrefix);
+                // Note: Pending approval details cleanup handled by ExecutionStepService
             } finally {
             }
         }
@@ -146,48 +146,39 @@ public with sharing class ResumeApprovedFrameworkAction {
 
         ActionExecutionService actionService = new ActionExecutionService();
 
-        // Resolve the record context for the original user turn, if available
+        // In the unified model, record context is managed through ContextManagerService
+        // and doesn't need to be retrieved from ExecutionStep__c records
         Id turnRecordContextId = null;
-        if (String.isNotBlank(har.OriginalTurnIdentifier__c)) {
-            List<ChatMessage__c> userTurnMessages = [
-                SELECT RecordContextId__c
-                FROM ChatMessage__c
-                WHERE ExternalId__c = :har.OriginalTurnIdentifier__c AND Role__c = 'user'
-                LIMIT 1
-            ];
-            if (!userTurnMessages.isEmpty()) {
-                turnRecordContextId = userTurnMessages[0].RecordContextId__c;
-            }
-        }
         System.debug(LoggingLevel.INFO, logPrefix + 'Turn context resolved to RecordContextId: ' + turnRecordContextId);
         ActionContext actionContext = new ActionContext(
-            har.ChatSession__c,
-            har.ChatSession__r.User__c,
+            har.AgentExecution__c,
+            har.AgentExecution__r.User__c,
             UserInfo.getUserId(),
             turnRecordContextId,
-            har.ChatSession__r.AIAgentDefinition__c,
+            har.AgentExecution__r.AIAgentDefinition__c,
             capability.Id,
             capability.ImplementationDetail__c,
             har.OriginalTurnIdentifier__c,
-            har.OriginalTurnCount__c.intValue()
+            har.OriginalTurnCount__c.intValue(),
+            'API'
         );
 
         ActionResult actionResult = actionService.executeSingleAction(capability, har.LLMToolArgumentsJSON__c, actionContext);
         if (actionResult.isSuccess) {
             NotificationService.sendUserNotification(
-                har.ChatSession__r.User__c,
+                har.AgentExecution__r.User__c,
                 'Request Completed: "' + har.LLMToolName__c + '"',
                 'Your approved request has been completed successfully.',
-                har.ChatSession__c
+                har.AgentExecution__c
             );
             updateHARStatus(har, 'Approved', 'Action completed successfully.', logPrefix);
             System.debug(LoggingLevel.INFO, logPrefix + 'Action executed successfully for tool: ' + har.LLMToolName__c);
         } else {
             NotificationService.sendUserNotification(
-                har.ChatSession__r.User__c,
+                har.AgentExecution__r.User__c,
                 'Action Failed After Approval: "' + har.LLMToolName__c + '"',
                 'Your request was approved, but the action failed to execute. ' + String.valueOf(actionResult.outputForLlm),
-                har.ChatSession__c
+                har.AgentExecution__c
             );
             updateHARStatus(har, 'Error', 'Action failed post-approval: ' + actionResult.internalDetails, logPrefix);
             System.debug(
@@ -196,7 +187,7 @@ public with sharing class ResumeApprovedFrameworkAction {
             );
         }
 
-        OrchestrationService.clearPendingDetailsFromMessage(har.OriginalAssistantMessage__c, logPrefix);
+        // Note: Pending approval details cleanup handled by ExecutionStepService
     }
 
     /**

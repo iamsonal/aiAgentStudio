@@ -33,25 +33,26 @@ public with sharing class AIAssistantController {
     }
 
     /**
-     * Processes a user message for a given chat session, routing between synchronous and asynchronous execution as needed.
-     * Handles session validation, error handling, and returns a response map for the UI.
+     * Processes a user message for a given agent execution, routing between synchronous and asynchronous execution as needed.
+     * Now uses the unified AgentExecution__c data model exclusively. Handles execution validation, error handling,
+     * and returns a response map for the UI.
      *
-     * @param sessionId      The ID of the chat session.
+     * @param sessionId      The ID of the agent execution (AgentExecution__c).
      * @param userMessage    The message content from the user.
      * @param currentRecordId The current record context, if any.
-     * *param turnIdentifier The unique identifier for the current turn.
+     * @param turnIdentifier The unique identifier for the current turn.
      * @return               A response map containing success, message, and error details for the UI.
      * @throws AuraHandledException for validation or access errors.
      */
     @AuraEnabled
     public static Map<String, Object> sendMessage(Id sessionId, String userMessage, Id currentRecordId, String turnIdentifier) {
-        String logPrefix = '[AIController Turn:' + turnIdentifier.left(8) + ' Sess:' + sessionId + '] ';
-        System.debug(LoggingLevel.INFO, logPrefix + 'Starting message processing. Page context record: ' + currentRecordId);
+        String logPrefix = '[AIController Turn:' + turnIdentifier.left(8) + ' Exec:' + sessionId + '] ';
+        System.debug(LoggingLevel.INFO, logPrefix + 'Starting message processing for AgentExecution. Page context record: ' + currentRecordId);
 
         if (sessionId == null || String.isBlank(userMessage)) {
-            throw new AuraHandledException('Session ID and User Message are required.');
+            throw new AuraHandledException('Execution ID and User Message are required.');
         }
-        validateSessionAccess(sessionId);
+        validateExecutionAccess(sessionId);
         Id originalUserId = UserInfo.getUserId();
         Exception controllerProcessingException = null;
         Map<String, Object> lwcResponse = new Map<String, Object>{ 'success' => false, 'sessionId' => sessionId };
@@ -65,36 +66,38 @@ public with sharing class AIAssistantController {
         OrchestrationService orchestrationSvc = new OrchestrationService();
 
         try {
-            ChatSession__c session = [
+            AgentExecution__c execution = [
                 SELECT
                     Id,
                     ProcessingStatus__c,
                     AIAgentDefinition__c,
                     AIAgentDefinition__r.LLMConfiguration__c,
                     AIAgentDefinition__r.IsActive__c,
-                    AIAgentDefinition__r.RequiresServiceUserContext__c
-                FROM ChatSession__c
+                    AIAgentDefinition__r.RequiresServiceUserContext__c,
+                    User__c,
+                    ServiceUser__c
+                FROM AgentExecution__c
                 WHERE Id = :sessionId
                 LIMIT 1
             ];
 
-            if (session.ProcessingStatus__c != AIAgentConstants.STATUS_IDLE && session.ProcessingStatus__c != AIAgentConstants.STATUS_FAILED) {
-                throw new AuraHandledException('Assistant is currently busy (Status: ' + session.ProcessingStatus__c + '). Please wait.');
+            if (execution.ProcessingStatus__c != AIAgentConstants.STATUS_IDLE && execution.ProcessingStatus__c != AIAgentConstants.STATUS_FAILED) {
+                throw new AuraHandledException('Assistant is currently busy (Status: ' + execution.ProcessingStatus__c + '). Please wait.');
             }
 
-            Id agentDefinitionId = session.AIAgentDefinition__c;
-            Id llmConfigId = session.AIAgentDefinition__r.LLMConfiguration__c;
+            Id agentDefinitionId = execution.AIAgentDefinition__c;
+            Id llmConfigId = execution.AIAgentDefinition__r.LLMConfiguration__c;
 
             if (
                 agentDefinitionId == null ||
                 llmConfigId == null ||
-                session.AIAgentDefinition__r == null ||
-                !session.AIAgentDefinition__r.IsActive__c
+                execution.AIAgentDefinition__r == null ||
+                !execution.AIAgentDefinition__r.IsActive__c
             ) {
-                throw new ConfigurationException('Agent Definition is missing, inactive, or lacks required LLM Configuration on the Session.');
+                throw new ConfigurationException('Agent Definition is missing, inactive, or lacks required LLM Configuration on the AgentExecution.');
             }
 
-            if (session.AIAgentDefinition__r.RequiresServiceUserContext__c) {
+            if (execution.AIAgentDefinition__r.RequiresServiceUserContext__c) {
                 AIAgentHttpClient.AIAgentMessageRequest httpRequest = new AIAgentHttpClient.AIAgentMessageRequest(
                     String.valueOf(sessionId),
                     String.valueOf(originalUserId),
@@ -125,9 +128,10 @@ public with sharing class AIAssistantController {
 
             // Process in current user context without switching
             System.debug(LoggingLevel.INFO, logPrefix + 'Processing message in original user context (no service user required)');
-            String outcome = processMessageDirectly(
+            String outcome = processMessageDirectlyUnified(
                 sessionId,
                 originalUserId,
+                execution.ServiceUser__c != null ? execution.ServiceUser__c : execution.User__c, // Use service user if available, otherwise original user
                 agentDefinitionId,
                 llmConfigId,
                 turnIdentifier,
@@ -140,12 +144,9 @@ public with sharing class AIAssistantController {
 
             if (outcome == OrchestrationService.OUTCOME_FAILED) {
                 lwcResponse.put('success', false);
-                try {
-                    ChatSession__c latestSessionState = [SELECT LastProcessingError__c FROM ChatSession__c WHERE Id = :sessionId];
-                    lwcResponse.put('error', latestSessionState?.LastProcessingError__c ?? 'Agent processing failed.');
-                } catch (Exception queryEx) {
-                    lwcResponse.put('error', 'Agent processing failed.');
-                }
+                // Note: AgentExecution__c doesn't have LastProcessingError__c field yet
+                // For now, provide a generic error message. This can be enhanced later with error tracking.
+                lwcResponse.put('error', 'Agent processing failed. Please try again.');
             } else if (outcome == OrchestrationService.OUTCOME_COMPLETED) {
                 lwcResponse.put('success', true);
                 lwcResponse.put('message', 'Agent responded.');
@@ -193,14 +194,15 @@ public with sharing class AIAssistantController {
     }
 
     /**
-     * Creates a new chat session, intelligently determining the correct initial context based on user and page context.
+     * Creates a new agent execution for conversational interaction, intelligently determining the correct initial context
+     * based on user and page context. This method now uses the unified AgentExecution__c data model exclusively.
      *   - For internal users on a record page, the context is the record.
      *   - For internal users on a homepage, there is no record context.
      *   - For community users, the context is the record page if present, otherwise it defaults to the user's own Contact record.
      *
      * @param recordId             The ID of the record the user is on, if any. Can be null.
      * @param requestedAgentDevName The developer name of the agent requested by the client, if any.
-     * @return                     The SessionDetails wrapper containing the new session ID and welcome message.
+     * @return                     The SessionDetails wrapper containing the new execution ID and welcome message.
      * @throws AuraHandledException for configuration errors or permissions issues.
      */
     @AuraEnabled
@@ -223,21 +225,21 @@ public with sharing class AIAssistantController {
                 );
             }
 
-            // 3. CREATE THE SESSION RECORD
-            String sessionLabel = 'Chat - ' + Datetime.now().format('MM/dd HH:mm:ss');
-            ChatSession__c session = new ChatSession__c(
-                AIAgentDefinition__c = agentDef.Id,
-                SessionLabel__c = sessionLabel,
-                StartTime__c = Datetime.now(),
-                LastActivityTime__c = Datetime.now(),
-                ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
-                OwnerId = userId,
-                User__c = userId
+            // 3. CREATE THE AGENT EXECUTION RECORD using ExecutionContextService
+            ExecutionContextService executionContextService = new ExecutionContextService();
+            String executionLabel = 'Chat - ' + Datetime.now().format('MM/dd HH:mm:ss');
+
+            Id newExecutionId = executionContextService.createExecution(
+                'Conversational', // ExecutionType__c
+                agentDef.Id, // AIAgentDefinition__c
+                'Chat', // TriggerSource__c
+                executionLabel, // TriggerPayload__c (using label as trigger data)
+                recordId, // SourceRecordId__c
+                userId, // User__c
+                null // ServiceUser__c (no service user needed for conversational)
             );
 
-            Database.insert(session, true);
-            Id newSessionId = session.Id;
-            System.debug(LoggingLevel.INFO, logPrefix + 'Successfully created new chat session: ' + newSessionId);
+            System.debug(LoggingLevel.INFO, logPrefix + 'Successfully created new agent execution: ' + newExecutionId);
 
             // 4. PROCESS WELCOME MESSAGE
             String welcomeMessage = '';
@@ -252,7 +254,7 @@ public with sharing class AIAssistantController {
 
             // 5. CONSTRUCT THE RESPONSE DTO
             SessionDetails response = new SessionDetails();
-            response.sessionId = newSessionId;
+            response.sessionId = newExecutionId; // Now returns AgentExecution__c ID instead of ChatSession__c ID
             response.welcomeMessage = welcomeMessage;
             response.transientMessagesEnabled = true;
 
@@ -283,22 +285,23 @@ public with sharing class AIAssistantController {
     }
 
     /**
-     * Retrieves the chat history for a given session, applying filtering and pagination for UI display.
+     * Retrieves the execution history for a given agent execution, applying filtering and pagination for UI display.
+     * Now uses the unified AgentExecution__c and ExecutionStep__c data model exclusively.
      *
-     * @param sessionId              The ID of the chat session.
-     * @param limitCount             The maximum number of messages to return.
-     * @param oldestMessageTimestamp The timestamp to paginate older messages from.
-     * @return                       A list of formatted message maps for the UI.
+     * @param sessionId              The ID of the agent execution (AgentExecution__c).
+     * @param limitCount             The maximum number of steps to return.
+     * @param oldestMessageTimestamp The timestamp to paginate older steps from.
+     * @return                       A list of formatted step maps for the UI.
      * @throws AuraHandledException for validation or access errors.
      */
     @AuraEnabled
     public static List<Map<String, Object>> getChatHistory(Id sessionId, Integer limitCount, DateTime oldestMessageTimestamp) {
         if (sessionId == null) {
-            throw new AuraHandledException('Session ID required.');
+            throw new AuraHandledException('Execution ID required.');
         }
         Integer settingsLimit = AIAgentFrameworkSettings.getDefaultHistoryLimit();
         Integer effectiveLimit = (limitCount != null && limitCount > 0) ? Math.min(limitCount, settingsLimit) : settingsLimit;
-        validateSessionAccess(sessionId);
+        validateExecutionAccess(sessionId);
 
         List<Map<String, Object>> formattedMessagesForUi = new List<Map<String, Object>>();
 
@@ -307,40 +310,53 @@ public with sharing class AIAssistantController {
             '[AIController.getChatHistory] Session: ' + sessionId + ', Limit: ' + effectiveLimit + ', OlderThan: ' + oldestMessageTimestamp
         );
         try {
-            // Note: We might need to query more records initially to ensure we have enough "displayable" messages after filtering.
+            // Note: We might need to query more records initially to ensure we have enough "displayable" steps after filtering.
             // Let's start by querying double the limit to have a good buffer.
             Integer queryLimitWithBuffer = effectiveLimit * 2;
             String sortOrder = 'DESC';
 
-            // 1. Get RAW history from the service. No changes to the service itself.
-            List<ChatMessage__c> rawMessages = ChatMessageService.getHistory(sessionId, queryLimitWithBuffer, sortOrder, oldestMessageTimestamp);
+            // 1. Get RAW history from the ExecutionStepService using the unified data model
+            ExecutionStepService executionStepService = new ExecutionStepService();
+            List<ExecutionStep__c> rawSteps = getExecutionStepsWithTimestampPagination(
+                executionStepService,
+                sessionId,
+                queryLimitWithBuffer,
+                sortOrder,
+                oldestMessageTimestamp
+            );
 
-            // 2. Process and filter the raw messages
-            for (ChatMessage__c msg : rawMessages) {
-                String role = msg.Role__c?.toLowerCase();
+            // 2. Process and filter the raw steps
+            for (ExecutionStep__c step : rawSteps) {
+                String role = step.StepRole__c?.toLowerCase();
 
-                // a. SKIP all 'tool' role messages
+                // a. SKIP all 'tool' role steps
                 if (role == AIAgentConstants.ROLE_TOOL) {
                     continue;
                 }
 
-                // b. SKIP 'assistant' messages that have NO text content.
-                //    This now covers both fully empty messages and those that ONLY contain tool calls.
-                if (role == AIAgentConstants.ROLE_ASSISTANT && String.isBlank(msg.Content__c)) {
+                // b. SKIP internal system steps for UI display
+                if (step.IsInternal__c == true) {
                     continue;
                 }
 
-                // Since we are now filtering out all non-text messages from the assistant,
-                // the `finalContentForUi` logic is no longer needed. We just use msg.Content__c.
-                Map<String, Object> fMsg = new Map<String, Object>{
-                    'id' => msg.Id,
+                // c. SKIP 'assistant' steps that have NO text content.
+                //    This covers both fully empty steps and those that ONLY contain tool calls.
+                if (role == AIAgentConstants.ROLE_ASSISTANT && String.isBlank(step.Content__c)) {
+                    continue;
+                }
+
+                // d. Format step for UI display
+                Map<String, Object> fStep = new Map<String, Object>{
+                    'id' => step.Id,
                     'role' => role,
-                    'content' => msg.Content__c, // Always use the direct content now
-                    'timestamp' => msg.Timestamp__c,
-                    'externalId' => msg.ExternalId__c
+                    'content' => step.Content__c,
+                    'timestamp' => step.Timestamp__c,
+                    'stepType' => step.StepType__c,
+                    'turnIdentifier' => step.TurnIdentifier__c,
+                    'processingTimeMs' => step.ProcessingDuration__c
                 };
 
-                formattedMessagesForUi.add(fMsg);
+                formattedMessagesForUi.add(fStep);
 
                 if (formattedMessagesForUi.size() >= effectiveLimit) {
                     break;
@@ -363,27 +379,65 @@ public with sharing class AIAssistantController {
     }
 
     /**
-     * Validates that the current user has access to the specified chat session.
+     * Helper method to retrieve ExecutionStep__c records with timestamp pagination support.
+     * This bridges the gap until ExecutionStepService has native timestamp pagination support.
      *
-     * @param sessionId The ID of the chat session to validate.
-     * @throws AuraHandledException if the session is not found or access is denied.
+     * @param executionStepService The ExecutionStepService instance
+     * @param executionId The execution ID
+     * @param limitCount The maximum number of steps to retrieve
+     * @param sortOrder The sort order ('ASC' or 'DESC')
+     * @param olderThanTimestamp The timestamp boundary for pagination
+     * @return List of ExecutionStep__c records
      */
-    private static void validateSessionAccess(Id sessionId) {
+    private static List<ExecutionStep__c> getExecutionStepsWithTimestampPagination(
+        ExecutionStepService executionStepService,
+        Id executionId,
+        Integer limitCount,
+        String sortOrder,
+        DateTime olderThanTimestamp
+    ) {
+        // For now, use the basic getHistory method and apply timestamp filtering
+        // This can be optimized in ExecutionStepService later with native timestamp pagination
+        List<ExecutionStep__c> allSteps = executionStepService.getHistory(executionId, limitCount, sortOrder, null, false);
+
+        if (olderThanTimestamp == null) {
+            return allSteps;
+        }
+
+        // Apply timestamp filtering
+        List<ExecutionStep__c> filteredSteps = new List<ExecutionStep__c>();
+        for (ExecutionStep__c step : allSteps) {
+            if (step.Timestamp__c < olderThanTimestamp) {
+                filteredSteps.add(step);
+            }
+        }
+
+        return filteredSteps;
+    }
+
+    /**
+     * Validates that the current user has access to the specified agent execution.
+     *
+     * @param executionId The ID of the agent execution to validate.
+     * @throws AuraHandledException if the execution is not found or access is denied.
+     */
+    private static void validateExecutionAccess(Id executionId) {
         try {
-            Integer c = [SELECT COUNT() FROM ChatSession__c WHERE Id = :sessionId AND OwnerId = :UserInfo.getUserId() WITH USER_MODE];
+            Integer c = [SELECT COUNT() FROM AgentExecution__c WHERE Id = :executionId AND User__c = :UserInfo.getUserId() WITH USER_MODE];
             if (c == 0)
-                throw new AuraHandledException('Chat session not found or access denied.');
+                throw new AuraHandledException('Agent execution not found or access denied.');
         } catch (Exception e) {
-            throw new AuraHandledException('Error verifying session access: ' + e.getMessage());
+            throw new AuraHandledException('Error verifying execution access: ' + e.getMessage());
         }
     }
 
     /**
-     * Retrieves details of the most recent, active chat session for the specified agent and user, including a processed welcome message.
+     * Retrieves details of the most recent, active agent execution for the specified agent and user, including a processed welcome message.
+     * Now uses the unified AgentExecution__c data model exclusively.
      *
      * @param agentDeveloperName The developer name of the agent.
      * @param recordId           The current record context, if any.
-     * @return                   SessionDetails wrapper containing the session ID and processed welcome message, or null if not found.
+     * @return                   SessionDetails wrapper containing the execution ID and processed welcome message, or null if not found.
      */
     @AuraEnabled(Cacheable=true)
     public static SessionDetails getMostRecentSession(String agentDeveloperName, Id recordId) {
@@ -395,21 +449,21 @@ public with sharing class AIAssistantController {
                 return null; // Agent not found or inactive
             }
 
-            List<ChatSession__c> sessions = [
+            List<AgentExecution__c> executions = [
                 SELECT Id
-                FROM ChatSession__c
-                WHERE OwnerId = :userId AND AIAgentDefinition__c = :agentDef.Id
+                FROM AgentExecution__c
+                WHERE User__c = :userId AND AIAgentDefinition__c = :agentDef.Id AND ExecutionType__c = 'Conversational'
                 WITH USER_MODE
                 ORDER BY LastActivityTime__c DESC NULLS LAST
                 LIMIT 1
             ];
 
-            if (sessions.isEmpty()) {
-                return null; // No existing session found
+            if (executions.isEmpty()) {
+                return null; // No existing execution found
             }
 
             SessionDetails response = new SessionDetails();
-            response.sessionId = sessions[0].Id;
+            response.sessionId = executions[0].Id; // Returns AgentExecution__c ID for UI compatibility
 
             // --- Start of Merged Logic ---
             String template = agentDef.WelcomeMessageTemplate__c;
@@ -428,10 +482,11 @@ public with sharing class AIAssistantController {
     }
 
     /**
-     * Deletes all messages from a given message (by externalId) onward in a chat session, enabling a 'start over' feature.
+     * Deletes all execution steps from a given step (by externalId) onward in an agent execution, enabling a 'start over' feature.
+     * Now uses the unified ExecutionStep__c data model exclusively.
      *
-     * @param sessionId  The ID of the chat session.
-     * @param externalId The external ID of the message to start over from.
+     * @param sessionId  The ID of the agent execution.
+     * @param externalId The external ID of the step to start over from.
      * @throws AuraHandledException for validation, access, or DML errors.
      */
     @AuraEnabled
@@ -441,42 +496,42 @@ public with sharing class AIAssistantController {
         //            throw new AuraHandledException('You do not have the required permissions to perform this action.');
         //        }
 
-        // --- 2. VALIDATION: Ensure the user owns the session and the message belongs to it ---
-        validateSessionAccess(sessionId);
+        // --- 2. VALIDATION: Ensure the user owns the execution and the step belongs to it ---
+        validateExecutionAccess(sessionId);
         String logPrefix = '[AIController.startOverFromMessage] ';
 
         try {
-            // --- 3. LOGIC: Get the timestamp of the message to delete from ---
-            // Query by the reliable ExternalId__c field now
-            List<ChatMessage__c> messages = [
+            // --- 3. LOGIC: Get the timestamp of the step to delete from ---
+            // Query by the reliable ExternalId__c field (assuming ExecutionStep__c has this field)
+            List<ExecutionStep__c> steps = [
                 SELECT Timestamp__c
-                FROM ChatMessage__c
-                WHERE ExternalId__c = :externalId AND ChatSession__c = :sessionId
+                FROM ExecutionStep__c
+                WHERE ExternalId__c = :externalId AND AgentExecution__c = :sessionId
                 WITH USER_MODE
                 LIMIT 1
             ];
 
-            if (messages.isEmpty()) {
-                throw new AuraHandledException('Target message not found or does not belong to this session.');
+            if (steps.isEmpty()) {
+                throw new AuraHandledException('Target step not found or does not belong to this execution.');
             }
-            Datetime targetTimestamp = messages[0].Timestamp__c;
+            Datetime targetTimestamp = steps[0].Timestamp__c;
 
-            // --- 4. DML: Delete the target message and all subsequent messages in a single, efficient operation ---
-            List<ChatMessage__c> messagesToDelete = [
+            // --- 4. DML: Delete the target step and all subsequent steps in a single, efficient operation ---
+            List<ExecutionStep__c> stepsToDelete = [
                 SELECT Id
-                FROM ChatMessage__c
-                WHERE ChatSession__c = :sessionId AND Timestamp__c >= :targetTimestamp
+                FROM ExecutionStep__c
+                WHERE AgentExecution__c = :sessionId AND Timestamp__c >= :targetTimestamp
             ];
 
-            if (!messagesToDelete.isEmpty()) {
+            if (!stepsToDelete.isEmpty()) {
                 System.debug(
-                    logPrefix + 'Deleting ' + messagesToDelete.size() + ' messages from session ' + sessionId + ' starting at ' + targetTimestamp
+                    logPrefix + 'Deleting ' + stepsToDelete.size() + ' steps from execution ' + sessionId + ' starting at ' + targetTimestamp
                 );
-                delete messagesToDelete;
+                delete stepsToDelete;
             }
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Error starting over from message with externalId ' + externalId + ': ' + e.getMessage());
-            throw new AuraHandledException('An error occurred while deleting messages: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error starting over from step with externalId ' + externalId + ': ' + e.getMessage());
+            throw new AuraHandledException('An error occurred while deleting steps: ' + e.getMessage());
         }
     }
 
@@ -506,9 +561,10 @@ public with sharing class AIAssistantController {
      * @return                       The outcome string from the orchestration service.
      * @throws ControllerException if the LLM interaction returns null.
      */
-    private static String processMessageDirectly(
-        Id sessionId,
-        Id userId,
+    private static String processMessageDirectlyUnified(
+        Id executionId,
+        Id originalUserId,
+        Id executionUserId,
         Id agentDefinitionId,
         Id llmConfigId,
         String turnIdentifier,
@@ -516,20 +572,17 @@ public with sharing class AIAssistantController {
         LLMInteractionService.MessageData currentUserMessageData,
         OrchestrationService orchestrationSvc
     ) {
-        Id originalUserId = userId;
-        Id executionUserId = userId;
-
         // Initialize the decision step logger - single instance for the entire turn
-        AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(sessionId, turnIdentifier, originalUserId);
+        AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(executionId, turnIdentifier, originalUserId);
 
         // Log the user input as the first step
         if (currentUserMessageData != null && String.isNotBlank(currentUserMessageData.content)) {
             decisionLogger.logUserInput('User Input Received', currentUserMessageData.content, null);
         }
 
-        // Instantiate LLMInteractionService with current user context and decision logger
+        // Instantiate LLMInteractionService with unified execution context and decision logger
         LLMInteractionService interactionService = new LLMInteractionService(
-            sessionId,
+            executionId,
             originalUserId,
             agentDefinitionId,
             llmConfigId,
@@ -547,10 +600,10 @@ public with sharing class AIAssistantController {
             throw new ControllerException('LLMInteractionService returned a null result.');
         }
 
-        // Call OrchestrationService with the decision logger
-        return orchestrationSvc.processLlmResultWithLogger(
+        // Call OrchestrationService with the unified execution model
+        return orchestrationSvc.processLlmResult(
             llmResult,
-            sessionId,
+            executionId,
             originalUserId,
             executionUserId,
             agentDefinitionId,

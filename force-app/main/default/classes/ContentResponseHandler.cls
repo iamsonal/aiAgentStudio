@@ -31,7 +31,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
         String logPrefix = context.logPrefix + '[ContentHandler] ';
         System.debug(
             LoggingLevel.INFO,
-            logPrefix + 'Handling text-only LLM response for session: ' + context.sessionId + ', turn: ' + context.turnIdentifier
+            logPrefix + 'Handling text-only LLM response for session: ' + context.executionId + ', turn: ' + context.turnIdentifier
         );
 
         // Use the shared decision step logger from the context
@@ -39,14 +39,17 @@ public class ContentResponseHandler implements ILLMResponseHandler {
 
         LLMInteractionService.MessageData assistantData = context.llmResult.assistantMessageData;
 
-        // Persist the user message as the parent of the assistant's reply
-        Id savedUserMessageId = ChatMessageService.saveUserMessage(
-            context.sessionId,
-            context.turnIdentifier,
-            context.userMessageData,
-            null,
-            logPrefix
-        );
+        // Persist the user message as the parent of the assistant's reply using ExecutionStep__c
+        Id savedUserMessageId = null;
+        if (context.userMessageData != null && String.isNotBlank(context.userMessageData.content)) {
+            ExecutionStepService executionStepService = new ExecutionStepService();
+            savedUserMessageId = executionStepService.createUserInputStep(
+                context.executionId,
+                context.userMessageData.content,
+                context.turnIdentifier,
+                context.currentTurnCount
+            );
+        }
 
         if (String.isBlank(assistantData?.content)) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Validation failed: LLM response content is empty.');
@@ -62,7 +65,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
             );
 
             context.turnLifecycleSvc.failTurn(
-                context.sessionId,
+                context.executionId,
                 context.turnIdentifier,
                 'LLM returned empty successful response.',
                 AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
@@ -71,18 +74,21 @@ public class ContentResponseHandler implements ILLMResponseHandler {
             return OrchestrationService.OUTCOME_FAILED;
         }
 
-        Id savedAssistantMessageId = ChatMessageService.saveAssistantMessage(
-            context.sessionId,
-            context.turnIdentifier,
-            savedUserMessageId,
-            assistantData,
-            null,
-            logPrefix
-        );
+        // Save assistant message using ExecutionStep__c
+        Id savedAssistantMessageId = null;
+        if (String.isNotBlank(assistantData.content)) {
+            ExecutionStepService executionStepService = new ExecutionStepService();
+            savedAssistantMessageId = executionStepService.createAgentResponseStep(
+                context.executionId,
+                assistantData.content,
+                context.turnIdentifier,
+                context.currentTurnCount
+            );
+        }
 
         // Commit the turn context to the ledger for traceability
         try {
-            context.contextManagerSvc.commitTurnContext(context.sessionId, context.currentTurnCount, context.currentPageRecordId, null);
+            context.contextManagerSvc.commitExecutionTurnContext(context.executionId, context.currentTurnCount, context.currentPageRecordId, null);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Context ledger update failed: ' + e.getMessage());
         }
@@ -93,7 +99,8 @@ public class ContentResponseHandler implements ILLMResponseHandler {
             if (String.isNotBlank(agentConfig.MemoryStrategy__c)) {
                 LLMConfiguration__c llmConfig = AIAgentConfigService.getLLMConfiguration(agentConfig.LLMConfiguration__c);
                 IMemoryManager memoryManager = MemoryManagerFactory.getManager(agentConfig.MemoryStrategy__c);
-                memoryManager.onTurnCompletion(context.sessionId, agentConfig, llmConfig, logPrefix);
+                // Note: Memory manager will need to be updated to handle both execution models
+                memoryManager.onTurnCompletion(context.executionId, agentConfig, llmConfig, logPrefix);
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Memory management completion hook failed: ' + e.getMessage());
@@ -107,7 +114,8 @@ public class ContentResponseHandler implements ILLMResponseHandler {
             assistantData.processingTimeMs
         );
 
-        context.turnLifecycleSvc.completeTurnSuccessfully(context.sessionId, context.turnIdentifier, savedAssistantMessageId, logPrefix);
+        // Complete the turn successfully
+        context.turnLifecycleSvc.completeTurnSuccessfully(context.executionId, context.turnIdentifier, savedAssistantMessageId, logPrefix);
         return OrchestrationService.OUTCOME_COMPLETED;
     }
 }

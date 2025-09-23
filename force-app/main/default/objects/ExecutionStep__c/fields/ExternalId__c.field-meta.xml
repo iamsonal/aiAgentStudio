@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExternalId__c</fullName>
+    <caseSensitive>false</caseSensitive>
+    <description>External identifier for this execution step, used by UI components for message identification and operations like 'start over from message'.</description>
+    <externalId>true</externalId>
+    <inlineHelpText>Unique external identifier for this step.</inlineHelpText>
+    <label>External ID</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>
+
