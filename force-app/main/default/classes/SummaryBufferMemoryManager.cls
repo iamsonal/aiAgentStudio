@@ -25,9 +25,8 @@ public class SummaryBufferMemoryManager implements IMemoryManager {
     /**
      * Retrieves execution history payload containing only unsummarized messages.
      * Loads messages/steps that have not yet been processed into the execution summary.
-     * Automatically detects whether the executionId refers to a ChatSession__c or AgentExecution__c.
      *
-     * @param executionId     The execution ID to retrieve history for (ChatSession__c or AgentExecution__c).
+     * @param executionId     The execution ID to retrieve history for.
      * @param agentConfig     Agent configuration containing memory settings.
      * @param llmConfig       LLM configuration for the execution.
      * @param loggingContext  Optional logging context for debug messages.

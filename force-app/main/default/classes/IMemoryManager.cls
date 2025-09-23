@@ -9,7 +9,6 @@
 /**
  * @description
  * IMemoryManager defines the contract for all conversation memory management strategies in AI agent interactions.
- * Updated to support both legacy ChatSession__c and new unified AgentExecution__c models.
  *
  * Responsibilities:
  *   - Standardizes how execution history is loaded, formatted, and maintained across executions
@@ -26,10 +25,8 @@
 public interface IMemoryManager {
     /**
      * Loads and formats the execution history for a given execution according to the memory strategy.
-     * This method automatically detects whether the executionId refers to a ChatSession__c or AgentExecution__c
-     * and loads the appropriate history data.
      *
-     * @param executionId    The Id of the ChatSession__c or AgentExecution__c.
+     * @param executionId    The Id of the AgentExecution__c.
      * @param agentConfig    The full AIAgentDefinition__c record for the current agent.
      * @param llmConfig      The full LLMConfiguration__c record for the current agent.
      * @param loggingContext A string prefix for logging and diagnostics.
@@ -50,9 +47,8 @@ public interface IMemoryManager {
 
     /**
      * Hook called by the framework after a turn successfully completes.
-     * This method automatically detects whether the executionId refers to a ChatSession__c or AgentExecution__c.
      *
-     * @param executionId    The Id of the ChatSession__c or AgentExecution__c.
+     * @param executionId    The Id of the AgentExecution__c.
      * @param agentConfig    The full AIAgentDefinition__c record.
      * @param llmConfig      The full LLMConfiguration__c record.
      * @param loggingContext A string prefix for logging and diagnostics.

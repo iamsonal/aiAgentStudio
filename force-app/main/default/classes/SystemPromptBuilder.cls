@@ -395,7 +395,7 @@ public inherited sharing class SystemPromptBuilder {
     /**
      * Retrieves the conversation summary for the execution if using the Summary Buffer memory strategy.
      *
-     * @param executionId  The execution ID (ChatSession__c or AgentExecution__c).
+     * @param executionId  The execution ID.
      * @param agentConfig  Agent configuration.
      * @param logPrefix    Logging prefix for debug messages.
      * @return             The conversation summary string, or null if not found or not applicable.

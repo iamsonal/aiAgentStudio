@@ -9,7 +9,7 @@
 /**
  * @description
  * ExecutionContextService manages the lifecycle and state of AgentExecution__c records in the unified agentic framework.
- * Replaces ChatSessionStateService to support all execution types: conversational, batch, scheduled, email, and triggered.
+ * Support all execution types: conversational, batch, scheduled, email, and triggered.
  *
  * Responsibilities:
  *   - Create and manage AgentExecution__c records for all execution patterns

@@ -5,7 +5,6 @@
     <inlineHelpText>Select which execution types can use this capability.</inlineHelpText>
     <label>Execution Context</label>
     <required>false</required>
-    <trackHistory>false</trackHistory>
     <trackTrending>false</trackTrending>
     <type>MultiselectPicklist</type>
     <valueSet>

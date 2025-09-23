@@ -254,7 +254,7 @@ public with sharing class AIAssistantController {
 
             // 5. CONSTRUCT THE RESPONSE DTO
             SessionDetails response = new SessionDetails();
-            response.sessionId = newExecutionId; // Now returns AgentExecution__c ID instead of ChatSession__c ID
+            response.sessionId = newExecutionId; // Now returns AgentExecution__c ID
             response.welcomeMessage = welcomeMessage;
             response.transientMessagesEnabled = true;
 

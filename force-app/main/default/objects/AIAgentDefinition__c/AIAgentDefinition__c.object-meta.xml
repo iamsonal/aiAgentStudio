@@ -150,7 +150,7 @@
     <enableHistory>false</enableHistory>
     <enableLicensing>false</enableLicensing>
     <enableReports>false</enableReports>
-    <enableSearch>false</enableSearch>
+    <enableSearch>true</enableSearch>
     <enableSharing>true</enableSharing>
     <enableStreamingApi>true</enableStreamingApi>
     <externalSharingModel>Private</externalSharingModel>
@@ -160,7 +160,12 @@
         <type>Text</type>
     </nameField>
     <pluralLabel>AI Agent Definitions</pluralLabel>
-    <searchLayouts></searchLayouts>
+    <searchLayouts>
+        <searchResultsAdditionalFields>DeveloperName__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>LLMConfiguration__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>MemoryStrategy__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>IsActive__c</searchResultsAdditionalFields>
+    </searchLayouts>
     <sharingModel>ReadWrite</sharingModel>
     <visibility>Public</visibility>
 </CustomObject>

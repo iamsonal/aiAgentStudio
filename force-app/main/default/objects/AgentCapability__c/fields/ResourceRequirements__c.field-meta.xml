@@ -5,7 +5,6 @@
     <inlineHelpText>Resource requirements and limits for this capability.</inlineHelpText>
     <label>Resource Requirements</label>
     <length>131072</length>
-    <trackHistory>false</trackHistory>
     <trackTrending>false</trackTrending>
     <type>LongTextArea</type>
     <visibleLines>3</visibleLines>
