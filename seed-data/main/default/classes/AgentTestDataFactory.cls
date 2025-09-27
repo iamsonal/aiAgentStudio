@@ -52,8 +52,8 @@ public with sharing class AgentTestDataFactory {
             // Delete in order to avoid dependency errors
             delete [SELECT Id FROM AgentDecisionStep__c];
             delete [SELECT Id FROM HumanApprovalRequest__c];
-            delete [SELECT Id FROM ChatMessage__c];
-            delete [SELECT Id FROM ChatSession__c];
+            delete [SELECT Id FROM ExecutionStep__c];
+            delete [SELECT Id FROM AgentExecution__c];
             delete [SELECT Id FROM AgentCapability__c];
             delete [SELECT Id FROM AgentContextConfig__c];
             delete [SELECT Id FROM AIAgentDefinition__c];

@@ -17,7 +17,6 @@
  * This class contains only static, immutable values and is not intended to be instantiated or extended.
  */
 public inherited sharing class AIAgentConstants {
-    // Processing Status Values (ChatSession__c.ProcessingStatus__c)
     public static final String STATUS_IDLE = 'Idle'; // Ready for new input or processing completed successfully (terminal state)
     public static final String STATUS_PROCESSING = 'Processing'; // Active processing in progress (LLM call, synchronous action execution)
     public static final String STATUS_AWAITING_ACTION = 'Awaiting Action'; // Action requested and queued for execution

@@ -46,10 +46,20 @@ public class AsyncFrameworkRequestTriggerHandler {
                     handleFollowUpLLM(payloadJson);
                 } else if ('ProcessLLMMessage'.equalsIgnoreCase(jobType)) {
                     handleProcessLLMMessage(payloadJson);
+                } else if ('ProcessDataChange'.equalsIgnoreCase(jobType)) {
+                    handleProcessDataChange(payloadJson);
+                } else if ('ProcessBatchJob'.equalsIgnoreCase(jobType)) {
+                    handleProcessBatchJob(payloadJson);
+                } else if ('ProcessScheduledTask'.equalsIgnoreCase(jobType)) {
+                    handleProcessScheduledTask(payloadJson);
+                } else if ('ProcessEmailTrigger'.equalsIgnoreCase(jobType)) {
+                    handleProcessEmailTrigger(payloadJson);
                 } else {
                     System.debug(
                         LoggingLevel.ERROR,
-                        '[AsyncFrameworkRequestTriggerHandler] Unknown JobType received: ' + jobType + '. Valid types: ExecuteAction, FollowUpLLM, ProcessLLMMessage.'
+                        '[AsyncFrameworkRequestTriggerHandler] Unknown JobType received: ' +
+                            jobType +
+                            '. Valid types: ExecuteAction, FollowUpLLM, ProcessLLMMessage, ProcessDataChange, ProcessBatchJob, ProcessScheduledTask, ProcessEmailTrigger.'
                     );
                 }
             } catch (Exception e) {
@@ -137,7 +147,11 @@ public class AsyncFrameworkRequestTriggerHandler {
 
         System.debug(
             LoggingLevel.INFO,
-            logPrefix + '[AsyncFrameworkRequestTriggerHandler] Starting initial LLM message processing via Platform Event. SessionId=' + sessionId + ', TurnId=' + turnIdentifier
+            logPrefix +
+                '[AsyncFrameworkRequestTriggerHandler] Starting initial LLM message processing via Platform Event. SessionId=' +
+                sessionId +
+                ', TurnId=' +
+                turnIdentifier
         );
 
         try {
@@ -174,7 +188,7 @@ public class AsyncFrameworkRequestTriggerHandler {
             }
 
             // Process the LLM result using the orchestration service with the decision logger
-            String outcome = orchestrationSvc.processLlmResultWithLogger(
+            String outcome = orchestrationSvc.processLlmResult(
                 llmResult,
                 sessionId,
                 originalUserId,
@@ -214,10 +228,244 @@ public class AsyncFrameworkRequestTriggerHandler {
             } catch (Exception failEx) {
                 System.debug(
                     LoggingLevel.ERROR,
-                    logPrefix + '[AsyncFrameworkRequestTriggerHandler] CRITICAL: Failed to update session state after processing failure: ' + failEx.getMessage()
+                    logPrefix +
+                        '[AsyncFrameworkRequestTriggerHandler] CRITICAL: Failed to update session state after processing failure: ' +
+                        failEx.getMessage()
                 );
             }
         }
+    }
+
+    /**
+     * Handles data change triggered agent executions.
+     * Creates AgentExecution__c with trigger context and processes the data change event.
+     *
+     * @param payloadJson JSON payload containing trigger data, record information, and execution context.
+     */
+    private static void handleProcessDataChange(String payloadJson) {
+        String logPrefix = '[AsyncFrameworkRequestTriggerHandler.ProcessDataChange] ';
+        System.debug(LoggingLevel.INFO, logPrefix + 'Processing data change trigger event');
+
+        try {
+            Map<String, Object> payload = (Map<String, Object>) JSON.deserializeUntyped(payloadJson);
+
+            Id agentDefinitionId = (Id) payload.get('agentDefinitionId');
+            Id triggerRecordId = (Id) payload.get('triggerRecordId');
+            String changeType = (String) payload.get('changeType'); // INSERT, UPDATE, DELETE
+            Map<String, Object> recordData = (Map<String, Object>) payload.get('recordData');
+            Map<String, Object> oldValues = (Map<String, Object>) payload.get('oldValues');
+
+            // Create AgentExecution__c for this data change trigger
+            AgentExecution__c execution = new AgentExecution__c(
+                ExecutionType__c = 'Trigger',
+                AIAgentDefinition__c = agentDefinitionId,
+                TriggerSource__c = 'DataChange',
+                TriggerPayload__c = payloadJson,
+                ExecutionStatus__c = 'Processing',
+                StartTime__c = Datetime.now(),
+                LastActivityTime__c = Datetime.now(),
+                SourceRecordId__c = triggerRecordId,
+                CurrentTurnIdentifier__c = generateTurnIdentifier(),
+                ProcessingStatus__c = AIAgentConstants.STATUS_PROCESSING,
+                User__c = UserInfo.getUserId()
+            );
+            insert execution;
+
+            // Create initial execution step for the trigger event
+            ExecutionStep__c triggerStep = new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'TriggerInput',
+                StepRole__c = 'Trigger',
+                Content__c = 'Data change trigger: ' + changeType + ' on record ' + triggerRecordId,
+                ContentType__c = 'JSON',
+                Timestamp__c = Datetime.now(),
+                TurnIdentifier__c = execution.CurrentTurnIdentifier__c,
+                TurnCount__c = 1,
+                StepMetadata__c = JSON.serialize(
+                    new Map<String, Object>{ 'changeType' => changeType, 'recordId' => triggerRecordId, 'hasOldValues' => oldValues != null }
+                )
+            );
+            insert triggerStep;
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Created AgentExecution__c: ' + execution.Id + ' for data change trigger');
+
+            // TODO: Process the data change through the unified execution engine
+            // This would involve creating an ExecutionContext and routing to appropriate processors
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing data change trigger: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Handles batch job agent executions.
+     * Processes multiple items through batch execution patterns.
+     *
+     * @param payloadJson JSON payload containing batch job configuration and items to process.
+     */
+    private static void handleProcessBatchJob(String payloadJson) {
+        String logPrefix = '[AsyncFrameworkRequestTriggerHandler.ProcessBatchJob] ';
+        System.debug(LoggingLevel.INFO, logPrefix + 'Processing batch job execution');
+
+        try {
+            Map<String, Object> payload = (Map<String, Object>) JSON.deserializeUntyped(payloadJson);
+
+            Id agentDefinitionId = (Id) payload.get('agentDefinitionId');
+            List<Object> batchItems = (List<Object>) payload.get('batchItems');
+            Integer batchSize = (Integer) payload.get('batchSize');
+            String batchJobName = (String) payload.get('batchJobName');
+
+            // Create parent AgentExecution__c for the batch job
+            AgentExecution__c batchExecution = new AgentExecution__c(
+                ExecutionType__c = 'Batch',
+                AIAgentDefinition__c = agentDefinitionId,
+                TriggerSource__c = 'BatchJob',
+                TriggerPayload__c = payloadJson,
+                ExecutionStatus__c = 'Processing',
+                StartTime__c = Datetime.now(),
+                LastActivityTime__c = Datetime.now(),
+                CurrentTurnIdentifier__c = generateTurnIdentifier(),
+                ProcessingStatus__c = AIAgentConstants.STATUS_PROCESSING,
+                User__c = UserInfo.getUserId(),
+                ExecutionMetadata__c = JSON.serialize(
+                    new Map<String, Object>{ 'batchJobName' => batchJobName, 'totalItems' => batchItems.size(), 'batchSize' => batchSize }
+                )
+            );
+            insert batchExecution;
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Created batch AgentExecution__c: ' + batchExecution.Id + ' with ' + batchItems.size() + ' items'
+            );
+
+            // TODO: Process batch items through the unified execution engine
+            // This would involve creating child executions for each batch chunk
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing batch job: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Handles scheduled task agent executions.
+     * Processes scheduled/cron-based agent invocations.
+     *
+     * @param payloadJson JSON payload containing scheduled task configuration and context.
+     */
+    private static void handleProcessScheduledTask(String payloadJson) {
+        String logPrefix = '[AsyncFrameworkRequestTriggerHandler.ProcessScheduledTask] ';
+        System.debug(LoggingLevel.INFO, logPrefix + 'Processing scheduled task execution');
+
+        try {
+            Map<String, Object> payload = (Map<String, Object>) JSON.deserializeUntyped(payloadJson);
+
+            Id agentDefinitionId = (Id) payload.get('agentDefinitionId');
+            Id executionTriggerId = (Id) payload.get('executionTriggerId');
+            String scheduleName = (String) payload.get('scheduleName');
+            Datetime scheduledTime = (Datetime) payload.get('scheduledTime');
+
+            // Create AgentExecution__c for the scheduled task
+            AgentExecution__c execution = new AgentExecution__c(
+                ExecutionType__c = 'Scheduled',
+                AIAgentDefinition__c = agentDefinitionId,
+                TriggerSource__c = 'Schedule',
+                TriggerPayload__c = payloadJson,
+                ExecutionStatus__c = 'Processing',
+                StartTime__c = Datetime.now(),
+                LastActivityTime__c = Datetime.now(),
+                CurrentTurnIdentifier__c = generateTurnIdentifier(),
+                ProcessingStatus__c = AIAgentConstants.STATUS_PROCESSING,
+                User__c = UserInfo.getUserId(),
+                ExecutionMetadata__c = JSON.serialize(
+                    new Map<String, Object>{
+                        'scheduleName' => scheduleName,
+                        'scheduledTime' => scheduledTime,
+                        'executionTriggerId' => executionTriggerId
+                    }
+                )
+            );
+            insert execution;
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Created scheduled AgentExecution__c: ' + execution.Id + ' for schedule: ' + scheduleName);
+
+            // TODO: Process the scheduled task through the unified execution engine
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing scheduled task: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Handles email-triggered agent executions.
+     * Processes inbound emails and creates appropriate agent executions.
+     *
+     * @param payloadJson JSON payload containing email content, headers, and routing information.
+     */
+    private static void handleProcessEmailTrigger(String payloadJson) {
+        String logPrefix = '[AsyncFrameworkRequestTriggerHandler.ProcessEmailTrigger] ';
+        System.debug(LoggingLevel.INFO, logPrefix + 'Processing email trigger execution');
+
+        try {
+            Map<String, Object> payload = (Map<String, Object>) JSON.deserializeUntyped(payloadJson);
+
+            Id agentDefinitionId = (Id) payload.get('agentDefinitionId');
+            String emailSubject = (String) payload.get('emailSubject');
+            String emailBody = (String) payload.get('emailBody');
+            String fromAddress = (String) payload.get('fromAddress');
+            String toAddress = (String) payload.get('toAddress');
+            List<Object> attachments = (List<Object>) payload.get('attachments');
+
+            // Create AgentExecution__c for the email trigger
+            AgentExecution__c execution = new AgentExecution__c(
+                ExecutionType__c = 'Email',
+                AIAgentDefinition__c = agentDefinitionId,
+                TriggerSource__c = 'Email',
+                TriggerPayload__c = payloadJson,
+                ExecutionStatus__c = 'Processing',
+                StartTime__c = Datetime.now(),
+                LastActivityTime__c = Datetime.now(),
+                CurrentTurnIdentifier__c = generateTurnIdentifier(),
+                ProcessingStatus__c = AIAgentConstants.STATUS_PROCESSING,
+                User__c = UserInfo.getUserId(),
+                ExecutionMetadata__c = JSON.serialize(
+                    new Map<String, Object>{
+                        'emailSubject' => emailSubject,
+                        'fromAddress' => fromAddress,
+                        'toAddress' => toAddress,
+                        'hasAttachments' => attachments != null && !attachments.isEmpty()
+                    }
+                )
+            );
+            insert execution;
+
+            // Create initial execution step for the email content
+            ExecutionStep__c emailStep = new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'TriggerInput',
+                StepRole__c = 'Trigger',
+                Content__c = 'Email from ' + fromAddress + ': ' + emailSubject + '\n\n' + emailBody,
+                ContentType__c = 'Email',
+                Timestamp__c = Datetime.now(),
+                TurnIdentifier__c = execution.CurrentTurnIdentifier__c,
+                TurnCount__c = 1,
+                StepMetadata__c = JSON.serialize(
+                    new Map<String, Object>{ 'emailSubject' => emailSubject, 'fromAddress' => fromAddress, 'toAddress' => toAddress }
+                )
+            );
+            insert emailStep;
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Created email AgentExecution__c: ' + execution.Id + ' from: ' + fromAddress);
+
+            // TODO: Process the email through the unified execution engine
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing email trigger: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Generates a unique turn identifier for execution tracking.
+     *
+     * @return String unique turn identifier
+     */
+    private static String generateTurnIdentifier() {
+        return 'turn_' + Datetime.now().getTime() + '_' + Math.round(Math.random() * 1000);
     }
 
     /**

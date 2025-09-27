@@ -7,68 +7,70 @@
  */
 
 /**
- * TurnLifecycleService manages the state transitions and lifecycle events for chat session turns
+ * TurnLifecycleService manages the state transitions and lifecycle events for execution turns
  * within the agent orchestration framework.
  *
  * Responsibilities:
  *   - Coordinates turn state changes (processing, awaiting action, follow-up, completion, failure).
- *   - Delegates persistence and event publication to ChatSessionStateService.
+ *   - Delegates persistence and event publication to ExecutionContextService.
  *   - Integrates with orchestration logging for traceability and audit.
  *   - Provides user-friendly status descriptions for UI and debugging.
+ *   - Uses the unified AgentExecution__c and ExecutionStep__c data models exclusively.
  *
  * This class is the central point for all turn-level state management, ensuring robust, auditable,
- * and maintainable orchestration of agent conversations.
+ * and maintainable orchestration of agent executions.
  */
 public inherited sharing class TurnLifecycleService {
-    private final ChatSessionStateService stateService;
+    private final ExecutionContextService executionContextService;
 
     /**
-     * Constructs a TurnLifecycleService with the default ChatSessionStateService dependency.
+     * Constructs a TurnLifecycleService with the default service dependencies.
      */
     public TurnLifecycleService() {
-        this(new ChatSessionStateService());
+        this(new ExecutionContextService());
     }
 
     /**
-     * Constructs a TurnLifecycleService with an injected ChatSessionStateService dependency.
+     * Constructs a TurnLifecycleService with injected service dependencies.
      *
-     * @param stateService The ChatSessionStateService implementation to use for persistence and events.
-     * @throws IllegalArgumentException if stateService is null.
+     * @param executionContextService The ExecutionContextService implementation to use for unified execution persistence.
+     * @throws IllegalArgumentException if the service is null.
      */
-    public TurnLifecycleService(ChatSessionStateService stateService) {
-        if (stateService == null) {
-            throw new IllegalArgumentException('ChatSessionStateService cannot be null.');
+    public TurnLifecycleService(ExecutionContextService executionContextService) {
+        if (executionContextService == null) {
+            throw new IllegalArgumentException('ExecutionContextService cannot be null.');
         }
-        this.stateService = stateService;
+        this.executionContextService = executionContextService;
     }
 
     /**
      * Transitions the turn to the active processing state for LLM calls or action execution.
      *
-     * @param sessionId The chat session Id.
+     * @param executionId The execution Id (AgentExecution__c).
      * @param turnIdentifier The unique identifier for the turn.
      * @param jobIdIfAny Optional job Id associated with the turn.
      * @param logPrefix String prefix for log output.
      */
-    public void startTurnProcessing(Id sessionId, String turnIdentifier, Id jobIdIfAny, String logPrefix) {
+    public void startTurnProcessing(Id executionId, String turnIdentifier, Id jobIdIfAny, String logPrefix) {
         System.debug(
             LoggingLevel.INFO,
             logPrefix + 'TurnLifecycleService: PROCESSING state for Turn=' + turnIdentifier + (jobIdIfAny != null ? (', Job=' + jobIdIfAny) : '')
         );
         String stepDesc = generateStepDescription(AIAgentConstants.STATUS_PROCESSING, null);
-        this.stateService.updateStatus(sessionId, AIAgentConstants.STATUS_PROCESSING, jobIdIfAny, null, turnIdentifier, stepDesc);
+
+        this.executionContextService.updateStatus(executionId, 'Processing', AIAgentConstants.STATUS_PROCESSING, turnIdentifier, stepDesc);
     }
 
     /**
      * Transitions the turn to the awaiting state while an asynchronous action executes.
      *
-     * @param sessionId The chat session Id.
+     * @param executionId The execution Id (AgentExecution__c).
      * @param turnIdentifier The unique identifier for the turn.
      * @param jobId The job Id for the async action.
      * @param toolName The name of the tool being executed (for context).
      * @param logPrefix String prefix for log output.
      */
-    public void pauseForAsyncAction(Id sessionId, String turnIdentifier, Id jobId, String toolName, String logPrefix) {
+    public void pauseForAsyncAction(Id executionId, String turnIdentifier, Id jobId, String toolName, String logPrefix) {
         System.debug(
             LoggingLevel.INFO,
             logPrefix +
@@ -78,19 +80,19 @@ public inherited sharing class TurnLifecycleService {
                 (String.isNotBlank(toolName) ? (', Tool=' + toolName) : '')
         );
         String stepDesc = generateStepDescription(AIAgentConstants.STATUS_AWAITING_ACTION, toolName);
-        // Context will be updated by async job when it completes
-        this.stateService.updateStatus(sessionId, AIAgentConstants.STATUS_AWAITING_ACTION, jobId, null, turnIdentifier, stepDesc);
+
+        this.executionContextService.updateStatus(executionId, 'Processing', AIAgentConstants.STATUS_AWAITING_ACTION, turnIdentifier, stepDesc);
     }
 
     /**
      * Transitions the turn to the follow-up state after action completion, preparing for the next LLM call.
      *
-     * @param sessionId The chat session Id.
+     * @param executionId The execution Id (AgentExecution__c).
      * @param turnIdentifier The unique identifier for the turn.
      * @param nextJobId The job Id for the next step, if any.
      * @param logPrefix String prefix for log output.
      */
-    public void resumeForFollowUpLlmCall(Id sessionId, String turnIdentifier, Id nextJobId, String logPrefix) {
+    public void resumeForFollowUpLlmCall(Id executionId, String turnIdentifier, Id nextJobId, String logPrefix) {
         System.debug(
             LoggingLevel.INFO,
             logPrefix +
@@ -99,20 +101,19 @@ public inherited sharing class TurnLifecycleService {
                 (nextJobId != null ? (', NextJob=' + nextJobId) : '')
         );
         String stepDesc = generateStepDescription(AIAgentConstants.STATUS_AWAITING_FOLLOWUP, null);
-        // Context already updated by action handler
-        this.stateService.updateStatus(sessionId, AIAgentConstants.STATUS_AWAITING_FOLLOWUP, nextJobId, null, turnIdentifier, stepDesc);
+
+        this.executionContextService.updateStatus(executionId, 'Processing', AIAgentConstants.STATUS_AWAITING_FOLLOWUP, turnIdentifier, stepDesc);
     }
 
     /**
      * Completes the turn successfully and publishes the final response event.
-     * Includes orchestration logging and cleanup of turn-specific resources.
      *
-     * @param sessionId The chat session Id.
+     * @param executionId The execution Id (AgentExecution__c).
      * @param turnIdentifier The unique identifier for the turn.
      * @param finalAssistantMessageId The Id of the final assistant message for this turn.
      * @param logPrefix String prefix for log output.
      */
-    public void completeTurnSuccessfully(Id sessionId, String turnIdentifier, Id finalAssistantMessageId, String logPrefix) {
+    public void completeTurnSuccessfully(Id executionId, String turnIdentifier, Id finalAssistantMessageId, String logPrefix) {
         System.debug(
             LoggingLevel.INFO,
             logPrefix +
@@ -121,28 +122,101 @@ public inherited sharing class TurnLifecycleService {
                 (finalAssistantMessageId != null ? (', FinalMsg=' + finalAssistantMessageId) : '')
         );
 
-        this.stateService.updateFinalStatus(sessionId, true, null, turnIdentifier);
-        this.stateService.publishFinalResponseEvent(sessionId, true, finalAssistantMessageId, null, turnIdentifier);
+        this.executionContextService.updateStatus(
+            executionId,
+            'Completed',
+            AIAgentConstants.STATUS_IDLE,
+            turnIdentifier,
+            null // No specific status message for successful completion
+        );
+
+        // Publish AgentResponse__e event for UI notification
+        publishAgentResponseEvent(executionId, true, finalAssistantMessageId, null, turnIdentifier, logPrefix);
     }
 
     /**
      * Marks the turn as failed and publishes an error event, including orchestration logging.
      *
-     * @param sessionId The chat session Id.
+     * @param executionId The execution Id (AgentExecution__c).
      * @param turnIdentifier The unique identifier for the turn.
      * @param errorMessage The error message to record.
      * @param errorCode The error code to record.
      * @param logPrefix String prefix for log output.
      */
-    public void failTurn(Id sessionId, String turnIdentifier, String errorMessage, String errorCode, String logPrefix) {
+    public void failTurn(Id executionId, String turnIdentifier, String errorMessage, String errorCode, String logPrefix) {
         String errorDetailForState = String.isNotBlank(errorCode) ? '[' + errorCode + '] ' + errorMessage : errorMessage;
         System.debug(
             LoggingLevel.ERROR,
             logPrefix + 'TurnLifecycleService: FAILED state for Turn=' + turnIdentifier + '. Error=' + errorDetailForState
         );
 
-        this.stateService.updateFinalStatus(sessionId, false, errorDetailForState?.abbreviate(131072), turnIdentifier);
-        this.stateService.publishFinalResponseEvent(sessionId, false, null, errorMessage?.abbreviate(255), turnIdentifier);
+        this.executionContextService.updateStatus(
+            executionId,
+            'Failed',
+            AIAgentConstants.STATUS_FAILED,
+            turnIdentifier,
+            errorDetailForState?.abbreviate(255)
+        );
+
+        // Publish AgentResponse__e event for UI notification of failure
+        publishAgentResponseEvent(executionId, false, null, errorMessage?.abbreviate(255), turnIdentifier, logPrefix);
+    }
+
+    /**
+     * Publishes AgentResponse__e event for AgentExecution__c records to notify UI of completion.
+     *
+     * @param executionId The AgentExecution__c ID
+     * @param isSuccess Whether the turn completed successfully
+     * @param finalAssistantMessageId The ID of the final assistant ExecutionStep__c (if success)
+     * @param errorDetails Error details (if failure)
+     * @param turnIdentifier The turn identifier
+     * @param logPrefix String prefix for log output
+     */
+    private void publishAgentResponseEvent(
+        Id executionId,
+        Boolean isSuccess,
+        Id finalAssistantMessageId,
+        String errorDetails,
+        String turnIdentifier,
+        String logPrefix
+    ) {
+        System.debug(
+            LoggingLevel.INFO,
+            logPrefix + 'Publishing AgentResponse__e event: success=' + isSuccess + ', stepId=' + finalAssistantMessageId
+        );
+
+        String finalMessageContent = null;
+        if (isSuccess && finalAssistantMessageId != null) {
+            try {
+                // Query for the step content to include in the event payload
+                List<ExecutionStep__c> steps = [SELECT Content__c FROM ExecutionStep__c WHERE Id = :finalAssistantMessageId LIMIT 1];
+                if (!steps.isEmpty()) {
+                    finalMessageContent = steps[0].Content__c;
+                }
+            } catch (Exception qe) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Warning: Unable to retrieve step content for event: ' + qe.getMessage());
+            }
+        }
+
+        try {
+            AgentResponse__e event = new AgentResponse__e(
+                ChatSessionId__c = executionId, // Note: Field name is legacy but now contains AgentExecution__c ID
+                IsSuccess__c = isSuccess,
+                FinalAssistantMessageId__c = (isSuccess && finalAssistantMessageId != null) ? String.valueOf(finalAssistantMessageId) : null,
+                ErrorDetails__c = errorDetails,
+                FinalMessageContent__c = finalMessageContent
+            );
+            Database.SaveResult sr = EventBus.publish(event);
+
+            if (!sr.isSuccess()) {
+                String errMsg = logPrefix + 'EventBus.publish errors: ' + JSON.serialize(sr.getErrors());
+                System.debug(LoggingLevel.ERROR, errMsg);
+            } else {
+                System.debug(LoggingLevel.INFO, logPrefix + 'AgentResponse__e event published successfully for AgentExecution: ' + executionId);
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'AgentResponse__e event publishing failed: ' + e.getMessage());
+        }
     }
 
     /**

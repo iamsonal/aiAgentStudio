@@ -13,6 +13,8 @@
  * manages turn lifecycle and state transitions, and provides robust error handling with comprehensive logging.
  * The service is designed for extensibility, testability, and operational transparency, serving as the central
  * orchestrator for all LLM-driven agent workflows.
+ *
+ * Supports the unified AgentExecution__c model for all agent workflows.
  */
 public inherited sharing class OrchestrationService {
     public virtual class OrchestrationException extends AIAgentException {
@@ -68,17 +70,17 @@ public inherited sharing class OrchestrationService {
     }
 
     /**
-     * Processes the LLM interaction result using the appropriate strategy handler based on response type.
-     * This method accepts a decision logger that may have been created earlier in the process.
+     * Processes the LLM interaction result for AgentExecution__c records.
+     * Main method that supports the unified agentic framework.
      *
      * @param llmInteractionResult      Result from LLM interaction containing response content and/or tool calls (required)
-     * @param sessionId                 The current session ID (required)
-     * @param originalUserId            The original user ID who initiated the session (required)
+     * @param executionId               The AgentExecution__c ID (required)
+     * @param originalUserId            The original user ID who initiated the execution (required)
      * @param executionUserId           The user ID under which execution is performed (required)
-     * @param agentDefinitionId         The agent definition ID for this session (required)
+     * @param agentDefinitionId         The agent definition ID for this execution (required)
      * @param turnIdentifier            Unique identifier for this turn (required)
-     * @param currentTurnCount          The current turn count in the session (required)
-     * @param userMessageDataForTurn    The user message data for this turn (required)
+     * @param currentTurnCount          The current turn count in the execution (required)
+     * @param userMessageDataForTurn    The user message data for this turn (optional for non-conversational)
      * @param currentPageRecordId       The current page record ID, if applicable (optional)
      * @param decisionLogger            The decision step logger to use (required)
      * @return                          Outcome constant indicating turn completion status and next steps
@@ -86,9 +88,9 @@ public inherited sharing class OrchestrationService {
      *
      * Side effects: Emits debug logs and orchestrates turn state transitions.
      */
-    public String processLlmResultWithLogger(
+    public String processLlmResult(
         LLMInteractionService.LLMInteractionResult llmInteractionResult,
-        Id sessionId,
+        Id executionId,
         Id originalUserId,
         Id executionUserId,
         Id agentDefinitionId,
@@ -98,7 +100,7 @@ public inherited sharing class OrchestrationService {
         Id currentPageRecordId,
         AgentDecisionStepLogger decisionLogger
     ) {
-        String logPrefix = '[OrchSvc Turn:' + turnIdentifier?.left(8) + ' Cycle:' + currentTurnCount + ' Sess:' + sessionId + '] ';
+        String logPrefix = '[OrchSvc Turn:' + turnIdentifier?.left(8) + ' Cycle:' + currentTurnCount + ' Exec:' + executionId + '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting orchestration for LLM result. Page context: ' + currentPageRecordId);
 
         try {
@@ -117,14 +119,14 @@ public inherited sharing class OrchestrationService {
                     null
                 );
 
-                this.turnLifecycleSvc.failTurn(sessionId, turnIdentifier, failureReason, failureCode, logPrefix);
+                this.turnLifecycleSvc.failTurn(executionId, turnIdentifier, failureReason, failureCode, logPrefix);
                 return OUTCOME_FAILED;
             }
 
             // Create orchestration context with all required state and dependencies for this turn.
             OrchestrationContext context = new OrchestrationContext(
                 llmInteractionResult,
-                sessionId,
+                executionId,
                 originalUserId,
                 executionUserId,
                 agentDefinitionId,
@@ -166,7 +168,7 @@ public inherited sharing class OrchestrationService {
             );
 
             try {
-                this.turnLifecycleSvc.failTurn(sessionId, turnIdentifier, errorMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
+                this.turnLifecycleSvc.failTurn(executionId, turnIdentifier, errorMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
             } catch (Exception finalFailEx) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'FATAL: Could not mark turn as failed. Reason: ' + finalFailEx.getMessage());
             }
@@ -295,32 +297,6 @@ public inherited sharing class OrchestrationService {
         }
 
         return null;
-    }
-
-    /**
-     * Clears the PendingConfirmationActionDetails__c field from a ChatMessage__c record.
-     *
-     * Used to remove pending action details after confirmation or cancellation. Logs all outcomes.
-     *
-     * @param chatMessageId The ChatMessage__c record ID to update (may be null)
-     * @param logPrefix     Prefix for debug log output
-     *
-     * Side effects: Emits debug logs for null input, success, and failure cases.
-     */
-    public static void clearPendingDetailsFromMessage(Id chatMessageId, String logPrefix) {
-        try {
-            if (chatMessageId == null) {
-                System.debug(LoggingLevel.WARN, logPrefix + 'Attempted to clear pending details: ChatMessageId is null. Skipping update.');
-                return;
-            }
-            update new ChatMessage__c(Id = chatMessageId, PendingConfirmationActionDetails__c = null);
-            System.debug(LoggingLevel.INFO, logPrefix + 'Pending confirmation details cleared from message: ' + chatMessageId);
-        } catch (Exception e) {
-            System.debug(
-                LoggingLevel.WARN,
-                logPrefix + 'Failed to clear pending details from message ' + chatMessageId + '. Error: ' + e.getMessage()
-            );
-        }
     }
 
     /**

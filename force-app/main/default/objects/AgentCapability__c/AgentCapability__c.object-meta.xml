@@ -150,7 +150,7 @@
     <enableHistory>false</enableHistory>
     <enableLicensing>false</enableLicensing>
     <enableReports>false</enableReports>
-    <enableSearch>false</enableSearch>
+    <enableSearch>true</enableSearch>
     <enableSharing>true</enableSharing>
     <enableStreamingApi>true</enableStreamingApi>
     <externalSharingModel>ReadWrite</externalSharingModel>
@@ -161,7 +161,15 @@
         <type>AutoNumber</type>
     </nameField>
     <pluralLabel>Agent Capabilities</pluralLabel>
-    <searchLayouts></searchLayouts>
+    <searchLayouts>
+        <searchResultsAdditionalFields>CapabilityName__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>AIAgentDefinition__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>ImplementationType__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>ImplementationDetail__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>StandardActionType__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>RunAsynchronously__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>ExposureLevel__c</searchResultsAdditionalFields>
+    </searchLayouts>
     <sharingModel>ReadWrite</sharingModel>
     <startsWith>Vowel</startsWith>
     <visibility>Public</visibility>

@@ -8,16 +8,16 @@
 
 /**
  * @description
- * LLMInteractionService orchestrates the complete LLM interaction lifecycle for a single conversational turn.
+ * LLMInteractionService orchestrates the complete LLM interaction lifecycle for a single execution turn.
  *
  * Responsibilities:
  *   - Manages prompt composition, payload formatting, HTTP communication (with retry), and response parsing
- *   - Integrates with SystemPromptBuilder for prompt assembly and MemoryManager for conversation history
+ *   - Integrates with SystemPromptBuilder for prompt assembly and MemoryManager for execution history
  *   - Supports both reasoning and non-reasoning modes, injecting summarization or error instructions as needed
  *   - Handles all configuration, error, and result packaging for downstream orchestration
  *
  * This service is the central entry point for all LLM calls in the agent framework, ensuring consistency,
- * observability, and extensibility for all conversational turns.
+ * observability, and extensibility for all execution turns.
  */
 public inherited sharing class LLMInteractionService {
     /**
@@ -47,7 +47,7 @@ public inherited sharing class LLMInteractionService {
     }
 
     /**
-     * Data Transfer Object for message metadata that hasn't been persisted to ChatMessage__c yet.
+     * Data Transfer Object for message metadata that hasn't been persisted to ExecutionStep__c yet.
      *
      * Contains role, content, tool calls, token usage, and processing time information.
      */
@@ -64,7 +64,7 @@ public inherited sharing class LLMInteractionService {
     public class IllegalArgumentException extends AIAgentException {
     }
 
-    private final Id sessionId;
+    private final Id executionId;
     private final Id userId;
     private final Id agentDefinitionId;
     private final Id llmConfigurationId;
@@ -76,22 +76,21 @@ public inherited sharing class LLMInteractionService {
     // Add decision logger reference
     private final AgentDecisionStepLogger decisionLogger;
 
+    /**
+     * Constructor for LLMInteractionService working exclusively with the unified AgentExecution__c model.
+     *
+     * @param executionId The AgentExecution__c ID
+     * @param usrId The user ID
+     * @param agentDefId The agent definition ID
+     * @param llmConfigId The LLM configuration ID
+     * @param turnId The turn identifier
+     * @param turnNum The turn number
+     * @param pageRecordId The current page record ID
+     * @param isFinalError Whether this is a final error turn
+     * @param decisionLogger The decision logger (optional)
+     */
     public LLMInteractionService(
-        Id sessId,
-        Id usrId,
-        Id agentDefId,
-        Id llmConfigId,
-        String turnId,
-        Integer turnNum,
-        Id pageRecordId,
-        Boolean isFinalError
-    ) {
-        this(sessId, usrId, agentDefId, llmConfigId, turnId, turnNum, pageRecordId, isFinalError, null);
-    }
-
-    // New constructor that accepts a decision logger
-    public LLMInteractionService(
-        Id sessId,
+        Id executionId,
         Id usrId,
         Id agentDefId,
         Id llmConfigId,
@@ -101,10 +100,10 @@ public inherited sharing class LLMInteractionService {
         Boolean isFinalError,
         AgentDecisionStepLogger decisionLogger
     ) {
-        if (sessId == null || usrId == null || agentDefId == null || llmConfigId == null || String.isBlank(turnId) || turnNum == null) {
+        if (executionId == null || usrId == null || agentDefId == null || llmConfigId == null || String.isBlank(turnId) || turnNum == null) {
             throw new IllegalArgumentException('Required arguments cannot be null for LLMInteractionService.');
         }
-        this.sessionId = sessId;
+        this.executionId = executionId;
         this.userId = usrId;
         this.agentDefinitionId = agentDefId;
         this.llmConfigurationId = llmConfigId;
@@ -132,7 +131,7 @@ public inherited sharing class LLMInteractionService {
     public LLMInteractionResult prepareAndCallLLM(LLMInteractionService.MessageData currentTurnUserMessage) {
         System.debug(
             LoggingLevel.INFO,
-            logPrefix + 'Starting LLM interaction cycle for turn ' + this.currentTurnCount + ' (sessionId=' + this.sessionId + ')'
+            logPrefix + 'Starting LLM interaction cycle for turn ' + this.currentTurnCount + ' (executionId=' + this.executionId + ')'
         );
         AIAgentDefinition__c agentConfig = null;
         LLMConfiguration__c llmConfig = null;
@@ -158,7 +157,7 @@ public inherited sharing class LLMInteractionService {
             // --- 2. DELEGATE Prompt Composition ---
             // All complex prompt assembly logic is now in one place.
             String finalSystemPrompt = promptBuilder.build(
-                this.sessionId,
+                this.executionId,
                 agentConfig,
                 llmConfig,
                 this.currentPageRecordId,
@@ -206,9 +205,9 @@ public inherited sharing class LLMInteractionService {
                 finalMessagesPayload.add(new Map<String, Object>{ 'role' => AIAgentConstants.ROLE_SYSTEM, 'content' => finalSystemPrompt });
             }
 
-            // b. Get the conversation history using the appropriate Memory Manager.
+            // b. Get the execution history using the appropriate Memory Manager.
             IMemoryManager memoryManager = MemoryManagerFactory.getManager(agentConfig.MemoryStrategy__c);
-            List<Map<String, Object>> historyPayload = memoryManager.getHistoryPayload(this.sessionId, agentConfig, llmConfig, logPrefix);
+            List<Map<String, Object>> historyPayload = memoryManager.getHistoryPayload(this.executionId, agentConfig, llmConfig, logPrefix);
             if (historyPayload != null) {
                 finalMessagesPayload.addAll(historyPayload);
             }
@@ -280,8 +279,8 @@ public inherited sharing class LLMInteractionService {
                         callDuration +
                         'ms. Tokens used: ' +
                         llmApiResult.totalTokens +
-                        ', sessionId=' +
-                        this.sessionId
+                        ', executionId=' +
+                        this.executionId
                 );
 
                 // Log LLM response if decision logger is available
@@ -314,8 +313,8 @@ public inherited sharing class LLMInteractionService {
                         callEx.getMessage() +
                         ', Type: ' +
                         callEx.getTypeName() +
-                        ', sessionId=' +
-                        this.sessionId
+                        ', executionId=' +
+                        this.executionId
                 );
 
                 // Log error if decision logger is available
@@ -340,8 +339,8 @@ public inherited sharing class LLMInteractionService {
                     ex.getMessage() +
                     '\n' +
                     ex.getStackTraceString() +
-                    ', sessionId=' +
-                    this.sessionId
+                    ', executionId=' +
+                    this.executionId
             );
 
             // Log error if decision logger is available

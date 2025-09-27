@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>NextExecutionTime__c</fullName>
+    <description>Scheduled timestamp for the next execution (used for scheduled triggers).</description>
+    <inlineHelpText>When this trigger is scheduled to fire next.</inlineHelpText>
+    <label>Next Execution Time</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>
