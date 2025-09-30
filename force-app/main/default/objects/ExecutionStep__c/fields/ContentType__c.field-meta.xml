@@ -42,6 +42,11 @@
                 <default>false</default>
                 <label>Binary</label>
             </value>
+            <value>
+                <fullName>BatchItem</fullName>
+                <default>false</default>
+                <label>BatchItem</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

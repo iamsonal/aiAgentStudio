@@ -140,6 +140,9 @@ public class ExecutionStepHistoryFormatter {
             when 'system' {
                 return 'system';
             }
+            when 'email' {
+                return 'user';
+            }
             when else {
                 return null; // Skip unknown roles
             }
