@@ -1,0 +1,211 @@
+/**
+ * @description Provides utility methods for creating AI Agent Framework records in-memory for Apex tests.
+ *              This factory prepares SObjects but does not perform DML, allowing the calling test
+ *              method to control when records are inserted.
+ * @see AgentTestDataFactory
+ */
+@IsTest
+public with sharing class TestFactory {
+    /**
+     * @description Creates a complete, ready-to-insert agent setup including LLM, Agent, Actions, and Bindings.
+     * @return A DTO containing all related records, ready for insertion.
+     */
+    public static AgentSetupData createFullAgentSetup() {
+        AgentSetupData setup = new AgentSetupData();
+
+        // 1. LLM Configuration
+        setup.llmConfig = createLLMConfiguration();
+
+        // 2. Agent Definition (linked to the LLM config)
+        setup.agentDefinition = createAgentDefinition(null); // Will be linked after insert
+
+        // 3. Agent Capabilities
+        setup.capabilities = createStandardCapabilities(null);
+
+        // 4. Context Provider Configs
+        setup.contextConfigs = createContextConfigs(null);
+
+        return setup;
+    }
+
+    /**
+     * @description Creates a standard LLMConfiguration__c record in memory.
+     * @return A new LLMConfiguration__c SObject.
+     */
+    public static LLMConfiguration__c createLLMConfiguration() {
+        return new LLMConfiguration__c(
+            Name = 'Test OpenAI LLM',
+            DeveloperName__c = 'Test_OpenAI_LLM',
+            ProviderAdapterClass__c = OpenAIProviderAdapter.class.getName(),
+            NamedCredential__c = 'OpenAI_API_Test',
+            DefaultModelIdentifier__c = 'gpt-4o-mini',
+            IsActive__c = true
+        );
+    }
+
+    /**
+     * @description Creates a standard AIAgentDefinition__c record in memory.
+     * @param llmConfigId The ID of the parent LLMConfiguration__c record. Can be null if linking after insert.
+     * @return A new AIAgentDefinition__c SObject.
+     */
+    public static AIAgentDefinition__c createAgentDefinition(Id llmConfigId) {
+        return new AIAgentDefinition__c(
+            Name = 'Test Sales Agent',
+            DeveloperName__c = 'Test_Sales_Agent',
+            LLMConfiguration__c = llmConfigId,
+            SystemPrompt__c = 'You are a test sales agent.',
+            WelcomeMessageTemplate__c = 'Hello {User.FirstName}, welcome!',
+            IsActive__c = true,
+            MemoryStrategy__c = 'Buffer Window'
+        );
+    }
+
+    /**
+     * @description (NEW) Creates a list of standard, self-contained AgentCapability__c records.
+     * @param agentDefId The ID of the parent AIAgentDefinition__c. Can be null if linking after insert.
+     * @return A List of new AgentCapability__c SObjects.
+     */
+    public static List<AgentCapability__c> createStandardCapabilities(Id agentDefId) {
+        List<AgentCapability__c> capabilities = new List<AgentCapability__c>();
+
+        // Capability 1: Find Records (Standard Action)
+        capabilities.add(
+            createSingleCapability(
+                agentDefId,
+                'find_sales_records',
+                'Searches for records like Accounts or Contacts.',
+                '{"type":"object","properties":{"sObjectTypes":{"type":"array"},"fieldsToReturn":{"type":"array"},"filters":{"type":"object"},"limit":{"type":"integer"}},"required":["sObjectTypes","fieldsToReturn","filters"]}',
+                'Standard',
+                null, // No ImplementationDetail for Standard
+                'FindEntities',
+                false,
+                null // No BackendConfiguration for FindEntities
+            )
+        );
+
+        // Capability 2: Create Opportunity (Standard Action with Backend Config)
+        capabilities.add(
+            createSingleCapability(
+                agentDefId,
+                'create_opportunity',
+                'Creates a new sales Opportunity.',
+                '{"type":"object","properties":{"Name":{"type":"string"}, "StageName":{"type":"string"}},"required":["Name", "StageName"]}',
+                'Standard',
+                null,
+                'CreateRecord',
+                false,
+                '{"objectApiName": "Opportunity"}' // Backend config tells the action what to create
+            )
+        );
+
+        capabilities.add(
+            createSingleCapability(
+                agentDefId,
+                'get_records',
+                'Retrieves records of a specified type with optional filters.',
+                '{"type":"object","properties":{"filters":{"type":"object"}, "additionalFields":{"type":"array"}, "limit":{"type":"integer"}, "orderBy":{"type":"string"}}}',
+                'Standard',
+                null,
+                'GetRecords',
+                false,
+                null
+            )
+        );
+
+        return capabilities;
+    }
+
+    public static AgentCapability__c createSingleCapability(
+        Id agentDefId,
+        String capabilityName,
+        String description,
+        String parametersJson,
+        String implType,
+        String implDetail,
+        String stdActionType,
+        Boolean runAsync,
+        String backendConfigJson
+    ) {
+        return new AgentCapability__c(
+            AIAgentDefinition__c = agentDefId,
+            CapabilityName__c = capabilityName,
+            Description__c = description,
+            Parameters__c = parametersJson,
+            ImplementationType__c = implType,
+            ImplementationDetail__c = implDetail,
+            StandardActionType__c = stdActionType,
+            RunAsynchronously__c = runAsync,
+            BackendConfiguration__c = backendConfigJson,
+            ExecutionPriority__c = 10
+        );
+    }
+
+    /**
+     * @description Creates a list of AgentContextConfig__c records in memory.
+     * @param agentDefId The ID of the parent AIAgentDefinition__c.
+     * @return A List of new AgentContextConfig__c SObjects.
+     */
+    public static List<AgentContextConfig__c> createContextConfigs(Id agentDefId) {
+        return new List<AgentContextConfig__c>{
+            new AgentContextConfig__c(
+                AIAgentDefinition__c = agentDefId,
+                ContextLabel__c = 'Test User Context',
+                ImplementationType__c = 'Apex',
+                ImplementationName__c = 'UserDetailsProvider', // Assuming this mock provider exists
+                ExecutionOrder__c = 10,
+                IsActive__c = true
+            )
+        };
+    }
+
+    public static AgentExecution__c createChatSession(Id agentDefId, Id userId) {
+        return new AgentExecution__c(
+            AIAgentDefinition__c = agentDefId,
+            OwnerId = userId,
+            User__c = userId,
+            ProcessingStatus__c = 'Idle',
+            TriggerPayload__c = 'Test Session'
+        );
+    }
+
+    public static List<ExecutionStep__c> createChatMessages(Id sessionId, Integer count) {
+        List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
+        Datetime now = Datetime.now();
+
+        for (Integer i = 1; i <= count; i++) {
+            // User Message
+            messages.add(
+                new ExecutionStep__c(
+                    AgentExecution__c = sessionId,
+                    StepRole__c = 'user',
+                    Content__c = 'This is user message number ' + i,
+                    Timestamp__c = now.addMinutes(i * 2 - 1),
+                    ExternalId__c = UuidUtils.generateUUID(),
+                        StepType__c = 'UserInput'
+                )
+            );
+            // Assistant Response
+            messages.add(
+                new ExecutionStep__c(
+                    AgentExecution__c = sessionId,
+                    StepRole__c = 'assistant',
+                    Content__c = 'This is assistant response number ' + i,
+                    Timestamp__c = now.addMinutes(i * 2),
+                    ExternalId__c = UuidUtils.generateUUID(),
+                        StepType__c = 'AgentResponse'
+                )
+            );
+        }
+        return messages;
+    }
+
+    /**
+     * @description DTO class to hold all records for a complete agent setup.
+     */
+    public class AgentSetupData {
+        public LLMConfiguration__c llmConfig { get; set; }
+        public AIAgentDefinition__c agentDefinition { get; set; }
+        public List<AgentCapability__c> capabilities { get; set; }
+        public List<AgentContextConfig__c> contextConfigs { get; set; }
+    }
+}

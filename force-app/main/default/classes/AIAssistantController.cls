@@ -169,11 +169,6 @@ public with sharing class AIAssistantController {
             );
             lwcResponse.put('error', 'An internal error occurred: ' + errorMsg);
             lwcResponse.put('errorCode', errorCode);
-            if (!(ex instanceof AuraHandledException)) {
-                throw new AuraHandledException(errorMsg);
-            } else {
-                throw ex;
-            }
         } finally {
             if (controllerProcessingException != null && !(controllerProcessingException instanceof AuraHandledException)) {
                 try {
