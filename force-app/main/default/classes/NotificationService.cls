@@ -26,7 +26,7 @@ public class NotificationService {
      * @param recipientId The ID of the User to receive the notification. (Required)
      * @param title       The title of the notification. (Required)
      * @param body        The main body/message of the notification. (Required)
-     * @param targetId    The ID of the record to navigate to when the notification is clicked (optional, e.g., ChatSession__c ID).
+     * @param targetId    The ID of the record to navigate to when the notification is clicked (optional, e.g., AgentExecution__c ID).
      *
      * @throws None. All errors are handled internally and surfaced via debug logs.
      *

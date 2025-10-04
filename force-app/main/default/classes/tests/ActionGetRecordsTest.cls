@@ -15,7 +15,7 @@ private class ActionGetRecordsTest {
         insert caps;
 
         // Create Chat Session
-        ChatSession__c session = TestFactory.createChatSession(agent.Id, UserInfo.getUserId());
+        AgentExecution__c session = TestFactory.createChatSession(agent.Id, UserInfo.getUserId());
         insert session;
 
         // Create test accounts
@@ -218,12 +218,12 @@ private class ActionGetRecordsTest {
 
     // Helper method to create mock ActionContext
     private static ActionContext createMockActionContext() {
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
         AgentCapability__c capability = [SELECT Id FROM AgentCapability__c WHERE StandardActionType__c = 'GetRecords' LIMIT 1];
 
         return new ActionContext(
-            session.Id, // chatSessionId
+            session.Id, // executionId
             UserInfo.getUserId(), // originalUserId
             UserInfo.getUserId(), // executionUserId
             null, // relatedRecordId
@@ -232,7 +232,8 @@ private class ActionGetRecordsTest {
             'ActionGetRecords', // implementationDetail
             'test-turn-' +
             System.currentTimeMillis(), // turnIdentifier
-            1 // currentTurnCount
+            1, // currentTurnCount
+            'Conversational' // executionType
         );
     }
 }

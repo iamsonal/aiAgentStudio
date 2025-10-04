@@ -204,132 +204,112 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.AssistantToolCalls__c</field>
+        <field>AgentExecution__c.ContextHistoryJson__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.CapabilityName__c</field>
+        <field>AgentExecution__c.ConversationSummary__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.Content__c</field>
+        <field>AgentExecution__c.CurrentTurnIdentifier__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.ExcludeFromLLMHistory__c</field>
+        <field>AgentExecution__c.EndTime__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.ExternalId__c</field>
+        <field>AgentExecution__c.ExecutionMetadata__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.IsSuccess__c</field>
+        <field>AgentExecution__c.LastActivityTime__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.IsSummarized__c</field>
+        <field>AgentExecution__c.ParentExecution__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.ParentMessage__c</field>
+        <field>AgentExecution__c.ProcessingStatus__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.PendingConfirmationActionDetails__c</field>
+        <field>AgentExecution__c.ServiceUser__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.ProcessingTimeMillis__c</field>
+        <field>AgentExecution__c.SourceRecordId__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.RecordContextData__c</field>
+        <field>AgentExecution__c.StartTime__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.RecordContextId__c</field>
+        <field>AgentExecution__c.TriggerPayload__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.TokensUsed__c</field>
+        <field>AgentExecution__c.TriggerSource__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.ToolCallId__c</field>
+        <field>AgentExecution__c.User__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatMessage__c.TurnIdentifier__c</field>
+        <field>ExecutionTrigger__c.ExecutionCount__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatSession__c.ConversationSummary__c</field>
+        <field>ExecutionTrigger__c.FailureCount__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatSession__c.CurrentJobId__c</field>
+        <field>ExecutionTrigger__c.IsActive__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatSession__c.CurrentStepDescription__c</field>
+        <field>ExecutionTrigger__c.LastExecutionTime__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatSession__c.CurrentTurnIdentifier__c</field>
+        <field>ExecutionTrigger__c.NextExecutionTime__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatSession__c.EnableOrchestrationLogging__c</field>
+        <field>ExecutionTrigger__c.NotificationSettings__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatSession__c.EntityHistoryJson__c</field>
+        <field>ExecutionTrigger__c.TriggerConditions__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>ChatSession__c.LastActivityTime__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ChatSession__c.LastProcessingError__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ChatSession__c.SessionLabel__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ChatSession__c.StartTime__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ChatSession__c.User__c</field>
+        <field>ExecutionTrigger__c.TriggerConfiguration__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -396,7 +376,7 @@
         <allowEdit>true</allowEdit>
         <allowRead>true</allowRead>
         <modifyAllRecords>true</modifyAllRecords>
-        <object>ChatMessage__c</object>
+        <object>AgentExecution__c</object>
         <viewAllFields>true</viewAllFields>
         <viewAllRecords>true</viewAllRecords>
     </objectPermissions>
@@ -406,7 +386,7 @@
         <allowEdit>true</allowEdit>
         <allowRead>true</allowRead>
         <modifyAllRecords>true</modifyAllRecords>
-        <object>ChatSession__c</object>
+        <object>ExecutionTrigger__c</object>
         <viewAllFields>true</viewAllFields>
         <viewAllRecords>true</viewAllRecords>
     </objectPermissions>
@@ -429,7 +409,11 @@
         <visibility>Visible</visibility>
     </tabSettings>
     <tabSettings>
-        <tab>ChatSession__c</tab>
+        <tab>AgentExecution__c</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>ExecutionTrigger__c</tab>
         <visibility>Visible</visibility>
     </tabSettings>
     <tabSettings>

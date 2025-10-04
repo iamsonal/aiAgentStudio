@@ -27,7 +27,7 @@ private class ActionPostChatterTest {
         insert caps;
 
         // Create Chat Session
-        ChatSession__c session = TestFactory.createChatSession(agent.Id, UserInfo.getUserId());
+        AgentExecution__c session = TestFactory.createChatSession(agent.Id, UserInfo.getUserId());
         insert session;
 
         // Create test account for Chatter posts

@@ -74,7 +74,7 @@ public with sharing class TestFactory {
                 agentDefId,
                 'find_sales_records',
                 'Searches for records like Accounts or Contacts.',
-                    '{"type":"object","properties":{"sObjectTypes":{"type":"array"},"fieldsToReturn":{"type":"array"},"filters":{"type":"object"},"limit":{"type":"integer"}},"required":["sObjectTypes","fieldsToReturn","filters"]}',
+                '{"type":"object","properties":{"sObjectTypes":{"type":"array"},"fieldsToReturn":{"type":"array"},"filters":{"type":"object"},"limit":{"type":"integer"}},"required":["sObjectTypes","fieldsToReturn","filters"]}',
                 'Standard',
                 null, // No ImplementationDetail for Standard
                 'FindEntities',
@@ -158,51 +158,41 @@ public with sharing class TestFactory {
         };
     }
 
-    /**
-     * @description Creates a ChatSession__c record in memory.
-     * @param agentDefId The ID of the parent AIAgentDefinition__c.
-     * @param userId The ID of the user owning the session.
-     * @return A new ChatSession__c SObject.
-     */
-    public static ChatSession__c createChatSession(Id agentDefId, Id userId) {
-        return new ChatSession__c(
+    public static AgentExecution__c createChatSession(Id agentDefId, Id userId) {
+        return new AgentExecution__c(
             AIAgentDefinition__c = agentDefId,
             OwnerId = userId,
             User__c = userId,
             ProcessingStatus__c = 'Idle',
-            SessionLabel__c = 'Test Session'
+            TriggerPayload__c = 'Test Session'
         );
     }
 
-    /**
-     * @description Creates a list of ChatMessage__c records in memory for a session.
-     * @param sessionId The ID of the parent ChatSession__c.
-     * @param count The number of user/assistant message pairs to create.
-     * @return A List of new ChatMessage__c SObjects.
-     */
-    public static List<ChatMessage__c> createChatMessages(Id sessionId, Integer count) {
-        List<ChatMessage__c> messages = new List<ChatMessage__c>();
+    public static List<ExecutionStep__c> createChatMessages(Id sessionId, Integer count) {
+        List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
         Datetime now = Datetime.now();
 
         for (Integer i = 1; i <= count; i++) {
             // User Message
             messages.add(
-                new ChatMessage__c(
-                    ChatSession__c = sessionId,
-                    Role__c = 'user',
+                new ExecutionStep__c(
+                    AgentExecution__c = sessionId,
+                    StepRole__c = 'user',
                     Content__c = 'This is user message number ' + i,
                     Timestamp__c = now.addMinutes(i * 2 - 1),
-                    ExternalId__c = UuidUtils.generateUUID()
+                    ExternalId__c = UuidUtils.generateUUID(),
+                        StepType__c = 'UserInput'
                 )
             );
             // Assistant Response
             messages.add(
-                new ChatMessage__c(
-                    ChatSession__c = sessionId,
-                    Role__c = 'assistant',
+                new ExecutionStep__c(
+                    AgentExecution__c = sessionId,
+                    StepRole__c = 'assistant',
                     Content__c = 'This is assistant response number ' + i,
                     Timestamp__c = now.addMinutes(i * 2),
-                    ExternalId__c = UuidUtils.generateUUID()
+                    ExternalId__c = UuidUtils.generateUUID(),
+                        StepType__c = 'AgentResponse'
                 )
             );
         }

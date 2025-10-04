@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AgentExecution__c</fullName>
+    <description>Master-detail relationship to the parent Agent Execution.</description>
+    <inlineHelpText>The agent execution this step belongs to.</inlineHelpText>
+    <label>Agent Execution</label>
+    <referenceTo>AgentExecution__c</referenceTo>
+    <relationshipLabel>Execution Steps</relationshipLabel>
+    <relationshipName>ExecutionSteps</relationshipName>
+    <relationshipOrder>0</relationshipOrder>
+    <reparentableMasterDetail>false</reparentableMasterDetail>
+    <trackTrending>false</trackTrending>
+    <type>MasterDetail</type>
+    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+</CustomField>

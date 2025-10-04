@@ -17,19 +17,20 @@ private class HumanApprovalRequestTriggerHandlerTest {
         // Setup test data
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
 
-        ChatSession__c session = new ChatSession__c(
+        AgentExecution__c session = new AgentExecution__c(
             User__c = UserInfo.getUserId(),
             AIAgentDefinition__c = agent.Id,
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE
         );
         insert session;
 
-        ChatMessage__c assistantMessage = new ChatMessage__c(
-            ChatSession__c = session.Id,
-            Role__c = AIAgentConstants.ROLE_ASSISTANT,
+        ExecutionStep__c assistantMessage = new ExecutionStep__c(
+                AgentExecution__c = session.Id,
+            StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
             Content__c = 'I will search for sales records.',
             ExternalId__c = 'turn-123',
-            Timestamp__c = System.now()
+            Timestamp__c = System.now(),
+                StepType__c = 'AgentResponse'
         );
         insert assistantMessage;
 
@@ -42,8 +43,8 @@ private class HumanApprovalRequestTriggerHandlerTest {
         );
 
         HumanApprovalRequest__c har = new HumanApprovalRequest__c(
-            ChatSession__c = session.Id,
-            OriginalAssistantMessage__c = assistantMessage.Id,
+                AgentExecution__c = session.Id,
+                OriginalAssistantStep__c = assistantMessage.Id,
             LLMConfirmationMessage__c = 'User requested sales records search',
             LLMToolCallId__c = 'call_123',
             LLMToolName__c = 'find_sales_records',
@@ -82,25 +83,26 @@ private class HumanApprovalRequestTriggerHandlerTest {
         // Setup test data
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
 
-        ChatSession__c session = new ChatSession__c(
+        AgentExecution__c session = new AgentExecution__c(
             User__c = UserInfo.getUserId(),
             AIAgentDefinition__c = agent.Id,
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE
         );
         insert session;
 
-        ChatMessage__c assistantMessage = new ChatMessage__c(
-            ChatSession__c = session.Id,
-            Role__c = AIAgentConstants.ROLE_ASSISTANT,
+        ExecutionStep__c assistantMessage = new ExecutionStep__c(
+                AgentExecution__c = session.Id,
+                StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
             Content__c = 'I will search for sales records.',
             ExternalId__c = 'turn-456',
-            Timestamp__c = System.now()
+            Timestamp__c = System.now(),
+                StepType__c = 'AgentResponse'
         );
         insert assistantMessage;
 
         HumanApprovalRequest__c har = new HumanApprovalRequest__c(
-            ChatSession__c = session.Id,
-            OriginalAssistantMessage__c = assistantMessage.Id,
+                AgentExecution__c = session.Id,
+                OriginalAssistantStep__c = assistantMessage.Id,
             LLMConfirmationMessage__c = 'User requested sales records search',
             LLMToolCallId__c = 'call_456',
             LLMToolName__c = 'find_sales_records',
@@ -129,19 +131,18 @@ private class HumanApprovalRequestTriggerHandlerTest {
         System.assert(updatedHar.ApproverComments__c.contains('Rejection processed and user notified'));
 
         // Verify tool result message was created for rejection
-        List<ChatMessage__c> toolMessages = [
-            SELECT Id, Role__c, Content__c, ToolCallId__c, IsSuccess__c
-            FROM ChatMessage__c
-            WHERE ChatSession__c = :session.Id AND Role__c = 'tool'
+        List<ExecutionStep__c> toolMessages = [
+            SELECT Id, StepRole__c, ToolResult__c, ToolCallId__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :session.Id AND StepRole__c = 'tool'
         ];
 
         System.assertEquals(1, toolMessages.size());
-        ChatMessage__c toolMessage = toolMessages[0];
+        ExecutionStep__c toolMessage = toolMessages[0];
         System.assertEquals('call_456', toolMessage.ToolCallId__c);
-        System.assertEquals(false, toolMessage.IsSuccess__c); // Rejection should mark as unsuccessful
 
         // Verify the tool result content indicates rejection
-        Map<String, Object> toolResult = (Map<String, Object>) JSON.deserializeUntyped(toolMessage.Content__c);
+        Map<String, Object> toolResult = (Map<String, Object>) JSON.deserializeUntyped(toolMessage.ToolResult__c);
         System.assertEquals('rejected', toolResult.get('status'));
         System.assert(String.valueOf(toolResult.get('reason')).contains('rejected by an approver'));
         System.assert(String.valueOf(toolResult.get('reason')).contains('insufficient business justification'));
@@ -152,22 +153,23 @@ private class HumanApprovalRequestTriggerHandlerTest {
         // Setup test data
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
 
-        ChatSession__c session = new ChatSession__c(
+        AgentExecution__c session = new AgentExecution__c(
             User__c = UserInfo.getUserId(),
             AIAgentDefinition__c = agent.Id,
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE
         );
         insert session;
 
-        List<ChatMessage__c> assistantMessages = new List<ChatMessage__c>();
+        List<ExecutionStep__c> assistantMessages = new List<ExecutionStep__c>();
         for (Integer i = 1; i <= 3; i++) {
             assistantMessages.add(
-                new ChatMessage__c(
-                    ChatSession__c = session.Id,
-                    Role__c = AIAgentConstants.ROLE_ASSISTANT,
+                new ExecutionStep__c(
+                        AgentExecution__c = session.Id,
+                        StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
                     Content__c = 'I will process request ' + i,
                     ExternalId__c = 'turn-' + i,
-                    Timestamp__c = System.now()
+                    Timestamp__c = System.now(),
+                        StepType__c = 'AgentResponse'
                 )
             );
         }
@@ -184,8 +186,8 @@ private class HumanApprovalRequestTriggerHandlerTest {
 
         List<HumanApprovalRequest__c> hars = new List<HumanApprovalRequest__c>{
             new HumanApprovalRequest__c(
-                ChatSession__c = session.Id,
-                OriginalAssistantMessage__c = assistantMessages[0].Id,
+                    AgentExecution__c = session.Id,
+                    OriginalAssistantStep__c = assistantMessages[0].Id,
                 LLMToolCallId__c = 'call_1',
                 LLMToolName__c = 'find_sales_records',
                 LLMToolArgumentsJSON__c = approvedArgsJson,
@@ -194,8 +196,8 @@ private class HumanApprovalRequestTriggerHandlerTest {
                 ApprovalStatus__c = 'Pending'
             ),
             new HumanApprovalRequest__c(
-                ChatSession__c = session.Id,
-                OriginalAssistantMessage__c = assistantMessages[1].Id,
+                    AgentExecution__c = session.Id,
+                    OriginalAssistantStep__c = assistantMessages[1].Id,
                 LLMToolCallId__c = 'call_2',
                 LLMToolName__c = 'find_sales_records',
                 LLMToolArgumentsJSON__c = '{}',
@@ -204,8 +206,8 @@ private class HumanApprovalRequestTriggerHandlerTest {
                 ApprovalStatus__c = 'Pending'
             ),
             new HumanApprovalRequest__c(
-                ChatSession__c = session.Id,
-                OriginalAssistantMessage__c = assistantMessages[2].Id,
+                    AgentExecution__c = session.Id,
+                    OriginalAssistantStep__c = assistantMessages[2].Id,
                 LLMToolCallId__c = 'call_3',
                 LLMToolName__c = 'find_sales_records',
                 LLMToolArgumentsJSON__c = '{}',
@@ -249,25 +251,26 @@ private class HumanApprovalRequestTriggerHandlerTest {
         // Setup test data
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
 
-        ChatSession__c session = new ChatSession__c(
+        AgentExecution__c session = new AgentExecution__c(
             User__c = UserInfo.getUserId(),
             AIAgentDefinition__c = agent.Id,
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE
         );
         insert session;
 
-        ChatMessage__c assistantMessage = new ChatMessage__c(
-            ChatSession__c = session.Id,
-            Role__c = AIAgentConstants.ROLE_ASSISTANT,
+        ExecutionStep__c assistantMessage = new ExecutionStep__c(
+                AgentExecution__c = session.Id,
+                StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
             Content__c = 'I will search for sales records.',
             ExternalId__c = 'turn-789',
-            Timestamp__c = System.now()
+            Timestamp__c = System.now(),
+                StepType__c = 'AgentResponse'
         );
         insert assistantMessage;
 
         HumanApprovalRequest__c har = new HumanApprovalRequest__c(
-            ChatSession__c = session.Id,
-            OriginalAssistantMessage__c = assistantMessage.Id,
+                AgentExecution__c = session.Id,
+                OriginalAssistantStep__c = assistantMessage.Id,
             LLMConfirmationMessage__c = 'User requested sales records search',
             LLMToolCallId__c = 'call_789',
             LLMToolName__c = 'find_sales_records',
@@ -295,10 +298,10 @@ private class HumanApprovalRequestTriggerHandlerTest {
         System.assertEquals('Under review by manager', updatedHar.ApproverComments__c);
 
         // Verify no tool messages were created
-        List<ChatMessage__c> toolMessages = [
+        List<ExecutionStep__c> toolMessages = [
             SELECT Id
-            FROM ChatMessage__c
-            WHERE ChatSession__c = :session.Id AND Role__c = 'tool'
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :session.Id AND StepRole__c = 'tool'
         ];
 
         System.assertEquals(0, toolMessages.size());
@@ -309,25 +312,26 @@ private class HumanApprovalRequestTriggerHandlerTest {
         // Setup test data with invalid capability name
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
 
-        ChatSession__c session = new ChatSession__c(
+        AgentExecution__c session = new AgentExecution__c(
             User__c = UserInfo.getUserId(),
             AIAgentDefinition__c = agent.Id,
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE
         );
         insert session;
 
-        ChatMessage__c assistantMessage = new ChatMessage__c(
-            ChatSession__c = session.Id,
-            Role__c = AIAgentConstants.ROLE_ASSISTANT,
+        ExecutionStep__c assistantMessage = new ExecutionStep__c(
+                AgentExecution__c = session.Id,
+                StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
             Content__c = 'I will execute invalid action.',
             ExternalId__c = 'turn-error',
-            Timestamp__c = System.now()
+            Timestamp__c = System.now(),
+                StepType__c = 'AgentResponse'
         );
         insert assistantMessage;
 
         HumanApprovalRequest__c har = new HumanApprovalRequest__c(
-            ChatSession__c = session.Id,
-            OriginalAssistantMessage__c = assistantMessage.Id,
+                AgentExecution__c = session.Id,
+                OriginalAssistantStep__c = assistantMessage.Id,
             LLMConfirmationMessage__c = 'User requested invalid action',
             LLMToolCallId__c = 'call_error',
             LLMToolName__c = 'invalid_capability_name', // This capability doesn't exist

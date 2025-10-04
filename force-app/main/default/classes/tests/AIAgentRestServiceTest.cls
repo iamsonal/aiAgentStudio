@@ -12,14 +12,14 @@ private class AIAgentRestServiceTest {
         insert caps;
 
         // Create chat session
-        ChatSession__c session = TestFactory.createChatSession(agent.Id, UserInfo.getUserId());
+        AgentExecution__c session = TestFactory.createChatSession(agent.Id, UserInfo.getUserId());
         insert session;
     }
 
     @IsTest
     static void processMessage_validRequest_success() {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         // Create valid request
         AIAgentRestService.AIAgentRequest request = new AIAgentRestService.AIAgentRequest();
@@ -37,21 +37,24 @@ private class AIAgentRestServiceTest {
         RestContext.request = req;
         RestContext.response = new RestResponse();
 
+        Test.setMock(HttpCalloutMock.class, new MockHttpResponses());
+
         Test.startTest();
         AIAgentRestService.AIAgentResponse response = AIAgentRestService.processMessage();
+        Integer statusCode = RestContext.response.statusCode;
         Test.stopTest();
 
         System.assertEquals(true, response.success, 'Response should be successful');
         System.assertEquals('Processing', response.outcome, 'Should return Processing status');
         System.assertEquals(null, response.error, 'Should have no error');
         System.assertNotEquals(null, response.requestId, 'Should have request ID');
-        System.assertEquals(200, RestContext.response.statusCode, 'Should return 200 status code');
+        System.assertEquals(200, statusCode, 'Should return 200 status code');
     }
 
     @IsTest
     static void processMessage_validRequestWithRecordId_success() {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         // Create valid request with current record ID
         AIAgentRestService.AIAgentRequest request = new AIAgentRestService.AIAgentRequest();
@@ -72,12 +75,13 @@ private class AIAgentRestServiceTest {
 
         Test.startTest();
         AIAgentRestService.AIAgentResponse response = AIAgentRestService.processMessage();
+        Integer statusCode = RestContext.response.statusCode;
         Test.stopTest();
 
         System.assertEquals(true, response.success, 'Response should be successful');
         System.assertEquals('Processing', response.outcome, 'Should return Processing status');
         System.assertEquals(null, response.error, 'Should have no error');
-        System.assertEquals(200, RestContext.response.statusCode, 'Should return 200 status code');
+        System.assertEquals(200, statusCode, 'Should return 200 status code');
     }
 
     @IsTest
@@ -147,7 +151,7 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void processMessage_missingOriginalUserId_badRequest() {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         // Create request missing originalUserId
         AIAgentRestService.AIAgentRequest request = new AIAgentRestService.AIAgentRequest();
@@ -175,7 +179,7 @@ private class AIAgentRestServiceTest {
 
     @IsTest
     static void processMessage_missingAgentDefinitionId_badRequest() {
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         // Create request missing agentDefinitionId
         AIAgentRestService.AIAgentRequest request = new AIAgentRestService.AIAgentRequest();
@@ -204,7 +208,7 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void processMessage_missingTurnIdentifier_badRequest() {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         // Create request missing turnIdentifier
         AIAgentRestService.AIAgentRequest request = new AIAgentRestService.AIAgentRequest();
@@ -233,7 +237,7 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void processMessage_missingUserMessage_badRequest() {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         // Create request missing userMessage
         AIAgentRestService.AIAgentRequest request = new AIAgentRestService.AIAgentRequest();
@@ -291,7 +295,7 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void processMessage_invalidOriginalUserId_badRequest() {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         // Create request with invalid originalUserId
         AIAgentRestService.AIAgentRequest request = new AIAgentRestService.AIAgentRequest();
@@ -320,7 +324,7 @@ private class AIAgentRestServiceTest {
 
     @IsTest
     static void processMessage_invalidAgentDefinitionId_badRequest() {
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         // Create request with invalid agentDefinitionId
         AIAgentRestService.AIAgentRequest request = new AIAgentRestService.AIAgentRequest();
@@ -350,7 +354,7 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void processMessage_invalidCurrentRecordId_badRequest() {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         // Create request with invalid currentRecordId
         AIAgentRestService.AIAgentRequest request = new AIAgentRestService.AIAgentRequest();
@@ -380,22 +384,19 @@ private class AIAgentRestServiceTest {
 
     @IsTest
     static void processMessage_nonExistentAgentDefinition_badRequest() {
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
-        // Create a fake agent definition ID
-        String fakeAgentId = '001000000000000'; // Valid ID format but doesn't exist
+        String keyPrefix = AIAgentDefinition__c.SObjectType.getDescribe().getKeyPrefix();
+        String fakeAgentId = keyPrefix + '0'.repeat(12);
 
-        // Create request with non-existent agentDefinitionId
         AIAgentRestService.AIAgentRequest request = new AIAgentRestService.AIAgentRequest();
         request.sessionId = session.Id;
         request.originalUserId = UserInfo.getUserId();
         request.agentDefinitionId = fakeAgentId;
         request.turnIdentifier = 'test-turn-123';
         request.userMessage = 'Test message';
-
         String requestBody = JSON.serialize(request);
 
-        // Set up REST context
         RestRequest req = new RestRequest();
         req.requestBody = Blob.valueOf(requestBody);
         RestContext.request = req;
@@ -408,17 +409,14 @@ private class AIAgentRestServiceTest {
         System.debug(response);
 
         System.assertEquals(false, response.success, 'Response should be unsuccessful');
+        System.assert(response.error.contains('Configuration error:'), 'Should indicate a configuration error');
         System.assertEquals(400, RestContext.response.statusCode, 'Should return 400 status code');
     }
 
     @IsTest
     static void generateRequestId_returnsUniqueId() {
-        Test.startTest();
-
-        // Use reflection to call the private method (if accessible) or test indirectly
-        // Since generateRequestId is private, we'll test it indirectly through processMessage
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         AIAgentRestService.AIAgentRequest request = new AIAgentRestService.AIAgentRequest();
         request.sessionId = session.Id;
@@ -426,20 +424,21 @@ private class AIAgentRestServiceTest {
         request.agentDefinitionId = agent.Id;
         request.turnIdentifier = 'test-turn-123';
         request.userMessage = 'Test message';
-
         String requestBody = JSON.serialize(request);
 
         RestRequest req = new RestRequest();
         req.requestBody = Blob.valueOf(requestBody);
+
+        Test.setMock(HttpCalloutMock.class, new MockHttpResponses());
+
+        Test.startTest();
+
         RestContext.request = req;
         RestContext.response = new RestResponse();
-
         AIAgentRestService.AIAgentResponse response1 = AIAgentRestService.processMessage();
 
-        // Reset context for second call
         RestContext.request = req;
         RestContext.response = new RestResponse();
-
         AIAgentRestService.AIAgentResponse response2 = AIAgentRestService.processMessage();
 
         Test.stopTest();

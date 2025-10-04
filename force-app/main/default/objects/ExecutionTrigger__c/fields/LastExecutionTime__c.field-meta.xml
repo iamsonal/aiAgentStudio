@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>LastExecutionTime__c</fullName>
+    <description>Timestamp of the most recent execution triggered by this trigger.</description>
+    <inlineHelpText>When this trigger last fired.</inlineHelpText>
+    <label>Last Execution Time</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

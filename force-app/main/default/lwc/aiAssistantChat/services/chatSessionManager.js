@@ -7,7 +7,8 @@
  */
 
 /**
- * Handles chat session lifecycle, message history, and message sending for the AI Assistant Chat LWC.
+ * Handles agent execution lifecycle, conversation history, and message sending for the AI Assistant Chat LWC.
+ * Now operates on the unified AgentExecution__c and ExecutionStep__c data model.
  * Manages session restoration, new session creation, message formatting, and error handling.
  */
 import { formatDisplayMessages } from '../utils/messageFormatter';
@@ -56,7 +57,6 @@ export class ChatSessionManager {
             });
 
             if (sessionDetails?.sessionId) {
-                console.info(`[ChatSessionManager] Resuming session: ${sessionDetails.sessionId}`);
                 this.currentSessionId = sessionDetails.sessionId;
                 this.onSessionChanged(this.currentSessionId);
                 if (sessionDetails.transientMessagesEnabled) {
@@ -64,7 +64,6 @@ export class ChatSessionManager {
                 }
                 await this._loadSessionContent(sessionDetails.welcomeMessage);
             } else {
-                console.info('[ChatSessionManager] No recent session found. Creating new one.');
                 await this.startNewSession(contextRecordId);
             }
         } catch (error) {
@@ -118,8 +117,6 @@ export class ChatSessionManager {
                 currentRecordId: contextRecordId,
                 turnIdentifier: turnIdentifier
             });
-            // Log with context
-            console.info('[ChatSessionManager] Message sent successfully, waiting for response...');
         } catch (error) {
             this.loadingManager.setLoading('sending', false);
             this._addSystemErrorMessage('Failed to send message. Please try again.');
@@ -195,12 +192,8 @@ export class ChatSessionManager {
     addTransientAssistantMessage(content, messageId) {
         // De-duplication is critical in case of event replay
         if (this.messages.some((msg) => msg.id === messageId)) {
-            // Only log if debugging is needed; otherwise, skip to avoid console clutter
-            // console.debug(`[ChatSessionManager] Transient message with ID ${messageId} already exists. Skipping.`);
             return;
         }
-        // Log with context for troubleshooting
-        console.info(`[ChatSessionManager] Adding transient message with ID ${messageId}`);
         this._addTransientAssistantMessage(content, messageId);
     }
 
@@ -274,8 +267,6 @@ export class ChatSessionManager {
             });
             return details?.welcomeMessage;
         } catch (error) {
-            // Log with context and log level
-            console.warn('[ChatSessionManager] Failed to fetch welcome message:', error);
             return null;
         }
     }

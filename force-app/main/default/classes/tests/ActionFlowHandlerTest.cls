@@ -13,10 +13,10 @@
  */
 @IsTest
 private class ActionFlowHandlerTest {
-    
+
     private static final String TEST_FLOW_API_NAME = 'Test_Flow_API_Name';
     private static final String INVALID_FLOW_API_NAME = 'Invalid Flow Name With Spaces';
-    
+
     @TestSetup
     static void makeData() {
         // Create LLM Configuration
@@ -57,7 +57,7 @@ private class ActionFlowHandlerTest {
         insert caps;
 
         // Create Chat Session
-        ChatSession__c session = TestFactory.createChatSession(agent.Id, UserInfo.getUserId());
+        AgentExecution__c session = TestFactory.createChatSession(agent.Id, UserInfo.getUserId());
         insert session;
     }
 
@@ -66,7 +66,7 @@ private class ActionFlowHandlerTest {
      */
     private static ActionContext createActionContext(String implementationDetail, Id agentCapabilityId) {
         return new ActionContext(
-            'a01000000000001AAA', // chatSessionId
+            'a01000000000001AAA', // executionId
             UserInfo.getUserId(), // originalUserId
             UserInfo.getUserId(), // executionUserId
             null, // relatedRecordId
@@ -74,7 +74,8 @@ private class ActionFlowHandlerTest {
             agentCapabilityId, // agentCapabilityId
             implementationDetail, // implementationDetail
             'test-turn-123', // turnIdentifier
-            1 // currentTurnCount
+            1, // currentTurnCount
+            'Conversational' // executionType
         );
     }
 
@@ -85,12 +86,12 @@ private class ActionFlowHandlerTest {
     static void executeAction_success_withValidParameters() {
         // Get test capability
         AgentCapability__c capability = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'run_flow_valid' LIMIT 1];
-        
+
         // Create action context
         ActionContext context = createActionContext(TEST_FLOW_API_NAME, capability.Id);
-        
+
         ActionFlowHandler action = new ActionFlowHandler();
-        
+
         // Configuration and arguments as JSON
         String configJson = '{}';
         String argsJson = '{"param1": "test value", "param2": 42}';
@@ -114,10 +115,10 @@ private class ActionFlowHandlerTest {
     static void executeAction_success_withEmptyParameters() {
         // Get test capability
         AgentCapability__c capability = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'run_flow_valid' LIMIT 1];
-        
+
         // Create action context
         ActionContext context = createActionContext(TEST_FLOW_API_NAME, capability.Id);
-        
+
         ActionFlowHandler action = new ActionFlowHandler();
 
         // Empty parameters
@@ -139,10 +140,10 @@ private class ActionFlowHandlerTest {
     static void executeAction_success_withComplexParameters() {
         // Get test capability
         AgentCapability__c capability = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'run_flow_valid' LIMIT 1];
-        
+
         // Create action context
         ActionContext context = createActionContext(TEST_FLOW_API_NAME, capability.Id);
-        
+
         ActionFlowHandler action = new ActionFlowHandler();
 
         // Complex parameters
@@ -164,10 +165,10 @@ private class ActionFlowHandlerTest {
     static void executeAction_warnsOnInvalidVariableNames() {
         // Get test capability
         AgentCapability__c capability = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'run_flow_valid' LIMIT 1];
-        
+
         // Create action context
         ActionContext context = createActionContext(TEST_FLOW_API_NAME, capability.Id);
-        
+
         ActionFlowHandler action = new ActionFlowHandler();
 
         // Parameters with invalid Flow variable names
@@ -189,10 +190,10 @@ private class ActionFlowHandlerTest {
     static void executeAction_failure_blankFlowApiName() {
         // Get test capability
         AgentCapability__c capability = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'run_flow_valid' LIMIT 1];
-        
+
         // Create action context with blank implementation detail
         ActionContext context = createActionContext('   ', capability.Id);
-        
+
         ActionFlowHandler action = new ActionFlowHandler();
 
         String configJson = '{}';
@@ -214,10 +215,10 @@ private class ActionFlowHandlerTest {
     static void executeAction_warnsOnInvalidFlowApiName() {
         // Get test capability with invalid flow name
         AgentCapability__c capability = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'run_flow_invalid' LIMIT 1];
-        
+
         // Create action context with invalid flow name
         ActionContext context = createActionContext(INVALID_FLOW_API_NAME, capability.Id);
-        
+
         ActionFlowHandler action = new ActionFlowHandler();
 
         String configJson = '{}';
@@ -239,10 +240,10 @@ private class ActionFlowHandlerTest {
     static void executeAction_handlesNullParameters() {
         // Get test capability
         AgentCapability__c capability = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'run_flow_valid' LIMIT 1];
-        
+
         // Create action context
         ActionContext context = createActionContext(TEST_FLOW_API_NAME, capability.Id);
-        
+
         ActionFlowHandler action = new ActionFlowHandler();
 
         // Parameters with null values
@@ -264,10 +265,10 @@ private class ActionFlowHandlerTest {
     static void parseActionConfiguration_validJson_success() {
         // Get test capability
         AgentCapability__c capability = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'run_flow_valid' LIMIT 1];
-        
+
         // Create action context
         ActionContext context = createActionContext(TEST_FLOW_API_NAME, capability.Id);
-        
+
         ActionFlowHandler action = new ActionFlowHandler();
 
         // Valid configuration
@@ -289,10 +290,10 @@ private class ActionFlowHandlerTest {
     static void parseActionConfiguration_emptyJson_success() {
         // Get test capability
         AgentCapability__c capability = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'run_flow_valid' LIMIT 1];
-        
+
         // Create action context
         ActionContext context = createActionContext(TEST_FLOW_API_NAME, capability.Id);
-        
+
         ActionFlowHandler action = new ActionFlowHandler();
 
         String argsJson = '{"param1": "test"}';
@@ -300,10 +301,10 @@ private class ActionFlowHandlerTest {
         Test.startTest();
         // Test with null config
         ActionResult result1 = action.execute(null, argsJson, context);
-        
+
         // Test with empty string config
         ActionResult result2 = action.execute('', argsJson, context);
-        
+
         // Test with empty JSON object config
         ActionResult result3 = action.execute('{}', argsJson, context);
         Test.stopTest();
@@ -321,10 +322,10 @@ private class ActionFlowHandlerTest {
     static void parseActionConfiguration_invalidJson_throwsException() {
         // Get test capability
         AgentCapability__c capability = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'run_flow_valid' LIMIT 1];
-        
+
         // Create action context
         ActionContext context = createActionContext(TEST_FLOW_API_NAME, capability.Id);
-        
+
         ActionFlowHandler action = new ActionFlowHandler();
 
         // Invalid configuration
@@ -362,7 +363,7 @@ private class ActionFlowHandlerTest {
         System.assertEquals(testFlowName, result.flowName, 'Should set flowName correctly');
         System.assertEquals(testResult, result.result, 'Should set result correctly');
         System.assertEquals(testMessage, result.message, 'Should set message correctly');
-        
+
         // Verify metadata is initialized correctly
         System.assertNotEquals(null, result.metadata, 'Should initialize metadata');
         System.assertEquals(testFlowName, result.metadata.get('flowApiName'), 'Metadata should contain correct flowApiName');
@@ -391,7 +392,7 @@ private class ActionFlowHandlerTest {
         System.assertEquals(testFlowName, result.flowName, 'Should set flowName correctly');
         System.assertEquals(null, result.result, 'Should set result as null');
         System.assertEquals(testMessage, result.message, 'Should set message correctly');
-        
+
         // Verify metadata handles null result correctly
         System.assertNotEquals(null, result.metadata, 'Should initialize metadata');
         System.assertEquals(testFlowName, result.metadata.get('flowApiName'), 'Metadata should contain correct flowApiName');
@@ -425,10 +426,10 @@ private class ActionFlowHandlerTest {
     static void executeAction_performanceLogging() {
         // Get test capability
         AgentCapability__c capability = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'run_flow_valid' LIMIT 1];
-        
+
         // Create action context
         ActionContext context = createActionContext(TEST_FLOW_API_NAME, capability.Id);
-        
+
         ActionFlowHandler action = new ActionFlowHandler();
 
         String configJson = '{}';
@@ -451,7 +452,7 @@ private class ActionFlowHandlerTest {
     @IsTest
     static void testExecuteActionDirectly() {
         ActionFlowHandler action = new ActionFlowHandler();
-        
+
         Map<String, Object> params = new Map<String, Object>{ 'param1' => 'test' };
 
         Test.startTest();

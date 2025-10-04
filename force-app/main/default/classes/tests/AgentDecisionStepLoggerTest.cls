@@ -16,13 +16,13 @@ private class AgentDecisionStepLoggerTest {
         AIAgentDefinition__c agent = TestFactory.createAgentDefinition(llmConfig.Id);
         insert agent;
 
-        ChatSession__c session = TestFactory.createChatSession(agent.Id, UserInfo.getUserId());
+        AgentExecution__c session = TestFactory.createChatSession(agent.Id, UserInfo.getUserId());
         insert session;
     }
 
     @isTest
     static void testConstructorWithSessionIdAndTurnIdentifier() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-001';
 
@@ -37,7 +37,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testConstructorWithSessionIdTurnIdentifierAndUserId() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         User testUser = [SELECT Id FROM User WHERE IsActive = TRUE LIMIT 1];
 
@@ -54,7 +54,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testLogUserInput() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-003';
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(testSession.Id, turnIdentifier);
@@ -69,7 +69,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id, StepType__c, Title__c, Description__c, ContentJson__c, DurationMs__c
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
         ];
 
         System.assertEquals(1, steps.size(), 'One step should be created');
@@ -82,7 +82,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testLogContextGathering() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-004';
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(testSession.Id, turnIdentifier);
@@ -97,7 +97,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id, StepType__c, Title__c, Description__c, ContentJson__c, DurationMs__c
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
         ];
 
         System.assertEquals(1, steps.size(), 'One step should be created');
@@ -110,7 +110,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testLogContextGatheringWithFormatting() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-005';
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(testSession.Id, turnIdentifier);
@@ -131,7 +131,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id, StepType__c, Title__c, Description__c, ContentJson__c, FormattedContext__c, DurationMs__c
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
         ];
 
         System.assertEquals(1, steps.size(), 'One step should be created');
@@ -145,7 +145,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testLogSystemPromptConstruction() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-006';
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(testSession.Id, turnIdentifier);
@@ -165,7 +165,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id, StepType__c, Title__c, Description__c, FormattedContext__c, DurationMs__c
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
         ];
 
         System.assertEquals(1, steps.size(), 'One step should be created');
@@ -178,7 +178,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testLogLLMRequest() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-007';
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(testSession.Id, turnIdentifier);
@@ -193,7 +193,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id, StepType__c, Title__c, Description__c, ContentJson__c, DurationMs__c
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
         ];
 
         System.assertEquals(1, steps.size(), 'One step should be created');
@@ -206,7 +206,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testLogLLMResponse() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-008';
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(testSession.Id, turnIdentifier);
@@ -221,7 +221,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id, StepType__c, Title__c, Description__c, ContentJson__c, DurationMs__c
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
         ];
 
         System.assertEquals(1, steps.size(), 'One step should be created');
@@ -234,7 +234,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testLogAvailableTools() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-009';
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(testSession.Id, turnIdentifier);
@@ -254,7 +254,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id, StepType__c, Title__c, Description__c, ContentJson__c, DurationMs__c
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
         ];
 
         System.assertEquals(1, steps.size(), 'One step should be created');
@@ -267,7 +267,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testLogToolExecution() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-010';
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(testSession.Id, turnIdentifier);
@@ -282,7 +282,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id, StepType__c, Title__c, Description__c, ContentJson__c, DurationMs__c, IsSuccess__c
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
         ];
 
         System.assertEquals(1, steps.size(), 'One step should be created');
@@ -296,7 +296,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testLogToolExecutionWithError() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-011';
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(testSession.Id, turnIdentifier);
@@ -319,7 +319,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id, StepType__c, Title__c, Description__c, ContentJson__c, DurationMs__c, IsSuccess__c, ErrorCode__c, ErrorMessage__c
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
         ];
 
         System.assertEquals(1, steps.size(), 'One step should be created');
@@ -335,7 +335,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testLogToolResult() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-012';
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(testSession.Id, turnIdentifier);
@@ -350,7 +350,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id, StepType__c, Title__c, Description__c, ContentJson__c, DurationMs__c, IsSuccess__c
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
         ];
 
         System.assertEquals(1, steps.size(), 'One step should be created');
@@ -364,7 +364,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testLogFinalResponse() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-013';
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(testSession.Id, turnIdentifier);
@@ -379,7 +379,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id, StepType__c, Title__c, Description__c, ContentJson__c, DurationMs__c
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
         ];
 
         System.assertEquals(1, steps.size(), 'One step should be created');
@@ -392,7 +392,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testLogError() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-014';
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(testSession.Id, turnIdentifier);
@@ -407,7 +407,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id, StepType__c, Title__c, Description__c, ContentJson__c, DurationMs__c, IsSuccess__c, ErrorCode__c, ErrorMessage__c
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
         ];
 
         System.assertEquals(1, steps.size(), 'One step should be created');
@@ -423,7 +423,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testCommitStepsWithMultipleSteps() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-015';
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(testSession.Id, turnIdentifier);
@@ -440,7 +440,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id, StepType__c, StepOrder__c
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
             ORDER BY StepOrder__c ASC
         ];
 
@@ -457,7 +457,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testCommitStepsWithNoSteps() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         String turnIdentifier = 'test-turn-016';
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(testSession.Id, turnIdentifier);
@@ -471,7 +471,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
         ];
 
         System.assertEquals(0, steps.size(), 'No steps should be created');
@@ -479,7 +479,7 @@ private class AgentDecisionStepLoggerTest {
 
     @isTest
     static void testLoggerWithUserInformation() {
-        ChatSession__c testSession = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c testSession = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         User testUser = [SELECT Id FROM User WHERE IsActive = TRUE LIMIT 1];
 
@@ -496,7 +496,7 @@ private class AgentDecisionStepLoggerTest {
         List<AgentDecisionStep__c> steps = [
             SELECT Id, OriginalUser__c, ExecutionUser__c
             FROM AgentDecisionStep__c
-            WHERE ChatSession__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
+            WHERE AgentExecution__c = :testSession.Id AND TurnIdentifier__c = :turnIdentifier
         ];
 
         System.assertEquals(1, steps.size(), 'One step should be created');

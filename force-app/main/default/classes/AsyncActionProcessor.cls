@@ -12,14 +12,15 @@
  * Responsibilities:
  *   - Handles individual agent actions independently of invocation context (user, REST, or platform event)
  *   - Provides comprehensive action execution lifecycle management: validation, execution, result processing, and follow-up orchestration
- *   - Ensures robust error handling and session state management throughout the action lifecycle
+ *   - Ensures robust error handling and execution state management throughout the action lifecycle
  *   - Surfaces operational and execution issues clearly via debug output for maintainability
+ *   - Uses the unified AgentExecution__c and ExecutionStep__c data models exclusively
  *
  * This class is not intended to be instantiated or extended outside the framework.
  */
 public class AsyncActionProcessor {
-    // Properties are identical to the original Queueable
-    private final Id chatSessionId;
+    // Core execution properties
+    private final Id executionId;
     private final Id originalUserId;
     private final Id agentDefinitionId;
     private final Id parentAssistantMessageId;
@@ -31,9 +32,9 @@ public class AsyncActionProcessor {
     private final AgentCapability__c capability;
 
     /**
-     * Constructs an AsyncActionProcessor for a single agent action execution.
+     * Constructor for asynchronous action processing using the unified AgentExecution__c model.
      *
-     * @param sessId           The chat session ID.
+     * @param executionId      The execution ID (AgentExecution__c).
      * @param origUserId       The original user ID.
      * @param agentDefId       The agent definition ID.
      * @param parentMsgId      The parent assistant message ID.
@@ -45,7 +46,7 @@ public class AsyncActionProcessor {
      * @param turnCount        The current turn count.
      */
     public AsyncActionProcessor(
-        Id sessId,
+        Id executionId,
         Id origUserId,
         Id agentDefId,
         Id parentMsgId,
@@ -56,7 +57,7 @@ public class AsyncActionProcessor {
         String turnId,
         Integer turnCount
     ) {
-        this.chatSessionId = sessId;
+        this.executionId = executionId;
         this.originalUserId = origUserId;
         this.agentDefinitionId = agentDefId;
         this.parentAssistantMessageId = parentMsgId;
@@ -88,32 +89,23 @@ public class AsyncActionProcessor {
             '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting asynchronous execution for capability: ' + this.capability.CapabilityName__c);
 
-        AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(this.chatSessionId, this.turnIdentifier, this.originalUserId);
+        AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(this.executionId, this.turnIdentifier, this.originalUserId);
 
         TurnLifecycleService turnLifecycleSvc = new TurnLifecycleService();
         ActionExecutionService actionService = new ActionExecutionService();
         AgentJobEnqueuer orchestrationDispatchSvc = new AgentJobEnqueuer(turnLifecycleSvc);
 
         try {
-            // Lock session and validate current state to prevent stale executions
-            List<ChatSession__c> sessions = [
-                SELECT Id, ProcessingStatus__c, CurrentTurnIdentifier__c
-                FROM ChatSession__c
-                WHERE Id = :this.chatSessionId
-                LIMIT 1
-                FOR UPDATE
-            ];
-            if (
-                sessions.isEmpty() ||
-                !this.turnIdentifier.equals(sessions[0].CurrentTurnIdentifier__c) ||
-                sessions[0].ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_ACTION
-            ) {
-                System.debug(LoggingLevel.WARN, logPrefix + 'Stale execution detected or session in unexpected state - aborting action execution');
+            // Lock execution and validate current state to prevent stale executions
+            ExecutionContextService executionContextService = new ExecutionContextService();
+            AgentExecution__c execution = executionContextService.lockExecution(this.executionId, this.turnIdentifier);
+            if (execution == null || execution.ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_ACTION) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Stale execution detected or execution in unexpected state - aborting action execution');
                 return;
             }
 
-            // Update session status to indicate active action processing
-            turnLifecycleSvc.startTurnProcessing(this.chatSessionId, this.turnIdentifier, null, logPrefix);
+            // Update execution status to indicate active action processing
+            turnLifecycleSvc.startTurnProcessing(this.executionId, this.turnIdentifier, null, logPrefix);
 
             // Execute the action with performance tracking
             Long actionDuration = 0L;
@@ -121,7 +113,7 @@ public class AsyncActionProcessor {
             Long actionStartTime = System.currentTimeMillis();
             try {
                 ActionContext actionContext = new ActionContext(
-                    this.chatSessionId,
+                    this.executionId,
                     this.originalUserId,
                     executionUserId,
                     this.relatedRecordId,
@@ -129,7 +121,8 @@ public class AsyncActionProcessor {
                     this.capability.Id,
                     this.capability.ImplementationDetail__c,
                     this.turnIdentifier,
-                    this.currentTurnCount
+                    this.currentTurnCount,
+                    'Conversational' // Default execution type
                 );
                 actionResult = actionService.executeSingleAction(this.capability, this.llmArgumentsJson, actionContext);
             } catch (Exception ex) {
@@ -156,19 +149,16 @@ public class AsyncActionProcessor {
                 actionResult.internalDetails
             );
 
-            ChatMessageService.saveToolResultMessage(
-                this.chatSessionId,
-                this.turnIdentifier,
-                this.parentAssistantMessageId,
+            // Save the tool result using ExecutionStep__c
+            ExecutionStepService executionStepService = new ExecutionStepService();
+            executionStepService.createToolResultStep(
+                this.executionId,
                 this.toolCallId,
-                resultJsonForStorage,
-                actionResult.internalDetails,
-                actionResult.errorCode,
-                actionDuration,
-                newRecordContextId,
-                resultJsonForStorage,
                 this.capability.CapabilityName__c,
-                logPrefix
+                resultJsonForStorage,
+                this.turnIdentifier,
+                this.currentTurnCount,
+                actionDuration
             );
 
             // Validate turn limits and dispatch follow-up processing
@@ -176,16 +166,16 @@ public class AsyncActionProcessor {
             if ((this.currentTurnCount + 1) > maxTurns) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Maximum conversation turns exceeded (' + maxTurns + ') - terminating processing');
                 turnLifecycleSvc.failTurn(
-                    this.chatSessionId,
+                    this.executionId,
                     this.turnIdentifier,
                     'Maximum processing cycles reached.',
                     AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED,
                     logPrefix
                 );
             } else {
-                turnLifecycleSvc.resumeForFollowUpLlmCall(this.chatSessionId, this.turnIdentifier, null, logPrefix);
+                turnLifecycleSvc.resumeForFollowUpLlmCall(this.executionId, this.turnIdentifier, null, logPrefix);
                 orchestrationDispatchSvc.enqueueFollowUp(
-                    this.chatSessionId,
+                    this.executionId,
                     this.originalUserId,
                     this.agentDefinitionId,
                     this.turnIdentifier,
@@ -205,14 +195,14 @@ public class AsyncActionProcessor {
             );
             try {
                 turnLifecycleSvc.failTurn(
-                    this.chatSessionId,
+                    this.executionId,
                     this.turnIdentifier,
                     'Action processor internal error: ' + ex.getMessage(),
                     AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
                     logPrefix
                 );
             } catch (Exception finalFailEx) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update session state during error handling: ' + finalFailEx.getMessage());
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update execution state during error handling: ' + finalFailEx.getMessage());
             }
         } finally {
             decisionLogger.commitSteps();

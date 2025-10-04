@@ -24,11 +24,11 @@ private class SystemPromptBuilderTest {
         insert setup.agentDefinition;
 
         // Create test session
-        ChatSession__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
+        AgentExecution__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
         insert session;
 
         // Create test messages
-        List<ChatMessage__c> messages = TestFactory.createChatMessages(session.Id, 2);
+        List<ExecutionStep__c> messages = TestFactory.createChatMessages(session.Id, 2);
         insert messages;
 
         // Create test Account for context
@@ -66,7 +66,7 @@ private class SystemPromptBuilderTest {
             LIMIT 1
         ];
         LLMConfiguration__c llmConfig = [SELECT Id FROM LLMConfiguration__c LIMIT 1];
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         agent.MemoryStrategy__c = 'Summary Buffer';
         update agent;
@@ -117,7 +117,7 @@ private class SystemPromptBuilderTest {
         update agent;
 
         LLMConfiguration__c llmConfig = [SELECT Id FROM LLMConfiguration__c LIMIT 1];
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         Test.startTest();
 
@@ -152,7 +152,7 @@ private class SystemPromptBuilderTest {
         update agent;
 
         // Add conversation summary to session
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
         session.ConversationSummary__c = 'Previous conversation summary for testing';
         update session;
 
@@ -188,7 +188,7 @@ private class SystemPromptBuilderTest {
             LIMIT 1
         ];
         LLMConfiguration__c llmConfig = [SELECT Id FROM LLMConfiguration__c LIMIT 1];
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
         Account testAccount = [SELECT Id FROM Account LIMIT 1];
 
         agent.MemoryStrategy__c = 'Summary Buffer';
@@ -217,7 +217,7 @@ private class SystemPromptBuilderTest {
 
     @IsTest
     static void testGetHighlightedContext() {
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         Test.startTest();
 
@@ -695,7 +695,7 @@ private class SystemPromptBuilderTest {
         update agent;
 
         LLMConfiguration__c llmConfig = [SELECT Id FROM LLMConfiguration__c LIMIT 1];
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         Test.startTest();
 
@@ -747,7 +747,7 @@ private class SystemPromptBuilderTest {
             LIMIT 1
         ];
         LLMConfiguration__c llmConfig = [SELECT Id FROM LLMConfiguration__c LIMIT 1];
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         Test.startTest();
 
@@ -792,7 +792,7 @@ private class SystemPromptBuilderTest {
     @IsTest
     static void testBuildContextSummary() {
         // Get test data
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         Test.startTest();
 
@@ -811,7 +811,7 @@ private class SystemPromptBuilderTest {
         // Since we can't easily mock it, we'll test the method with actual data
 
         // Get test data
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         Test.startTest();
 
@@ -830,7 +830,7 @@ private class SystemPromptBuilderTest {
         // Since we can't easily mock it, we'll test with a real instance which should return empty
         // when no context exists
 
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         Test.startTest();
 
@@ -849,7 +849,7 @@ private class SystemPromptBuilderTest {
         // Test the truncation logic by creating a large section that exceeds MAX_CONTEXT_CHARS
         // This is difficult to test without mocking, so we'll test the method exists and is callable
 
-        ChatSession__c session = [SELECT Id FROM ChatSession__c LIMIT 1];
+        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         Test.startTest();
 

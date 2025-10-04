@@ -41,6 +41,11 @@
                 <default>false</default>
                 <label>Search Knowledge</label>
             </value>
+            <value>
+                <fullName>SendEmail</fullName>
+                <default>false</default>
+                <label>Send Email</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

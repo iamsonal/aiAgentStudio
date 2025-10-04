@@ -36,7 +36,7 @@ private class ActionSearchKnowledgeTest {
         insert cap;
 
         // 3. Create a Chat Session for context
-        ChatSession__c session = TestFactory.createChatSession(agent.Id, UserInfo.getUserId());
+        AgentExecution__c session = TestFactory.createChatSession(agent.Id, UserInfo.getUserId());
         insert session;
 
         // 4. Create Knowledge Articles for testing
@@ -73,9 +73,9 @@ private class ActionSearchKnowledgeTest {
     private static ActionContext createTestActionContext() {
         Id agentId = [SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id;
         Id capabilityId = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'search_knowledge' LIMIT 1].Id;
-        Id sessionId = [SELECT Id FROM ChatSession__c LIMIT 1].Id;
+        Id sessionId = [SELECT Id FROM AgentExecution__c LIMIT 1].Id;
 
-        return new ActionContext(sessionId, UserInfo.getUserId(), UserInfo.getUserId(), null, agentId, capabilityId, null, 'turn-123', 1);
+        return new ActionContext(sessionId, UserInfo.getUserId(), UserInfo.getUserId(), null, agentId, capabilityId, null, 'turn-123', 1, 'Conversational');
     }
 
     @IsTest

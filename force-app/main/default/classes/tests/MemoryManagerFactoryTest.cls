@@ -50,18 +50,20 @@ private class MemoryManagerFactoryTest {
         setup.agentDefinition.HistoryTurnLimit__c = null; // Unlimited history
         insert setup.agentDefinition;
 
-        ChatSession__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
+        AgentExecution__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
         insert session;
 
         // Create test messages
-        List<ChatMessage__c> messages = new List<ChatMessage__c>();
-        messages.add(new ChatMessage__c(ChatSession__c = session.Id, Role__c = 'user', Content__c = 'Hello', Timestamp__c = Datetime.now()));
+        List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
+        messages.add(new ExecutionStep__c(AgentExecution__c = session.Id, StepRole__c = 'user', Content__c = 'Hello',
+                StepType__c = 'UserInput', Timestamp__c = Datetime.now()));
         messages.add(
-            new ChatMessage__c(
-                ChatSession__c = session.Id,
-                Role__c = 'assistant',
+            new ExecutionStep__c(
+                    AgentExecution__c = session.Id,
+                    StepRole__c = 'assistant',
                 Content__c = 'Hi there!',
-                Timestamp__c = Datetime.now().addSeconds(1)
+                Timestamp__c = Datetime.now().addSeconds(1),
+                    StepType__c = 'AgentResponse'
             )
         );
         insert messages;
@@ -85,18 +87,19 @@ private class MemoryManagerFactoryTest {
         setup.agentDefinition.HistoryTurnLimit__c = 0; // No history
         insert setup.agentDefinition;
 
-        ChatSession__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
+        AgentExecution__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
         insert session;
 
         // Create test messages
-        List<ChatMessage__c> messages = new List<ChatMessage__c>();
-        messages.add(new ChatMessage__c(ChatSession__c = session.Id, Role__c = 'user', Content__c = 'Hello', Timestamp__c = Datetime.now()));
+        List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
+        messages.add(new ExecutionStep__c(AgentExecution__c = session.Id, StepRole__c = 'user', Content__c = 'Hello', StepType__c = 'UserInput', Timestamp__c = Datetime.now()));
         messages.add(
-            new ChatMessage__c(
-                ChatSession__c = session.Id,
-                Role__c = 'assistant',
+            new ExecutionStep__c(
+                    AgentExecution__c = session.Id,
+                    StepRole__c = 'assistant',
                 Content__c = 'Hi there!',
-                Timestamp__c = Datetime.now().addSeconds(1)
+                Timestamp__c = Datetime.now().addSeconds(1),
+                    StepType__c = 'AgentResponse'
             )
         );
         insert messages;
@@ -119,7 +122,7 @@ private class MemoryManagerFactoryTest {
         setup.agentDefinition.MemoryStrategy__c = 'Buffer Window';
         insert setup.agentDefinition;
 
-        ChatSession__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
+        AgentExecution__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
         insert session;
 
         // Test the memory manager method (should not throw exception)
@@ -140,18 +143,19 @@ private class MemoryManagerFactoryTest {
         setup.agentDefinition.MemoryStrategy__c = 'Summary Buffer';
         insert setup.agentDefinition;
 
-        ChatSession__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
+        AgentExecution__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
         insert session;
 
         // Create test messages
-        List<ChatMessage__c> messages = new List<ChatMessage__c>();
-        messages.add(new ChatMessage__c(ChatSession__c = session.Id, Role__c = 'user', Content__c = 'Hello', Timestamp__c = Datetime.now()));
+        List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
+        messages.add(new ExecutionStep__c(AgentExecution__c = session.Id, StepRole__c = 'user', Content__c = 'Hello', StepType__c = 'UserInput', Timestamp__c = Datetime.now()));
         messages.add(
-            new ChatMessage__c(
-                ChatSession__c = session.Id,
-                Role__c = 'assistant',
+            new ExecutionStep__c(
+                    AgentExecution__c = session.Id,
+                    StepRole__c = 'assistant',
                 Content__c = 'Hi there!',
-                Timestamp__c = Datetime.now().addSeconds(1)
+                Timestamp__c = Datetime.now().addSeconds(1),
+                    StepType__c = 'AgentResponse'
             )
         );
         insert messages;
@@ -175,18 +179,19 @@ private class MemoryManagerFactoryTest {
         setup.agentDefinition.SummarizationTriggerTurnCount__c = 2; // Trigger summarization at 2 turns
         insert setup.agentDefinition;
 
-        ChatSession__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
+        AgentExecution__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
         insert session;
 
         // Create test messages
-        List<ChatMessage__c> messages = new List<ChatMessage__c>();
-        messages.add(new ChatMessage__c(ChatSession__c = session.Id, Role__c = 'user', Content__c = 'Hello', Timestamp__c = Datetime.now()));
+        List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
+        messages.add(new ExecutionStep__c(AgentExecution__c = session.Id, StepRole__c = 'user', Content__c = 'Hello', StepType__c = 'UserInput', Timestamp__c = Datetime.now()));
         messages.add(
-            new ChatMessage__c(
-                ChatSession__c = session.Id,
-                Role__c = 'assistant',
+            new ExecutionStep__c(
+                    AgentExecution__c = session.Id,
+                    StepRole__c = 'assistant',
                 Content__c = 'Hi there!',
-                Timestamp__c = Datetime.now().addSeconds(1)
+                Timestamp__c = Datetime.now().addSeconds(1),
+                    StepType__c = 'AgentResponse'
             )
         );
         insert messages;
@@ -211,18 +216,19 @@ private class MemoryManagerFactoryTest {
         setup.agentDefinition.SummarizationTriggerTurnCount__c = 5; // Trigger summarization at 5 turns (we only have 2)
         insert setup.agentDefinition;
 
-        ChatSession__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
+        AgentExecution__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
         insert session;
 
         // Create test messages
-        List<ChatMessage__c> messages = new List<ChatMessage__c>();
-        messages.add(new ChatMessage__c(ChatSession__c = session.Id, Role__c = 'user', Content__c = 'Hello', Timestamp__c = Datetime.now()));
+        List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
+        messages.add(new ExecutionStep__c(AgentExecution__c = session.Id, StepRole__c = 'user', Content__c = 'Hello', StepType__c = 'UserInput', Timestamp__c = Datetime.now()));
         messages.add(
-            new ChatMessage__c(
-                ChatSession__c = session.Id,
-                Role__c = 'assistant',
+            new ExecutionStep__c(
+                    AgentExecution__c = session.Id,
+                    StepRole__c = 'assistant',
                 Content__c = 'Hi there!',
-                Timestamp__c = Datetime.now().addSeconds(1)
+                Timestamp__c = Datetime.now().addSeconds(1),
+                    StepType__c = 'AgentResponse'
             )
         );
         insert messages;

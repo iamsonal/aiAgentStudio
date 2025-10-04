@@ -24,7 +24,7 @@ private class BaseAgentActionTest {
 
         // Create a mock action context
         ActionContext context = new ActionContext(
-            'a01000000000001AAA', // chatSessionId
+            'a01000000000001AAA', // executionId
             UserInfo.getUserId(), // originalUserId
             UserInfo.getUserId(), // executionUserId
             null, // relatedRecordId
@@ -32,7 +32,8 @@ private class BaseAgentActionTest {
             capability.Id, // agentCapabilityId
             'TestAction', // implementationDetail
             'test-turn-123', // turnIdentifier
-            1 // currentTurnCount
+            1, // currentTurnCount
+            'Conversational' // executionType
         );
 
         // Create a test implementation of BaseAgentAction
