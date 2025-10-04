@@ -159,7 +159,7 @@ public inherited sharing class ExecutionStepService {
             executionId,
             'ToolCall',
             'Assistant',
-            'Tool call: ' + toolName,
+            null,
             'JSON',
             turnIdentifier,
             turnCount,

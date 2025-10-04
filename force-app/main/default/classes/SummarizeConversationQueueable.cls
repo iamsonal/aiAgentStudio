@@ -106,7 +106,10 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
         List<String> newLinesList = new List<String>();
         for (Object obj : messagesToProcess) {
             ExecutionStep__c step = (ExecutionStep__c) obj;
-            newLinesList.add(step.StepRole__c + ': ' + step.Content__c);
+            // Only include steps that represent actual conversation content
+            if (step.StepType__c == 'UserInput' || step.StepType__c == 'AgentResponse') {
+                newLinesList.add(step.StepRole__c + ': ' + step.Content__c);
+            }
         }
         String newLines = String.join(newLinesList, '\n');
 
