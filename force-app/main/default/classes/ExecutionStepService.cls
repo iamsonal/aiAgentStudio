@@ -202,7 +202,7 @@ public inherited sharing class ExecutionStepService {
             AgentExecution__c = executionId,
             StepType__c = 'ToolResult',
             StepRole__c = 'Tool',
-            Content__c = 'Tool result: ' + toolName,
+            Content__c = null,
             ContentType__c = 'JSON',
             Timestamp__c = Datetime.now(),
             TurnIdentifier__c = turnIdentifier,
