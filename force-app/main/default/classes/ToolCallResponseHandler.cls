@@ -494,11 +494,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             }
         }
 
-        // Determine next orchestration step based on result and capability configuration
-        if (actionResult == null) {
-            System.debug(LoggingLevel.INFO, logPrefix + 'Tool action transitioned to async. Sync portion complete.');
-            return OrchestrationService.OUTCOME_QUEUED_ACTION;
-        }
         if (actionResult.isSuccess || capability.HaltAndReportError__c == false) {
             System.debug(LoggingLevel.INFO, logPrefix + 'Tool action succeeded or is configured for autonomous recovery. Continuing agent loop.');
 
