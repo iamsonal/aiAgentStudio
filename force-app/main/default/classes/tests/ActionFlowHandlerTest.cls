@@ -97,14 +97,14 @@ private class ActionFlowHandlerTest {
         String argsJson = '{"param1": "test value", "param2": 42}';
 
         Test.startTest();
-        ActionResult result = action.execute(configJson, argsJson, context);
+        ActionOutcome outcome = action.execute(configJson, argsJson, context);
         Test.stopTest();
 
         // Assert result structure
-        System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertNotEquals(null, outcome, 'Result should not be null');
         // Note: In test context, Flow.Interview.createInterview will likely fail,
         // but we're testing the parameter validation and setup logic
-        System.debug('Result: ' + result);
+        System.debug('Result: ' + outcome);
         // The execution will likely fail due to missing flow, but should handle gracefully
     }
 
@@ -126,10 +126,10 @@ private class ActionFlowHandlerTest {
         String argsJson = '{}';
 
         Test.startTest();
-        ActionResult result = action.execute(configJson, argsJson, context);
+        ActionOutcome outcome = action.execute(configJson, argsJson, context);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertNotEquals(null, outcome, 'Result should not be null');
         // Should handle empty parameters gracefully
     }
 
@@ -151,10 +151,10 @@ private class ActionFlowHandlerTest {
         String argsJson = '{"textParam": "test text", "numberParam": 123, "booleanParam": true}';
 
         Test.startTest();
-        ActionResult result = action.execute(configJson, argsJson, context);
+        ActionOutcome outcome = action.execute(configJson, argsJson, context);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertNotEquals(null, outcome, 'Result should not be null');
         // Should handle complex parameters gracefully
     }
 
@@ -176,10 +176,10 @@ private class ActionFlowHandlerTest {
         String argsJson = '{"123InvalidStart": "starts with number", "invalid-dash": "contains dash", "validParam": "this is valid"}';
 
         Test.startTest();
-        ActionResult result = action.execute(configJson, argsJson, context);
+        ActionOutcome outcome = action.execute(configJson, argsJson, context);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertNotEquals(null, outcome, 'Result should not be null');
         // Should handle invalid parameter names with warnings but continue processing
     }
 
@@ -200,12 +200,12 @@ private class ActionFlowHandlerTest {
         String argsJson = '{"param1": "test"}';
 
         Test.startTest();
-        ActionResult result = action.execute(configJson, argsJson, context);
+        ActionOutcome outcome = action.execute(configJson, argsJson, context);
         Test.stopTest();
 
         // Should fail with configuration error
-        System.assertEquals(false, result.getIsSuccess(), 'Should fail when flow name is blank');
-        System.assertEquals(AIAgentConstants.ERR_CODE_CONFIG_ERROR, result.getErrorCode(), 'Should return config error');
+        System.assertEquals(false, outcome.isSuccess, 'Should fail when flow name is blank');
+        System.assertEquals(AIAgentConstants.ERR_CODE_CONFIG_ERROR, outcome.errorCode, 'Should return config error');
     }
 
     /**
@@ -225,10 +225,10 @@ private class ActionFlowHandlerTest {
         String argsJson = '{"param1": "test"}';
 
         Test.startTest();
-        ActionResult result = action.execute(configJson, argsJson, context);
+        ActionOutcome outcome = action.execute(configJson, argsJson, context);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertNotEquals(null, outcome, 'Result should not be null');
         // Should proceed but log warning (we can't easily test the warning in unit tests)
         // The flow execution will likely fail since the flow doesn't exist, but that's expected
     }
@@ -251,10 +251,10 @@ private class ActionFlowHandlerTest {
         String argsJson = '{"nullParam": null, "validParam": "test", "numberParam": 42}';
 
         Test.startTest();
-        ActionResult result = action.execute(configJson, argsJson, context);
+        ActionOutcome outcome = action.execute(configJson, argsJson, context);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertNotEquals(null, outcome, 'Result should not be null');
         // Should handle null and other edge cases gracefully
     }
 
@@ -276,11 +276,11 @@ private class ActionFlowHandlerTest {
         String argsJson = '{"param1": "test"}';
 
         Test.startTest();
-        ActionResult result = action.execute(configJson, argsJson, context);
+        ActionOutcome outcome = action.execute(configJson, argsJson, context);
         Test.stopTest();
 
         // Should not throw exceptions during parsing
-        System.assertNotEquals(null, result, 'Configuration should parse successfully');
+        System.assertNotEquals(null, outcome, 'Configuration should parse successfully');
     }
 
     /**
@@ -300,19 +300,19 @@ private class ActionFlowHandlerTest {
 
         Test.startTest();
         // Test with null config
-        ActionResult result1 = action.execute(null, argsJson, context);
+        ActionOutcome outcome1 = action.execute(null, argsJson, context);
 
         // Test with empty string config
-        ActionResult result2 = action.execute('', argsJson, context);
+        ActionOutcome outcome2 = action.execute('', argsJson, context);
 
         // Test with empty JSON object config
-        ActionResult result3 = action.execute('{}', argsJson, context);
+        ActionOutcome outcome3 = action.execute('{}', argsJson, context);
         Test.stopTest();
 
         // Should handle empty/null configurations gracefully
-        System.assertNotEquals(null, result1, 'Should handle null configuration');
-        System.assertNotEquals(null, result2, 'Should handle empty configuration');
-        System.assertNotEquals(null, result3, 'Should handle empty JSON configuration');
+        System.assertNotEquals(null, outcome1, 'Should handle null configuration');
+        System.assertNotEquals(null, outcome2, 'Should handle empty configuration');
+        System.assertNotEquals(null, outcome3, 'Should handle empty JSON configuration');
     }
 
     /**
@@ -333,13 +333,13 @@ private class ActionFlowHandlerTest {
         String argsJson = '{"param1": "test"}';
 
         Test.startTest();
-        ActionResult result = action.execute(configJson, argsJson, context);
+        ActionOutcome outcome = action.execute(configJson, argsJson, context);
         Test.stopTest();
 
         // Should fail with validation error
-        System.assertEquals(false, result.getIsSuccess(), 'Should fail with invalid JSON configuration');
-        // The error should be caught by the base class and converted to an ActionResult
-        System.assertNotEquals(null, result.getErrorCode(), 'Should have error code');
+        System.assertEquals(false, outcome.isSuccess, 'Should fail with invalid JSON configuration');
+        // The error should be caught by the base class and converted to an ActionOutcome
+        System.assertNotEquals(null, outcome.errorCode, 'Should have error code');
     }
 
     /**
@@ -411,12 +411,12 @@ private class ActionFlowHandlerTest {
         String argsJson = '{"param1": "test"}';
 
         Test.startTest();
-        ActionResult result = action.execute(configJson, argsJson, null);
+        ActionOutcome outcome = action.execute(configJson, argsJson, null);
         Test.stopTest();
 
         // Should fail gracefully when context is null
-        System.assertEquals(false, result.getIsSuccess(), 'Should fail when context is null');
-        System.assertNotEquals(null, result.getErrorCode(), 'Should have error code');
+        System.assertEquals(false, outcome.isSuccess, 'Should fail when context is null');
+        System.assertNotEquals(null, outcome.errorCode, 'Should have error code');
     }
 
     /**
@@ -437,11 +437,11 @@ private class ActionFlowHandlerTest {
 
         Test.startTest();
         Long startTime = System.currentTimeMillis();
-        ActionResult result = action.execute(configJson, argsJson, context);
+        ActionOutcome outcome = action.execute(configJson, argsJson, context);
         Long endTime = System.currentTimeMillis();
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
+        System.assertNotEquals(null, outcome, 'Result should not be null');
         System.assert(endTime >= startTime, 'End time should be after start time');
         // Performance logging happens in the method but can't be easily tested
     }

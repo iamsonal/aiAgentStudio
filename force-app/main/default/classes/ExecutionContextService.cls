@@ -175,15 +175,17 @@ public inherited sharing class ExecutionContextService {
     }
 
     /**
-     * Locks an execution for atomic updates to prevent concurrent modifications.
+     * Validates and retrieves an execution record, checking for stale state.
+     * Does NOT lock the record. Use this to validate the execution state matches the expected turn identifier
+     * before processing to prevent race conditions from stale async jobs.
      *
-     * @param executionId The execution to lock
+     * @param executionId The execution to validate and retrieve
      * @param expectedTurnIdentifier Expected turn identifier for stale check
-     * @return AgentExecution__c record with FOR UPDATE lock
+     * @return AgentExecution__c record
      * @throws ExecutionContextException if execution is stale or not found
      */
-    public AgentExecution__c lockExecution(Id executionId, String expectedTurnIdentifier) {
-        String logPrefix = LOG_PREFIX + '[lockExecution] ';
+    public AgentExecution__c validateAndGetExecution(Id executionId, String expectedTurnIdentifier) {
+        String logPrefix = LOG_PREFIX + '[validateAndGetExecution] ';
 
         try {
             List<AgentExecution__c> executions = [
@@ -191,7 +193,6 @@ public inherited sharing class ExecutionContextService {
                 FROM AgentExecution__c
                 WHERE Id = :executionId
                 LIMIT 1
-                FOR UPDATE
             ];
 
             if (executions.isEmpty()) {
@@ -207,11 +208,11 @@ public inherited sharing class ExecutionContextService {
                 );
             }
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Locked execution: ' + executionId);
+            System.debug(LoggingLevel.INFO, logPrefix + 'Validated execution: ' + executionId);
             return execution;
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to lock execution: ' + e.getMessage());
-            throw new ExecutionContextException('Failed to lock execution: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to validate execution: ' + e.getMessage());
+            throw new ExecutionContextException('Failed to validate execution: ' + e.getMessage());
         }
     }
 

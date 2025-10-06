@@ -68,7 +68,6 @@ public class InitialLLMProcessor {
 
             // Mark execution as failed
             markExecutionAsFailed(executionId, triggerSource, e.getMessage());
-            throw new LLMProcessingException('Failed to process ' + triggerSource + ' execution: ' + e.getMessage());
         }
     }
 

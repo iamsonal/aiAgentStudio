@@ -44,14 +44,13 @@ private class BaseAgentActionTest {
         String argsJson = '{"Name": "Test Opportunity", "StageName": "Prospecting"}';
 
         Test.startTest();
-        ActionResult result = action.execute(configJson, argsJson, context);
+        ActionOutcome outcome = action.execute(configJson, argsJson, context);
         Test.stopTest();
 
         // Verify results
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(true, result.getIsSuccess(), 'Result should be successful');
-        // The output is an ActionOutcome, not a Map
-        System.assertEquals('Test execution successful', String.valueOf(result.getOutputForLlm()), 'Should have correct success message');
+        System.assertNotEquals(null, outcome, 'Outcome should not be null');
+        System.assertEquals(true, outcome.isSuccess, 'Outcome should be successful');
+        System.assertEquals('Test execution successful', String.valueOf(outcome.data), 'Should have correct success message');
     }
 
     @IsTest
@@ -59,13 +58,13 @@ private class BaseAgentActionTest {
         TestAgentAction action = new TestAgentAction();
 
         Test.startTest();
-        ActionResult result = action.execute('{}', '{}', null);
+        ActionOutcome outcome = action.execute('{}', '{}', null);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(false, result.getIsSuccess(), 'Result should indicate failure');
+        System.assertNotEquals(null, outcome, 'Outcome should not be null');
+        System.assertEquals(false, outcome.isSuccess, 'Outcome should indicate failure');
         // Check that the error message contains the expected text
-        System.assert(String.valueOf(result.getOutputForLlm()).contains('Internal error'), 'Should indicate internal error');
+        System.assert(String.valueOf(outcome.errorMessage).contains('Internal error'), 'Should indicate internal error');
     }
 
     @IsTest
@@ -84,34 +83,30 @@ private class BaseAgentActionTest {
     }
 
     @IsTest
-    static void actionOutcome_success_createsCorrectResult() {
+    static void actionOutcome_success_createsCorrectOutcome() {
         TestAgentAction action = new TestAgentAction();
 
         Test.startTest();
         ActionOutcome outcome = ActionOutcome.success('Test data');
-        ActionResult result = outcome.toActionResult('TestAction');
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(true, result.getIsSuccess(), 'Result should indicate success');
-        System.assertEquals('Test data', result.getOutputForLlm(), 'Should have correct data');
+        System.assertNotEquals(null, outcome, 'Outcome should not be null');
+        System.assertEquals(true, outcome.isSuccess, 'Outcome should indicate success');
+        System.assertEquals('Test data', outcome.data, 'Should have correct data');
     }
 
     @IsTest
-    static void actionOutcome_failure_createsCorrectResult() {
+    static void actionOutcome_failure_createsCorrectOutcome() {
         TestAgentAction action = new TestAgentAction();
 
         Test.startTest();
         ActionOutcome outcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Test validation error');
-        ActionResult result = outcome.toActionResult('TestAction');
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(false, result.getIsSuccess(), 'Result should indicate failure');
-        // The output is a Map, so we need to cast it properly
-        Map<String, Object> outputMap = (Map<String, Object>) result.getOutputForLlm();
-        System.assert(String.valueOf(outputMap.get('messageForUser')).contains('Test validation error'), 'Should contain error message');
-        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, result.getErrorCode(), 'Should have correct error code');
+        System.assertNotEquals(null, outcome, 'Outcome should not be null');
+        System.assertEquals(false, outcome.isSuccess, 'Outcome should indicate failure');
+        System.assert(String.valueOf(outcome.errorMessage).contains('Test validation error'), 'Should contain error message');
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, outcome.errorCode, 'Should have correct error code');
     }
 
     @IsTest

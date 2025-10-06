@@ -183,71 +183,75 @@ public inherited sharing class OrchestrationService {
     // Static utility methods for use by response handlers
 
     /**
-     * Serializes an ActionResult for LLM consumption, handling nulls and error cases gracefully.
+     * Serializes an ActionOutcome for LLM consumption, handling nulls and error cases gracefully.
      *
-     * If the ActionResult is null or missing output, a synthetic error response is generated. Internal exception details
-     * are sanitized for LLM consumption. All serialization errors are logged and surfaced in the output.
+     * If the ActionOutcome is null or missing data, a synthetic error response is generated.
+     * For failures, the LLM-friendly message with emojis and suggestions is used. All serialization
+     * errors are logged and surfaced in the output.
      *
-     * @param actionResult The ActionResult to serialize (may be null)
-     * @param logPrefix    Prefix for debug log output
-     * @return             JSON string representing the action result for LLM
+     * @param actionOutcome The ActionOutcome to serialize (may be null)
+     * @param logPrefix     Prefix for debug log output
+     * @return              JSON string representing the action outcome for LLM
      *
-     * Side effects: Emits debug logs for null results and serialization errors.
+     * Side effects: Emits debug logs for null outcomes and serialization errors.
      */
-    public static String serializeActionResult(ActionResult actionResult, String logPrefix) {
+    public static String serializeActionOutcome(ActionOutcome actionOutcome, String logPrefix) {
         try {
-            if (actionResult == null) {
-                System.debug(LoggingLevel.WARN, logPrefix + 'Action result is null. Returning error response for LLM.');
-                return JSON.serialize(new Map<String, Object>{ 'error' => 'Action execution did not return a result object.' });
+            if (actionOutcome == null) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Action outcome is null. Returning error response for LLM.');
+                return JSON.serialize(new Map<String, Object>{ 'error' => 'Action execution did not return an outcome object.' });
             }
-            if (actionResult.outputForLlm != null) {
-                return JSON.serialize(actionResult.outputForLlm);
-            } else {
-                Map<String, Object> syntheticOutput = new Map<String, Object>{ 'success' => actionResult.isSuccess };
-                if (!actionResult.isSuccess) {
-                    syntheticOutput.put('errorCode', actionResult.errorCode);
-                    String llmErrorDetail = actionResult.internalDetails != null ? actionResult.internalDetails : 'No details available';
-                    // Sanitize internal exception details for LLM consumption
-                    if (actionResult.internalDetails != null && actionResult.internalDetails.contains('Exception:')) {
-                        llmErrorDetail = 'An internal error occurred executing the action';
-                    }
-                    syntheticOutput.put('messageForUser', llmErrorDetail);
+
+            if (actionOutcome.isSuccess) {
+                // For success, serialize the data directly if present
+                if (actionOutcome.data != null) {
+                    return JSON.serialize(actionOutcome.data);
+                } else {
+                    // No data but successful
+                    return JSON.serialize(new Map<String, Object>{ 'success' => true, 'data' => new Map<String, Object>() });
                 }
-                syntheticOutput.put('data', new Map<String, Object>());
-                return JSON.serialize(syntheticOutput);
+            } else {
+                // For failure, create structured error output with LLM-friendly message
+                Map<String, Object> errorOutput = new Map<String, Object>{
+                    'success' => false,
+                    'errorCode' => actionOutcome.errorCode,
+                    'messageForUser' => actionOutcome.llmFriendlyMessage != null ? actionOutcome.llmFriendlyMessage : actionOutcome.errorMessage,
+                    'data' => new Map<String, Object>()
+                };
+                return JSON.serialize(errorOutput);
             }
         } catch (Exception jsonEx) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to serialize action result for LLM. Error: ' + jsonEx.getMessage());
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to serialize action outcome for LLM. Error: ' + jsonEx.getMessage());
             return JSON.serialize(
                 new Map<String, Object>{
-                    'error' => 'Failed to serialize action result data',
+                    'error' => 'Failed to serialize action outcome data',
                     'serialization_error_details' => jsonEx.getMessage(),
-                    'original_action_success_status' => actionResult?.isSuccess,
-                    'original_action_error_code' => actionResult?.errorCode
+                    'original_action_success_status' => actionOutcome?.isSuccess,
+                    'original_action_error_code' => actionOutcome?.errorCode
                 }
             );
         }
     }
 
     /**
-     * Extracts a Salesforce record ID from an ActionResult payload for context management.
+     * Extracts a Salesforce record ID from an ActionOutcome payload for context management.
      *
      * Handles multiple output shapes (direct recordId, single-record list, or single record object).
      *
-     * @param actionResult Action execution result containing potential record data (may be null)
-     * @return             Salesforce ID if found in result payload, null otherwise
+     * @param actionOutcome Action execution outcome containing potential record data (may be null)
+     * @return              Salesforce ID if found in outcome payload, null otherwise
      */
-    public static Id extractRecordIdFromResult(ActionResult actionResult) {
+    public static Id extractRecordIdFromOutcome(ActionOutcome actionOutcome) {
         if (
-            actionResult == null ||
-            !actionResult.isSuccess ||
-            actionResult.outputForLlm == null ||
-            !(actionResult.outputForLlm instanceof Map<String, Object>)
+            actionOutcome == null ||
+            !actionOutcome.isSuccess ||
+            actionOutcome.data == null ||
+            !(actionOutcome.data instanceof Map<String, Object>)
         ) {
             return null;
         }
 
-        Map<String, Object> outputMap = (Map<String, Object>) actionResult.outputForLlm;
+        Map<String, Object> outputMap = (Map<String, Object>) actionOutcome.data;
         if (!'SUCCESS'.equalsIgnoreCase(String.valueOf(outputMap.get('status'))) || !(outputMap.get('data') instanceof Map<String, Object>)) {
             return null;
         }

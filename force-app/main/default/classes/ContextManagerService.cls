@@ -326,7 +326,6 @@ public inherited sharing class ContextManagerService {
                 FROM AgentExecution__c
                 WHERE Id = :executionId
                 LIMIT 1
-                FOR UPDATE
             ];
 
             if (executions.isEmpty()) {

@@ -163,8 +163,8 @@ public with sharing class ResumeApprovedFrameworkAction {
             'API'
         );
 
-        ActionResult actionResult = actionService.executeSingleAction(capability, har.LLMToolArgumentsJSON__c, actionContext);
-        if (actionResult.isSuccess) {
+        ActionOutcome actionOutcome = actionService.executeSingleAction(capability, har.LLMToolArgumentsJSON__c, actionContext);
+        if (actionOutcome.isSuccess) {
             NotificationService.sendUserNotification(
                 har.AgentExecution__r.User__c,
                 'Request Completed: "' + har.LLMToolName__c + '"',
@@ -177,13 +177,13 @@ public with sharing class ResumeApprovedFrameworkAction {
             NotificationService.sendUserNotification(
                 har.AgentExecution__r.User__c,
                 'Action Failed After Approval: "' + har.LLMToolName__c + '"',
-                'Your request was approved, but the action failed to execute. ' + String.valueOf(actionResult.outputForLlm),
+                'Your request was approved, but the action failed to execute. ' + String.valueOf(actionOutcome.errorMessage),
                 har.AgentExecution__c
             );
-            updateHARStatus(har, 'Error', 'Action failed post-approval: ' + actionResult.internalDetails, logPrefix);
+            updateHARStatus(har, 'Error', 'Action failed post-approval: ' + actionOutcome.errorMessage, logPrefix);
             System.debug(
                 LoggingLevel.WARN,
-                logPrefix + 'Action failed after approval for tool: ' + har.LLMToolName__c + '. Details: ' + actionResult.internalDetails
+                logPrefix + 'Action failed after approval for tool: ' + har.LLMToolName__c + '. Details: ' + actionOutcome.errorMessage
             );
         }
 

@@ -17,8 +17,8 @@
  *   - Validates required parameters as defined in the JSON Schema "required" array to prevent NullPointerExceptions
  *   - Differentiates between configuration issues (graceful fallback) and system errors (halt execution)
  *   - Includes security validation and standardized error handling
- *   - Requires subclasses to implement only the executeAction() method; all validation, security, and result formatting are handled by the base class
- *   - Surfaces operational and validation issues clearly via ActionResult and logging for maintainability
+ *   - Requires subclasses to implement only the executeAction() method; all validation, security, and outcome formatting are handled by the base class
+ *   - Surfaces operational and validation issues clearly via ActionOutcome and logging for maintainability
  *
  * This class is not intended to be instantiated directly. All custom agent actions should extend this class.
  * @implements IAgentAction
@@ -71,21 +71,21 @@ public abstract class BaseAgentAction implements IAgentAction {
 
     /**
      * Template method for executing an agent action.
-     * Handles intelligent parameter processing, security validation, and result wrapping.
+     * Handles intelligent parameter processing, security validation, and outcome wrapping.
      * Subclasses only need to implement executeAction() with pure business logic.
      *
      * @param actionConfigurationJson The action configuration as a JSON string.
      * @param argumentsJson           The action arguments as a JSON string.
      * @param context                 The ActionContext for this execution.
-     * @return                        The standardized ActionResult for the action.
+     * @return                        The ActionOutcome for the action.
      */
-    public virtual ActionResult execute(String actionConfigurationJson, String argumentsJson, ActionContext context) {
+    public virtual ActionOutcome execute(String actionConfigurationJson, String argumentsJson, ActionContext context) {
         if (context == null) {
-            return new ActionResult('Internal error: Missing context.', 'ActionContext was null', AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Internal error: Missing context. ActionContext was null');
         }
         this.actionContext = context;
         final String logPrefix = '[' + getLogPrefixName() + ' Cap:' + context.agentCapabilityId + '] ';
-        ActionResult finalResult = null;
+        ActionOutcome finalOutcome = null;
         Long startTime = System.currentTimeMillis();
 
         try {
@@ -101,34 +101,33 @@ public abstract class BaseAgentAction implements IAgentAction {
             // Intelligent parameter processing
             ActionOutcome paramOutcome = intelligentParameterProcessing(argsMap, logPrefix);
             if (!paramOutcome.isSuccess) {
-                return paramOutcome.toActionResult(getLogPrefixName());
+                return paramOutcome;
             }
             Map<String, Object> processedParams = (Map<String, Object>) paramOutcome.data;
 
             // Intelligent security checks
             ActionOutcome securityOutcome = performIntelligentSecurityChecks(processedParams, logPrefix);
             if (!securityOutcome.isSuccess) {
-                return securityOutcome.toActionResult(getLogPrefixName());
+                return securityOutcome;
             }
 
-            // Call the simplified action method and handle ActionOutcome pattern
+            // Call the simplified action method
             ActionOutcome actionOutcome = executeAction(processedParams);
 
-            // Convert ActionOutcome to ActionResult for framework compatibility
-            finalResult = convertOutcomeToActionResult(actionOutcome, logPrefix);
-
-            if (finalResult == null) {
-                throw new ActionHandlerNullException('Handler (' + getLogPrefixName() + ') returned null ActionResult.');
+            if (actionOutcome == null) {
+                throw new ActionHandlerNullException('Handler (' + getLogPrefixName() + ') returned null ActionOutcome.');
             }
+
+            finalOutcome = actionOutcome;
         } catch (Exception ex) {
-            finalResult = mapExceptionToResult(ex, logPrefix);
+            finalOutcome = mapExceptionToOutcome(ex, logPrefix);
         }
 
-        // Log action result with performance metrics
+        // Log action outcome with performance metrics
         Long duration = System.currentTimeMillis() - startTime;
 
-        System.debug(LoggingLevel.INFO, logPrefix + 'Execution Finished. Success: ' + finalResult.isSuccess);
-        return finalResult;
+        System.debug(LoggingLevel.INFO, logPrefix + 'Execution Finished. Success: ' + finalOutcome.isSuccess);
+        return finalOutcome;
     }
 
     // ============================================================================
@@ -499,21 +498,6 @@ public abstract class BaseAgentAction implements IAgentAction {
         }
     }
 
-    /**
-     * Converts an ActionOutcome object to ActionResult for framework compatibility.
-     * This maintains backward compatibility with the orchestration service while using the new ActionOutcome pattern internally.
-     *
-     * @param actionOutcome The ActionOutcome from executeAction().
-     * @param logPrefix The logging prefix for debug output.
-     * @return         The standardized ActionResult.
-     */
-    private ActionResult convertOutcomeToActionResult(ActionOutcome actionOutcome, String logPrefix) {
-        if (actionOutcome == null) {
-            return runtimeError('Action returned null ActionOutcome', AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT, null);
-        }
-
-        return actionOutcome.toActionResult(getLogPrefixName());
-    }
 
     // ============================================================================
     // --- Helper Methods ---
@@ -549,13 +533,13 @@ public abstract class BaseAgentAction implements IAgentAction {
     // ============================================================================
 
     /**
-     * Maps caught exceptions to ActionResult.
+     * Maps caught exceptions to ActionOutcome.
      *
      * @param ex       The caught exception.
      * @param logPrefix The logging prefix for debug output.
-     * @return         The standardized ActionResult.
+     * @return         The ActionOutcome representing the error.
      */
-    private ActionResult mapExceptionToResult(Exception ex, String logPrefix) {
+    private ActionOutcome mapExceptionToOutcome(Exception ex, String logPrefix) {
         System.debug(
             LoggingLevel.ERROR,
             logPrefix + 'Exception during action execution - Type: ' + ex.getTypeName() + ', Message: ' + ex.getMessage()
@@ -564,7 +548,8 @@ public abstract class BaseAgentAction implements IAgentAction {
             DmlException dmlEx = (DmlException) ex;
             String initialCode = dmlEx.getNumDml() > 0 ? dmlEx.getDmlStatusCode(0) : null;
             String firstDmlMsg = dmlEx.getNumDml() > 0 ? dmlEx.getDmlMessage(0) : ex.getMessage();
-            return dmlError('DML failed: ' + firstDmlMsg, null, mapStatusCodeToErrorCode(initialCode, AIAgentConstants.ERR_CODE_DML_ERROR));
+            String errorCode = mapStatusCodeToErrorCode(initialCode, AIAgentConstants.ERR_CODE_DML_ERROR);
+            return ActionOutcome.failure(errorCode, 'DML failed: ' + firstDmlMsg);
         }
         // (Keep QueryException, CalloutException, LimitException checks)
         if (ex instanceof System.QueryException) {
@@ -572,39 +557,39 @@ public abstract class BaseAgentAction implements IAgentAction {
             String errCode = (msgLower.contains('security enforced') || msgLower.contains('insufficient access'))
                 ? AIAgentConstants.ERR_CODE_PERMISSION_DENIED
                 : AIAgentConstants.ERR_CODE_SOQL_ERROR;
-            return this.runtimeError('Query failed: ' + ex.getMessage(), errCode, ex);
+            return ActionOutcome.failure(errCode, 'Query failed: ' + ex.getMessage());
         }
         if (ex instanceof System.CalloutException) {
-            return this.runtimeError('External callout failed: ' + ex.getMessage(), AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, ex);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'External callout failed: ' + ex.getMessage());
         }
         if (ex instanceof System.LimitException) {
-            return this.runtimeError('System limit exceeded: ' + ex.getMessage(), AIAgentConstants.ERR_CODE_SYSTEM_LIMIT, ex);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_SYSTEM_LIMIT, 'System limit exceeded: ' + ex.getMessage());
         }
 
         // --- Handle framework specific exceptions (Use base AIAgentException or check type name if needed) ---
         if (ex instanceof ValidationException) {
             ValidationException ve = (ValidationException) ex;
-            return this.validationError(ve.getMessage(), ve.fieldName);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, ve.getMessage());
         }
         if (ex instanceof ActionSecurityException) {
-            return this.securityError(ex.getMessage());
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ex.getMessage());
         }
         if (ex instanceof ActionHandlerNullException) {
-            return this.runtimeError(ex.getMessage(), AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT, ex);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT, ex.getMessage());
         }
         if (ex instanceof LlmPayloadUtils.LlmPayloadException) {
-            return runtimeError('LLM Data Error: ' + ex.getMessage(), AIAgentConstants.ERR_CODE_CONFIG_ERROR, ex);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'LLM Data Error: ' + ex.getMessage());
         }
         // Handle LLM Provider Exceptions (adjust based on final class definition/inheritance)
         if (ex.getTypeName().contains('LLMProviderException') || (ex instanceof AIAgentException && ex.getMessage().contains('LLM'))) {
-            return runtimeError('LLM Communication Failed: ' + ex.getMessage(), AIAgentConstants.ERR_CODE_LLM_CALL_FAILED, ex);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_LLM_CALL_FAILED, 'LLM Communication Failed: ' + ex.getMessage());
         }
         if (ex instanceof ActionRegistry.ActionRegistryException) {
-            return runtimeError('Action Setup Failed: ' + ex.getMessage(), AIAgentConstants.ERR_CODE_CONFIG_ERROR, ex);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Action Setup Failed: ' + ex.getMessage());
         }
 
         // --- Default Fallback ---
-        return this.runtimeError(ex.getMessage(), AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex);
+        return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex.getMessage());
     }
 
     /**
@@ -648,122 +633,6 @@ public abstract class BaseAgentAction implements IAgentAction {
         return statusCode != null ? mapStatusCodeToErrorCode(statusCode.name(), defaultCode) : defaultCode;
     }
 
-    /**
-     * Creates a DML error ActionResult with clean structure.
-     *
-     * @param genericMessage    The generic error message.
-     * @param dmlErrors         The list of DML errors.
-     * @param suggestedErrorCode The suggested error code, if any.
-     * @return                  The standardized ActionResult.
-     */
-    private ActionResult dmlError(String genericMessage, List<Database.Error> dmlErrors, String suggestedErrorCode) {
-        String toolName = this.getLogPrefixName();
-        String primaryErrorCode = suggestedErrorCode ?? AIAgentConstants.ERR_CODE_DML_ERROR;
-        String firstDmlMessage = 'A database error occurred.';
-
-        List<String> errorDetailsList = new List<String>();
-        if (dmlErrors != null && !dmlErrors.isEmpty()) {
-            StatusCode firstStatusCode = dmlErrors[0].getStatusCode();
-            primaryErrorCode = mapStatusCodeToErrorCode(firstStatusCode, primaryErrorCode);
-            firstDmlMessage = dmlErrors[0].getMessage();
-
-            for (Database.Error err : dmlErrors) {
-                String fieldStr = String.join(err.getFields() ?? new List<String>(), ',');
-                errorDetailsList.add('[Fields:(' + fieldStr + '), Status:' + err.getStatusCode() + ', Msg:' + err.getMessage() + ']');
-            }
-        }
-        String internalDetailsForLog = (genericMessage ?? '') + ' Details: ' + String.join(errorDetailsList, '; ');
-
-        String llmErrorMessage = 'A database error occurred while executing the ' + toolName + ' action: ' + firstDmlMessage;
-
-        Map<String, Object> cleanOutput = new Map<String, Object>{
-            'success' => false,
-            'errorCode' => primaryErrorCode,
-            'messageForUser' => llmErrorMessage,
-            'data' => new Map<String, Object>()
-        };
-
-        return new ActionResult(cleanOutput, internalDetailsForLog, primaryErrorCode);
-    }
-
-    /**
-     * Creates a validation error ActionResult with clean structure.
-     *
-     * @param details   The validation error details.
-     * @param fieldName The name of the field that failed validation, if any.
-     * @return          The standardized ActionResult.
-     */
-    private ActionResult validationError(String details, String fieldName) {
-        String toolName = this.getLogPrefixName();
-        String llmErrorMessage =
-            'Invalid input' +
-            (String.isNotBlank(fieldName) ? ' for parameter "' + fieldName + '"' : '') +
-            ' in the ' +
-            toolName +
-            ' action. Details: ' +
-            details;
-
-        Map<String, Object> cleanOutput = new Map<String, Object>{
-            'success' => false,
-            'errorCode' => AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-            'messageForUser' => llmErrorMessage,
-            'data' => new Map<String, Object>()
-        };
-
-        return new ActionResult(cleanOutput, 'Validation Error: ' + details, AIAgentConstants.ERR_CODE_INPUT_VALIDATION);
-    }
-
-    /**
-     * Creates a security error ActionResult with clean structure.
-     *
-     * @param details The security error details.
-     * @return        The standardized ActionResult.
-     */
-    private ActionResult securityError(String details) {
-        String toolName = this.getLogPrefixName();
-        String llmErrorMessage = 'The ' + toolName + ' action was denied due to security restrictions. Details: ' + details;
-
-        Map<String, Object> cleanOutput = new Map<String, Object>{
-            'success' => false,
-            'errorCode' => AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
-            'messageForUser' => llmErrorMessage,
-            'data' => new Map<String, Object>()
-        };
-
-        return new ActionResult(cleanOutput, details, AIAgentConstants.ERR_CODE_PERMISSION_DENIED);
-    }
-
-    /**
-     * Creates a runtime error ActionResult with clean structure.
-     *
-     * @param internalMessage The internal error message.
-     * @param errorCode       The error code to use.
-     * @param caughtException The caught exception, if any.
-     * @return                The standardized ActionResult.
-     */
-    private ActionResult runtimeError(String internalMessage, String errorCode, Exception caughtException) {
-        String toolName = this.getLogPrefixName();
-        String finalErrorCode = String.isNotBlank(errorCode) ? errorCode : AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
-        String llmErrorMessage =
-            'An unexpected internal error occurred while running the ' +
-            toolName +
-            ' action. The system reported: ' +
-            internalMessage;
-
-        Map<String, Object> cleanOutput = new Map<String, Object>{
-            'success' => false,
-            'errorCode' => finalErrorCode,
-            'messageForUser' => llmErrorMessage,
-            'data' => new Map<String, Object>()
-        };
-
-        String detailsForLogging = 'Runtime Error: ' + (internalMessage ?? 'No details available.');
-        if (caughtException != null) {
-            detailsForLogging += ' (Type: ' + caughtException.getTypeName() + ')';
-        }
-
-        return new ActionResult(cleanOutput, detailsForLogging, finalErrorCode);
-    }
 
     /**
      * Extracts public properties from custom objects using JSON serialization for result formatting.

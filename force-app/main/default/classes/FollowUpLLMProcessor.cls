@@ -75,7 +75,7 @@ public class FollowUpLLMProcessor {
         try {
             // Validate execution and turn state before proceeding
             ExecutionContextService executionContextService = new ExecutionContextService();
-            AgentExecution__c execution = executionContextService.lockExecution(this.executionId, this.turnIdentifier);
+            AgentExecution__c execution = executionContextService.validateAndGetExecution(this.executionId, this.turnIdentifier);
             if (execution == null || execution.ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_FOLLOWUP) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Execution state mismatch or stale job detected. Aborting follow-up processing.');
                 return;

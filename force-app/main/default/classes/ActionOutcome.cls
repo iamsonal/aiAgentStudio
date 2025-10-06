@@ -9,7 +9,7 @@
 /**
  * @description Generic outcome container for agent actions that provides explicit success/failure states.
  *              Replaces mixed error handling patterns with a unified approach.
- *              Includes LLM-friendly error formatting and ActionResult conversion for framework compatibility.
+ *              Includes LLM-friendly error formatting with emojis and contextual suggestions.
  * @author Sonal
  * @since 2025
  */
@@ -76,35 +76,6 @@ public class ActionOutcome {
         return failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, errorMessage);
     }
 
-    /**
-     * @description Converts ActionOutcome to ActionResult for framework compatibility
-     * @param actionName Optional action name for context (can be null)
-     * @return ActionResult instance for orchestration service
-     */
-    public ActionResult toActionResult(String actionName) {
-        if (this.isSuccess) {
-            // For successful results, return the data with appropriate message extraction
-            return new ActionResult(this.data, 'Action completed successfully');
-        } else {
-            // For failed results, create structured error output
-            Map<String, Object> errorOutput = new Map<String, Object>{
-                'success' => false,
-                'errorCode' => this.errorCode,
-                'messageForUser' => this.llmFriendlyMessage,
-                'data' => new Map<String, Object>()
-            };
-
-            return new ActionResult(errorOutput, this.errorMessage, this.errorCode);
-        }
-    }
-
-    /**
-     * @description Converts ActionOutcome to ActionResult for framework compatibility (overloaded method)
-     * @return ActionResult instance for orchestration service
-     */
-    public ActionResult toActionResult() {
-        return toActionResult(null);
-    }
 
     /**
      * @description Creates LLM-friendly error messages with emojis and structured suggestions

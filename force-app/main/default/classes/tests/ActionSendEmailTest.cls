@@ -79,12 +79,12 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(result.isSuccess, 'Email should be sent successfully');
-        System.assertNotEquals(null, result.outputForLlm, 'Output should not be null');
+        System.assert(outcome.isSuccess, 'Email should be sent successfully');
+        System.assertNotEquals(null, outcome.data, 'Output should not be null');
     }
 
     /**
@@ -105,11 +105,11 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(result.isSuccess, 'HTML email should be sent successfully');
+        System.assert(outcome.isSuccess, 'HTML email should be sent successfully');
     }
 
     /**
@@ -130,11 +130,11 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(result.isSuccess, 'Email with only HTML and plain text should be sent successfully');
+        System.assert(outcome.isSuccess, 'Email with only HTML and plain text should be sent successfully');
     }
 
     /**
@@ -156,11 +156,11 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(result.isSuccess, 'Email with CC and BCC should be sent successfully');
+        System.assert(outcome.isSuccess, 'Email with CC and BCC should be sent successfully');
     }
 
     /**
@@ -189,11 +189,11 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(result.isSuccess, 'Email with attachments should be sent successfully');
+        System.assert(outcome.isSuccess, 'Email with attachments should be sent successfully');
     }
 
     /**
@@ -222,11 +222,11 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(result.isSuccess, 'Email with targetObjectId should be sent successfully');
+        System.assert(outcome.isSuccess, 'Email with targetObjectId should be sent successfully');
     }
 
     /**
@@ -248,11 +248,11 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(result.isSuccess, 'Email with custom headers should be sent successfully');
+        System.assert(outcome.isSuccess, 'Email with custom headers should be sent successfully');
     }
 
     /**
@@ -274,11 +274,11 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute(configJson, JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute(configJson, JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(result.isSuccess, 'Configured email should be sent successfully');
+        System.assert(outcome.isSuccess, 'Configured email should be sent successfully');
     }
 
     /**
@@ -300,12 +300,12 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute(configJson, JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute(configJson, JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(result.isSuccess, 'Approval request should be created successfully');
-        System.assertNotEquals(null, result.outputForLlm, 'Approval data should be returned');
+        System.assert(outcome.isSuccess, 'Approval request should be created successfully');
+        System.assertNotEquals(null, outcome.data, 'Approval data should be returned');
     }
 
     /**
@@ -324,12 +324,12 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(!result.isSuccess, 'Should fail validation for missing recipients');
-        System.assert(result.errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Should return validation error code');
+        System.assert(!outcome.isSuccess, 'Should fail validation for missing recipients');
+        System.assert(outcome.errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Should return validation error code');
     }
 
     /**
@@ -348,12 +348,12 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(!result.isSuccess, 'Should fail validation for missing subject');
-        System.assert(result.errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Should return validation error code');
+        System.assert(!outcome.isSuccess, 'Should fail validation for missing subject');
+        System.assert(outcome.errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Should return validation error code');
     }
 
     /**
@@ -372,12 +372,12 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(!result.isSuccess, 'Should fail validation for missing body');
-        System.assert(result.errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Should return validation error code');
+        System.assert(!outcome.isSuccess, 'Should fail validation for missing body');
+        System.assert(outcome.errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Should return validation error code');
     }
 
     /**
@@ -397,12 +397,12 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(!result.isSuccess, 'Should fail validation for invalid email format');
-        System.assert(result.errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Should return validation error code');
+        System.assert(!outcome.isSuccess, 'Should fail validation for invalid email format');
+        System.assert(outcome.errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Should return validation error code');
     }
 
     /**
@@ -424,12 +424,12 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute(configJson, JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute(configJson, JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(!result.isSuccess, 'Should fail validation for too many recipients');
-        System.assert(result.errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Should return validation error code');
+        System.assert(!outcome.isSuccess, 'Should fail validation for too many recipients');
+        System.assert(outcome.errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Should return validation error code');
     }
 
     /**
@@ -464,12 +464,12 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute(configJson, JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute(configJson, JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(!result.isSuccess, 'Should fail validation for too many attachments');
-        System.assert(result.errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Should return validation error code');
+        System.assert(!outcome.isSuccess, 'Should fail validation for too many attachments');
+        System.assert(outcome.errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Should return validation error code');
     }
 
     /**
@@ -489,12 +489,12 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(!result.isSuccess, 'Should fail validation for empty email addresses');
-        System.assert(result.errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Should return validation error code');
+        System.assert(!outcome.isSuccess, 'Should fail validation for empty email addresses');
+        System.assert(outcome.errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Should return validation error code');
     }
 
     /**
@@ -534,11 +534,11 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(result.isSuccess, 'Complete email should be sent successfully');
+        System.assert(outcome.isSuccess, 'Complete email should be sent successfully');
     }
 
     /**
@@ -558,16 +558,16 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(result.isSuccess, 'Email should be sent successfully');
-        System.assertNotEquals(null, result.outputForLlm, 'Output should not be null');
+        System.assert(outcome.isSuccess, 'Email should be sent successfully');
+        System.assertNotEquals(null, outcome.data, 'Output should not be null');
 
         // Verify result structure if it's a Map
-        if (result.outputForLlm instanceof Map<String, Object>) {
-            Map<String, Object> outputMap = (Map<String, Object>) result.outputForLlm;
+        if (outcome.data instanceof Map<String, Object>) {
+            Map<String, Object> outputMap = (Map<String, Object>) outcome.data;
             System.assert(outputMap.containsKey('success'), 'Result should contain success field');
             System.assert(outputMap.containsKey('subject'), 'Result should contain subject field');
             System.assert(outputMap.containsKey('recipientCount'), 'Result should contain recipientCount field');
@@ -594,11 +594,11 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(result.isSuccess, 'Email with JSON deserialized arrays should be sent successfully');
+        System.assert(outcome.isSuccess, 'Email with JSON deserialized arrays should be sent successfully');
     }
 
     /**
@@ -621,11 +621,11 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(rawParams), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(rawParams), context);
         Test.stopTest();
 
         // Verify
-        System.assert(result.isSuccess, 'Email with mixed data types should be sent successfully');
+        System.assert(outcome.isSuccess, 'Email with mixed data types should be sent successfully');
     }
 
     /**
@@ -645,11 +645,11 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify - should succeed as permission validation is delegated to email sending
-        System.assert(result.isSuccess, 'Email should succeed with delegated permission validation');
+        System.assert(outcome.isSuccess, 'Email should succeed with delegated permission validation');
     }
 
     /**
@@ -678,10 +678,10 @@ private class ActionSendEmailTest {
 
         // Execute
         Test.startTest();
-        ActionResult result = action.execute('{}', JSON.serialize(params), context);
+        ActionOutcome outcome = action.execute('{}', JSON.serialize(params), context);
         Test.stopTest();
 
         // Verify
-        System.assert(result.isSuccess, 'Email with saveAsActivity=true should work with Contact target');
+        System.assert(outcome.isSuccess, 'Email with saveAsActivity=true should work with Contact target');
     }
 }

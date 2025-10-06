@@ -32,7 +32,7 @@ public inherited sharing class ActionExecutionService {
      * @param capability         The AgentCapability__c record describing the action to execute. Must not be null.
      * @param llmArgumentsJson   JSON string of arguments provided by the LLM for this action call. May be null or empty if not required by the handler.
      * @param context            The ActionContext containing all relevant execution context. Must not be null.
-     * @return                   ActionResult representing the outcome of the execution, including error details if applicable.
+     * @return                   ActionOutcome representing the outcome of the execution, including error details if applicable.
      * @throws IllegalArgumentException if capability or context is null.
      * @throws ActionRegistry.ActionRegistryException for configuration errors in the ActionRegistry.
      *
@@ -40,7 +40,7 @@ public inherited sharing class ActionExecutionService {
      *   - Writes detailed debug output to logs for observability.
      *   - May throw exceptions for unrecoverable configuration errors.
      */
-    public ActionResult executeSingleAction(AgentCapability__c capability, String llmArgumentsJson, ActionContext context) {
+    public ActionOutcome executeSingleAction(AgentCapability__c capability, String llmArgumentsJson, ActionContext context) {
         String logPrefix =
             '[ActionExecutionService] [CapabilityId: ' +
             String.valueOf(capability?.Id) +
@@ -68,24 +68,23 @@ public inherited sharing class ActionExecutionService {
                     );
                     IAgentAction actionHandler = ActionRegistry.createActionHandler(capability);
 
-                    // Execute the action handler and capture the result
-                    ActionResult result = actionHandler.execute(capability.BackendConfiguration__c, llmArgumentsJson, context);
+                    // Execute the action handler and capture the outcome
+                    ActionOutcome outcome = actionHandler.execute(capability.BackendConfiguration__c, llmArgumentsJson, context);
 
-                    if (result == null) {
+                    if (outcome == null) {
                         // Defensive: handler should never return null; treat as implementation bug
                         System.debug(
                             LoggingLevel.ERROR,
-                            logPrefix + 'Action handler returned null result. This indicates a handler implementation bug.'
+                            logPrefix + 'Action handler returned null outcome. This indicates a handler implementation bug.'
                         );
-                        result = new ActionResult(
-                            'Action handler failed to return a result.',
-                            'Handler returned null. Check handler implementation for capability: ' + capability.CapabilityName__c,
-                            AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT
+                        outcome = ActionOutcome.failure(
+                            AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT,
+                            'Action handler failed to return an outcome. Handler returned null. Check handler implementation for capability: ' + capability.CapabilityName__c
                         );
                     } else {
-                        System.debug(LoggingLevel.DEBUG, logPrefix + 'Action handler returned result: ' + String.valueOf(result));
+                        System.debug(LoggingLevel.DEBUG, logPrefix + 'Action handler returned outcome: ' + String.valueOf(outcome));
                     }
-                    return result;
+                    return outcome;
                 }
                 when else {
                     // Unsupported implementation type: log and return configuration error
@@ -96,7 +95,7 @@ public inherited sharing class ActionExecutionService {
                         capability.CapabilityName__c +
                         '. Valid types: Standard, Apex, Flow.';
                     System.debug(LoggingLevel.ERROR, logPrefix + errorMsg);
-                    return new ActionResult('Configuration Error', errorMsg, AIAgentConstants.ERR_CODE_CONFIG_ERROR);
+                    return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, errorMsg);
                 }
             }
         } catch (ActionRegistry.ActionRegistryException are) {
@@ -104,13 +103,12 @@ public inherited sharing class ActionExecutionService {
             System.debug(LoggingLevel.ERROR, logPrefix + 'ActionRegistry configuration error: ' + are.getMessage());
             throw are;
         } catch (Exception ex) {
-            // Catch-all for unexpected errors: log with stack trace and return error result
+            // Catch-all for unexpected errors: log with stack trace and return error outcome
             String errMsg = 'Unexpected error during action execution for capability: ' + capability.CapabilityName__c;
             System.debug(LoggingLevel.ERROR, logPrefix + errMsg + '. Exception: ' + ex.getMessage() + '\nStack Trace: ' + ex.getStackTraceString());
-            return new ActionResult(
-                'Action execution failed due to an unexpected error.',
-                errMsg + ': ' + ex.getMessage(),
-                AIAgentConstants.ERR_CODE_ACTION_EXECUTION
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                errMsg + ': ' + ex.getMessage()
             );
         }
     }

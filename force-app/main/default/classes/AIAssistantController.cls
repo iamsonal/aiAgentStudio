@@ -33,9 +33,12 @@ public with sharing class AIAssistantController {
     }
 
     /**
-     * Processes a user message for a given agent execution, routing between synchronous and asynchronous execution as needed.
-     * Now uses the unified AgentExecution__c data model exclusively. Handles execution validation, error handling,
-     * and returns a response map for the UI.
+     * Processes a user message for a given agent execution.
+     * CRITICAL: This method maintains the service user context switch via REST callout when required.
+     * The RequiresServiceUserContext__c flag check MUST remain here because:
+     *   - Platform Events DO NOT switch user context
+     *   - Only the REST callout via Named Credential switches to the service user
+     *   - Moving this logic into the orchestrator would bypass the context switch entirely
      *
      * @param sessionId      The ID of the agent execution (AgentExecution__c).
      * @param userMessage    The message content from the user.
@@ -54,24 +57,16 @@ public with sharing class AIAssistantController {
         }
         validateExecutionAccess(sessionId);
         Id originalUserId = UserInfo.getUserId();
-        Exception controllerProcessingException = null;
         Map<String, Object> lwcResponse = new Map<String, Object>{ 'success' => false, 'sessionId' => sessionId };
 
-        LLMInteractionService.MessageData currentUserMessageData = new LLMInteractionService.MessageData();
-        currentUserMessageData.role = AIAgentConstants.ROLE_USER;
-        currentUserMessageData.content = userMessage;
-
-        // Instantiate services. The default constructors now correctly wire up all dependencies,
-        // including the new ContextManagerService where needed.
-        OrchestrationService orchestrationSvc = new OrchestrationService();
-
         try {
+            // Get the agent definition to determine routing requirements
             AgentExecution__c execution = [
                 SELECT
                     Id,
                     ProcessingStatus__c,
                     AIAgentDefinition__c,
-                    AIAgentDefinition__r.LLMConfiguration__c,
+                    AIAgentDefinition__r.DeveloperName__c,
                     AIAgentDefinition__r.IsActive__c,
                     AIAgentDefinition__r.RequiresServiceUserContext__c,
                     User__c,
@@ -85,23 +80,18 @@ public with sharing class AIAssistantController {
                 throw new AuraHandledException('Assistant is currently busy (Status: ' + execution.ProcessingStatus__c + '). Please wait.');
             }
 
-            Id agentDefinitionId = execution.AIAgentDefinition__c;
-            Id llmConfigId = execution.AIAgentDefinition__r.LLMConfiguration__c;
-
-            if (
-                agentDefinitionId == null ||
-                llmConfigId == null ||
-                execution.AIAgentDefinition__r == null ||
-                !execution.AIAgentDefinition__r.IsActive__c
-            ) {
-                throw new ConfigurationException('Agent Definition is missing, inactive, or lacks required LLM Configuration on the AgentExecution.');
+            if (execution.AIAgentDefinition__r == null || !execution.AIAgentDefinition__r.IsActive__c) {
+                throw new ConfigurationException('Agent Definition is missing or inactive on the AgentExecution.');
             }
 
+            // CRITICAL: Check if service user context switch is required
+            // This check MUST stay here because the REST callout is the ONLY way to switch context
             if (execution.AIAgentDefinition__r.RequiresServiceUserContext__c) {
+                // Make REST callout to switch to service user context via Named Credential
                 AIAgentHttpClient.AIAgentMessageRequest httpRequest = new AIAgentHttpClient.AIAgentMessageRequest(
                     String.valueOf(sessionId),
                     String.valueOf(originalUserId),
-                    String.valueOf(agentDefinitionId),
+                    String.valueOf(execution.AIAgentDefinition__c),
                     turnIdentifier,
                     userMessage,
                     currentRecordId != null ? String.valueOf(currentRecordId) : null
@@ -111,13 +101,7 @@ public with sharing class AIAssistantController {
 
                 if (httpResponse.success) {
                     lwcResponse.put('success', true);
-                    if (httpResponse.outcome == OrchestrationService.OUTCOME_COMPLETED) {
-                        lwcResponse.put('message', 'Agent responded.');
-                    } else if (httpResponse.outcome == OrchestrationService.OUTCOME_AWAITING_CONFIRMATION) {
-                        lwcResponse.put('message', 'Awaiting user confirmation...');
-                    } else {
-                        lwcResponse.put('message', 'Processing...');
-                    }
+                    lwcResponse.put('message', httpResponse.outcome != null ? httpResponse.outcome : 'Processing...');
                 } else {
                     lwcResponse.put('success', false);
                     lwcResponse.put('error', httpResponse.error ?? 'Agent processing failed via REST call.');
@@ -126,39 +110,36 @@ public with sharing class AIAssistantController {
                 return lwcResponse;
             }
 
-            // Process in current user context without switching
+            // Process in current user context (no service user required)
             System.debug(LoggingLevel.INFO, logPrefix + 'Processing message in original user context (no service user required)');
-            String outcome = processMessageDirectlyUnified(
-                sessionId,
-                originalUserId,
-                execution.ServiceUser__c != null ? execution.ServiceUser__c : execution.User__c, // Use service user if available, otherwise original user
-                agentDefinitionId,
-                llmConfigId,
-                turnIdentifier,
-                currentRecordId,
-                currentUserMessageData,
-                orchestrationSvc
-            );
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Message processing completed with outcome: ' + outcome);
+            // Build execution payload for unified service
+            AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
+            payload.userId = originalUserId;
+            payload.serviceUserId = execution.ServiceUser__c;
+            payload.triggerSource = 'Chat';
+            payload.sourceRecordId = null; // Set during session creation
+            payload.userMessage = userMessage;
+            payload.currentRecordId = currentRecordId;
+            payload.turnIdentifier = turnIdentifier;
+            payload.existingExecutionId = sessionId; // Continue existing execution
 
-            if (outcome == OrchestrationService.OUTCOME_FAILED) {
-                lwcResponse.put('success', false);
-                // Note: AgentExecution__c doesn't have LastProcessingError__c field yet
-                // For now, provide a generic error message. This can be enhanced later with error tracking.
-                lwcResponse.put('error', 'Agent processing failed. Please try again.');
-            } else if (outcome == OrchestrationService.OUTCOME_COMPLETED) {
+            // Use unified AgentExecutionService to initiate/continue execution
+            String agentDeveloperName = execution.AIAgentDefinition__r.DeveloperName__c;
+            AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution(agentDeveloperName, payload);
+
+            if (result.success) {
                 lwcResponse.put('success', true);
-                lwcResponse.put('message', 'Agent responded.');
+                lwcResponse.put('message', result.message != null ? result.message : 'Processing...');
             } else {
-                lwcResponse.put('success', true);
-                lwcResponse.put('message', 'Processing...');
-                if (outcome == OrchestrationService.OUTCOME_AWAITING_CONFIRMATION) {
-                    lwcResponse.put('message', 'Awaiting user confirmation...');
-                }
+                lwcResponse.put('success', false);
+                lwcResponse.put('error', result.errorMessage != null ? result.errorMessage : 'Agent processing failed.');
             }
+
+        } catch (AgentOrchestratorException e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Orchestration error: ' + e.getMessage());
+            lwcResponse.put('error', 'Processing error: ' + e.getMessage());
         } catch (Exception ex) {
-            controllerProcessingException = ex;
             String errorMsg = ex.getMessage();
             String errorCode = (ex instanceof ConfigurationException)
                 ? AIAgentConstants.ERR_CODE_CONFIG_ERROR
@@ -169,28 +150,23 @@ public with sharing class AIAssistantController {
             );
             lwcResponse.put('error', 'An internal error occurred: ' + errorMsg);
             lwcResponse.put('errorCode', errorCode);
-        } finally {
-            if (controllerProcessingException != null && !(controllerProcessingException instanceof AuraHandledException)) {
-                try {
-                    TurnLifecycleService tls = new TurnLifecycleService();
-                    String finalErrorMsg = ('Controller Error: ' + controllerProcessingException.getMessage());
-                    tls.failTurn(sessionId, turnIdentifier, finalErrorMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
-                    System.debug(LoggingLevel.WARN, logPrefix + 'Successfully updated session to FAILED state in controller cleanup');
-                } catch (Exception finalEx) {
-                    System.debug(
-                        LoggingLevel.ERROR,
-                        logPrefix + 'CRITICAL: Failed to update session state during controller cleanup: ' + finalEx.getMessage()
-                    );
-                }
+
+            // Attempt to mark turn as failed
+            try {
+                TurnLifecycleService tls = new TurnLifecycleService();
+                tls.failTurn(sessionId, turnIdentifier, 'Controller Error: ' + errorMsg, errorCode, logPrefix);
+            } catch (Exception failEx) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'CRITICAL: Failed to update session state: ' + failEx.getMessage());
             }
-            System.debug(LoggingLevel.INFO, logPrefix + 'Message processing completed. Success: ' + lwcResponse.get('success'));
         }
+
+        System.debug(LoggingLevel.INFO, logPrefix + 'Message processing completed. Success: ' + lwcResponse.get('success'));
         return lwcResponse;
     }
 
     /**
      * Creates a new agent execution for conversational interaction, intelligently determining the correct initial context
-     * based on user and page context. This method now uses the unified AgentExecution__c data model exclusively.
+     * based on user and page context. This method now uses the unified AgentExecutionService.
      *   - For internal users on a record page, the context is the record.
      *   - For internal users on a homepage, there is no record context.
      *   - For community users, the context is the record page if present, otherwise it defaults to the user's own Contact record.
@@ -212,7 +188,7 @@ public with sharing class AIAssistantController {
             // This service handles the logic for explicit requests vs. fallback routing.
             selectedAgentDevName = AgentRoutingService.selectAgent(userId, recordId, requestedAgentDevName);
 
-            // 2. GET AGENT CONFIGURATION: Retrieve the full agent definition using the selected name.
+            // 2. GET AGENT CONFIGURATION for welcome message
             AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(selectedAgentDevName);
             if (agentDef == null) {
                 throw new ConfigurationException(
@@ -220,7 +196,9 @@ public with sharing class AIAssistantController {
                 );
             }
 
-            // 3. CREATE THE AGENT EXECUTION RECORD using ExecutionContextService
+            // 3. CREATE EXECUTION using unified AgentExecutionService
+            // Note: For session creation, we just create the execution record but don't initiate processing yet
+            // Processing will begin when the first user message is sent
             ExecutionContextService executionContextService = new ExecutionContextService();
             String executionLabel = 'Chat - ' + Datetime.now().format('MM/dd HH:mm:ss');
 
@@ -540,73 +518,5 @@ public with sharing class AIAssistantController {
         public String welcomeMessage { get; set; }
         @AuraEnabled
         public Boolean transientMessagesEnabled { get; set; }
-    }
-
-    /**
-     * Processes a message directly in the current user context, without switching to a service user.
-     *
-     * @param sessionId              The ID of the chat session.
-     * @param userId                 The ID of the user.
-     * @param agentDefinitionId      The ID of the agent definition.
-     * @param llmConfigId            The ID of the LLM configuration.
-     * @param turnIdentifier         The unique identifier for the current turn.
-     * @param currentRecordId        The current record context, if any.
-     * @param currentUserMessageData The message data from the user.
-     * @param orchestrationSvc       The orchestration service instance.
-     * @return                       The outcome string from the orchestration service.
-     * @throws ControllerException if the LLM interaction returns null.
-     */
-    private static String processMessageDirectlyUnified(
-        Id executionId,
-        Id originalUserId,
-        Id executionUserId,
-        Id agentDefinitionId,
-        Id llmConfigId,
-        String turnIdentifier,
-        Id currentRecordId,
-        LLMInteractionService.MessageData currentUserMessageData,
-        OrchestrationService orchestrationSvc
-    ) {
-        // Initialize the decision step logger - single instance for the entire turn
-        AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(executionId, turnIdentifier, originalUserId);
-
-        // Log the user input as the first step
-        if (currentUserMessageData != null && String.isNotBlank(currentUserMessageData.content)) {
-            decisionLogger.logUserInput('User Input Received', currentUserMessageData.content, null);
-        }
-
-        // Instantiate LLMInteractionService with unified execution context and decision logger
-        LLMInteractionService interactionService = new LLMInteractionService(
-            executionId,
-            originalUserId,
-            agentDefinitionId,
-            llmConfigId,
-            turnIdentifier,
-            1,
-            currentRecordId,
-            false,
-            decisionLogger
-        );
-
-        // Call the LLM interaction service
-        LLMInteractionService.LLMInteractionResult llmResult = interactionService.prepareAndCallLLM(currentUserMessageData);
-
-        if (llmResult == null) {
-            throw new ControllerException('LLMInteractionService returned a null result.');
-        }
-
-        // Call OrchestrationService with the unified execution model
-        return orchestrationSvc.processLlmResult(
-            llmResult,
-            executionId,
-            originalUserId,
-            executionUserId,
-            agentDefinitionId,
-            turnIdentifier,
-            1,
-            currentUserMessageData,
-            currentRecordId,
-            decisionLogger
-        );
     }
 }

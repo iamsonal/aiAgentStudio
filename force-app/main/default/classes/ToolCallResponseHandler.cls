@@ -433,39 +433,38 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             'API'
         );
 
-        ActionResult actionResult = null;
+        ActionOutcome outcome = null;
         Long actionDuration = 0L;
         Long syncActionStart = System.currentTimeMillis();
 
         try {
-            actionResult = context.actionExecSvc.executeSingleAction(capability, toolRequest.arguments, actionContext);
+            outcome = context.actionExecSvc.executeSingleAction(capability, toolRequest.arguments, actionContext);
         } catch (Exception execEx) {
             System.debug(
                 LoggingLevel.ERROR,
                 logPrefix + 'Unhandled exception during synchronous tool execution: ' + execEx.getMessage() + '\n' + execEx.getStackTraceString()
             );
-            actionResult = new ActionResult(
-                'Action failed internally: ' + execEx.getMessage(),
-                execEx.getStackTraceString(),
-                AIAgentConstants.ERR_CODE_ACTION_EXECUTION
+            outcome = ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                'Action failed internally: ' + execEx.getMessage() + '\n' + execEx.getStackTraceString()
             );
         } finally {
             actionDuration = System.currentTimeMillis() - syncActionStart;
         }
 
         // Save tool result to chat history before any follow-up processing
-        String resultJsonForStorage = OrchestrationService.serializeActionResult(actionResult, logPrefix);
-        Id newRecordContextId = OrchestrationService.extractRecordIdFromResult(actionResult);
+        String resultJsonForStorage = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
+        Id newRecordContextId = OrchestrationService.extractRecordIdFromOutcome(outcome);
 
-        // Log the tool result step with full ActionResult details
+        // Log the tool result step with full ActionOutcome details
         decisionLogger.logToolResult(
             'Tool Execution Completed',
             'Tool execution has completed',
             resultJsonForStorage,
             actionDuration,
-            actionResult.isSuccess, // isSuccess
-            actionResult.errorCode, // errorCode
-            actionResult.internalDetails // errorMessage
+            outcome.isSuccess, // isSuccess
+            outcome.errorCode, // errorCode
+            outcome.errorMessage // errorMessage
         );
 
         // Save tool result message using ExecutionStep__c
@@ -481,7 +480,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         );
 
         // If a new record was created, update the context ledger for future turns
-        if (actionResult.isSuccess && newRecordContextId != null) {
+        if (outcome.isSuccess && newRecordContextId != null) {
             try {
                 context.contextManagerSvc.commitExecutionTurnContext(
                     context.executionId,
@@ -494,7 +493,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             }
         }
 
-        if (actionResult.isSuccess || capability.HaltAndReportError__c == false) {
+        if (outcome.isSuccess || capability.HaltAndReportError__c == false) {
             System.debug(LoggingLevel.INFO, logPrefix + 'Tool action succeeded or is configured for autonomous recovery. Continuing agent loop.');
 
             // Enforce maximum turn limit to prevent infinite loops

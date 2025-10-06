@@ -69,6 +69,7 @@ public class InboundEmailHandler implements Messaging.InboundEmailHandler {
     /**
      * Main entry point for processing inbound emails.
      * Implements the Messaging.InboundEmailHandler interface.
+     * Now uses the unified AgentExecutionService for consistent execution flow.
      *
      * @param email The inbound email message
      * @param envelope The email envelope information
@@ -94,16 +95,50 @@ public class InboundEmailHandler implements Messaging.InboundEmailHandler {
                 return result;
             }
 
-            // Create AgentExecution__c and related records (DML Phase)
-            Id executionId = createEmailExecution(parsedEmail, routingConfig);
+            // Get the agent definition to use its developer name
+            AIAgentDefinition__c agentDef = [
+                SELECT Id, DeveloperName__c
+                FROM AIAgentDefinition__c
+                WHERE Id = :routingConfig.agentDefinitionId
+                LIMIT 1
+            ];
 
-            // Publish platform event for async processing (Callout Phase)
-            publishEmailProcessingEvent(executionId, parsedEmail, routingConfig);
+            // Build execution payload for unified service
+            AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
+            payload.userId = UserInfo.getUserId();
+            payload.triggerSource = 'Email';
+            payload.emailSubject = parsedEmail.subject;
+            payload.emailBody = parsedEmail.plainTextBody;
+            payload.emailFromAddress = parsedEmail.fromAddress;
+            payload.emailToAddress = parsedEmail.toAddress;
+            payload.emailCcAddresses = parsedEmail.ccAddresses;
+            payload.emailHeaders = parsedEmail.headers;
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Successfully created email execution: ' + executionId);
+            // Convert attachments
+            if (parsedEmail.attachments != null) {
+                payload.emailAttachments = new List<AgentExecutionService.EmailAttachment>();
+                for (AttachmentInfo att : parsedEmail.attachments) {
+                    AgentExecutionService.EmailAttachment attachment = new AgentExecutionService.EmailAttachment();
+                    attachment.fileName = att.fileName;
+                    attachment.contentType = att.contentType;
+                    attachment.fileSize = att.fileSize;
+                    attachment.fileContent = att.fileContent;
+                    attachment.description = att.description;
+                    payload.emailAttachments.add(attachment);
+                }
+            }
 
-            result.success = true;
-            result.message = 'Email processed successfully. Execution ID: ' + executionId;
+            // Use unified AgentExecutionService to initiate execution
+            AgentExecutionService.ExecutionResult execResult = AgentExecutionService.startExecution(agentDef.DeveloperName__c, payload);
+
+            if (execResult.success) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Successfully created email execution: ' + execResult.executionId);
+                result.success = true;
+                result.message = 'Email processed successfully. Execution ID: ' + execResult.executionId;
+            } else {
+                result.success = false;
+                result.message = 'Email execution failed: ' + execResult.errorMessage;
+            }
 
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing inbound email: ' + e.getMessage() + '\nStack Trace: ' + e.getStackTraceString());
@@ -234,150 +269,8 @@ public class InboundEmailHandler implements Messaging.InboundEmailHandler {
         }
     }
 
-    /**
-     * Creates AgentExecution__c and ExecutionStep__c records for the email (DML Phase).
-     *
-     * @param parsedEmail The parsed email content
-     * @param routingConfig The routing configuration
-     * @return Id of the created AgentExecution__c record
-     */
-    private Id createEmailExecution(ParsedEmailContent parsedEmail, EmailRoutingConfig routingConfig) {
-        String logPrefix = '[InboundEmailHandler.createEmailExecution] ';
-
-        // Use ExecutionContextService for consistent execution creation
-        ExecutionContextService executionContextService = new ExecutionContextService();
-
-        // Create execution metadata
-        Map<String, Object> emailMetadata = new Map<String, Object>{
-            'emailSubject' => parsedEmail.subject,
-            'fromAddress' => parsedEmail.fromAddress,
-            'toAddress' => parsedEmail.toAddress,
-            'ccAddresses' => parsedEmail.ccAddresses,
-            'hasAttachments' => !parsedEmail.attachments.isEmpty(),
-            'attachmentCount' => parsedEmail.attachments.size(),
-            'receivedTime' => parsedEmail.receivedTime,
-            'routingRule' => routingConfig.routingRule
-        };
-
-        // Create the AgentExecution__c record
-        Id executionId = executionContextService.createExecution(
-            'Email', // ExecutionType__c
-            routingConfig.agentDefinitionId, // AIAgentDefinition__c
-            'Email', // TriggerSource__c
-            JSON.serialize(emailMetadata), // TriggerPayload__c
-            null, // SourceRecordId__c (could be set if email relates to a specific record)
-            UserInfo.getUserId(), // User__c
-            null // ServiceUser__c (could be set for elevated permissions)
-        );
-
-        // Create ExecutionStep__c records for email content
-        ExecutionStepService executionStepService = new ExecutionStepService();
-        String turnIdentifier = generateTurnIdentifier();
-
-        // Update execution with turn identifier
-        executionContextService.updateStatus(
-            executionId,
-            'Processing',
-            AIAgentConstants.STATUS_PROCESSING,
-            turnIdentifier,
-            'Processing inbound email'
-        );
-
-        // Create main email content step
-        String emailContent = buildEmailContentForProcessing(parsedEmail);
-        executionStepService.createStep(
-            executionId,
-            'TriggerInput',
-            'Email',
-            emailContent,
-            'Email',
-            turnIdentifier,
-            1,
-            null, // toolCallId
-            null, // toolName
-            null, // toolArguments
-            null, // toolResult
-            JSON.serialize(emailMetadata),
-            false // isInternal
-        );
-
-        // Create attachment steps if present
-        for (Integer i = 0; i < parsedEmail.attachments.size(); i++) {
-            AttachmentInfo attachment = parsedEmail.attachments[i];
-
-            Map<String, Object> attachmentMetadata = new Map<String, Object>{
-                'fileName' => attachment.fileName,
-                'contentType' => attachment.contentType,
-                'fileSize' => attachment.fileSize,
-                'attachmentIndex' => i
-            };
-
-            executionStepService.createStep(
-                executionId,
-                'TriggerInput',
-                'Attachment',
-                'Attachment: ' + attachment.fileName + ' (' + attachment.contentType + ', ' + attachment.fileSize + ' bytes)',
-                'Attachment',
-                turnIdentifier,
-                1,
-                null, // toolCallId
-                null, // toolName
-                null, // toolArguments
-                null, // toolResult
-                JSON.serialize(attachmentMetadata),
-                false // isInternal
-            );
-        }
-
-        System.debug(LoggingLevel.INFO, logPrefix + 'Created execution ' + executionId + ' with ' + (1 + parsedEmail.attachments.size()) + ' steps');
-        return executionId;
-    }
-
-    /**
-     * Publishes AsyncFrameworkRequest__e event for async processing (Callout Phase).
-     *
-     * @param executionId The created execution ID
-     * @param parsedEmail The parsed email content
-     * @param routingConfig The routing configuration
-     */
-    private void publishEmailProcessingEvent(Id executionId, ParsedEmailContent parsedEmail, EmailRoutingConfig routingConfig) {
-        String logPrefix = '[InboundEmailHandler.publishEmailProcessingEvent] ';
-
-        try {
-            // Create payload for async processing using the unified InitiateExecution pattern
-            Map<String, Object> payload = new Map<String, Object>{
-                'executionId' => executionId,
-                'triggerSource' => 'Email',
-                'agentDefinitionId' => routingConfig.agentDefinitionId,
-                'emailSubject' => parsedEmail.subject,
-                'emailBody' => parsedEmail.plainTextBody,
-                'fromAddress' => parsedEmail.fromAddress,
-                'toAddress' => parsedEmail.toAddress,
-                'attachmentCount' => parsedEmail.attachments.size(),
-                'routingRule' => routingConfig.routingRule,
-                'priority' => routingConfig.priority
-            };
-
-            // Publish platform event using the unified InitiateExecution job type
-            AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
-                SessionId__c = executionId,
-                TurnIdentifier__c = null, // Will be set by the handler
-                JobType__c = 'InitiateExecution',
-                Payload__c = JSON.serialize(payload)
-            );
-
-            Database.SaveResult sr = EventBus.publish(event);
-            if (!sr.isSuccess()) {
-                throw new EmailProcessingException('Failed to publish email processing event: ' + sr.getErrors()[0].getMessage());
-            }
-
-            System.debug(LoggingLevel.INFO, logPrefix + 'Published email processing event for execution: ' + executionId);
-
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Error publishing email processing event: ' + e.getMessage());
-            throw e;
-        }
-    }
+    // NOTE: createEmailExecution and publishEmailProcessingEvent methods removed
+    // Email execution creation is now handled by EmailOrchestrator via AgentExecutionService
 
     /**
      * Creates a failed execution record for tracking email processing errors.
@@ -415,51 +308,6 @@ public class InboundEmailHandler implements Messaging.InboundEmailHandler {
         }
     }
 
-    /**
-     * Builds formatted email content for agent processing.
-     *
-     * @param parsedEmail The parsed email content
-     * @return String formatted email content
-     */
-    private String buildEmailContentForProcessing(ParsedEmailContent parsedEmail) {
-        List<String> contentParts = new List<String>();
-
-        contentParts.add('Email Subject: ' + parsedEmail.subject);
-        contentParts.add('From: ' + parsedEmail.fromAddress);
-        contentParts.add('To: ' + parsedEmail.toAddress);
-
-        if (!parsedEmail.ccAddresses.isEmpty()) {
-            contentParts.add('CC: ' + String.join(parsedEmail.ccAddresses, ', '));
-        }
-
-        contentParts.add('Received: ' + parsedEmail.receivedTime.format());
-        contentParts.add('\n--- Email Body ---');
-
-        // Prefer plain text, fall back to HTML
-        if (String.isNotBlank(parsedEmail.plainTextBody)) {
-            contentParts.add(parsedEmail.plainTextBody);
-        } else if (String.isNotBlank(parsedEmail.htmlBody)) {
-            contentParts.add('HTML Content:\n' + parsedEmail.htmlBody);
-        }
-
-        if (!parsedEmail.attachments.isEmpty()) {
-            contentParts.add('\n--- Attachments ---');
-            for (AttachmentInfo attachment : parsedEmail.attachments) {
-                contentParts.add('- ' + attachment.fileName +
-                               ' (' + attachment.contentType +
-                               ', ' + attachment.fileSize + ' bytes)');
-            }
-        }
-
-        return String.join(contentParts, '\n');
-    }
-
-    /**
-     * Generates a unique turn identifier for execution tracking.
-     *
-     * @return String unique turn identifier
-     */
-    private String generateTurnIdentifier() {
-        return 'email_turn_' + Datetime.now().getTime() + '_' + Math.round(Math.random() * 1000);
-    }
+    // NOTE: buildEmailContentForProcessing and generateTurnIdentifier methods removed
+    // Email content formatting and turn identifier generation are now handled by EmailOrchestrator
 }

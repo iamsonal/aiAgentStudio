@@ -132,7 +132,10 @@ global with sharing class AIAgentRestService {
     }
 
     /**
-     * Processes the message in the execution user context, updating session state and enqueuing async processing.
+     * Processes the message in the execution user context (SERVICE USER after Named Credential switch).
+     * This method now delegates to the unified AgentExecutionService, which will call the appropriate
+     * orchestrator. The orchestrator executes with the service user's permissions because we're already
+     * in the service user context after the Named Credential switch.
      *
      * @param requestData The parsed and validated AIAgentRequest.
      * @param logPrefix   The logging prefix for debug output.
@@ -147,52 +150,43 @@ global with sharing class AIAgentRestService {
         Id currentRecordId = String.isNotBlank(requestData.currentRecordId) ? Id.valueOf(requestData.currentRecordId) : null;
 
         try {
-            // Get the agent definition to retrieve LLM configuration
+            // Get the agent definition to use its developer name
             AIAgentDefinition__c agentDefinition = AIAgentConfigService.getAgentDefinition(agentDefinitionId);
             if (agentDefinition == null) {
                 throw new AIAgentRestException('Agent definition not found: ' + agentDefinitionId);
             }
 
-            // Update execution status to processing
-            ExecutionContextService execContextSvc = new ExecutionContextService();
-            execContextSvc.updateStatus(
-                sessionId,
-                'Processing',
-                AIAgentConstants.STATUS_PROCESSING,
-                requestData.turnIdentifier,
-                'Processing message asynchronously'
+            // Build execution payload for unified service
+            // Note: We're now running as the service user after the Named Credential context switch
+            AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
+            payload.userId = originalUserId; // Original user who initiated the request
+            payload.serviceUserId = UserInfo.getUserId(); // Current user (service user after context switch)
+            payload.triggerSource = 'Chat';
+            payload.userMessage = requestData.userMessage;
+            payload.currentRecordId = currentRecordId;
+            payload.turnIdentifier = requestData.turnIdentifier;
+            payload.existingExecutionId = sessionId; // Continue existing execution
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Delegating to AgentExecutionService as service user: ' + UserInfo.getUserName());
+
+            // Use unified AgentExecutionService to initiate/continue execution
+            // The orchestrator will now execute with service user permissions
+            AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution(
+                agentDefinition.DeveloperName__c,
+                payload
             );
 
-            // Publish platform event for LLM processing to eliminate queueable bottleneck
-            Map<String, Object> llmPayload = new Map<String, Object>{
-                'sessionId' => sessionId,
-                'originalUserId' => originalUserId,
-                'agentDefinitionId' => agentDefinitionId,
-                'llmConfigurationId' => agentDefinition.LLMConfiguration__c,
-                'turnIdentifier' => requestData.turnIdentifier,
-                'userMessage' => requestData.userMessage,
-                'currentRecordId' => currentRecordId,
-                'logPrefix' => logPrefix
-            };
-
-            AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
-                SessionId__c = sessionId,
-                TurnIdentifier__c = requestData.turnIdentifier,
-                JobType__c = 'ProcessLLMMessage',
-                Payload__c = JSON.serialize(llmPayload)
-            );
-
-            Database.SaveResult sr = EventBus.publish(event);
-            if (!sr.isSuccess()) {
-                String errMsg = logPrefix + 'EventBus.publish failed for ProcessLLMMessage: ' + JSON.serialize(sr.getErrors());
-                System.debug(LoggingLevel.ERROR, errMsg);
-                throw new AIAgentRestException('Failed to publish ProcessLLMMessage event: ' + errMsg);
+            if (result.success) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Message processing initiated successfully via service user context');
+                return result.status;
+            } else {
+                throw new AIAgentRestException('Execution failed: ' + result.errorMessage);
             }
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Message successfully published as platform event for asynchronous processing');
-            return AIAgentConstants.STATUS_PROCESSING;
         } catch (AIAgentConfigService.ConfigurationException e) {
             throw new AIAgentRestException('Configuration error: ' + e.getMessage());
+        } catch (AgentOrchestratorException e) {
+            throw new AIAgentRestException('Orchestration error: ' + e.getMessage());
         } catch (Exception e) {
             // Mark the turn as failed before re-throwing
             try {

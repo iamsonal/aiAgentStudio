@@ -87,12 +87,12 @@ private class ActionSearchKnowledgeTest {
         Test.setFixedSearchResults(new List<Id>{ onlineArticleId });
 
         Test.startTest();
-        ActionResult result = action.execute(null, JSON.serialize(params), createTestActionContext());
+        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestActionContext());
         Test.stopTest();
 
-        System.assert(result.isSuccess, 'Action should succeed');
+        System.assert(outcome.isSuccess, 'Action should succeed');
 
-        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) result.getOutputForLlm();
+        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
         System.assertEquals(1, searchResult.count, 'Should find one article');
         System.assertEquals(onlineArticleId, searchResult.articles[0].get('id'), 'Should return the correct online article ID');
         System.assert(searchResult.message.contains('Found 1'), 'Message should reflect one result');
@@ -106,12 +106,12 @@ private class ActionSearchKnowledgeTest {
         Map<String, Object> params = new Map<String, Object>{ 'articleId' => onlineArticleId, 'language' => 'en_US' };
 
         Test.startTest();
-        ActionResult result = action.execute(null, JSON.serialize(params), createTestActionContext());
+        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestActionContext());
         Test.stopTest();
 
-        System.assert(result.isSuccess, 'Action should succeed');
+        System.assert(outcome.isSuccess, 'Action should succeed');
 
-        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) result.getOutputForLlm();
+        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
         System.assertEquals(1, searchResult.count, 'Should find one article');
         System.assertEquals(onlineArticleId, searchResult.articles[0].get('id'), 'Should return the correct article ID');
     }
@@ -126,12 +126,12 @@ private class ActionSearchKnowledgeTest {
         Test.setFixedSearchResults(new List<Id>{ draftArticleId });
 
         Test.startTest();
-        ActionResult result = action.execute(null, JSON.serialize(params), createTestActionContext());
+        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestActionContext());
         Test.stopTest();
 
-        System.assert(result.isSuccess, 'Action should succeed');
+        System.assert(outcome.isSuccess, 'Action should succeed');
 
-        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) result.getOutputForLlm();
+        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
         System.assertEquals(1, searchResult.count, 'Should find one draft article');
         System.assertEquals(draftArticleId, searchResult.articles[0].get('id'), 'Should return the correct draft article ID');
     }
@@ -146,12 +146,12 @@ private class ActionSearchKnowledgeTest {
         Test.setFixedSearchResults(new List<Id>{ draftArticleId });
 
         Test.startTest();
-        ActionResult result = action.execute(null, JSON.serialize(params), createTestActionContext());
+        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestActionContext());
         Test.stopTest();
 
-        System.assert(result.isSuccess, 'Action should succeed even with no results');
+        System.assert(outcome.isSuccess, 'Action should succeed even with no results');
 
-        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) result.getOutputForLlm();
+        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
         System.assertEquals(0, searchResult.count, 'Should find no articles as the draft is filtered out');
     }
 
@@ -161,13 +161,13 @@ private class ActionSearchKnowledgeTest {
         Map<String, Object> params = new Map<String, Object>{};
 
         Test.startTest();
-        ActionResult result = action.execute(null, JSON.serialize(params), createTestActionContext());
+        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestActionContext());
         Test.stopTest();
 
-        System.assert(!result.isSuccess, 'Action should fail without required parameters');
-        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, result.getErrorCode(), 'Error code should be for validation');
+        System.assert(!outcome.isSuccess, 'Action should fail without required parameters');
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, outcome.errorCode, 'Error code should be for validation');
         System.assert(
-            result.getInternalDetails().contains('Either "searchQuery" or "articleId" must be provided'),
+                outcome.errorMessage.contains('Either "searchQuery" or "articleId" must be provided'),
             'Error message should be specific'
         );
     }
@@ -180,12 +180,12 @@ private class ActionSearchKnowledgeTest {
         Test.setFixedSearchResults(new List<Id>());
 
         Test.startTest();
-        ActionResult result = action.execute(null, JSON.serialize(params), createTestActionContext());
+        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestActionContext());
         Test.stopTest();
 
-        System.assert(result.isSuccess, 'An empty search result is a successful operation');
+        System.assert(outcome.isSuccess, 'An empty search result is a successful operation');
 
-        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) result.getOutputForLlm();
+        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
         System.assertEquals(0, searchResult.count, 'Should find zero articles');
         System.assert(searchResult.message.contains('Found 0'), 'Message should reflect zero results');
     }

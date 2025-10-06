@@ -96,9 +96,9 @@ public class AsyncActionProcessor {
         AgentJobEnqueuer orchestrationDispatchSvc = new AgentJobEnqueuer(turnLifecycleSvc);
 
         try {
-            // Lock execution and validate current state to prevent stale executions
+            // Validate execution state to prevent stale executions
             ExecutionContextService executionContextService = new ExecutionContextService();
-            AgentExecution__c execution = executionContextService.lockExecution(this.executionId, this.turnIdentifier);
+            AgentExecution__c execution = executionContextService.validateAndGetExecution(this.executionId, this.turnIdentifier);
             if (execution == null || execution.ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_ACTION) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Stale execution detected or execution in unexpected state - aborting action execution');
                 return;
@@ -109,7 +109,7 @@ public class AsyncActionProcessor {
 
             // Execute the action with performance tracking
             Long actionDuration = 0L;
-            ActionResult actionResult;
+            ActionOutcome outcome = null;
             Long actionStartTime = System.currentTimeMillis();
             try {
                 ActionContext actionContext = new ActionContext(
@@ -124,29 +124,28 @@ public class AsyncActionProcessor {
                     this.currentTurnCount,
                     'Conversational' // Default execution type
                 );
-                actionResult = actionService.executeSingleAction(this.capability, this.llmArgumentsJson, actionContext);
+                outcome = actionService.executeSingleAction(this.capability, this.llmArgumentsJson, actionContext);
             } catch (Exception ex) {
-                actionResult = new ActionResult(
-                    'Async Action failed internally: ' + ex.getMessage(),
-                    ex.getStackTraceString(),
-                    AIAgentConstants.ERR_CODE_ACTION_EXECUTION
+                outcome = ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                    'Async Action failed internally: ' + ex.getMessage() + '\n' + ex.getStackTraceString()
                 );
             } finally {
                 actionDuration = System.currentTimeMillis() - actionStartTime;
             }
 
-            // Process and store the action execution result
-            String resultJsonForStorage = OrchestrationService.serializeActionResult(actionResult, logPrefix);
-            Id newRecordContextId = OrchestrationService.extractRecordIdFromResult(actionResult);
+            // Process and store the action execution outcome
+            String resultJsonForStorage = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
+            Id newRecordContextId = OrchestrationService.extractRecordIdFromOutcome(outcome);
 
             decisionLogger.logToolResult(
                 'Tool Execution Completed (Async)',
                 'Asynchronous tool execution has completed',
                 resultJsonForStorage,
                 actionDuration,
-                actionResult.isSuccess,
-                actionResult.errorCode,
-                actionResult.internalDetails
+                outcome.isSuccess,
+                outcome.errorCode,
+                outcome.errorMessage
             );
 
             // Save the tool result using ExecutionStep__c

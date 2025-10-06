@@ -9,11 +9,14 @@
 /**
  * @description
  * AsyncFrameworkRequestTriggerHandler is the comprehensive platform event handler for AsyncFrameworkRequest__e events.
- * Responsibilities:
- *   - Provides intelligent routing and deserialization of event payloads to the appropriate processor classes
- *   - Supports multiple job types including initial LLM processing, action execution, and follow-up LLM processing
- *   - Ensures robust error handling and batch isolation for reliable event processing
- *   - Surfaces operational and routing issues clearly via debug output for maintainability
+ *
+ * In the unified agent architecture:
+ *   - ProcessLLMMessage: Handles high-concurrency conversational agents (via ConversationalOrchestrator)
+ *   - ExecuteAction: Handles tool/action execution (from ToolCallResponseHandler via AgentJobEnqueuer)
+ *   - FollowUpLLM: Handles multi-turn LLM continuations (via AgentJobEnqueuer)
+ *
+ * Note: Most orchestrators (Email, Batch, Autonomous, low-concurrency Conversational) now use Queueables directly,
+ * bypassing platform events for better statefulness and simpler flows.
  *
  * This class is not intended to be instantiated or extended outside the framework.
  */
@@ -46,14 +49,12 @@ public class AsyncFrameworkRequestTriggerHandler {
                     handleFollowUpLLM(payloadJson);
                 } else if ('ProcessLLMMessage'.equalsIgnoreCase(jobType)) {
                     handleProcessLLMMessage(payloadJson);
-                } else if ('InitiateExecution'.equalsIgnoreCase(jobType)) {
-                    handleInitiateExecution(payloadJson);
                 } else {
                     System.debug(
                         LoggingLevel.ERROR,
                         '[AsyncFrameworkRequestTriggerHandler] Unknown JobType received: ' +
                             jobType +
-                            '. Valid types: ExecuteAction, FollowUpLLM, ProcessLLMMessage, InitiateExecution.'
+                            '. Valid types: ExecuteAction, FollowUpLLM, ProcessLLMMessage.'
                     );
                 }
             } catch (Exception e) {
@@ -228,58 +229,6 @@ public class AsyncFrameworkRequestTriggerHandler {
                 );
             }
         }
-    }
-
-    /**
-     * Handles execution initiation for all non-conversational trigger sources.
-     * This unified method replaces the individual handlers for Email, Scheduled, DataChange, Batch, and API triggers.
-     * Uses deferred processing pattern to avoid transaction conflicts between DML and HTTP callouts.
-     *
-     * @param payloadJson JSON payload containing execution ID, trigger source, and trigger-specific data.
-     */
-    private static void handleInitiateExecution(String payloadJson) {
-        String logPrefix = '[AsyncFrameworkRequestTriggerHandler.InitiateExecution] ';
-        System.debug(LoggingLevel.INFO, logPrefix + 'Processing execution initiation');
-
-        try {
-            Map<String, Object> payload = (Map<String, Object>) JSON.deserializeUntyped(payloadJson);
-
-            Id executionId = (Id) payload.get('executionId');
-            String triggerSource = (String) payload.get('triggerSource');
-
-            if (executionId == null || String.isBlank(triggerSource)) {
-                throw new AsyncFrameworkException('ExecutionId and triggerSource are required for InitiateExecution');
-            }
-
-            // Remove execution metadata from payload to pass clean trigger data
-            Map<String, Object> triggerData = new Map<String, Object>(payload);
-            triggerData.remove('executionId');
-            triggerData.remove('triggerSource');
-
-            System.debug(LoggingLevel.INFO, logPrefix + 'Enqueueing deferred processing for ' + triggerSource + ' execution: ' + executionId);
-
-            // Use deferred processing to avoid transaction conflicts
-            // Platform events may be processed in the same transaction as DML operations,
-            // so we enqueue a queueable job to handle HTTP callouts in a separate transaction
-            DeferredExecutionProcessor processor = new DeferredExecutionProcessor(executionId, triggerSource, triggerData);
-            System.enqueueJob(processor);
-
-            System.debug(LoggingLevel.INFO, logPrefix + 'Successfully enqueued ' + triggerSource + ' execution: ' + executionId);
-        } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix + 'Error processing execution initiation: ' + e.getMessage() + '\nStack Trace: ' + e.getStackTraceString()
-            );
-        }
-    }
-
-    /**
-     * Generates a unique turn identifier for execution tracking.
-     *
-     * @return String unique turn identifier
-     */
-    private static String generateTurnIdentifier() {
-        return 'turn_' + Datetime.now().getTime() + '_' + Math.round(Math.random() * 1000);
     }
 
     /**
