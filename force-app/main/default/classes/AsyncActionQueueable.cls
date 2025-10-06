@@ -13,7 +13,7 @@
  * designed for agents with low concurrency settings (Concurrency__c = 'Low' or null).
  *
  * This class contains NO business logic. Its sole responsibility is to instantiate and invoke
- * the AsyncActionProcessor class, which contains all the actual processing logic. This design
+ * the AsyncActionEngine class, which contains all the actual processing logic. This design
  * prevents code duplication and centralizes business logic while allowing for different
  * invocation contexts (Platform Event vs. Queueable).
  *
@@ -35,7 +35,7 @@ public class AsyncActionQueueable implements Queueable {
 
     /**
      * Constructor for AsyncActionQueueable.
-     * Parameters mirror those required by AsyncActionProcessor for seamless delegation.
+     * Parameters mirror those required by AsyncActionEngine for seamless delegation.
      *
      * @param sessionId         The ID of the chat session.
      * @param originalUserId    The ID of the user.
@@ -73,14 +73,14 @@ public class AsyncActionQueueable implements Queueable {
     }
 
     /**
-     * Queueable execute method. Instantiates AsyncActionProcessor and delegates all processing.
-     * This method contains no business logic—it simply creates the processor and invokes its process() method.
+     * Queueable execute method. Instantiates AsyncActionEngine and delegates all processing.
+     * This method contains no business logic—it simply creates the engine and invokes its process() method.
      *
      * @param context The QueueableContext provided by the platform.
      */
     public void execute(QueueableContext context) {
         String jobId = context.getJobId();
-        AsyncActionProcessor processor = new AsyncActionProcessor(
+        AsyncActionEngine engine = new AsyncActionEngine(
             this.executionId,
             this.originalUserId,
             this.agentDefinitionId,
@@ -92,7 +92,6 @@ public class AsyncActionQueueable implements Queueable {
             this.turnIdentifier,
             this.currentTurnCount
         );
-        processor.process(jobId);
+        engine.process(jobId);
     }
 }
-

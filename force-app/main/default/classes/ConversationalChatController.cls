@@ -8,16 +8,20 @@
 
 /**
  * @description
- * AIAssistantController is the Lightning Web Component controller for the AI Agent Framework.
+ * ConversationalChatController is the Lightning Web Component controller for conversational chat sessions in the AI Agent Framework.
+ * This controller specifically handles UI-initiated chat interactions and should not be confused with the broader
+ * AgentExecutionService, which serves as the unified entry point for all agent execution types.
+ *
  * Responsibilities:
- *   - Manages the chat session lifecycle, including creation, validation, and access control
+ *   - Manages conversational chat session lifecycle, including creation, validation, and access control
  *   - Processes user messages with intelligent routing between synchronous and asynchronous execution contexts
  *   - Provides secure, filtered access to conversation history for UI display
+ *   - Handles service user context switching for elevated permissions when required
  *   - Surfaces operational and configuration issues clearly via debug output for maintainability
  *
  * This class is not intended to be instantiated or extended.
  */
-public with sharing class AIAssistantController {
+public with sharing class ConversationalChatController {
     public class ControllerException extends AIAgentException {
     }
     public class ConfigurationException extends AIAgentException {
@@ -135,7 +139,6 @@ public with sharing class AIAssistantController {
                 lwcResponse.put('success', false);
                 lwcResponse.put('error', result.errorMessage != null ? result.errorMessage : 'Agent processing failed.');
             }
-
         } catch (AgentOrchestratorException e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Orchestration error: ' + e.getMessage());
             lwcResponse.put('error', 'Processing error: ' + e.getMessage());

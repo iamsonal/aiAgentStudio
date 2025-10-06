@@ -8,10 +8,12 @@
 
 /**
  * @description
- * FollowUpLLMProcessor coordinates the post-tool-execution phase of an LLM-driven execution, handling follow-up LLM interactions
- * after asynchronous operations complete. It validates execution state, invokes the LLM, processes results, and manages error handling
- * and logging. The class is context-agnostic and can be invoked from Queueable jobs, Platform Events, or other triggers.
- * Uses the unified AgentExecution__c and ExecutionStep__c data models exclusively.
+ * FollowUpLLMEngine coordinates the post-tool-execution phase of an LLM-driven execution, handling follow-up LLM interactions
+ * after asynchronous operations complete. This engine contains all the business logic for follow-up LLM processing and can be
+ * invoked from multiple contexts (Platform Events, Queueables) via thin wrapper classes.
+ *
+ * The class validates execution state, invokes the LLM, processes results, and manages error handling and logging.
+ * It is context-agnostic and uses the unified AgentExecution__c and ExecutionStep__c data models exclusively.
  *
  * Responsibilities:
  *   - Validate execution and turn state before proceeding with follow-up LLM processing
@@ -20,7 +22,7 @@
  *   - Provide clear, actionable debug output and commit logs for diagnostics
  *   - Remain agnostic to invocation context for flexible integration
  */
-public class FollowUpLLMProcessor {
+public class FollowUpLLMEngine {
     private final Id executionId;
     private final Id userId;
     private final Id agentDefinitionId;
@@ -38,7 +40,7 @@ public class FollowUpLLMProcessor {
      * @param turnCount     The current turn number in the execution.
      * @param isFinalError  Whether this is a final error turn that should terminate the execution.
      */
-    public FollowUpLLMProcessor(Id executionId, Id usrId, Id agentDefId, String turnId, Integer turnCount, Boolean isFinalError) {
+    public FollowUpLLMEngine(Id executionId, Id usrId, Id agentDefId, String turnId, Integer turnCount, Boolean isFinalError) {
         this.executionId = executionId;
         this.userId = usrId;
         this.agentDefinitionId = agentDefId;
@@ -60,7 +62,7 @@ public class FollowUpLLMProcessor {
      */
     public void process(String jobIdForLogging) {
         String logPrefix =
-            '[FollowUpLLMProcessor:' +
+            '[FollowUpLLMEngine:' +
             this.turnIdentifier?.left(8) +
             ' Cycle:' +
             this.currentTurnCount +

@@ -75,7 +75,18 @@ private class ActionSearchKnowledgeTest {
         Id capabilityId = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'search_knowledge' LIMIT 1].Id;
         Id sessionId = [SELECT Id FROM AgentExecution__c LIMIT 1].Id;
 
-        return new ActionContext(sessionId, UserInfo.getUserId(), UserInfo.getUserId(), null, agentId, capabilityId, null, 'turn-123', 1, 'Conversational');
+        return new ActionContext(
+            sessionId,
+            UserInfo.getUserId(),
+            UserInfo.getUserId(),
+            null,
+            agentId,
+            capabilityId,
+            null,
+            'turn-123',
+            1,
+            'Conversational'
+        );
     }
 
     @IsTest
@@ -166,10 +177,7 @@ private class ActionSearchKnowledgeTest {
 
         System.assert(!outcome.isSuccess, 'Action should fail without required parameters');
         System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, outcome.errorCode, 'Error code should be for validation');
-        System.assert(
-                outcome.errorMessage.contains('Either "searchQuery" or "articleId" must be provided'),
-            'Error message should be specific'
-        );
+        System.assert(outcome.errorMessage.contains('Either "searchQuery" or "articleId" must be provided'), 'Error message should be specific');
     }
 
     @IsTest

@@ -31,7 +31,7 @@ import { LoadingStateManager } from './services/loadingStateManager';
 import { ErrorHandler } from './services/errorHandler';
 import { UuidUtils } from './utils/uuid';
 
-import startOverFromMessage from '@salesforce/apex/AIAssistantController.startOverFromMessage';
+import startOverFromMessage from '@salesforce/apex/ConversationalChatController.startOverFromMessage';
 
 export default class AiAssistantChat extends LightningElement {
     /**

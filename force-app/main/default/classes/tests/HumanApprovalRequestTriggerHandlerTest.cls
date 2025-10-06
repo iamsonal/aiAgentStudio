@@ -25,12 +25,12 @@ private class HumanApprovalRequestTriggerHandlerTest {
         insert session;
 
         ExecutionStep__c assistantMessage = new ExecutionStep__c(
-                AgentExecution__c = session.Id,
+            AgentExecution__c = session.Id,
             StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
             Content__c = 'I will search for sales records.',
             ExternalId__c = 'turn-123',
             Timestamp__c = System.now(),
-                StepType__c = 'AgentResponse'
+            StepType__c = 'AgentResponse'
         );
         insert assistantMessage;
 
@@ -43,8 +43,8 @@ private class HumanApprovalRequestTriggerHandlerTest {
         );
 
         HumanApprovalRequest__c har = new HumanApprovalRequest__c(
-                AgentExecution__c = session.Id,
-                OriginalAssistantStep__c = assistantMessage.Id,
+            AgentExecution__c = session.Id,
+            OriginalAssistantStep__c = assistantMessage.Id,
             LLMConfirmationMessage__c = 'User requested sales records search',
             LLMToolCallId__c = 'call_123',
             LLMToolName__c = 'find_sales_records',
@@ -91,18 +91,18 @@ private class HumanApprovalRequestTriggerHandlerTest {
         insert session;
 
         ExecutionStep__c assistantMessage = new ExecutionStep__c(
-                AgentExecution__c = session.Id,
-                StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
+            AgentExecution__c = session.Id,
+            StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
             Content__c = 'I will search for sales records.',
             ExternalId__c = 'turn-456',
             Timestamp__c = System.now(),
-                StepType__c = 'AgentResponse'
+            StepType__c = 'AgentResponse'
         );
         insert assistantMessage;
 
         HumanApprovalRequest__c har = new HumanApprovalRequest__c(
-                AgentExecution__c = session.Id,
-                OriginalAssistantStep__c = assistantMessage.Id,
+            AgentExecution__c = session.Id,
+            OriginalAssistantStep__c = assistantMessage.Id,
             LLMConfirmationMessage__c = 'User requested sales records search',
             LLMToolCallId__c = 'call_456',
             LLMToolName__c = 'find_sales_records',
@@ -164,12 +164,12 @@ private class HumanApprovalRequestTriggerHandlerTest {
         for (Integer i = 1; i <= 3; i++) {
             assistantMessages.add(
                 new ExecutionStep__c(
-                        AgentExecution__c = session.Id,
-                        StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
+                    AgentExecution__c = session.Id,
+                    StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
                     Content__c = 'I will process request ' + i,
                     ExternalId__c = 'turn-' + i,
                     Timestamp__c = System.now(),
-                        StepType__c = 'AgentResponse'
+                    StepType__c = 'AgentResponse'
                 )
             );
         }
@@ -186,8 +186,8 @@ private class HumanApprovalRequestTriggerHandlerTest {
 
         List<HumanApprovalRequest__c> hars = new List<HumanApprovalRequest__c>{
             new HumanApprovalRequest__c(
-                    AgentExecution__c = session.Id,
-                    OriginalAssistantStep__c = assistantMessages[0].Id,
+                AgentExecution__c = session.Id,
+                OriginalAssistantStep__c = assistantMessages[0].Id,
                 LLMToolCallId__c = 'call_1',
                 LLMToolName__c = 'find_sales_records',
                 LLMToolArgumentsJSON__c = approvedArgsJson,
@@ -196,8 +196,8 @@ private class HumanApprovalRequestTriggerHandlerTest {
                 ApprovalStatus__c = 'Pending'
             ),
             new HumanApprovalRequest__c(
-                    AgentExecution__c = session.Id,
-                    OriginalAssistantStep__c = assistantMessages[1].Id,
+                AgentExecution__c = session.Id,
+                OriginalAssistantStep__c = assistantMessages[1].Id,
                 LLMToolCallId__c = 'call_2',
                 LLMToolName__c = 'find_sales_records',
                 LLMToolArgumentsJSON__c = '{}',
@@ -206,8 +206,8 @@ private class HumanApprovalRequestTriggerHandlerTest {
                 ApprovalStatus__c = 'Pending'
             ),
             new HumanApprovalRequest__c(
-                    AgentExecution__c = session.Id,
-                    OriginalAssistantStep__c = assistantMessages[2].Id,
+                AgentExecution__c = session.Id,
+                OriginalAssistantStep__c = assistantMessages[2].Id,
                 LLMToolCallId__c = 'call_3',
                 LLMToolName__c = 'find_sales_records',
                 LLMToolArgumentsJSON__c = '{}',
@@ -259,18 +259,18 @@ private class HumanApprovalRequestTriggerHandlerTest {
         insert session;
 
         ExecutionStep__c assistantMessage = new ExecutionStep__c(
-                AgentExecution__c = session.Id,
-                StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
+            AgentExecution__c = session.Id,
+            StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
             Content__c = 'I will search for sales records.',
             ExternalId__c = 'turn-789',
             Timestamp__c = System.now(),
-                StepType__c = 'AgentResponse'
+            StepType__c = 'AgentResponse'
         );
         insert assistantMessage;
 
         HumanApprovalRequest__c har = new HumanApprovalRequest__c(
-                AgentExecution__c = session.Id,
-                OriginalAssistantStep__c = assistantMessage.Id,
+            AgentExecution__c = session.Id,
+            OriginalAssistantStep__c = assistantMessage.Id,
             LLMConfirmationMessage__c = 'User requested sales records search',
             LLMToolCallId__c = 'call_789',
             LLMToolName__c = 'find_sales_records',
@@ -320,18 +320,18 @@ private class HumanApprovalRequestTriggerHandlerTest {
         insert session;
 
         ExecutionStep__c assistantMessage = new ExecutionStep__c(
-                AgentExecution__c = session.Id,
-                StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
+            AgentExecution__c = session.Id,
+            StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
             Content__c = 'I will execute invalid action.',
             ExternalId__c = 'turn-error',
             Timestamp__c = System.now(),
-                StepType__c = 'AgentResponse'
+            StepType__c = 'AgentResponse'
         );
         insert assistantMessage;
 
         HumanApprovalRequest__c har = new HumanApprovalRequest__c(
-                AgentExecution__c = session.Id,
-                OriginalAssistantStep__c = assistantMessage.Id,
+            AgentExecution__c = session.Id,
+            OriginalAssistantStep__c = assistantMessage.Id,
             LLMConfirmationMessage__c = 'User requested invalid action',
             LLMToolCallId__c = 'call_error',
             LLMToolName__c = 'invalid_capability_name', // This capability doesn't exist

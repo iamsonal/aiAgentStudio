@@ -87,7 +87,10 @@ public inherited sharing class AgentJobEnqueuer {
             agentConcurrencyCache.put(agentDefId, concurrency);
             return concurrency;
         } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, '[AgentJobEnqueuer] Failed to query agent concurrency setting: ' + e.getMessage() + '. Defaulting to Low.');
+            System.debug(
+                LoggingLevel.WARN,
+                '[AgentJobEnqueuer] Failed to query agent concurrency setting: ' + e.getMessage() + '. Defaulting to Low.'
+            );
             return 'Low';
         }
     }
@@ -121,26 +124,10 @@ public inherited sharing class AgentJobEnqueuer {
 
             if ('High'.equalsIgnoreCase(concurrency)) {
                 // High concurrency: Use Platform Event for maximum throughput
-                this.enqueueFollowUpViaPlatformEvent(
-                    executionId,
-                    userId,
-                    agentDefId,
-                    turnId,
-                    nextTurnCount,
-                    finalErrorFlag,
-                    logPrefix
-                );
+                this.enqueueFollowUpViaPlatformEvent(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag, logPrefix);
             } else {
                 // Low concurrency (or null): Use Queueable for sequential processing
-                this.enqueueFollowUpViaQueueable(
-                    executionId,
-                    userId,
-                    agentDefId,
-                    turnId,
-                    nextTurnCount,
-                    finalErrorFlag,
-                    logPrefix
-                );
+                this.enqueueFollowUpViaQueueable(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag, logPrefix);
             }
         } catch (Exception e) {
             this.handleDispatchFailure(executionId, turnId, 'FollowUpLLM', e, logPrefix);
@@ -205,14 +192,7 @@ public inherited sharing class AgentJobEnqueuer {
         Boolean finalErrorFlag,
         String logPrefix
     ) {
-        FollowUpLLMQueueable queueable = new FollowUpLLMQueueable(
-            executionId,
-            userId,
-            agentDefId,
-            turnId,
-            nextTurnCount,
-            finalErrorFlag
-        );
+        FollowUpLLMQueueable queueable = new FollowUpLLMQueueable(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag);
         Id jobId = System.enqueueJob(queueable);
         System.debug(
             LoggingLevel.INFO,

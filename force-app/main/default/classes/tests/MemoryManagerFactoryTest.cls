@@ -55,15 +55,22 @@ private class MemoryManagerFactoryTest {
 
         // Create test messages
         List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
-        messages.add(new ExecutionStep__c(AgentExecution__c = session.Id, StepRole__c = 'user', Content__c = 'Hello',
-                StepType__c = 'UserInput', Timestamp__c = Datetime.now()));
         messages.add(
             new ExecutionStep__c(
-                    AgentExecution__c = session.Id,
-                    StepRole__c = 'assistant',
+                AgentExecution__c = session.Id,
+                StepRole__c = 'user',
+                Content__c = 'Hello',
+                StepType__c = 'UserInput',
+                Timestamp__c = Datetime.now()
+            )
+        );
+        messages.add(
+            new ExecutionStep__c(
+                AgentExecution__c = session.Id,
+                StepRole__c = 'assistant',
                 Content__c = 'Hi there!',
                 Timestamp__c = Datetime.now().addSeconds(1),
-                    StepType__c = 'AgentResponse'
+                StepType__c = 'AgentResponse'
             )
         );
         insert messages;
@@ -92,14 +99,22 @@ private class MemoryManagerFactoryTest {
 
         // Create test messages
         List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
-        messages.add(new ExecutionStep__c(AgentExecution__c = session.Id, StepRole__c = 'user', Content__c = 'Hello', StepType__c = 'UserInput', Timestamp__c = Datetime.now()));
         messages.add(
             new ExecutionStep__c(
-                    AgentExecution__c = session.Id,
-                    StepRole__c = 'assistant',
+                AgentExecution__c = session.Id,
+                StepRole__c = 'user',
+                Content__c = 'Hello',
+                StepType__c = 'UserInput',
+                Timestamp__c = Datetime.now()
+            )
+        );
+        messages.add(
+            new ExecutionStep__c(
+                AgentExecution__c = session.Id,
+                StepRole__c = 'assistant',
                 Content__c = 'Hi there!',
                 Timestamp__c = Datetime.now().addSeconds(1),
-                    StepType__c = 'AgentResponse'
+                StepType__c = 'AgentResponse'
             )
         );
         insert messages;
@@ -148,14 +163,22 @@ private class MemoryManagerFactoryTest {
 
         // Create test messages
         List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
-        messages.add(new ExecutionStep__c(AgentExecution__c = session.Id, StepRole__c = 'user', Content__c = 'Hello', StepType__c = 'UserInput', Timestamp__c = Datetime.now()));
         messages.add(
             new ExecutionStep__c(
-                    AgentExecution__c = session.Id,
-                    StepRole__c = 'assistant',
+                AgentExecution__c = session.Id,
+                StepRole__c = 'user',
+                Content__c = 'Hello',
+                StepType__c = 'UserInput',
+                Timestamp__c = Datetime.now()
+            )
+        );
+        messages.add(
+            new ExecutionStep__c(
+                AgentExecution__c = session.Id,
+                StepRole__c = 'assistant',
                 Content__c = 'Hi there!',
                 Timestamp__c = Datetime.now().addSeconds(1),
-                    StepType__c = 'AgentResponse'
+                StepType__c = 'AgentResponse'
             )
         );
         insert messages;
@@ -184,14 +207,22 @@ private class MemoryManagerFactoryTest {
 
         // Create test messages
         List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
-        messages.add(new ExecutionStep__c(AgentExecution__c = session.Id, StepRole__c = 'user', Content__c = 'Hello', StepType__c = 'UserInput', Timestamp__c = Datetime.now()));
         messages.add(
             new ExecutionStep__c(
-                    AgentExecution__c = session.Id,
-                    StepRole__c = 'assistant',
+                AgentExecution__c = session.Id,
+                StepRole__c = 'user',
+                Content__c = 'Hello',
+                StepType__c = 'UserInput',
+                Timestamp__c = Datetime.now()
+            )
+        );
+        messages.add(
+            new ExecutionStep__c(
+                AgentExecution__c = session.Id,
+                StepRole__c = 'assistant',
                 Content__c = 'Hi there!',
                 Timestamp__c = Datetime.now().addSeconds(1),
-                    StepType__c = 'AgentResponse'
+                StepType__c = 'AgentResponse'
             )
         );
         insert messages;
@@ -221,14 +252,22 @@ private class MemoryManagerFactoryTest {
 
         // Create test messages
         List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
-        messages.add(new ExecutionStep__c(AgentExecution__c = session.Id, StepRole__c = 'user', Content__c = 'Hello', StepType__c = 'UserInput', Timestamp__c = Datetime.now()));
         messages.add(
             new ExecutionStep__c(
-                    AgentExecution__c = session.Id,
-                    StepRole__c = 'assistant',
+                AgentExecution__c = session.Id,
+                StepRole__c = 'user',
+                Content__c = 'Hello',
+                StepType__c = 'UserInput',
+                Timestamp__c = Datetime.now()
+            )
+        );
+        messages.add(
+            new ExecutionStep__c(
+                AgentExecution__c = session.Id,
+                StepRole__c = 'assistant',
                 Content__c = 'Hi there!',
                 Timestamp__c = Datetime.now().addSeconds(1),
-                    StepType__c = 'AgentResponse'
+                StepType__c = 'AgentResponse'
             )
         );
         insert messages;

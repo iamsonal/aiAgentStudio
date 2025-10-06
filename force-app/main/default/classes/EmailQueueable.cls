@@ -19,14 +19,7 @@ public class EmailQueueable implements Queueable, Database.AllowsCallouts {
     private final Id userId;
     private final String emailContent;
 
-    public EmailQueueable(
-        Id executionId,
-        Id agentDefinitionId,
-        Id llmConfigurationId,
-        String turnIdentifier,
-        Id userId,
-        String emailContent
-    ) {
+    public EmailQueueable(Id executionId, Id agentDefinitionId, Id llmConfigurationId, String turnIdentifier, Id userId, String emailContent) {
         this.executionId = executionId;
         this.agentDefinitionId = agentDefinitionId;
         this.llmConfigurationId = llmConfigurationId;
@@ -87,9 +80,11 @@ public class EmailQueueable implements Queueable, Database.AllowsCallouts {
             );
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Email processing completed successfully. Outcome: ' + outcome);
-
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'ERROR: Email processing failed. Exception: ' + e.getMessage() + '\nStack: ' + e.getStackTraceString());
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'ERROR: Email processing failed. Exception: ' + e.getMessage() + '\nStack: ' + e.getStackTraceString()
+            );
 
             // Mark turn as failed
             try {
@@ -102,7 +97,10 @@ public class EmailQueueable implements Queueable, Database.AllowsCallouts {
                     logPrefix
                 );
             } catch (Exception failEx) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'CRITICAL: Failed to update execution state after processing failure: ' + failEx.getMessage());
+                System.debug(
+                    LoggingLevel.ERROR,
+                    logPrefix + 'CRITICAL: Failed to update execution state after processing failure: ' + failEx.getMessage()
+                );
             }
         }
     }

@@ -8,23 +8,26 @@
 
 /**
  * @description
- * InitialLLMProcessor handles the initial LLM processing for all non-conversational agent executions.
- * This class consolidates the LLM processing logic for Email, Scheduled, DataChange, Batch, and API triggers,
- * eliminating code duplication and providing a single, maintainable entry point.
+ * TriggeredAgentLLMProcessor handles the initial LLM processing for all non-conversational agent executions.
+ * This processor is specifically designed for triggered execution types (Email, Scheduled, DataChange, Batch, API)
+ * and should NOT be used for conversational agents, which follow a different orchestration flow.
+ *
+ * This class consolidates the LLM processing logic for triggered agents, eliminating code duplication
+ * and providing a single, maintainable entry point for all non-chat execution patterns.
  *
  * Responsibilities:
  *   - Loads existing AgentExecution__c records created in the DML phase
- *   - Formats trigger-specific content for LLM processing
+ *   - Formats trigger-specific content for LLM processing based on trigger type
  *   - Executes LLM interactions with proper error handling
  *   - Routes results through the orchestration pipeline
  *   - Updates execution status and handles failures
  */
-public class InitialLLMProcessor {
-
+public class TriggeredAgentLLMProcessor {
     /**
      * Exception thrown when LLM processing fails.
      */
-    public class LLMProcessingException extends Exception {}
+    public class LLMProcessingException extends Exception {
+    }
 
     /**
      * Data structure for execution processing context.
@@ -48,7 +51,7 @@ public class InitialLLMProcessor {
      * @param triggerData Additional data specific to the trigger source
      */
     public static void processExecution(Id executionId, String triggerSource, Map<String, Object> triggerData) {
-        String logPrefix = '[InitialLLMProcessor.' + triggerSource + '] ';
+        String logPrefix = '[TriggeredAgentLLMProcessor.' + triggerSource + '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Processing execution: ' + executionId);
 
         try {
@@ -62,9 +65,11 @@ public class InitialLLMProcessor {
             executeLLMProcessing(context);
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Successfully processed execution: ' + executionId);
-
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing execution: ' + e.getMessage() + '\nStack Trace: ' + e.getStackTraceString());
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Error processing execution: ' + e.getMessage() + '\nStack Trace: ' + e.getStackTraceString()
+            );
 
             // Mark execution as failed
             markExecutionAsFailed(executionId, triggerSource, e.getMessage());
@@ -82,8 +87,7 @@ public class InitialLLMProcessor {
     private static ProcessingContext loadExecutionContext(Id executionId, String triggerSource, Map<String, Object> triggerData) {
         // Load the existing execution record
         AgentExecution__c execution = [
-            SELECT Id, CurrentTurnIdentifier__c, AIAgentDefinition__c,
-                   AIAgentDefinition__r.LLMConfiguration__c, User__c, TriggerPayload__c
+            SELECT Id, CurrentTurnIdentifier__c, AIAgentDefinition__c, AIAgentDefinition__r.LLMConfiguration__c, User__c, TriggerPayload__c
             FROM AgentExecution__c
             WHERE Id = :executionId
             LIMIT 1
@@ -229,7 +233,6 @@ public class InitialLLMProcessor {
 
             messageParts.add('');
             messageParts.add('Please analyze this individual record and determine the appropriate processing actions.');
-
         } else if ('Grouped'.equals(processingMode)) {
             Integer recordCount = (Integer) triggerData.get('recordCount');
             List<Object> recordIds = (List<Object>) triggerData.get('recordIds');
@@ -246,7 +249,6 @@ public class InitialLLMProcessor {
 
             messageParts.add('');
             messageParts.add('Please analyze this group of records and determine batch processing actions.');
-
         } else if ('Summary'.equals(processingMode)) {
             Map<String, Object> summaryData = (Map<String, Object>) triggerData.get('summaryData');
 
@@ -258,7 +260,6 @@ public class InitialLLMProcessor {
 
             messageParts.add('');
             messageParts.add('Please analyze this batch summary and provide insights or recommendations.');
-
         } else {
             // Generic batch processing
             Integer totalItems = (Integer) triggerData.get('totalItems');
@@ -329,14 +330,10 @@ public class InitialLLMProcessor {
      * @param context The processing context
      */
     private static void executeLLMProcessing(ProcessingContext context) {
-        String logPrefix = '[InitialLLMProcessor.executeLLMProcessing] ';
+        String logPrefix = '[TriggeredAgentLLMProcessor.executeLLMProcessing] ';
 
         // Initialize decision logger
-        AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(
-            context.executionId,
-            context.turnIdentifier,
-            context.userId
-        );
+        AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(context.executionId, context.turnIdentifier, context.userId);
 
         // Create user message data for LLM processing
         LLMInteractionService.MessageData userMessageData = new LLMInteractionService.MessageData();
@@ -407,7 +404,7 @@ public class InitialLLMProcessor {
                 triggerSource + ' processing failed: ' + errorMessage
             );
         } catch (Exception updateEx) {
-            System.debug(LoggingLevel.ERROR, '[InitialLLMProcessor] Failed to update execution status: ' + updateEx.getMessage());
+            System.debug(LoggingLevel.ERROR, '[TriggeredAgentLLMProcessor] Failed to update execution status: ' + updateEx.getMessage());
         }
     }
 }

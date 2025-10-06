@@ -31,7 +31,7 @@ public inherited sharing class OrchestrationService {
 
     // Injected service dependencies
     private final TurnLifecycleService turnLifecycleSvc;
-    private final ActionExecutionService actionExecSvc;
+    private final CapabilityExecutionRouter actionExecSvc;
     private final AgentJobEnqueuer orchestrationDispatchSvc;
     private final ContextManagerService contextManagerSvc;
 
@@ -42,21 +42,21 @@ public inherited sharing class OrchestrationService {
      */
     public OrchestrationService() {
         // Initialize with default service implementations
-        this(new TurnLifecycleService(), new ActionExecutionService(), new AgentJobEnqueuer(), new ContextManagerService());
+        this(new TurnLifecycleService(), new CapabilityExecutionRouter(), new AgentJobEnqueuer(), new ContextManagerService());
     }
 
     /**
      * Constructor with dependency injection for testing and customization.
      *
      * @param turnSvc    TurnLifecycleService instance (required)
-     * @param actionSvc  ActionExecutionService instance (required)
+     * @param actionSvc  CapabilityExecutionRouter instance (required)
      * @param dispatchSvc AgentJobEnqueuer instance (required)
      * @param contextSvc ContextManagerService instance (required)
      * @throws IllegalArgumentException if any dependency is null
      */
     public OrchestrationService(
         TurnLifecycleService turnSvc,
-        ActionExecutionService actionSvc,
+        CapabilityExecutionRouter actionSvc,
         AgentJobEnqueuer dispatchSvc,
         ContextManagerService contextSvc
     ) {
@@ -242,12 +242,7 @@ public inherited sharing class OrchestrationService {
      * @return              Salesforce ID if found in outcome payload, null otherwise
      */
     public static Id extractRecordIdFromOutcome(ActionOutcome actionOutcome) {
-        if (
-            actionOutcome == null ||
-            !actionOutcome.isSuccess ||
-            actionOutcome.data == null ||
-            !(actionOutcome.data instanceof Map<String, Object>)
-        ) {
+        if (actionOutcome == null || !actionOutcome.isSuccess || actionOutcome.data == null || !(actionOutcome.data instanceof Map<String, Object>)) {
             return null;
         }
 

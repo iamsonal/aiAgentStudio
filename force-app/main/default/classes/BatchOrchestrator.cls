@@ -92,7 +92,6 @@ public class BatchOrchestrator implements IAgentOrchestrator {
             System.debug(LoggingLevel.INFO, logPrefix + 'Enqueued BatchQueueable job: ' + jobId + ' for execution: ' + executionId);
 
             return new AgentExecutionService.ExecutionResult(executionId, AIAgentConstants.STATUS_PROCESSING, 'Processing batch');
-
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error initiating batch execution: ' + e.getMessage());
             throw new AgentOrchestratorException('Failed to initiate batch execution: ' + e.getMessage());

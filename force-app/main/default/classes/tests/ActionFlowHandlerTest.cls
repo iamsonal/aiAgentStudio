@@ -13,7 +13,6 @@
  */
 @IsTest
 private class ActionFlowHandlerTest {
-
     private static final String TEST_FLOW_API_NAME = 'Test_Flow_API_Name';
     private static final String INVALID_FLOW_API_NAME = 'Invalid Flow Name With Spaces';
 
@@ -37,7 +36,7 @@ private class ActionFlowHandlerTest {
                 '{"type":"object","properties":{"param1":{"type":"string"}, "param2":{"type":"integer"}}}',
                 'Flow',
                 TEST_FLOW_API_NAME,
-                    null,
+                null,
                 false,
                 null
             ),
@@ -49,7 +48,7 @@ private class ActionFlowHandlerTest {
                 '{"type":"object","properties":{"param1":{"type":"string"}}}',
                 'Flow',
                 INVALID_FLOW_API_NAME,
-                    null,
+                null,
                 false,
                 null
             )
@@ -352,11 +351,7 @@ private class ActionFlowHandlerTest {
         String testMessage = 'Test success message';
 
         Test.startTest();
-        ActionFlowHandler.FlowResult result = new ActionFlowHandler.FlowResult(
-            testFlowName,
-            testResult,
-            testMessage
-        );
+        ActionFlowHandler.FlowResult result = new ActionFlowHandler.FlowResult(testFlowName, testResult, testMessage);
         Test.stopTest();
 
         // Verify all properties are set correctly
@@ -381,11 +376,7 @@ private class ActionFlowHandlerTest {
         String testMessage = 'Test message with null result';
 
         Test.startTest();
-        ActionFlowHandler.FlowResult result = new ActionFlowHandler.FlowResult(
-            testFlowName,
-            testResult,
-            testMessage
-        );
+        ActionFlowHandler.FlowResult result = new ActionFlowHandler.FlowResult(testFlowName, testResult, testMessage);
         Test.stopTest();
 
         // Verify properties with null result

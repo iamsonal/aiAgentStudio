@@ -707,7 +707,7 @@ private class QueryServiceTest {
     static void validateAndBuildOrderBy_invalidFormat_returnsFailure() {
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
             .withDefaultFields(new List<String>{ 'Name' })
-            .withOrderBy('Name ASC DESC NULLS FIRST LAST')  // Invalid - multiple conflicting directives
+            .withOrderBy('Name ASC DESC NULLS FIRST LAST') // Invalid - multiple conflicting directives
             .withLimit(5, null);
 
         Test.startTest();
@@ -718,9 +718,9 @@ private class QueryServiceTest {
         // Accept various error messages since the validation can happen at different levels
         System.assert(
             String.valueOf(result.errorMessage).contains('ORDER BY') ||
-            String.valueOf(result.errorMessage).contains('format') ||
-            String.valueOf(result.errorMessage).contains('invalid') ||
-            String.valueOf(result.errorMessage).contains('unexpected'),
+                String.valueOf(result.errorMessage).contains('format') ||
+                String.valueOf(result.errorMessage).contains('invalid') ||
+                String.valueOf(result.errorMessage).contains('unexpected'),
             'Should mention ORDER BY format error: ' + String.valueOf(result.errorMessage)
         );
     }
@@ -811,7 +811,9 @@ private class QueryServiceTest {
 
         System.assertEquals(false, result.isSuccess, 'Should fail for invalid ID type');
         System.assert(
-            String.valueOf(result.errorMessage).contains('ID') || String.valueOf(result.errorMessage).contains('Id') || String.valueOf(result.errorMessage).contains('type'),
+            String.valueOf(result.errorMessage).contains('ID') ||
+                String.valueOf(result.errorMessage).contains('Id') ||
+                String.valueOf(result.errorMessage).contains('type'),
             'Should mention ID type error: ' + String.valueOf(result.errorMessage)
         );
     }

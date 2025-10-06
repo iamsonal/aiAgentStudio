@@ -17,8 +17,8 @@
  *   - Processes async results by invoking LLM and orchestrating the response
  *
  * Service User Context:
- *   - Service user context switching is handled at the entry point level (AIAssistantController)
- *   - When RequiresServiceUserContext__c is true, AIAssistantController routes through REST/Named Credential
+ *   - Service user context switching is handled at the entry point level (ConversationalChatController)
+ *   - When RequiresServiceUserContext__c is true, ConversationalChatController routes through REST/Named Credential
  *   - By the time this orchestrator executes, we're already in the correct user context
  *   - This orchestrator doesn't need to know about service user requirements
  *
@@ -95,13 +95,16 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
             if ('High'.equalsIgnoreCase(concurrency)) {
                 // High concurrency: Use Platform Event for better scalability
                 publishPlatformEvent(executionId, payload, logPrefix);
-                return new AgentExecutionService.ExecutionResult(executionId, AIAgentConstants.STATUS_PROCESSING, 'Processing message asynchronously');
+                return new AgentExecutionService.ExecutionResult(
+                    executionId,
+                    AIAgentConstants.STATUS_PROCESSING,
+                    'Processing message asynchronously'
+                );
             } else {
                 // Low concurrency: Use Queueable for stateful, sequential processing
                 enqueueQueueable(executionId, payload, logPrefix);
                 return new AgentExecutionService.ExecutionResult(executionId, AIAgentConstants.STATUS_PROCESSING, 'Processing message');
             }
-
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error initiating conversational execution: ' + e.getMessage());
             throw new AgentOrchestratorException('Failed to initiate conversational execution: ' + e.getMessage());
@@ -188,8 +191,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
         }
 
         AgentExecution__c execution = executions[0];
-        if (execution.ProcessingStatus__c != AIAgentConstants.STATUS_IDLE &&
-            execution.ProcessingStatus__c != AIAgentConstants.STATUS_FAILED) {
+        if (execution.ProcessingStatus__c != AIAgentConstants.STATUS_IDLE && execution.ProcessingStatus__c != AIAgentConstants.STATUS_FAILED) {
             throw new AgentOrchestratorException('Execution is currently busy (Status: ' + execution.ProcessingStatus__c + ')');
         }
     }

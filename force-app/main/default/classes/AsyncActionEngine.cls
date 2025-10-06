@@ -8,7 +8,10 @@
 
 /**
  * @description
- * AsyncActionProcessor is the core asynchronous action execution engine for the AI Agent Framework.
+ * AsyncActionEngine is the core asynchronous action execution engine for the AI Agent Framework.
+ * This engine contains all the business logic for asynchronous action processing and can be invoked
+ * from multiple contexts (Platform Events, Queueables) via thin wrapper classes.
+ *
  * Responsibilities:
  *   - Handles individual agent actions independently of invocation context (user, REST, or platform event)
  *   - Provides comprehensive action execution lifecycle management: validation, execution, result processing, and follow-up orchestration
@@ -18,7 +21,7 @@
  *
  * This class is not intended to be instantiated or extended outside the framework.
  */
-public class AsyncActionProcessor {
+public class AsyncActionEngine {
     // Core execution properties
     private final Id executionId;
     private final Id originalUserId;
@@ -45,7 +48,7 @@ public class AsyncActionProcessor {
      * @param turnId           The unique turn identifier.
      * @param turnCount        The current turn count.
      */
-    public AsyncActionProcessor(
+    public AsyncActionEngine(
         Id executionId,
         Id origUserId,
         Id agentDefId,
@@ -80,7 +83,7 @@ public class AsyncActionProcessor {
         Id executionUserId = UserInfo.getUserId();
 
         String logPrefix =
-            '[AsyncActionProcessor:' +
+            '[AsyncActionEngine:' +
             this.turnIdentifier?.left(8) +
             ' Turn:' +
             this.currentTurnCount +

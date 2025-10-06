@@ -260,11 +260,7 @@ private class ActionCreateRecordTest {
         };
 
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
-            rawArguments,
-            Account.SObjectType,
-            AccessType.CREATABLE
-        );
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
@@ -279,11 +275,7 @@ private class ActionCreateRecordTest {
         Map<String, Object> rawArguments = new Map<String, Object>();
 
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
-            rawArguments,
-            Account.SObjectType,
-            AccessType.CREATABLE
-        );
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
@@ -340,11 +332,7 @@ private class ActionCreateRecordTest {
         };
 
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
-            rawArguments,
-            Account.SObjectType,
-            AccessType.CREATABLE
-        );
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
@@ -362,11 +350,7 @@ private class ActionCreateRecordTest {
         };
 
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
-            rawArguments,
-            Account.SObjectType,
-            AccessType.CREATABLE
-        );
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
@@ -379,11 +363,7 @@ private class ActionCreateRecordTest {
         Map<String, Object> rawArguments = new Map<String, Object>{ 'Name' => 'Test Account', 'NonExistentField__c' => 'Some Value' };
 
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
-            rawArguments,
-            Account.SObjectType,
-            AccessType.CREATABLE
-        );
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');

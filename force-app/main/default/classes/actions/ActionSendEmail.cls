@@ -27,7 +27,6 @@
  * @extends BaseAgentAction
  */
 public class ActionSendEmail extends BaseAgentAction {
-
     // Configuration keys
     private static final String CONFIG_KEY_DEFAULT_FROM_NAME = 'defaultFromName';
     private static final String CONFIG_KEY_DEFAULT_REPLY_TO = 'defaultReplyTo';
@@ -82,7 +81,6 @@ public class ActionSendEmail extends BaseAgentAction {
             System.debug(LoggingLevel.INFO, '[ActionSendEmail] Email processing completed in ' + executionTime + ' ms');
 
             return sendResult;
-
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[ActionSendEmail] Unexpected error during email processing: ' + e.getMessage());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Email processing failed: ' + e.getMessage());
@@ -199,18 +197,29 @@ public class ActionSendEmail extends BaseAgentAction {
         }
 
         // Validate that at least one form of body content is provided
-        if (String.isBlank(emailParams.body) && String.isBlank(emailParams.htmlBody) && String.isBlank(emailParams.plainTextBody) && String.isBlank(emailParams.templateId)) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Email body, HTML body, plain text body, or template ID is required');
+        if (
+            String.isBlank(emailParams.body) &&
+            String.isBlank(emailParams.htmlBody) &&
+            String.isBlank(emailParams.plainTextBody) &&
+            String.isBlank(emailParams.templateId)
+        ) {
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'Email body, HTML body, plain text body, or template ID is required'
+            );
         }
 
         // Validate recipient count
-        Integer totalRecipients = emailParams.toAddresses.size() +
-                                (emailParams.ccAddresses != null ? emailParams.ccAddresses.size() : 0) +
-                                (emailParams.bccAddresses != null ? emailParams.bccAddresses.size() : 0);
+        Integer totalRecipients =
+            emailParams.toAddresses.size() +
+            (emailParams.ccAddresses != null ? emailParams.ccAddresses.size() : 0) +
+            (emailParams.bccAddresses != null ? emailParams.bccAddresses.size() : 0);
 
         if (totalRecipients > this.maxRecipients) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'Too many recipients: ' + totalRecipients + ' (maximum allowed: ' + this.maxRecipients + ')');
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'Too many recipients: ' + totalRecipients + ' (maximum allowed: ' + this.maxRecipients + ')'
+            );
         }
 
         // Validate email addresses
@@ -221,8 +230,10 @@ public class ActionSendEmail extends BaseAgentAction {
 
         // Validate attachments
         if (emailParams.attachments != null && emailParams.attachments.size() > this.maxAttachments) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'Too many attachments: ' + emailParams.attachments.size() + ' (maximum allowed: ' + this.maxAttachments + ')');
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'Too many attachments: ' + emailParams.attachments.size() + ' (maximum allowed: ' + this.maxAttachments + ')'
+            );
         }
 
         return ActionOutcome.success();
@@ -372,7 +383,7 @@ public class ActionSendEmail extends BaseAgentAction {
             }
 
             // Send the email
-            Messaging.SendEmailResult[] results = Messaging.sendEmail(new Messaging.SingleEmailMessage[] { email });
+            Messaging.SendEmailResult[] results = Messaging.sendEmail(new List<Messaging.SingleEmailMessage>{ email });
 
             if (results[0].isSuccess()) {
                 System.debug(LoggingLevel.INFO, '[ActionSendEmail] Email sent successfully');
@@ -382,7 +393,6 @@ public class ActionSendEmail extends BaseAgentAction {
                 System.debug(LoggingLevel.ERROR, '[ActionSendEmail] ' + errorMessage);
                 return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, errorMessage);
             }
-
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[ActionSendEmail] Error sending email: ' + e.getMessage());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Email sending failed: ' + e.getMessage());
@@ -438,9 +448,10 @@ public class ActionSendEmail extends BaseAgentAction {
         emailResult.success = success;
         emailResult.subject = emailParams.subject;
         emailResult.recipientCount = emailParams.toAddresses.size();
-        emailResult.totalRecipients = emailParams.toAddresses.size() +
-                                    (emailParams.ccAddresses != null ? emailParams.ccAddresses.size() : 0) +
-                                    (emailParams.bccAddresses != null ? emailParams.bccAddresses.size() : 0);
+        emailResult.totalRecipients =
+            emailParams.toAddresses.size() +
+            (emailParams.ccAddresses != null ? emailParams.ccAddresses.size() : 0) +
+            (emailParams.bccAddresses != null ? emailParams.bccAddresses.size() : 0);
         emailResult.attachmentCount = emailParams.attachments != null ? emailParams.attachments.size() : 0;
         emailResult.sentAt = Datetime.now();
 
@@ -472,8 +483,16 @@ public class ActionSendEmail extends BaseAgentAction {
         this.maxAttachments = ActionConfigUtils.getOptionalInteger(this.parsedActionConfig, CONFIG_KEY_MAX_ATTACHMENTS, DEFAULT_MAX_ATTACHMENTS);
         this.requireApproval = ActionConfigUtils.getOptionalBoolean(this.parsedActionConfig, CONFIG_KEY_REQUIRE_APPROVAL, false);
 
-        System.debug(LoggingLevel.DEBUG, logPrefix + 'Email action configured with maxRecipients=' + this.maxRecipients +
-                   ', maxAttachments=' + this.maxAttachments + ', requireApproval=' + this.requireApproval);
+        System.debug(
+            LoggingLevel.DEBUG,
+            logPrefix +
+                'Email action configured with maxRecipients=' +
+                this.maxRecipients +
+                ', maxAttachments=' +
+                this.maxAttachments +
+                ', requireApproval=' +
+                this.requireApproval
+        );
     }
 
     /**

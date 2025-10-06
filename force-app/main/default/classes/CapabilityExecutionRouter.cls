@@ -8,21 +8,23 @@
 
 /**
  * @description
- * ActionExecutionService is responsible for orchestrating the execution of agent capabilities
- * within the AI Agent framework. It acts as a central router, dynamically dispatching actions
- * to the appropriate execution engine based on the capability's implementation type (Standard, Apex, Flow).
- * The class ensures robust error handling, consistent logging, and uniform result processing,
- * providing a single entry point for executing agent actions regardless of their underlying technology.
+ * CapabilityExecutionRouter is responsible for routing the execution of individual agent capabilities
+ * within the AI Agent framework. This router operates at the capability layer (not the agent execution layer)
+ * and should not be confused with AgentExecutionService, which handles agent-level execution orchestration.
+ *
+ * This class acts as a central routing mechanism, dynamically dispatching individual capability executions
+ * to the appropriate handler based on the capability's implementation type (Standard, Apex, Flow).
+ * It ensures robust error handling, consistent logging, and uniform result processing.
  *
  * Responsibilities:
- *   - Route agent capability execution requests to the correct handler (ActionRegistry, etc.)
- *   - Enforce input validation and context integrity
+ *   - Route individual capability execution requests to the correct handler (via ActionRegistry)
+ *   - Enforce input validation and context integrity for capability execution
  *   - Provide detailed, actionable debug output for observability and troubleshooting
  *   - Normalize error handling and result construction across all execution paths
  *
- * This class is designed for extensibility and maintainability, serving as the backbone for agent-driven automation.
+ * This class is designed for extensibility and maintainability, serving as the routing backbone for capability-level execution.
  */
-public inherited sharing class ActionExecutionService {
+public inherited sharing class CapabilityExecutionRouter {
     /**
      * @description
      * Executes a single agent capability by routing the request to the appropriate execution engine
@@ -42,7 +44,7 @@ public inherited sharing class ActionExecutionService {
      */
     public ActionOutcome executeSingleAction(AgentCapability__c capability, String llmArgumentsJson, ActionContext context) {
         String logPrefix =
-            '[ActionExecutionService] [CapabilityId: ' +
+            '[CapabilityExecutionRouter] [CapabilityId: ' +
             String.valueOf(capability?.Id) +
             ' | ExecutionId: ' +
             String.valueOf(context?.executionId) +
@@ -79,7 +81,8 @@ public inherited sharing class ActionExecutionService {
                         );
                         outcome = ActionOutcome.failure(
                             AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT,
-                            'Action handler failed to return an outcome. Handler returned null. Check handler implementation for capability: ' + capability.CapabilityName__c
+                            'Action handler failed to return an outcome. Handler returned null. Check handler implementation for capability: ' +
+                            capability.CapabilityName__c
                         );
                     } else {
                         System.debug(LoggingLevel.DEBUG, logPrefix + 'Action handler returned outcome: ' + String.valueOf(outcome));
@@ -106,10 +109,7 @@ public inherited sharing class ActionExecutionService {
             // Catch-all for unexpected errors: log with stack trace and return error outcome
             String errMsg = 'Unexpected error during action execution for capability: ' + capability.CapabilityName__c;
             System.debug(LoggingLevel.ERROR, logPrefix + errMsg + '. Exception: ' + ex.getMessage() + '\nStack Trace: ' + ex.getStackTraceString());
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
-                errMsg + ': ' + ex.getMessage()
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_ACTION_EXECUTION, errMsg + ': ' + ex.getMessage());
         }
     }
 }

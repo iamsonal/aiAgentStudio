@@ -5,7 +5,7 @@
         <visible>true</visible>
     </applicationVisibilities>
     <classAccesses>
-        <apexClass>AIAssistantController</apexClass>
+        <apexClass>ConversationalChatController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>

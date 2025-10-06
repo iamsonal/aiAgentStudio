@@ -76,7 +76,6 @@ public class ActionOutcome {
         return failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, errorMessage);
     }
 
-
     /**
      * @description Creates LLM-friendly error messages with emojis and structured suggestions
      * @param isSuccess Whether the outcome was successful

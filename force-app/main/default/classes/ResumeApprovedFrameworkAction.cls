@@ -144,7 +144,7 @@ public with sharing class ResumeApprovedFrameworkAction {
     private static void handleActionResume(HumanApprovalRequest__c har, AgentCapability__c capability, String logPrefix) {
         System.debug(LoggingLevel.INFO, logPrefix + 'Resuming approved action using Capability: ' + capability.Id);
 
-        ActionExecutionService actionService = new ActionExecutionService();
+        CapabilityExecutionRouter capabilityRouter = new CapabilityExecutionRouter();
 
         // In the unified model, record context is managed through ContextManagerService
         // and doesn't need to be retrieved from ExecutionStep__c records
@@ -163,7 +163,7 @@ public with sharing class ResumeApprovedFrameworkAction {
             'API'
         );
 
-        ActionOutcome actionOutcome = actionService.executeSingleAction(capability, har.LLMToolArgumentsJSON__c, actionContext);
+        ActionOutcome actionOutcome = capabilityRouter.executeSingleAction(capability, har.LLMToolArgumentsJSON__c, actionContext);
         if (actionOutcome.isSuccess) {
             NotificationService.sendUserNotification(
                 har.AgentExecution__r.User__c,

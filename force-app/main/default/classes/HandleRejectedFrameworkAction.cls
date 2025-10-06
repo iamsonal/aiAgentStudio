@@ -48,7 +48,7 @@ public class HandleRejectedFrameworkAction {
                 ApproverComments__c,
                 OriginalAssistantStep__c,
                 LLMToolCallId__c,
-                    OriginalTurnCount__c,
+                OriginalTurnCount__c,
                 OriginalTurnIdentifier__c,
                 AgentExecution__r.User__c
             FROM HumanApprovalRequest__c

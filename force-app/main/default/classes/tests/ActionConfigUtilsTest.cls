@@ -1,6 +1,5 @@
 @IsTest
 private class ActionConfigUtilsTest {
-
     @IsTest
     static void testGetRequiredString_validString_returnsString() {
         // Given

@@ -171,10 +171,7 @@ global with sharing class AIAgentRestService {
 
             // Use unified AgentExecutionService to initiate/continue execution
             // The orchestrator will now execute with service user permissions
-            AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution(
-                agentDefinition.DeveloperName__c,
-                payload
-            );
+            AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution(agentDefinition.DeveloperName__c, payload);
 
             if (result.success) {
                 System.debug(LoggingLevel.INFO, logPrefix + 'Message processing initiated successfully via service user context');
@@ -182,7 +179,6 @@ global with sharing class AIAgentRestService {
             } else {
                 throw new AIAgentRestException('Execution failed: ' + result.errorMessage);
             }
-
         } catch (AIAgentConfigService.ConfigurationException e) {
             throw new AIAgentRestException('Configuration error: ' + e.getMessage());
         } catch (AgentOrchestratorException e) {

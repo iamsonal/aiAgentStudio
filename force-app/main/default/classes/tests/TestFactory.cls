@@ -181,7 +181,7 @@ public with sharing class TestFactory {
                     Content__c = 'This is user message number ' + i,
                     Timestamp__c = now.addMinutes(i * 2 - 1),
                     ExternalId__c = UuidUtils.generateUUID(),
-                        StepType__c = 'UserInput'
+                    StepType__c = 'UserInput'
                 )
             );
             // Assistant Response
@@ -192,7 +192,7 @@ public with sharing class TestFactory {
                     Content__c = 'This is assistant response number ' + i,
                     Timestamp__c = now.addMinutes(i * 2),
                     ExternalId__c = UuidUtils.generateUUID(),
-                        StepType__c = 'AgentResponse'
+                    StepType__c = 'AgentResponse'
                 )
             );
         }

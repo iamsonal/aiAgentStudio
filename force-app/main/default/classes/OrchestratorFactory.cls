@@ -32,8 +32,15 @@ public class OrchestratorFactory {
 
         // Retrieve the agent definition with AgentType__c field
         List<AIAgentDefinition__c> agentDefs = [
-            SELECT Id, DeveloperName__c, AgentType__c, Concurrency__c, IsActive__c,
-                   LLMConfiguration__c, RequiresServiceUserContext__c, WelcomeMessageTemplate__c
+            SELECT
+                Id,
+                DeveloperName__c,
+                AgentType__c,
+                Concurrency__c,
+                IsActive__c,
+                LLMConfiguration__c,
+                RequiresServiceUserContext__c,
+                WelcomeMessageTemplate__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c = :agentDeveloperName
             LIMIT 1

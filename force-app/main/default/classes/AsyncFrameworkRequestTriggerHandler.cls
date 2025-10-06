@@ -73,7 +73,7 @@ public class AsyncFrameworkRequestTriggerHandler {
     }
 
     /**
-     * Handles the ExecuteAction job type by deserializing the payload and invoking AsyncActionProcessor.
+     * Handles the ExecuteAction job type by deserializing the payload and invoking AsyncActionEngine.
      *
      * @param payloadJson JSON payload containing action execution parameters.
      */
@@ -83,7 +83,7 @@ public class AsyncFrameworkRequestTriggerHandler {
         // Deserialize the AgentCapability__c object from the payload
         AgentCapability__c capability = (AgentCapability__c) JSON.deserialize(JSON.serialize(params.get('capability')), AgentCapability__c.class);
 
-        AsyncActionProcessor processor = new AsyncActionProcessor(
+        AsyncActionEngine engine = new AsyncActionEngine(
             (Id) params.get('sessionId'),
             (Id) params.get('originalUserId'),
             (Id) params.get('agentDefId'),
@@ -95,11 +95,11 @@ public class AsyncFrameworkRequestTriggerHandler {
             (String) params.get('turnId'),
             (Integer) params.get('currentTurnCount')
         );
-        processor.process(null);
+        engine.process(null);
     }
 
     /**
-     * Handles the FollowUpLLM job type by deserializing the payload and invoking FollowUpLLMProcessor.
+     * Handles the FollowUpLLM job type by deserializing the payload and invoking FollowUpLLMEngine.
      *
      * @param payloadJson JSON payload containing follow-up LLM processing parameters.
      */
@@ -112,7 +112,7 @@ public class AsyncFrameworkRequestTriggerHandler {
             isFinalError = (Boolean) params.get('isFinalErrorTurn');
         }
 
-        FollowUpLLMProcessor processor = new FollowUpLLMProcessor(
+        FollowUpLLMEngine engine = new FollowUpLLMEngine(
             (Id) params.get('sessionId'),
             (Id) params.get('userId'),
             (Id) params.get('agentDefId'),
@@ -120,7 +120,7 @@ public class AsyncFrameworkRequestTriggerHandler {
             (Integer) params.get('nextTurnCount'),
             isFinalError
         );
-        processor.process(null);
+        engine.process(null);
     }
 
     /**

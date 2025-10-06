@@ -84,7 +84,6 @@ public class AutonomousOrchestrator implements IAgentOrchestrator {
             System.debug(LoggingLevel.INFO, logPrefix + 'Enqueued AutonomousQueueable job: ' + jobId + ' for execution: ' + executionId);
 
             return new AgentExecutionService.ExecutionResult(executionId, AIAgentConstants.STATUS_PROCESSING, 'Processing autonomous execution');
-
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error initiating autonomous execution: ' + e.getMessage());
             throw new AgentOrchestratorException('Failed to initiate autonomous execution: ' + e.getMessage());

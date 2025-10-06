@@ -8,7 +8,6 @@
 
 @IsTest
 private class ActionSendEmailTest {
-
     @TestSetup
     static void setupTestData() {
         // Create test agent and capability using TestFactory
@@ -179,11 +178,7 @@ private class ActionSendEmailTest {
             'subject' => 'Email with Attachments',
             'body' => 'This email has attachments',
             'attachments' => new List<Map<String, Object>>{
-                new Map<String, Object>{
-                    'fileName' => 'test.txt',
-                    'contentType' => 'text/plain',
-                    'body' => base64Content
-                }
+                new Map<String, Object>{ 'fileName' => 'test.txt', 'contentType' => 'text/plain', 'body' => base64Content }
             }
         };
 
@@ -202,11 +197,7 @@ private class ActionSendEmailTest {
     @IsTest
     static void executeAction_withTemplate_success() {
         // Setup - create a test contact for targetObjectId
-        Contact testContact = new Contact(
-            FirstName = 'Test',
-            LastName = 'Contact',
-            Email = 'testcontact@example.com'
-        );
+        Contact testContact = new Contact(FirstName = 'Test', LastName = 'Contact', Email = 'testcontact@example.com');
         insert testContact;
 
         ActionSendEmail action = new ActionSendEmail();
@@ -317,10 +308,7 @@ private class ActionSendEmailTest {
         ActionSendEmail action = new ActionSendEmail();
         ActionContext context = createActionContext();
 
-        Map<String, Object> params = new Map<String, Object>{
-            'subject' => 'Test Subject',
-            'body' => 'Test body'
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'subject' => 'Test Subject', 'body' => 'Test body' };
 
         // Execute
         Test.startTest();
@@ -341,10 +329,7 @@ private class ActionSendEmailTest {
         ActionSendEmail action = new ActionSendEmail();
         ActionContext context = createActionContext();
 
-        Map<String, Object> params = new Map<String, Object>{
-            'toAddresses' => new List<String>{ 'test@example.com' },
-            'body' => 'Test body'
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'toAddresses' => new List<String>{ 'test@example.com' }, 'body' => 'Test body' };
 
         // Execute
         Test.startTest();
@@ -365,10 +350,7 @@ private class ActionSendEmailTest {
         ActionSendEmail action = new ActionSendEmail();
         ActionContext context = createActionContext();
 
-        Map<String, Object> params = new Map<String, Object>{
-            'toAddresses' => new List<String>{ 'test@example.com' },
-            'subject' => 'Test Subject'
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'toAddresses' => new List<String>{ 'test@example.com' }, 'subject' => 'Test Subject' };
 
         // Execute
         Test.startTest();
@@ -449,16 +431,8 @@ private class ActionSendEmailTest {
             'subject' => 'Test Subject',
             'body' => 'Test body',
             'attachments' => new List<Map<String, Object>>{
-                new Map<String, Object>{
-                    'fileName' => 'test1.txt',
-                    'contentType' => 'text/plain',
-                    'body' => base64Content
-                },
-                new Map<String, Object>{
-                    'fileName' => 'test2.txt',
-                    'contentType' => 'text/plain',
-                    'body' => base64Content
-                }
+                new Map<String, Object>{ 'fileName' => 'test1.txt', 'contentType' => 'text/plain', 'body' => base64Content },
+                new Map<String, Object>{ 'fileName' => 'test2.txt', 'contentType' => 'text/plain', 'body' => base64Content }
             }
         };
 
@@ -524,11 +498,7 @@ private class ActionSendEmailTest {
             'useSignature' => true,
             'treatBodiesAsTemplate' => false,
             'attachments' => new List<Map<String, Object>>{
-                new Map<String, Object>{
-                    'fileName' => 'test.txt',
-                    'contentType' => 'text/plain',
-                    'body' => base64Content
-                }
+                new Map<String, Object>{ 'fileName' => 'test.txt', 'contentType' => 'text/plain', 'body' => base64Content }
             }
         };
 
@@ -658,11 +628,7 @@ private class ActionSendEmailTest {
     @IsTest
     static void executeAction_saveAsActivityWithContact_success() {
         // Setup - create a test contact
-        Contact testContact = new Contact(
-            FirstName = 'Test',
-            LastName = 'Contact',
-            Email = 'testcontact@example.com'
-        );
+        Contact testContact = new Contact(FirstName = 'Test', LastName = 'Contact', Email = 'testcontact@example.com');
         insert testContact;
 
         ActionSendEmail action = new ActionSendEmail();

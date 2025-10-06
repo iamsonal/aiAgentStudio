@@ -21,11 +21,11 @@
  * This class implements the Messaging.InboundEmailHandler interface for Salesforce Email Services.
  */
 public class InboundEmailHandler implements Messaging.InboundEmailHandler {
-
     /**
      * Exception thrown when email processing configuration is invalid or missing.
      */
-    public class EmailProcessingException extends Exception {}
+    public class EmailProcessingException extends Exception {
+    }
 
     /**
      * Data structure for email routing configuration.
@@ -139,9 +139,11 @@ public class InboundEmailHandler implements Messaging.InboundEmailHandler {
                 result.success = false;
                 result.message = 'Email execution failed: ' + execResult.errorMessage;
             }
-
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing inbound email: ' + e.getMessage() + '\nStack Trace: ' + e.getStackTraceString());
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Error processing inbound email: ' + e.getMessage() + '\nStack Trace: ' + e.getStackTraceString()
+            );
 
             result.success = false;
             result.message = 'Email processing failed: ' + e.getMessage();
@@ -232,11 +234,9 @@ public class InboundEmailHandler implements Messaging.InboundEmailHandler {
         try {
             // Query for active AI agents that can handle email processing
             List<AIAgentDefinition__c> emailAgents = [
-                SELECT Id, DeveloperName__c, Name, IsActive__c,
-                       LLMConfiguration__c, EnableEmailProcessing__c
+                SELECT Id, DeveloperName__c, Name, IsActive__c, LLMConfiguration__c, EnableEmailProcessing__c
                 FROM AIAgentDefinition__c
-                WHERE IsActive__c = true
-                AND EnableEmailProcessing__c = true
+                WHERE IsActive__c = TRUE AND EnableEmailProcessing__c = TRUE
                 ORDER BY Name
                 LIMIT 10
             ];
@@ -262,7 +262,6 @@ public class InboundEmailHandler implements Messaging.InboundEmailHandler {
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Routed email to agent: ' + selectedAgent.DeveloperName__c);
             return config;
-
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error routing email: ' + e.getMessage());
             return null;
@@ -290,19 +289,17 @@ public class InboundEmailHandler implements Messaging.InboundEmailHandler {
                 StartTime__c = Datetime.now(),
                 LastActivityTime__c = Datetime.now(),
                 User__c = UserInfo.getUserId(),
-                TriggerPayload__c = JSON.serialize(new Map<String, Object>{
-                    'emailSubject' => email.subject,
-                    'fromAddress' => email.fromAddress,
-                    'toAddress' => envelope.toAddress,
-                    'error' => errorMessage
-                }),
-                ExecutionMetadata__c = JSON.serialize(new Map<String, Object>{
-                    'processingError' => errorMessage,
-                    'failureTime' => Datetime.now()
-                })
+                TriggerPayload__c = JSON.serialize(
+                    new Map<String, Object>{
+                        'emailSubject' => email.subject,
+                        'fromAddress' => email.fromAddress,
+                        'toAddress' => envelope.toAddress,
+                        'error' => errorMessage
+                    }
+                ),
+                ExecutionMetadata__c = JSON.serialize(new Map<String, Object>{ 'processingError' => errorMessage, 'failureTime' => Datetime.now() })
             );
             insert failedExecution;
-
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[InboundEmailHandler] Failed to create failed execution record: ' + e.getMessage());
         }

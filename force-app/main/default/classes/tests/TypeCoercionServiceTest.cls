@@ -204,11 +204,7 @@ private class TypeCoercionServiceTest {
         };
 
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
-            rawArguments,
-            Account.SObjectType,
-            AccessType.CREATABLE
-        );
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
@@ -233,11 +229,7 @@ private class TypeCoercionServiceTest {
         Map<String, Object> rawArguments = new Map<String, Object>();
 
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
-            rawArguments,
-            Account.SObjectType,
-            AccessType.CREATABLE
-        );
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
@@ -277,11 +269,7 @@ private class TypeCoercionServiceTest {
         Map<String, Object> rawArguments = new Map<String, Object>{ 'Name' => 'Test Account', 'NonExistentField__c' => 'Some Value' };
 
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
-            rawArguments,
-            Account.SObjectType,
-            AccessType.CREATABLE
-        );
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
         Test.stopTest();
 
         System.assertNotEquals(null, result, 'Result should not be null');
@@ -378,7 +366,10 @@ private class TypeCoercionServiceTest {
 
         // Test valid HTTPS URLs
         System.assertEquals('https://example.com', TypeCoercionService.coerceToUrlString('https://example.com', 'TestField'));
-        System.assertEquals('https://api.example.com/v1/endpoint', TypeCoercionService.coerceToUrlString('https://api.example.com/v1/endpoint', 'TestField'));
+        System.assertEquals(
+            'https://api.example.com/v1/endpoint',
+            TypeCoercionService.coerceToUrlString('https://api.example.com/v1/endpoint', 'TestField')
+        );
 
         // Test case insensitive protocol matching
         System.assertEquals('HTTP://example.com', TypeCoercionService.coerceToUrlString('HTTP://example.com', 'TestField'));
@@ -415,11 +406,7 @@ private class TypeCoercionServiceTest {
         System.assertEquals(null, TypeCoercionService.coerceObjectBySchema(null, 'TestField', new Map<String, Object>()));
 
         // Test valid object with schema
-        Map<String, Object> inputObject = new Map<String, Object>{
-            'name' => 'John Doe',
-            'age' => '30',
-            'isActive' => 'true'
-        };
+        Map<String, Object> inputObject = new Map<String, Object>{ 'name' => 'John Doe', 'age' => '30', 'isActive' => 'true' };
 
         Map<String, Object> propertiesSchema = new Map<String, Object>{
             'name' => new Map<String, Object>{ 'type' => 'string' },
@@ -435,14 +422,9 @@ private class TypeCoercionServiceTest {
         System.assertEquals(true, result.get('isActive'));
 
         // Test object with properties not in schema (should pass through)
-        Map<String, Object> inputWithExtra = new Map<String, Object>{
-            'name' => 'Jane Doe',
-            'extraField' => 'extraValue'
-        };
+        Map<String, Object> inputWithExtra = new Map<String, Object>{ 'name' => 'Jane Doe', 'extraField' => 'extraValue' };
 
-        Map<String, Object> limitedSchema = new Map<String, Object>{
-            'name' => new Map<String, Object>{ 'type' => 'string' }
-        };
+        Map<String, Object> limitedSchema = new Map<String, Object>{ 'name' => new Map<String, Object>{ 'type' => 'string' } };
 
         Map<String, Object> resultWithExtra = TypeCoercionService.coerceObjectBySchema(inputWithExtra, 'TestField', limitedSchema);
 
@@ -465,13 +447,9 @@ private class TypeCoercionServiceTest {
         }
 
         // Test exception for invalid property coercion
-        Map<String, Object> invalidInput = new Map<String, Object>{
-            'age' => 'not a number'
-        };
+        Map<String, Object> invalidInput = new Map<String, Object>{ 'age' => 'not a number' };
 
-        Map<String, Object> integerSchema = new Map<String, Object>{
-            'age' => new Map<String, Object>{ 'type' => 'integer' }
-        };
+        Map<String, Object> integerSchema = new Map<String, Object>{ 'age' => new Map<String, Object>{ 'type' => 'integer' } };
 
         try {
             TypeCoercionService.coerceObjectBySchema(invalidInput, 'TestField', integerSchema);

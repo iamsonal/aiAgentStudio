@@ -88,7 +88,10 @@ public class EmailOrchestrator implements IAgentOrchestrator {
                 'Email',
                 turnIdentifier,
                 1,
-                null, null, null, null,
+                null,
+                null,
+                null,
+                null,
                 JSON.serialize(emailMetadata),
                 false
             );
@@ -113,7 +116,10 @@ public class EmailOrchestrator implements IAgentOrchestrator {
                         'Attachment',
                         turnIdentifier,
                         1,
-                        null, null, null, null,
+                        null,
+                        null,
+                        null,
+                        null,
                         JSON.serialize(attachmentMetadata),
                         false
                     );
@@ -136,7 +142,6 @@ public class EmailOrchestrator implements IAgentOrchestrator {
             System.debug(LoggingLevel.INFO, logPrefix + 'Enqueued EmailQueueable job: ' + jobId + ' for execution: ' + executionId);
 
             return new AgentExecutionService.ExecutionResult(executionId, AIAgentConstants.STATUS_PROCESSING, 'Processing email');
-
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error initiating email execution: ' + e.getMessage());
             throw new AgentOrchestratorException('Failed to initiate email execution: ' + e.getMessage());

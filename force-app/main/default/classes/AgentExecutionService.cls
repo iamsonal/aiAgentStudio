@@ -9,7 +9,7 @@
 /**
  * @description
  * AgentExecutionService is the single, unified entry point for all agent execution initiations in the AI Agent Framework.
- * This service replaces the scattered initialization logic across AIAssistantController, AIAgentRestService, and
+ * This service replaces the scattered initialization logic across ConversationalChatController, AIAgentRestService, and
  * InboundEmailHandler with a centralized, type-aware execution flow.
  *
  * Responsibilities:
@@ -57,9 +57,11 @@ public class AgentExecutionService {
             // Delegate to orchestrator for type-specific execution logic
             ExecutionResult result = orchestrator.initiate(agentDeveloperName, payload);
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Execution initiated successfully. ExecutionId=' + result.executionId + ', Status=' + result.status);
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Execution initiated successfully. ExecutionId=' + result.executionId + ', Status=' + result.status
+            );
             return result;
-
         } catch (AgentOrchestratorException e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Orchestration error: ' + e.getMessage());
             throw e;
@@ -75,37 +77,58 @@ public class AgentExecutionService {
      */
     public class ExecutionPayload {
         // Common fields for all agent types
-        @AuraEnabled public Id userId { get; set; }                // The user initiating the execution
-        @AuraEnabled public Id serviceUserId { get; set; }         // Optional service user for elevated permissions
-        @AuraEnabled public String triggerSource { get; set; }     // Source that triggered this execution (e.g., 'Chat', 'Email', 'API')
-        @AuraEnabled public Id sourceRecordId { get; set; }        // Optional source record context
+        @AuraEnabled
+        public Id userId { get; set; } // The user initiating the execution
+        @AuraEnabled
+        public Id serviceUserId { get; set; } // Optional service user for elevated permissions
+        @AuraEnabled
+        public String triggerSource { get; set; } // Source that triggered this execution (e.g., 'Chat', 'Email', 'API')
+        @AuraEnabled
+        public Id sourceRecordId { get; set; } // Optional source record context
 
         // Conversational-specific fields
-        @AuraEnabled public String userMessage { get; set; }       // User's message content (for conversational)
-        @AuraEnabled public Id currentRecordId { get; set; }       // Current page record context (for conversational)
-        @AuraEnabled public String turnIdentifier { get; set; }    // Turn identifier (for conversational)
-        @AuraEnabled public Id existingExecutionId { get; set; }   // For continuing existing execution (conversational)
+        @AuraEnabled
+        public String userMessage { get; set; } // User's message content (for conversational)
+        @AuraEnabled
+        public Id currentRecordId { get; set; } // Current page record context (for conversational)
+        @AuraEnabled
+        public String turnIdentifier { get; set; } // Turn identifier (for conversational)
+        @AuraEnabled
+        public Id existingExecutionId { get; set; } // For continuing existing execution (conversational)
 
         // Email-specific fields
-        @AuraEnabled public String emailSubject { get; set; }
-        @AuraEnabled public String emailBody { get; set; }
-        @AuraEnabled public String emailFromAddress { get; set; }
-        @AuraEnabled public String emailToAddress { get; set; }
-        @AuraEnabled public List<String> emailCcAddresses { get; set; }
-        @AuraEnabled public Map<String, Object> emailHeaders { get; set; }
-        @AuraEnabled public List<EmailAttachment> emailAttachments { get; set; }
+        @AuraEnabled
+        public String emailSubject { get; set; }
+        @AuraEnabled
+        public String emailBody { get; set; }
+        @AuraEnabled
+        public String emailFromAddress { get; set; }
+        @AuraEnabled
+        public String emailToAddress { get; set; }
+        @AuraEnabled
+        public List<String> emailCcAddresses { get; set; }
+        @AuraEnabled
+        public Map<String, Object> emailHeaders { get; set; }
+        @AuraEnabled
+        public List<EmailAttachment> emailAttachments { get; set; }
 
         // Batch-specific fields
-        @AuraEnabled public List<Id> batchRecordIds { get; set; }  // Records to process in batch
-        @AuraEnabled public String batchQuery { get; set; }        // SOQL query for batch processing
-        @AuraEnabled public Map<String, Object> batchParameters { get; set; } // Additional batch parameters
+        @AuraEnabled
+        public List<Id> batchRecordIds { get; set; } // Records to process in batch
+        @AuraEnabled
+        public String batchQuery { get; set; } // SOQL query for batch processing
+        @AuraEnabled
+        public Map<String, Object> batchParameters { get; set; } // Additional batch parameters
 
         // Autonomous-specific fields
-        @AuraEnabled public Map<String, Object> autonomousContext { get; set; } // Context for autonomous execution
-        @AuraEnabled public String autonomousGoal { get; set; }    // Goal or objective for autonomous agent
+        @AuraEnabled
+        public Map<String, Object> autonomousContext { get; set; } // Context for autonomous execution
+        @AuraEnabled
+        public String autonomousGoal { get; set; } // Goal or objective for autonomous agent
 
         // Generic trigger payload (for non-standard triggers)
-        @AuraEnabled public Map<String, Object> customPayload { get; set; }
+        @AuraEnabled
+        public Map<String, Object> customPayload { get; set; }
 
         /**
          * Validates that required fields are present based on the payload type.
@@ -125,22 +148,32 @@ public class AgentExecutionService {
      * EmailAttachment encapsulates email attachment data for email-triggered agents.
      */
     public class EmailAttachment {
-        @AuraEnabled public String fileName { get; set; }
-        @AuraEnabled public String contentType { get; set; }
-        @AuraEnabled public Integer fileSize { get; set; }
-        @AuraEnabled public Blob fileContent { get; set; }
-        @AuraEnabled public String description { get; set; }
+        @AuraEnabled
+        public String fileName { get; set; }
+        @AuraEnabled
+        public String contentType { get; set; }
+        @AuraEnabled
+        public Integer fileSize { get; set; }
+        @AuraEnabled
+        public Blob fileContent { get; set; }
+        @AuraEnabled
+        public String description { get; set; }
     }
 
     /**
      * ExecutionResult encapsulates the result of an execution initiation.
      */
     public class ExecutionResult {
-        @AuraEnabled public Id executionId { get; set; }          // The created AgentExecution__c ID
-        @AuraEnabled public String status { get; set; }           // Execution status (e.g., 'Processing', 'Queued')
-        @AuraEnabled public String message { get; set; }          // Human-readable status message
-        @AuraEnabled public Boolean success { get; set; }         // Whether initiation succeeded
-        @AuraEnabled public String errorMessage { get; set; }     // Error message if failed
+        @AuraEnabled
+        public Id executionId { get; set; } // The created AgentExecution__c ID
+        @AuraEnabled
+        public String status { get; set; } // Execution status (e.g., 'Processing', 'Queued')
+        @AuraEnabled
+        public String message { get; set; } // Human-readable status message
+        @AuraEnabled
+        public Boolean success { get; set; } // Whether initiation succeeded
+        @AuraEnabled
+        public String errorMessage { get; set; } // Error message if failed
 
         public ExecutionResult(Id executionId, String status, String message) {
             this.executionId = executionId;

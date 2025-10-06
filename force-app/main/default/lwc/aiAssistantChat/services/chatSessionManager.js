@@ -14,10 +14,10 @@
 import { formatDisplayMessages } from '../utils/messageFormatter';
 import { INITIAL_HISTORY_LOAD_SIZE } from '../utils/constants';
 
-import sendMessage from '@salesforce/apex/AIAssistantController.sendMessage';
-import createNewChatSession from '@salesforce/apex/AIAssistantController.createNewChatSession';
-import getChatHistory from '@salesforce/apex/AIAssistantController.getChatHistory';
-import getMostRecentSession from '@salesforce/apex/AIAssistantController.getMostRecentSession';
+import sendMessage from '@salesforce/apex/ConversationalChatController.sendMessage';
+import createNewChatSession from '@salesforce/apex/ConversationalChatController.createNewChatSession';
+import getChatHistory from '@salesforce/apex/ConversationalChatController.getChatHistory';
+import getMostRecentSession from '@salesforce/apex/ConversationalChatController.getMostRecentSession';
 
 export class ChatSessionManager {
     /**

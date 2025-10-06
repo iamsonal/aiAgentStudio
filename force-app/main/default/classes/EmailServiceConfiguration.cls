@@ -18,11 +18,11 @@
  *   - Supports email filtering and routing rules
  */
 public class EmailServiceConfiguration {
-
     /**
      * Exception thrown when email service configuration is invalid.
      */
-    public class EmailConfigurationException extends Exception {}
+    public class EmailConfigurationException extends Exception {
+    }
 
     /**
      * Data structure for email routing rules.
@@ -54,8 +54,7 @@ public class EmailServiceConfiguration {
             List<AIAgentDefinition__c> emailAgents = [
                 SELECT Id, DeveloperName__c, Name, Description__c, IsActive__c
                 FROM AIAgentDefinition__c
-                WHERE IsActive__c = true
-                AND EnableEmailProcessing__c = true
+                WHERE IsActive__c = TRUE AND EnableEmailProcessing__c = TRUE
                 ORDER BY Name
             ];
 
@@ -76,7 +75,6 @@ public class EmailServiceConfiguration {
 
                 rules.add(rule);
             }
-
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[EmailServiceConfiguration] Error loading routing rules: ' + e.getMessage());
         }
@@ -105,11 +103,12 @@ public class EmailServiceConfiguration {
             }
 
             // Check if email matches this rule's criteria
-            if (matchesPattern(fromAddress, rule.fromAddressPattern) &&
+            if (
+                matchesPattern(fromAddress, rule.fromAddressPattern) &&
                 matchesPattern(toAddress, rule.toAddressPattern) &&
                 matchesPattern(subject, rule.subjectPattern) &&
-                matchesPattern(body, rule.bodyPattern)) {
-
+                matchesPattern(body, rule.bodyPattern)
+            ) {
                 System.debug(LoggingLevel.INFO, '[EmailServiceConfiguration] Email matched rule: ' + rule.ruleName);
                 return rule;
             }
@@ -272,9 +271,13 @@ public class EmailServiceConfiguration {
      */
     public static Map<String, Object> getEmailServiceSettings() {
         return new Map<String, Object>{
-            'maxEmailSize' => 25 * 1024 * 1024, // 25MB max email size
+            'maxEmailSize' => 25 *
+            1024 *
+            1024, // 25MB max email size
             'maxAttachments' => 10, // Maximum number of attachments
-            'maxAttachmentSize' => 5 * 1024 * 1024, // 5MB max attachment size
+            'maxAttachmentSize' => 5 *
+            1024 *
+            1024, // 5MB max attachment size
             'allowedAttachmentTypes' => new List<String>{ 'pdf', 'doc', 'docx', 'txt', 'csv', 'xlsx', 'jpg', 'png' },
             'enableAttachmentProcessing' => true,
             'enableHtmlProcessing' => true,
@@ -306,24 +309,9 @@ public class EmailServiceConfiguration {
         return new Map<String, Object>{
             'emailServiceAddress' => 'aiagent@your-org.salesforce.com',
             'routingRules' => new List<Map<String, Object>>{
-                new Map<String, Object>{
-                    'name' => 'Support Emails',
-                    'pattern' => 'support@*',
-                    'agentName' => 'SupportAgent',
-                    'priority' => 1
-                },
-                new Map<String, Object>{
-                    'name' => 'Sales Emails',
-                    'pattern' => 'sales@*',
-                    'agentName' => 'SalesAgent',
-                    'priority' => 2
-                },
-                new Map<String, Object>{
-                    'name' => 'General Emails',
-                    'pattern' => '*',
-                    'agentName' => 'GeneralAgent',
-                    'priority' => 99
-                }
+                new Map<String, Object>{ 'name' => 'Support Emails', 'pattern' => 'support@*', 'agentName' => 'SupportAgent', 'priority' => 1 },
+                new Map<String, Object>{ 'name' => 'Sales Emails', 'pattern' => 'sales@*', 'agentName' => 'SalesAgent', 'priority' => 2 },
+                new Map<String, Object>{ 'name' => 'General Emails', 'pattern' => '*', 'agentName' => 'GeneralAgent', 'priority' => 99 }
             }
         };
     }

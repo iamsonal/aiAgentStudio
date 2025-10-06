@@ -43,7 +43,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
         // Currently, only one tool call per turn is supported. Extend here for parallel tool calls if needed.
         Map<String, String> firstActionRequestMap = context.llmResult.providerResult.requestedActions[0];
-        AIAssistantController.ActionRequest toolRequest = this.parseToolRequestMap(firstActionRequestMap);
+        ConversationalChatController.ActionRequest toolRequest = this.parseToolRequestMap(firstActionRequestMap);
 
         System.debug(LoggingLevel.DEBUG, logPrefix + 'Parsed tool request: Capability=' + toolRequest.name + ', ToolCallID=' + toolRequest.id);
 
@@ -154,7 +154,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     private String executeActionDirectly(
         OrchestrationContext context,
         Id savedAssistantMessageId,
-        AIAssistantController.ActionRequest toolRequest,
+        ConversationalChatController.ActionRequest toolRequest,
         AgentCapability__c capability,
         String logPrefix,
         AgentDecisionStepLogger decisionLogger
@@ -205,7 +205,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         OrchestrationContext context,
         Id savedUserMessageId,
         LLMInteractionService.MessageData assistantData,
-        AIAssistantController.ActionRequest toolRequest,
+        ConversationalChatController.ActionRequest toolRequest,
         AgentCapability__c capability,
         String logPrefix,
         AgentDecisionStepLogger decisionLogger
@@ -410,7 +410,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     private String executeSyncActionAndContinue(
         OrchestrationContext context,
         Id savedAssistantMessageId,
-        AIAssistantController.ActionRequest toolRequest,
+        ConversationalChatController.ActionRequest toolRequest,
         AgentCapability__c capability,
         String logPrefix,
         AgentDecisionStepLogger decisionLogger
@@ -548,8 +548,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
      * Parses a tool request map from the LLM into a strongly-typed ActionRequest.
      * Throws ToolProcessingException if required fields are missing.
      */
-    private AIAssistantController.ActionRequest parseToolRequestMap(Map<String, String> requestMap) {
-        AIAssistantController.ActionRequest req = new AIAssistantController.ActionRequest();
+    private ConversationalChatController.ActionRequest parseToolRequestMap(Map<String, String> requestMap) {
+        ConversationalChatController.ActionRequest req = new ConversationalChatController.ActionRequest();
         req.id = requestMap?.get('id');
         req.name = requestMap?.get('name');
         req.arguments = requestMap?.get('arguments');

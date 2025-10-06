@@ -498,7 +498,6 @@ public abstract class BaseAgentAction implements IAgentAction {
         }
     }
 
-
     // ============================================================================
     // --- Helper Methods ---
     // ============================================================================
@@ -632,7 +631,6 @@ public abstract class BaseAgentAction implements IAgentAction {
     private String mapStatusCodeToErrorCode(System.StatusCode statusCode, String defaultCode) {
         return statusCode != null ? mapStatusCodeToErrorCode(statusCode.name(), defaultCode) : defaultCode;
     }
-
 
     /**
      * Extracts public properties from custom objects using JSON serialization for result formatting.

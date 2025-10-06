@@ -13,7 +13,7 @@
  * designed for agents with low concurrency settings (Concurrency__c = 'Low' or null).
  *
  * This class contains NO business logic. Its sole responsibility is to instantiate and invoke
- * the FollowUpLLMProcessor class, which contains all the actual processing logic. This design
+ * the FollowUpLLMEngine class, which contains all the actual processing logic. This design
  * prevents code duplication and centralizes business logic while allowing for different
  * invocation contexts (Platform Event vs. Queueable).
  *
@@ -31,7 +31,7 @@ public class FollowUpLLMQueueable implements Queueable, Database.AllowsCallouts 
 
     /**
      * Constructor for FollowUpLLMQueueable.
-     * Parameters mirror those required by FollowUpLLMProcessor for seamless delegation.
+     * Parameters mirror those required by FollowUpLLMEngine for seamless delegation.
      *
      * @param executionId      The ID of the agent execution (AgentExecution__c).
      * @param userId           The ID of the user.
@@ -40,14 +40,7 @@ public class FollowUpLLMQueueable implements Queueable, Database.AllowsCallouts 
      * @param nextTurnCount    The cycle number for the next turn.
      * @param isFinalErrorTurn Whether this is the final error turn for the session.
      */
-    public FollowUpLLMQueueable(
-        Id executionId,
-        Id userId,
-        Id agentDefId,
-        String turnId,
-        Integer nextTurnCount,
-        Boolean isFinalErrorTurn
-    ) {
+    public FollowUpLLMQueueable(Id executionId, Id userId, Id agentDefId, String turnId, Integer nextTurnCount, Boolean isFinalErrorTurn) {
         this.executionId = executionId;
         this.userId = userId;
         this.agentDefinitionId = agentDefId;
@@ -57,14 +50,14 @@ public class FollowUpLLMQueueable implements Queueable, Database.AllowsCallouts 
     }
 
     /**
-     * Queueable execute method. Instantiates FollowUpLLMProcessor and delegates all processing.
-     * This method contains no business logic—it simply creates the processor and invokes its process() method.
+     * Queueable execute method. Instantiates FollowUpLLMEngine and delegates all processing.
+     * This method contains no business logic—it simply creates the engine and invokes its process() method.
      *
      * @param context The QueueableContext provided by the platform.
      */
     public void execute(QueueableContext context) {
         String jobId = context.getJobId();
-        FollowUpLLMProcessor processor = new FollowUpLLMProcessor(
+        FollowUpLLMEngine engine = new FollowUpLLMEngine(
             this.executionId,
             this.userId,
             this.agentDefinitionId,
@@ -72,7 +65,6 @@ public class FollowUpLLMQueueable implements Queueable, Database.AllowsCallouts 
             this.nextTurnCount,
             this.isFinalErrorTurn
         );
-        processor.process(jobId);
+        engine.process(jobId);
     }
 }
-

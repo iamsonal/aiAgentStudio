@@ -91,9 +91,11 @@ public class AutonomousQueueable implements Queueable, Database.AllowsCallouts {
             );
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Autonomous processing completed successfully. Outcome: ' + outcome);
-
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'ERROR: Autonomous processing failed. Exception: ' + e.getMessage() + '\nStack: ' + e.getStackTraceString());
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'ERROR: Autonomous processing failed. Exception: ' + e.getMessage() + '\nStack: ' + e.getStackTraceString()
+            );
 
             // Mark turn as failed
             try {
@@ -106,7 +108,10 @@ public class AutonomousQueueable implements Queueable, Database.AllowsCallouts {
                     logPrefix
                 );
             } catch (Exception failEx) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'CRITICAL: Failed to update execution state after processing failure: ' + failEx.getMessage());
+                System.debug(
+                    LoggingLevel.ERROR,
+                    logPrefix + 'CRITICAL: Failed to update execution state after processing failure: ' + failEx.getMessage()
+                );
             }
         }
     }

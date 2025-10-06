@@ -157,7 +157,10 @@ public class HttpRetryService {
                     if (!isRetryable(ce, null, config.retryableStatusCodes)) {
                         throw new LLMProviderException.NonRetriableHttpException('Callout failed: ' + ce.getMessage(), ce);
                     } else {
-                        throw new LLMProviderException.RetryExhaustedException('Callout failed after ' + (attempt + 1) + ' attempts: ' + ce.getMessage(), ce);
+                        throw new LLMProviderException.RetryExhaustedException(
+                            'Callout failed after ' + (attempt + 1) + ' attempts: ' + ce.getMessage(),
+                            ce
+                        );
                     }
                 }
             } catch (Exception e) {
@@ -246,7 +249,8 @@ public class HttpRetryService {
         if (System.isFuture() || System.isQueueable() || System.isBatch()) {
             System.debug(
                 LoggingLevel.WARN,
-                config.logPrefix + 'Retry delay in async context (Future/Queueable/Batch). CPU time consumption may impact governor limits. Consider reducing maxAttempts or initialDelayMs.'
+                config.logPrefix +
+                'Retry delay in async context (Future/Queueable/Batch). CPU time consumption may impact governor limits. Consider reducing maxAttempts or initialDelayMs.'
             );
             // Reduce delay in async contexts to conserve CPU time
             delayMs = Math.min(delayMs, 5000); // Cap at 5 seconds in async contexts
