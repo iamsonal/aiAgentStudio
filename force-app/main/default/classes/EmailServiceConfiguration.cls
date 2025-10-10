@@ -54,7 +54,7 @@ public class EmailServiceConfiguration {
             List<AIAgentDefinition__c> emailAgents = [
                 SELECT Id, DeveloperName__c, Name, Description__c, IsActive__c
                 FROM AIAgentDefinition__c
-                WHERE IsActive__c = TRUE AND EnableEmailProcessing__c = TRUE
+                WHERE IsActive__c = TRUE AND AgentType__c = 'Email'
                 ORDER BY Name
             ];
 

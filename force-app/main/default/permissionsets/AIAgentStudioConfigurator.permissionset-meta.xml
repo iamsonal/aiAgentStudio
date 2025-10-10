@@ -19,6 +19,16 @@
     </externalCredentialPrincipalAccesses>
     <fieldPermissions>
         <editable>true</editable>
+        <field>AIAgentDefinition__c.CompletionCapability__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>AIAgentDefinition__c.CompletionParameterMapping__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>AIAgentDefinition__c.ContextFormatStrategy__c</field>
         <readable>true</readable>
     </fieldPermissions>

@@ -36,6 +36,7 @@ public inherited sharing class AIAgentConfigService {
         'DeveloperName__c', // Key fields
         'LLMConfiguration__c',
         'IsActive__c',
+        'AgentType__c',
         'MemoryStrategy__c',
         'ContextFormatStrategy__c',
         'Description__c',

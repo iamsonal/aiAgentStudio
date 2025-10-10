@@ -34,6 +34,8 @@
     <tabs>LLMConfiguration__c</tabs>
     <tabs>AIAgentDefinition__c</tabs>
     <tabs>AgentCapability__c</tabs>
+    <tabs>AgentExecution__c</tabs>
+    <tabs>ExecutionTrigger__c</tabs>
     <uiType>Lightning</uiType>
     <utilityBar>AI_Agent_Studio_UtilityBar</utilityBar>
 </CustomApplication>

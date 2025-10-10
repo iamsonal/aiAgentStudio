@@ -48,6 +48,7 @@ public inherited sharing class AIAgentConstants {
     public static final String ERR_CODE_USER_REJECTED = 'USER_REJECTED_ACTION'; // User explicitly rejected an action
     public static final String ERR_CODE_CONFIRMATION_TIMEOUT = 'CONFIRMATION_TIMEOUT'; // User confirmation timed out
     public static final String ERR_CODE_CONFIRMATION_STATE_ERROR = 'CONFIRMATION_STATE_ERROR'; // Confirmation state inconsistency
+    public static final String ERR_CODE_COMPLETION_CAPABILITY_FAILED = 'COMPLETION_CAPABILITY_FAILED'; // Completion capability execution failed
 
     // Miscellaneous
     public static final String NEXT_EXPECTED_NONE = 'None'; // Indicates no next expected action

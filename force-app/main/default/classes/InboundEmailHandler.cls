@@ -234,9 +234,9 @@ public class InboundEmailHandler implements Messaging.InboundEmailHandler {
         try {
             // Query for active AI agents that can handle email processing
             List<AIAgentDefinition__c> emailAgents = [
-                SELECT Id, DeveloperName__c, Name, IsActive__c, LLMConfiguration__c, EnableEmailProcessing__c
+                SELECT Id, DeveloperName__c, Name, IsActive__c, LLMConfiguration__c, AgentType__c
                 FROM AIAgentDefinition__c
-                WHERE IsActive__c = TRUE AND EnableEmailProcessing__c = TRUE
+                WHERE IsActive__c = TRUE AND AgentType__c = 'Email'
                 ORDER BY Name
                 LIMIT 10
             ];
