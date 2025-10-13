@@ -36,7 +36,7 @@ public class OrchestratorFactory {
                 Id,
                 DeveloperName__c,
                 AgentType__c,
-                Concurrency__c,
+                AsyncDispatchType__c,
                 IsActive__c,
                 LLMConfiguration__c,
                 RequiresServiceUserContext__c,

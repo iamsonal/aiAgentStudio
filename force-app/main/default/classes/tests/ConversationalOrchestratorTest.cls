@@ -19,13 +19,13 @@ private class ConversationalOrchestratorTest {
     // ===================================================================================
 
     @IsTest
-    static void testInitiate_NewExecutionLowConcurrency_Success() {
-        // Given: Agent with low concurrency
-        AIAgentDefinition__c agent = [SELECT Id, LLMConfiguration__c, Concurrency__c
+    static void testInitiate_NewExecutionLowDispatchType_Success() {
+        // Given: Agent with low dispatch type
+        AIAgentDefinition__c agent = [SELECT Id, LLMConfiguration__c, AsyncDispatchType__c
                                       FROM AIAgentDefinition__c LIMIT 1];
-        update new AIAgentDefinition__c(Id = agent.Id, Concurrency__c = 'Low');
+        update new AIAgentDefinition__c(Id = agent.Id, AsyncDispatchType__c = 'Low');
 
-        agent = [SELECT Id, LLMConfiguration__c, Concurrency__c FROM AIAgentDefinition__c WHERE Id = :agent.Id];
+        agent = [SELECT Id, LLMConfiguration__c, AsyncDispatchType__c FROM AIAgentDefinition__c WHERE Id = :agent.Id];
 
         AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
         payload.userId = UserInfo.getUserId();
@@ -47,13 +47,13 @@ private class ConversationalOrchestratorTest {
     }
 
     @IsTest
-    static void testInitiate_NewExecutionHighConcurrency_Success() {
-        // Given: Agent with high concurrency
-        AIAgentDefinition__c agent = [SELECT Id, LLMConfiguration__c, Concurrency__c
+    static void testInitiate_NewExecutionHighDispatchType_Success() {
+        // Given: Agent with high dispatch type
+        AIAgentDefinition__c agent = [SELECT Id, LLMConfiguration__c, AsyncDispatchType__c
                                       FROM AIAgentDefinition__c LIMIT 1];
-        update new AIAgentDefinition__c(Id = agent.Id, Concurrency__c = 'High');
+        update new AIAgentDefinition__c(Id = agent.Id, AsyncDispatchType__c = 'High');
 
-        agent = [SELECT Id, LLMConfiguration__c, Concurrency__c FROM AIAgentDefinition__c WHERE Id = :agent.Id];
+        agent = [SELECT Id, LLMConfiguration__c, AsyncDispatchType__c FROM AIAgentDefinition__c WHERE Id = :agent.Id];
 
         AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
         payload.userId = UserInfo.getUserId();
@@ -82,7 +82,7 @@ private class ConversationalOrchestratorTest {
     static void testInitiate_ExistingExecution_Success() {
         // Given: Existing execution
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
-        AIAgentDefinition__c agent = [SELECT Id, LLMConfiguration__c, Concurrency__c
+        AIAgentDefinition__c agent = [SELECT Id, LLMConfiguration__c, AsyncDispatchType__c
                                       FROM AIAgentDefinition__c LIMIT 1];
 
         AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();

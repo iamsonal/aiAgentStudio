@@ -241,23 +241,6 @@ public with sharing class AgentTestDataFactory {
         externalCaps.add(
             createCapability(
                 agent.Id,
-                'search_knowledge_base',
-                'Searches the knowledge base.',
-                '{"type":"object", "properties":{"searchQuery":{"type":"string"}}}',
-                'Standard',
-                'SearchKnowledge',
-                null,
-                '{"defaultLanguage":"en_US"}',
-                false,
-                false,
-                20,
-                false,
-                'External'
-            )
-        );
-        externalCaps.add(
-            createCapability(
-                agent.Id,
                 'create_support_case',
                 'Creates a new support case.',
                 '{"type":"object", "properties":{"AccountId":{"type":"string"}, "ContactId":{"type":"string"}, "Subject":{"type":"string"}, "Description":{"type":"string"}}}',

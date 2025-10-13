@@ -9,9 +9,9 @@
 /**
  * @description
  * AgentJobEnqueuer is the central service for dispatching asynchronous jobs within the AI Agent Framework.
- * It is responsible for dynamically routing asynchronous operations based on agent concurrency settings:
- *   - For agents with Concurrency__c = 'High', uses Platform Events (AsyncFrameworkRequest__e) for maximum throughput
- *   - For agents with Concurrency__c = 'Low' or null, uses Queueable jobs for sequential processing
+ * It is responsible for dynamically routing asynchronous operations based on agent async dispatch type:
+ *   - For agents with AsyncDispatchType__c = 'High', uses Platform Events (AsyncFrameworkRequest__e) for maximum throughput (fire-and-forget, no processing guarantee)
+ *   - For agents with AsyncDispatchType__c = 'Low' or null, uses Queueable jobs for guaranteed sequential processing
  *
  * The class ensures:
  *   - Consistent, testable job dispatch logic for all asynchronous agent operations
@@ -28,8 +28,8 @@ public inherited sharing class AgentJobEnqueuer {
 
     private final TurnLifecycleService turnLifecycleSvc;
 
-    // Cache for agent concurrency settings to minimize SOQL queries
-    private static Map<Id, String> agentConcurrencyCache = new Map<Id, String>();
+    // Cache for agent async dispatch type settings to minimize SOQL queries
+    private static Map<Id, String> agentAsyncDispatchTypeCache = new Map<Id, String>();
 
     /**
      * Default constructor. Instantiates its own TurnLifecycleService dependency.
@@ -53,43 +53,43 @@ public inherited sharing class AgentJobEnqueuer {
     }
 
     /**
-     * Retrieves the Concurrency__c setting for a given agent definition.
+     * Retrieves the AsyncDispatchType__c setting for a given agent definition.
      * Uses a static cache to minimize SOQL queries within the same transaction.
      *
      * @param agentDefId The ID of the agent definition.
-     * @return The Concurrency__c value ('High', 'Low', or null). Defaults to 'Low' if null or not found.
+     * @return The AsyncDispatchType__c value ('High', 'Low', or null). Defaults to 'Low' if null or not found.
      */
-    private String getAgentConcurrency(Id agentDefId) {
+    private String getAgentAsyncDispatchType(Id agentDefId) {
         if (agentDefId == null) {
             return 'Low'; // Default to Low if no agent definition is provided
         }
 
         // Check cache first
-        if (agentConcurrencyCache.containsKey(agentDefId)) {
-            return agentConcurrencyCache.get(agentDefId);
+        if (agentAsyncDispatchTypeCache.containsKey(agentDefId)) {
+            return agentAsyncDispatchTypeCache.get(agentDefId);
         }
 
         // Query the agent definition
         try {
             List<AIAgentDefinition__c> agents = [
-                SELECT Concurrency__c
+                SELECT AsyncDispatchType__c
                 FROM AIAgentDefinition__c
                 WHERE Id = :agentDefId
                 LIMIT 1
             ];
 
-            String concurrency = 'Low'; // Default to Low
-            if (!agents.isEmpty() && agents[0].Concurrency__c != null) {
-                concurrency = agents[0].Concurrency__c;
+            String asyncDispatchType = 'Low'; // Default to Low
+            if (!agents.isEmpty() && agents[0].AsyncDispatchType__c != null) {
+                asyncDispatchType = agents[0].AsyncDispatchType__c;
             }
 
             // Cache the result
-            agentConcurrencyCache.put(agentDefId, concurrency);
-            return concurrency;
+            agentAsyncDispatchTypeCache.put(agentDefId, asyncDispatchType);
+            return asyncDispatchType;
         } catch (Exception e) {
             System.debug(
                 LoggingLevel.WARN,
-                '[AgentJobEnqueuer] Failed to query agent concurrency setting: ' + e.getMessage() + '. Defaulting to Low.'
+                '[AgentJobEnqueuer] Failed to query agent async dispatch type setting: ' + e.getMessage() + '. Defaulting to Low.'
             );
             return 'Low';
         }
@@ -97,8 +97,8 @@ public inherited sharing class AgentJobEnqueuer {
 
     /**
      * Enqueues a follow-up LLM operation for a given agent execution turn.
-     * Dynamically routes to either Platform Events (for High concurrency) or Queueable jobs (for Low concurrency)
-     * based on the agent's Concurrency__c setting.
+     * Dynamically routes to either Platform Events (for High dispatch type) or Queueable jobs (for Low dispatch type)
+     * based on the agent's AsyncDispatchType__c setting.
      *
      * @param executionId      The ID of the agent execution (AgentExecution__c).
      * @param userId           The ID of the user.
@@ -120,13 +120,13 @@ public inherited sharing class AgentJobEnqueuer {
     ) {
         try {
             Boolean finalErrorFlag = (isFinalErrorTurn == true);
-            String concurrency = this.getAgentConcurrency(agentDefId);
+            String asyncDispatchType = this.getAgentAsyncDispatchType(agentDefId);
 
-            if ('High'.equalsIgnoreCase(concurrency)) {
-                // High concurrency: Use Platform Event for maximum throughput
+            if ('High'.equalsIgnoreCase(asyncDispatchType)) {
+                // High dispatch type: Use Platform Event for maximum throughput (fire-and-forget)
                 this.enqueueFollowUpViaPlatformEvent(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag, logPrefix);
             } else {
-                // Low concurrency (or null): Use Queueable for sequential processing
+                // Low dispatch type (or null): Use Queueable for guaranteed sequential processing
                 this.enqueueFollowUpViaQueueable(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag, logPrefix);
             }
         } catch (Exception e) {
@@ -135,7 +135,7 @@ public inherited sharing class AgentJobEnqueuer {
     }
 
     /**
-     * Enqueues a follow-up LLM operation via Platform Event (for High concurrency agents).
+     * Enqueues a follow-up LLM operation via Platform Event (for High dispatch type agents).
      */
     private void enqueueFollowUpViaPlatformEvent(
         Id executionId,
@@ -181,7 +181,7 @@ public inherited sharing class AgentJobEnqueuer {
     }
 
     /**
-     * Enqueues a follow-up LLM operation via Queueable (for Low concurrency agents).
+     * Enqueues a follow-up LLM operation via Queueable (for Low dispatch type agents).
      */
     private void enqueueFollowUpViaQueueable(
         Id executionId,
@@ -212,8 +212,8 @@ public inherited sharing class AgentJobEnqueuer {
 
     /**
      * Enqueues an asynchronous action execution for a given capability.
-     * Dynamically routes to either Platform Events (for High concurrency) or Queueable jobs (for Low concurrency)
-     * based on the agent's Concurrency__c setting.
+     * Dynamically routes to either Platform Events (for High dispatch type) or Queueable jobs (for Low dispatch type)
+     * based on the agent's AsyncDispatchType__c setting.
      *
      * @param sessionId         The ID of the chat session.
      * @param originalUserId    The ID of the user.
@@ -243,10 +243,10 @@ public inherited sharing class AgentJobEnqueuer {
     ) {
         String jobDetails = 'ExecuteAction for Capability: ' + capability.CapabilityName__c;
         try {
-            String concurrency = this.getAgentConcurrency(agentDefId);
+            String asyncDispatchType = this.getAgentAsyncDispatchType(agentDefId);
 
-            if ('High'.equalsIgnoreCase(concurrency)) {
-                // High concurrency: Use Platform Event for maximum throughput
+            if ('High'.equalsIgnoreCase(asyncDispatchType)) {
+                // High dispatch type: Use Platform Event for maximum throughput (fire-and-forget)
                 this.enqueueAsyncActionViaPlatformEvent(
                     sessionId,
                     originalUserId,
@@ -261,7 +261,7 @@ public inherited sharing class AgentJobEnqueuer {
                     logPrefix
                 );
             } else {
-                // Low concurrency (or null): Use Queueable for sequential processing
+                // Low dispatch type (or null): Use Queueable for guaranteed sequential processing
                 this.enqueueAsyncActionViaQueueable(
                     sessionId,
                     originalUserId,
@@ -282,7 +282,7 @@ public inherited sharing class AgentJobEnqueuer {
     }
 
     /**
-     * Enqueues an asynchronous action via Platform Event (for High concurrency agents).
+     * Enqueues an asynchronous action via Platform Event (for High dispatch type agents).
      */
     private void enqueueAsyncActionViaPlatformEvent(
         Id sessionId,
@@ -336,7 +336,7 @@ public inherited sharing class AgentJobEnqueuer {
     }
 
     /**
-     * Enqueues an asynchronous action via Queueable (for Low concurrency agents).
+     * Enqueues an asynchronous action via Queueable (for Low dispatch type agents).
      */
     private void enqueueAsyncActionViaQueueable(
         Id sessionId,

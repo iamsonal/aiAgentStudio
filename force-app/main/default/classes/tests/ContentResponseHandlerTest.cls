@@ -15,10 +15,10 @@ private class ContentResponseHandlerTest {
             .save();
 
         // Create completion capability for non-conversational tests
-        // Note: We set the name AFTER forSendEmail() to override the default name
+        // Note: We set the name AFTER forPostChatter() to override the default name
         AgentCapability__c completionCap = TestFactory.newCapability()
             .withAgent(setup.agentDefinition.Id)
-            .forSendEmail()
+            .forPostChatter()
             .build();
 
         completionCap.CapabilityName__c = 'send_email_completion';

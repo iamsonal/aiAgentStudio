@@ -11,9 +11,9 @@
  * ConversationalOrchestrator handles conversational (chat-based) agent executions.
  * This orchestrator:
  *   - Creates or updates AgentExecution__c for conversational interactions
- *   - Chooses async strategy based on Concurrency__c field:
- *     * Low concurrency: Uses Queueable for sequential, single-user scenarios
- *     * High concurrency: Uses Platform Events for concurrent, multi-user chat
+ *   - Chooses async strategy based on AsyncDispatchType__c field:
+ *     * Low dispatch type: Uses Queueable for guaranteed sequential processing
+ *     * High dispatch type: Uses Platform Events for high-throughput, fire-and-forget processing
  *   - Processes async results by invoking LLM and orchestrating the response
  *
  * Service User Context:
@@ -23,8 +23,8 @@
  *   - This orchestrator doesn't need to know about service user requirements
  *
  * Async Strategy:
- *   - Low Concurrency: Enqueues ConversationalQueueable directly for stateful processing
- *   - High Concurrency: Publishes ProcessLLMMessage platform event for better scalability
+ *   - Low Dispatch Type: Enqueues ConversationalQueueable directly for stateful processing
+ *   - High Dispatch Type: Publishes ProcessLLMMessage platform event for better scalability
  */
 public class ConversationalOrchestrator implements IAgentOrchestrator {
     private final AIAgentDefinition__c agentDef;
@@ -39,7 +39,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
 
     /**
      * Initiates a conversational execution. Creates or updates the AgentExecution__c record,
-     * then immediately hands off to async context based on concurrency setting.
+     * then immediately hands off to async context based on async dispatch type setting.
      */
     public AgentExecutionService.ExecutionResult initiate(String agentDeveloperName, AgentExecutionService.ExecutionPayload payload) {
         String logPrefix = LOG_PREFIX + '[Agent:' + agentDeveloperName + '] ';
@@ -89,11 +89,11 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Created/updated execution: ' + executionId);
 
-            // Determine async strategy based ONLY on Concurrency__c
-            String concurrency = agentDef.Concurrency__c != null ? agentDef.Concurrency__c : 'Low';
+            // Determine async strategy based ONLY on AsyncDispatchType__c
+            String asyncDispatchType = agentDef.AsyncDispatchType__c != null ? agentDef.AsyncDispatchType__c : 'Low';
 
-            if ('High'.equalsIgnoreCase(concurrency)) {
-                // High concurrency: Use Platform Event for better scalability
+            if ('High'.equalsIgnoreCase(asyncDispatchType)) {
+                // High dispatch type: Use Platform Event for high-throughput, fire-and-forget processing
                 publishPlatformEvent(executionId, payload, logPrefix);
                 return new AgentExecutionService.ExecutionResult(
                     executionId,
@@ -101,7 +101,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
                     'Processing message asynchronously'
                 );
             } else {
-                // Low concurrency: Use Queueable for stateful, sequential processing
+                // Low dispatch type: Use Queueable for guaranteed sequential processing
                 enqueueQueueable(executionId, payload, logPrefix);
                 return new AgentExecutionService.ExecutionResult(executionId, AIAgentConstants.STATUS_PROCESSING, 'Processing message');
             }
@@ -125,7 +125,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
     }
 
     /**
-     * Publishes a Platform Event for high-concurrency or service-user scenarios.
+     * Publishes a Platform Event for high dispatch type scenarios.
      */
     private void publishPlatformEvent(Id executionId, AgentExecutionService.ExecutionPayload payload, String logPrefix) {
         Map<String, Object> llmPayload = new Map<String, Object>{
@@ -157,7 +157,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
     }
 
     /**
-     * Enqueues a Queueable job for low-concurrency scenarios.
+     * Enqueues a Queueable job for low dispatch type scenarios.
      */
     private void enqueueQueueable(Id executionId, AgentExecutionService.ExecutionPayload payload, String logPrefix) {
         ConversationalQueueable queueable = new ConversationalQueueable(

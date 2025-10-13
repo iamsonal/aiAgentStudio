@@ -126,7 +126,7 @@ private class ToolCallResponseHandlerTest {
             CapabilityName__c = approvalCapName,
             Description__c = 'Tool requiring approval',
             ImplementationType__c = 'Standard',
-            StandardActionType__c = 'SendEmail',
+            StandardActionType__c = 'PostChatter',
             Parameters__c = '{"type":"object","properties":{"submission_comment":{"type":"string"}}}',
             RunAsynchronously__c = false,
             RequiresApproval__c = true
@@ -136,7 +136,7 @@ private class ToolCallResponseHandlerTest {
         OrchestrationContext context = createToolCallContext(
             setup,
             approvalCapName,
-            '{"toAddresses":["test@example.com"],"subject":"Test","body":"Test","submission_comment":"Please approve"}'
+            '{"text":"Test message","topics":["Test"],"submission_comment":"Please approve"}'
         );
 
         ToolCallResponseHandler handler = new ToolCallResponseHandler();
@@ -167,7 +167,7 @@ private class ToolCallResponseHandlerTest {
             CapabilityName__c = approvalCapName,
             Description__c = 'Tool requiring approval',
             ImplementationType__c = 'Standard',
-            StandardActionType__c = 'SendEmail',
+            StandardActionType__c = 'PostChatter',
             Parameters__c = '{"type":"object"}',
             RunAsynchronously__c = false,
             RequiresApproval__c = true
@@ -177,7 +177,7 @@ private class ToolCallResponseHandlerTest {
         OrchestrationContext context = createToolCallContext(
             setup,
             approvalCapName,
-            '{"toAddresses":["test@example.com"]}'  // No submission_comment
+            '{"text":"Test message"}'  // No submission_comment
         );
 
         ToolCallResponseHandler handler = new ToolCallResponseHandler();
