@@ -149,7 +149,7 @@ Low Concurrency Mode (Queueables)
 - Retry logic with exponential backoff (CPU-optimized)
 - Token usage tracking and reporting
 - Parallel tool calling support
-- Reasoning mode with transient messages
+- Action transparency with transient messages
 - Error recovery with "Halt and Report" pattern
 
 ### 📊 **Deep Observability**
@@ -388,7 +388,7 @@ Each "turn" represents one complete user→LLM→action→LLM→response cycle:
      - Ask clarifying questions when needed
      - Use appropriate tools to access Salesforce data
      ```
-   - **Enable Reasoning Mode**: Checked
+   - **Enable Action Transparency**: Checked
    - **Concurrency**: Low
    - Save
 
