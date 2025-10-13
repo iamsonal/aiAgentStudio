@@ -8,8 +8,8 @@
 
 /**
  * @description
- * ConversationalQueueable handles the LLM processing for low-concurrency conversational executions.
- * This queueable is enqueued by ConversationalOrchestrator when Concurrency__c is 'Low'.
+ * ConversationalQueueable handles the LLM processing for low dispatch type conversational executions.
+ * This queueable is enqueued by ConversationalOrchestrator when AsyncDispatchType__c is 'Low'.
  * It performs the LLM call and orchestrates the response in an asynchronous context.
  */
 public class ConversationalQueueable implements Queueable, Database.AllowsCallouts {

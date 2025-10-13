@@ -10,7 +10,7 @@
  * @description
  * AsyncActionQueueable is a thin wrapper Queueable class that enables asynchronous action processing
  * to be executed via System.enqueueJob instead of Platform Events. This class is specifically
- * designed for agents with low concurrency settings (Concurrency__c = 'Low' or null).
+ * designed for agents with low dispatch type settings (AsyncDispatchType__c = 'Low' or null).
  *
  * This class contains NO business logic. Its sole responsibility is to instantiate and invoke
  * the AsyncActionEngine class, which contains all the actual processing logic. This design
@@ -18,8 +18,8 @@
  * invocation contexts (Platform Event vs. Queueable).
  *
  * Usage:
- *   - For low-concurrency agents, enqueue this Queueable via System.enqueueJob
- *   - For high-concurrency agents, continue using AsyncFrameworkRequest__e Platform Events
+ *   - For low dispatch type agents, enqueue this Queueable via System.enqueueJob
+ *   - For high dispatch type agents, continue using AsyncFrameworkRequest__e Platform Events
  */
 public class AsyncActionQueueable implements Queueable {
     private final Id executionId;

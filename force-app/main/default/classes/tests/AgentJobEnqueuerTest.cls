@@ -11,30 +11,30 @@ private class AgentJobEnqueuerTest {
 
     @TestSetup
     static void setupTestData() {
-        // Create agent setup with high concurrency
-        TestFactory.AgentSetup highConcurrencySetup = TestFactory.createFullAgentSetup().save();
+        // Create agent setup with high dispatch type
+        TestFactory.AgentSetup highDispatchTypeSetup = TestFactory.createFullAgentSetup().save();
 
-        // Update agent to have high concurrency
+        // Update agent to have high dispatch type
         update new AIAgentDefinition__c(
-            Id = highConcurrencySetup.agentDefinition.Id,
-            Concurrency__c = 'High'
+            Id = highDispatchTypeSetup.agentDefinition.Id,
+            AsyncDispatchType__c = 'High'
         );
 
-        // Create another agent with low concurrency
+        // Create another agent with low dispatch type
         LLMConfiguration__c llmConfig = TestFactory.newLLMConfiguration()
-            .withName('Low Concurrency LLM')
+            .withName('Low Dispatch Type LLM')
             .save();
 
-        AIAgentDefinition__c lowConcurrencyAgent = TestFactory.newAgentDefinition()
-            .withName('Low_Concurrency_Agent')
+        AIAgentDefinition__c lowDispatchTypeAgent = TestFactory.newAgentDefinition()
+            .withName('Low_DispatchType_Agent')
             .withLLM(llmConfig.Id)
             .build();
-        lowConcurrencyAgent.Concurrency__c = 'Low';
-        insert lowConcurrencyAgent;
+        lowDispatchTypeAgent.AsyncDispatchType__c = 'Low';
+        insert lowDispatchTypeAgent;
 
-        // Create execution for low concurrency agent
+        // Create execution for low dispatch type agent
         insert new AgentExecution__c(
-            AIAgentDefinition__c = lowConcurrencyAgent.Id,
+            AIAgentDefinition__c = lowDispatchTypeAgent.Id,
             User__c = UserInfo.getUserId(),
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             ExecutionType__c = 'Conversational'
@@ -72,14 +72,14 @@ private class AgentJobEnqueuerTest {
     }
 
     // ===================================================================================
-    // CONCURRENCY ROUTING TESTS
+    // DISPATCH TYPE ROUTING TESTS
     // ===================================================================================
 
     @IsTest
-    static void testEnqueueFollowUp_HighConcurrency_UsesQueueable() {
+    static void testEnqueueFollowUp_HighDispatchType_UsesQueueable() {
         // Note: Platform Events cannot be directly tested, but we test Queueable fallback in test context
-        // Given: High concurrency agent with turn ID set on execution
-        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE Concurrency__c = 'High' LIMIT 1];
+        // Given: High dispatch type agent with turn ID set on execution
+        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE AsyncDispatchType__c = 'High' LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
 
         String turnId = UuidUtils.generateUUID();
@@ -116,9 +116,9 @@ private class AgentJobEnqueuerTest {
     }
 
     @IsTest
-    static void testEnqueueFollowUp_LowConcurrency_UsesQueueable() {
-        // Given: Low concurrency agent with turn ID set on execution
-        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE Concurrency__c = 'Low' LIMIT 1];
+    static void testEnqueueFollowUp_LowDispatchType_UsesQueueable() {
+        // Given: Low dispatch type agent with turn ID set on execution
+        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE AsyncDispatchType__c = 'Low' LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
 
         String turnId = UuidUtils.generateUUID();
@@ -152,7 +152,7 @@ private class AgentJobEnqueuerTest {
     @IsTest
     static void testEnqueueFollowUp_WithFinalErrorTurn_QueuesWithFlag() {
         // Given: Agent and execution with turn ID set
-        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE Concurrency__c = 'Low' LIMIT 1];
+        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE AsyncDispatchType__c = 'Low' LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
 
         String turnId = UuidUtils.generateUUID();
@@ -188,23 +188,23 @@ private class AgentJobEnqueuerTest {
     // ===================================================================================
 
     @IsTest
-    static void testEnqueueAsyncAction_HighConcurrency_UsesQueueable() {
-        // Given: High concurrency agent with capability and turn ID set
-        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE Concurrency__c = 'High' LIMIT 1];
+    static void testEnqueueAsyncAction_HighDispatchType_UsesQueueable() {
+        // Given: High dispatch type agent with capability and turn ID set
+        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE AsyncDispatchType__c = 'High' LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
-        
+
         AgentCapability__c capability = TestFactory.newCapability()
             .withAgent(agent.Id)
             .forFindEntities()
             .save();
-        
+
         String turnId = UuidUtils.generateUUID();
-        
+
         // IMPORTANT: Set the CurrentTurnIdentifier__c BEFORE publishing Platform Event
         execution.CurrentTurnIdentifier__c = turnId;
         execution.ProcessingStatus__c = AIAgentConstants.STATUS_PROCESSING;
         update execution;
-        
+
         AgentJobEnqueuer enqueuer = new AgentJobEnqueuer();
         String toolCallId = 'call_test123';
 
@@ -230,9 +230,9 @@ private class AgentJobEnqueuerTest {
     }
 
     @IsTest
-    static void testEnqueueAsyncAction_LowConcurrency_UsesQueueable() {
-        // Given: Low concurrency agent with capability
-        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE Concurrency__c = 'Low' LIMIT 1];
+    static void testEnqueueAsyncAction_LowDispatchType_UsesQueueable() {
+        // Given: Low dispatch type agent with capability
+        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE AsyncDispatchType__c = 'Low' LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
 
         AgentCapability__c capability = TestFactory.newCapability()
@@ -267,13 +267,13 @@ private class AgentJobEnqueuerTest {
     }
 
     // ===================================================================================
-    // CONCURRENCY CACHE TESTS
+    // DISPATCH TYPE CACHE TESTS
     // ===================================================================================
 
     @IsTest
-    static void testGetAgentConcurrency_CachesResults() {
+    static void testGetAgentAsyncDispatchType_CachesResults() {
         // Given: Agent with turn ID set on execution
-        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE Concurrency__c = 'High' LIMIT 1];
+        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE AsyncDispatchType__c = 'High' LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
 
         String turnId1 = UuidUtils.generateUUID();
@@ -296,11 +296,11 @@ private class AgentJobEnqueuerTest {
 
         // Then: Should successfully enqueue both (cache working)
         // Note: In test context with Platform Events, behavior may vary
-        System.assert(true, 'Should process both enqueue requests using cached concurrency');
+        System.assert(true, 'Should process both enqueue requests using cached dispatch type');
     }
 
     @IsTest
-    static void testGetAgentConcurrency_NullAgentId_ReturnsLow() {
+    static void testGetAgentAsyncDispatchType_NullAgentId_ReturnsLow() {
         // Given: Enqueuer
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
@@ -321,7 +321,7 @@ private class AgentJobEnqueuerTest {
         );
         Test.stopTest();
 
-        // Then: Should use Queueable (Low concurrency default)
+        // Then: Should use Queueable (Low dispatch type default)
         List<AsyncApexJob> jobs = [SELECT Id FROM AsyncApexJob
                                    WHERE ApexClass.Name = 'FollowUpLLMQueueable'];
         System.assertEquals(1, jobs.size(), 'Should default to Queueable for null agent ID');
@@ -366,19 +366,19 @@ private class AgentJobEnqueuerTest {
         // Given: Valid setup with turn ID set on execution
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
-        
+
         AgentCapability__c capability = TestFactory.newCapability()
             .withAgent(agent.Id)
-            .forSearchKnowledge()
+            .forFindEntities()
             .save();
-        
+
         String turnId = UuidUtils.generateUUID();
-        
+
         // Set the CurrentTurnIdentifier__c before enqueueing
         execution.CurrentTurnIdentifier__c = turnId;
         execution.ProcessingStatus__c = AIAgentConstants.STATUS_PROCESSING;
         update execution;
-        
+
         AgentJobEnqueuer enqueuer = new AgentJobEnqueuer();
 
         // When: Enqueueing with all valid data
