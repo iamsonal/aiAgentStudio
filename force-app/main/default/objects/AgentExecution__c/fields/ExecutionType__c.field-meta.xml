@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ExecutionType__c</fullName>
-    <description>Defines the type of agent execution: Conversational (chat), Batch (bulk processing), Scheduled (time-based), Email (email-triggered), Trigger (data change triggered), or API (external system invoked).</description>
+    <description>Defines the type of agent execution: Conversational (chat), Batch (bulk processing), Scheduled (time-based), Email (email-triggered), Trigger (data change triggered), API (external system invoked), or Autonomous (self-directed agent).</description>
     <inlineHelpText>Select the execution pattern for this agent run.</inlineHelpText>
     <label>Execution Type</label>
     <required>true</required>
@@ -41,6 +41,11 @@
                 <fullName>API</fullName>
                 <default>false</default>
                 <label>API</label>
+            </value>
+            <value>
+                <fullName>Autonomous</fullName>
+                <default>false</default>
+                <label>Autonomous</label>
             </value>
         </valueSetDefinition>
     </valueSet>

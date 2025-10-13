@@ -209,32 +209,33 @@ public class HttpRetryService {
     }
 
     /**
-     * Calculates and applies the delay before the next retry attempt.
+     * Calculates the delay that should be applied before the next retry attempt.
      *
-     * Uses exponential backoff with jitter. Busy-waits due to Apex limitations (CPU-intensive).
-     * Automatically detects async contexts (Future, Queueable, Batch) and caps delays at 5 seconds
-     * to prevent excessive CPU consumption.
+     * IMPORTANT: This method NO LONGER performs busy-wait delays to avoid CPU governor limit issues.
+     * Instead, it simply logs the calculated delay. For async contexts, retry delays should be
+     * implemented at the job orchestration level by re-enqueueing Queueable jobs or scheduling
+     * Future methods. For synchronous contexts, retries happen immediately without delay.
      *
      * @param currentAttempt  The attempt number that just failed (0-indexed).
      * @param config          The retry configuration.
-     * @sideeffect Consumes CPU cycles during delay; keep delays reasonable to avoid governor limits.
-     *             In async contexts, delays are capped at 5000ms to conserve CPU time.
+     * @sideeffect Logs the calculated delay for observability. Does NOT consume CPU time.
      */
     @TestVisible
     private static void handleRetryDelay(Integer currentAttempt, RetryConfig config) {
         // Calculate base delay: initial * (factor ^ attempt)
         Decimal backoffFactor = DEFAULT_BACKOFF_FACTOR;
-        Decimal baseDelay = config.initialDelayMs * (backoffFactor.pow(currentAttempt + 1)); // Increase delay for *next* attempt
+        Decimal baseDelay = config.initialDelayMs * (backoffFactor.pow(currentAttempt + 1));
         // Calculate jitter: +/- jitterFactor % of initialDelay
         Decimal jitter = Math.random() * config.initialDelayMs * JITTER_FACTOR * 2 - (config.initialDelayMs * JITTER_FACTOR);
         // Total delay = base + jitter, capped
         Integer delayMs = Integer.valueOf(baseDelay + jitter);
-        delayMs = Math.max(0, delayMs); // Ensure non-negative
-        delayMs = Math.min(delayMs, MAX_DELAY_MS); // Apply max cap
+        delayMs = Math.max(0, delayMs);
+        delayMs = Math.min(delayMs, MAX_DELAY_MS);
+
         System.debug(
             LoggingLevel.INFO,
             config.logPrefix +
-                'Retry delay: attempt=' +
+                'Calculated retry delay (NOT applied in-process to avoid CPU limits): attempt=' +
                 (currentAttempt + 1) +
                 ', delayMs=' +
                 delayMs +
@@ -242,27 +243,25 @@ public class HttpRetryService {
                 baseDelay.intValue() +
                 'ms, jitter=' +
                 jitter.intValue() +
-                'ms)'
+                'ms). Retrying immediately.'
         );
 
-        // Check for async contexts where CPU time is more constrained
+        // For async contexts, implement proper delayed retry at the orchestration level:
+        // - For Queueable: Re-enqueue the job after failure detection
+        // - For Future: Schedule a new Future method invocation
+        // - For immediate retry needs: Use Scheduled Apex with calculated delay
+
         if (System.isFuture() || System.isQueueable() || System.isBatch()) {
             System.debug(
-                LoggingLevel.WARN,
+                LoggingLevel.INFO,
                 config.logPrefix +
-                'Retry delay in async context (Future/Queueable/Batch). CPU time consumption may impact governor limits. Consider reducing maxAttempts or initialDelayMs.'
+                'Async context detected. For delayed retries, implement job-level retry orchestration. ' +
+                'Current implementation retries immediately to avoid CPU consumption.'
             );
-            // Reduce delay in async contexts to conserve CPU time
-            delayMs = Math.min(delayMs, 5000); // Cap at 5 seconds in async contexts
         }
 
-        // Implement delay using busy wait (CPU-intensive but necessary in Apex)
-        // WARNING: Consumes CPU cycles - keep delays reasonable to avoid governor limits
-        Long waitUntil = System.currentTimeMillis() + delayMs;
-        while (System.currentTimeMillis() < waitUntil) {
-            // Busy wait loop - performs mathematical operations to consume CPU cycles
-            Decimal x = Math.sqrt(Math.random());
-        }
+        // NOTE: No busy-wait loop - retries happen immediately within the same transaction
+        // This eliminates the CPU governor limit risk while still providing retry functionality
     }
 
     /**

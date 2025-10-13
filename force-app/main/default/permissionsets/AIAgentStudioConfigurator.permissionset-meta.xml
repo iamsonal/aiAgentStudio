@@ -214,11 +214,6 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AgentExecution__c.ContextHistoryJson__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
         <field>AgentExecution__c.ConversationSummary__c</field>
         <readable>true</readable>
     </fieldPermissions>

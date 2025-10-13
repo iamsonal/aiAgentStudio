@@ -164,9 +164,132 @@ public class ActionPostChatter extends BaseAgentAction {
 
     /**
      * @description
-     * Creates and posts a Chatter message with text validation and topic processing.
+     * Parses text for mention syntax {@UserId} or {@005xxx} and builds message segments.
+     * Supports mentioning users and groups with the syntax: {@UserId} or {@GroupId}.
      *
-     * @param text String - Message text to post.
+     * @param text The text containing potential mentions
+     * @return List of message segments with text and mention segments
+     */
+    private List<ConnectApi.MessageSegmentInput> parseMentions(String text) {
+        List<ConnectApi.MessageSegmentInput> segments = new List<ConnectApi.MessageSegmentInput>();
+
+        if (String.isBlank(text)) {
+            return segments;
+        }
+
+        // Pattern to match {@...} where ... is a 15 or 18 character Salesforce ID or user reference
+        Pattern mentionPattern = Pattern.compile('\\{@([^}]+)\\}');
+        Matcher matcher = mentionPattern.matcher(text);
+
+        Integer lastEnd = 0;
+        Set<Id> validatedIds = new Set<Id>();
+
+        while (matcher.find()) {
+            // Add text before the mention
+            if (matcher.start() > lastEnd) {
+                String textBefore = text.substring(lastEnd, matcher.start());
+                if (String.isNotBlank(textBefore)) {
+                    ConnectApi.TextSegmentInput textSegment = new ConnectApi.TextSegmentInput();
+                    textSegment.text = textBefore;
+                    segments.add(textSegment);
+                }
+            }
+
+            String mentionValue = matcher.group(1);
+            Id mentionId = null;
+
+            // Try to parse as ID
+            try {
+                mentionId = Id.valueOf(mentionValue);
+
+                // Validate the ID is for a User or CollaborationGroup
+                Schema.SObjectType sObjType = mentionId.getSObjectType();
+                if (sObjType == Schema.User.SObjectType || sObjType == Schema.CollaborationGroup.SObjectType) {
+                    // Validate user/group exists and is accessible
+                    if (!validatedIds.contains(mentionId) && validateMentionTarget(mentionId, sObjType)) {
+                        validatedIds.add(mentionId);
+                    }
+
+                    if (validatedIds.contains(mentionId)) {
+                        // Add mention segment
+                        ConnectApi.MentionSegmentInput mentionSegment = new ConnectApi.MentionSegmentInput();
+                        mentionSegment.id = mentionId;
+                        segments.add(mentionSegment);
+                    } else {
+                        // Invalid or inaccessible mention, add as plain text
+                        ConnectApi.TextSegmentInput textSegment = new ConnectApi.TextSegmentInput();
+                        textSegment.text = '{@' + mentionValue + '}';
+                        segments.add(textSegment);
+                    }
+                } else {
+                    // Not a User or Group, add as plain text
+                    System.debug(LoggingLevel.WARN, '[ActionPostChatter] Mention target is not a User or Group: ' + mentionId);
+                    ConnectApi.TextSegmentInput textSegment = new ConnectApi.TextSegmentInput();
+                    textSegment.text = '{@' + mentionValue + '}';
+                    segments.add(textSegment);
+                }
+            } catch (Exception e) {
+                // Not a valid ID, add as plain text
+                System.debug(LoggingLevel.DEBUG, '[ActionPostChatter] Invalid mention ID format: ' + mentionValue);
+                ConnectApi.TextSegmentInput textSegment = new ConnectApi.TextSegmentInput();
+                textSegment.text = '{@' + mentionValue + '}';
+                segments.add(textSegment);
+            }
+
+            lastEnd = matcher.end();
+        }
+
+        // Add remaining text after last mention
+        if (lastEnd < text.length()) {
+            String remainingText = text.substring(lastEnd);
+            if (String.isNotBlank(remainingText)) {
+                ConnectApi.TextSegmentInput textSegment = new ConnectApi.TextSegmentInput();
+                textSegment.text = remainingText;
+                segments.add(textSegment);
+            }
+        }
+
+        // If no mentions were found, return simple text segment
+        if (segments.isEmpty()) {
+            ConnectApi.TextSegmentInput textSegment = new ConnectApi.TextSegmentInput();
+            textSegment.text = text;
+            segments.add(textSegment);
+        }
+
+        return segments;
+    }
+
+    /**
+     * @description
+     * Validates that the mentioned user or group exists and is accessible.
+     *
+     * @param mentionId The ID of the user or group to mention
+     * @param sObjType  The SObject type (User or CollaborationGroup)
+     * @return True if the mention target is valid and accessible
+     */
+    private Boolean validateMentionTarget(Id mentionId, Schema.SObjectType sObjType) {
+        try {
+            String objectName = sObjType.getDescribe().getName();
+            String query = 'SELECT Id FROM ' + objectName + ' WHERE Id = :mentionId WITH USER_MODE LIMIT 1';
+            List<SObject> results = Database.query(query);
+
+            if (results.isEmpty()) {
+                System.debug(LoggingLevel.WARN, '[ActionPostChatter] Mention target not found or not accessible: ' + mentionId);
+                return false;
+            }
+
+            return true;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, '[ActionPostChatter] Error validating mention target ' + mentionId + ': ' + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * @description
+     * Creates and posts a Chatter message with text validation, topic processing, and mention support.
+     *
+     * @param text String - Message text to post (can include {@UserId} mention syntax).
      * @param topics List<String> - Optional list of topics to associate with the post.
      * @return ActionOutcome<ConnectApi.FeedElement> - The posted message or error information.
      */
@@ -180,9 +303,11 @@ public class ActionPostChatter extends BaseAgentAction {
             // Create feed item input
             ConnectApi.FeedItemInput feedItemInput = new ConnectApi.FeedItemInput();
             ConnectApi.MessageBodyInput messageBodyInput = new ConnectApi.MessageBodyInput();
-            ConnectApi.TextSegmentInput textSegment = new ConnectApi.TextSegmentInput();
-            textSegment.text = text;
-            messageBodyInput.messageSegments = new List<ConnectApi.MessageSegmentInput>{ textSegment };
+
+            // Parse text for mentions and build appropriate message segments
+            List<ConnectApi.MessageSegmentInput> messageSegments = parseMentions(text);
+            messageBodyInput.messageSegments = messageSegments;
+
             feedItemInput.body = messageBodyInput;
             feedItemInput.subjectId = this.targetSObjectId;
 

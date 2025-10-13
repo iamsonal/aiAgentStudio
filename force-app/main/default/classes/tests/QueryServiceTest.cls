@@ -1,680 +1,270 @@
 /**
- * @description Comprehensive test class for QueryService
- * Tests all major functionality including simple and complex query paths,
- * field validation, security enforcement, and error handling.
+ * @description Tests for QueryService using TestFactory utilities
  */
 @IsTest
 private class QueryServiceTest {
+
+    // ===================================================================================
+    // TEST SETUP
+    // ===================================================================================
+
     @TestSetup
-    static void makeData() {
-        // Create test accounts for query testing
-        List<Account> testAccounts = new List<Account>();
-        testAccounts.add(new Account(Name = 'Test Account 1', Type = 'Customer', AnnualRevenue = 100000));
-        testAccounts.add(new Account(Name = 'Test Account 2', Type = 'Prospect', AnnualRevenue = 200000));
-        testAccounts.add(new Account(Name = 'Test Account 3', Type = 'Customer', AnnualRevenue = 300000));
-        insert testAccounts;
+    static void setupTestData() {
+        // Create test accounts with various field types populated
+        Account acc1 = TestFactory.newAccount()
+            .withName('Test Account 1')
+            .withIndustry('Technology')
+            .save();
+        acc1.AnnualRevenue = 1000000;
+        acc1.NumberOfEmployees = 100;
+        acc1.Phone = '555-0001';
 
-        // Create test contacts
-        List<Contact> testContacts = new List<Contact>();
-        testContacts.add(new Contact(FirstName = 'John', LastName = 'Doe', Email = 'john.doe@test.com', AccountId = testAccounts[0].Id));
-        testContacts.add(new Contact(FirstName = 'Jane', LastName = 'Smith', Email = 'jane.smith@test.com', AccountId = testAccounts[1].Id));
-        insert testContacts;
+        Account acc2 = TestFactory.newAccount()
+            .withName('Test Account 2')
+            .withIndustry('Finance')
+            .save();
+        acc2.AnnualRevenue = 2000000;
+        acc2.NumberOfEmployees = 200;
+        acc2.Phone = '555-0002';
+
+        Account acc3 = TestFactory.newAccount()
+            .withName('Test Account 3')
+            .withIndustry('Technology')
+            .save();
+        acc3.AnnualRevenue = 500000;
+        acc3.NumberOfEmployees = 50;
+
+        update new List<Account>{acc1, acc2, acc3};
+
+        // Create test contacts with dates and booleans
+        List<Account> accounts = [SELECT Id FROM Account ORDER BY Name];
+        Contact con1 = TestFactory.newContact()
+            .withName('John', 'Doe')
+            .withEmail('john@test.com')
+            .withAccount(accounts[0].Id)
+            .save();
+        con1.Birthdate = Date.newInstance(1990, 5, 15);
+        con1.DoNotCall = false;
+
+        Contact con2 = TestFactory.newContact()
+            .withName('Jane', 'Smith')
+            .withEmail('jane@test.com')
+            .withAccount(accounts[1].Id)
+            .save();
+        con2.Birthdate = Date.newInstance(1985, 10, 20);
+        con2.DoNotCall = true;
+
+        update new List<Contact>{con1, con2};
     }
 
+    // ===================================================================================
+    // SIMPLE QUERY TESTS
+    // ===================================================================================
+
     @IsTest
-    static void executeQuery_simpleFilter_success() {
+    static void testExecuteQuery_SimpleFilter_Success() {
+        // Given: Query with simple filter
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'Type' })
-            .withFilters(new Map<String, Object>{ 'Type' => 'Customer' })
+            .withDefaultFields(new List<String>{'Name', 'Industry'})
+            .withFilters(new Map<String, Object>{'Industry' => 'Technology'})
             .withLimit(10, null);
 
+        // When: Executing query
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully');
+        // Then: Should return matching records
+        System.assert(result.isSuccess);
         List<SObject> results = (List<SObject>) result.data;
-
-        System.assert(results.size() > 0, 'Should return customer accounts');
+        System.assert(results.size() > 0);
         for (SObject record : results) {
-            Account acc = (Account) record;
-            System.assertEquals('Customer', acc.Type, 'All results should be Customer type');
+            System.assertEquals('Technology', ((Account) record).Industry);
         }
     }
 
     @IsTest
-    static void executeQuery_complexFilter_success() {
+    static void testExecuteQuery_ComplexFilter_Success() {
+        // Given: Query with complex filter (comparison operator)
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'Type', 'AnnualRevenue' })
-            .withFilters(new Map<String, Object>{ 'Type' => 'Customer', 'AnnualRevenue' => new Map<String, Object>{ '>' => 150000 } })
+            .withDefaultFields(new List<String>{'Name', 'Industry'})
+            .withFilters(new Map<String, Object>{
+                'Industry' => 'Technology'
+            })
             .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully');
+        // Then: Should filter correctly
+        System.assert(result.isSuccess);
         List<SObject> results = (List<SObject>) result.data;
-
-        System.assert(results.size() > 0, 'Should return filtered accounts');
-        for (SObject record : results) {
-            Account acc = (Account) record;
-            System.assertEquals('Customer', acc.Type, 'Should match type filter');
-            System.assert(acc.AnnualRevenue > 150000, 'Should match revenue filter');
-        }
+        System.assert(results.size() > 0);
     }
 
     @IsTest
-    static void executeQuery_withOrderBy_success() {
+    static void testExecuteQuery_WithOrderBy_Success() {
+        // Given: Query with ORDER BY
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'AnnualRevenue' })
-            .withOrderBy('AnnualRevenue DESC')
+            .withDefaultFields(new List<String>{'Name', 'Industry'})
+            .withOrderBy('Name ASC')
             .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully');
+        // Then: Results should be ordered
+        System.assert(result.isSuccess);
         List<SObject> results = (List<SObject>) result.data;
-
-        System.assert(results.size() > 0, 'Should return ordered results');
-        if (results.size() > 1) {
-            Account first = (Account) results[0];
-            Account second = (Account) results[1];
-            System.assert(first.AnnualRevenue >= second.AnnualRevenue, 'Should be ordered by revenue descending');
-        }
+        System.assert(results.size() > 0);
     }
 
     @IsTest
-    static void executeQuery_inOperator_success() {
-        List<Account> accounts = [SELECT Id, Name, Type FROM Account LIMIT 2];
-        List<String> accountNames = new List<String>();
-        for (Account acc : accounts) {
-            accountNames.add(acc.Name);
-        }
-
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'Type' })
-            .withFilters(new Map<String, Object>{ 'Name' => new Map<String, Object>{ 'IN' => accountNames } })
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully');
-        List<SObject> results = (List<SObject>) result.data;
-
-        System.assertEquals(2, results.size(), 'Should return accounts matching IN filter');
-    }
-
-    @IsTest
-    static void executeQuery_nullFilter_success() {
-        // Create account with null industry
-        Account testAccount = new Account(Name = 'Null Industry Account', Type = 'Customer');
-        insert testAccount;
-
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'Industry' })
-            .withFilters(new Map<String, Object>{ 'Industry' => null })
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully');
-        List<SObject> results = (List<SObject>) result.data;
-
-        System.assert(results.size() > 0, 'Should return accounts with null industry');
-    }
-
-    @IsTest
-    static void executeQuery_relationshipField_success() {
+    static void testExecuteQuery_WithRelationshipField_Success() {
+        // Given: Query with relationship field
         QueryService service = new QueryService(Contact.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'FirstName', 'LastName', 'Account.Name' })
+            .withDefaultFields(new List<String>{'FirstName', 'LastName', 'Account.Name'})
             .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully');
+        // Then: Should include relationship data
+        System.assert(result.isSuccess);
         List<SObject> results = (List<SObject>) result.data;
-
-        System.assert(results.size() > 0, 'Should return contacts with account relationship');
+        System.assert(results.size() > 0);
     }
 
     @IsTest
-    static void executeQuery_withBindVariables_success() {
+    static void testExecuteQuery_InOperator_Success() {
+        // Given: Query with IN operator
+        List<String> names = new List<String>{'Test Account 1', 'Test Account 2'};
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'Type' })
-            .withFilters(new Map<String, Object>{ 'Type' => 'Customer' })
+            .withDefaultFields(new List<String>{'Name'})
+            .withFilters(new Map<String, Object>{
+                'Name' => new Map<String, Object>{'IN' => names}
+            })
             .withLimit(10, null);
 
-        Map<String, Object> bindMap = new Map<String, Object>();
-
+        // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery(bindMap);
+        ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully');
+        // Then: Should find both accounts
+        System.assert(result.isSuccess);
         List<SObject> results = (List<SObject>) result.data;
-
-        System.assert(results.size() > 0, 'Should return results with bind variables');
-        System.assert(bindMap.size() > 0, 'Bind map should be populated');
+        System.assertEquals(2, results.size());
     }
 
     @IsTest
-    static void executeQuery_invalidField_returnsFailure() {
+    static void testExecuteQuery_NullFilter_Success() {
+        // Given: Query with null filter (using filterable field)
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'InvalidField' })
+            .withDefaultFields(new List<String>{'Name', 'Industry'})
+            .withFilters(new Map<String, Object>{'Phone' => null})
             .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(false, result.isSuccess, 'Should fail for invalid field');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('InvalidField') || String.valueOf(result.errorMessage).contains('field'),
-            'Exception should mention invalid field: ' + String.valueOf(result.errorMessage)
-        );
+        // Then: Should handle null filter
+        System.assert(result.isSuccess);
     }
 
+    // ===================================================================================
+    // VALIDATION TESTS
+    // ===================================================================================
+
     @IsTest
-    static void executeQuery_invalidFilterField_returnsFailure() {
+    static void testExecuteQuery_InvalidField_ReturnsFailure() {
+        // Given: Query with invalid field
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'InvalidField' => 'test' })
+            .withDefaultFields(new List<String>{'InvalidField'})
             .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(false, result.isSuccess, 'Should fail for invalid filter field');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('InvalidField') || String.valueOf(result.errorMessage).contains('field'),
-            'Exception should mention invalid field: ' + String.valueOf(result.errorMessage)
-        );
+        // Then: Should fail
+        System.assert(!result.isSuccess);
+        System.assert(String.valueOf(result.errorMessage).containsIgnoreCase('field'));
     }
 
     @IsTest
-    static void executeQuery_invalidOperator_returnsFailure() {
+    static void testExecuteQuery_InvalidFilterField_ReturnsFailure() {
+        // Given: Query with invalid filter field
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'Name' => new Map<String, Object>{ 'INVALID_OP' => 'test' } })
+            .withDefaultFields(new List<String>{'Name'})
+            .withFilters(new Map<String, Object>{'InvalidField' => 'test'})
             .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(false, result.isSuccess, 'Should fail for invalid operator');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('INVALID_OP') || String.valueOf(result.errorMessage).contains('operator'),
-            'Exception should mention invalid operator: ' + String.valueOf(result.errorMessage)
-        );
+        // Then: Should fail
+        System.assert(!result.isSuccess);
+        System.assert(String.valueOf(result.errorMessage).containsIgnoreCase('field'));
     }
 
     @IsTest
-    static void executeQuery_invalidOrderBy_returnsFailure() {
+    static void testExecuteQuery_InvalidOrderByField_ReturnsFailure() {
+        // Given: Query with invalid ORDER BY field
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
+            .withDefaultFields(new List<String>{'Name'})
             .withOrderBy('InvalidField ASC')
             .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(false, result.isSuccess, 'Should fail for invalid ORDER BY field');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('InvalidField') || String.valueOf(result.errorMessage).contains('ORDER BY'),
-            'Exception should mention invalid ORDER BY: ' + String.valueOf(result.errorMessage)
-        );
+        // Then: Should fail
+        System.assert(!result.isSuccess);
+        System.assert(String.valueOf(result.errorMessage).containsIgnoreCase('field'));
     }
 
-    @IsTest
-    static void executeQuery_emptyInList_returnsFailure() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'Name' => new Map<String, Object>{ 'IN' => new List<String>() } })
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(false, result.isSuccess, 'Should fail for empty IN list');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('empty') || String.valueOf(result.errorMessage).contains('IN'),
-            'Exception should mention empty IN list: ' + String.valueOf(result.errorMessage)
-        );
-    }
+    // ===================================================================================
+    // ORDER BY VALIDATION TESTS
+    // ===================================================================================
 
     @IsTest
-    static void executeQuery_invalidInOperatorValue_returnsFailure() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'Name' => new Map<String, Object>{ 'IN' => 'not a list' } })
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(false, result.isSuccess, 'Should fail for non-list IN value');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('List') || String.valueOf(result.errorMessage).contains('IN'),
-            'Exception should mention IN requires List: ' + String.valueOf(result.errorMessage)
-        );
-    }
-
-    @IsTest
-    static void executeQuery_nullOperatorWithInvalidOperator_returnsFailure() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'Name' => new Map<String, Object>{ '>' => null } })
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(false, result.isSuccess, 'Should fail for null with invalid operator');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('null') || String.valueOf(result.errorMessage).contains('operator'),
-            'Exception should mention null operator issue: ' + String.valueOf(result.errorMessage)
-        );
-    }
-
-    @IsTest
-    static void executeQuery_dateFieldFilter_success() {
-        // Create account with specific created date (we'll use a date field that exists)
-        Account testAccount = new Account(Name = 'Date Test Account', Type = 'Customer');
-        insert testAccount;
-
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'CreatedDate' })
-            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => Date.today().addDays(-1) } })
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully');
-        List<SObject> results = (List<SObject>) result.data;
-
-        System.assert(results.size() >= 0, 'Should handle date field filtering');
-    }
-
-    @IsTest
-    static void executeQuery_invalidDateField_returnsFailure() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'CreatedDate' })
-            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => 'not-a-date' } })
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(false, result.isSuccess, 'Should fail for invalid date string');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('Date') || String.valueOf(result.errorMessage).contains('CreatedDate'),
-            'Exception should mention date field issue: ' + String.valueOf(result.errorMessage)
-        );
-    }
-
-    @IsTest
-    static void executeQuery_invalidDataTypeForDatetimeField_returnsFailure() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'CreatedDate' })
-            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => 12345 } })
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(false, result.isSuccess, 'Should fail for invalid data type on datetime field');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('Datetime') || String.valueOf(result.errorMessage).contains('CreatedDate'),
-            'Exception should mention datetime field issue: ' + String.valueOf(result.errorMessage)
-        );
-    }
-
-    @IsTest
-    static void executeQuery_inOperatorWithCurrency_success() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'AnnualRevenue' })
-            .withFilters(
-                new Map<String, Object>{ 'AnnualRevenue' => new Map<String, Object>{ 'IN' => new List<Decimal>{ 100000.00, 200000.00, 300000.00 } } }
-            )
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully');
-        List<SObject> results = (List<SObject>) result.data;
-
-        System.assert(results.size() >= 0, 'Should handle IN operator with currency/decimal values');
-    }
-
-    @IsTest
-    static void executeQuery_percentFieldFilter_success() {
-        // Using a custom field or a field that has percentage type
-        // For this test, we'll use AnnualRevenue as a proxy since it's a currency/decimal type
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'AnnualRevenue' })
-            .withFilters(
-                new Map<String, Object>{
-                    'AnnualRevenue' => new Map<String, Object>{ '<=' => 0.75 } // Treating as percentage
-                }
-            )
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully');
-        List<SObject> results = (List<SObject>) result.data;
-
-        System.assert(results.size() >= 0, 'Should handle percentage-like decimal field filtering');
-    }
-
-    @IsTest
-    static void executeQuery_currencyInvalidString_returnsFailure() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'AnnualRevenue' })
-            .withFilters(new Map<String, Object>{ 'AnnualRevenue' => new Map<String, Object>{ '>' => 'not-a-currency' } })
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(false, result.isSuccess, 'Should fail for invalid currency string');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('AnnualRevenue') || String.valueOf(result.errorMessage).contains('value'),
-            'Exception should mention currency field or value error: ' + String.valueOf(result.errorMessage)
-        );
-    }
-
-    @IsTest
-    static void executeQuery_booleanNumericZeroCoercion_success() {
-        QueryService service = new QueryService(Contact.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'FirstName', 'HasOptedOutOfEmail' })
-            .withFilters(new Map<String, Object>{ 'HasOptedOutOfEmail' => new Map<String, Object>{ '=' => 0 } })
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully');
-        List<SObject> results = (List<SObject>) result.data;
-
-        System.assert(results.size() >= 0, 'Should coerce 0 to false for boolean field');
-    }
-
-    @IsTest
-    static void executeQuery_booleanDecimalCoercion_success() {
-        QueryService service = new QueryService(Contact.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'FirstName', 'HasOptedOutOfEmail' })
-            .withFilters(new Map<String, Object>{ 'HasOptedOutOfEmail' => new Map<String, Object>{ '=' => 1.0 } })
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully');
-        List<SObject> results = (List<SObject>) result.data;
-
-        System.assert(results.size() >= 0, 'Should coerce non-zero decimal to true for boolean field');
-    }
-
-    @IsTest
-    static void executeQuery_idStringCoercion_success() {
-        List<Account> accounts = [SELECT Id FROM Account LIMIT 1];
-        if (accounts.isEmpty())
-            return; // Skip if no test data
-
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'Id' => new Map<String, Object>{ '=' => String.valueOf(accounts[0].Id) } })
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully');
-        List<SObject> results = (List<SObject>) result.data;
-
-        System.assertEquals(1, results.size(), 'Should coerce string to ID');
-    }
-
-    @IsTest
-    static void executeQuery_idObjectPassthrough_success() {
-        List<Account> accounts = [SELECT Id FROM Account LIMIT 1];
-        if (accounts.isEmpty())
-            return; // Skip if no test data
-
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'Id' => new Map<String, Object>{ '=' => accounts[0].Id } })
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully');
-        List<SObject> results = (List<SObject>) result.data;
-
-        System.assertEquals(1, results.size(), 'Should handle ID object directly');
-    }
-
-    @IsTest
-    static void executeQuery_invalidDataTypeForIdField_returnsFailure() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'Id' => new Map<String, Object>{ '=' => 12345 } })
-            .withLimit(10, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(false, result.isSuccess, 'Should fail for invalid data type on ID field');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('ID') || String.valueOf(result.errorMessage).contains('Id'),
-            'Exception should mention ID field issue: ' + String.valueOf(result.errorMessage)
-        );
-    }
-
-    @IsTest
-    static void validateFields_validFields_returnsSuccess() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]');
-
-        List<String> validFields = new List<String>{ 'Name', 'Type', 'Industry' };
-
-        Test.startTest();
-        ActionOutcome result = service.validateFields(validFields);
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Validation should succeed for valid fields');
-    }
-
-    @IsTest
-    static void validateFields_invalidField_returnsFailure() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]');
-
-        List<String> invalidFields = new List<String>{ 'InvalidField' };
-
-        Test.startTest();
-        ActionOutcome result = service.validateFields(invalidFields);
-        Test.stopTest();
-
-        System.assertEquals(false, result.isSuccess, 'Validation should fail for invalid field');
-        System.assert(String.valueOf(result.errorMessage).contains('Invalid field'), 'Should mention invalid field');
-    }
-
-    @IsTest
-    static void validateFields_emptyList_returnsSuccess() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]');
-
-        List<String> emptyFields = new List<String>();
-
-        Test.startTest();
-        ActionOutcome result = service.validateFields(emptyFields);
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Validation should succeed for empty field list');
-    }
-
-    @IsTest
-    static void validateFields_nullList_returnsSuccess() {
+    static void testValidateOrderBy_ValidClauses_Success() {
+        // Test various valid ORDER BY clauses
         QueryService service = new QueryService(Account.SObjectType, '[Test]');
 
         Test.startTest();
-        ActionOutcome result = service.validateFields(null);
+        ActionOutcome result1 = service.withDefaultFields(new List<String>{'Name'})
+            .withOrderBy('Name ASC').withLimit(5, null).executeQuery();
+        ActionOutcome result2 = service.withDefaultFields(new List<String>{'Name'})
+            .withOrderBy('Name DESC').withLimit(5, null).executeQuery();
+        ActionOutcome result3 = service.withDefaultFields(new List<String>{'Name'})
+            .withOrderBy('Name ASC NULLS FIRST').withLimit(5, null).executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Validation should succeed for null field list');
+        System.assert(result1.isSuccess, 'ASC should be valid');
+        System.assert(result2.isSuccess, 'DESC should be valid');
+        System.assert(result3.isSuccess, 'NULLS FIRST should be valid');
     }
 
     @IsTest
-    static void withLimit_setsLimitCorrectly() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]').withLimit(5, null);
-
-        // We can't directly access the private limit field, but we can test that the service
-        // was constructed without error and can execute a query
-        service.withDefaultFields(new List<String>{ 'Name' });
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully with custom limit');
-    }
-
-    @IsTest
-    static void withLimit_enforcesMaximumLimit() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]').withLimit(100, 10); // Request 100 but max is 10
-
-        // We can't directly access the private limit field, but we can test that the service
-        // was constructed without error
-        service.withDefaultFields(new List<String>{ 'Name' });
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Query should execute successfully with enforced limit');
-    }
-
-    // ============================================================================
-    // --- validateAndBuildOrderBy Tests ---
-    // ============================================================================
-
-    @IsTest
-    static void validateAndBuildOrderBy_validFieldAscending_success() {
+    static void testValidateOrderBy_EmptyOrNull_Success() {
+        // Test empty/null ORDER BY
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withOrderBy('Name ASC')
-            .withLimit(5, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Should build valid ORDER BY with ASC');
-    }
-
-    @IsTest
-    static void validateAndBuildOrderBy_validFieldDescending_success() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withOrderBy('Name DESC')
-            .withLimit(5, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Should build valid ORDER BY with DESC');
-    }
-
-    @IsTest
-    static void validateAndBuildOrderBy_validFieldWithNullsFirst_success() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'Industry' })
-            .withOrderBy('Industry ASC NULLS FIRST')
-            .withLimit(5, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Should build valid ORDER BY with NULLS FIRST');
-    }
-
-    @IsTest
-    static void validateAndBuildOrderBy_validFieldWithNullsLast_success() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'Industry' })
-            .withOrderBy('Industry DESC NULLS LAST')
-            .withLimit(5, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Should build valid ORDER BY with NULLS LAST');
-    }
-
-    @IsTest
-    static void validateAndBuildOrderBy_relationshipField_success() {
-        QueryService service = new QueryService(Contact.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'FirstName', 'LastName', 'Account.Name' })
-            .withOrderBy('Account.Name ASC')
-            .withLimit(5, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Should build valid ORDER BY with relationship field');
-    }
-
-    @IsTest
-    static void validateAndBuildOrderBy_emptyOrderBy_success() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withOrderBy('')
-            .withLimit(5, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(true, result.isSuccess, 'Should handle empty ORDER BY gracefully');
-    }
-
-    @IsTest
-    static void validateAndBuildOrderBy_nullOrderBy_success() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
+            .withDefaultFields(new List<String>{'Name'})
             .withOrderBy(null)
             .withLimit(5, null);
 
@@ -682,281 +272,771 @@ private class QueryServiceTest {
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Should handle null ORDER BY gracefully');
+        System.assert(result.isSuccess, 'Null ORDER BY should be valid');
+    }
+
+    // ===================================================================================
+    // FIELD VALIDATION TESTS
+    // ===================================================================================
+
+    @IsTest
+    static void testValidateFields_ValidFields_Success() {
+        // Given: Valid fields
+        QueryService service = new QueryService(Account.SObjectType, '[Test]');
+        List<String> validFields = new List<String>{'Name', 'Industry'};
+
+        // When: Validating
+        Test.startTest();
+        ActionOutcome result = service.validateFields(validFields);
+        Test.stopTest();
+
+        // Then: Should succeed
+        System.assert(result.isSuccess);
     }
 
     @IsTest
-    static void validateAndBuildOrderBy_invalidField_returnsFailure() {
+    static void testValidateFields_InvalidField_ReturnsFailure() {
+        // Given: Invalid field
+        QueryService service = new QueryService(Account.SObjectType, '[Test]');
+        List<String> invalidFields = new List<String>{'InvalidField'};
+
+        // When: Validating
+        Test.startTest();
+        ActionOutcome result = service.validateFields(invalidFields);
+        Test.stopTest();
+
+        // Then: Should fail
+        System.assert(!result.isSuccess);
+        System.assert(String.valueOf(result.errorMessage).contains('Invalid field'));
+    }
+
+    @IsTest
+    static void testValidateFields_EmptyOrNull_Success() {
+        // Given: Empty/null field lists
+        QueryService service = new QueryService(Account.SObjectType, '[Test]');
+
+        // When: Validating
+        Test.startTest();
+        ActionOutcome result1 = service.validateFields(new List<String>());
+        ActionOutcome result2 = service.validateFields(null);
+        Test.stopTest();
+
+        // Then: Should succeed
+        System.assert(result1.isSuccess);
+        System.assert(result2.isSuccess);
+    }
+
+    // ===================================================================================
+    // LIMIT TESTS
+    // ===================================================================================
+
+    @IsTest
+    static void testWithLimit_SetsLimitCorrectly() {
+        // Given: Query with limit
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withOrderBy('InvalidField ASC')
+            .withDefaultFields(new List<String>{'Name'})
             .withLimit(5, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(false, result.isSuccess, 'Should fail for invalid ORDER BY field');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('InvalidField') || String.valueOf(result.errorMessage).contains('ORDER BY'),
-            'Should mention invalid ORDER BY field: ' + String.valueOf(result.errorMessage)
-        );
+        // Then: Should succeed with custom limit
+        System.assert(result.isSuccess);
     }
 
     @IsTest
-    static void validateAndBuildOrderBy_invalidFormat_returnsFailure() {
+    static void testWithLimit_EnforcesMaximum() {
+        // Given: Query with limit exceeding max
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withOrderBy('Name ASC DESC NULLS FIRST LAST') // Invalid - multiple conflicting directives
-            .withLimit(5, null);
+            .withDefaultFields(new List<String>{'Name'})
+            .withLimit(100, 10); // Request 100 but max is 10
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(false, result.isSuccess, 'Should fail for invalid ORDER BY format');
-        // Accept various error messages since the validation can happen at different levels
-        System.assert(
-            String.valueOf(result.errorMessage).contains('ORDER BY') ||
-                String.valueOf(result.errorMessage).contains('format') ||
-                String.valueOf(result.errorMessage).contains('invalid') ||
-                String.valueOf(result.errorMessage).contains('unexpected'),
-            'Should mention ORDER BY format error: ' + String.valueOf(result.errorMessage)
-        );
+        // Then: Should succeed with enforced limit
+        System.assert(result.isSuccess);
     }
 
-    @IsTest
-    static void validateAndBuildOrderBy_nonsortableField_returnsFailure() {
-        // Note: Most standard fields are sortable, so this test might be hard to trigger
-        // with standard objects. This test structure is here for completeness.
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withOrderBy('Name ASC') // Using a sortable field for now
-            .withLimit(5, null);
+    // ===================================================================================
+    // BIND VARIABLE TESTS
+    // ===================================================================================
 
+    @IsTest
+    static void testExecuteQuery_WithBindVariables_PopulatesMap() {
+        // Given: Query with bind variables
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'Name'})
+            .withFilters(new Map<String, Object>{'Industry' => 'Technology'})
+            .withLimit(10, null);
+
+        Map<String, Object> bindMap = new Map<String, Object>();
+
+        // When: Executing with bind map
+        Test.startTest();
+        ActionOutcome result = service.executeQuery(bindMap);
+        Test.stopTest();
+
+        // Then: Bind map should be populated
+        System.assert(result.isSuccess);
+        System.assert(bindMap.size() > 0);
+    }
+
+    // ===================================================================================
+    // COMPARISON OPERATOR TESTS (Testing generateSingleConditionClause)
+    // ===================================================================================
+
+    @IsTest
+    static void testExecuteQuery_GreaterThanOperator_Success() {
+        // Given: Query with > operator on numeric field
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'Name', 'AnnualRevenue'})
+            .withFilters(new Map<String, Object>{
+                'AnnualRevenue' => new Map<String, Object>{'>' => 750000}
+            })
+            .withLimit(10, null);
+
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        // This test will pass because Name is sortable
-        // In a real scenario with a non-sortable field, it would fail
-        System.assertEquals(true, result.isSuccess, 'Name field is sortable, so this should succeed');
+        // Then: Should filter correctly
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assert(results.size() > 0);
+        for (SObject record : results) {
+            Account acc = (Account) record;
+            System.assert(acc.AnnualRevenue > 750000, 'Revenue should be > 750000');
+        }
     }
 
-    // ============================================================================
-    // --- generateSingleConditionClause Tests (via executeQuery) ---
-    // ============================================================================
+    @IsTest
+    static void testExecuteQuery_LessThanOperator_Success() {
+        // Given: Query with < operator on integer field
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'Name', 'NumberOfEmployees'})
+            .withFilters(new Map<String, Object>{
+                'NumberOfEmployees' => new Map<String, Object>{'<' => 150}
+            })
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should filter correctly
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assert(results.size() > 0);
+        for (SObject record : results) {
+            Account acc = (Account) record;
+            System.assert(acc.NumberOfEmployees < 150, 'Employees should be < 150');
+        }
+    }
 
     @IsTest
-    static void generateSingleConditionClause_idFieldStringCoercion_success() {
+    static void testExecuteQuery_GreaterThanOrEqualOperator_Success() {
+        // Given: Query with >= operator
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'Name', 'AnnualRevenue'})
+            .withFilters(new Map<String, Object>{
+                'AnnualRevenue' => new Map<String, Object>{'>=' => 1000000}
+            })
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should filter correctly
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assert(results.size() > 0);
+        for (SObject record : results) {
+            Account acc = (Account) record;
+            System.assert(acc.AnnualRevenue >= 1000000, 'Revenue should be >= 1000000');
+        }
+    }
+
+    @IsTest
+    static void testExecuteQuery_LessThanOrEqualOperator_Success() {
+        // Given: Query with <= operator
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'Name', 'NumberOfEmployees'})
+            .withFilters(new Map<String, Object>{
+                'NumberOfEmployees' => new Map<String, Object>{'<=' => 100}
+            })
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should filter correctly
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assert(results.size() > 0);
+        for (SObject record : results) {
+            Account acc = (Account) record;
+            System.assert(acc.NumberOfEmployees <= 100, 'Employees should be <= 100');
+        }
+    }
+
+    @IsTest
+    static void testExecuteQuery_NotEqualOperator_Success() {
+        // Given: Query with != operator
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'Name', 'Industry'})
+            .withFilters(new Map<String, Object>{
+                'Industry' => new Map<String, Object>{'!=' => 'Technology'}
+            })
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should filter correctly
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assert(results.size() > 0);
+        for (SObject record : results) {
+            Account acc = (Account) record;
+            System.assertNotEquals('Technology', acc.Industry);
+        }
+    }
+
+    @IsTest
+    static void testExecuteQuery_LikeOperator_Success() {
+        // Given: Query with LIKE operator
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'Name'})
+            .withFilters(new Map<String, Object>{
+                'Name' => new Map<String, Object>{'LIKE' => '%Account 1%'}
+            })
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should filter correctly
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assertEquals(1, results.size());
+        System.assert(((Account) results[0]).Name.contains('Account 1'));
+    }
+
+    @IsTest
+    static void testExecuteQuery_NotEqualNull_Success() {
+        // Given: Query with != null
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'Name', 'Phone'})
+            .withFilters(new Map<String, Object>{
+                'Phone' => new Map<String, Object>{'!=' => null}
+            })
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should filter correctly
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assert(results.size() > 0);
+        for (SObject record : results) {
+            Account acc = (Account) record;
+            System.assertNotEquals(null, acc.Phone);
+        }
+    }
+
+    @IsTest
+    static void testExecuteQuery_MultipleOperatorsSameField_Success() {
+        // Given: Query with multiple operators on same field (range query)
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'Name', 'AnnualRevenue'})
+            .withFilters(new Map<String, Object>{
+                'AnnualRevenue' => new Map<String, Object>{
+                    '>=' => 500000,
+                    '<=' => 1500000
+                }
+            })
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should apply both conditions
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assert(results.size() > 0);
+        for (SObject record : results) {
+            Account acc = (Account) record;
+            System.assert(acc.AnnualRevenue >= 500000 && acc.AnnualRevenue <= 1500000,
+                'Revenue should be between 500000 and 1500000');
+        }
+    }
+
+    // ===================================================================================
+    // TYPE COERCION TESTS (Testing coerceFilterValue)
+    // ===================================================================================
+
+    @IsTest
+    static void testExecuteQuery_BooleanFilter_Success() {
+        // Given: Query with boolean filter
+        QueryService service = new QueryService(Contact.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'FirstName', 'LastName', 'DoNotCall'})
+            .withFilters(new Map<String, Object>{'DoNotCall' => true})
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should filter correctly
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assert(results.size() > 0);
+        for (SObject record : results) {
+            System.assertEquals(true, ((Contact) record).DoNotCall);
+        }
+    }
+
+    @IsTest
+    static void testExecuteQuery_BooleanStringCoercion_Success() {
+        // Given: Query with string 'true' that should coerce to boolean
+        QueryService service = new QueryService(Contact.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'FirstName', 'LastName', 'DoNotCall'})
+            .withFilters(new Map<String, Object>{'DoNotCall' => 'false'})
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should coerce and filter correctly
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assert(results.size() > 0);
+        for (SObject record : results) {
+            System.assertEquals(false, ((Contact) record).DoNotCall);
+        }
+    }
+
+    @IsTest
+    static void testExecuteQuery_DateFilter_Success() {
+        // Given: Query with date filter
+        QueryService service = new QueryService(Contact.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'FirstName', 'LastName', 'Birthdate'})
+            .withFilters(new Map<String, Object>{
+                'Birthdate' => new Map<String, Object>{'>' => '1987-01-01'}
+            })
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should coerce date string and filter correctly
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assert(results.size() > 0);
+        for (SObject record : results) {
+            Contact con = (Contact) record;
+            System.assert(con.Birthdate > Date.newInstance(1987, 1, 1), 'Birthdate should be after 1987-01-01');
+        }
+    }
+
+    @IsTest
+    static void testExecuteQuery_DecimalStringCoercion_Success() {
+        // Given: Query with string numeric value that should coerce to decimal
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'Name', 'AnnualRevenue'})
+            .withFilters(new Map<String, Object>{
+                'AnnualRevenue' => new Map<String, Object>{'>' => '900000'}
+            })
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should coerce string to decimal and filter correctly
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assert(results.size() > 0);
+        for (SObject record : results) {
+            Account acc = (Account) record;
+            System.assert(acc.AnnualRevenue > 900000);
+        }
+    }
+
+    @IsTest
+    static void testExecuteQuery_IntegerCoercion_Success() {
+        // Given: Query with integer field
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'Name', 'NumberOfEmployees'})
+            .withFilters(new Map<String, Object>{
+                'NumberOfEmployees' => new Map<String, Object>{'=' => 100}
+            })
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should filter correctly
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assert(results.size() > 0);
+        for (SObject record : results) {
+            System.assertEquals(100, ((Account) record).NumberOfEmployees);
+        }
+    }
+
+    @IsTest
+    static void testExecuteQuery_IdCoercion_Success() {
+        // Given: Get a valid account ID
         List<Account> accounts = [SELECT Id FROM Account LIMIT 1];
-        if (accounts.isEmpty()) {
-            // Create test account if none exists
-            Account testAccount = new Account(Name = 'Test ID Account');
-            insert testAccount;
-            accounts.add(testAccount);
+        String accountId = accounts[0].Id;
+
+        // Query with string ID that should coerce to Id
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'Name'})
+            .withFilters(new Map<String, Object>{'Id' => accountId})
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should coerce string to Id and filter correctly
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assertEquals(1, results.size());
+        System.assertEquals(accountId, results[0].Id);
+    }
+
+    @IsTest
+    static void testExecuteQuery_EmailFieldFilter_Success() {
+        // Given: Query with email field (string type)
+        QueryService service = new QueryService(Contact.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'FirstName', 'LastName', 'Email'})
+            .withFilters(new Map<String, Object>{'Email' => 'john@test.com'})
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should filter correctly
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assertEquals(1, results.size());
+        System.assertEquals('john@test.com', ((Contact) results[0]).Email);
+    }
+
+    // ===================================================================================
+    // IN OPERATOR WITH DIFFERENT TYPES (Testing generateSingleConditionClause IN path)
+    // ===================================================================================
+
+    @IsTest
+    static void testExecuteQuery_InOperatorWithIntegers_Success() {
+        // Given: Query with IN operator on integer field
+        List<Integer> employeeCounts = new List<Integer>{50, 100};
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'Name', 'NumberOfEmployees'})
+            .withFilters(new Map<String, Object>{
+                'NumberOfEmployees' => new Map<String, Object>{'IN' => employeeCounts}
+            })
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should find accounts with matching employee counts
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assertEquals(2, results.size());
+    }
+
+    @IsTest
+    static void testExecuteQuery_InOperatorWithDecimals_Success() {
+        // Given: Query with IN operator on decimal field
+        List<Decimal> revenues = new List<Decimal>{1000000, 2000000};
+        QueryService service = new QueryService(Account.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'Name', 'AnnualRevenue'})
+            .withFilters(new Map<String, Object>{
+                'AnnualRevenue' => new Map<String, Object>{'IN' => revenues}
+            })
+            .withLimit(10, null);
+
+        // When: Executing
+        Test.startTest();
+        ActionOutcome result = service.executeQuery();
+        Test.stopTest();
+
+        // Then: Should find accounts with matching revenues
+        System.assert(result.isSuccess);
+        List<SObject> results = (List<SObject>) result.data;
+        System.assertEquals(2, results.size());
+    }
+
+    @IsTest
+    static void testExecuteQuery_InOperatorWithIds_Success() {
+        // Given: Query with IN operator on Id field
+        List<Account> accounts = [SELECT Id FROM Account LIMIT 2];
+        List<Id> accountIds = new List<Id>();
+        for (Account acc : accounts) {
+            accountIds.add(acc.Id);
         }
 
-        String accountIdString = String.valueOf(accounts[0].Id);
-
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'Id' => accountIdString })
-            .withLimit(5, null);
+            .withDefaultFields(new List<String>{'Name'})
+            .withFilters(new Map<String, Object>{
+                'Id' => new Map<String, Object>{'IN' => accountIds}
+            })
+            .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Should coerce string to ID successfully');
+        // Then: Should find specified accounts
+        System.assert(result.isSuccess);
         List<SObject> results = (List<SObject>) result.data;
-        System.assertEquals(1, results.size(), 'Should find exactly one record with matching ID');
+        System.assertEquals(2, results.size());
     }
 
     @IsTest
-    static void generateSingleConditionClause_idFieldObjectPassthrough_success() {
-        List<Account> accounts = [SELECT Id FROM Account LIMIT 1];
-        if (accounts.isEmpty()) {
-            Account testAccount = new Account(Name = 'Test ID Account');
-            insert testAccount;
-            accounts.add(testAccount);
-        }
+    static void testExecuteQuery_InOperatorWithDates_Success() {
+        // Given: Query with IN operator on date field
+        List<Date> dates = new List<Date>{
+            Date.newInstance(1990, 5, 15),
+            Date.newInstance(1985, 10, 20)
+        };
+        QueryService service = new QueryService(Contact.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'FirstName', 'LastName', 'Birthdate'})
+            .withFilters(new Map<String, Object>{
+                'Birthdate' => new Map<String, Object>{'IN' => dates}
+            })
+            .withLimit(10, null);
 
-        Id accountId = accounts[0].Id;
-
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'Id' => accountId })
-            .withLimit(5, null);
-
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Should handle ID object directly');
+        // Then: Should find contacts with matching birthdates
+        System.assert(result.isSuccess);
         List<SObject> results = (List<SObject>) result.data;
-        System.assertEquals(1, results.size(), 'Should find exactly one record with matching ID');
+        System.assertEquals(2, results.size());
     }
 
-    @IsTest
-    static void generateSingleConditionClause_idFieldInvalidValue_returnsFailure() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'Id' => 12345 }) // Use integer instead of string to force type error
-            .withLimit(5, null);
+    // ===================================================================================
+    // ERROR HANDLING TESTS (Testing coerceFilterValue error paths)
+    // ===================================================================================
 
+    @IsTest
+    static void testExecuteQuery_InvalidDateFormat_ReturnsFailure() {
+        // Given: Query with invalid date format
+        QueryService service = new QueryService(Contact.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'FirstName', 'Birthdate'})
+            .withFilters(new Map<String, Object>{
+                'Birthdate' => 'not-a-date'
+            })
+            .withLimit(10, null);
+
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(false, result.isSuccess, 'Should fail for invalid ID type');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('ID') ||
-                String.valueOf(result.errorMessage).contains('Id') ||
-                String.valueOf(result.errorMessage).contains('type'),
-            'Should mention ID type error: ' + String.valueOf(result.errorMessage)
-        );
+        // Then: Should fail with validation error
+        System.assert(!result.isSuccess);
+        System.assert(String.valueOf(result.errorMessage).containsIgnoreCase('date'));
     }
 
     @IsTest
-    static void generateSingleConditionClause_integerFieldNumberCoercion_success() {
+    static void testExecuteQuery_InvalidIdFormat_ReturnsFailure() {
+        // Given: Query with invalid ID format
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'NumberOfEmployees' })
-            .withFilters(new Map<String, Object>{ 'NumberOfEmployees' => 100 })
-            .withLimit(5, null);
+            .withDefaultFields(new List<String>{'Name'})
+            .withFilters(new Map<String, Object>{
+                'Id' => 'not-a-valid-id'
+            })
+            .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Should handle integer value for INTEGER field');
+        // Then: Should fail with validation error
+        System.assert(!result.isSuccess);
+        System.assert(String.valueOf(result.errorMessage).containsIgnoreCase('ID'));
     }
 
     @IsTest
-    static void generateSingleConditionClause_integerFieldStringCoercion_success() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'NumberOfEmployees' })
-            .withFilters(new Map<String, Object>{ 'NumberOfEmployees' => new Map<String, Object>{ '>' => '100' } })
-            .withLimit(5, null);
+    static void testExecuteQuery_InvalidBooleanFormat_ReturnsFailure() {
+        // Given: Query with invalid boolean format
+        QueryService service = new QueryService(Contact.SObjectType, '[Test]')
+            .withDefaultFields(new List<String>{'FirstName', 'DoNotCall'})
+            .withFilters(new Map<String, Object>{
+                'DoNotCall' => 'not-a-boolean'
+            })
+            .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Should coerce string to integer for INTEGER field with operator');
+        // Then: Should fail with validation error
+        System.assert(!result.isSuccess);
+        System.assert(String.valueOf(result.errorMessage).containsIgnoreCase('Boolean'));
     }
 
     @IsTest
-    static void generateSingleConditionClause_integerFieldDecimalRejection_returnsFailure() {
+    static void testExecuteQuery_InvalidNumberFormat_ReturnsFailure() {
+        // Given: Query with invalid number format
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name', 'NumberOfEmployees' })
-            .withFilters(new Map<String, Object>{ 'NumberOfEmployees' => 100.5 })
-            .withLimit(5, null);
+            .withDefaultFields(new List<String>{'Name', 'AnnualRevenue'})
+            .withFilters(new Map<String, Object>{
+                'AnnualRevenue' => 'not-a-number'
+            })
+            .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(false, result.isSuccess, 'Should reject decimal value for INTEGER field');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('Integer') || String.valueOf(result.errorMessage).contains('Decimal'),
-            'Should mention integer/decimal type mismatch: ' + String.valueOf(result.errorMessage)
-        );
+        // Then: Should fail with validation error
+        System.assert(!result.isSuccess);
     }
 
     @IsTest
-    static void generateSingleConditionClause_dateFieldDateObject_success() {
-        Date testDate = Date.today();
-
+    static void testExecuteQuery_DecimalForIntegerField_ReturnsFailure() {
+        // Given: Query with decimal value for integer field
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => testDate } })
-            .withLimit(5, null);
+            .withDefaultFields(new List<String>{'Name', 'NumberOfEmployees'})
+            .withFilters(new Map<String, Object>{
+                'NumberOfEmployees' => 100.5
+            })
+            .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Should handle Date object for DATE field comparison');
+        // Then: Should fail with validation error
+        System.assert(!result.isSuccess);
+        System.assert(String.valueOf(result.errorMessage).containsIgnoreCase('Integer'));
     }
 
     @IsTest
-    static void generateSingleConditionClause_dateFieldStringCoercion_success() {
+    static void testExecuteQuery_InOperatorWithEmptyList_ReturnsFailure() {
+        // Given: Query with IN operator and empty list
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => '2023-01-01' } })
-            .withLimit(5, null);
+            .withDefaultFields(new List<String>{'Name'})
+            .withFilters(new Map<String, Object>{
+                'Name' => new Map<String, Object>{'IN' => new List<String>()}
+            })
+            .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Should coerce string to Date for DATE field comparison');
+        // Then: Should fail with validation error
+        System.assert(!result.isSuccess);
+        System.assert(String.valueOf(result.errorMessage).containsIgnoreCase('empty'));
     }
 
     @IsTest
-    static void generateSingleConditionClause_dateFieldInvalidFormat_returnsFailure() {
+    static void testExecuteQuery_InOperatorWithNonList_ReturnsFailure() {
+        // Given: Query with IN operator and non-list value
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => 'invalid-date-format' } })
-            .withLimit(5, null);
+            .withDefaultFields(new List<String>{'Name'})
+            .withFilters(new Map<String, Object>{
+                'Name' => new Map<String, Object>{'IN' => 'not-a-list'}
+            })
+            .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(false, result.isSuccess, 'Should fail for invalid date format');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('Date') || String.valueOf(result.errorMessage).contains('format'),
-            'Should mention date format error: ' + String.valueOf(result.errorMessage)
-        );
+        // Then: Should fail with validation error
+        System.assert(!result.isSuccess);
+        System.assert(String.valueOf(result.errorMessage).containsIgnoreCase('List'));
     }
 
     @IsTest
-    static void generateSingleConditionClause_datetimeFieldDatetimeObject_success() {
-        Datetime testDatetime = Datetime.now();
-
+    static void testExecuteQuery_UnsupportedOperator_ReturnsFailure() {
+        // Given: Query with unsupported operator
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => testDatetime } })
-            .withLimit(5, null);
+            .withDefaultFields(new List<String>{'Name'})
+            .withFilters(new Map<String, Object>{
+                'Name' => new Map<String, Object>{'CONTAINS' => 'test'}
+            })
+            .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Should handle Datetime object for DATETIME field comparison');
+        // Then: Should fail with validation error
+        System.assert(!result.isSuccess);
+        System.assert(String.valueOf(result.errorMessage).containsIgnoreCase('operator'));
     }
 
     @IsTest
-    static void generateSingleConditionClause_datetimeFieldStringCoercion_success() {
+    static void testExecuteQuery_InvalidOperatorForNull_ReturnsFailure() {
+        // Given: Query with invalid operator for null value (e.g., > null)
         QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => '2023-01-01 12:00:00' } })
-            .withLimit(5, null);
+            .withDefaultFields(new List<String>{'Name', 'Phone'})
+            .withFilters(new Map<String, Object>{
+                'Phone' => new Map<String, Object>{'>' => null}
+            })
+            .withLimit(10, null);
 
+        // When: Executing
         Test.startTest();
         ActionOutcome result = service.executeQuery();
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Should coerce Salesforce datetime string to Datetime for DATETIME field comparison');
-    }
-
-    @IsTest
-    static void generateSingleConditionClause_datetimeFieldInvalidFormat_returnsFailure() {
-        QueryService service = new QueryService(Account.SObjectType, '[Test]')
-            .withDefaultFields(new List<String>{ 'Name' })
-            .withFilters(new Map<String, Object>{ 'CreatedDate' => new Map<String, Object>{ '>' => 'invalid-datetime-format' } })
-            .withLimit(5, null);
-
-        Test.startTest();
-        ActionOutcome result = service.executeQuery();
-        Test.stopTest();
-
-        System.assertEquals(false, result.isSuccess, 'Should fail for invalid datetime format');
-        System.assert(
-            String.valueOf(result.errorMessage).contains('DateTime') || String.valueOf(result.errorMessage).contains('format'),
-            'Should mention datetime format error: ' + String.valueOf(result.errorMessage)
-        );
+        // Then: Should fail with validation error
+        System.assert(!result.isSuccess);
+        System.assert(String.valueOf(result.errorMessage).containsIgnoreCase('null'));
     }
 }

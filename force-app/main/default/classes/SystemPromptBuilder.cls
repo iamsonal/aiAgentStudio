@@ -10,12 +10,16 @@
  * @description
  * SystemPromptBuilder is a centralized service for composing comprehensive system prompts sent to LLMs.
  * It assembles prompts from agent configuration fields, dynamic context data, and temporal information.
- * The builder integrates sophisticated context management via ContextManagerService, providing
- * intelligent prioritization, truncation, and structured context organization optimized for LLM consumption.
+ * The builder integrates sophisticated context management via ContextResolverService and ContextManagerService:
+ * - ContextResolverService orchestrates gathering full SObject data from IAgentContextProvider implementations in a bulk-safe manner
+ * - ContextManagerService (the "Ledger") tracks which records are relevant and provides intelligent prioritization
+ * Together, these services provide complete context coverage with structured organization optimized for LLM consumption.
  *
  * Responsibilities:
  *   - Compose system prompts from static, dynamic, and temporal sources
- *   - Integrate conversation summaries and structured context ledger data via ContextManagerService
+ *   - Orchestrate context resolution via ContextResolverService to fetch actual record data from providers
+ *   - Format resolved SObject data using IContextFormatter implementations
+ *   - Integrate conversation summaries and structured context ledger overview via ContextManagerService
  *   - Provide intelligent context prioritization and truncation within token limits
  *   - Support hierarchical context organization (primary, recent, related, background)
  *   - Offer context summaries and highlighting for diagnostics and UI
@@ -23,6 +27,7 @@
  */
 public inherited sharing class SystemPromptBuilder {
     private final ContextManagerService contextManager;
+    private final ContextResolverService contextResolver;
 
     // --- CONSTANTS ---
     private static final Integer MAX_CONTEXT_CHARS = 8000; // Leave room for other prompt content
@@ -37,17 +42,18 @@ public inherited sharing class SystemPromptBuilder {
     private final AgentDecisionStepLogger decisionLogger;
 
     public SystemPromptBuilder() {
-        this(new ContextManagerService(), null);
+        this(new ContextManagerService(), new ContextResolverService(), null);
     }
 
     // Constructor that accepts a decision logger
     public SystemPromptBuilder(AgentDecisionStepLogger decisionLogger) {
-        this(new ContextManagerService(), decisionLogger);
+        this(new ContextManagerService(), new ContextResolverService(), decisionLogger);
     }
 
     @TestVisible
-    private SystemPromptBuilder(ContextManagerService contextService, AgentDecisionStepLogger decisionLogger) {
+    private SystemPromptBuilder(ContextManagerService contextService, ContextResolverService contextResolverSvc, AgentDecisionStepLogger decisionLogger) {
         this.contextManager = contextService;
+        this.contextResolver = contextResolverSvc;
         this.decisionLogger = decisionLogger;
     }
 
@@ -158,8 +164,8 @@ public inherited sharing class SystemPromptBuilder {
     }
 
     /**
-     * Builds enhanced context data using ContextManagerService for sophisticated context management.
-     * Integrates conversation summaries and structured context ledger for optimal prompt composition.
+     * Builds enhanced context data using ContextResolverService and ContextManagerService for sophisticated context management.
+     * Integrates conversation summaries, full SObject data from context providers, and structured context ledger for optimal prompt composition.
      *
      * @param executionId           The execution ID for context resolution.
      * @param agentConfig           Agent configuration containing context settings.
@@ -186,10 +192,46 @@ public inherited sharing class SystemPromptBuilder {
             contextBlocks.add('<CONVERSATION_SUMMARY>\n' + summary.escapeHtml4() + '\n</CONVERSATION_SUMMARY>');
         }
 
-        // Build structured context prompt using ContextManagerService
+        // RESTORED INTEGRATION: Use ContextResolverService to gather actual SObject data from context providers
+        // This orchestrates the retrieval of full record data based on the context ledger (IDs tracked by ContextManagerService)
+        try {
+            ContextResolverService.ResolutionResult resolvedContext = this.contextResolver.resolve(
+                executionId,
+                agentConfig.Id,
+                conversationalUserId,
+                currentPageRecordId,
+                currentTurn
+            );
+
+            // Format the resolved SObject records using the configured formatting strategy
+            if (resolvedContext != null && !resolvedContext.recordsToLoad.isEmpty()) {
+                String formatStrategy = String.isNotBlank(agentConfig.ContextFormatStrategy__c)
+                    ? agentConfig.ContextFormatStrategy__c
+                    : 'Structured Text';
+
+                IContextFormatter formatter = ContextFormatterFactory.createFormatter(formatStrategy);
+                String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix);
+
+                if (String.isNotBlank(formattedRecords)) {
+                    contextBlocks.add('<RESOLVED_CONTEXT_DATA>\n' + formattedRecords + '\n</RESOLVED_CONTEXT_DATA>');
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Added ' + resolvedContext.recordsToLoad.size() + ' resolved records to context.');
+                }
+            }
+
+            // Include long-term context summary if available
+            if (String.isNotBlank(resolvedContext.longTermContextSummary)) {
+                contextBlocks.add('<LONG_TERM_CONTEXT>\n' + resolvedContext.longTermContextSummary + '\n</LONG_TERM_CONTEXT>');
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to resolve context via ContextResolverService: ' + e.getMessage());
+            // Continue building prompt without resolved context data
+        }
+
+        // Build structured context ledger overview using ContextManagerService
+        // This provides a high-level map of what's in context, complementing the detailed record data above
         String structuredContextPrompt = buildStructuredContextPrompt(executionId, currentTurn, false);
         if (String.isNotBlank(structuredContextPrompt)) {
-            contextBlocks.add(structuredContextPrompt);
+            contextBlocks.add('<CONTEXT_LEDGER_OVERVIEW>\n' + structuredContextPrompt + '\n</CONTEXT_LEDGER_OVERVIEW>');
         }
 
         return String.join(contextBlocks, '\n\n');
@@ -420,71 +462,5 @@ public inherited sharing class SystemPromptBuilder {
             truncated = truncated.substring(0, lastNewline);
         }
         return truncated + '\n*[Context truncated...]*';
-    }
-
-    // --- PUBLIC UTILITY METHODS ---
-
-    /**
-     * Produces a concise, high-level summary of the current context ledger for diagnostics and quick reference.
-     * The summary includes the primary context (if present) and a count of each context type.
-     *
-     * @param sessionId   The chat session identifier.
-     * @param currentTurn The current conversation turn.
-     * @return            A brief summary string with key context statistics, or a message if no context is available.
-     */
-    public String buildContextSummary(Id sessionId, Integer currentTurn) {
-        List<ContextManagerService.ContextItem> items = this.contextManager.getContextLedger(sessionId, currentTurn);
-
-        if (items.isEmpty()) {
-            return 'No context available.';
-        }
-
-        Map<String, Integer> typeCounts = new Map<String, Integer>();
-        ContextManagerService.ContextItem primaryItem = null;
-
-        for (ContextManagerService.ContextItem item : items) {
-            String typeKey = item.type;
-            typeCounts.put(typeKey, typeCounts.containsKey(typeKey) ? typeCounts.get(typeKey) + 1 : 1);
-
-            if (item.contextType == ContextManagerService.ContextType.IMPLICIT_PRIMARY) {
-                primaryItem = item;
-            }
-        }
-
-        List<String> summaryParts = new List<String>();
-
-        if (primaryItem != null) {
-            summaryParts.add('Primary: ' + primaryItem.type + ' (' + primaryItem.id + ')');
-        }
-
-        List<String> typeStrings = new List<String>();
-        for (String type : typeCounts.keySet()) {
-            typeStrings.add(typeCounts.get(type) + ' ' + type + (typeCounts.get(type) > 1 ? 's' : ''));
-        }
-
-        summaryParts.add('Context: ' + String.join(typeStrings, ', '));
-
-        return String.join(summaryParts, ' | ');
-    }
-
-    /**
-     * Returns a list of high-priority context items for UI highlighting.
-     * This includes the current primary context, agent-created records, and pinned items, filtered by a high relevance threshold.
-     *
-     * @param sessionId   The chat session identifier.
-     * @param currentTurn The current conversation turn.
-     * @return            List of ContextItem objects deemed most relevant for user attention.
-     */
-    public List<ContextManagerService.ContextItem> getHighlightedContext(Id sessionId, Integer currentTurn) {
-        return this.contextManager.getFilteredContext(
-            sessionId,
-            currentTurn,
-            new Set<ContextManagerService.ContextType>{
-                ContextManagerService.ContextType.IMPLICIT_PRIMARY,
-                ContextManagerService.ContextType.ACTION_GENERATED,
-                ContextManagerService.ContextType.PINNED
-            },
-            100.0 // High relevance threshold
-        );
     }
 }

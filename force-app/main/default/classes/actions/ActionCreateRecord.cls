@@ -52,6 +52,14 @@ public class ActionCreateRecord extends BaseAgentAction {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'No field data provided for record creation');
         }
 
+        // Validate RecordType if specified
+        if (finalData.containsKey('RecordTypeId') && finalData.get('RecordTypeId') != null) {
+            ActionOutcome rtValidation = validateRecordTypeAccess(finalData.get('RecordTypeId'));
+            if (!rtValidation.isSuccess) {
+                return rtValidation;
+            }
+        }
+
         // Explicitly check object-level create permission
         try {
             SecurityUtils.checkObjectPermission(this.targetSObjectType, AccessType.CREATABLE);
@@ -183,6 +191,94 @@ public class ActionCreateRecord extends BaseAgentAction {
         }
 
         return enhanced;
+    }
+
+    /**
+     * @description
+     * Validates that the specified RecordType exists for this object and that the user has access to create records with it.
+     *
+     * @param recordTypeIdObj Object - The RecordTypeId value (could be String or Id).
+     * @return ActionOutcome - Success if RecordType is valid and accessible, failure otherwise.
+     */
+    private ActionOutcome validateRecordTypeAccess(Object recordTypeIdObj) {
+        Id recordTypeId;
+
+        // Convert to Id if needed
+        try {
+            if (recordTypeIdObj instanceof Id) {
+                recordTypeId = (Id) recordTypeIdObj;
+            } else if (recordTypeIdObj instanceof String) {
+                recordTypeId = Id.valueOf((String) recordTypeIdObj);
+            } else {
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                    'RecordTypeId must be a valid Salesforce ID'
+                );
+            }
+        } catch (Exception e) {
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'Invalid RecordTypeId format: ' + recordTypeIdObj
+            );
+        }
+
+        // Validate the RecordType ID is for a RecordType object
+        String sObjectTypeName = recordTypeId.getSObjectType().getDescribe().getName();
+        if (sObjectTypeName != 'RecordType') {
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'The provided ID is not a RecordType ID: ' + recordTypeId
+            );
+        }
+
+        // Query the RecordType to validate it exists and belongs to this object
+        try {
+            List<RecordType> recordTypes = [
+                SELECT Id, DeveloperName, Name, IsActive
+                FROM RecordType
+                WHERE Id = :recordTypeId
+                AND SObjectType = :this.objectApiName
+                WITH USER_MODE
+                LIMIT 1
+            ];
+
+            if (recordTypes.isEmpty()) {
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                    'RecordType ' + recordTypeId + ' does not exist or is not valid for object ' + this.objectApiName
+                );
+            }
+
+            RecordType rt = recordTypes[0];
+
+            if (!rt.IsActive) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    '[ActionCreateRecord] Attempting to use inactive RecordType: ' + rt.DeveloperName + ' (' + recordTypeId + ')'
+                );
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                    'RecordType "' + rt.Name + '" (' + rt.DeveloperName + ') is not active and cannot be used for record creation'
+                );
+            }
+
+            System.debug(
+                LoggingLevel.DEBUG,
+                '[ActionCreateRecord] RecordType validated: ' + rt.DeveloperName + ' (' + recordTypeId + ') for object ' + this.objectApiName
+            );
+
+            return ActionOutcome.success();
+        } catch (System.QueryException qe) {
+            // This could happen if user doesn't have access to RecordType object or the specific record
+            String errorMsg = 'Unable to access RecordType ' + recordTypeId + '. ';
+            if (qe.getMessage().containsIgnoreCase('insufficient access') || qe.getMessage().containsIgnoreCase('security')) {
+                errorMsg += 'User may lack permission to access this RecordType.';
+            } else {
+                errorMsg += qe.getMessage();
+            }
+            System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] RecordType validation failed: ' + errorMsg);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, errorMsg);
+        }
     }
 
     /**

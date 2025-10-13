@@ -143,7 +143,9 @@ public class ActionFindEntities extends BaseAgentAction {
 
         for (String sObjName : sObjectTypes) {
             SObjectType sObjToken = globalDescribe.get(sObjName);
-            if (sObjToken == null || !sObjToken.getDescribe().isQueryable()) {
+            if (sObjToken == null ||
+                !sObjToken.getDescribe().isQueryable() ||
+                !sObjToken.getDescribe().isAccessible()) {
                 System.debug(LoggingLevel.WARN, '[ActionFindEntities] Skipping inaccessible or invalid object: ' + sObjName);
                 continue;
             }

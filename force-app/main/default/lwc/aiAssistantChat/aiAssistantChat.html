@@ -147,7 +147,7 @@
                     </ul>
                 </div>
 
-                <!-- Footer: Input area and send button -->
+                <!-- Footer: Enhanced Input Container -->
                 <div class="slds-chat-input-container">
                     <template if:true={criticalError}>
                         <div class="slds-notify slds-notify_alert slds-theme_alert-texture slds-m-bottom_small" role="alert">
@@ -162,8 +162,9 @@
                         </div>
                     </template>
 
-                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-end">
-                        <div class="slds-grow">
+                    <!-- Unified Input Wrapper -->
+                    <div class="chat-input-wrapper">
+                        <div class="chat-input-field">
                             <lightning-textarea
                                 label="Type your message"
                                 variant="label-hidden"
@@ -177,19 +178,28 @@
                                 aria-describedby="input-help"
                             >
                             </lightning-textarea>
-                            <div id="input-help" class="slds-assistive-text">Press Enter to send, Shift+Enter for new line</div>
                         </div>
-                        <div class="slds-m-left_small slds-chat-send-button">
-                            <lightning-button
+
+                        <!-- Action Buttons Container -->
+                        <div class="chat-input-actions">
+
+                            <!-- Send Button -->
+                            <lightning-button-icon
                                 icon-name="utility:send"
                                 variant="brand"
-                                label="Send"
+                                alternative-text="Send message"
                                 title={sendButtonTitle}
                                 onclick={handleSendMessageClick}
                                 disabled={isInputDisabled}
-                                class="slds-chat-button"
+                                class="chat-action-button send-button"
+                                size="small"
                             >
-                            </lightning-button>
+                            </lightning-button-icon>
+                        </div>
+
+                        <!-- Hidden Help Text -->
+                        <div id="input-help" class="slds-assistive-text">
+                            Press Enter to send, Shift+Enter for new line.
                         </div>
                     </div>
                 </div>

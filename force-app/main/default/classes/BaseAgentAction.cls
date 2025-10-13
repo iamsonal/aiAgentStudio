@@ -111,8 +111,8 @@ public abstract class BaseAgentAction implements IAgentAction {
                 return securityOutcome;
             }
 
-            // Call the simplified action method
-            ActionOutcome actionOutcome = executeAction(processedParams);
+            // Call the simplified action method with retry logic for transient failures
+            ActionOutcome actionOutcome = executeWithRetry(processedParams, logPrefix);
 
             if (actionOutcome == null) {
                 throw new ActionHandlerNullException('Handler (' + getLogPrefixName() + ') returned null ActionOutcome.');
@@ -143,6 +143,207 @@ public abstract class BaseAgentAction implements IAgentAction {
      * @return       ActionOutcome object containing either success data or structured error information.
      */
     public abstract ActionOutcome executeAction(Map<String, Object> params);
+
+    // ============================================================================
+    // --- Retry Logic for Transient Failures ---
+    // ============================================================================
+
+    private static final Integer DEFAULT_MAX_RETRIES = 3;
+    private static final Integer RETRY_BASE_BACKOFF_MS = 100;
+
+    /**
+     * @description
+     * Executes the action with automatic retry logic for transient failures.
+     * Implements exponential backoff strategy to handle lock contention and temporary issues.
+     *
+     * @param processedParams Validated and typed parameters
+     * @param logPrefix       Logging prefix for debug output
+     * @return                ActionOutcome from successful execution or final failure
+     */
+    private ActionOutcome executeWithRetry(Map<String, Object> processedParams, String logPrefix) {
+        Integer maxRetries = DEFAULT_MAX_RETRIES;
+        Integer attempt = 1;
+        Exception lastException = null;
+
+        while (attempt <= maxRetries) {
+            try {
+                ActionOutcome outcome = executeAction(processedParams);
+
+                // If successful or non-retryable failure, return immediately
+                if (outcome.isSuccess || !isRetryableOutcome(outcome)) {
+                    if (attempt > 1) {
+                        System.debug(
+                            LoggingLevel.INFO,
+                            logPrefix + 'Action succeeded on retry attempt ' + attempt
+                        );
+                    }
+                    return outcome;
+                }
+
+                // Failure is retryable, check if we should retry
+                if (attempt < maxRetries) {
+                    Integer backoffMs = calculateBackoff(attempt);
+                    System.debug(
+                        LoggingLevel.WARN,
+                        logPrefix + 'Retryable failure on attempt ' + attempt + ': ' + outcome.errorMessage +
+                        '. Retrying in ' + backoffMs + 'ms...'
+                    );
+
+                    // Wait before retry
+                    waitMilliseconds(backoffMs);
+                    attempt++;
+                    continue;
+                } else {
+                    // Max retries reached
+                    System.debug(
+                        LoggingLevel.ERROR,
+                        logPrefix + 'Max retries (' + maxRetries + ') reached. Final failure: ' + outcome.errorMessage
+                    );
+                    return outcome;
+                }
+            } catch (Exception ex) {
+                lastException = ex;
+
+                // Check if exception is retryable
+                if (!isRetryableException(ex)) {
+                    // Non-retryable exception, throw immediately
+                    throw ex;
+                }
+
+                if (attempt < maxRetries) {
+                    Integer backoffMs = calculateBackoff(attempt);
+                    System.debug(
+                        LoggingLevel.WARN,
+                        logPrefix + 'Retryable exception on attempt ' + attempt + ': ' + ex.getMessage() +
+                        '. Retrying in ' + backoffMs + 'ms...'
+                    );
+
+                    waitMilliseconds(backoffMs);
+                    attempt++;
+                } else {
+                    // Max retries reached, throw the exception
+                    System.debug(
+                        LoggingLevel.ERROR,
+                        logPrefix + 'Max retries (' + maxRetries + ') reached. Throwing exception: ' + ex.getMessage()
+                    );
+                    throw ex;
+                }
+            }
+        }
+
+        // Should never reach here, but throw last exception if it happened
+        if (lastException != null) {
+            throw lastException;
+        }
+
+        return ActionOutcome.failure(
+            AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+            'Retry logic completed unexpectedly without outcome'
+        );
+    }
+
+    /**
+     * @description
+     * Determines if an exception is transient and should be retried.
+     *
+     * @param ex The exception to check
+     * @return   True if exception is retryable
+     */
+    private Boolean isRetryableException(Exception ex) {
+        // Lock contention is retryable
+        if (ex instanceof DmlException) {
+            DmlException dmlEx = (DmlException) ex;
+            if (dmlEx.getNumDml() > 0) {
+                String statusCodeStr = String.valueOf(dmlEx.getDmlStatusCode(0));
+                if (statusCodeStr == 'UNABLE_TO_LOCK_ROW') {
+                    return true;
+                }
+            }
+        }
+
+        // Some limit exceptions might be retryable (e.g., concurrent request limits)
+        if (ex instanceof System.LimitException) {
+            String message = ex.getMessage().toLowerCase();
+            // Retry concurrent request limits but not governor limits like CPU/heap
+            if (message.contains('concurrent') || message.contains('lock')) {
+                return true;
+            }
+        }
+
+        // Query exceptions for lock-related issues
+        if (ex instanceof System.QueryException) {
+            String message = ex.getMessage().toLowerCase();
+            if (message.contains('lock') || message.contains('unable to obtain')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @description
+     * Determines if an ActionOutcome represents a retryable failure.
+     *
+     * @param outcome The ActionOutcome to check
+     * @return        True if failure is retryable
+     */
+    private Boolean isRetryableOutcome(ActionOutcome outcome) {
+        if (outcome.isSuccess) {
+            return false;
+        }
+
+        // Check for retryable error codes
+        if (outcome.errorCode == AIAgentConstants.ERR_CODE_RECORD_LOCKED) {
+            return true;
+        }
+
+        // Check for lock-related messages
+        if (outcome.errorMessage != null) {
+            String message = outcome.errorMessage.toLowerCase();
+            if (message.contains('locked') ||
+                message.contains('unable to obtain') ||
+                message.contains('unable_to_lock_row')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @description
+     * Calculates exponential backoff delay for retry attempts.
+     *
+     * @param attempt The retry attempt number (1-based)
+     * @return        Delay in milliseconds
+     */
+    private Integer calculateBackoff(Integer attempt) {
+        // Exponential backoff: 100ms, 400ms, 1600ms
+        return (Integer) (RETRY_BASE_BACKOFF_MS * Math.pow(2, attempt));
+    }
+
+    /**
+     * @description
+     * Waits for the specified number of milliseconds.
+     * Uses CPU time checking as Apex doesn't support Thread.sleep().
+     *
+     * @param milliseconds Number of milliseconds to wait
+     */
+    private void waitMilliseconds(Integer milliseconds) {
+        Long startTime = System.currentTimeMillis();
+        Long endTime = startTime + milliseconds;
+
+        // Busy wait (Apex limitation - no sleep)
+        while (System.currentTimeMillis() < endTime) {
+            // Intentionally empty loop for waiting
+            // This consumes CPU but is necessary in Apex
+        }
+    }
+
+    // ============================================================================
+    // --- Parameter Processing ---
+    // ============================================================================
 
     /**
      * Schema-driven parameter processing using the JSON Schema from AgentCapability__c.Parameters__c.

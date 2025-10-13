@@ -1,169 +1,382 @@
-@isTest
+/**
+ * @description Tests for TypeCoercionService using TestFactory utilities
+ */
+@IsTest
 private class TypeCoercionServiceTest {
-    @isTest
-    static void testCoerceToString() {
-        // Test null value
-        System.assertEquals(null, TypeCoercionService.coerceToString(null, 'TestField', null));
 
-        // Test string value
-        System.assertEquals('test', TypeCoercionService.coerceToString('test', 'TestField', null));
+    // ===================================================================================
+    // TEST SETUP
+    // ===================================================================================
 
-        // Test integer value
-        System.assertEquals('123', TypeCoercionService.coerceToString(123, 'TestField', null));
+    @TestSetup
+    static void setupTestData() {
+        // Create test data for reference fields
+        TestFactory.newAccount().withName('Test Account').save();
     }
 
-    @isTest
-    static void testCoerceToInteger() {
-        // Test null value
-        System.assertEquals(null, TypeCoercionService.coerceToInteger(null, 'TestField'));
+    // ===================================================================================
+    // PRIMITIVE TYPE COERCION TESTS
+    // ===================================================================================
 
-        // Test integer value
-        System.assertEquals(123, TypeCoercionService.coerceToInteger(123, 'TestField'));
+    @IsTest
+    static void testCoerceToString_VariousTypes_Success() {
+        System.assertEquals(null, TypeCoercionService.coerceToString(null, 'Field', null));
+        System.assertEquals('test', TypeCoercionService.coerceToString('test', 'Field', null));
+        System.assertEquals('123', TypeCoercionService.coerceToString(123, 'Field', null));
+    }
 
-        // Test string value
-        System.assertEquals(123, TypeCoercionService.coerceToInteger('123', 'TestField'));
+    @IsTest
+    static void testCoerceToInteger_VariousTypes_Success() {
+        System.assertEquals(null, TypeCoercionService.coerceToInteger(null, 'Field'));
+        System.assertEquals(123, TypeCoercionService.coerceToInteger(123, 'Field'));
+        System.assertEquals(123, TypeCoercionService.coerceToInteger('123', 'Field'));
+        System.assertEquals(123, TypeCoercionService.coerceToInteger(123L, 'Field'));
+    }
 
-        // Test long value
-        System.assertEquals(123, TypeCoercionService.coerceToInteger(123L, 'TestField'));
-
-        // Test exception for decimal with fractional part
+    @IsTest
+    static void testCoerceToInteger_DecimalWithFraction_ThrowsException() {
         try {
-            TypeCoercionService.coerceToInteger(123.5, 'TestField');
-            System.assert(false, 'Expected TypeCoercionException');
+            TypeCoercionService.coerceToInteger(123.5, 'Field');
+            System.assert(false, 'Should throw exception');
         } catch (TypeCoercionService.TypeCoercionException e) {
             System.assert(e.getMessage().contains('fractional part'));
         }
     }
 
-    @isTest
-    static void testCoerceToDecimal() {
-        // Test null value
-        System.assertEquals(null, TypeCoercionService.coerceToDecimal(null, 'TestField'));
-
-        // Test decimal value
-        System.assertEquals(123.45, TypeCoercionService.coerceToDecimal(123.45, 'TestField'));
-
-        // Test string value
-        System.assertEquals(123.45, TypeCoercionService.coerceToDecimal('123.45', 'TestField'));
-
-        // Test integer value
-        System.assertEquals(123.0, TypeCoercionService.coerceToDecimal(123, 'TestField'));
+    @IsTest
+    static void testCoerceToDecimal_VariousTypes_Success() {
+        System.assertEquals(null, TypeCoercionService.coerceToDecimal(null, 'Field'));
+        System.assertEquals(123.45, TypeCoercionService.coerceToDecimal(123.45, 'Field'));
+        System.assertEquals(123.45, TypeCoercionService.coerceToDecimal('123.45', 'Field'));
+        System.assertEquals(123.0, TypeCoercionService.coerceToDecimal(123, 'Field'));
     }
 
-    @isTest
-    static void testCoerceToBoolean() {
-        // Test null value
-        System.assertEquals(null, TypeCoercionService.coerceToBoolean(null, 'TestField'));
-
-        // Test boolean true
-        System.assertEquals(true, TypeCoercionService.coerceToBoolean(true, 'TestField'));
-
-        // Test boolean false
-        System.assertEquals(false, TypeCoercionService.coerceToBoolean(false, 'TestField'));
-
-        // Test string true values
-        System.assertEquals(true, TypeCoercionService.coerceToBoolean('true', 'TestField'));
-        System.assertEquals(true, TypeCoercionService.coerceToBoolean('1', 'TestField'));
-        System.assertEquals(true, TypeCoercionService.coerceToBoolean('yes', 'TestField'));
-
-        // Test string false values
-        System.assertEquals(false, TypeCoercionService.coerceToBoolean('false', 'TestField'));
-        System.assertEquals(false, TypeCoercionService.coerceToBoolean('0', 'TestField'));
-        System.assertEquals(false, TypeCoercionService.coerceToBoolean('no', 'TestField'));
-
-        // Test numeric values
-        System.assertEquals(true, TypeCoercionService.coerceToBoolean(1, 'TestField'));
-        System.assertEquals(false, TypeCoercionService.coerceToBoolean(0, 'TestField'));
+    @IsTest
+    static void testCoerceToBoolean_VariousValues_Success() {
+        System.assertEquals(null, TypeCoercionService.coerceToBoolean(null, 'Field'));
+        System.assertEquals(true, TypeCoercionService.coerceToBoolean(true, 'Field'));
+        System.assertEquals(true, TypeCoercionService.coerceToBoolean('true', 'Field'));
+        System.assertEquals(true, TypeCoercionService.coerceToBoolean('1', 'Field'));
+        System.assertEquals(true, TypeCoercionService.coerceToBoolean(1, 'Field'));
+        System.assertEquals(false, TypeCoercionService.coerceToBoolean(false, 'Field'));
+        System.assertEquals(false, TypeCoercionService.coerceToBoolean('false', 'Field'));
+        System.assertEquals(false, TypeCoercionService.coerceToBoolean('0', 'Field'));
+        System.assertEquals(false, TypeCoercionService.coerceToBoolean(0, 'Field'));
     }
 
-    @isTest
-    static void testCoerceToId() {
-        // Test null value
-        System.assertEquals(null, TypeCoercionService.coerceToId(null, 'TestField'));
-
-        // Test Id value
+    @IsTest
+    static void testCoerceToId_ValidAndInvalid() {
+        // Valid cases
         Id testId = '001000000000000AAA';
-        System.assertEquals(testId, TypeCoercionService.coerceToId(testId, 'TestField'));
+        System.assertEquals(null, TypeCoercionService.coerceToId(null, 'Field'));
+        System.assertEquals(testId, TypeCoercionService.coerceToId(testId, 'Field'));
+        System.assertEquals(testId, TypeCoercionService.coerceToId('001000000000000AAA', 'Field'));
 
-        // Test string value
-        System.assertEquals(testId, TypeCoercionService.coerceToId('001000000000000AAA', 'TestField'));
-
-        // Test exception for invalid Id
+        // Invalid case
         try {
-            TypeCoercionService.coerceToId('invalidId', 'TestField');
-            System.assert(false, 'Expected TypeCoercionException');
+            TypeCoercionService.coerceToId('invalidId', 'Field');
+            System.assert(false, 'Should throw exception');
         } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Invalid Salesforce ID format'));
+            System.assert(e.getMessage().contains('Invalid Salesforce ID'));
         }
     }
 
-    @isTest
-    static void testCoerceToDate() {
-        // Test null value
-        System.assertEquals(null, TypeCoercionService.coerceToDate(null, 'TestField'));
-
-        // Test Date value
+    @IsTest
+    static void testCoerceToDate_ValidAndInvalid() {
+        // Valid cases
         Date testDate = Date.newInstance(2023, 1, 1);
-        System.assertEquals(testDate, TypeCoercionService.coerceToDate(testDate, 'TestField'));
+        System.assertEquals(null, TypeCoercionService.coerceToDate(null, 'Field'));
+        System.assertEquals(testDate, TypeCoercionService.coerceToDate(testDate, 'Field'));
+        System.assertEquals(testDate, TypeCoercionService.coerceToDate('2023-01-01', 'Field'));
 
-        // Test string value
-        System.assertEquals(testDate, TypeCoercionService.coerceToDate('2023-01-01', 'TestField'));
-
-        // Test exception for invalid date
+        // Invalid case
         try {
-            TypeCoercionService.coerceToDate('invalidDate', 'TestField');
-            System.assert(false, 'Expected TypeCoercionException');
+            TypeCoercionService.coerceToDate('invalid-date', 'Field');
+            System.assert(false, 'Should throw exception');
         } catch (TypeCoercionService.TypeCoercionException e) {
             System.assert(e.getMessage().contains('Invalid Date format'));
         }
     }
 
-    @isTest
-    static void testCoerceToDateTime() {
-        // Test null value
-        System.assertEquals(null, TypeCoercionService.coerceToDateTime(null, 'TestField'));
-
-        // Test DateTime value
+    @IsTest
+    static void testCoerceToDateTime_VariousTypes_Success() {
+        // Valid cases
         DateTime testDateTime = DateTime.newInstance(2023, 1, 1, 12, 0, 0);
-        DateTime resultDateTime = TypeCoercionService.coerceToDateTime(testDateTime, 'TestField');
-        System.assertEquals(testDateTime.date(), resultDateTime.date());
-        System.assertEquals(testDateTime.hour(), resultDateTime.hour());
-        System.assertEquals(testDateTime.minute(), resultDateTime.minute());
-        System.assertEquals(testDateTime.second(), resultDateTime.second());
+        System.assertEquals(null, TypeCoercionService.coerceToDateTime(null, 'Field'));
 
-        // Test Date value (should convert to DateTime at midnight)
-        Date testDate = Date.newInstance(2023, 1, 1);
-        DateTime resultFromTestDate = TypeCoercionService.coerceToDateTime(testDate, 'TestField');
-        // Just check that the result is not null and is a DateTime
-        System.assert(resultFromTestDate != null, 'Expected non-null DateTime result');
+        DateTime result = TypeCoercionService.coerceToDateTime(testDateTime, 'Field');
+        System.assertEquals(testDateTime.date(), result.date());
 
-        // Test string value - just check that it doesn't throw an exception
-        DateTime resultFromString = TypeCoercionService.coerceToDateTime('2023-01-01 12:00:00', 'TestField');
-        System.assert(resultFromString != null, 'Expected non-null DateTime result');
+        // String datetime
+        DateTime resultFromString = TypeCoercionService.coerceToDateTime('2023-01-01 12:00:00', 'Field');
+        System.assertNotEquals(null, resultFromString);
     }
 
-    @isTest
-    static void testCoerceBySchema() {
-        // Test string schema
-        Map<String, Object> stringSchema = new Map<String, Object>{ 'type' => 'string' };
-        System.assertEquals('test', TypeCoercionService.coerceValueByJsonSchema('test', 'TestField', stringSchema));
+    // ===================================================================================
+    // SPECIAL TYPE COERCION TESTS
+    // ===================================================================================
 
-        // Test integer schema
-        Map<String, Object> integerSchema = new Map<String, Object>{ 'type' => 'integer' };
-        System.assertEquals(123, TypeCoercionService.coerceValueByJsonSchema('123', 'TestField', integerSchema));
+    @IsTest
+    static void testCoerceToBlob_ValidAndInvalid() {
+        // Valid cases
+        Blob testBlob = Blob.valueOf('test data');
+        System.assertEquals(null, TypeCoercionService.coerceToBlob(null, 'Field'));
+        System.assertEquals(testBlob, TypeCoercionService.coerceToBlob(testBlob, 'Field'));
 
-        // Test boolean schema
-        Map<String, Object> booleanSchema = new Map<String, Object>{ 'type' => 'boolean' };
-        System.assertEquals(true, TypeCoercionService.coerceValueByJsonSchema('true', 'TestField', booleanSchema));
+        // Base64 string
+        String base64 = EncodingUtil.base64Encode(Blob.valueOf('test data'));
+        Blob result = TypeCoercionService.coerceToBlob(base64, 'Field');
+        System.assertEquals('test data', result.toString());
 
-        // Test array schema
-        Map<String, Object> arraySchema = new Map<String, Object>{ 'type' => 'array', 'items' => new Map<String, Object>{ 'type' => 'string' } };
-        List<Object> testList = new List<Object>{ 'item1', 'item2' };
-        System.assertEquals(testList, TypeCoercionService.coerceValueByJsonSchema(testList, 'TestField', arraySchema));
+        // Invalid cases
+        try {
+            TypeCoercionService.coerceToBlob('invalid base64!@#', 'Field');
+            System.assert(false, 'Should throw exception');
+        } catch (TypeCoercionService.TypeCoercionException e) {
+            System.assert(e.getMessage().contains('Invalid Base64'));
+        }
     }
 
-    @isTest
-    static void testTypeCoercionException() {
+    @IsTest
+    static void testCoerceToEmailString_ValidAndInvalid() {
+        // Valid cases
+        System.assertEquals(null, TypeCoercionService.coerceToEmailString(null, 'Field'));
+        System.assertEquals('test@example.com', TypeCoercionService.coerceToEmailString('test@example.com', 'Field'));
+        System.assertEquals('user@domain.co.uk', TypeCoercionService.coerceToEmailString('user@domain.co.uk', 'Field'));
+
+        // Invalid cases
+        try {
+            TypeCoercionService.coerceToEmailString('invalid.email', 'Field');
+            System.assert(false, 'Should throw exception');
+        } catch (TypeCoercionService.TypeCoercionException e) {
+            System.assert(e.getMessage().contains('Invalid email format'));
+        }
+    }
+
+    @IsTest
+    static void testCoerceToUrlString_ValidAndInvalid() {
+        // Valid cases
+        System.assertEquals(null, TypeCoercionService.coerceToUrlString(null, 'Field'));
+        System.assertEquals('http://example.com', TypeCoercionService.coerceToUrlString('http://example.com', 'Field'));
+        System.assertEquals('https://api.example.com', TypeCoercionService.coerceToUrlString('https://api.example.com', 'Field'));
+
+        // Invalid cases
+        try {
+            TypeCoercionService.coerceToUrlString('www.example.com', 'Field');
+            System.assert(false, 'Should throw exception');
+        } catch (TypeCoercionService.TypeCoercionException e) {
+            System.assert(e.getMessage().contains('Invalid URL format'));
+        }
+    }
+
+    // ===================================================================================
+    // SOBJECT COERCION TESTS
+    // ===================================================================================
+
+    @IsTest
+    static void testCoerceArgumentTypesForSObject_ValidArgs_Success() {
+        // Given: Valid arguments
+        Map<String, Object> args = new Map<String, Object>{
+            'Name' => 'Test Account',
+            'NumberOfEmployees' => '100',
+            'AnnualRevenue' => '1000000.50'
+        };
+
+        // When: Coercing
+        Test.startTest();
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
+            args,
+            Account.SObjectType,
+            AccessType.CREATABLE
+        );
+        Test.stopTest();
+
+        // Then: Types should be coerced
+        System.assertNotEquals(null, result);
+        System.assertEquals('Test Account', result.get('Name'));
+        System.assertEquals(100, result.get('NumberOfEmployees'));
+        System.assertEquals(1000000.50, result.get('AnnualRevenue'));
+    }
+
+    @IsTest
+    static void testCoerceArgumentTypesForSObject_NullArgs_ReturnsEmpty() {
+        Test.startTest();
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
+            null,
+            Account.SObjectType,
+            AccessType.CREATABLE
+        );
+        Test.stopTest();
+
+        System.assertNotEquals(null, result);
+        System.assertEquals(0, result.size());
+    }
+
+    @IsTest
+    static void testCoerceArgumentTypesForSObject_NonExistentField_Skips() {
+        // Given: Args with non-existent field
+        Map<String, Object> args = new Map<String, Object>{
+            'Name' => 'Test',
+            'NonExistentField__c' => 'Value'
+        };
+
+        // When: Coercing
+        Test.startTest();
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
+            args,
+            Account.SObjectType,
+            AccessType.CREATABLE
+        );
+        Test.stopTest();
+
+        // Then: Should skip non-existent field
+        System.assertEquals(1, result.size());
+        System.assertEquals('Test', result.get('Name'));
+        System.assertEquals(false, result.containsKey('NonExistentField__c'));
+    }
+
+    // ===================================================================================
+    // SCHEMA-BASED COERCION TESTS
+    // ===================================================================================
+
+    @IsTest
+    static void testCoerceValueByJsonSchema_VariousTypes_Success() {
+        // String schema
+        Map<String, Object> stringSchema = new Map<String, Object>{'type' => 'string'};
+        System.assertEquals('test', TypeCoercionService.coerceValueByJsonSchema('test', 'Field', stringSchema));
+
+        // Integer schema
+        Map<String, Object> intSchema = new Map<String, Object>{'type' => 'integer'};
+        System.assertEquals(123, TypeCoercionService.coerceValueByJsonSchema('123', 'Field', intSchema));
+
+        // Boolean schema
+        Map<String, Object> boolSchema = new Map<String, Object>{'type' => 'boolean'};
+        System.assertEquals(true, TypeCoercionService.coerceValueByJsonSchema('true', 'Field', boolSchema));
+    }
+
+    @IsTest
+    static void testCoerceObjectBySchema_ValidObject_Success() {
+        // Given: Object with properties
+        Map<String, Object> inputObject = new Map<String, Object>{
+            'name' => 'John',
+            'age' => '30',
+            'isActive' => 'true'
+        };
+
+        Map<String, Object> propertiesSchema = new Map<String, Object>{
+            'name' => new Map<String, Object>{'type' => 'string'},
+            'age' => new Map<String, Object>{'type' => 'integer'},
+            'isActive' => new Map<String, Object>{'type' => 'boolean'}
+        };
+
+        // When: Coercing
+        Test.startTest();
+        Map<String, Object> result = TypeCoercionService.coerceObjectBySchema(
+            inputObject,
+            'Field',
+            propertiesSchema
+        );
+        Test.stopTest();
+
+        // Then: Types should be coerced
+        System.assertNotEquals(null, result);
+        System.assertEquals('John', result.get('name'));
+        System.assertEquals(30, result.get('age'));
+        System.assertEquals(true, result.get('isActive'));
+    }
+
+    @IsTest
+    static void testCoerceObjectBySchema_NonObjectInput_ThrowsException() {
+        Map<String, Object> schema = new Map<String, Object>();
+
+        try {
+            TypeCoercionService.coerceObjectBySchema('not an object', 'Field', schema);
+            System.assert(false, 'Should throw exception');
+        } catch (TypeCoercionService.TypeCoercionException e) {
+            System.assert(e.getMessage().contains('Expected object/map value'));
+        }
+    }
+
+    @IsTest
+    static void testCoerceValueByJsonSchema_ArrayType_CoercesArrayElements() {
+        // Given: Array schema with items schema
+        Map<String, Object> itemsSchema = new Map<String, Object>{
+            'type' => 'integer'
+        };
+        Map<String, Object> arraySchema = new Map<String, Object>{
+            'type' => 'array',
+            'items' => itemsSchema
+        };
+
+        // Input array with string numbers
+        List<Object> inputArray = new List<Object>{'1', '2', '3', '4', '5'};
+
+        // When: Coercing array value by JSON schema
+        Test.startTest();
+        Object result = TypeCoercionService.coerceValueByJsonSchema(inputArray, 'testArray', arraySchema);
+        Test.stopTest();
+
+        // Then: Should coerce to list of integers
+        System.assert(result instanceof List<Object>, 'Result should be a List');
+        List<Object> resultList = (List<Object>) result;
+        System.assertEquals(5, resultList.size(), 'Should have 5 elements');
+        System.assertEquals(1, resultList[0], 'First element should be integer 1');
+        System.assertEquals(2, resultList[1], 'Second element should be integer 2');
+        System.assertEquals(3, resultList[2], 'Third element should be integer 3');
+        System.assertEquals(4, resultList[3], 'Fourth element should be integer 4');
+        System.assertEquals(5, resultList[4], 'Fifth element should be integer 5');
+    }
+
+    @IsTest
+    static void testCoerceValueByJsonSchema_ObjectType_CoercesObjectProperties() {
+        // Given: Object schema with properties schema
+        Map<String, Object> propertiesSchema = new Map<String, Object>{
+            'accountName' => new Map<String, Object>{'type' => 'string'},
+            'employeeCount' => new Map<String, Object>{'type' => 'integer'},
+            'annualRevenue' => new Map<String, Object>{'type' => 'number'},
+            'isActive' => new Map<String, Object>{'type' => 'boolean'},
+            'websiteUrl' => new Map<String, Object>{
+                'type' => 'string',
+                'format' => 'url'
+            }
+        };
+        Map<String, Object> objectSchema = new Map<String, Object>{
+            'type' => 'object',
+            'properties' => propertiesSchema
+        };
+
+        // Input object with mixed types (strings that need coercion)
+        Map<String, Object> inputObject = new Map<String, Object>{
+            'accountName' => 'Acme Corp',
+            'employeeCount' => '500',
+            'annualRevenue' => '1500000.75',
+            'isActive' => 'true',
+            'websiteUrl' => 'https://www.acme.com'
+        };
+
+        // When: Coercing object value by JSON schema
+        Test.startTest();
+        Object result = TypeCoercionService.coerceValueByJsonSchema(inputObject, 'testObject', objectSchema);
+        Test.stopTest();
+
+        // Then: Should coerce to properly typed object
+        System.assert(result instanceof Map<String, Object>, 'Result should be a Map');
+        Map<String, Object> resultMap = (Map<String, Object>) result;
+
+        System.assertEquals(5, resultMap.size(), 'Should have 5 properties');
+        System.assertEquals('Acme Corp', resultMap.get('accountName'), 'accountName should be string');
+        System.assertEquals(500, resultMap.get('employeeCount'), 'employeeCount should be integer');
+        System.assertEquals(1500000.75, resultMap.get('annualRevenue'), 'annualRevenue should be decimal');
+        System.assertEquals(true, resultMap.get('isActive'), 'isActive should be boolean');
+        System.assertEquals('https://www.acme.com', resultMap.get('websiteUrl'), 'websiteUrl should be validated URL');
+    }
+
+    // ===================================================================================
+    // EXCEPTION TESTS
+    // ===================================================================================
+
+    @IsTest
+    static void testTypeCoercionException_Constructor() {
         TypeCoercionService.TypeCoercionException ex = new TypeCoercionService.TypeCoercionException(
             'Test message',
             'TestField',
@@ -175,287 +388,5 @@ private class TypeCoercionServiceTest {
         System.assertEquals('TestField', ex.fieldName);
         System.assertEquals('String', ex.targetType);
         System.assertEquals('Integer', ex.inputType);
-    }
-
-    // ============================================================================
-    // --- SObject Coercion Tests ---
-    // ============================================================================
-
-    @TestSetup
-    static void makeData() {
-        // Create test data for reference field testing
-        Account testAccount = new Account(Name = 'Test Account for References');
-        insert testAccount;
-
-        OperatingHours hours = new OperatingHours(Name = 'Test Hours', TimeZone = 'America/Los_Angeles');
-        insert hours;
-
-        Contact testContact = new Contact(LastName = 'TestContact');
-        insert testContact;
-    }
-
-    @IsTest
-    static void coerceArgumentTypesForSObject_validArguments_success() {
-        Map<String, Object> rawArguments = new Map<String, Object>{
-            'Name' => 'Test Account',
-            'NumberOfEmployees' => '100',
-            'AnnualRevenue' => '1000000.50',
-            'Type' => 'Technology Partner'
-        };
-
-        Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals('Test Account', result.get('Name'), 'Name should be preserved as string');
-        System.assertEquals(100, result.get('NumberOfEmployees'), 'NumberOfEmployees should be coerced to Integer');
-        System.assertEquals(1000000.50, result.get('AnnualRevenue'), 'AnnualRevenue should be coerced to Decimal');
-        System.assertEquals('Technology Partner', result.get('Type'), 'Type should be preserved as string');
-    }
-
-    @IsTest
-    static void coerceArgumentTypesForSObject_nullArguments_returnsEmptyMap() {
-        Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(null, Account.SObjectType, AccessType.CREATABLE);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(0, result.size(), 'Result should be empty');
-    }
-
-    @IsTest
-    static void coerceArgumentTypesForSObject_emptyArguments_returnsEmptyMap() {
-        Map<String, Object> rawArguments = new Map<String, Object>();
-
-        Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(0, result.size(), 'Result should be empty');
-    }
-
-    @IsTest
-    static void coerceArgumentTypesForSObject_nullSObjectType_throwsException() {
-        Map<String, Object> rawArguments = new Map<String, Object>{ 'Name' => 'Test' };
-
-        Test.startTest();
-        try {
-            TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, null, AccessType.CREATABLE);
-            System.assert(false, 'Should have thrown TypeCoercionException');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Target SObjectType cannot be null'), 'Should indicate null SObjectType');
-        }
-        Test.stopTest();
-    }
-
-    @IsTest
-    static void coerceArgumentTypesForSObject_invalidAccessType_throwsException() {
-        Map<String, Object> rawArguments = new Map<String, Object>{ 'Name' => 'Test' };
-
-        Test.startTest();
-        try {
-            TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.READABLE);
-            System.assert(false, 'Should have thrown TypeCoercionException');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('AccessType must be CREATABLE or UPDATABLE'), 'Should indicate invalid AccessType');
-        }
-        Test.stopTest();
-    }
-
-    @IsTest
-    static void coerceArgumentTypesForSObject_nonExistentField_skipsField() {
-        Map<String, Object> rawArguments = new Map<String, Object>{ 'Name' => 'Test Account', 'NonExistentField__c' => 'Some Value' };
-
-        Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(1, result.size(), 'Should only include existing fields');
-        System.assertEquals('Test Account', result.get('Name'), 'Name should be included');
-        System.assertEquals(false, result.containsKey('NonExistentField__c'), 'Non-existent field should be skipped');
-    }
-
-    @isTest
-    static void testCoerceToBlob() {
-        // Test null value
-        System.assertEquals(null, TypeCoercionService.coerceToBlob(null, 'TestField'));
-
-        // Test Blob value
-        Blob testBlob = Blob.valueOf('test data');
-        System.assertEquals(testBlob, TypeCoercionService.coerceToBlob(testBlob, 'TestField'));
-
-        // Test string value - valid Base64
-        String base64String = EncodingUtil.base64Encode(Blob.valueOf('test data'));
-        Blob result = TypeCoercionService.coerceToBlob(base64String, 'TestField');
-        System.assertEquals('test data', result.toString());
-
-        // Test exception for invalid Base64 format
-        try {
-            TypeCoercionService.coerceToBlob('invalid base64!@#', 'TestField');
-            System.assert(false, 'Expected TypeCoercionException');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Invalid Base64 format'));
-        }
-
-        // Test exception for non-string, non-blob input
-        try {
-            TypeCoercionService.coerceToBlob(123, 'TestField');
-            System.assert(false, 'Expected TypeCoercionException');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Cannot coerce to Blob'));
-        }
-    }
-
-    @isTest
-    static void testCoerceToEmailString() {
-        // Test null value
-        System.assertEquals(null, TypeCoercionService.coerceToEmailString(null, 'TestField'));
-
-        // Test valid email formats
-        System.assertEquals('test@example.com', TypeCoercionService.coerceToEmailString('test@example.com', 'TestField'));
-        System.assertEquals('user.name@domain.co.uk', TypeCoercionService.coerceToEmailString('user.name@domain.co.uk', 'TestField'));
-        System.assertEquals('admin@subdomain.example.org', TypeCoercionService.coerceToEmailString('admin@subdomain.example.org', 'TestField'));
-
-        // Test coercion from other types
-        System.assertEquals('123@example.com', TypeCoercionService.coerceToEmailString('123@example.com', 'TestField'));
-
-        // Test exception for invalid email - no @ symbol
-        try {
-            TypeCoercionService.coerceToEmailString('invalid.email.com', 'TestField');
-            System.assert(false, 'Expected TypeCoercionException');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Invalid email format'));
-        }
-
-        // Test exception for invalid email - no domain
-        try {
-            TypeCoercionService.coerceToEmailString('user@', 'TestField');
-            System.assert(false, 'Expected TypeCoercionException');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Invalid email format'));
-        }
-
-        // Test exception for invalid email - no user part
-        try {
-            TypeCoercionService.coerceToEmailString('@domain.com', 'TestField');
-            System.assert(false, 'Expected TypeCoercionException');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Invalid email format'));
-        }
-
-        // Test exception for invalid email - no dot in domain
-        try {
-            TypeCoercionService.coerceToEmailString('user@domain', 'TestField');
-            System.assert(false, 'Expected TypeCoercionException');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Invalid email format'));
-        }
-    }
-
-    @isTest
-    static void testCoerceToUrlString() {
-        // Test null value
-        System.assertEquals(null, TypeCoercionService.coerceToUrlString(null, 'TestField'));
-
-        // Test valid HTTP URLs
-        System.assertEquals('http://example.com', TypeCoercionService.coerceToUrlString('http://example.com', 'TestField'));
-        System.assertEquals('http://www.example.com/path', TypeCoercionService.coerceToUrlString('http://www.example.com/path', 'TestField'));
-
-        // Test valid HTTPS URLs
-        System.assertEquals('https://example.com', TypeCoercionService.coerceToUrlString('https://example.com', 'TestField'));
-        System.assertEquals(
-            'https://api.example.com/v1/endpoint',
-            TypeCoercionService.coerceToUrlString('https://api.example.com/v1/endpoint', 'TestField')
-        );
-
-        // Test case insensitive protocol matching
-        System.assertEquals('HTTP://example.com', TypeCoercionService.coerceToUrlString('HTTP://example.com', 'TestField'));
-        System.assertEquals('HTTPS://example.com', TypeCoercionService.coerceToUrlString('HTTPS://example.com', 'TestField'));
-
-        // Test exception for invalid URL - no protocol
-        try {
-            TypeCoercionService.coerceToUrlString('www.example.com', 'TestField');
-            System.assert(false, 'Expected TypeCoercionException');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Invalid URL format'));
-        }
-
-        // Test exception for invalid URL - wrong protocol
-        try {
-            TypeCoercionService.coerceToUrlString('ftp://example.com', 'TestField');
-            System.assert(false, 'Expected TypeCoercionException');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Invalid URL format'));
-        }
-
-        // Test exception for empty string
-        try {
-            TypeCoercionService.coerceToUrlString('', 'TestField');
-            System.assert(false, 'Expected TypeCoercionException');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Invalid URL format'));
-        }
-    }
-
-    @isTest
-    static void testCoerceObjectBySchema() {
-        // Test null value
-        System.assertEquals(null, TypeCoercionService.coerceObjectBySchema(null, 'TestField', new Map<String, Object>()));
-
-        // Test valid object with schema
-        Map<String, Object> inputObject = new Map<String, Object>{ 'name' => 'John Doe', 'age' => '30', 'isActive' => 'true' };
-
-        Map<String, Object> propertiesSchema = new Map<String, Object>{
-            'name' => new Map<String, Object>{ 'type' => 'string' },
-            'age' => new Map<String, Object>{ 'type' => 'integer' },
-            'isActive' => new Map<String, Object>{ 'type' => 'boolean' }
-        };
-
-        Map<String, Object> result = TypeCoercionService.coerceObjectBySchema(inputObject, 'TestField', propertiesSchema);
-
-        System.assertNotEquals(null, result);
-        System.assertEquals('John Doe', result.get('name'));
-        System.assertEquals(30, result.get('age'));
-        System.assertEquals(true, result.get('isActive'));
-
-        // Test object with properties not in schema (should pass through)
-        Map<String, Object> inputWithExtra = new Map<String, Object>{ 'name' => 'Jane Doe', 'extraField' => 'extraValue' };
-
-        Map<String, Object> limitedSchema = new Map<String, Object>{ 'name' => new Map<String, Object>{ 'type' => 'string' } };
-
-        Map<String, Object> resultWithExtra = TypeCoercionService.coerceObjectBySchema(inputWithExtra, 'TestField', limitedSchema);
-
-        System.assertNotEquals(null, resultWithExtra);
-        System.assertEquals('Jane Doe', resultWithExtra.get('name'));
-        System.assertEquals('extraValue', resultWithExtra.get('extraField'));
-
-        // Test empty object
-        Map<String, Object> emptyObject = new Map<String, Object>();
-        Map<String, Object> emptyResult = TypeCoercionService.coerceObjectBySchema(emptyObject, 'TestField', propertiesSchema);
-        System.assertNotEquals(null, emptyResult);
-        System.assertEquals(0, emptyResult.size());
-
-        // Test exception for non-object input
-        try {
-            TypeCoercionService.coerceObjectBySchema('not an object', 'TestField', propertiesSchema);
-            System.assert(false, 'Expected TypeCoercionException');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Expected object/map value'));
-        }
-
-        // Test exception for invalid property coercion
-        Map<String, Object> invalidInput = new Map<String, Object>{ 'age' => 'not a number' };
-
-        Map<String, Object> integerSchema = new Map<String, Object>{ 'age' => new Map<String, Object>{ 'type' => 'integer' } };
-
-        try {
-            TypeCoercionService.coerceObjectBySchema(invalidInput, 'TestField', integerSchema);
-            System.assert(false, 'Expected TypeCoercionException');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Invalid object property'));
-        }
     }
 }

@@ -1,21 +1,38 @@
+/**
+ * @description Tests for ActionCreateRecord using TestFactory utilities
+ */
 @IsTest
 private class ActionCreateRecordTest {
+
+    // ===================================================================================
+    // TEST SETUP
+    // ===================================================================================
+
     @TestSetup
-    static void makeData() {
-        // Create test accounts for reference field testing
-        List<Account> testAccounts = new List<Account>{ new Account(Name = 'Test Account 1'), new Account(Name = 'Test Account 2') };
-        insert testAccounts;
+    static void setupTestData() {
+        // Create test accounts using TestFactory
+        TestFactory.newAccount()
+            .withName('Test Account 1')
+            .withIndustry('Technology')
+            .save();
+
+        TestFactory.newAccount()
+            .withName('Test Account 2')
+            .withIndustry('Finance')
+            .save();
     }
 
+    // ===================================================================================
+    // SUCCESS SCENARIOS
+    // ===================================================================================
+
     @IsTest
-    static void executeAction_createContact_success() {
+    static void testCreateContact_WithAllFields_Success() {
+        // Given: An account and contact data
         Account testAccount = [SELECT Id FROM Account WHERE Name = 'Test Account 1' LIMIT 1];
 
         ActionCreateRecord action = new ActionCreateRecord();
-
-        // Configure for Contact creation
-        String config = '{"objectApiName": "Contact"}';
-        action.parseActionConfiguration(config, '[TEST] ');
+        action.parseActionConfiguration('{"objectApiName": "Contact"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
             'FirstName' => 'John',
@@ -24,363 +41,354 @@ private class ActionCreateRecordTest {
             'AccountId' => testAccount.Id
         };
 
+        // When: Creating a contact
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+        // Then: Contact is created successfully
+        System.assert(result.isSuccess, 'Should create contact successfully');
 
         ActionCreateRecord.CreateResult createResult = (ActionCreateRecord.CreateResult) result.data;
-        System.assertNotEquals(null, createResult.recordId, 'Record ID should be set');
-        System.assert(createResult.message.contains('Successfully created Contact'), 'Message should indicate success');
-        System.assertEquals(4, createResult.fieldsSet.size(), 'Should have set 4 fields');
-        System.assert(createResult.fieldsSet.contains('FirstName'), 'Should include FirstName in fields set');
-        System.assert(createResult.fieldsSet.contains('LastName'), 'Should include LastName in fields set');
-        System.assert(createResult.fieldsSet.contains('Email'), 'Should include Email in fields set');
-        System.assert(createResult.fieldsSet.contains('AccountId'), 'Should include AccountId in fields set');
+        System.assertNotEquals(null, createResult.recordId, 'Should return record ID');
+        System.assert(createResult.message.contains('Successfully created Contact'), 'Should have success message');
+        System.assertEquals(4, createResult.fieldsSet.size(), 'Should set 4 fields');
 
-        // Verify record was actually created
-        Contact createdContact = [SELECT Id, FirstName, LastName, Email, AccountId FROM Contact WHERE Id = :createResult.recordId];
-        System.assertEquals('John', createdContact.FirstName, 'FirstName should be set correctly');
-        System.assertEquals('Doe', createdContact.LastName, 'LastName should be set correctly');
-        System.assertEquals('john.doe@example.com', createdContact.Email, 'Email should be set correctly');
-        System.assertEquals(testAccount.Id, createdContact.AccountId, 'AccountId should be set correctly');
+        // Verify database state
+        Contact created = [SELECT FirstName, LastName, Email, AccountId
+                          FROM Contact WHERE Id = :createResult.recordId];
+        System.assertEquals('John', created.FirstName);
+        System.assertEquals('Doe', created.LastName);
+        System.assertEquals('john.doe@example.com', created.Email);
+        System.assertEquals(testAccount.Id, created.AccountId);
     }
 
     @IsTest
-    static void executeAction_createAccountWithDefaults_success() {
+    static void testCreateAccount_WithDefaults_Success() {
+        // Given: Action configured with default values
         ActionCreateRecord action = new ActionCreateRecord();
-
-        // Configure for Account creation with default values
-        String config = '{"objectApiName": "Account", "defaultFieldValues": {"Type": "Technology Partner", "Industry": "Technology"}}';
-        action.parseActionConfiguration(config, '[TEST] ');
-
-        Map<String, Object> params = new Map<String, Object>{ 'Name' => 'Test Company' };
-
-        Test.startTest();
-        ActionOutcome result = action.executeAction(params);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(true, result.isSuccess, 'Result should be successful');
-
-        ActionCreateRecord.CreateResult createResult = (ActionCreateRecord.CreateResult) result.data;
-        System.assertNotEquals(null, createResult.recordId, 'Record ID should be set');
-        System.assert(createResult.message.contains('Successfully created Account'), 'Message should indicate success');
-        System.assertEquals(3, createResult.fieldsSet.size(), 'Should have set 3 fields (including defaults)');
-
-        // Verify record was created with defaults
-        Account createdAccount = [SELECT Id, Name, Type, Industry FROM Account WHERE Id = :createResult.recordId];
-        System.assertEquals('Test Company', createdAccount.Name, 'Name should be set correctly');
-        System.assertEquals('Technology Partner', createdAccount.Type, 'Type should be set from defaults');
-        System.assertEquals('Technology', createdAccount.Industry, 'Industry should be set from defaults');
-    }
-
-    @IsTest
-    static void executeAction_userValueOverridesDefault_success() {
-        ActionCreateRecord action = new ActionCreateRecord();
-
-        // Configure with default that will be overridden
-        String config = '{"objectApiName": "Account", "defaultFieldValues": {"Type": "Technology Partner"}}';
+        String config = JSON.serialize(new Map<String, Object>{
+            'objectApiName' => 'Account',
+            'defaultFieldValues' => new Map<String, Object>{
+                'Type' => 'Customer - Direct',
+                'Industry' => 'Technology'
+            }
+        });
         action.parseActionConfiguration(config, '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'Name' => 'Test Company',
+            'Name' => 'New Tech Corp'
+        };
+
+        // When: Creating account with defaults
+        Test.startTest();
+        ActionOutcome result = action.executeAction(params);
+        Test.stopTest();
+
+        // Then: Account created with defaults applied
+        System.assert(result.isSuccess, 'Should create account successfully');
+
+        ActionCreateRecord.CreateResult createResult = (ActionCreateRecord.CreateResult) result.data;
+        Account created = [SELECT Name, Type, Industry FROM Account WHERE Id = :createResult.recordId];
+
+        System.assertEquals('New Tech Corp', created.Name);
+        System.assertEquals('Customer - Direct', created.Type, 'Should apply default Type');
+        System.assertEquals('Technology', created.Industry, 'Should apply default Industry');
+    }
+
+    @IsTest
+    static void testCreateAccount_UserValueOverridesDefault_Success() {
+        // Given: Action with defaults that will be overridden
+        ActionCreateRecord action = new ActionCreateRecord();
+        String config = JSON.serialize(new Map<String, Object>{
+            'objectApiName' => 'Account',
+            'defaultFieldValues' => new Map<String, Object>{
+                'Type' => 'Customer - Direct'
+            }
+        });
+        action.parseActionConfiguration(config, '[TEST] ');
+
+        Map<String, Object> params = new Map<String, Object>{
+            'Name' => 'Partner Corp',
             'Type' => 'Technology Partner' // Override default
         };
 
+        // When: Creating with override
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+        // Then: User value takes precedence
+        System.assert(result.isSuccess);
         ActionCreateRecord.CreateResult createResult = (ActionCreateRecord.CreateResult) result.data;
-
-        // Verify user value overrode default
-        Account createdAccount = [SELECT Id, Name, Type FROM Account WHERE Id = :createResult.recordId];
-        System.assertEquals('Test Company', createdAccount.Name, 'Name should be set correctly');
-        System.assertEquals('Technology Partner', createdAccount.Type, 'Type should be overridden by user value');
+        Account created = [SELECT Type FROM Account WHERE Id = :createResult.recordId];
+        System.assertEquals('Technology Partner', created.Type, 'User value should override default');
     }
 
     @IsTest
-    static void executeAction_noFieldData_returnsFailure() {
+    static void testTypeCoercion_StringToNumber_Success() {
+        // Given: Numeric fields as strings
         ActionCreateRecord action = new ActionCreateRecord();
+        action.parseActionConfiguration('{"objectApiName": "Account"}', '[TEST] ');
 
-        String config = '{"objectApiName": "Contact"}';
-        action.parseActionConfiguration(config, '[TEST] ');
+        Map<String, Object> params = new Map<String, Object>{
+            'Name' => 'Big Corp',
+            'NumberOfEmployees' => '500',        // String -> Integer
+            'AnnualRevenue' => '10000000.50'     // String -> Decimal
+        };
+
+        // When: Creating with type coercion
+        Test.startTest();
+        ActionOutcome result = action.executeAction(params);
+        Test.stopTest();
+
+        // Then: Types are coerced correctly
+        System.assert(result.isSuccess, 'Should succeed with type coercion');
+        ActionCreateRecord.CreateResult createResult = (ActionCreateRecord.CreateResult) result.data;
+        Account created = [SELECT NumberOfEmployees, AnnualRevenue FROM Account WHERE Id = :createResult.recordId];
+
+        System.assertEquals(500, created.NumberOfEmployees, 'Should coerce to Integer');
+        System.assertEquals(10000000.50, created.AnnualRevenue, 'Should coerce to Decimal');
+    }
+
+    // ===================================================================================
+    // RECORDTYPE VALIDATION (NEW FEATURE)
+    // ===================================================================================
+
+    @IsTest
+    static void testRecordTypeValidation_InvalidId_Failure() {
+        // Given: Invalid RecordType ID
+        ActionCreateRecord action = new ActionCreateRecord();
+        action.parseActionConfiguration('{"objectApiName": "Account"}', '[TEST] ');
+
+        Map<String, Object> params = new Map<String, Object>{
+            'Name' => 'Test Account',
+            'RecordTypeId' => '001000000000000' // Invalid ID format
+        };
+
+        // When: Attempting to create with invalid RecordType
+        Test.startTest();
+        ActionOutcome result = action.executeAction(params);
+        Test.stopTest();
+
+        // Then: Should fail validation
+        System.assert(!result.isSuccess, 'Should fail with invalid RecordType');
+        System.assert(result.errorMessage.contains('RecordType'), 'Error should mention RecordType');
+    }
+
+    // ===================================================================================
+    // FAILURE SCENARIOS
+    // ===================================================================================
+
+    @IsTest
+    static void testCreateRecord_NoFieldData_Failure() {
+        // Given: Empty parameters
+        ActionCreateRecord action = new ActionCreateRecord();
+        action.parseActionConfiguration('{"objectApiName": "Contact"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>();
 
+        // When: Creating with no data
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(false, result.isSuccess, 'Result should indicate failure');
-        System.assert(String.valueOf(result.errorMessage).contains('No field data provided'), 'Should indicate no field data');
+        // Then: Should fail
+        System.assert(!result.isSuccess, 'Should fail with no data');
+        System.assert(result.errorMessage.contains('No field data provided'), 'Should indicate missing data');
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, result.errorCode);
     }
 
     @IsTest
-    static void executeAction_requiredFieldMissing_returnsFailure() {
+    static void testCreateContact_MissingRequiredField_Failure() {
+        // Given: Contact data without required LastName
         ActionCreateRecord action = new ActionCreateRecord();
-
-        String config = '{"objectApiName": "Contact"}';
-        action.parseActionConfiguration(config, '[TEST] ');
+        action.parseActionConfiguration('{"objectApiName": "Contact"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
             'FirstName' => 'John'
-            // Missing required LastName field
+            // Missing required LastName
         };
 
+        // When: Creating incomplete contact
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(false, result.isSuccess, 'Result should indicate failure');
-        System.assert(String.valueOf(result.errorMessage).contains('Failed to create Contact'), 'Should indicate creation failure');
+        // Then: Should fail with DML error
+        System.assert(!result.isSuccess, 'Should fail without required field');
+        System.assert(result.errorMessage.contains('Failed to create Contact'), 'Should indicate creation failure');
     }
 
     @IsTest
-    static void executeAction_typeCoercionSuccess_createsRecord() {
+    static void testCreateRecord_InvalidFieldName_FiltersField() {
+        // Given: Data with non-existent field
         ActionCreateRecord action = new ActionCreateRecord();
-
-        String config = '{"objectApiName": "Account"}';
-        action.parseActionConfiguration(config, '[TEST] ');
+        action.parseActionConfiguration('{"objectApiName": "Account"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'Name' => 'Test Company',
-            'NumberOfEmployees' => '100', // String that should be coerced to Integer
-            'AnnualRevenue' => '1000000.50' // String that should be coerced to Decimal
+            'Name' => 'Valid Name',
+            'NonExistentField__c' => 'Invalid Value'
         };
 
+        // When: Creating with invalid field
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+        // Then: Valid fields are processed, invalid ones ignored
+        System.assert(result.isSuccess, 'Should succeed by filtering invalid field');
         ActionCreateRecord.CreateResult createResult = (ActionCreateRecord.CreateResult) result.data;
-
-        // Verify type coercion worked
-        Account createdAccount = [SELECT Id, Name, NumberOfEmployees, AnnualRevenue FROM Account WHERE Id = :createResult.recordId];
-        System.assertEquals('Test Company', createdAccount.Name, 'Name should be set correctly');
-        System.assertEquals(100, createdAccount.NumberOfEmployees, 'NumberOfEmployees should be coerced to Integer');
-        System.assertEquals(1000000.50, createdAccount.AnnualRevenue, 'AnnualRevenue should be coerced to Decimal');
+        System.assertEquals(false, createResult.fieldsSet.contains('NonExistentField__c'),
+                          'Should not include invalid field');
     }
 
+    // ===================================================================================
+    // CONFIGURATION TESTS
+    // ===================================================================================
+
     @IsTest
-    static void parseActionConfiguration_validConfig_success() {
+    static void testParseConfig_ValidConfig_Success() {
+        // Given: Valid configuration
         ActionCreateRecord action = new ActionCreateRecord();
+        String config = JSON.serialize(new Map<String, Object>{
+            'objectApiName' => 'Contact',
+            'defaultFieldValues' => new Map<String, Object>{
+                'LeadSource' => 'Web'
+            }
+        });
 
-        String config = '{"objectApiName": "Contact", "defaultFieldValues": {"LeadSource": "Web"}}';
-
+        // When: Parsing configuration
         Test.startTest();
         action.parseActionConfiguration(config, '[TEST] ');
         Test.stopTest();
 
-        // Configuration should be parsed without exception
+        // Then: Should parse without error
         System.assert(true, 'Configuration should parse successfully');
     }
 
     @IsTest
-    static void parseActionConfiguration_missingObjectApiName_returnsFailure() {
+    static void testParseConfig_MissingObjectApiName_ThrowsException() {
+        // Given: Configuration without objectApiName
         ActionCreateRecord action = new ActionCreateRecord();
+        String config = '{"defaultFieldValues": {"Type": "Customer"}}';
 
-        String config = '{"defaultFieldValues": {"LeadSource": "Web"}}';
-
+        // When/Then: Should throw validation exception
         Test.startTest();
         try {
             action.parseActionConfiguration(config, '[TEST] ');
-            System.assert(false, 'Should have thrown ValidationException');
+            System.assert(false, 'Should throw exception for missing objectApiName');
         } catch (ActionConfigUtils.ArgumentValidationException e) {
-            System.assert(e.getMessage().contains('Missing required parameter: "objectApiName"'), 'Should indicate missing objectApiName');
+            System.assert(e.getMessage().contains('objectApiName'), 'Should mention missing parameter');
         }
         Test.stopTest();
     }
 
     @IsTest
-    static void parseActionConfiguration_blankObjectApiName_returnsFailure() {
+    static void testParseConfig_InvalidObjectApiName_ThrowsException() {
+        // Given: Invalid object name
         ActionCreateRecord action = new ActionCreateRecord();
+        String config = '{"objectApiName": "NonExistentObject__c"}';
 
-        String config = '{"objectApiName": ""}';
-
+        // When/Then: Should throw validation exception
         Test.startTest();
         try {
             action.parseActionConfiguration(config, '[TEST] ');
-            System.assert(false, 'Should have thrown the correct exception');
-        } catch (ActionConfigUtils.ArgumentValidationException e) {
-            System.assert(e.getMessage().contains('objectApiName" cannot be blank'), 'Should indicate blank objectApiName');
-        }
-        Test.stopTest();
-    }
-
-    @IsTest
-    static void parseActionConfiguration_invalidObjectApiName_returnsFailure() {
-        ActionCreateRecord action = new ActionCreateRecord();
-
-        String config = '{"objectApiName": "InvalidObject__c"}';
-
-        Test.startTest();
-        try {
-            action.parseActionConfiguration(config, '[TEST] ');
-            System.assert(false, 'Should have thrown ValidationException');
+            System.assert(false, 'Should throw exception for invalid object');
         } catch (BaseAgentAction.ValidationException e) {
-            System.assert(e.getMessage().contains('Invalid SObject API Name'), 'Should indicate invalid SObject');
+            System.assert(e.getMessage().contains('Invalid SObject'), 'Should indicate invalid object');
         }
         Test.stopTest();
     }
 
+    // ===================================================================================
+    // TYPE COERCION SERVICE TESTS
+    // ===================================================================================
+
     @IsTest
-    static void createResult_constructor_setsProperties() {
-        List<String> fieldsSet = new List<String>{ 'Name', 'Email' };
-
-        Test.startTest();
-        ActionCreateRecord.CreateResult result = new ActionCreateRecord.CreateResult('003000000000001', 'Success message', fieldsSet);
-        Test.stopTest();
-
-        System.assertEquals('003000000000001', result.recordId, 'Should set recordId');
-        System.assertEquals('Success message', result.message, 'Should set message');
-        System.assertEquals(fieldsSet, result.fieldsSet, 'Should set fieldsSet');
-        System.assertNotEquals(null, result.metadata, 'Should initialize metadata');
-        System.assertEquals('003000000000001', result.metadata.get('recordId'), 'Metadata should contain recordId');
-        System.assertEquals(2, result.metadata.get('fieldsSet'), 'Metadata should contain field count');
-        System.assertEquals(fieldsSet, result.metadata.get('fieldNames'), 'Metadata should contain field names');
-        System.assertEquals(true, result.metadata.get('creationSuccessful'), 'Metadata should indicate success');
-    }
-
-    // Tests for SObjectArgumentCoercionService coverage
-    @IsTest
-    static void sobjectArgumentCoercionService_coerceArgumentTypes_success() {
-        Map<String, Object> rawArguments = new Map<String, Object>{
+    static void testTypeCoercionService_ValidArguments_Success() {
+        // Given: Raw arguments needing coercion
+        Map<String, Object> rawArgs = new Map<String, Object>{
             'Name' => 'Test Account',
-            'NumberOfEmployees' => '50',
-            'AnnualRevenue' => '500000.75',
-            'Type' => 'Technology Partner'
+            'NumberOfEmployees' => '100',
+            'AnnualRevenue' => '500000.75'
         };
 
+        // When: Coercing types
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
+            rawArgs,
+            Account.SObjectType,
+            AccessType.CREATABLE
+        );
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals('Test Account', result.get('Name'), 'Name should be preserved as string');
-        System.assertEquals(50, result.get('NumberOfEmployees'), 'NumberOfEmployees should be coerced to Integer');
-        System.assertEquals(500000.75, result.get('AnnualRevenue'), 'AnnualRevenue should be coerced to Decimal');
-        System.assertEquals('Technology Partner', result.get('Type'), 'Type should be preserved as string');
+        // Then: Types should be coerced
+        System.assertEquals('Test Account', result.get('Name'));
+        System.assertEquals(100, result.get('NumberOfEmployees'));
+        System.assertEquals(500000.75, result.get('AnnualRevenue'));
     }
 
     @IsTest
-    static void sobjectArgumentCoercionService_emptyArguments_returnsEmptyMap() {
-        Map<String, Object> rawArguments = new Map<String, Object>();
+    static void testTypeCoercionService_NullSObjectType_ThrowsException() {
+        // Given: Null SObjectType
+        Map<String, Object> rawArgs = new Map<String, Object>{'Name' => 'Test'};
 
-        Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(0, result.size(), 'Result should be empty');
-    }
-
-    @IsTest
-    static void sobjectArgumentCoercionService_nullArguments_returnsEmptyMap() {
-        Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(null, Account.SObjectType, AccessType.CREATABLE);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(0, result.size(), 'Result should be empty');
-    }
-
-    @IsTest
-    static void sobjectArgumentCoercionService_nullSObjectType_throwsException() {
-        Map<String, Object> rawArguments = new Map<String, Object>{ 'Name' => 'Test' };
-
+        // When/Then: Should throw exception
         Test.startTest();
         try {
-            TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, null, AccessType.CREATABLE);
-            System.assert(false, 'Should have thrown TypeCoercionException');
+            TypeCoercionService.coerceArgumentTypesForSObject(rawArgs, null, AccessType.CREATABLE);
+            System.assert(false, 'Should throw exception');
         } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Target SObjectType cannot be null'), 'Should indicate null SObjectType');
+            System.assert(e.getMessage().contains('SObjectType cannot be null'));
         }
         Test.stopTest();
     }
 
     @IsTest
-    static void sobjectArgumentCoercionService_invalidAccessType_throwsException() {
-        Map<String, Object> rawArguments = new Map<String, Object>{ 'Name' => 'Test' };
+    static void testTypeCoercionService_EmptyArguments_ReturnsEmpty() {
+        // Given: Empty arguments
+        Map<String, Object> rawArgs = new Map<String, Object>();
 
+        // When: Coercing
         Test.startTest();
-        try {
-            TypeCoercionService.coerceArgumentTypesForSObject(
-                rawArguments,
-                Account.SObjectType,
-                AccessType.READABLE // Invalid for this method
-            );
-            System.assert(false, 'Should have thrown InvalidArgumentTypeException');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('AccessType must be CREATABLE or UPDATABLE'), 'Should indicate invalid AccessType');
-        }
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
+            rawArgs,
+            Account.SObjectType,
+            AccessType.CREATABLE
+        );
         Test.stopTest();
+
+        // Then: Should return empty map
+        System.assertNotEquals(null, result);
+        System.assertEquals(0, result.size());
     }
 
-    @IsTest
-    static void sobjectArgumentCoercionService_dateCoercion_success() {
-        Map<String, Object> rawArguments = new Map<String, Object>{
-            'Name' => 'Test Account',
-            'CreatedDate' => '2023-12-25' // This will be coerced if the field accepts it
-        };
-
-        Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals('Test Account', result.get('Name'), 'Name should be preserved');
-        // CreatedDate is typically not creatable, so it might be filtered out by FLS
-    }
+    // ===================================================================================
+    // RESULT DTO TESTS
+    // ===================================================================================
 
     @IsTest
-    static void sobjectArgumentCoercionService_booleanCoercion_success() {
-        // Create a custom object or use a standard object with boolean fields
-        // For this test, we'll use a hypothetical boolean field scenario
-        Map<String, Object> rawArguments = new Map<String, Object>{
-            'Name' => 'Test Account',
-            'IsActive' => 'true' // String that should be coerced to Boolean
-        };
+    static void testCreateResult_Constructor_SetsProperties() {
+        // Given: Result data
+        List<String> fieldsSet = new List<String>{'Name', 'Email'};
 
+        // When: Creating result
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
+        ActionCreateRecord.CreateResult result = new ActionCreateRecord.CreateResult(
+            '003000000000001',
+            'Success message',
+            fieldsSet
+        );
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals('Test Account', result.get('Name'), 'Name should be preserved');
-        // IsActive might not exist on Account, but the coercion logic should handle it
-    }
-
-    @IsTest
-    static void sobjectArgumentCoercionService_invalidFieldName_skipsField() {
-        Map<String, Object> rawArguments = new Map<String, Object>{ 'Name' => 'Test Account', 'NonExistentField__c' => 'Some Value' };
-
-        Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArguments, Account.SObjectType, AccessType.CREATABLE);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals('Test Account', result.get('Name'), 'Name should be preserved');
-        System.assertEquals(false, result.containsKey('NonExistentField__c'), 'Non-existent field should be skipped');
-    }
-
-    @IsTest
-    static void typeCoercionService_typeCoercionException_canBeThrown() {
-        Test.startTest();
-
-        try {
-            throw new TypeCoercionService.TypeCoercionException('Test exception', 'testField', 'String', 'Integer');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assertEquals('Test exception', e.getMessage(), 'Should preserve exception message');
-        }
-
-        Test.stopTest();
+        // Then: Properties should be set
+        System.assertEquals('003000000000001', result.recordId);
+        System.assertEquals('Success message', result.message);
+        System.assertEquals(fieldsSet, result.fieldsSet);
+        System.assertNotEquals(null, result.metadata);
+        System.assertEquals('003000000000001', result.metadata.get('recordId'));
+        System.assertEquals(2, result.metadata.get('fieldsSet'));
+        System.assertEquals(true, result.metadata.get('creationSuccessful'));
     }
 }

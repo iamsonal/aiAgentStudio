@@ -159,6 +159,91 @@ public class ActionFlowHandler extends BaseAgentAction {
 
     /**
      * @description
+     * Validates Flow parameters before execution by querying Flow metadata.
+     *
+     * @param flowApiName String - Name of the Flow to validate.
+     * @param flowParams Map<String, Object> - Input parameters to validate.
+     * @return ActionOutcome - Success if validation passes, failure with details otherwise.
+     */
+    private ActionOutcome validateFlowParameters(String flowApiName, Map<String, Object> flowParams) {
+        try {
+            // Query Flow metadata to get input variable definitions
+            List<FlowDefinitionView> flowDefs = [
+                SELECT ApiName, ActiveVersionId
+                FROM FlowDefinitionView
+                WHERE ApiName = :flowApiName
+                WITH USER_MODE
+                LIMIT 1
+            ];
+
+            if (flowDefs.isEmpty()) {
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                    'Flow "' + flowApiName + '" not found. Please verify the Flow API name is correct.'
+                );
+            }
+
+            FlowDefinitionView flowDef = flowDefs[0];
+            if (flowDef.ActiveVersionId == null) {
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                    'Flow "' + flowApiName + '" has no active version. Please activate the Flow in Flow Builder.'
+                );
+            }
+
+            // Query Flow variables for the active version
+            List<FlowVariableView> flowVariables = [
+                SELECT ApiName, DataType, IsInput
+                FROM FlowVariableView
+                WHERE FlowVersionViewId = :flowDef.ActiveVersionId
+                AND IsInput = true
+                WITH USER_MODE
+            ];
+
+            // Build a map of expected input variables
+            Map<String, FlowVariableView> expectedInputs = new Map<String, FlowVariableView>();
+
+            for (FlowVariableView var : flowVariables) {
+                expectedInputs.put(var.ApiName, var);
+            }
+
+            // Warn about unexpected parameters
+            List<String> unexpectedParams = new List<String>();
+            for (String paramName : flowParams.keySet()) {
+                if (!expectedInputs.containsKey(paramName)) {
+                    unexpectedParams.add(paramName);
+                }
+            }
+
+            if (!unexpectedParams.isEmpty()) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    '[ActionFlowHandler] Flow "' + flowApiName + '" received unexpected parameters: ' +
+                    String.join(unexpectedParams, ', ') + '. These will be ignored. ' +
+                    'Expected inputs: ' + String.join(new List<String>(expectedInputs.keySet()), ', ')
+                );
+            }
+
+            System.debug(
+                LoggingLevel.DEBUG,
+                '[ActionFlowHandler] Flow parameter validation passed. Expected inputs: ' +
+                expectedInputs.size() + ', Provided: ' + flowParams.size()
+            );
+
+            return ActionOutcome.success();
+        } catch (System.QueryException qe) {
+            // If we can't query Flow metadata, log warning but allow execution to proceed
+            System.debug(
+                LoggingLevel.WARN,
+                '[ActionFlowHandler] Unable to validate Flow parameters (metadata query failed): ' + qe.getMessage() +
+                '. Proceeding with Flow execution.'
+            );
+            return ActionOutcome.success();
+        }
+    }
+
+    /**
+     * @description
      * Executes the Flow with comprehensive error handling and validation.
      *
      * @param flowApiName String - Name of the Flow to execute.
@@ -166,17 +251,36 @@ public class ActionFlowHandler extends BaseAgentAction {
      * @return ActionOutcome<Flow.Interview> - The Flow.Interview instance after execution or error information.
      */
     private ActionOutcome executeFlow(String flowApiName, Map<String, Object> flowParams) {
+        // Validate Flow parameters against Flow metadata
+        ActionOutcome validationResult = validateFlowParameters(flowApiName, flowParams);
+        if (!validationResult.isSuccess) {
+            return validationResult;
+        }
+
         try {
             Flow.Interview flowInterview = Flow.Interview.createInterview(flowApiName, flowParams);
 
             if (flowInterview == null) {
-                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Failed to create Flow interview for: ' + flowApiName);
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                    'Failed to create Flow interview for: ' + flowApiName + '. ' +
+                    'Please verify the Flow API name and that the Flow is active.'
+                );
             }
 
             flowInterview.start();
             return ActionOutcome.success(flowInterview);
         } catch (Exception ex) {
             String enhancedMessage = 'Flow execution failed for "' + flowApiName + '": ' + ex.getMessage();
+
+            // Provide more specific error context based on exception message
+            if (ex.getMessage().containsIgnoreCase('variable')) {
+                enhancedMessage += ' | This may indicate a parameter mismatch. ' +
+                                  'Provided parameters: ' + String.join(new List<String>(flowParams.keySet()), ', ');
+            } else if (ex.getMessage().containsIgnoreCase('not found') || ex.getMessage().containsIgnoreCase('does not exist')) {
+                enhancedMessage += ' | Please verify the Flow API name is correct and the Flow is active.';
+            }
+
             System.debug(LoggingLevel.ERROR, '[ActionFlowHandler] Flow execution error: ' + enhancedMessage);
             System.debug(LoggingLevel.DEBUG, '[ActionFlowHandler] Exception stack trace: ' + ex.getStackTraceString());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, enhancedMessage);

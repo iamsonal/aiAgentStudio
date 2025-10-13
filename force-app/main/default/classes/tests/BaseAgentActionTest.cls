@@ -1,176 +1,188 @@
+/**
+ * @description Tests for BaseAgentAction using TestFactory utilities
+ */
 @IsTest
 private class BaseAgentActionTest {
+
+    // ===================================================================================
+    // TEST SETUP
+    // ===================================================================================
+
     @TestSetup
-    static void makeData() {
-        // Create test data for testing
-        LLMConfiguration__c llmConfig = TestFactory.createLLMConfiguration();
-        insert llmConfig;
+    static void setupTestData() {
+        // Create full agent setup
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
 
-        AIAgentDefinition__c agent = TestFactory.createAgentDefinition(llmConfig.Id);
-        insert agent;
-
-        List<AgentCapability__c> caps = TestFactory.createStandardCapabilities(agent.Id);
-        insert caps;
+        // Create test capability for BaseAgentAction testing
+        TestFactory.newCapability()
+            .withAgent(setup.agentDefinition.Id)
+            .forCreateRecord('Opportunity')
+            .withName('test_create_opportunity')
+            .save();
 
         // Create test accounts for security testing
-        List<Account> testAccounts = new List<Account>{ new Account(Name = 'Test Account 1'), new Account(Name = 'Test Account 2') };
-        insert testAccounts;
+        TestFactory.newAccount().withName('Test Account 1').save();
+        TestFactory.newAccount().withName('Test Account 2').save();
     }
 
-    @IsTest
-    static void execute_validInputs_success() {
-        // Get test data
-        AgentCapability__c capability = [SELECT Id, Parameters__c FROM AgentCapability__c WHERE CapabilityName__c = 'create_opportunity' LIMIT 1];
+    // ===================================================================================
+    // EXECUTE METHOD TESTS
+    // ===================================================================================
 
-        // Create a mock action context
+    @IsTest
+    static void testExecute_ValidInputs_Success() {
+        // Given: Valid configuration and arguments
+        AgentCapability__c capability = [SELECT Id, Parameters__c
+                                         FROM AgentCapability__c LIMIT 1];
+
         ActionContext context = new ActionContext(
-            'a01000000000001AAA', // executionId
-            UserInfo.getUserId(), // originalUserId
-            UserInfo.getUserId(), // executionUserId
-            null, // relatedRecordId
-            'a02000000000001AAA', // agentDefinitionId
-            capability.Id, // agentCapabilityId
-            'TestAction', // implementationDetail
-            'test-turn-123', // turnIdentifier
-            1, // currentTurnCount
-            'Conversational' // executionType
+            'a01000000000001AAA',
+            UserInfo.getUserId(),
+            UserInfo.getUserId(),
+            null,
+            'a02000000000001AAA',
+            capability.Id,
+            'TestAction',
+            'test-turn-123',
+            1,
+            'Conversational'
         );
 
-        // Create a test implementation of BaseAgentAction
         TestAgentAction action = new TestAgentAction();
-
-        // Test inputs
         String configJson = '{"testConfig": "value"}';
         String argsJson = '{"Name": "Test Opportunity", "StageName": "Prospecting"}';
 
+        // When: Executing action
         Test.startTest();
         ActionOutcome outcome = action.execute(configJson, argsJson, context);
         Test.stopTest();
 
-        // Verify results
-        System.assertNotEquals(null, outcome, 'Outcome should not be null');
-        System.assertEquals(true, outcome.isSuccess, 'Outcome should be successful');
-        System.assertEquals('Test execution successful', String.valueOf(outcome.data), 'Should have correct success message');
+        // Then: Should succeed
+        System.assert(outcome.isSuccess);
+        System.assertEquals('Test execution successful', String.valueOf(outcome.data));
     }
 
     @IsTest
-    static void execute_nullContext_returnsError() {
+    static void testExecute_NullContext_ReturnsError() {
+        // Given: Null context
         TestAgentAction action = new TestAgentAction();
 
+        // When: Executing with null context
         Test.startTest();
         ActionOutcome outcome = action.execute('{}', '{}', null);
         Test.stopTest();
 
-        System.assertNotEquals(null, outcome, 'Outcome should not be null');
-        System.assertEquals(false, outcome.isSuccess, 'Outcome should indicate failure');
-        // Check that the error message contains the expected text
-        System.assert(String.valueOf(outcome.errorMessage).contains('Internal error'), 'Should indicate internal error');
+        // Then: Should return error
+        System.assert(!outcome.isSuccess);
+        System.assert(String.valueOf(outcome.errorMessage).contains('Internal error'));
     }
 
-    @IsTest
-    static void testExecuteAction_validParams_success() {
-        TestAgentAction action = new TestAgentAction();
-
-        Map<String, Object> params = new Map<String, Object>{ 'testParam' => 'testValue' };
-
-        Test.startTest();
-        ActionOutcome outcome = action.testExecuteActionMethod(params);
-        Test.stopTest();
-
-        System.assertNotEquals(null, outcome, 'Outcome should not be null');
-        System.assertEquals(true, outcome.isSuccess, 'Outcome should be successful');
-        System.assertEquals('Test execution successful', outcome.data, 'Should have correct success message');
-    }
+    // ===================================================================================
+    // ACTION OUTCOME TESTS
+    // ===================================================================================
 
     @IsTest
-    static void actionOutcome_success_createsCorrectOutcome() {
-        TestAgentAction action = new TestAgentAction();
-
+    static void testActionOutcome_Success_CreatesCorrectOutcome() {
+        // Given: Success outcome
         Test.startTest();
         ActionOutcome outcome = ActionOutcome.success('Test data');
         Test.stopTest();
 
-        System.assertNotEquals(null, outcome, 'Outcome should not be null');
-        System.assertEquals(true, outcome.isSuccess, 'Outcome should indicate success');
-        System.assertEquals('Test data', outcome.data, 'Should have correct data');
+        // Then: Properties should be set correctly
+        System.assert(outcome.isSuccess);
+        System.assertEquals('Test data', outcome.data);
     }
 
     @IsTest
-    static void actionOutcome_failure_createsCorrectOutcome() {
-        TestAgentAction action = new TestAgentAction();
-
+    static void testActionOutcome_Failure_CreatesCorrectOutcome() {
+        // Given: Failure outcome
         Test.startTest();
-        ActionOutcome outcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Test validation error');
+        ActionOutcome outcome = ActionOutcome.failure(
+            AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+            'Test validation error'
+        );
         Test.stopTest();
 
-        System.assertNotEquals(null, outcome, 'Outcome should not be null');
-        System.assertEquals(false, outcome.isSuccess, 'Outcome should indicate failure');
-        System.assert(String.valueOf(outcome.errorMessage).contains('Test validation error'), 'Should contain error message');
-        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, outcome.errorCode, 'Should have correct error code');
+        // Then: Properties should be set correctly
+        System.assert(!outcome.isSuccess);
+        System.assert(String.valueOf(outcome.errorMessage).contains('Test validation error'));
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, outcome.errorCode);
     }
 
-    @IsTest
-    static void getLogPrefixName_returnsCorrectName() {
-        TestAgentAction action = new TestAgentAction();
-
-        Test.startTest();
-        String name = action.testGetLogPrefixName();
-        Test.stopTest();
-
-        // The getLogPrefixName method extracts the class name from the toString() method
-        // and removes the "Action" prefix. Since our toString() returns "TestAgentAction:TestAgentAction",
-        // the extracted name will be "TestAgent"
-        System.assertEquals('TestAgent', name, 'Should return correct class name');
-    }
+    // ===================================================================================
+    // CONFIGURATION PARSING TESTS
+    // ===================================================================================
 
     @IsTest
-    static void parseActionConfiguration_validJson_success() {
+    static void testParseConfig_ValidJson_Success() {
+        // Given: Valid configuration JSON
         TestAgentAction action = new TestAgentAction();
-
         String configJson = '{"key1": "value1", "key2": "value2"}';
 
+        // When: Parsing configuration
         Test.startTest();
         action.testParseActionConfiguration(configJson);
         Test.stopTest();
 
-        // Should not throw exception
-        System.assert(true, 'Should parse configuration successfully');
-
-        // Verify parsed config
+        // Then: Should parse successfully
         Map<String, Object> parsedConfig = action.getParsedActionConfig();
-        System.assertNotEquals(null, parsedConfig, 'Parsed config should not be null');
-        System.assertEquals('value1', parsedConfig.get('key1'), 'Should have correct value for key1');
-        System.assertEquals('value2', parsedConfig.get('key2'), 'Should have correct value for key2');
+        System.assertNotEquals(null, parsedConfig);
+        System.assertEquals('value1', parsedConfig.get('key1'));
+        System.assertEquals('value2', parsedConfig.get('key2'));
     }
 
     @IsTest
-    static void parseActionConfiguration_invalidJson_throwsException() {
+    static void testParseConfig_InvalidJson_ThrowsException() {
+        // Given: Invalid JSON
         TestAgentAction action = new TestAgentAction();
+        String invalidJson = '{"key1": "value1", "key2": }';
 
-        String invalidJson = '{"key1": "value1", "key2": }'; // Invalid JSON
-
+        // When/Then: Should throw exception
         Test.startTest();
         try {
             action.testParseActionConfiguration(invalidJson);
             System.assert(false, 'Should have thrown ValidationException');
         } catch (BaseAgentAction.ValidationException e) {
-            System.assert(e.getMessage().contains('Invalid ActionConfiguration JSON'), 'Should indicate invalid JSON');
+            System.assert(e.getMessage().contains('Invalid ActionConfiguration JSON'));
         }
         Test.stopTest();
     }
 
-    // Test implementation of BaseAgentAction for testing purposes
+    // ===================================================================================
+    // UTILITY METHOD TESTS
+    // ===================================================================================
+
+    @IsTest
+    static void testGetLogPrefixName_ReturnsCorrectName() {
+        // Given: Test action
+        TestAgentAction action = new TestAgentAction();
+
+        // When: Getting log prefix name
+        Test.startTest();
+        String name = action.testGetLogPrefixName();
+        Test.stopTest();
+
+        // Then: Should return correct name
+        System.assertEquals('TestAgent', name, 'Should extract correct class name');
+    }
+
+    // ===================================================================================
+    // TEST AGENT ACTION IMPLEMENTATION
+    // ===================================================================================
+
+    /**
+     * @description Test implementation of BaseAgentAction
+     */
     private class TestAgentAction extends BaseAgentAction {
+
         public Map<String, Object> getParsedActionConfig() {
             return this.parsedActionConfig;
         }
 
-        // Implementation of abstract method
         public override ActionOutcome executeAction(Map<String, Object> params) {
             return ActionOutcome.success('Test execution successful');
         }
 
-        // Test methods to expose protected methods
         public ActionOutcome testExecuteActionMethod(Map<String, Object> params) {
             return this.executeAction(params);
         }
@@ -183,9 +195,9 @@ private class BaseAgentActionTest {
             this.parseActionConfiguration(actionConfigurationJson, '[TEST] ');
         }
 
-        // Override toString to return a predictable value for testing
         public override String toString() {
             return 'TestAgentAction:TestAgentAction';
         }
     }
 }
+

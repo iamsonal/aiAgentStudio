@@ -9,15 +9,22 @@
 /**
  * @description
  * ContextManagerService orchestrates the lifecycle of conversational context for AI-driven chat sessions.
- * It manages a ledger of context items, dynamically scoring and prioritizing them using recency, access patterns,
- * hierarchical relationships, and temporal decay. The service supports context pruning, pinning, and categorization
- * to optimize prompt construction for LLMs, while ensuring efficient storage and robust error handling.
+ * Uses ContextLedgerItem__c child records for improved scalability, performance, and maintainability.
+ *
+ * Key Features:
+ * - Uses ContextLedgerItem__c child object for unlimited scalability
+ * - Fixed PINNED items to never decay (maintain relevance score of 9999)
+ * - Improved relevance scoring algorithm (prevents negative/zero scores)
+ * - Deduplication logic prevents duplicate context items
+ * - Efficient Math.pow() for temporal decay calculations
+ * - Soft delete for audit trail (items marked PRUNED, not deleted)
+ * - Enhanced categorization with 'pinned' and 'stale' categories
  *
  * Responsibilities:
- * - Maintain and update a context ledger per chat session, tracking context items and their relationships.
- * - Dynamically score, filter, and categorize context items for prompt optimization and memory management.
- * - Prune, archive, or pin context items based on relevance, recency, and user actions.
- * - Provide robust error handling, debug output, and extensible metadata for context enrichment.
+ * - Maintain and update a context ledger per chat session, tracking context items and relationships
+ * - Dynamically score, filter, and categorize context items for prompt optimization
+ * - Archive or soft-delete context items based on relevance, recency, and user actions
+ * - Provide robust error handling, debug output, and extensible metadata
  */
 public inherited sharing class ContextManagerService {
     // --- CONSTANTS ---
@@ -25,20 +32,34 @@ public inherited sharing class ContextManagerService {
     private static final Integer RELEVANCE_DECAY_THRESHOLD = 10; // turns
     private static final Decimal BASE_RELEVANCE_SCORE = 100.0;
 
+    // Scoring algorithm constants (configurable in future via custom metadata)
+    private static final Decimal AGE_DECAY_RATE = 0.99;           // Slow decay per turn
+    private static final Decimal RECENCY_DECAY_RATE = 0.95;       // Fast decay per turn
+    private static final Decimal AGE_WEIGHT = 0.3;                 // Weight for age decay
+    private static final Decimal RECENCY_WEIGHT = 0.7;             // Weight for recency decay
+    private static final Decimal ACCESS_BOOST_MULTIPLIER = 20.0;   // Multiplier for access frequency
+    private static final Decimal RECENT_ACCESS_BOOST = 1.5;        // Boost for recently accessed items
+    private static final Integer RECENT_ACCESS_THRESHOLD = 2;      // Turns threshold for "recent"
+    private static final Decimal MIN_RELEVANCE_SCORE = 1.0;        // Floor to prevent zero/negative
+    private static final Decimal PINNED_RELEVANCE_SCORE = 9999.0;  // PINNED items never decay
+
+    // --- DEPENDENCIES ---
+    private final ContextLedgerRepository repository;
+
     // --- EXCEPTIONS ---
     public class ContextManagementException extends AIAgentException {
     }
 
     // --- ENUMS ---
     public enum ContextType {
-        IMPLICIT_PRIMARY, // User's current page (highest priority)
-        IMPLICIT_SECONDARY, // Related to current page
-        ACTION_GENERATED, // Created by agent action
-        USER_MENTIONED, // Explicitly referenced by user
-        SEARCH_RESULT, // Found via search action
-        RELATED_RECORD, // Discovered through relationships
-        PINNED, // User explicitly pinned
-        BACKGROUND_CONTEXT // Supporting information
+        IMPLICIT_PRIMARY,      // User's current page (highest priority)
+        IMPLICIT_SECONDARY,    // Related to current page
+        ACTION_GENERATED,      // Created by agent action
+        USER_MENTIONED,        // Explicitly referenced by user
+        SEARCH_RESULT,         // Found via search action
+        RELATED_RECORD,        // Discovered through relationships
+        PINNED,                // User explicitly pinned
+        BACKGROUND_CONTEXT     // Supporting information
     }
 
     public enum ContextStatus {
@@ -62,16 +83,20 @@ public inherited sharing class ContextManagerService {
         public List<String> childIds;
         public Map<String, Object> metadata;
 
+        // Additional fields for improved tracking
+        public ContextType originalContextType;
+        public Datetime lastDataRefreshTime;
+
         public ContextItem(Id recordId, ContextType ctxType, Integer turn, Id source) {
             this.id = String.valueOf(recordId);
             // Safely get the SObject type name
             try {
                 this.type = recordId.getSObjectType().getDescribe().getName();
             } catch (Exception e) {
-                // Fallback to a generic type if we can't determine the SObject type
                 this.type = 'Unknown';
             }
             this.contextType = ctxType;
+            this.originalContextType = ctxType;
             this.status = ContextStatus.ACTIVE;
             this.turnAdded = turn;
             this.lastAccessed = turn;
@@ -80,8 +105,89 @@ public inherited sharing class ContextManagerService {
             this.sourceId = source != null ? String.valueOf(source) : null;
             this.childIds = new List<String>();
             this.metadata = new Map<String, Object>();
+            this.lastDataRefreshTime = Datetime.now();
         }
 
+        /**
+         * Constructor from ContextLedgerItem__c record.
+         */
+        public ContextItem(ContextLedgerItem__c record) {
+            this.id = record.RecordId__c;
+            this.type = record.RecordType__c;
+            this.contextType = ContextManagerService.ContextType.valueOf(record.ContextType__c);
+            this.status = ContextManagerService.ContextStatus.valueOf(record.Status__c);
+            this.turnAdded = Integer.valueOf(record.TurnAdded__c);
+            this.lastAccessed = Integer.valueOf(record.LastAccessedTurn__c);
+            this.accessCount = Integer.valueOf(record.AccessCount__c);
+            this.relevanceScore = record.RelevanceScore__c;
+            this.sourceId = record.SourceRecordId__c;
+            this.lastDataRefreshTime = record.LastDataRefreshTime__c;
+
+            if (String.isNotBlank(record.OriginalContextType__c)) {
+                this.originalContextType = ContextManagerService.ContextType.valueOf(record.OriginalContextType__c);
+            } else {
+                this.originalContextType = this.contextType;
+            }
+
+            // Parse child IDs from JSON
+            if (String.isNotBlank(record.ChildRecordIds__c)) {
+                try {
+                    this.childIds = (List<String>) JSON.deserialize(record.ChildRecordIds__c, List<String>.class);
+                } catch (Exception e) {
+                    this.childIds = new List<String>();
+                    System.debug(LoggingLevel.WARN, '[ContextManagerService] Failed to parse childIds: ' + e.getMessage());
+                }
+            } else {
+                this.childIds = new List<String>();
+            }
+
+            // Parse metadata from JSON
+            if (String.isNotBlank(record.Metadata__c)) {
+                try {
+                    this.metadata = (Map<String, Object>) JSON.deserializeUntyped(record.Metadata__c);
+                } catch (Exception e) {
+                    this.metadata = new Map<String, Object>();
+                    System.debug(LoggingLevel.WARN, '[ContextManagerService] Failed to parse metadata: ' + e.getMessage());
+                }
+            } else {
+                this.metadata = new Map<String, Object>();
+            }
+        }
+
+        /**
+         * Converts this ContextItem to a ContextLedgerItem__c record.
+         */
+        public ContextLedgerItem__c toRecord(Id executionId) {
+            ContextLedgerItem__c record = new ContextLedgerItem__c();
+            record.AgentExecution__c = executionId;
+            record.RecordId__c = this.id;
+            record.RecordType__c = this.type;
+            record.ContextType__c = this.contextType.name();
+            record.Status__c = this.status.name();
+            record.TurnAdded__c = this.turnAdded;
+            record.LastAccessedTurn__c = this.lastAccessed;
+            record.AccessCount__c = this.accessCount;
+            record.RelevanceScore__c = this.relevanceScore;
+            record.SourceRecordId__c = this.sourceId;
+            record.OriginalContextType__c = this.originalContextType != null ? this.originalContextType.name() : null;
+            record.LastDataRefreshTime__c = this.lastDataRefreshTime;
+
+            // Serialize child IDs to JSON
+            if (this.childIds != null && !this.childIds.isEmpty()) {
+                record.ChildRecordIds__c = JSON.serialize(this.childIds);
+            }
+
+            // Serialize metadata to JSON
+            if (this.metadata != null && !this.metadata.isEmpty()) {
+                record.Metadata__c = JSON.serialize(this.metadata);
+            }
+
+            return record;
+        }
+
+        /**
+         * Calculates initial relevance score based on context type.
+         */
         private Decimal calculateInitialRelevance(ContextType ctxType) {
             switch on ctxType {
                 when IMPLICIT_PRIMARY {
@@ -94,7 +200,7 @@ public inherited sharing class ContextManagerService {
                     return BASE_RELEVANCE_SCORE * 1.6;
                 }
                 when PINNED {
-                    return BASE_RELEVANCE_SCORE * 1.5;
+                    return PINNED_RELEVANCE_SCORE; // Special value
                 }
                 when SEARCH_RESULT {
                     return BASE_RELEVANCE_SCORE * 1.2;
@@ -111,48 +217,48 @@ public inherited sharing class ContextManagerService {
             }
         }
 
+        /**
+         * IMPROVED: Updates relevance score with fixed algorithm.
+         * - PINNED items never decay
+         * - Uses both age and recency
+         * - Uses Math.pow() instead of custom loop
+         * - Prevents negative/zero scores
+         */
         public void updateRelevance(Integer currentTurn) {
-            // Temporal decay factor
+            // CRITICAL FIX: PINNED items never decay
+            if (this.contextType == ContextManagerService.ContextType.PINNED) {
+                this.relevanceScore = PINNED_RELEVANCE_SCORE;
+                return;
+            }
+
             Integer turnsSinceAdded = currentTurn - this.turnAdded;
             Integer turnsSinceAccessed = currentTurn - this.lastAccessed;
 
-            // Calculate temporal decay using exponential decay formula
-            Decimal temporalDecay = calculateExponentialDecay(0.95, turnsSinceAccessed);
-            Decimal accessBoost = calculateLogBoost(this.accessCount + 1) * 10;
+            // Get base score for current context type
+            Decimal baseScore = calculateInitialRelevance(this.contextType);
 
-            this.relevanceScore = (this.relevanceScore * temporalDecay) + accessBoost;
+            // Calculate temporal decay factors using Math.pow() (FIX: no more custom loop)
+            // Math.pow() requires Double, so we convert
+            Decimal ageDecay = Decimal.valueOf(Math.pow(AGE_DECAY_RATE.doubleValue(), turnsSinceAdded));
+            Decimal recencyDecay = Decimal.valueOf(Math.pow(RECENCY_DECAY_RATE.doubleValue(), turnsSinceAccessed));
 
-            // Boost for recently accessed items
-            if (turnsSinceAccessed <= 2) {
-                this.relevanceScore *= 1.3;
-            }
+            // Combined decay (recency matters more)
+            Decimal combinedDecay = (ageDecay * AGE_WEIGHT) + (recencyDecay * RECENCY_WEIGHT);
 
-            // Archive very old, low-relevance items
+            // Access frequency boost (square root for better scaling)
+            Decimal accessBoost = Math.sqrt(this.accessCount) * ACCESS_BOOST_MULTIPLIER;
+
+            // Recent access multiplier
+            Decimal recentBoost = turnsSinceAccessed <= RECENT_ACCESS_THRESHOLD ? RECENT_ACCESS_BOOST : 1.0;
+
+            // Calculate final score with floor to prevent negatives
+            this.relevanceScore = (baseScore * combinedDecay * recentBoost) + accessBoost;
+            this.relevanceScore = Math.max(this.relevanceScore, MIN_RELEVANCE_SCORE);
+
+            // Archive very old, low-relevance items (but never PINNED)
             if (turnsSinceAccessed > RELEVANCE_DECAY_THRESHOLD && this.relevanceScore < 20) {
                 this.status = ContextStatus.ARCHIVED;
             }
-        }
-
-        private Decimal calculateExponentialDecay(Decimal base, Integer exponent) {
-            if (exponent < 0)
-                return 0.0;
-            if (exponent == 0)
-                return 1.0;
-
-            // Use repeated multiplication for efficiency
-            Decimal result = 1.0;
-            for (Integer i = 0; i < exponent; i++) {
-                result *= base;
-            }
-            return result;
-        }
-
-        private Decimal calculateLogBoost(Integer value) {
-            if (value <= 1)
-                return 0.0;
-
-            // Use Math.log10 for accuracy
-            return Math.log10(value) * 10; // Simplified but more accurate
         }
 
         public void recordAccess(Integer currentTurn) {
@@ -175,37 +281,73 @@ public inherited sharing class ContextManagerService {
             return this.metadata.get(key);
         }
 
+        /**
+         * IMPROVED: Comparison with null handling and type priority.
+         */
         public Integer compareTo(Object compareTo) {
+            if (compareTo == null) return -1;
+            if (!(compareTo instanceof ContextItem)) {
+                throw new IllegalArgumentException('Can only compare to ContextItem');
+            }
+
             ContextItem other = (ContextItem) compareTo;
 
-            // Primary sort: relevance score (descending)
-            if (this.relevanceScore > other.relevanceScore)
+            // PINNED items always first
+            if (this.contextType == ContextManagerService.ContextType.PINNED && other.contextType != ContextManagerService.ContextType.PINNED) {
                 return -1;
-            if (this.relevanceScore < other.relevanceScore)
+            }
+            if (other.contextType == ContextManagerService.ContextType.PINNED && this.contextType != ContextManagerService.ContextType.PINNED) {
                 return 1;
+            }
 
-            // Secondary sort: last accessed (descending)
-            if (this.lastAccessed > other.lastAccessed)
-                return -1;
-            if (this.lastAccessed < other.lastAccessed)
-                return 1;
+            // Then by status (ACTIVE before ARCHIVED before PRUNED)
+            if (this.status != other.status) {
+                return this.status.ordinal() - other.status.ordinal();
+            }
 
-            // Tertiary sort: access count (descending)
+            // Then by relevance score
+            if (this.relevanceScore != other.relevanceScore) {
+                return this.relevanceScore > other.relevanceScore ? -1 : 1;
+            }
+
+            // Then by last accessed
+            if (this.lastAccessed != other.lastAccessed) {
+                return this.lastAccessed > other.lastAccessed ? -1 : 1;
+            }
+
+            // Finally by access count
             return other.accessCount - this.accessCount;
         }
 
         public String getTemporalLabel(Integer currentTurn) {
             Integer turnsSince = currentTurn - this.lastAccessed;
-            if (turnsSince == 0)
-                return 'Current Turn';
-            if (turnsSince == 1)
-                return 'Last Turn';
-            if (turnsSince <= 3)
-                return turnsSince + ' turns ago';
-            if (turnsSince <= 10)
-                return 'Recently';
+            if (turnsSince == 0) return 'Current Turn';
+            if (turnsSince == 1) return 'Last Turn';
+            if (turnsSince <= 3) return turnsSince + ' turns ago';
+            if (turnsSince <= 10) return 'Recently';
             return 'Earlier in conversation';
         }
+
+        /**
+         * Checks if context data needs refreshing (stale detection).
+         */
+        public Boolean needsRefresh() {
+            if (this.lastDataRefreshTime == null) return true;
+            // Refresh if older than 5 minutes
+            Long ageMillis = Datetime.now().getTime() - this.lastDataRefreshTime.getTime();
+            return ageMillis > 300000;
+        }
+    }
+
+    // --- CONSTRUCTORS ---
+
+    public ContextManagerService() {
+        this(new ContextLedgerRepository());
+    }
+
+    @TestVisible
+    public ContextManagerService(ContextLedgerRepository repo) {
+        this.repository = repo;
     }
 
     // --- CORE PUBLIC METHODS ---
@@ -220,44 +362,42 @@ public inherited sharing class ContextManagerService {
      * @throws              None (returns empty list on error)
      */
     public List<ContextItem> getContextLedger(Id executionId, Integer currentTurn) {
-        if (executionId == null)
+        if (executionId == null) {
             return new List<ContextItem>();
+        }
 
         try {
-            List<AgentExecution__c> executions = [
-                SELECT ContextHistoryJson__c
-                FROM AgentExecution__c
-                WHERE Id = :executionId
-                LIMIT 1
-            ];
+            // Query active items from repository
+            List<ContextLedgerItem__c> records = repository.getActiveItemsForExecution(executionId);
 
-            if (executions.isEmpty() || String.isBlank(executions[0].ContextHistoryJson__c)) {
-                return new List<ContextItem>();
+            // Convert to ContextItem objects
+            List<ContextItem> ledger = new List<ContextItem>();
+            for (ContextLedgerItem__c record : records) {
+                ledger.add(new ContextItem(record));
             }
 
-            List<ContextItem> ledger = parseLedger(executions[0].ContextHistoryJson__c);
+            // Process for retrieval (update scores, sort)
             return processLedgerForRetrieval(ledger, currentTurn);
         } catch (Exception e) {
             System.debug(
                 LoggingLevel.ERROR,
-                '[ContextManagerService.getContextLedger] Failed to retrieve context ledger for execution ' + executionId + ': ' + e.getMessage()
+                '[ContextManagerService.getContextLedger] Failed to retrieve context ledger for execution ' +
+                executionId + ': ' + e.getMessage()
             );
             return new List<ContextItem>();
         }
     }
 
     /**
-     * Retrieves context items for a session, filtered by context type and minimum relevance score,
-     * with dynamic scoring based on the current conversation turn.
-     *
-     * @param sessionId    The chat session identifier
-     * @param currentTurn  The current conversation turn, used for temporal calculations
-     * @param contextTypes Set of ContextType values to include (null for all types)
-     * @param minRelevance Minimum relevance score for inclusion
-     * @return             List of filtered ContextItem objects
+     * Retrieves context items filtered by type and minimum relevance.
      */
-    public List<ContextItem> getFilteredContext(Id sessionId, Integer currentTurn, Set<ContextType> contextTypes, Decimal minRelevance) {
-        List<ContextItem> allItems = getContextLedger(sessionId, currentTurn);
+    public List<ContextItem> getFilteredContext(
+        Id executionId,
+        Integer currentTurn,
+        Set<ContextType> contextTypes,
+        Decimal minRelevance
+    ) {
+        List<ContextItem> allItems = getContextLedger(executionId, currentTurn);
         List<ContextItem> filtered = new List<ContextItem>();
 
         for (ContextItem item : allItems) {
@@ -274,22 +414,19 @@ public inherited sharing class ContextManagerService {
     }
 
     /**
-     * Organizes context items into hierarchical categories for LLM prompt construction,
-     * using dynamic scoring based on the current conversation turn.
-     *
-     * @param sessionId   The chat session identifier
-     * @param currentTurn The current conversation turn, used for temporal calculations
-     * @return            Map of category names to lists of ContextItem objects
+     * Organizes context items into hierarchical categories for LLM prompt construction.
      */
-    public Map<String, List<ContextItem>> getStructuredContext(Id sessionId, Integer currentTurn) {
-        List<ContextItem> items = getContextLedger(sessionId, currentTurn);
+    public Map<String, List<ContextItem>> getStructuredContext(Id executionId, Integer currentTurn) {
+        List<ContextItem> items = getContextLedger(executionId, currentTurn);
         Map<String, List<ContextItem>> structured = new Map<String, List<ContextItem>>();
 
         // Initialize categories
+        structured.put('pinned', new List<ContextItem>());  // NEW: Separate pinned category
         structured.put('primary', new List<ContextItem>());
         structured.put('recent', new List<ContextItem>());
         structured.put('related', new List<ContextItem>());
         structured.put('background', new List<ContextItem>());
+        structured.put('stale', new List<ContextItem>());    // NEW: Stale category
 
         for (ContextItem item : items) {
             String category = categorizeForPrompt(item, currentTurn);
@@ -302,17 +439,20 @@ public inherited sharing class ContextManagerService {
     }
 
     /**
-     * @description
-     * Commits context changes for AgentExecution__c records.
-     * Main method for the unified execution model.
+     * IMPROVED: Commits context changes with deduplication and optimistic locking.
      *
      * @param executionId             The ID of the AgentExecution__c to update
      * @param currentTurn             The current turn number for temporal scoring
      * @param pageContextId           The ID of the record representing the user's current page context (can be null)
      * @param newRecordFromActionId   The ID of a record created by an agent action (can be null)
-     * @throws                     ContextManagementException if the execution is not found or ledger is oversized
+     * @throws                     ContextManagementException if critical error occurs
      */
-    public void commitExecutionTurnContext(Id executionId, Integer currentTurn, Id pageContextId, Id newRecordFromActionId) {
+    public void commitExecutionTurnContext(
+        Id executionId,
+        Integer currentTurn,
+        Id pageContextId,
+        Id newRecordFromActionId
+    ) {
         if (executionId == null || (pageContextId == null && newRecordFromActionId == null)) {
             return;
         }
@@ -320,50 +460,49 @@ public inherited sharing class ContextManagerService {
         String logPrefix = '[ContextManager.Commit ' + executionId + '] ';
 
         try {
-            // Handle AgentExecution__c
-            List<AgentExecution__c> executions = [
-                SELECT Id, ContextHistoryJson__c
-                FROM AgentExecution__c
-                WHERE Id = :executionId
-                LIMIT 1
-            ];
+            // FIX: Query all items and build FRESH map
+            List<ContextLedgerItem__c> existingRecords = repository.getAllItemsForExecution(executionId);
+            List<ContextItem> ledger = new List<ContextItem>();
+            Map<String, ContextItem> ledgerMapByRecordId = new Map<String, ContextItem>();
 
-            if (executions.isEmpty()) {
-                throw new ContextManagementException('No AgentExecution__c found for executionId: ' + executionId);
+            for (ContextLedgerItem__c record : existingRecords) {
+                ContextItem item = new ContextItem(record);
+                ledger.add(item);
+                ledgerMapByRecordId.put(item.id, item);
             }
 
-            String currentContextJson = executions[0].ContextHistoryJson__c;
-            List<ContextItem> ledger = parseLedger(currentContextJson);
-            Map<Id, ContextItem> ledgerMap = buildLedgerMap(ledger);
-
-            // Process page context with intelligent type detection
+            // FIX: Process with deduplication
             if (pageContextId != null) {
-                processPageContext(ledgerMap, ledger, pageContextId, currentTurn);
+                String pageRecordIdStr = String.valueOf(pageContextId);
+                processPageContextWithDeduplication(ledgerMapByRecordId, ledger, pageRecordIdStr, currentTurn);
             }
 
-            // Process action-generated records with relationship tracking
             if (newRecordFromActionId != null) {
-                processActionContext(ledgerMap, ledger, newRecordFromActionId, currentTurn, pageContextId);
+                String actionRecordIdStr = String.valueOf(newRecordFromActionId);
+                String pageRecordIdStr = pageContextId != null ? String.valueOf(pageContextId) : null;
+                processActionContextWithDeduplication(
+                    ledgerMapByRecordId,
+                    ledger,
+                    actionRecordIdStr,
+                    currentTurn,
+                    pageRecordIdStr
+                );
             }
 
-            // Apply pruning and optimization
-            pruneLedger(ledger);
+            // Apply pruning (soft delete)
+            pruneLedger(ledger, currentTurn);
 
-            // Persist with size validation
-            String serializedLedger = JSON.serialize(ledger);
-            validateLedgerSize(serializedLedger);
+            // Convert to records and upsert
+            List<ContextLedgerItem__c> recordsToUpsert = new List<ContextLedgerItem__c>();
+            for (ContextItem item : ledger) {
+                recordsToUpsert.add(item.toRecord(executionId));
+            }
 
-            // Update the AgentExecution__c record
-            AgentExecution__c execution = new AgentExecution__c(
-                Id = executionId,
-                ContextHistoryJson__c = serializedLedger,
-                LastActivityTime__c = Datetime.now()
-            );
-            update execution;
+            repository.upsertItems(recordsToUpsert);
 
             System.debug(
                 LoggingLevel.INFO,
-                logPrefix + 'Context ledger updated. Item count: ' + ledger.size() + ', Serialized size: ' + serializedLedger.length() + ' chars.'
+                logPrefix + 'Context ledger updated. Item count: ' + ledger.size()
             );
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Context commit failed: ' + e.getMessage());
@@ -374,67 +513,116 @@ public inherited sharing class ContextManagerService {
     // --- PRIVATE HELPER METHODS ---
 
     /**
-     * Processes action-generated records with relationship tracking.
-     *
-     * @param ledgerMap          Map of existing context items by ID
-     * @param ledger            List of context items
-     * @param newRecordId       ID of the new record created by action
-     * @param currentTurn       Current turn number
-     * @param pageContextId     Current page context ID
+     * FIX: Process page context with deduplication.
      */
-    private void processActionContext(
-        Map<Id, ContextItem> ledgerMap,
+    private void processPageContextWithDeduplication(
+        Map<String, ContextItem> ledgerMap,
         List<ContextItem> ledger,
-        Id newRecordId,
-        Integer currentTurn,
-        Id pageContextId
+        String pageContextId,
+        Integer currentTurn
     ) {
-        if (newRecordId == null)
-            return;
+        if (ledgerMap.containsKey(pageContextId)) {
+            // Update existing
+            ContextItem existing = ledgerMap.get(pageContextId);
+            existing.recordAccess(currentTurn);
 
-        try {
-            // Create new context item for the action-generated record
-            ContextItem newItem = new ContextItem(newRecordId, ContextType.ACTION_GENERATED, currentTurn, pageContextId);
-            ledger.add(newItem);
-
-            // Update parent-child relationships if there's a page context
-            if (pageContextId != null) {
-                for (ContextItem existingItem : ledger) {
-                    if (existingItem.id == String.valueOf(pageContextId)) {
-                        existingItem.addChild(String.valueOf(newRecordId));
-                        break;
-                    }
+            // Promote to primary if not pinned
+            if (existing.contextType != ContextManagerService.ContextType.PINNED &&
+                existing.contextType != ContextManagerService.ContextType.IMPLICIT_PRIMARY) {
+                // Track original type before promotion
+                if (existing.originalContextType == null) {
+                    existing.originalContextType = existing.contextType;
                 }
+                existing.contextType = ContextType.IMPLICIT_PRIMARY;
+                // Apply additive boost instead of replacement
+                existing.relevanceScore += (BASE_RELEVANCE_SCORE * 0.5);
             }
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, '[ContextManagerService.processActionContext] Failed to process action context: ' + e.getMessage());
+        } else {
+            // Create new
+            try {
+                Id recordId = Id.valueOf(pageContextId);
+                ContextItem newItem = new ContextItem(recordId, ContextType.IMPLICIT_PRIMARY, currentTurn, null);
+                ledger.add(newItem);
+                ledgerMap.put(pageContextId, newItem);
+            } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, '[ContextManagerService] Invalid page context ID: ' + pageContextId);
+            }
         }
     }
 
     /**
-     * Applies pruning and optimization to the context ledger.
-     *
-     * @param ledger List of context items to prune
+     * FIX: Process action context with deduplication and relationship tracking.
      */
-    private void pruneLedger(List<ContextItem> ledger) {
-        if (ledger == null || ledger.isEmpty())
-            return;
+    private void processActionContextWithDeduplication(
+        Map<String, ContextItem> ledgerMap,
+        List<ContextItem> ledger,
+        String newRecordId,
+        Integer currentTurn,
+        String pageContextId
+    ) {
+        if (ledgerMap.containsKey(newRecordId)) {
+            // Update existing
+            ledgerMap.get(newRecordId).recordAccess(currentTurn);
+        } else {
+            // Create new
+            try {
+                Id recordId = Id.valueOf(newRecordId);
+                Id sourceId = String.isNotBlank(pageContextId) ? Id.valueOf(pageContextId) : null;
+                ContextItem newItem = new ContextItem(recordId, ContextType.ACTION_GENERATED, currentTurn, sourceId);
+                newItem.setMetadata('createdByAgent', true);
+                ledger.add(newItem);
+                ledgerMap.put(newRecordId, newItem);
+
+                // Update parent-child relationship
+                if (String.isNotBlank(pageContextId) && ledgerMap.containsKey(pageContextId)) {
+                    ledgerMap.get(pageContextId).addChild(newRecordId);
+                }
+            } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, '[ContextManagerService] Invalid action record ID: ' + newRecordId);
+            }
+        }
+    }
+
+    /**
+     * FIX: Soft delete pruning instead of permanent deletion.
+     */
+    private void pruneLedger(List<ContextItem> ledger, Integer currentTurn) {
+        if (ledger == null || ledger.isEmpty()) return;
 
         try {
-            // Remove items with very low relevance scores (below 0.1)
-            for (Integer i = ledger.size() - 1; i >= 0; i--) {
-                ContextItem item = ledger[i];
-                if (item.status == ContextStatus.ACTIVE && item.relevanceScore < 0.1) {
-                    ledger.remove(i);
+            // Soft delete items with very low relevance (except PINNED)
+            for (ContextItem item : ledger) {
+                if (item.status == ContextManagerService.ContextStatus.ACTIVE &&
+                    item.contextType != ContextManagerService.ContextType.PINNED &&  // Never prune PINNED
+                    item.relevanceScore < 0.1) {
+                    item.status = ContextStatus.PRUNED;
+                    item.setMetadata('prunedAt', Datetime.now());
+                    item.setMetadata('prunedReason', 'Low relevance: ' + item.relevanceScore + ' at turn ' + currentTurn);
                 }
             }
 
-            // Limit total items to prevent oversized ledgers (max 100 items)
-            if (ledger.size() > 100) {
-                // Sort by relevance and keep top 100
-                ledger.sort();
-                while (ledger.size() > 100) {
-                    ledger.remove(ledger.size() - 1);
+            // If still over limit, archive lowest-scoring items (but keep PINNED)
+            List<ContextItem> activeItems = new List<ContextItem>();
+            List<ContextItem> pinnedItems = new List<ContextItem>();
+
+            for (ContextItem item : ledger) {
+                if (item.status == ContextManagerService.ContextStatus.ACTIVE) {
+                    if (item.contextType == ContextManagerService.ContextType.PINNED) {
+                        pinnedItems.add(item);
+                    } else {
+                        activeItems.add(item);
+                    }
+                }
+            }
+
+            // Sort active items by relevance
+            activeItems.sort();
+
+            // Archive excess items beyond limit
+            Integer maxActiveItems = MAX_CONTEXT_ITEMS - pinnedItems.size();
+            if (activeItems.size() > maxActiveItems) {
+                for (Integer i = maxActiveItems; i < activeItems.size(); i++) {
+                    activeItems[i].status = ContextStatus.ARCHIVED;
                 }
             }
         } catch (Exception e) {
@@ -443,24 +631,20 @@ public inherited sharing class ContextManagerService {
     }
 
     /**
-     * Updates relevance scores for all active items in the ledger and returns them sorted by relevance.
-     *
-     * @param ledger      The list of ContextItem objects
-     * @param currentTurn The current conversation turn
-     * @return            List of active ContextItem objects, sorted by relevance
+     * Updates relevance scores and sorts ledger.
      */
     private List<ContextItem> processLedgerForRetrieval(List<ContextItem> ledger, Integer currentTurn) {
         List<ContextItem> activeItems = new List<ContextItem>();
 
         for (ContextItem item : ledger) {
             try {
-                if (item.status == ContextStatus.ACTIVE) {
+                if (item.status == ContextManagerService.ContextStatus.ACTIVE) {
                     item.updateRelevance(currentTurn);
                     activeItems.add(item);
                 }
             } catch (Exception e) {
-                System.debug(LoggingLevel.WARN, '[ContextManagerService] Failed to update relevance for item ' + item.id + ': ' + e.getMessage());
-                // Continue processing other items
+                System.debug(LoggingLevel.WARN, '[ContextManagerService] Failed to update relevance for item ' +
+                    item.id + ': ' + e.getMessage());
             }
         }
 
@@ -474,267 +658,37 @@ public inherited sharing class ContextManagerService {
     }
 
     /**
-     * Builds a map of record Id to ContextItem for efficient lookup and update.
-     *
-     * @param ledger The list of ContextItem objects
-     * @return       Map from Id to ContextItem
-     */
-    private Map<Id, ContextItem> buildLedgerMap(List<ContextItem> ledger) {
-        Map<Id, ContextItem> ledgerMap = new Map<Id, ContextItem>();
-        for (ContextItem item : ledger) {
-            try {
-                ledgerMap.put(Id.valueOf(item.id), item);
-            } catch (Exception e) {
-                System.debug(LoggingLevel.WARN, '[ContextManager] Skipping invalid record ID in ledger: ' + item.id);
-            }
-        }
-        return ledgerMap;
-    }
-
-    /**
-     * Processes the current page context, promoting or creating a primary context item as needed.
-     *
-     * @param ledgerMap     Map of Id to ContextItem
-     * @param ledger        List of ContextItem objects
-     * @param pageContextId The current page record Id
-     * @param currentTurn   The current conversation turn
-     */
-    private void processPageContext(Map<Id, ContextItem> ledgerMap, List<ContextItem> ledger, Id pageContextId, Integer currentTurn) {
-        if (ledgerMap.containsKey(pageContextId)) {
-            ContextItem existing = ledgerMap.get(pageContextId);
-            existing.recordAccess(currentTurn);
-
-            // Promote to primary if it's the current page, but respect pinned items
-            if (existing.contextType != ContextType.PINNED) {
-                // Even pinned items might benefit from a relevance boost when accessed
-                if (existing.contextType != ContextType.IMPLICIT_PRIMARY) {
-                    existing.contextType = ContextType.IMPLICIT_PRIMARY;
-                    existing.relevanceScore = existing.calculateInitialRelevance(ContextType.IMPLICIT_PRIMARY);
-                }
-            }
-        } else {
-            ContextItem newItem = new ContextItem(pageContextId, ContextType.IMPLICIT_PRIMARY, currentTurn, null);
-            ledger.add(newItem);
-        }
-    }
-
-    /**
-     * Processes a new action-generated context item, establishing relationships to the page context if present.
-     *
-     * @param ledgerMap     Map of Id to ContextItem (may be stale)
-     * @param ledger        List of ContextItem objects (up-to-date)
-     * @param newRecordId   The new record Id created by agent action
-     * @param pageContextId The current page record Id (optional)
-     * @param currentTurn   The current conversation turn
-     */
-    private void processActionGeneratedContext(
-        Map<Id, ContextItem> ledgerMap,
-        List<ContextItem> ledger,
-        Id newRecordId,
-        Id pageContextId,
-        Integer currentTurn
-    ) {
-        if (ledgerMap.containsKey(newRecordId)) {
-            ledgerMap.get(newRecordId).recordAccess(currentTurn);
-        } else {
-            ContextItem newItem = new ContextItem(newRecordId, ContextType.ACTION_GENERATED, currentTurn, pageContextId);
-            newItem.setMetadata('createdByAgent', true);
-            ledger.add(newItem);
-
-            // Update parent-child relationship by iterating over the up-to-date ledger
-            // This ensures we find parents that were just added in this transaction
-            if (pageContextId != null) {
-                for (ContextItem potentialParent : ledger) {
-                    if (potentialParent.id == String.valueOf(pageContextId)) {
-                        potentialParent.addChild(String.valueOf(newRecordId));
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Optimizes the ledger by updating relevance, sorting, and pruning excess items (except pinned).
-     *
-     * @param ledger      The list of ContextItem objects
-     * @param currentTurn The current conversation turn
-     * @return            Optimized list of ContextItem objects
-     */
-    @TestVisible
-    private List<ContextItem> optimizeLedger(List<ContextItem> ledger, Integer currentTurn) {
-        // Update all relevance scores
-        for (ContextItem item : ledger) {
-            item.updateRelevance(currentTurn);
-        }
-
-        // Sort by relevance (already implemented in compareTo)
-        ledger.sort();
-
-        // Prune if over limit, but preserve pinned items correctly
-        if (ledger.size() > MAX_CONTEXT_ITEMS) {
-            List<ContextItem> optimized = new List<ContextItem>();
-            List<ContextItem> pinnedItems = new List<ContextItem>();
-            List<ContextItem> activeItems = new List<ContextItem>();
-
-            // Separate pinned items from active items
-            for (ContextItem item : ledger) {
-                if (item.contextType == ContextType.PINNED) {
-                    pinnedItems.add(item);
-                } else if (item.status == ContextStatus.ACTIVE) {
-                    activeItems.add(item);
-                }
-                // Pruned/archived items are not added to either list
-            }
-
-            // Add all pinned items (they're always kept)
-            optimized.addAll(pinnedItems);
-
-            // Calculate how many active items we can add while staying within the limit
-            Integer remainingSlots = MAX_CONTEXT_ITEMS - pinnedItems.size();
-
-            // Add active items up to the remaining slots
-            for (Integer i = 0; i < Math.min(remainingSlots, activeItems.size()); i++) {
-                optimized.add(activeItems[i]);
-            }
-
-            // Mark any remaining active items as pruned
-            for (Integer i = remainingSlots; i < activeItems.size(); i++) {
-                activeItems[i].status = ContextStatus.PRUNED;
-            }
-
-            return optimized;
-        }
-
-        return ledger;
-    }
-
-    /**
-     * Categorizes a context item for prompt structuring based on type, recency, and relevance.
-     *
-     * @param item        The ContextItem to categorize
-     * @param currentTurn The current conversation turn
-     * @return            Category name as String
+     * IMPROVED: Categorization with pinned and stale categories.
      */
     private String categorizeForPrompt(ContextItem item, Integer currentTurn) {
         Integer turnsSinceAccessed = currentTurn - item.lastAccessed;
 
-        if (item.contextType == ContextType.IMPLICIT_PRIMARY) {
+        // Special handling for pinned
+        if (item.contextType == ContextManagerService.ContextType.PINNED) {
+            return 'pinned';
+        }
+
+        // Primary context
+        if (item.contextType == ContextManagerService.ContextType.IMPLICIT_PRIMARY) {
             return 'primary';
         }
 
-        if (turnsSinceAccessed <= 1 || item.contextType == ContextType.ACTION_GENERATED) {
+        // Recent items (within last 2 turns)
+        if (turnsSinceAccessed <= 2) {
             return 'recent';
         }
 
-        if (item.relevanceScore > BASE_RELEVANCE_SCORE) {
+        // High-relevance items
+        if (item.relevanceScore > BASE_RELEVANCE_SCORE * 1.5) {
             return 'related';
+        }
+
+        // Stale but still tracked
+        if (turnsSinceAccessed > 10) {
+            return 'stale';
         }
 
         return 'background';
     }
-
-    /**
-     * Validates the serialized ledger size to prevent exceeding field storage limits.
-     * Throws ContextManagementException if the ledger is too large.
-     *
-     * @param serializedLedger The JSON string of the ledger
-     * @throws                 ContextManagementException if size exceeds 30,000 chars
-     */
-    private void validateLedgerSize(String serializedLedger) {
-        if (serializedLedger.length() > 30000) {
-            // Leave buffer for 32KB limit
-            throw new ContextManagementException('Context ledger too large: ' + serializedLedger.length() + ' chars. Consider pruning.');
-        }
-    }
-
-    /**
-     * Parses the JSON ledger string into a list of ContextItem objects, recovering from corruption if needed.
-     *
-     * @param jsonLedger The JSON string representing the ledger
-     * @return           List of valid ContextItem objects (empty if parsing fails)
-     */
-    @TestVisible
-    private List<ContextItem> parseLedger(String jsonLedger) {
-        if (String.isBlank(jsonLedger)) {
-            return new List<ContextItem>();
-        }
-
-        List<ContextItem> parsedItems = new List<ContextItem>();
-        try {
-            List<Object> rawItems = (List<Object>) JSON.deserializeUntyped(jsonLedger);
-
-            for (Object rawItem : rawItems) {
-                Map<String, Object> props = (Map<String, Object>) rawItem;
-
-                Id recordId = Id.valueOf((String) props.get('id'));
-                ContextType ctxType = ContextType.valueOf((String) props.get('contextType'));
-                Integer turnAdded = props.get('turnAdded') == null ? null : ((Decimal) props.get('turnAdded')).intValue();
-                Id sourceId = props.get('sourceId') != null ? Id.valueOf((String) props.get('sourceId')) : null;
-
-                ContextItem item = new ContextItem(recordId, ctxType, turnAdded, sourceId);
-
-                // Populate remaining fields not set by constructor
-                if (props.containsKey('status') && props.get('status') != null) {
-                    item.status = ContextStatus.valueOf((String) props.get('status'));
-                }
-                if (props.containsKey('lastAccessed') && props.get('lastAccessed') != null) {
-                    item.lastAccessed = ((Decimal) props.get('lastAccessed')).intValue();
-                }
-                if (props.containsKey('accessCount') && props.get('accessCount') != null) {
-                    item.accessCount = ((Decimal) props.get('accessCount')).intValue();
-                }
-                if (props.containsKey('relevanceScore') && props.get('relevanceScore') != null) {
-                    item.relevanceScore = (Decimal) JSON.deserialize(JSON.serialize(props.get('relevanceScore')), Decimal.class);
-                }
-
-                if (props.containsKey('childIds') && props.get('childIds') != null) {
-                    List<String> children = new List<String>();
-                    for (Object childObj : (List<Object>) props.get('childIds')) {
-                        children.add((String) childObj);
-                    }
-                    item.childIds = children;
-                }
-
-                if (props.containsKey('metadata') && props.get('metadata') != null) {
-                    item.metadata = (Map<String, Object>) props.get('metadata');
-                }
-
-                if (isValidContextItem(item)) {
-                    parsedItems.add(item);
-                } else {
-                    System.debug(LoggingLevel.WARN, '[ContextManagerService] Skipping invalid context item during parsing: ' + JSON.serialize(props));
-                }
-            }
-            return parsedItems;
-        } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                '[ContextManagerService.parseLedger] Ledger JSON corruption or mapping error: ' +
-                    e.getMessage() +
-                    ' | Stack: ' +
-                    e.getStackTraceString()
-            );
-            return new List<ContextItem>();
-        }
-    }
-
-    /**
-     * Validates the integrity of a ContextItem (checks for required fields and valid Id).
-     *
-     * @param item The ContextItem to validate
-     * @return     True if valid, false otherwise
-     */
-    private Boolean isValidContextItem(ContextItem item) {
-        if (item == null || String.isBlank(item.id) || String.isBlank(item.type)) {
-            return false;
-        }
-
-        try {
-            Id.valueOf(item.id); // Validate ID format
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
 }
+

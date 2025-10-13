@@ -1,284 +1,278 @@
-@isTest
+/**
+ * @description Tests for MemoryManagerFactory using TestFactory utilities
+ */
+@IsTest
 private class MemoryManagerFactoryTest {
-    @isTest
-    static void testGetManagerWithSummaryBufferStrategy() {
+
+    // ===================================================================================
+    // FACTORY TESTS
+    // ===================================================================================
+
+    @IsTest
+    static void testGetManager_SummaryBuffer_ReturnsCorrectManager() {
         IMemoryManager manager = MemoryManagerFactory.getManager('Summary Buffer');
-        System.assert(manager instanceof SummaryBufferMemoryManager, 'Expected SummaryBufferMemoryManager for "Summary Buffer" strategy');
+        System.assert(manager instanceof SummaryBufferMemoryManager);
     }
 
-    @isTest
-    static void testGetManagerWithBufferWindowStrategy() {
+    @IsTest
+    static void testGetManager_BufferWindow_ReturnsCorrectManager() {
         IMemoryManager manager = MemoryManagerFactory.getManager('Buffer Window');
-        System.assert(manager instanceof BufferWindowMemoryManager, 'Expected BufferWindowMemoryManager for "Buffer Window" strategy');
+        System.assert(manager instanceof BufferWindowMemoryManager);
     }
 
-    @isTest
-    static void testGetManagerWithNullStrategy() {
+    @IsTest
+    static void testGetManager_Null_ReturnsDefault() {
         IMemoryManager manager = MemoryManagerFactory.getManager(null);
-        System.assert(manager instanceof BufferWindowMemoryManager, 'Expected BufferWindowMemoryManager for null strategy (default)');
+        System.assert(manager instanceof BufferWindowMemoryManager);
     }
 
-    @isTest
-    static void testGetManagerWithEmptyStrategy() {
+    @IsTest
+    static void testGetManager_Empty_ReturnsDefault() {
         IMemoryManager manager = MemoryManagerFactory.getManager('');
-        System.assert(manager instanceof BufferWindowMemoryManager, 'Expected BufferWindowMemoryManager for empty strategy (default)');
+        System.assert(manager instanceof BufferWindowMemoryManager);
     }
 
-    @isTest
-    static void testGetManagerWithUnknownStrategy() {
+    @IsTest
+    static void testGetManager_Unknown_ReturnsDefault() {
         IMemoryManager manager = MemoryManagerFactory.getManager('Unknown Strategy');
-        System.assert(manager instanceof BufferWindowMemoryManager, 'Expected BufferWindowMemoryManager for unknown strategy (default)');
+        System.assert(manager instanceof BufferWindowMemoryManager);
     }
 
-    @isTest
-    static void testGetManagerWithCaseInsensitiveSummaryBuffer() {
+    @IsTest
+    static void testGetManager_CaseInsensitive_Works() {
         IMemoryManager manager = MemoryManagerFactory.getManager('summary buffer');
-        System.assert(
-            manager instanceof SummaryBufferMemoryManager,
-            'Expected SummaryBufferMemoryManager for case-insensitive "summary buffer" strategy'
-        );
+        System.assert(manager instanceof SummaryBufferMemoryManager);
     }
 
-    // Tests for BufferWindowMemoryManager functionality
-    @isTest
-    static void testBufferWindowMemoryManagerGetHistoryPayloadWithNullLimit() {
-        // Create test data
-        TestFactory.AgentSetupData setup = TestFactory.createFullAgentSetup();
-        insert setup.llmConfig;
-        setup.agentDefinition.LLMConfiguration__c = setup.llmConfig.Id;
-        setup.agentDefinition.MemoryStrategy__c = 'Buffer Window';
-        setup.agentDefinition.HistoryTurnLimit__c = null; // Unlimited history
-        insert setup.agentDefinition;
+    // ===================================================================================
+    // BUFFER WINDOW MEMORY MANAGER TESTS
+    // ===================================================================================
 
-        AgentExecution__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
-        insert session;
+    @IsTest
+    static void testBufferWindow_GetHistoryPayload_WithNullLimit() {
+        // Given: Setup with unlimited history
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
+            .withMemoryStrategy('Buffer Window')
+            .withHistoryTurnLimit(null)
+            .save();
 
-        // Create test messages
-        List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
-        messages.add(
+        // Create messages
+        List<ExecutionStep__c> messages = new List<ExecutionStep__c>{
             new ExecutionStep__c(
-                AgentExecution__c = session.Id,
+                AgentExecution__c = setup.agentExecution.Id,
                 StepRole__c = 'user',
                 Content__c = 'Hello',
                 StepType__c = 'UserInput',
                 Timestamp__c = Datetime.now()
-            )
-        );
-        messages.add(
+            ),
             new ExecutionStep__c(
-                AgentExecution__c = session.Id,
+                AgentExecution__c = setup.agentExecution.Id,
                 StepRole__c = 'assistant',
                 Content__c = 'Hi there!',
-                Timestamp__c = Datetime.now().addSeconds(1),
-                StepType__c = 'AgentResponse'
+                StepType__c = 'AgentResponse',
+                Timestamp__c = Datetime.now().addSeconds(1)
             )
-        );
+        };
         insert messages;
 
-        // Test the memory manager
+        // When: Getting history
         BufferWindowMemoryManager manager = new BufferWindowMemoryManager();
-        List<Map<String, Object>> history = manager.getHistoryPayload(session.Id, setup.agentDefinition, setup.llmConfig, 'Test: ');
-
-        // Verify results
-        System.assertNotEquals(null, history, 'History should not be null');
-        System.assertEquals(2, history.size(), 'Should have 2 messages in history');
-    }
-
-    @isTest
-    static void testBufferWindowMemoryManagerGetHistoryPayloadWithZeroLimit() {
-        // Create test data
-        TestFactory.AgentSetupData setup = TestFactory.createFullAgentSetup();
-        insert setup.llmConfig;
-        setup.agentDefinition.LLMConfiguration__c = setup.llmConfig.Id;
-        setup.agentDefinition.MemoryStrategy__c = 'Buffer Window';
-        setup.agentDefinition.HistoryTurnLimit__c = 0; // No history
-        insert setup.agentDefinition;
-
-        AgentExecution__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
-        insert session;
-
-        // Create test messages
-        List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
-        messages.add(
-            new ExecutionStep__c(
-                AgentExecution__c = session.Id,
-                StepRole__c = 'user',
-                Content__c = 'Hello',
-                StepType__c = 'UserInput',
-                Timestamp__c = Datetime.now()
-            )
-        );
-        messages.add(
-            new ExecutionStep__c(
-                AgentExecution__c = session.Id,
-                StepRole__c = 'assistant',
-                Content__c = 'Hi there!',
-                Timestamp__c = Datetime.now().addSeconds(1),
-                StepType__c = 'AgentResponse'
-            )
-        );
-        insert messages;
-
-        // Test the memory manager
-        BufferWindowMemoryManager manager = new BufferWindowMemoryManager();
-        List<Map<String, Object>> history = manager.getHistoryPayload(session.Id, setup.agentDefinition, setup.llmConfig, 'Test: ');
-
-        // Verify results
-        System.assertNotEquals(null, history, 'History should not be null');
-        System.assertEquals(0, history.size(), 'Should have 0 messages in history');
-    }
-
-    @isTest
-    static void testBufferWindowMemoryManagerOnTurnCompletion() {
-        // Create test data
-        TestFactory.AgentSetupData setup = TestFactory.createFullAgentSetup();
-        insert setup.llmConfig;
-        setup.agentDefinition.LLMConfiguration__c = setup.llmConfig.Id;
-        setup.agentDefinition.MemoryStrategy__c = 'Buffer Window';
-        insert setup.agentDefinition;
-
-        AgentExecution__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
-        insert session;
-
-        // Test the memory manager method (should not throw exception)
-        BufferWindowMemoryManager manager = new BufferWindowMemoryManager();
-        manager.onTurnCompletion(session.Id, setup.agentDefinition, setup.llmConfig, 'Test: ');
-
-        // If we reach here, the test passed (no exception thrown)
-        System.assert(true, 'onTurnCompletion should not throw exceptions');
-    }
-
-    // Tests for SummaryBufferMemoryManager functionality
-    @isTest
-    static void testSummaryBufferMemoryManagerGetHistoryPayload() {
-        // Create test data
-        TestFactory.AgentSetupData setup = TestFactory.createFullAgentSetup();
-        insert setup.llmConfig;
-        setup.agentDefinition.LLMConfiguration__c = setup.llmConfig.Id;
-        setup.agentDefinition.MemoryStrategy__c = 'Summary Buffer';
-        insert setup.agentDefinition;
-
-        AgentExecution__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
-        insert session;
-
-        // Create test messages
-        List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
-        messages.add(
-            new ExecutionStep__c(
-                AgentExecution__c = session.Id,
-                StepRole__c = 'user',
-                Content__c = 'Hello',
-                StepType__c = 'UserInput',
-                Timestamp__c = Datetime.now()
-            )
-        );
-        messages.add(
-            new ExecutionStep__c(
-                AgentExecution__c = session.Id,
-                StepRole__c = 'assistant',
-                Content__c = 'Hi there!',
-                Timestamp__c = Datetime.now().addSeconds(1),
-                StepType__c = 'AgentResponse'
-            )
-        );
-        insert messages;
-
-        // Test the memory manager
-        SummaryBufferMemoryManager manager = new SummaryBufferMemoryManager();
-        List<Map<String, Object>> history = manager.getHistoryPayload(session.Id, setup.agentDefinition, setup.llmConfig, 'Test: ');
-
-        // Verify results
-        System.assertNotEquals(null, history, 'History should not be null');
-        System.assertEquals(2, history.size(), 'Should have 2 messages in history');
-    }
-
-    @isTest
-    static void testSummaryBufferMemoryManagerOnTurnCompletionWithTrigger() {
-        // Create test data
-        TestFactory.AgentSetupData setup = TestFactory.createFullAgentSetup();
-        insert setup.llmConfig;
-        setup.agentDefinition.LLMConfiguration__c = setup.llmConfig.Id;
-        setup.agentDefinition.MemoryStrategy__c = 'Summary Buffer';
-        setup.agentDefinition.SummarizationTriggerTurnCount__c = 2; // Trigger summarization at 2 turns
-        insert setup.agentDefinition;
-
-        AgentExecution__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
-        insert session;
-
-        // Create test messages
-        List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
-        messages.add(
-            new ExecutionStep__c(
-                AgentExecution__c = session.Id,
-                StepRole__c = 'user',
-                Content__c = 'Hello',
-                StepType__c = 'UserInput',
-                Timestamp__c = Datetime.now()
-            )
-        );
-        messages.add(
-            new ExecutionStep__c(
-                AgentExecution__c = session.Id,
-                StepRole__c = 'assistant',
-                Content__c = 'Hi there!',
-                Timestamp__c = Datetime.now().addSeconds(1),
-                StepType__c = 'AgentResponse'
-            )
-        );
-        insert messages;
-
-        // Test the memory manager
-        SummaryBufferMemoryManager manager = new SummaryBufferMemoryManager();
         Test.startTest();
-        manager.onTurnCompletion(session.Id, setup.agentDefinition, setup.llmConfig, 'Test: ');
+        List<Map<String, Object>> history = manager.getHistoryPayload(
+            setup.agentExecution.Id,
+            setup.agentDefinition,
+            setup.llmConfig,
+            'Test: '
+        );
         Test.stopTest();
 
-        // Verify that a job was queued (we can't easily test the actual queueing in a unit test)
-        System.assert(true, 'onTurnCompletion should complete without exception');
+        // Then: Should return all messages
+        System.assertNotEquals(null, history);
+        System.assertEquals(2, history.size());
     }
 
-    @isTest
-    static void testSummaryBufferMemoryManagerOnTurnCompletionWithoutTrigger() {
-        // Create test data
-        TestFactory.AgentSetupData setup = TestFactory.createFullAgentSetup();
-        insert setup.llmConfig;
-        setup.agentDefinition.LLMConfiguration__c = setup.llmConfig.Id;
-        setup.agentDefinition.MemoryStrategy__c = 'Summary Buffer';
-        setup.agentDefinition.SummarizationTriggerTurnCount__c = 5; // Trigger summarization at 5 turns (we only have 2)
-        insert setup.agentDefinition;
+    @IsTest
+    static void testBufferWindow_GetHistoryPayload_WithZeroLimit() {
+        // Given: Setup with zero limit
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
+            .withMemoryStrategy('Buffer Window')
+            .withHistoryTurnLimit(0)
+            .save();
 
-        AgentExecution__c session = TestFactory.createChatSession(setup.agentDefinition.Id, UserInfo.getUserId());
-        insert session;
-
-        // Create test messages
-        List<ExecutionStep__c> messages = new List<ExecutionStep__c>();
-        messages.add(
+        // Create messages
+        List<ExecutionStep__c> messages = new List<ExecutionStep__c>{
             new ExecutionStep__c(
-                AgentExecution__c = session.Id,
+                AgentExecution__c = setup.agentExecution.Id,
                 StepRole__c = 'user',
                 Content__c = 'Hello',
                 StepType__c = 'UserInput',
                 Timestamp__c = Datetime.now()
             )
-        );
-        messages.add(
-            new ExecutionStep__c(
-                AgentExecution__c = session.Id,
-                StepRole__c = 'assistant',
-                Content__c = 'Hi there!',
-                Timestamp__c = Datetime.now().addSeconds(1),
-                StepType__c = 'AgentResponse'
-            )
-        );
+        };
         insert messages;
 
-        // Test the memory manager
-        SummaryBufferMemoryManager manager = new SummaryBufferMemoryManager();
+        // When: Getting history
+        BufferWindowMemoryManager manager = new BufferWindowMemoryManager();
         Test.startTest();
-        manager.onTurnCompletion(session.Id, setup.agentDefinition, setup.llmConfig, 'Test: ');
+        List<Map<String, Object>> history = manager.getHistoryPayload(
+            setup.agentExecution.Id,
+            setup.agentDefinition,
+            setup.llmConfig,
+            'Test: '
+        );
         Test.stopTest();
 
-        // Verify that no job was queued (we can't easily test the actual queueing in a unit test)
-        System.assert(true, 'onTurnCompletion should complete without exception');
+        // Then: Should return no messages
+        System.assertNotEquals(null, history);
+        System.assertEquals(0, history.size());
+    }
+
+    @IsTest
+    static void testBufferWindow_OnTurnCompletion_DoesNotThrow() {
+        // Given: Setup
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
+            .withMemoryStrategy('Buffer Window')
+            .save();
+
+        // When: Calling onTurnCompletion
+        BufferWindowMemoryManager manager = new BufferWindowMemoryManager();
+        Test.startTest();
+        manager.onTurnCompletion(
+            setup.agentExecution.Id,
+            setup.agentDefinition,
+            setup.llmConfig,
+            'Test: '
+        );
+        Test.stopTest();
+
+        // Then: Should complete without error
+        System.assert(true);
+    }
+
+    // ===================================================================================
+    // SUMMARY BUFFER MEMORY MANAGER TESTS
+    // ===================================================================================
+
+    @IsTest
+    static void testSummaryBuffer_GetHistoryPayload_ReturnsMessages() {
+        // Given: Setup with summary buffer
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
+            .withMemoryStrategy('Summary Buffer')
+            .save();
+
+        // Create messages
+        List<ExecutionStep__c> messages = new List<ExecutionStep__c>{
+            new ExecutionStep__c(
+                AgentExecution__c = setup.agentExecution.Id,
+                StepRole__c = 'user',
+                Content__c = 'Hello',
+                StepType__c = 'UserInput',
+                Timestamp__c = Datetime.now()
+            ),
+            new ExecutionStep__c(
+                AgentExecution__c = setup.agentExecution.Id,
+                StepRole__c = 'assistant',
+                Content__c = 'Hi!',
+                StepType__c = 'AgentResponse',
+                Timestamp__c = Datetime.now().addSeconds(1)
+            )
+        };
+        insert messages;
+
+        // When: Getting history
+        SummaryBufferMemoryManager manager = new SummaryBufferMemoryManager();
+        Test.startTest();
+        List<Map<String, Object>> history = manager.getHistoryPayload(
+            setup.agentExecution.Id,
+            setup.agentDefinition,
+            setup.llmConfig,
+            'Test: '
+        );
+        Test.stopTest();
+
+        // Then: Should return messages
+        System.assertNotEquals(null, history);
+        System.assertEquals(2, history.size());
+    }
+
+    @IsTest
+    static void testSummaryBuffer_OnTurnCompletion_WithTrigger() {
+        // Given: Setup with summarization trigger
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
+            .withMemoryStrategy('Summary Buffer')
+            .save();
+
+        setup.agentDefinition.SummarizationTriggerTurnCount__c = 2;
+        update setup.agentDefinition;
+
+        // Create messages
+        List<ExecutionStep__c> messages = new List<ExecutionStep__c>{
+            new ExecutionStep__c(
+                AgentExecution__c = setup.agentExecution.Id,
+                StepRole__c = 'user',
+                Content__c = 'Hello',
+                StepType__c = 'UserInput',
+                Timestamp__c = Datetime.now()
+            ),
+            new ExecutionStep__c(
+                AgentExecution__c = setup.agentExecution.Id,
+                StepRole__c = 'assistant',
+                Content__c = 'Hi!',
+                StepType__c = 'AgentResponse',
+                Timestamp__c = Datetime.now().addSeconds(1)
+            )
+        };
+        insert messages;
+
+        // When: Calling onTurnCompletion
+        SummaryBufferMemoryManager manager = new SummaryBufferMemoryManager();
+        Test.startTest();
+        manager.onTurnCompletion(
+            setup.agentExecution.Id,
+            setup.agentDefinition,
+            setup.llmConfig,
+            'Test: '
+        );
+        Test.stopTest();
+
+        // Then: Should complete without error
+        System.assert(true);
+    }
+
+    @IsTest
+    static void testSummaryBuffer_OnTurnCompletion_WithoutTrigger() {
+        // Given: Setup without summarization trigger
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
+            .withMemoryStrategy('Summary Buffer')
+            .save();
+
+        setup.agentDefinition.SummarizationTriggerTurnCount__c = 5;
+        update setup.agentDefinition;
+
+        // Create minimal messages
+        List<ExecutionStep__c> messages = new List<ExecutionStep__c>{
+            new ExecutionStep__c(
+                AgentExecution__c = setup.agentExecution.Id,
+                StepRole__c = 'user',
+                Content__c = 'Hello',
+                StepType__c = 'UserInput',
+                Timestamp__c = Datetime.now()
+            )
+        };
+        insert messages;
+
+        // When: Calling onTurnCompletion
+        SummaryBufferMemoryManager manager = new SummaryBufferMemoryManager();
+        Test.startTest();
+        manager.onTurnCompletion(
+            setup.agentExecution.Id,
+            setup.agentDefinition,
+            setup.llmConfig,
+            'Test: '
+        );
+        Test.stopTest();
+
+        // Then: Should complete without error
+        System.assert(true);
     }
 }

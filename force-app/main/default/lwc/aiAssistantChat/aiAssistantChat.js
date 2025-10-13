@@ -163,24 +163,23 @@ export default class AiAssistantChat extends LightningElement {
 
     /**
      * Sets up a listener to handle page visibility changes (e.g., tab focus/blur).
-     * Used to trigger reconnection logic if the page becomes visible after being hidden.
+     * Logs connection status for debugging. universalEmpApi handles reconnection automatically.
      * @private
      */
     _setupVisibilityListener() {
         this._visibilityChangeHandler = () => {
             if (!document.hidden && this._eventManager) {
-                // Page became visible, check connection health
-                setTimeout(async () => {
-                    try {
-                        if (!this._eventManager.isConnected()) {
-                            // Log with context
-                            console.info('[aiAssistantChat] Page became active, reconnecting event subscriptions...');
-                            await this._eventManager.reconnect();
-                        }
-                    } catch (error) {
-                        this._errorHandler.handleError('Failed to reconnect on page visibility', error);
-                    }
-                }, 1000); // Small delay to ensure page is fully active
+                // Page became visible - log connection status for debugging
+                // Note: universalEmpApi handles reconnection automatically with health monitoring
+                setTimeout(() => {
+                    const connectionInfo = this._eventManager.getConnectionInfo();
+                    console.debug('[aiAssistantChat] Page became active. Connection status:', {
+                        connected: connectionInfo.isConnected,
+                        environment: connectionInfo.environment,
+                        activeSubscriptions: connectionInfo.activeSubscriptions?.length || 0,
+                        reconnectAttempts: connectionInfo.reconnectAttempts
+                    });
+                }, 1000);
             }
         };
         document.addEventListener('visibilitychange', this._visibilityChangeHandler);
@@ -262,6 +261,7 @@ export default class AiAssistantChat extends LightningElement {
      */
     async handleNewChatClick() {
         if (this.isLoading) return;
+
         try {
             const contextRecordId = this.recordId || null;
             await this._sessionManager.startNewSession(contextRecordId);
@@ -294,6 +294,7 @@ export default class AiAssistantChat extends LightningElement {
      */
     async _sendMessage() {
         const messageText = this.userMessageInput.trim();
+
         // Input validation
         if (!messageText) {
             this._showValidationError('Please enter a message before sending.');
@@ -306,18 +307,28 @@ export default class AiAssistantChat extends LightningElement {
         if (this.isLoading || this.criticalError) {
             return;
         }
-        try {
-            // Ensure event connection is healthy before sending
-            if (!this._eventManager.isConnected()) {
-                // Log with context and log level
-                console.warn('[aiAssistantChat] Event connection lost, attempting to reconnect...');
-                try {
-                    await this._eventManager.reconnect();
-                } catch (reconnectError) {
-                    this._errorHandler.handleError('Failed to reconnect before sending message', reconnectError);
-                    return; // Don't proceed if reconnection fails
-                }
+
+        // Check connection status before sending
+        // universalEmpApi handles auto-reconnection, so we just need to verify connectivity
+        if (!this._eventManager.isConnected()) {
+            const connectionInfo = this._eventManager.getConnectionInfo();
+
+            // If max reconnection attempts reached, notify user
+            if (connectionInfo.reconnectAttempts >= 5) {
+                this._errorHandler.handleError(
+                    'Connection lost',
+                    'Unable to send message. Connection lost after multiple reconnection attempts. Please refresh the page.'
+                );
+                return;
             }
+
+            // Otherwise, universalEmpApi is handling reconnection - inform user
+            console.warn('[aiAssistantChat] Event connection not ready. Reconnection in progress...', connectionInfo);
+            this._errorHandler._showToast('Connection Issue', 'Reconnecting to streaming service. Please try again in a moment.', 'warning');
+            return;
+        }
+
+        try {
             const contextRecordId = this._currentRecordId;
             const turnIdentifier = UuidUtils.generateUUID();
             await this._sessionManager.sendMessage(messageText, contextRecordId, turnIdentifier);

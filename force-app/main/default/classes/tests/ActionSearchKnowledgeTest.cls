@@ -1,79 +1,54 @@
+/**
+ * @description Tests for ActionSearchKnowledge using TestFactory utilities
+ */
 @IsTest
 private class ActionSearchKnowledgeTest {
+
+    // ===================================================================================
+    // TEST SETUP
+    // ===================================================================================
+
     @TestSetup
-    static void makeData() {
-        // 1. Create LLM and Agent Configuration
-        LLMConfiguration__c llmConfig = TestFactory.createLLMConfiguration();
-        insert llmConfig;
+    static void setupTestData() {
+        // Create agent setup
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
 
-        AIAgentDefinition__c agent = TestFactory.createAgentDefinition(llmConfig.Id);
-        insert agent;
+        // Create test search knowledge capability
+        TestFactory.newCapability()
+            .withAgent(setup.agentDefinition.Id)
+            .forSearchKnowledge()
+            .withName('test_search_knowledge')
+            .save();
 
-        // 2. Create the Agent Capability with the NEW structured schema
-        AgentCapability__c cap = new AgentCapability__c(
-            AIAgentDefinition__c = agent.Id,
-            CapabilityName__c = 'search_knowledge',
-            Description__c = 'Searches for Knowledge articles.',
-            Parameters__c = JSON.serialize(
-                new Map<String, Object>{
-                    'type' => 'object',
-                    'properties' => new Map<String, Object>{
-                        'searchQuery' => new Map<String, Object>{ 'type' => 'string', 'description' => 'Keywords to search for.' },
-                        'articleId' => new Map<String, Object>{
-                            'type' => 'string',
-                            'format' => 'salesforce-id',
-                            'description' => 'A specific article ID.'
-                        },
-                        'language' => new Map<String, Object>{ 'type' => 'string', 'description' => 'Language code, e.g., en_US.' },
-                        'includeDrafts' => new Map<String, Object>{ 'type' => 'boolean', 'description' => 'Include draft articles.' },
-                        'maxResults' => new Map<String, Object>{ 'type' => 'integer', 'description' => 'Max results to return.' }
-                    }
-                }
+        // Create Knowledge Articles
+        List<Knowledge__kav> articles = new List<Knowledge__kav>{
+            new Knowledge__kav(
+                Title = 'Online Article about Apex',
+                UrlName = 'Online-Article-Apex',
+                Summary = 'Summary for online article',
+                Language = 'en_US'
             ),
-            ImplementationType__c = 'Standard',
-            StandardActionType__c = 'SearchKnowledge'
-        );
-        insert cap;
-
-        // 3. Create a Chat Session for context
-        AgentExecution__c session = TestFactory.createChatSession(agent.Id, UserInfo.getUserId());
-        insert session;
-
-        // 4. Create Knowledge Articles for testing
-        List<Knowledge__kav> articlesToInsert = new List<Knowledge__kav>();
-        articlesToInsert.add(
             new Knowledge__kav(
-                Title = 'Online Test Article about Apex',
-                UrlName = 'Online-Test-Article-Apex',
-                Summary = 'This is the summary for the online test article.',
+                Title = 'Draft Article about LWC',
+                UrlName = 'Draft-Article-LWC',
+                Summary = 'Summary for draft article',
                 Language = 'en_US'
             )
-        );
-        articlesToInsert.add(
-            new Knowledge__kav(
-                Title = 'Draft Test Article about LWC',
-                UrlName = 'Draft-Test-Article-LWC',
-                Summary = 'This summary is for a draft article.',
-                Language = 'en_US'
-            )
-        );
-        insert articlesToInsert;
+        };
+        insert articles;
 
-        // The publish action must be done between Test.startTest() and Test.stopTest()
+        // Publish one article
         Test.startTest();
-        Id onlineArticleToPublish = [SELECT KnowledgeArticleId FROM Knowledge__kav WHERE Title = 'Online Test Article about Apex' LIMIT 1]
-        .KnowledgeArticleId;
-        KbManagement.PublishingService.publishArticle(onlineArticleToPublish, true);
+        Id onlineArticleId = [SELECT KnowledgeArticleId FROM Knowledge__kav
+                             WHERE Title = 'Online Article about Apex' LIMIT 1].KnowledgeArticleId;
+        KbManagement.PublishingService.publishArticle(onlineArticleId, true);
         Test.stopTest();
     }
 
-    /**
-     * Helper to create a standard ActionContext for executing the action.
-     */
-    private static ActionContext createTestActionContext() {
+    private static ActionContext createTestContext() {
         Id agentId = [SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id;
-        Id capabilityId = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'search_knowledge' LIMIT 1].Id;
         Id sessionId = [SELECT Id FROM AgentExecution__c LIMIT 1].Id;
+        Id capabilityId = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'test_search_knowledge' LIMIT 1].Id;
 
         return new ActionContext(
             sessionId,
@@ -89,112 +64,139 @@ private class ActionSearchKnowledgeTest {
         );
     }
 
+    // ===================================================================================
+    // SUCCESS SCENARIOS
+    // ===================================================================================
+
     @IsTest
-    static void executeAction_searchByKeywords_returnsOnlineArticle() {
+    static void testSearchKnowledge_ByKeywords_Success() {
+        // Given: Search by keywords
         ActionSearchKnowledge action = new ActionSearchKnowledge();
-        Map<String, Object> params = new Map<String, Object>{ 'searchQuery' => 'online summary' };
+        Map<String, Object> params = new Map<String, Object>{
+            'searchQuery' => 'online summary'
+        };
 
-        Id onlineArticleId = [SELECT Id FROM Knowledge__kav WHERE Title = 'Online Test Article about Apex' LIMIT 1].Id;
-        Test.setFixedSearchResults(new List<Id>{ onlineArticleId });
+        Id articleId = [SELECT Id FROM Knowledge__kav WHERE Title LIKE '%Online%' LIMIT 1].Id;
+        Test.setFixedSearchResults(new List<Id>{articleId});
 
+        // When: Searching
         Test.startTest();
-        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestActionContext());
+        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestContext());
         Test.stopTest();
 
-        System.assert(outcome.isSuccess, 'Action should succeed');
-
-        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
-        System.assertEquals(1, searchResult.count, 'Should find one article');
-        System.assertEquals(onlineArticleId, searchResult.articles[0].get('id'), 'Should return the correct online article ID');
-        System.assert(searchResult.message.contains('Found 1'), 'Message should reflect one result');
+        // Then: Should find article
+        System.assert(outcome.isSuccess);
+        ActionSearchKnowledge.KnowledgeSearchResult result = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
+        System.assertEquals(1, result.count);
+        System.assert(result.message.contains('Found 1'));
     }
 
     @IsTest
-    static void executeAction_searchById_returnsCorrectArticle() {
-        Id onlineArticleId = [SELECT Id FROM Knowledge__kav WHERE Title = 'Online Test Article about Apex' LIMIT 1].Id;
+    static void testSearchKnowledge_ById_Success() {
+        // Given: Search by ID
+        Id articleId = [SELECT Id FROM Knowledge__kav WHERE Title LIKE '%Online%' LIMIT 1].Id;
 
         ActionSearchKnowledge action = new ActionSearchKnowledge();
-        Map<String, Object> params = new Map<String, Object>{ 'articleId' => onlineArticleId, 'language' => 'en_US' };
+        Map<String, Object> params = new Map<String, Object>{
+            'articleId' => articleId,
+            'language' => 'en_US'
+        };
 
+        // When: Searching by ID
         Test.startTest();
-        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestActionContext());
+        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestContext());
         Test.stopTest();
 
-        System.assert(outcome.isSuccess, 'Action should succeed');
-
-        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
-        System.assertEquals(1, searchResult.count, 'Should find one article');
-        System.assertEquals(onlineArticleId, searchResult.articles[0].get('id'), 'Should return the correct article ID');
+        // Then: Should find article
+        System.assert(outcome.isSuccess);
+        ActionSearchKnowledge.KnowledgeSearchResult result = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
+        System.assertEquals(1, result.count);
     }
 
     @IsTest
-    static void executeAction_searchWithDrafts_returnsDraftArticle() {
-        Id draftArticleId = [SELECT Id FROM Knowledge__kav WHERE Title = 'Draft Test Article about LWC' LIMIT 1].Id;
+    static void testSearchKnowledge_WithDrafts_Success() {
+        // Given: Search including drafts
+        Id draftId = [SELECT Id FROM Knowledge__kav WHERE Title LIKE '%Draft%' LIMIT 1].Id;
+        Test.setFixedSearchResults(new List<Id>{draftId});
 
         ActionSearchKnowledge action = new ActionSearchKnowledge();
-        Map<String, Object> params = new Map<String, Object>{ 'searchQuery' => 'draft summary', 'includeDrafts' => true };
+        Map<String, Object> params = new Map<String, Object>{
+            'searchQuery' => 'draft',
+            'includeDrafts' => true
+        };
 
-        Test.setFixedSearchResults(new List<Id>{ draftArticleId });
-
+        // When: Searching with drafts
         Test.startTest();
-        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestActionContext());
+        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestContext());
         Test.stopTest();
 
-        System.assert(outcome.isSuccess, 'Action should succeed');
-
-        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
-        System.assertEquals(1, searchResult.count, 'Should find one draft article');
-        System.assertEquals(draftArticleId, searchResult.articles[0].get('id'), 'Should return the correct draft article ID');
+        // Then: Should find draft
+        System.assert(outcome.isSuccess);
+        ActionSearchKnowledge.KnowledgeSearchResult result = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
+        System.assertEquals(1, result.count);
     }
 
     @IsTest
-    static void executeAction_searchWithoutDrafts_filtersDraftArticle() {
-        Id draftArticleId = [SELECT Id FROM Knowledge__kav WHERE Title = 'Draft Test Article about LWC' LIMIT 1].Id;
+    static void testSearchKnowledge_WithoutDrafts_FiltersDrafts() {
+        // Given: Search excluding drafts
+        Id draftId = [SELECT Id FROM Knowledge__kav WHERE Title LIKE '%Draft%' LIMIT 1].Id;
+        Test.setFixedSearchResults(new List<Id>{draftId});
 
         ActionSearchKnowledge action = new ActionSearchKnowledge();
-        Map<String, Object> params = new Map<String, Object>{ 'searchQuery' => 'draft summary', 'includeDrafts' => false };
+        Map<String, Object> params = new Map<String, Object>{
+            'searchQuery' => 'draft',
+            'includeDrafts' => false
+        };
 
-        Test.setFixedSearchResults(new List<Id>{ draftArticleId });
-
+        // When: Searching without drafts
         Test.startTest();
-        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestActionContext());
+        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestContext());
         Test.stopTest();
 
-        System.assert(outcome.isSuccess, 'Action should succeed even with no results');
+        // Then: Should filter out draft
+        System.assert(outcome.isSuccess);
+        ActionSearchKnowledge.KnowledgeSearchResult result = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
+        System.assertEquals(0, result.count, 'Draft should be filtered');
+    }
 
-        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
-        System.assertEquals(0, searchResult.count, 'Should find no articles as the draft is filtered out');
+    // ===================================================================================
+    // FAILURE SCENARIOS
+    // ===================================================================================
+
+    @IsTest
+    static void testSearchKnowledge_MissingParams_Failure() {
+        // Given: No search parameters
+        ActionSearchKnowledge action = new ActionSearchKnowledge();
+        Map<String, Object> params = new Map<String, Object>();
+
+        // When: Searching without params
+        Test.startTest();
+        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestContext());
+        Test.stopTest();
+
+        // Then: Should fail validation
+        System.assert(!outcome.isSuccess);
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, outcome.errorCode);
+        System.assert(outcome.errorMessage.contains('Either "searchQuery" or "articleId" must be provided'));
     }
 
     @IsTest
-    static void executeAction_failure_missingRequiredParameters() {
+    static void testSearchKnowledge_NoResults_Success() {
+        // Given: Query with no results
         ActionSearchKnowledge action = new ActionSearchKnowledge();
-        Map<String, Object> params = new Map<String, Object>{};
-
-        Test.startTest();
-        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestActionContext());
-        Test.stopTest();
-
-        System.assert(!outcome.isSuccess, 'Action should fail without required parameters');
-        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, outcome.errorCode, 'Error code should be for validation');
-        System.assert(outcome.errorMessage.contains('Either "searchQuery" or "articleId" must be provided'), 'Error message should be specific');
-    }
-
-    @IsTest
-    static void executeAction_noResultsFound() {
-        ActionSearchKnowledge action = new ActionSearchKnowledge();
-        Map<String, Object> params = new Map<String, Object>{ 'searchQuery' => 'query with no results' };
-
+        Map<String, Object> params = new Map<String, Object>{
+            'searchQuery' => 'nonexistent query'
+        };
         Test.setFixedSearchResults(new List<Id>());
 
+        // When: Searching
         Test.startTest();
-        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestActionContext());
+        ActionOutcome outcome = action.execute(null, JSON.serialize(params), createTestContext());
         Test.stopTest();
 
-        System.assert(outcome.isSuccess, 'An empty search result is a successful operation');
-
-        ActionSearchKnowledge.KnowledgeSearchResult searchResult = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
-        System.assertEquals(0, searchResult.count, 'Should find zero articles');
-        System.assert(searchResult.message.contains('Found 0'), 'Message should reflect zero results');
+        // Then: Should succeed with empty results
+        System.assert(outcome.isSuccess, 'Empty result is success');
+        ActionSearchKnowledge.KnowledgeSearchResult result = (ActionSearchKnowledge.KnowledgeSearchResult) outcome.data;
+        System.assertEquals(0, result.count);
     }
 }

@@ -111,7 +111,7 @@ public class EmailOrchestrator implements IAgentOrchestrator {
                     executionStepService.createStep(
                         executionId,
                         'TriggerInput',
-                        'Attachment',
+                        'Email',  // Changed from 'Attachment' to 'Email' - valid picklist value for StepRole__c
                         'Attachment: ' + attachment.fileName + ' (' + attachment.contentType + ', ' + attachment.fileSize + ' bytes)',
                         'Attachment',
                         turnIdentifier,

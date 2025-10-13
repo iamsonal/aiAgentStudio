@@ -4,7 +4,7 @@
     <protected>false</protected>
     <values>
         <field>Description__c</field>
-        <value xsi:nil="true"/>
+        <value xsi:type="xsd:string">Posts messages to Chatter feeds</value>
     </values>
     <values>
         <field>HandlerClassName__c</field>
@@ -13,5 +13,59 @@
     <values>
         <field>IsActive__c</field>
         <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>RequiresSObject__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>RequiredBackendProperties__c</field>
+        <value xsi:type="xsd:string">feedType</value>
+    </values>
+    <values>
+        <field>RequiredParameters__c</field>
+        <value xsi:type="xsd:string">text</value>
+    </values>
+    <values>
+        <field>GuidanceText__c</field>
+        <value xsi:type="xsd:string">&lt;h3&gt;💬 PostChatter Action&lt;/h3&gt;
+&lt;p&gt;This action posts messages to Chatter feeds (user, group, or record feeds).&lt;/p&gt;
+
+&lt;h4&gt;Backend Configuration&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;feedType&lt;/strong&gt; (String): Type of feed - &quot;User&quot;, &quot;Group&quot;, or &quot;Record&quot; (required)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;targetId&lt;/strong&gt; (String): Default target ID (User ID, Group ID, or Record ID)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4&gt;Parameters (AI will provide)&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;text&lt;/strong&gt; (String): The message content to post (required)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;topics&lt;/strong&gt; (Array): Optional topics to associate with the post&lt;/li&gt;
+&lt;/ul&gt;</value>
+    </values>
+    <values>
+        <field>ParametersTemplate__c</field>
+        <value xsi:type="xsd:string">{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "The content of the message to post to Chatter."
+    },
+    "topics": {
+      "type": "array",
+      "description": "An optional list of topics to associate with the post.",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["text"]
+}</value>
+    </values>
+    <values>
+        <field>BackendConfigTemplate__c</field>
+        <value xsi:type="xsd:string">{
+  "feedType": "Record",
+  "targetId": ""
+}</value>
     </values>
 </CustomMetadata>

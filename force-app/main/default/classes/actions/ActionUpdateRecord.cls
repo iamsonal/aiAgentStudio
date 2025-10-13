@@ -68,18 +68,6 @@ public class ActionUpdateRecord extends BaseAgentAction {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ase.getMessage());
         }
 
-        // Proactively check for record locks to provide actionable error messages
-        try {
-            if (Approval.isLocked(recordId)) {
-                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_RECORD_LOCKED, 'Record is locked and cannot be updated: ' + recordId);
-            }
-        } catch (Exception lockCheckEx) {
-            System.debug(
-                LoggingLevel.WARN,
-                '[ActionUpdateRecord] Unable to determine lock status for record ' + recordId + ': ' + lockCheckEx.getMessage()
-            );
-        }
-
         Map<String, Object> typedData;
         try {
             // Coerce types and enforce field-level security (FLS)
@@ -142,9 +130,24 @@ public class ActionUpdateRecord extends BaseAgentAction {
                 new UpdateResult(recordId.toString(), 'Successfully updated record ' + recordId + '.', new List<String>(typedData.keySet()))
             );
         } else {
-            String enhancedMessage = enhanceUpdateErrorMessage(saveResult.getErrors()[0], recordId, typedData);
+            Database.Error error = saveResult.getErrors()[0];
+            String enhancedMessage = enhanceUpdateErrorMessage(error, recordId, typedData);
             System.debug(LoggingLevel.ERROR, '[ActionUpdateRecord] Update failed for record ' + recordId + ': ' + enhancedMessage);
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_DML_ERROR, enhancedMessage);
+
+            // Return appropriate error code based on failure type
+            String errorCode = AIAgentConstants.ERR_CODE_DML_ERROR;
+            if (error.getStatusCode() == StatusCode.UNABLE_TO_LOCK_ROW) {
+                errorCode = AIAgentConstants.ERR_CODE_RECORD_LOCKED;
+            } else if (error.getStatusCode() == StatusCode.INSUFFICIENT_ACCESS_OR_READONLY) {
+                errorCode = AIAgentConstants.ERR_CODE_PERMISSION_DENIED;
+            } else if (error.getStatusCode() == StatusCode.FIELD_CUSTOM_VALIDATION_EXCEPTION ||
+                       error.getStatusCode() == StatusCode.REQUIRED_FIELD_MISSING ||
+                       error.getStatusCode() == StatusCode.STRING_TOO_LONG ||
+                       error.getStatusCode() == StatusCode.DUPLICATE_VALUE) {
+                errorCode = AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+            }
+
+            return ActionOutcome.failure(errorCode, enhancedMessage);
         }
     }
 
@@ -247,7 +250,9 @@ public class ActionUpdateRecord extends BaseAgentAction {
         String enhanced = 'Failed to update record ' + recordId + ': ' + error.getMessage();
 
         if (error.getStatusCode() == StatusCode.UNABLE_TO_LOCK_ROW) {
-            enhanced += ' | The record is currently locked by another process.';
+            enhanced += ' | The record is currently locked by another process. ' +
+                       'This typically means the record is in an approval process or being edited by another user. ' +
+                       'Please try again in a few moments.';
         } else if (error.getStatusCode() == StatusCode.INSUFFICIENT_ACCESS_OR_READONLY) {
             enhanced += ' | User lacks update permission or field is read-only.';
         }
