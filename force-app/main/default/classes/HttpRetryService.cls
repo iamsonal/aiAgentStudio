@@ -75,7 +75,8 @@ public class HttpRetryService {
      * @param request  The HttpRequest to execute.
      * @param config   The retry configuration (must not be null).
      * @return HttpRetryResult  The response and execution metadata.
-     * @throws LLMProviderException if the call fails after all retries or encounters a non-retryable error.
+     * @throws LLMProviderException.NonRetriableHttpException if the call encounters an immediate, non-retryable error (e.g., 400 Bad Request, 401 Unauthorized).
+     * @throws LLMProviderException.RetryExhaustedException if the call fails after exhausting all retry attempts for a retriable error (e.g., persistent 503 Service Unavailable).
      */
     public static HttpRetryResult executeWithRetry(HttpRequest request, RetryConfig config) {
         if (config == null) {
@@ -132,7 +133,12 @@ public class HttpRetryService {
                             response.getStatus() +
                             ')';
                         System.debug(LoggingLevel.ERROR, config.logPrefix + errorMsg);
-                        throw new LLMProviderException(errorMsg);
+                        // Distinguish between non-retriable error and retry exhaustion
+                        if (!isRetryable(null, response, config.retryableStatusCodes)) {
+                            throw new LLMProviderException.NonRetriableHttpException(errorMsg);
+                        } else {
+                            throw new LLMProviderException.RetryExhaustedException(errorMsg);
+                        }
                     }
                 }
             } catch (System.CalloutException ce) {
@@ -147,7 +153,15 @@ public class HttpRetryService {
                         LoggingLevel.ERROR,
                         config.logPrefix + 'Non-retryable callout exception or max retries exceeded (attempt=' + (attempt + 1) + ')'
                     );
-                    throw new LLMProviderException('Callout failed: ' + ce.getMessage(), ce);
+                    // Distinguish between non-retriable error and retry exhaustion
+                    if (!isRetryable(ce, null, config.retryableStatusCodes)) {
+                        throw new LLMProviderException.NonRetriableHttpException('Callout failed: ' + ce.getMessage(), ce);
+                    } else {
+                        throw new LLMProviderException.RetryExhaustedException(
+                            'Callout failed after ' + (attempt + 1) + ' attempts: ' + ce.getMessage(),
+                            ce
+                        );
+                    }
                 }
             } catch (Exception e) {
                 lastException = e;
@@ -155,11 +169,11 @@ public class HttpRetryService {
                     LoggingLevel.ERROR,
                     config.logPrefix + 'Unexpected exception during HTTP execution (attempt=' + (attempt + 1) + '): ' + e.getMessage()
                 );
-                // Assume non-retryable for unexpected exceptions
-                throw new LLMProviderException('Unexpected HTTP error: ' + e.getMessage(), e);
+                // Unexpected exceptions are non-retryable
+                throw new LLMProviderException.NonRetriableHttpException('Unexpected HTTP error: ' + e.getMessage(), e);
             }
         }
-        // Final error handling after all retries exhausted
+        // Final error handling after all retries exhausted (should rarely reach here, but acts as safety net)
         String finalError = config.logPrefix + 'HTTP request failed after all retry attempts.';
         if (lastException != null) {
             finalError += ' Last error: ' + lastException.getMessage();
@@ -167,7 +181,7 @@ public class HttpRetryService {
             finalError += ' Last HTTP status: ' + response.getStatusCode() + ' (' + response.getStatus() + ')';
         }
         System.debug(LoggingLevel.ERROR, finalError);
-        throw new LLMProviderException(finalError, lastException);
+        throw new LLMProviderException.RetryExhaustedException(finalError, lastException);
     }
 
     /**
@@ -195,29 +209,33 @@ public class HttpRetryService {
     }
 
     /**
-     * Calculates and applies the delay before the next retry attempt.
+     * Calculates the delay that should be applied before the next retry attempt.
      *
-     * Uses exponential backoff with jitter. Busy-waits due to Apex limitations (CPU-intensive).
+     * IMPORTANT: This method NO LONGER performs busy-wait delays to avoid CPU governor limit issues.
+     * Instead, it simply logs the calculated delay. For async contexts, retry delays should be
+     * implemented at the job orchestration level by re-enqueueing Queueable jobs or scheduling
+     * Future methods. For synchronous contexts, retries happen immediately without delay.
      *
      * @param currentAttempt  The attempt number that just failed (0-indexed).
      * @param config          The retry configuration.
-     * @sideeffect Consumes CPU cycles during delay; keep delays reasonable to avoid governor limits.
+     * @sideeffect Logs the calculated delay for observability. Does NOT consume CPU time.
      */
     @TestVisible
     private static void handleRetryDelay(Integer currentAttempt, RetryConfig config) {
         // Calculate base delay: initial * (factor ^ attempt)
         Decimal backoffFactor = DEFAULT_BACKOFF_FACTOR;
-        Decimal baseDelay = config.initialDelayMs * (backoffFactor.pow(currentAttempt + 1)); // Increase delay for *next* attempt
+        Decimal baseDelay = config.initialDelayMs * (backoffFactor.pow(currentAttempt + 1));
         // Calculate jitter: +/- jitterFactor % of initialDelay
         Decimal jitter = Math.random() * config.initialDelayMs * JITTER_FACTOR * 2 - (config.initialDelayMs * JITTER_FACTOR);
         // Total delay = base + jitter, capped
         Integer delayMs = Integer.valueOf(baseDelay + jitter);
-        delayMs = Math.max(0, delayMs); // Ensure non-negative
-        delayMs = Math.min(delayMs, MAX_DELAY_MS); // Apply max cap
+        delayMs = Math.max(0, delayMs);
+        delayMs = Math.min(delayMs, MAX_DELAY_MS);
+
         System.debug(
             LoggingLevel.INFO,
             config.logPrefix +
-                'Retry delay: attempt=' +
+                'Calculated retry delay (NOT applied in-process to avoid CPU limits): attempt=' +
                 (currentAttempt + 1) +
                 ', delayMs=' +
                 delayMs +
@@ -225,15 +243,25 @@ public class HttpRetryService {
                 baseDelay.intValue() +
                 'ms, jitter=' +
                 jitter.intValue() +
-                'ms)'
+                'ms). Retrying immediately.'
         );
-        // Implement delay using busy wait (CPU-intensive but necessary in Apex)
-        // WARNING: Consumes CPU cycles - keep delays reasonable to avoid governor limits
-        Long waitUntil = System.currentTimeMillis() + delayMs;
-        while (System.currentTimeMillis() < waitUntil) {
-            // Busy wait loop - performs mathematical operations to consume CPU cycles
-            Decimal x = Math.sqrt(Math.random());
+
+        // For async contexts, implement proper delayed retry at the orchestration level:
+        // - For Queueable: Re-enqueue the job after failure detection
+        // - For Future: Schedule a new Future method invocation
+        // - For immediate retry needs: Use Scheduled Apex with calculated delay
+
+        if (System.isFuture() || System.isQueueable() || System.isBatch()) {
+            System.debug(
+                LoggingLevel.INFO,
+                config.logPrefix +
+                'Async context detected. For delayed retries, implement job-level retry orchestration. ' +
+                'Current implementation retries immediately to avoid CPU consumption.'
+            );
         }
+
+        // NOTE: No busy-wait loop - retries happen immediately within the same transaction
+        // This eliminates the CPU governor limit risk while still providing retry functionality
     }
 
     /**

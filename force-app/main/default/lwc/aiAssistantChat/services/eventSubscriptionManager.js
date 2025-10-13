@@ -72,41 +72,18 @@ export class EventSubscriptionManager {
     }
 
     /**
-     * Reconnects the EMP API and re-subscribes to all necessary channels.
-     */
-    async reconnect() {
-        try {
-            this.empApi.cleanup();
-            this.empApi = new UniversalEmpApi();
-            await this.empApi.initialize((message, error) => {
-                this.errorHandler.handleError(message, error);
-            }, this.useCommunityMode);
-            try {
-                await this.empApi.subscribe(AGENT_RESPONSE_CHANNEL, -1, this.onAgentResponse.bind(this));
-            } catch (subscribeError) {
-                console.error('[EventSubscriptionManager] Failed to resubscribe to agent response channel:', subscribeError);
-                throw subscribeError;
-            }
-            if (this.transientSubscriptionInitialized) {
-                try {
-                    await this.empApi.subscribe(TRANSIENT_MESSAGE_CHANNEL, -1, this.onTransientMessage.bind(this));
-                } catch (transientSubscribeError) {
-                    console.error('[EventSubscriptionManager] Failed to resubscribe to transient message channel:', transientSubscribeError);
-                    this.transientSubscriptionInitialized = false;
-                }
-            }
-            console.info('[EventSubscriptionManager] Reconnection successful');
-        } catch (error) {
-            this.errorHandler.handleError('Failed to reconnect event subscriptions', error);
-            throw error;
-        }
-    }
-
-    /**
      * Returns true if the EMP API is connected.
      */
     isConnected() {
         return this.empApi?.isConnected() || false;
+    }
+
+    /**
+     * Gets detailed connection information from the EMP API.
+     * Useful for debugging and monitoring reconnection attempts.
+     */
+    getConnectionInfo() {
+        return this.empApi?.getConnectionInfo() || {};
     }
 
     /**

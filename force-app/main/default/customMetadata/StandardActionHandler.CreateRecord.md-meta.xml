@@ -4,7 +4,7 @@
     <protected>false</protected>
     <values>
         <field>Description__c</field>
-        <value xsi:nil="true"/>
+        <value xsi:type="xsd:string">Creates a new record in Salesforce</value>
     </values>
     <values>
         <field>HandlerClassName__c</field>
@@ -13,5 +13,51 @@
     <values>
         <field>IsActive__c</field>
         <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>RequiresSObject__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>RequiredBackendProperties__c</field>
+        <value xsi:type="xsd:string">objectApiName</value>
+    </values>
+    <values>
+        <field>RequiredParameters__c</field>
+        <value xsi:type="xsd:string"></value>
+    </values>
+    <values>
+        <field>GuidanceText__c</field>
+        <value xsi:type="xsd:string">&lt;h3&gt;➕ CreateRecord Action&lt;/h3&gt;
+&lt;p&gt;This action creates a new record in Salesforce for the selected object.&lt;/p&gt;
+
+&lt;h4&gt;Backend Configuration&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;objectApiName&lt;/strong&gt; (String): The Salesforce object to create (required, auto-populated from object selection)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;defaultFieldValues&lt;/strong&gt; (Object): Default values to set on the new record (optional)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4&gt;Parameters (AI will provide)&lt;/h4&gt;
+&lt;p&gt;Parameters are dynamically generated based on the selected object&apos;s fields. The AI will provide field values when creating the record.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Select an object above to see available fields&lt;/li&gt;
+&lt;li&gt;Add parameters for fields the AI should be able to set&lt;/li&gt;
+&lt;li&gt;Required fields should be marked as required&lt;/li&gt;
+&lt;/ul&gt;</value>
+    </values>
+    <values>
+        <field>ParametersTemplate__c</field>
+        <value xsi:type="xsd:string">{
+  "type": "object",
+  "properties": {},
+  "required": []
+}</value>
+    </values>
+    <values>
+        <field>BackendConfigTemplate__c</field>
+        <value xsi:type="xsd:string">{
+  "objectApiName": "",
+  "defaultFieldValues": {}
+}</value>
     </values>
 </CustomMetadata>

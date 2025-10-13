@@ -18,8 +18,8 @@
  * Implementations must handle:
  *   - Parsing and validating configuration and input parameters
  *   - Executing the core business logic for the action
- *   - Returning a structured ActionResult with outcome, output, and diagnostics
- *   - Consistent error handling (prefer returning failed ActionResult; throw only for unrecoverable errors)
+ *   - Returning a structured ActionOutcome with success/failure state and data
+ *   - Consistent error handling (prefer returning failed ActionOutcome; throw only for unrecoverable errors)
  */
 public interface IAgentAction {
     /**
@@ -28,13 +28,13 @@ public interface IAgentAction {
      * @param actionConfigurationJson  JSON string from AgentCapabilityBinding__c.ActionConfiguration__c for this agent/action binding. May be null or blank if not configured.
      * @param argumentsJson            Raw JSON string of arguments provided by the LLM, conforming to ActionDefinition__c.InputParameterSchema__c. Implementation must parse and validate.
      * @param context                  Shared ActionContext providing session, user, agent, and action identifiers.
-     * @return ActionResult            Structured result containing execution outcome, output payload, and diagnostics.
-     * @throws ActionExecutionException For unrecoverable errors during execution (should be rare; prefer returning a failed ActionResult).
+     * @return ActionOutcome           Structured outcome containing success/failure status, data payload, and error information.
+     * @throws ActionExecutionException For unrecoverable errors during execution (should be rare; prefer returning a failed ActionOutcome).
      *
      * Implementations should:
      *   - Parse and validate all inputs
      *   - Handle all expected error conditions gracefully
-     *   - Return a failed ActionResult for recoverable errors, and throw only for truly unrecoverable conditions
+     *   - Return a failed ActionOutcome for recoverable errors, and throw only for truly unrecoverable conditions
      */
-    ActionResult execute(String actionConfigurationJson, String argumentsJson, ActionContext context);
+    ActionOutcome execute(String actionConfigurationJson, String argumentsJson, ActionContext context);
 }

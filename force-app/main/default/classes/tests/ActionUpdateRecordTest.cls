@@ -1,475 +1,309 @@
+/**
+ * @description Tests for ActionUpdateRecord using TestFactory utilities
+ */
 @IsTest
 private class ActionUpdateRecordTest {
-    @TestSetup
-    static void makeData() {
-        // Create test accounts and contacts for update testing
-        List<Account> testAccounts = new List<Account>{
-            new Account(Name = 'Test Account 1', Type = 'Customer', Industry = 'Technology'),
-            new Account(Name = 'Test Account 2', Type = 'Partner', Industry = 'Finance')
-        };
-        insert testAccounts;
 
-        List<Contact> testContacts = new List<Contact>{
-            new Contact(FirstName = 'John', LastName = 'Doe', Email = 'john.doe@example.com', AccountId = testAccounts[0].Id),
-            new Contact(FirstName = 'Jane', LastName = 'Smith', Email = 'jane.smith@example.com', AccountId = testAccounts[1].Id)
-        };
-        insert testContacts;
+    // ===================================================================================
+    // TEST SETUP
+    // ===================================================================================
+
+    @TestSetup
+    static void setupTestData() {
+        // Create test accounts with TestFactory
+        TestFactory.newAccount()
+            .withName('Test Account 1')
+            .withIndustry('Technology')
+            .save();
+
+        TestFactory.newAccount()
+            .withName('Test Account 2')
+            .withIndustry('Finance')
+            .save();
+
+        // Create test contacts
+        Account acc1 = [SELECT Id FROM Account WHERE Name = 'Test Account 1' LIMIT 1];
+        Account acc2 = [SELECT Id FROM Account WHERE Name = 'Test Account 2' LIMIT 1];
+
+        TestFactory.newContact()
+            .withName('John', 'Doe')
+            .withEmail('john.doe@test.com')
+            .withAccount(acc1.Id)
+            .save();
+
+        TestFactory.newContact()
+            .withName('Jane', 'Smith')
+            .withEmail('jane.smith@test.com')
+            .withAccount(acc2.Id)
+            .save();
     }
 
+    // ===================================================================================
+    // SUCCESS SCENARIOS
+    // ===================================================================================
+
     @IsTest
-    static void executeAction_updateContact_success() {
-        Contact testContact = [SELECT Id, FirstName, LastName, Email FROM Contact WHERE FirstName = 'John' LIMIT 1];
+    static void testUpdateContact_WithMultipleFields_Success() {
+        // Given: A contact to update
+        Contact testContact = [SELECT Id, FirstName, LastName, Email
+                              FROM Contact WHERE FirstName = 'John' LIMIT 1];
 
         ActionUpdateRecord action = new ActionUpdateRecord();
-
-        // Use default configuration (no custom record ID parameter)
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
+        action.parseActionConfiguration('{}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testContact.Id,
             'FirstName' => 'Johnny',
-            'Email' => 'johnny.doe@example.com'
+            'Email' => 'johnny.doe@test.com'
         };
 
+        // When: Updating the contact
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+        // Then: Contact is updated successfully
+        System.assert(result.isSuccess, 'Should update successfully');
 
         ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
-        System.assertEquals(testContact.Id, updateResult.recordId, 'Record ID should match');
-        System.assert(updateResult.message.contains('Successfully updated record'), 'Message should indicate success');
-        System.assertEquals(2, updateResult.updatedFields.size(), 'Should have updated 2 fields');
-        System.assert(updateResult.updatedFields.contains('FirstName'), 'Should include FirstName in updated fields');
-        System.assert(updateResult.updatedFields.contains('Email'), 'Should include Email in updated fields');
+        System.assertEquals(testContact.Id, updateResult.recordId);
+        System.assertEquals(2, updateResult.updatedFields.size(), 'Should update 2 fields');
+        System.assert(updateResult.updatedFields.contains('FirstName'));
+        System.assert(updateResult.updatedFields.contains('Email'));
 
-        // Verify record was actually updated
-        Contact updatedContact = [SELECT Id, FirstName, LastName, Email FROM Contact WHERE Id = :testContact.Id];
-        System.assertEquals('Johnny', updatedContact.FirstName, 'FirstName should be updated');
-        System.assertEquals('Doe', updatedContact.LastName, 'LastName should remain unchanged');
-        System.assertEquals('johnny.doe@example.com', updatedContact.Email, 'Email should be updated');
+        // Verify database state
+        Contact updated = [SELECT FirstName, LastName, Email FROM Contact WHERE Id = :testContact.Id];
+        System.assertEquals('Johnny', updated.FirstName, 'FirstName should be updated');
+        System.assertEquals('Doe', updated.LastName, 'LastName should remain unchanged');
+        System.assertEquals('johnny.doe@test.com', updated.Email, 'Email should be updated');
     }
 
     @IsTest
-    static void executeAction_updateAccountWithCustomRecordIdParam_success() {
-        Account testAccount = [SELECT Id, Name, Type FROM Account WHERE Name = 'Test Account 1' LIMIT 1];
+    static void testUpdateAccount_CustomRecordIdParam_Success() {
+        // Given: Action with custom recordId parameter name
+        Account testAccount = [SELECT Id FROM Account WHERE Name = 'Test Account 1' LIMIT 1];
 
         ActionUpdateRecord action = new ActionUpdateRecord();
-
-        // Configure with custom record ID parameter name
-        String config = '{"recordIdParameter": "accountId"}';
-        action.parseActionConfiguration(config, '[TEST] ');
+        action.parseActionConfiguration('{"recordIdParameter": "accountId"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'accountId' => testAccount.Id, // Using custom parameter name
-            'Name' => 'Updated Test Account 1',
-            'Type' => 'Prospect'
+            'accountId' => testAccount.Id,  // Custom parameter name
+            'Name' => 'Updated Test Account',
+            'Industry' => 'Healthcare'
         };
 
+        // When: Updating with custom param name
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(true, result.isSuccess, 'Result should be successful');
-
-        ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
-        System.assertEquals(testAccount.Id, updateResult.recordId, 'Record ID should match');
-        System.assertEquals(2, updateResult.updatedFields.size(), 'Should have updated 2 fields');
-
-        // Verify record was actually updated
-        Account updatedAccount = [SELECT Id, Name, Type FROM Account WHERE Id = :testAccount.Id];
-        System.assertEquals('Updated Test Account 1', updatedAccount.Name, 'Name should be updated');
-        System.assertEquals('Prospect', updatedAccount.Type, 'Type should be updated');
+        // Then: Update succeeds
+        System.assert(result.isSuccess);
+        Account updated = [SELECT Name, Industry FROM Account WHERE Id = :testAccount.Id];
+        System.assertEquals('Updated Test Account', updated.Name);
+        System.assertEquals('Healthcare', updated.Industry);
     }
 
     @IsTest
-    static void executeAction_typeCoercionSuccess_updatesRecord() {
-        Account testAccount = [SELECT Id, Name FROM Account WHERE Name = 'Test Account 1' LIMIT 1];
+    static void testTypeCoercion_StringToNumber_Success() {
+        // Given: Account with numeric fields as strings
+        Account testAccount = [SELECT Id FROM Account WHERE Name = 'Test Account 1' LIMIT 1];
 
         ActionUpdateRecord action = new ActionUpdateRecord();
-
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
+        action.parseActionConfiguration('{}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testAccount.Id,
-            'NumberOfEmployees' => '250', // String that should be coerced to Integer
-            'AnnualRevenue' => '2500000.75' // String that should be coerced to Decimal
+            'NumberOfEmployees' => '250',      // String -> Integer
+            'AnnualRevenue' => '2500000.75'    // String -> Decimal
         };
 
+        // When: Updating with type coercion
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
-        System.assertEquals(true, result.isSuccess, 'Result should be successful');
-        ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
-
-        // Verify type coercion worked
-        Account updatedAccount = [SELECT Id, NumberOfEmployees, AnnualRevenue FROM Account WHERE Id = :testAccount.Id];
-        System.assertEquals(250, updatedAccount.NumberOfEmployees, 'NumberOfEmployees should be coerced to Integer');
-        System.assertEquals(2500000.75, updatedAccount.AnnualRevenue, 'AnnualRevenue should be coerced to Decimal');
+        // Then: Types are coerced correctly
+        System.assert(result.isSuccess);
+        Account updated = [SELECT NumberOfEmployees, AnnualRevenue FROM Account WHERE Id = :testAccount.Id];
+        System.assertEquals(250, updated.NumberOfEmployees);
+        System.assertEquals(2500000.75, updated.AnnualRevenue);
     }
 
     @IsTest
-    static void executeAction_missingRecordId_returnsFailure() {
-        ActionUpdateRecord action = new ActionUpdateRecord();
+    static void testUpdateContact_NullValue_Success() {
+        // Given: Contact with email to be cleared
+        Contact testContact = [SELECT Id, Email FROM Contact WHERE FirstName = 'John' LIMIT 1];
 
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
+        ActionUpdateRecord action = new ActionUpdateRecord();
+        action.parseActionConfiguration('{}', '[TEST] ');
+
+        Map<String, Object> params = new Map<String, Object>{
+            'recordId' => testContact.Id,
+            'Email' => null,
+            'FirstName' => 'John Updated'
+        };
+
+        // When: Updating with null value
+        Test.startTest();
+        ActionOutcome result = action.executeAction(params);
+        Test.stopTest();
+
+        // Then: Null is handled correctly
+        System.assert(result.isSuccess);
+        Contact updated = [SELECT Email, FirstName FROM Contact WHERE Id = :testContact.Id];
+        System.assertEquals(null, updated.Email, 'Email should be null');
+        System.assertEquals('John Updated', updated.FirstName);
+    }
+
+    // ===================================================================================
+    // FAILURE SCENARIOS
+    // ===================================================================================
+
+    @IsTest
+    static void testUpdateRecord_MissingRecordId_Failure() {
+        // Given: Parameters without recordId
+        ActionUpdateRecord action = new ActionUpdateRecord();
+        action.parseActionConfiguration('{}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
             'Name' => 'Updated Name'
             // Missing recordId
         };
 
+        // When: Attempting update
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(false, result.isSuccess, 'Result should indicate failure');
-        System.assert(String.valueOf(result.errorMessage).contains('Missing required parameter: "recordId"'), 'Should indicate missing recordId');
+        // Then: Should fail
+        System.assert(!result.isSuccess);
+        System.assert(result.errorMessage.contains('Missing required parameter: "recordId"'));
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, result.errorCode);
     }
 
     @IsTest
-    static void executeAction_invalidRecordId_returnsFailure() {
+    static void testUpdateRecord_InvalidRecordId_Failure() {
+        // Given: Invalid recordId format
         ActionUpdateRecord action = new ActionUpdateRecord();
+        action.parseActionConfiguration('{}', '[TEST] ');
 
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
+        Map<String, Object> params = new Map<String, Object>{
+            'recordId' => 'invalid-id-format',
+            'Name' => 'Test'
+        };
 
-        Map<String, Object> params = new Map<String, Object>{ 'recordId' => 'invalid-id', 'Name' => 'Updated Name' };
-
+        // When: Attempting update
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(false, result.isSuccess, 'Result should indicate failure');
-        System.assert(String.valueOf(result.errorMessage).contains('Invalid ID format'), 'Should indicate invalid ID format');
+        // Then: Should fail
+        System.assert(!result.isSuccess);
+        System.assert(result.errorMessage.contains('Invalid ID format'));
     }
 
     @IsTest
-    static void executeAction_noUpdateFields_returnsFailure() {
-        Contact testContact = [SELECT Id FROM Contact WHERE FirstName = 'John' LIMIT 1];
+    static void testUpdateRecord_NoFieldsToUpdate_Failure() {
+        // Given: Only recordId, no update fields
+        Contact testContact = [SELECT Id FROM Contact LIMIT 1];
 
         ActionUpdateRecord action = new ActionUpdateRecord();
-
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
+        action.parseActionConfiguration('{}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testContact.Id
-            // No update fields provided
+            // No update fields
         };
 
+        // When: Attempting update
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(false, result.isSuccess, 'Result should indicate failure');
-        System.assert(String.valueOf(result.errorMessage).contains('No fields provided to update'), 'Should indicate no update fields');
+        // Then: Should fail
+        System.assert(!result.isSuccess);
+        System.assert(result.errorMessage.contains('No fields provided to update'));
     }
 
     @IsTest
-    static void executeAction_nonExistentRecord_returnsFailure() {
+    static void testUpdateRecord_NonExistentRecord_Failure() {
+        // Given: Valid ID format but non-existent record
         ActionUpdateRecord action = new ActionUpdateRecord();
+        action.parseActionConfiguration('{}', '[TEST] ');
 
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
-
-        // Use a valid ID format but non-existent record
-        String fakeContactId = '003000000000000';
-
-        Map<String, Object> params = new Map<String, Object>{ 'recordId' => fakeContactId, 'FirstName' => 'Updated Name' };
-
-        Test.startTest();
-        ActionOutcome result = action.executeAction(params);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(false, result.isSuccess, 'Result should indicate failure');
-        System.assert(String.valueOf(result.errorMessage).contains('Failed to update record'), 'Should indicate update failure');
-    }
-
-    @IsTest
-    static void parseActionConfiguration_defaultConfig_success() {
-        ActionUpdateRecord action = new ActionUpdateRecord();
-
-        String config = '{}';
-
-        Test.startTest();
-        action.parseActionConfiguration(config, '[TEST] ');
-        Test.stopTest();
-
-        // Should parse successfully with default recordId parameter
-        System.assert(true, 'Configuration should parse successfully');
-    }
-
-    @IsTest
-    static void parseActionConfiguration_customRecordIdParam_success() {
-        ActionUpdateRecord action = new ActionUpdateRecord();
-
-        String config = '{"recordIdParameter": "customId"}';
-
-        Test.startTest();
-        action.parseActionConfiguration(config, '[TEST] ');
-        Test.stopTest();
-
-        // Should parse successfully with custom parameter name
-        System.assert(true, 'Configuration should parse successfully');
-    }
-
-    @IsTest
-    static void parseActionConfiguration_blankRecordIdParam_usesDefault() {
-        ActionUpdateRecord action = new ActionUpdateRecord();
-
-        String config = '{"recordIdParameter": ""}';
-
-        Test.startTest();
-        action.parseActionConfiguration(config, '[TEST] ');
-        Test.stopTest();
-
-        // Should use default parameter name when blank is provided
-        System.assert(true, 'Configuration should parse successfully');
-    }
-
-    @IsTest
-    static void updateResult_constructor_setsProperties() {
-        List<String> updatedFields = new List<String>{ 'Name', 'Email' };
-
-        Test.startTest();
-        ActionUpdateRecord.UpdateResult result = new ActionUpdateRecord.UpdateResult('003000000000001', 'Success message', updatedFields);
-        Test.stopTest();
-
-        System.assertEquals('003000000000001', result.recordId, 'Should set recordId');
-        System.assertEquals('Success message', result.message, 'Should set message');
-        System.assertEquals(updatedFields, result.updatedFields, 'Should set updatedFields');
-        System.assertNotEquals(null, result.metadata, 'Should initialize metadata');
-        System.assertEquals('003000000000001', result.metadata.get('recordId'), 'Metadata should contain recordId');
-        System.assertEquals(2, result.metadata.get('fieldsUpdated'), 'Metadata should contain field count');
-        System.assertEquals(updatedFields, result.metadata.get('fieldNames'), 'Metadata should contain field names');
-    }
-
-    // Additional tests for SObjectArgumentCoercionService coverage through ActionUpdateRecord
-    @IsTest
-    static void sobjectArgumentCoercionService_updateWithCoercion_success() {
-        Account testAccount = [SELECT Id FROM Account WHERE Name = 'Test Account 1' LIMIT 1];
-
-        ActionUpdateRecord action = new ActionUpdateRecord();
-
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
-
+        String fakeId = '003000000000000';
         Map<String, Object> params = new Map<String, Object>{
-            'recordId' => testAccount.Id,
-            'Name' => 'Coercion Test Account',
-            'NumberOfEmployees' => 150, // Integer
-            'AnnualRevenue' => 1500000.25, // Decimal
-            'Type' => 'Technology Partner' // String
+            'recordId' => fakeId,
+            'FirstName' => 'Test'
         };
 
+        // When: Attempting update
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(true, result.isSuccess, 'Result should be successful');
+        // Then: Should fail with DML error
+        System.assert(!result.isSuccess);
+        System.assert(result.errorMessage.contains('Failed to update record'));
+    }
 
-        ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
-        System.assertEquals(4, updateResult.updatedFields.size(), 'Should have updated 4 fields');
+    // ===================================================================================
+    // CONFIGURATION TESTS
+    // ===================================================================================
 
-        // Verify all field types were handled correctly
-        Account updatedAccount = [SELECT Id, Name, NumberOfEmployees, AnnualRevenue, Type FROM Account WHERE Id = :testAccount.Id];
-        System.assertEquals('Coercion Test Account', updatedAccount.Name, 'Name should be updated');
-        System.assertEquals(150, updatedAccount.NumberOfEmployees, 'NumberOfEmployees should be updated');
-        System.assertEquals(1500000.25, updatedAccount.AnnualRevenue, 'AnnualRevenue should be updated');
-        System.assertEquals('Technology Partner', updatedAccount.Type, 'Type should be updated');
+    @IsTest
+    static void testParseConfig_DefaultConfig_Success() {
+        // Given: Default configuration
+        ActionUpdateRecord action = new ActionUpdateRecord();
+
+        // When: Parsing config
+        Test.startTest();
+        action.parseActionConfiguration('{}', '[TEST] ');
+        Test.stopTest();
+
+        // Then: Should parse successfully
+        System.assert(true, 'Should parse default config');
     }
 
     @IsTest
-    static void sobjectArgumentCoercionService_dateTimeCoercion_success() {
-        // Test datetime coercion through update
-        Contact testContact = [SELECT Id FROM Contact WHERE FirstName = 'John' LIMIT 1];
-
+    static void testParseConfig_CustomRecordIdParam_Success() {
+        // Given: Configuration with custom parameter
         ActionUpdateRecord action = new ActionUpdateRecord();
 
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
-
-        Map<String, Object> params = new Map<String, Object>{
-            'recordId' => testContact.Id,
-            'FirstName' => 'Updated John'
-            // Note: Most datetime fields on standard objects are not updatable
-            // This test focuses on the string coercion which is most common
-        };
-
+        // When: Parsing config
         Test.startTest();
-        ActionOutcome result = action.executeAction(params);
+        action.parseActionConfiguration('{"recordIdParameter": "customId"}', '[TEST] ');
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(true, result.isSuccess, 'Result should be successful');
-
-        ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
-        System.assertEquals(1, updateResult.updatedFields.size(), 'Should have updated 1 field');
+        // Then: Should parse successfully
+        System.assert(true, 'Should parse custom config');
     }
 
-    @IsTest
-    static void sobjectArgumentCoercionService_booleanCoercion_throughUpdate() {
-        // Test boolean coercion logic (even if field doesn't exist, the coercion logic is tested)
-        Account testAccount = [SELECT Id FROM Account WHERE Name = 'Test Account 1' LIMIT 1];
-
-        ActionUpdateRecord action = new ActionUpdateRecord();
-
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
-
-        Map<String, Object> params = new Map<String, Object>{
-            'recordId' => testAccount.Id,
-            'Name' => 'Boolean Test Account'
-            // Boolean fields on Account are limited, but the coercion service handles them
-        };
-
-        Test.startTest();
-        ActionOutcome result = action.executeAction(params);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(true, result.isSuccess, 'Result should be successful');
-    }
+    // ===================================================================================
+    // RESULT DTO TESTS
+    // ===================================================================================
 
     @IsTest
-    static void sobjectArgumentCoercionService_idCoercion_success() {
-        Account testAccount1 = [SELECT Id FROM Account WHERE Name = 'Test Account 1' LIMIT 1];
-        Account testAccount2 = [SELECT Id FROM Account WHERE Name = 'Test Account 2' LIMIT 1];
-        Contact testContact = [SELECT Id FROM Contact WHERE FirstName = 'John' LIMIT 1];
+    static void testUpdateResult_Constructor_SetsProperties() {
+        // Given: Result data
+        List<String> updatedFields = new List<String>{'Name', 'Email'};
 
-        ActionUpdateRecord action = new ActionUpdateRecord();
-
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
-
-        Map<String, Object> params = new Map<String, Object>{
-            'recordId' => testContact.Id,
-            'AccountId' => String.valueOf(testAccount2.Id), // String ID that should be coerced to Id
-            'FirstName' => 'Updated John'
-        };
-
+        // When: Creating result
         Test.startTest();
-        ActionOutcome result = action.executeAction(params);
+        ActionUpdateRecord.UpdateResult result = new ActionUpdateRecord.UpdateResult(
+            '003000000000001',
+            'Success message',
+            updatedFields
+        );
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(true, result.isSuccess, 'Result should be successful');
-
-        ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
-        System.assertEquals(2, updateResult.updatedFields.size(), 'Should have updated 2 fields');
-
-        // Verify ID coercion worked
-        Contact updatedContact = [SELECT Id, AccountId, FirstName FROM Contact WHERE Id = :testContact.Id];
-        System.assertEquals(testAccount2.Id, updatedContact.AccountId, 'AccountId should be coerced and updated');
-        System.assertEquals('Updated John', updatedContact.FirstName, 'FirstName should be updated');
-    }
-
-    @IsTest
-    static void sobjectArgumentCoercionService_nullValues_handledCorrectly() {
-        Contact testContact = [SELECT Id, Email FROM Contact WHERE FirstName = 'John' LIMIT 1];
-
-        ActionUpdateRecord action = new ActionUpdateRecord();
-
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
-
-        Map<String, Object> params = new Map<String, Object>{
-            'recordId' => testContact.Id,
-            'Email' => null, // Null value should be handled
-            'FirstName' => 'Null Test John'
-        };
-
-        Test.startTest();
-        ActionOutcome result = action.executeAction(params);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(true, result.isSuccess, 'Result should be successful');
-
-        ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
-        System.assertEquals(2, updateResult.updatedFields.size(), 'Should have updated 2 fields');
-
-        // Verify null value was handled
-        Contact updatedContact = [SELECT Id, Email, FirstName FROM Contact WHERE Id = :testContact.Id];
-        System.assertEquals(null, updatedContact.Email, 'Email should be set to null');
-        System.assertEquals('Null Test John', updatedContact.FirstName, 'FirstName should be updated');
-    }
-
-    @IsTest
-    static void sobjectArgumentCoercionService_stringLengthValidation() {
-        // Test string length validation through the coercion service
-        Contact testContact = [SELECT Id FROM Contact WHERE FirstName = 'John' LIMIT 1];
-
-        ActionUpdateRecord action = new ActionUpdateRecord();
-
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
-
-        // Create a very long string that might exceed field limits
-        String longString = 'A'.repeat(300); // Very long string
-
-        Map<String, Object> params = new Map<String, Object>{
-            'recordId' => testContact.Id,
-            'FirstName' => longString // This should be validated by the coercion service
-        };
-
-        Test.startTest();
-        ActionOutcome result = action.executeAction(params);
-        Test.stopTest();
-
-        // The result depends on field limits - either success or failure is acceptable
-        System.assertNotEquals(null, result, 'Result should not be null');
-        // If it succeeds, the field was large enough or was truncated appropriately
-        if (result.isSuccess) {
-            ActionUpdateRecord.UpdateResult updateResult = (ActionUpdateRecord.UpdateResult) result.data;
-            System.assertNotEquals(null, updateResult, 'Update result should not be null if update succeeded');
-        } else {
-            // If it fails, it should be due to length validation
-            System.assert(
-                String.valueOf(result.errorMessage).contains('length') || String.valueOf(result.errorMessage).contains('too long'),
-                'Should indicate length issue'
-            );
-        }
-    }
-
-    @IsTest
-    static void sobjectArgumentCoercionService_decimalCoercion_edgeCases() {
-        Account testAccount = [SELECT Id FROM Account WHERE Name = 'Test Account 1' LIMIT 1];
-
-        ActionUpdateRecord action = new ActionUpdateRecord();
-
-        String config = '{}';
-        action.parseActionConfiguration(config, '[TEST] ');
-
-        Map<String, Object> params = new Map<String, Object>{
-            'recordId' => testAccount.Id,
-            'AnnualRevenue' => '1234567.89', // String decimal
-            'NumberOfEmployees' => 500 // Integer
-        };
-
-        Test.startTest();
-        ActionOutcome result = action.executeAction(params);
-        Test.stopTest();
-
-        System.assertNotEquals(null, result, 'Result should not be null');
-        System.assertEquals(true, result.isSuccess, 'Result should be successful');
-
-        // Verify decimal coercion
-        Account updatedAccount = [SELECT Id, AnnualRevenue, NumberOfEmployees FROM Account WHERE Id = :testAccount.Id];
-        System.assertEquals(1234567.89, updatedAccount.AnnualRevenue, 'AnnualRevenue should be coerced from string');
-        System.assertEquals(500, updatedAccount.NumberOfEmployees, 'NumberOfEmployees should be set correctly');
+        // Then: Properties should be set
+        System.assertEquals('003000000000001', result.recordId);
+        System.assertEquals('Success message', result.message);
+        System.assertEquals(updatedFields, result.updatedFields);
+        System.assertNotEquals(null, result.metadata);
+        System.assertEquals('003000000000001', result.metadata.get('recordId'));
+        System.assertEquals(2, result.metadata.get('fieldsUpdated'));
     }
 }

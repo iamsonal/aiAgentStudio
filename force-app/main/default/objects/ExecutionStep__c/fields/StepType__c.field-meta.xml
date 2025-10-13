@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>StepType__c</fullName>
+    <description>The type of step in the execution flow: user input, agent response, tool call, tool result, system event, or error.</description>
+    <inlineHelpText>What type of step this represents in the execution.</inlineHelpText>
+    <label>Step Type</label>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>UserInput</fullName>
+                <default>false</default>
+                <label>User Input</label>
+            </value>
+            <value>
+                <fullName>AgentResponse</fullName>
+                <default>false</default>
+                <label>Agent Response</label>
+            </value>
+            <value>
+                <fullName>ToolCall</fullName>
+                <default>false</default>
+                <label>Tool Call</label>
+            </value>
+            <value>
+                <fullName>ToolResult</fullName>
+                <default>false</default>
+                <label>Tool Result</label>
+            </value>
+            <value>
+                <fullName>SystemEvent</fullName>
+                <default>false</default>
+                <label>System Event</label>
+            </value>
+            <value>
+                <fullName>Error</fullName>
+                <default>false</default>
+                <label>Error</label>
+            </value>
+            <value>
+                <fullName>TriggerInput</fullName>
+                <default>false</default>
+                <label>Trigger Input</label>
+            </value>
+            <value>
+                <fullName>BatchItem</fullName>
+                <default>false</default>
+                <label>Batch Item</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

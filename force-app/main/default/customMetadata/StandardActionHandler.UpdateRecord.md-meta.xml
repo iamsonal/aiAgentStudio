@@ -4,7 +4,7 @@
     <protected>false</protected>
     <values>
         <field>Description__c</field>
-        <value xsi:nil="true"/>
+        <value xsi:type="xsd:string">Updates an existing record in Salesforce</value>
     </values>
     <values>
         <field>HandlerClassName__c</field>
@@ -13,5 +13,55 @@
     <values>
         <field>IsActive__c</field>
         <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>RequiresSObject__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>RequiredBackendProperties__c</field>
+        <value xsi:type="xsd:string">objectApiName,recordIdParameter</value>
+    </values>
+    <values>
+        <field>RequiredParameters__c</field>
+        <value xsi:type="xsd:string">recordId</value>
+    </values>
+    <values>
+        <field>GuidanceText__c</field>
+        <value xsi:type="xsd:string">&lt;h3&gt;✏️ UpdateRecord Action&lt;/h3&gt;
+&lt;p&gt;This action updates an existing record in Salesforce.&lt;/p&gt;
+
+&lt;h4&gt;Backend Configuration&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;objectApiName&lt;/strong&gt; (String): The Salesforce object to update (required, auto-populated)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;recordIdParameter&lt;/strong&gt; (String): Name of the parameter containing the record ID (default: &quot;recordId&quot;)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4&gt;Parameters (AI will provide)&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;recordId&lt;/strong&gt; (String): The 18-character Salesforce ID of the record to update (required)&lt;/li&gt;
+&lt;li&gt;Add additional parameters for fields the AI should be able to update&lt;/li&gt;
+&lt;/ul&gt;</value>
+    </values>
+    <values>
+        <field>ParametersTemplate__c</field>
+        <value xsi:type="xsd:string">{
+  "type": "object",
+  "properties": {
+    "recordId": {
+      "type": "string",
+      "format": "salesforce-id",
+      "description": "The 18-character ID of the record to update."
+    }
+  },
+  "required": ["recordId"]
+}</value>
+    </values>
+    <values>
+        <field>BackendConfigTemplate__c</field>
+        <value xsi:type="xsd:string">{
+  "objectApiName": "",
+  "recordIdParameter": "recordId"
+}</value>
     </values>
 </CustomMetadata>

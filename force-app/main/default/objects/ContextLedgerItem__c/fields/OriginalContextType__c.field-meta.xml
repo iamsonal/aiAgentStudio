@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>OriginalContextType__c</fullName>
+    <description>The original context type when this item was first created. Preserved for audit trail when context type is promoted (e.g., ACTION_GENERATED promoted to IMPLICIT_PRIMARY).</description>
+    <inlineHelpText>The original type before any promotions. Used for tracking context evolution.</inlineHelpText>
+    <label>Original Context Type</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>IMPLICIT_PRIMARY</fullName>
+                <default>false</default>
+                <label>Implicit Primary</label>
+            </value>
+            <value>
+                <fullName>IMPLICIT_SECONDARY</fullName>
+                <default>false</default>
+                <label>Implicit Secondary</label>
+            </value>
+            <value>
+                <fullName>ACTION_GENERATED</fullName>
+                <default>false</default>
+                <label>Action Generated</label>
+            </value>
+            <value>
+                <fullName>USER_MENTIONED</fullName>
+                <default>false</default>
+                <label>User Mentioned</label>
+            </value>
+            <value>
+                <fullName>SEARCH_RESULT</fullName>
+                <default>false</default>
+                <label>Search Result</label>
+            </value>
+            <value>
+                <fullName>RELATED_RECORD</fullName>
+                <default>false</default>
+                <label>Related Record</label>
+            </value>
+            <value>
+                <fullName>PINNED</fullName>
+                <default>false</default>
+                <label>Pinned</label>
+            </value>
+            <value>
+                <fullName>BACKGROUND_CONTEXT</fullName>
+                <default>false</default>
+                <label>Background Context</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>
+

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PrunedReason__c</fullName>
+    <description>Explanation of why this context item was pruned. Includes relevance score and turn information for audit purposes.</description>
+    <inlineHelpText>The reason this item was pruned from active context.</inlineHelpText>
+    <label>Pruned Reason</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>
+

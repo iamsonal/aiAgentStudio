@@ -33,9 +33,14 @@ export class UniversalEmpApi {
         this.errorCallback = null;
         this.connectionHealthInterval = null;
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 3;
+        this.maxReconnectAttempts = 5;
         this.handshakeTimeout = null;
         this.communityMode = false; // Track the mode setting
+        this.errorListenerRegistered = false; // Track if error listener is registered
+        this.cometdScriptLoaded = false; // Track if CometD script is loaded
+        this.initializationInProgress = false; // Prevent race conditions
+        this.reconnectTimeout = null; // Track reconnection timeout
+        this.lastActivityTime = Date.now(); // Track last activity for idle detection
     }
 
     /**
@@ -46,6 +51,13 @@ export class UniversalEmpApi {
     async initialize(errorCallback = null, forceCommunityMode = null) {
         if (this.initialized) return;
 
+        // Prevent race conditions from multiple simultaneous initialize calls
+        if (this.initializationInProgress) {
+            console.warn('UniversalEmpApi: Initialization already in progress');
+            return;
+        }
+
+        this.initializationInProgress = true;
         this.errorCallback = errorCallback;
 
         // Use provided mode or default to Lightning Experience (EmpApi)
@@ -87,6 +99,7 @@ export class UniversalEmpApi {
         // Start connection health monitoring
         this._startConnectionHealthMonitoring();
         this.initialized = true;
+        this.initializationInProgress = false;
     }
 
     /**
@@ -98,6 +111,7 @@ export class UniversalEmpApi {
      */
     async subscribe(channel, replayId = -1, callback) {
         this._validateConnection();
+        this._updateActivityTime();
 
         let subscription;
 
@@ -178,6 +192,8 @@ export class UniversalEmpApi {
      * Clean up all subscriptions and connections
      */
     cleanup() {
+        console.info('UniversalEmpApi: Starting cleanup');
+
         // Clear connection health monitoring
         if (this.connectionHealthInterval) {
             clearInterval(this.connectionHealthInterval);
@@ -190,15 +206,28 @@ export class UniversalEmpApi {
             this.handshakeTimeout = null;
         }
 
+        // Clear any pending reconnect timeout
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
+
         // Unsubscribe from all channels
-        for (const channel of this.subscriptions.keys()) {
-            this.unsubscribe(channel);
+        const channels = Array.from(this.subscriptions.keys());
+        for (const channel of channels) {
+            try {
+                this.unsubscribe(channel);
+            } catch (error) {
+                console.warn(`UniversalEmpApi: Error unsubscribing from ${channel}:`, error);
+            }
         }
 
         // Properly disconnect CometD if used
         if (this.useCometD && this.cometd) {
             try {
-                this.cometd.disconnect();
+                if (typeof this.cometd.disconnect === 'function') {
+                    this.cometd.disconnect();
+                }
                 this.cometd = null;
             } catch (error) {
                 console.warn('UniversalEmpApi: Error during CometD cleanup:', error);
@@ -212,6 +241,10 @@ export class UniversalEmpApi {
         this.initialized = false;
         this.reconnectAttempts = 0;
         this.communityMode = false;
+        this.errorListenerRegistered = false;
+        this.initializationInProgress = false;
+
+        console.info('UniversalEmpApi: Cleanup complete');
     }
 
     /**
@@ -222,10 +255,26 @@ export class UniversalEmpApi {
     async _initializeCometD() {
         try {
             this.sessionId = await fetchSessionId();
-            await loadScript(this, cometdLib + '/cometd.js');
+
+            // Only load the script if it hasn't been loaded yet
+            if (!this.cometdScriptLoaded) {
+                await loadScript(this, cometdLib + '/cometd.js');
+                this.cometdScriptLoaded = true;
+            }
 
             if (!window.org || !window.org.cometd || !window.org.cometd.CometD) {
                 throw new Error('CometD library not properly loaded');
+            }
+
+            // Clean up existing CometD instance if present
+            if (this.cometd) {
+                try {
+                    if (typeof this.cometd.disconnect === 'function') {
+                        this.cometd.disconnect();
+                    }
+                } catch (error) {
+                    console.warn('UniversalEmpApi: Error disconnecting existing CometD:', error);
+                }
             }
 
             this.cometd = new window.org.cometd.CometD();
@@ -274,9 +323,22 @@ export class UniversalEmpApi {
      */
     async _subscribeEmpApi(channel, replayId, callback) {
         try {
-            return await subscribe(channel, replayId, callback);
+            // Wrap the callback to update activity time and handle errors
+            const wrappedCallback = (message) => {
+                this._updateActivityTime();
+                try {
+                    callback(message);
+                } catch (callbackError) {
+                    const serializedError = this._serializeError(callbackError);
+                    console.error(`UniversalEmpApi: Error in callback for ${channel}:`, serializedError);
+                    this._handleError(`Callback error for ${channel}`, serializedError);
+                }
+            };
+
+            return await subscribe(channel, replayId, wrappedCallback);
         } catch (error) {
-            this._handleError(`EmpApi subscription to ${channel} failed`, error);
+            const serializedError = this._serializeError(error);
+            this._handleError(`EmpApi subscription to ${channel} failed`, serializedError);
             throw error;
         }
     }
@@ -290,23 +352,35 @@ export class UniversalEmpApi {
             return this.cometd.subscribe(
                 channel,
                 (message) => {
-                    // Transform CometD message format to match empApi format
-                    const transformedMessage = {
-                        data: {
-                            payload: message.data.payload
-                        }
-                    };
-                    callback(transformedMessage);
+                    // Update activity time when message is received
+                    this._updateActivityTime();
+
+                    try {
+                        // Transform CometD message format to match empApi format
+                        const transformedMessage = {
+                            data: {
+                                payload: message.data.payload
+                            }
+                        };
+                        callback(transformedMessage);
+                    } catch (callbackError) {
+                        const serializedError = this._serializeError(callbackError);
+                        console.error(`UniversalEmpApi: Error in callback for ${channel}:`, serializedError);
+                        this._handleError(`Callback error for ${channel}`, serializedError);
+                    }
                 },
                 { replay: replayId },
                 (subscriptionReply) => {
                     if (!subscriptionReply.successful) {
-                        this._handleError(`CometD subscription to ${channel} failed`, new Error(subscriptionReply.error));
+                        const errorMsg = subscriptionReply.error || 'Unknown subscription error';
+                        const serializedError = this._serializeError(errorMsg);
+                        this._handleError(`CometD subscription to ${channel} failed`, serializedError);
                     }
                 }
             );
         } catch (error) {
-            this._handleError(`CometD subscription to ${channel} failed`, error);
+            const serializedError = this._serializeError(error);
+            this._handleError(`CometD subscription to ${channel} failed`, serializedError);
             throw error;
         }
     }
@@ -316,9 +390,18 @@ export class UniversalEmpApi {
      * @private
      */
     _registerErrorListener() {
+        // Only register once to prevent memory leaks
+        if (this.errorListenerRegistered) {
+            return;
+        }
+
         onError((error) => {
-            this._handleError('EmpApi streaming error', error);
+            // Extract meaningful error information and serialize properly
+            const serializedError = this._serializeError(error);
+            this._handleError('EmpApi streaming error', serializedError);
         });
+
+        this.errorListenerRegistered = true;
     }
 
     /**
@@ -326,10 +409,75 @@ export class UniversalEmpApi {
      * @private
      */
     _handleError(message, error) {
+        // Serialize error if it's an object to prevent display issues
+        const processedError = error && typeof error === 'object' ? this._serializeError(error) : error;
+
         if (this.errorCallback) {
-            this.errorCallback(message, error);
+            this.errorCallback(message, processedError);
         } else {
-            console.error(`UniversalEmpApi: ${message}`, error);
+            console.error(`UniversalEmpApi: ${message}`, processedError);
+        }
+    }
+
+    /**
+     * Serialize error objects to extract meaningful information.
+     * Prevents incomplete error messages like "message:" in toasts.
+     * @private
+     */
+    _serializeError(error) {
+        if (!error) {
+            return 'Unknown error';
+        }
+
+        // If it's already a string, return it
+        if (typeof error === 'string') {
+            return error;
+        }
+
+        // Extract error information from various error formats
+        try {
+            // EmpApi errors might be objects with different structures
+            if (error.message) {
+                return error.message;
+            }
+
+            // CometD errors might have error property
+            if (error.error) {
+                if (typeof error.error === 'string') {
+                    return error.error;
+                }
+                if (error.error.message) {
+                    return error.error.message;
+                }
+            }
+
+            // Salesforce Apex errors might have body
+            if (error.body) {
+                if (error.body.message) {
+                    return error.body.message;
+                }
+                if (typeof error.body === 'string') {
+                    return error.body;
+                }
+            }
+
+            // For objects without clear error message, try JSON stringify
+            // But catch circular reference errors
+            try {
+                const stringified = JSON.stringify(error);
+                // Only return if it's meaningful (not just "{}")
+                if (stringified && stringified !== '{}' && stringified !== '[]') {
+                    return stringified;
+                }
+            } catch (jsonError) {
+                console.warn('UniversalEmpApi: Error serializing error object:', jsonError);
+            }
+
+            // Last resort: convert to string
+            return String(error);
+        } catch (serializationError) {
+            console.warn('UniversalEmpApi: Error during error serialization:', serializationError);
+            return 'Error occurred but could not be serialized';
         }
     }
 
@@ -345,8 +493,16 @@ export class UniversalEmpApi {
     }
 
     /**
+     * Update last activity time
+     * @private
+     */
+    _updateActivityTime() {
+        this.lastActivityTime = Date.now();
+    }
+
+    /**
      * Check if connection is healthy and attempt reconnection if needed
-     * Only logs connection issues; does not attempt reconnection automatically.
+     * Monitors idle state and triggers reconnection for CometD connections.
      * @private
      */
     async _checkConnectionHealth() {
@@ -354,24 +510,77 @@ export class UniversalEmpApi {
 
         try {
             const isConnected = this.isConnected();
+            const timeSinceLastActivity = Date.now() - this.lastActivityTime;
+            const isIdle = timeSinceLastActivity > 120000; // 2 minutes idle
 
-            // Only log connection issues, don't attempt reconnection during normal health checks
-            // Reconnection should be triggered by actual failures, not periodic checks
-            if (!isConnected) {
-                console.debug('UniversalEmpApi: Connection health check - not connected', {
+            // If disconnected and we have active subscriptions, attempt reconnection
+            if (!isConnected && this.subscriptions.size > 0) {
+                console.warn('UniversalEmpApi: Connection lost, attempting reconnection', {
                     useCometD: this.useCometD,
                     isEmpApiEnabled: this.isEmpApiEnabled,
-                    cometdExists: this.cometd !== null,
-                    reconnectAttempts: this.reconnectAttempts
+                    reconnectAttempts: this.reconnectAttempts,
+                    activeSubscriptions: this.subscriptions.size
                 });
+
+                await this._scheduleReconnection();
+            }
+            // For CometD, check idle state and preemptively refresh connection
+            else if (this.useCometD && isIdle && this.subscriptions.size > 0) {
+                console.debug('UniversalEmpApi: Idle state detected for CometD, refreshing connection');
+                this._updateActivityTime(); // Reset to prevent constant reconnection
+                await this._scheduleReconnection();
             }
         } catch (error) {
             console.error('UniversalEmpApi: Error during connection health check:', error);
-            // Only handle error if it's not related to the isConnected check itself
-            if (!error.message.includes('isConnected')) {
-                this._handleError('Connection health check failed', error);
-            }
+            const serializedError = this._serializeError(error);
+            this._handleError('Connection health check failed', serializedError);
         }
+    }
+
+    /**
+     * Schedule a reconnection attempt with exponential backoff
+     * @private
+     */
+    async _scheduleReconnection() {
+        // Check if we've exceeded max attempts
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.error('UniversalEmpApi: Max reconnection attempts reached. Please refresh the page.');
+            this._handleError(
+                'Max reconnection attempts reached',
+                `Failed to reconnect after ${this.maxReconnectAttempts} attempts. Please refresh the page.`
+            );
+            return;
+        }
+
+        // Clear any existing reconnect timeout
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
+
+        this.reconnectAttempts++;
+
+        // Calculate exponential backoff delay: 1s, 2s, 4s, 8s, 16s
+        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 16000);
+
+        console.info(`UniversalEmpApi: Scheduling reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
+
+        this.reconnectTimeout = setTimeout(async () => {
+            try {
+                await this._attemptReconnection();
+                console.info('UniversalEmpApi: Reconnection successful');
+                this.reconnectAttempts = 0; // Reset on success
+            } catch (error) {
+                console.error('UniversalEmpApi: Reconnection attempt failed:', error);
+                const serializedError = this._serializeError(error);
+                this._handleError('Reconnection failed', serializedError);
+
+                // Schedule another attempt if we haven't reached max
+                if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                    await this._scheduleReconnection();
+                }
+            }
+        }, delay);
     }
 
     /**
@@ -379,45 +588,70 @@ export class UniversalEmpApi {
      * @private
      */
     async _attemptReconnection() {
+        console.info('UniversalEmpApi: Starting reconnection attempt');
+
         try {
             if (this.useCometD && this.cometd) {
                 // Store subscription info before disconnecting
                 const subscriptionsToRestore = new Map(this.subscriptionCallbacks);
 
-                // Disconnect and reinitialize
-                this.cometd.disconnect();
+                // Disconnect existing connection
+                try {
+                    if (typeof this.cometd.disconnect === 'function') {
+                        this.cometd.disconnect();
+                    }
+                } catch (disconnectError) {
+                    console.warn('UniversalEmpApi: Error during disconnect:', disconnectError);
+                }
+
                 this.subscriptions.clear();
+
+                // Reinitialize CometD (will fetch new session if needed)
                 await this._initializeCometD();
 
                 // Resubscribe to all channels with stored callbacks
+                let successCount = 0;
+                let failCount = 0;
+
                 for (const [channel, { callback, replayId }] of subscriptionsToRestore) {
                     try {
                         const subscription = await this._subscribeCometD(channel, replayId, callback);
                         this.subscriptions.set(channel, subscription);
+                        successCount++;
                         console.info(`UniversalEmpApi: Successfully resubscribed to ${channel}`);
                     } catch (error) {
-                        console.error(`UniversalEmpApi: Failed to resubscribe to ${channel}:`, error);
+                        failCount++;
+                        const serializedError = this._serializeError(error);
+                        console.error(`UniversalEmpApi: Failed to resubscribe to ${channel}:`, serializedError);
                         // Remove failed subscription from callbacks
                         this.subscriptionCallbacks.delete(channel);
                     }
                 }
-            } else {
-                // For EmpApi, reinitialize the error listener
-                this._registerErrorListener();
 
-                // EmpApi subscriptions should still be active, but verify
+                console.info(`UniversalEmpApi: Reconnection complete. Success: ${successCount}, Failed: ${failCount}`);
+
+                if (failCount > 0 && successCount === 0) {
+                    throw new Error(`All ${failCount} subscription(s) failed to reconnect`);
+                }
+            } else {
+                // For EmpApi, subscriptions should persist
+                // Just verify they're still working
+                console.info('UniversalEmpApi: EmpApi reconnection - verifying subscriptions');
+
                 const subscriptionsToCheck = new Map(this.subscriptionCallbacks);
                 for (const [channel, { callback, replayId }] of subscriptionsToCheck) {
                     try {
-                        // Test if subscription is still active by attempting to resubscribe
-                        // This will either succeed or throw an error
-                        const subscription = await this._subscribeEmpApi(channel, replayId, callback);
-                        this.subscriptions.set(channel, subscription);
+                        // For EmpApi, we don't need to resubscribe unless the connection is truly lost
+                        // Just log that we're monitoring
+                        console.debug(`UniversalEmpApi: EmpApi subscription to ${channel} being monitored`);
                     } catch (error) {
-                        console.warn(`UniversalEmpApi: EmpApi subscription to ${channel} may be stale:`, error);
+                        const serializedError = this._serializeError(error);
+                        console.warn(`UniversalEmpApi: EmpApi subscription to ${channel} may have issues:`, serializedError);
                     }
                 }
             }
+
+            this._updateActivityTime(); // Reset activity timer after successful reconnection
         } catch (error) {
             console.error('UniversalEmpApi: Reconnection attempt failed:', error);
             throw error;

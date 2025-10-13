@@ -9,11 +9,14 @@
 /**
  * @description
  * AsyncFrameworkRequestTriggerHandler is the comprehensive platform event handler for AsyncFrameworkRequest__e events.
- * Responsibilities:
- *   - Provides intelligent routing and deserialization of event payloads to the appropriate processor classes
- *   - Supports multiple job types including initial LLM processing, action execution, and follow-up LLM processing
- *   - Ensures robust error handling and batch isolation for reliable event processing
- *   - Surfaces operational and routing issues clearly via debug output for maintainability
+ *
+ * In the unified agent architecture:
+ *   - ProcessLLMMessage: Handles high-concurrency conversational agents (via ConversationalOrchestrator)
+ *   - ExecuteAction: Handles tool/action execution (from ToolCallResponseHandler via AgentJobEnqueuer)
+ *   - FollowUpLLM: Handles multi-turn LLM continuations (via AgentJobEnqueuer)
+ *
+ * Note: Most orchestrators (Email, Batch, Autonomous, low-concurrency Conversational) now use Queueables directly,
+ * bypassing platform events for better statefulness and simpler flows.
  *
  * This class is not intended to be instantiated or extended outside the framework.
  */
@@ -49,7 +52,9 @@ public class AsyncFrameworkRequestTriggerHandler {
                 } else {
                     System.debug(
                         LoggingLevel.ERROR,
-                        '[AsyncFrameworkRequestTriggerHandler] Unknown JobType received: ' + jobType + '. Valid types: ExecuteAction, FollowUpLLM, ProcessLLMMessage.'
+                        '[AsyncFrameworkRequestTriggerHandler] Unknown JobType received: ' +
+                            jobType +
+                            '. Valid types: ExecuteAction, FollowUpLLM, ProcessLLMMessage.'
                     );
                 }
             } catch (Exception e) {
@@ -68,7 +73,7 @@ public class AsyncFrameworkRequestTriggerHandler {
     }
 
     /**
-     * Handles the ExecuteAction job type by deserializing the payload and invoking AsyncActionProcessor.
+     * Handles the ExecuteAction job type by deserializing the payload and invoking AsyncActionEngine.
      *
      * @param payloadJson JSON payload containing action execution parameters.
      */
@@ -78,7 +83,7 @@ public class AsyncFrameworkRequestTriggerHandler {
         // Deserialize the AgentCapability__c object from the payload
         AgentCapability__c capability = (AgentCapability__c) JSON.deserialize(JSON.serialize(params.get('capability')), AgentCapability__c.class);
 
-        AsyncActionProcessor processor = new AsyncActionProcessor(
+        AsyncActionEngine engine = new AsyncActionEngine(
             (Id) params.get('sessionId'),
             (Id) params.get('originalUserId'),
             (Id) params.get('agentDefId'),
@@ -90,11 +95,11 @@ public class AsyncFrameworkRequestTriggerHandler {
             (String) params.get('turnId'),
             (Integer) params.get('currentTurnCount')
         );
-        processor.process(null);
+        engine.process(null);
     }
 
     /**
-     * Handles the FollowUpLLM job type by deserializing the payload and invoking FollowUpLLMProcessor.
+     * Handles the FollowUpLLM job type by deserializing the payload and invoking FollowUpLLMEngine.
      *
      * @param payloadJson JSON payload containing follow-up LLM processing parameters.
      */
@@ -107,7 +112,7 @@ public class AsyncFrameworkRequestTriggerHandler {
             isFinalError = (Boolean) params.get('isFinalErrorTurn');
         }
 
-        FollowUpLLMProcessor processor = new FollowUpLLMProcessor(
+        FollowUpLLMEngine engine = new FollowUpLLMEngine(
             (Id) params.get('sessionId'),
             (Id) params.get('userId'),
             (Id) params.get('agentDefId'),
@@ -115,7 +120,7 @@ public class AsyncFrameworkRequestTriggerHandler {
             (Integer) params.get('nextTurnCount'),
             isFinalError
         );
-        processor.process(null);
+        engine.process(null);
     }
 
     /**
@@ -137,7 +142,11 @@ public class AsyncFrameworkRequestTriggerHandler {
 
         System.debug(
             LoggingLevel.INFO,
-            logPrefix + '[AsyncFrameworkRequestTriggerHandler] Starting initial LLM message processing via Platform Event. SessionId=' + sessionId + ', TurnId=' + turnIdentifier
+            logPrefix +
+                '[AsyncFrameworkRequestTriggerHandler] Starting initial LLM message processing via Platform Event. SessionId=' +
+                sessionId +
+                ', TurnId=' +
+                turnIdentifier
         );
 
         try {
@@ -174,7 +183,7 @@ public class AsyncFrameworkRequestTriggerHandler {
             }
 
             // Process the LLM result using the orchestration service with the decision logger
-            String outcome = orchestrationSvc.processLlmResultWithLogger(
+            String outcome = orchestrationSvc.processLlmResult(
                 llmResult,
                 sessionId,
                 originalUserId,
@@ -214,7 +223,9 @@ public class AsyncFrameworkRequestTriggerHandler {
             } catch (Exception failEx) {
                 System.debug(
                     LoggingLevel.ERROR,
-                    logPrefix + '[AsyncFrameworkRequestTriggerHandler] CRITICAL: Failed to update session state after processing failure: ' + failEx.getMessage()
+                    logPrefix +
+                        '[AsyncFrameworkRequestTriggerHandler] CRITICAL: Failed to update session state after processing failure: ' +
+                        failEx.getMessage()
                 );
             }
         }

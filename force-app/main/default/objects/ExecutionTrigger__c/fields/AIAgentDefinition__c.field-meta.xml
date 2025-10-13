@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AIAgentDefinition__c</fullName>
+    <deleteConstraint>Restrict</deleteConstraint>
+    <description>The AI Agent Definition that will be executed when this trigger fires.</description>
+    <inlineHelpText>Which agent to execute when this trigger activates.</inlineHelpText>
+    <label>AI Agent Definition</label>
+    <referenceTo>AIAgentDefinition__c</referenceTo>
+    <relationshipLabel>Execution Triggers</relationshipLabel>
+    <relationshipName>ExecutionTriggers</relationshipName>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

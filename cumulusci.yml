@@ -22,6 +22,10 @@ tasks:
         class_path: cumulusci.tasks.salesforce.Deploy
         options:
             path: seed-data
+    deploy_addons:
+      class_path: cumulusci.tasks.salesforce.Deploy
+      options:
+        path: aiAgentStudioAddons
     enable_knowledge_user:
         class_path: cumulusci.tasks.apex.anon.AnonymousApexTask
         options:

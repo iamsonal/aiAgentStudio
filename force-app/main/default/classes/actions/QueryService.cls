@@ -524,7 +524,9 @@ public class QueryService {
             } else {
                 String bindName = 'filterBind' + this.bindCounter++;
                 conditions.add(dfr.getName() + ' = :' + bindName);
-                bindMap.put(bindName, filterValue);
+                // Coerce the value to the correct type for binding
+                Object coercedValue = coerceFilterValue(filterValue, dfr, fieldName);
+                bindMap.put(bindName, coercedValue);
             }
         }
 

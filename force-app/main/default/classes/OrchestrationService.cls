@@ -13,6 +13,8 @@
  * manages turn lifecycle and state transitions, and provides robust error handling with comprehensive logging.
  * The service is designed for extensibility, testability, and operational transparency, serving as the central
  * orchestrator for all LLM-driven agent workflows.
+ *
+ * Supports the unified AgentExecution__c model for all agent workflows.
  */
 public inherited sharing class OrchestrationService {
     public virtual class OrchestrationException extends AIAgentException {
@@ -29,7 +31,7 @@ public inherited sharing class OrchestrationService {
 
     // Injected service dependencies
     private final TurnLifecycleService turnLifecycleSvc;
-    private final ActionExecutionService actionExecSvc;
+    private final CapabilityExecutionRouter actionExecSvc;
     private final AgentJobEnqueuer orchestrationDispatchSvc;
     private final ContextManagerService contextManagerSvc;
 
@@ -40,21 +42,21 @@ public inherited sharing class OrchestrationService {
      */
     public OrchestrationService() {
         // Initialize with default service implementations
-        this(new TurnLifecycleService(), new ActionExecutionService(), new AgentJobEnqueuer(), new ContextManagerService());
+        this(new TurnLifecycleService(), new CapabilityExecutionRouter(), new AgentJobEnqueuer(), new ContextManagerService());
     }
 
     /**
      * Constructor with dependency injection for testing and customization.
      *
      * @param turnSvc    TurnLifecycleService instance (required)
-     * @param actionSvc  ActionExecutionService instance (required)
+     * @param actionSvc  CapabilityExecutionRouter instance (required)
      * @param dispatchSvc AgentJobEnqueuer instance (required)
      * @param contextSvc ContextManagerService instance (required)
      * @throws IllegalArgumentException if any dependency is null
      */
     public OrchestrationService(
         TurnLifecycleService turnSvc,
-        ActionExecutionService actionSvc,
+        CapabilityExecutionRouter actionSvc,
         AgentJobEnqueuer dispatchSvc,
         ContextManagerService contextSvc
     ) {
@@ -68,17 +70,17 @@ public inherited sharing class OrchestrationService {
     }
 
     /**
-     * Processes the LLM interaction result using the appropriate strategy handler based on response type.
-     * This method accepts a decision logger that may have been created earlier in the process.
+     * Processes the LLM interaction result for AgentExecution__c records.
+     * Main method that supports the unified agentic framework.
      *
      * @param llmInteractionResult      Result from LLM interaction containing response content and/or tool calls (required)
-     * @param sessionId                 The current session ID (required)
-     * @param originalUserId            The original user ID who initiated the session (required)
+     * @param executionId               The AgentExecution__c ID (required)
+     * @param originalUserId            The original user ID who initiated the execution (required)
      * @param executionUserId           The user ID under which execution is performed (required)
-     * @param agentDefinitionId         The agent definition ID for this session (required)
+     * @param agentDefinitionId         The agent definition ID for this execution (required)
      * @param turnIdentifier            Unique identifier for this turn (required)
-     * @param currentTurnCount          The current turn count in the session (required)
-     * @param userMessageDataForTurn    The user message data for this turn (required)
+     * @param currentTurnCount          The current turn count in the execution (required)
+     * @param userMessageDataForTurn    The user message data for this turn (optional for non-conversational)
      * @param currentPageRecordId       The current page record ID, if applicable (optional)
      * @param decisionLogger            The decision step logger to use (required)
      * @return                          Outcome constant indicating turn completion status and next steps
@@ -86,9 +88,9 @@ public inherited sharing class OrchestrationService {
      *
      * Side effects: Emits debug logs and orchestrates turn state transitions.
      */
-    public String processLlmResultWithLogger(
+    public String processLlmResult(
         LLMInteractionService.LLMInteractionResult llmInteractionResult,
-        Id sessionId,
+        Id executionId,
         Id originalUserId,
         Id executionUserId,
         Id agentDefinitionId,
@@ -98,7 +100,7 @@ public inherited sharing class OrchestrationService {
         Id currentPageRecordId,
         AgentDecisionStepLogger decisionLogger
     ) {
-        String logPrefix = '[OrchSvc Turn:' + turnIdentifier?.left(8) + ' Cycle:' + currentTurnCount + ' Sess:' + sessionId + '] ';
+        String logPrefix = '[OrchSvc Turn:' + turnIdentifier?.left(8) + ' Cycle:' + currentTurnCount + ' Exec:' + executionId + '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting orchestration for LLM result. Page context: ' + currentPageRecordId);
 
         try {
@@ -117,14 +119,14 @@ public inherited sharing class OrchestrationService {
                     null
                 );
 
-                this.turnLifecycleSvc.failTurn(sessionId, turnIdentifier, failureReason, failureCode, logPrefix);
+                this.turnLifecycleSvc.failTurn(executionId, turnIdentifier, failureReason, failureCode, logPrefix);
                 return OUTCOME_FAILED;
             }
 
             // Create orchestration context with all required state and dependencies for this turn.
             OrchestrationContext context = new OrchestrationContext(
                 llmInteractionResult,
-                sessionId,
+                executionId,
                 originalUserId,
                 executionUserId,
                 agentDefinitionId,
@@ -166,7 +168,7 @@ public inherited sharing class OrchestrationService {
             );
 
             try {
-                this.turnLifecycleSvc.failTurn(sessionId, turnIdentifier, errorMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
+                this.turnLifecycleSvc.failTurn(executionId, turnIdentifier, errorMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
             } catch (Exception finalFailEx) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'FATAL: Could not mark turn as failed. Reason: ' + finalFailEx.getMessage());
             }
@@ -181,71 +183,70 @@ public inherited sharing class OrchestrationService {
     // Static utility methods for use by response handlers
 
     /**
-     * Serializes an ActionResult for LLM consumption, handling nulls and error cases gracefully.
+     * Serializes an ActionOutcome for LLM consumption, handling nulls and error cases gracefully.
      *
-     * If the ActionResult is null or missing output, a synthetic error response is generated. Internal exception details
-     * are sanitized for LLM consumption. All serialization errors are logged and surfaced in the output.
+     * If the ActionOutcome is null or missing data, a synthetic error response is generated.
+     * For failures, the LLM-friendly message with emojis and suggestions is used. All serialization
+     * errors are logged and surfaced in the output.
      *
-     * @param actionResult The ActionResult to serialize (may be null)
-     * @param logPrefix    Prefix for debug log output
-     * @return             JSON string representing the action result for LLM
+     * @param actionOutcome The ActionOutcome to serialize (may be null)
+     * @param logPrefix     Prefix for debug log output
+     * @return              JSON string representing the action outcome for LLM
      *
-     * Side effects: Emits debug logs for null results and serialization errors.
+     * Side effects: Emits debug logs for null outcomes and serialization errors.
      */
-    public static String serializeActionResult(ActionResult actionResult, String logPrefix) {
+    public static String serializeActionOutcome(ActionOutcome actionOutcome, String logPrefix) {
         try {
-            if (actionResult == null) {
-                System.debug(LoggingLevel.WARN, logPrefix + 'Action result is null. Returning error response for LLM.');
-                return JSON.serialize(new Map<String, Object>{ 'error' => 'Action execution did not return a result object.' });
+            if (actionOutcome == null) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Action outcome is null. Returning error response for LLM.');
+                return JSON.serialize(new Map<String, Object>{ 'error' => 'Action execution did not return an outcome object.' });
             }
-            if (actionResult.outputForLlm != null) {
-                return JSON.serialize(actionResult.outputForLlm);
-            } else {
-                Map<String, Object> syntheticOutput = new Map<String, Object>{ 'success' => actionResult.isSuccess };
-                if (!actionResult.isSuccess) {
-                    syntheticOutput.put('errorCode', actionResult.errorCode);
-                    String llmErrorDetail = actionResult.internalDetails != null ? actionResult.internalDetails : 'No details available';
-                    // Sanitize internal exception details for LLM consumption
-                    if (actionResult.internalDetails != null && actionResult.internalDetails.contains('Exception:')) {
-                        llmErrorDetail = 'An internal error occurred executing the action';
-                    }
-                    syntheticOutput.put('messageForUser', llmErrorDetail);
+
+            if (actionOutcome.isSuccess) {
+                // For success, serialize the data directly if present
+                if (actionOutcome.data != null) {
+                    return JSON.serialize(actionOutcome.data);
+                } else {
+                    // No data but successful
+                    return JSON.serialize(new Map<String, Object>{ 'success' => true, 'data' => new Map<String, Object>() });
                 }
-                syntheticOutput.put('data', new Map<String, Object>());
-                return JSON.serialize(syntheticOutput);
+            } else {
+                // For failure, create structured error output with LLM-friendly message
+                Map<String, Object> errorOutput = new Map<String, Object>{
+                    'success' => false,
+                    'errorCode' => actionOutcome.errorCode,
+                    'messageForUser' => actionOutcome.llmFriendlyMessage != null ? actionOutcome.llmFriendlyMessage : actionOutcome.errorMessage,
+                    'data' => new Map<String, Object>()
+                };
+                return JSON.serialize(errorOutput);
             }
         } catch (Exception jsonEx) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to serialize action result for LLM. Error: ' + jsonEx.getMessage());
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to serialize action outcome for LLM. Error: ' + jsonEx.getMessage());
             return JSON.serialize(
                 new Map<String, Object>{
-                    'error' => 'Failed to serialize action result data',
+                    'error' => 'Failed to serialize action outcome data',
                     'serialization_error_details' => jsonEx.getMessage(),
-                    'original_action_success_status' => actionResult?.isSuccess,
-                    'original_action_error_code' => actionResult?.errorCode
+                    'original_action_success_status' => actionOutcome?.isSuccess,
+                    'original_action_error_code' => actionOutcome?.errorCode
                 }
             );
         }
     }
 
     /**
-     * Extracts a Salesforce record ID from an ActionResult payload for context management.
+     * Extracts a Salesforce record ID from an ActionOutcome payload for context management.
      *
      * Handles multiple output shapes (direct recordId, single-record list, or single record object).
      *
-     * @param actionResult Action execution result containing potential record data (may be null)
-     * @return             Salesforce ID if found in result payload, null otherwise
+     * @param actionOutcome Action execution outcome containing potential record data (may be null)
+     * @return              Salesforce ID if found in outcome payload, null otherwise
      */
-    public static Id extractRecordIdFromResult(ActionResult actionResult) {
-        if (
-            actionResult == null ||
-            !actionResult.isSuccess ||
-            actionResult.outputForLlm == null ||
-            !(actionResult.outputForLlm instanceof Map<String, Object>)
-        ) {
+    public static Id extractRecordIdFromOutcome(ActionOutcome actionOutcome) {
+        if (actionOutcome == null || !actionOutcome.isSuccess || actionOutcome.data == null || !(actionOutcome.data instanceof Map<String, Object>)) {
             return null;
         }
 
-        Map<String, Object> outputMap = (Map<String, Object>) actionResult.outputForLlm;
+        Map<String, Object> outputMap = (Map<String, Object>) actionOutcome.data;
         if (!'SUCCESS'.equalsIgnoreCase(String.valueOf(outputMap.get('status'))) || !(outputMap.get('data') instanceof Map<String, Object>)) {
             return null;
         }
@@ -295,32 +296,6 @@ public inherited sharing class OrchestrationService {
         }
 
         return null;
-    }
-
-    /**
-     * Clears the PendingConfirmationActionDetails__c field from a ChatMessage__c record.
-     *
-     * Used to remove pending action details after confirmation or cancellation. Logs all outcomes.
-     *
-     * @param chatMessageId The ChatMessage__c record ID to update (may be null)
-     * @param logPrefix     Prefix for debug log output
-     *
-     * Side effects: Emits debug logs for null input, success, and failure cases.
-     */
-    public static void clearPendingDetailsFromMessage(Id chatMessageId, String logPrefix) {
-        try {
-            if (chatMessageId == null) {
-                System.debug(LoggingLevel.WARN, logPrefix + 'Attempted to clear pending details: ChatMessageId is null. Skipping update.');
-                return;
-            }
-            update new ChatMessage__c(Id = chatMessageId, PendingConfirmationActionDetails__c = null);
-            System.debug(LoggingLevel.INFO, logPrefix + 'Pending confirmation details cleared from message: ' + chatMessageId);
-        } catch (Exception e) {
-            System.debug(
-                LoggingLevel.WARN,
-                logPrefix + 'Failed to clear pending details from message ' + chatMessageId + '. Error: ' + e.getMessage()
-            );
-        }
     }
 
     /**

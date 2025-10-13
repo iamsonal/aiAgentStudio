@@ -9,7 +9,7 @@
         <field>Name</field>
         <field>Owner</field>
         <field>LLMConfirmationMessage__c</field>
-        <field>OriginalAssistantMessage__c</field>
+        <field>OriginalAssistantStep__c</field>
     </approvalPageFields>
     <approvalStep>
         <allowDelegate>false</allowDelegate>

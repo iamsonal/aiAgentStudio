@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RelevanceScore__c</fullName>
+    <description>Dynamic relevance score calculated using temporal decay, access patterns, and context type. Higher scores indicate more relevant context items.</description>
+    <inlineHelpText>The current relevance score for this context item. Higher = more important.</inlineHelpText>
+    <label>Relevance Score</label>
+    <precision>18</precision>
+    <required>true</required>
+    <scale>4</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>
+

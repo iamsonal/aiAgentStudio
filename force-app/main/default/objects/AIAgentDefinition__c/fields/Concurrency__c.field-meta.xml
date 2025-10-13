@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Concurrency__c</fullName>
+    <description>Concurrency level for conversational agents: Low (Queueable for sequential processing), High (Platform Events for concurrent, multi-user chat). Ignored for Batch/Email agents which always use Queueables.</description>
+    <inlineHelpText>For Conversational agents: choose Low for single-user scenarios, High for multi-user concurrent chats. Batch and Email agents ignore this setting.</inlineHelpText>
+    <label>Concurrency</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Low</fullName>
+                <default>true</default>
+                <label>Low</label>
+            </value>
+            <value>
+                <fullName>High</fullName>
+                <default>false</default>
+                <label>High</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>
