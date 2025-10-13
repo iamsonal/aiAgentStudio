@@ -193,7 +193,7 @@ public class TestFactory {
             AgentType__c = 'Conversational',
             MemoryStrategy__c = 'Buffer Window',
             HistoryTurnLimit__c = 10,
-            EnableReasoningMode__c = false,
+            EnableActionTransparency__c = false,
             EnableParallelToolCalling__c = true,
             AsyncDispatchType__c = 'High'
         );
@@ -229,8 +229,8 @@ public class TestFactory {
             return this;
         }
 
-        public AgentDefinitionBuilder withReasoningMode() {
-            record.EnableReasoningMode__c = true;
+        public AgentDefinitionBuilder withActionTransparency() {
+            record.EnableActionTransparency__c = true;
             return this;
         }
 

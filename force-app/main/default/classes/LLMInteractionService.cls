@@ -13,7 +13,7 @@
  * Responsibilities:
  *   - Manages prompt composition, payload formatting, HTTP communication (with retry), and response parsing
  *   - Integrates with SystemPromptBuilder for prompt assembly and MemoryManager for execution history
- *   - Supports both reasoning and non-reasoning modes, injecting summarization or error instructions as needed
+ *   - Supports action transparency mode, injecting summarization or error instructions as needed
  *   - Handles all configuration, error, and result packaging for downstream orchestration
  *
  * This service is the central entry point for all LLM calls in the agent framework, ensuring consistency,
@@ -169,12 +169,12 @@ public inherited sharing class LLMInteractionService {
             Boolean isMultiStepTurn = this.currentTurnCount > 1;
             Boolean isFinalContentCall = (currentTurnUserMessage == null);
 
-            // Default to 'true' (reasoning enabled) if the field is null for backward compatibility.
-            Boolean reasoningModeEnabled = (agentConfig.EnableReasoningMode__c != false);
-            Boolean transientMessagesDisabled = !reasoningModeEnabled;
+            // Default to 'true' (action transparency enabled) if the field is null for backward compatibility.
+            Boolean actionTransparencyEnabled = (agentConfig.EnableActionTransparency__c != false);
+            Boolean transientMessagesDisabled = !actionTransparencyEnabled;
 
             if (isMultiStepTurn && isFinalContentCall && transientMessagesDisabled) {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Injecting summarization instructions for non-reasoning multi-step turn.');
+                System.debug(LoggingLevel.INFO, logPrefix + 'Injecting summarization instructions for multi-step turn without action transparency.');
 
                 String summarizationInstruction =
                     '\n\n# FINAL INSTRUCTIONS\n\n' +

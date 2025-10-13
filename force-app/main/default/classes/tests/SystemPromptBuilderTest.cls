@@ -34,7 +34,7 @@ private class SystemPromptBuilderTest {
         // Given: Agent definition
         AIAgentDefinition__c agent = [
             SELECT Id, IdentityPrompt__c, InstructionsPrompt__c, ExamplesPrompt__c,
-                   PromptFooter__c, ContextFormatStrategy__c, EnableReasoningMode__c,
+                   PromptFooter__c, ContextFormatStrategy__c, EnableActionTransparency__c,
                    MemoryStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             LIMIT 1
@@ -73,15 +73,15 @@ private class SystemPromptBuilderTest {
     }
 
     @IsTest
-    static void testBuildPrompt_WithReasoningMode_ContainsInstructions() {
-        // Given: Agent with reasoning mode enabled
+    static void testBuildPrompt_WithActionTransparency_ContainsInstructions() {
+        // Given: Agent with action transparency enabled
         AIAgentDefinition__c agent = [
-            SELECT Id, EnableReasoningMode__c, IdentityPrompt__c, InstructionsPrompt__c, PromptFooter__c,
+            SELECT Id, EnableActionTransparency__c, IdentityPrompt__c, InstructionsPrompt__c, PromptFooter__c,
                    MemoryStrategy__c, ContextFormatStrategy__c, DeveloperName__c, ExamplesPrompt__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];
-        agent.EnableReasoningMode__c = true;
+        agent.EnableActionTransparency__c = true;
         update agent;
 
         AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
@@ -93,8 +93,8 @@ private class SystemPromptBuilderTest {
         String prompt = builder.build(session.Id, agent, llmConfig, null, 1, UserInfo.getUserId());
         Test.stopTest();
 
-        // Then: Should contain reasoning mode instructions
-        System.assert(prompt.contains('CRITICAL BEHAVIOR RULE: REASONING MODE'));
+        // Then: Should contain action transparency instructions
+        System.assert(prompt.contains('CRITICAL BEHAVIOR RULE: ACTION TRANSPARENCY'));
         System.assert(prompt.contains('tool_calls'));
     }
 
@@ -103,7 +103,7 @@ private class SystemPromptBuilderTest {
         // Given: Agent with summary buffer
         AIAgentDefinition__c agent = [
             SELECT Id, MemoryStrategy__c, IdentityPrompt__c, InstructionsPrompt__c, PromptFooter__c,
-                   ContextFormatStrategy__c, DeveloperName__c, EnableReasoningMode__c, ExamplesPrompt__c
+                   ContextFormatStrategy__c, DeveloperName__c, EnableActionTransparency__c, ExamplesPrompt__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];
@@ -131,7 +131,7 @@ private class SystemPromptBuilderTest {
     static void testBuildPrompt_WithNullOptionalFields_HandlesGracefully() {
         // Given: Agent with null optional fields
         AIAgentDefinition__c agent = [
-            SELECT Id, IdentityPrompt__c, InstructionsPrompt__c, ExamplesPrompt__c, EnableReasoningMode__c,
+            SELECT Id, IdentityPrompt__c, InstructionsPrompt__c, ExamplesPrompt__c, EnableActionTransparency__c,
                    PromptFooter__c, ContextFormatStrategy__c, MemoryStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             LIMIT 1
@@ -265,7 +265,7 @@ private class SystemPromptBuilderTest {
         // Given: Agent and session
         AIAgentDefinition__c agent = [
             SELECT Id, DeveloperName__c, IdentityPrompt__c, InstructionsPrompt__c, ContextFormatStrategy__c,
-                   MemoryStrategy__c, EnableReasoningMode__c, ExamplesPrompt__c, PromptFooter__c
+                   MemoryStrategy__c, EnableActionTransparency__c, ExamplesPrompt__c, PromptFooter__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];

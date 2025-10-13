@@ -93,15 +93,15 @@ public inherited sharing class SystemPromptBuilder {
         }
 
         String finalInstructions = agentConfig.InstructionsPrompt__c;
-        if (agentConfig.EnableReasoningMode__c) {
-            String reasoningInstruction =
-                '# CRITICAL BEHAVIOR RULE: REASONING MODE\n\n' +
+        if (agentConfig.EnableActionTransparency__c) {
+            String actionTransparencyInstruction =
+                '# CRITICAL BEHAVIOR RULE: ACTION TRANSPARENCY\n\n' +
                 'When you decide to use a tool, you MUST first generate a user-facing `content` message. ' +
-                'This message should concisely explain the action you are about to take (your "reasoning"). ' +
+                'This message should concisely explain the action you are about to take. ' +
                 'Immediately following the `content`, you must include the `tool_calls` payload for the action. ' +
                 'Your response must contain BOTH `content` and `tool_calls` whenever you use a tool.';
-            finalInstructions = String.isBlank(finalInstructions) ? reasoningInstruction.trim() : finalInstructions + reasoningInstruction;
-            System.debug(LoggingLevel.INFO, logPrefix + 'Reasoning Mode enabled. Injecting reasoning instructions.');
+            finalInstructions = String.isBlank(finalInstructions) ? actionTransparencyInstruction.trim() : finalInstructions + actionTransparencyInstruction;
+            System.debug(LoggingLevel.INFO, logPrefix + 'Action Transparency enabled. Injecting action explanation instructions.');
         }
 
         if (String.isNotBlank(finalInstructions)) {

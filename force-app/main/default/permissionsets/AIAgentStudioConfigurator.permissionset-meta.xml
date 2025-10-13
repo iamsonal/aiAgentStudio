@@ -44,7 +44,7 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AIAgentDefinition__c.EnableReasoningMode__c</field>
+        <field>AIAgentDefinition__c.EnableActionTransparency__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>

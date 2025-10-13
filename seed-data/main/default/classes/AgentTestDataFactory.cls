@@ -124,7 +124,7 @@ public with sharing class AgentTestDataFactory {
             LLMConfiguration__c = llmConfigId,
             HistoryTurnLimit__c = 10,
             RequiresServiceUserContext__c = true, // Critical for community user scenario
-            EnableReasoningMode__c = true,
+            EnableActionTransparency__c = true,
             WelcomeMessageTemplate__c = 'Hi {User.FirstName}! I am the Order Management Copilot. How can I help you with your orders today?',
             IdentityPrompt__c = identityPrompt,
             InstructionsPrompt__c = instructionsPrompt,

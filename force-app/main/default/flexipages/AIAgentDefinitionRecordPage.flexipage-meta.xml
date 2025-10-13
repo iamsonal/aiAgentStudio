@@ -68,8 +68,8 @@
                     <name>uiBehavior</name>
                     <value>none</value>
                 </fieldInstanceProperties>
-                <fieldItem>Record.EnableReasoningMode__c</fieldItem>
-                <identifier>RecordEnableReasoningMode_cField</identifier>
+                <fieldItem>Record.EnableActionTransparency__c</fieldItem>
+                <identifier>RecordEnableActionTransparency_cField</identifier>
             </fieldInstance>
         </itemInstances>
         <name>Facet-76a727d9-05f1-4ec9-bdf0-a9d1a1167974</name>
