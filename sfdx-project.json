@@ -7,6 +7,10 @@
     {
       "path": "seed-data",
       "default": false
+    },
+    {
+      "path": "aiAgentStudioAddons",
+      "default": false
     }
   ],
   "name": "aiAgent",

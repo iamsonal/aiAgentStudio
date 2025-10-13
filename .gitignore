@@ -55,5 +55,5 @@ target/
 
 
 xtras/
-aiAgentStudioAddons/
+# aiAgentStudioAddons/
 *.sh
