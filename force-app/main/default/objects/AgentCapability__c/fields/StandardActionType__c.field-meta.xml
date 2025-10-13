@@ -36,16 +36,6 @@
                 <default>false</default>
                 <label>Find Entities</label>
             </value>
-            <value>
-                <fullName>SearchKnowledge</fullName>
-                <default>false</default>
-                <label>Search Knowledge</label>
-            </value>
-            <value>
-                <fullName>SendEmail</fullName>
-                <default>false</default>
-                <label>Send Email</label>
-            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>
