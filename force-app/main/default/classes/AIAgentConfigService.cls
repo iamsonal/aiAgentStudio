@@ -48,7 +48,6 @@ public inherited sharing class AIAgentConfigService {
         'InstructionsPrompt__c',
         'ExamplesPrompt__c',
         'PromptFooter__c',
-        'EnableActionTransparency__c',
         'EnableParallelToolCalling__c',
         'RequiresServiceUserContext__c',
         'SummarizerAgent__c',

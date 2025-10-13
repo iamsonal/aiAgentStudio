@@ -396,9 +396,8 @@ export class UniversalEmpApi {
         }
 
         onError((error) => {
-            // Extract meaningful error information and serialize properly
-            const serializedError = this._serializeError(error);
-            this._handleError('EmpApi streaming error', serializedError);
+            // Pass the raw error object, let _handleError serialize it
+            this._handleError('EmpApi streaming error', error);
         });
 
         this.errorListenerRegistered = true;
@@ -407,15 +406,20 @@ export class UniversalEmpApi {
     /**
      * Handle errors by invoking the error callback or logging to the console.
      * @private
+     * @param {string} message - Error message/context
+     * @param {any} error - Error object or string
+     * @param {boolean} silent - If true, only log to console without invoking callback
      */
-    _handleError(message, error) {
+    _handleError(message, error, silent = false) {
         // Serialize error if it's an object to prevent display issues
         const processedError = error && typeof error === 'object' ? this._serializeError(error) : error;
 
-        if (this.errorCallback) {
+        // Always log to console for debugging
+        console.error(`UniversalEmpApi: ${message}`, processedError, error);
+
+        // Only invoke callback if not silent mode
+        if (!silent && this.errorCallback) {
             this.errorCallback(message, processedError);
-        } else {
-            console.error(`UniversalEmpApi: ${message}`, processedError);
         }
     }
 
@@ -461,10 +465,32 @@ export class UniversalEmpApi {
                 }
             }
 
+            // Check for statusText (HTTP errors)
+            if (error.statusText) {
+                return error.statusText;
+            }
+
             // For objects without clear error message, try JSON stringify
             // But catch circular reference errors
             try {
-                const stringified = JSON.stringify(error);
+                // Create a safe copy with only serializable properties
+                const safeError = {};
+                for (const key in error) {
+                    if (Object.prototype.hasOwnProperty.call(error, key)) {
+                        const value = error[key];
+                        // Only include primitive values and avoid functions/circular refs
+                        if (value !== null && typeof value !== 'function' && typeof value !== 'undefined') {
+                            if (typeof value === 'object') {
+                                // For nested objects, just use toString
+                                safeError[key] = String(value);
+                            } else {
+                                safeError[key] = value;
+                            }
+                        }
+                    }
+                }
+
+                const stringified = JSON.stringify(safeError);
                 // Only return if it's meaningful (not just "{}")
                 if (stringified && stringified !== '{}' && stringified !== '[]') {
                     return stringified;
@@ -474,7 +500,13 @@ export class UniversalEmpApi {
             }
 
             // Last resort: convert to string
-            return String(error);
+            const errorString = String(error);
+            // If toString just gives [object Object], try to extract constructor name
+            if (errorString === '[object Object]') {
+                const constructorName = error.constructor?.name || 'Unknown';
+                return `${constructorName} error (no message available)`;
+            }
+            return errorString;
         } catch (serializationError) {
             console.warn('UniversalEmpApi: Error during error serialization:', serializationError);
             return 'Error occurred but could not be serialized';
@@ -522,32 +554,34 @@ export class UniversalEmpApi {
                     activeSubscriptions: this.subscriptions.size
                 });
 
-                await this._scheduleReconnection();
+                await this._scheduleReconnection(false); // Not silent, user should know
             }
             // For CometD, check idle state and preemptively refresh connection
             else if (this.useCometD && isIdle && this.subscriptions.size > 0) {
                 console.debug('UniversalEmpApi: Idle state detected for CometD, refreshing connection');
                 this._updateActivityTime(); // Reset to prevent constant reconnection
-                await this._scheduleReconnection();
+                await this._scheduleReconnection(true); // Silent mode for proactive reconnection
             }
         } catch (error) {
             console.error('UniversalEmpApi: Error during connection health check:', error);
-            const serializedError = this._serializeError(error);
-            this._handleError('Connection health check failed', serializedError);
+            // Silent for health checks - these are proactive and shouldn't spam the user
+            this._handleError('Connection health check failed', error, true);
         }
     }
 
     /**
      * Schedule a reconnection attempt with exponential backoff
      * @private
+     * @param {boolean} silent - If true, suppress error toasts
      */
-    async _scheduleReconnection() {
+    async _scheduleReconnection(silent = false) {
         // Check if we've exceeded max attempts
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
             console.error('UniversalEmpApi: Max reconnection attempts reached. Please refresh the page.');
             this._handleError(
                 'Max reconnection attempts reached',
-                `Failed to reconnect after ${this.maxReconnectAttempts} attempts. Please refresh the page.`
+                `Failed to reconnect after ${this.maxReconnectAttempts} attempts. Please refresh the page.`,
+                false // Not silent - user needs to know
             );
             return;
         }
@@ -572,12 +606,12 @@ export class UniversalEmpApi {
                 this.reconnectAttempts = 0; // Reset on success
             } catch (error) {
                 console.error('UniversalEmpApi: Reconnection attempt failed:', error);
-                const serializedError = this._serializeError(error);
-                this._handleError('Reconnection failed', serializedError);
+                // Only show error toast if not in silent mode
+                this._handleError('Reconnection failed', error, silent);
 
                 // Schedule another attempt if we haven't reached max
                 if (this.reconnectAttempts < this.maxReconnectAttempts) {
-                    await this._scheduleReconnection();
+                    await this._scheduleReconnection(silent);
                 }
             }
         }, delay);

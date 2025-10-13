@@ -47,6 +47,8 @@ public inherited sharing class AgentDecisionStepLogger {
     private Id originalUserId;
     private List<AgentDecisionStep__c> stepsToCommit;
     private Integer nextSequenceNumber;
+    private Id lastLoggedStepId;
+    private Map<String, Id> toolCallIdToStepMap;
 
     /**
      * Constructor to initialize the logger with execution context
@@ -72,6 +74,7 @@ public inherited sharing class AgentDecisionStepLogger {
         this.turnIdentifier = turnIdentifier;
         this.originalUserId = originalUserId;
         this.stepsToCommit = new List<AgentDecisionStep__c>();
+        this.toolCallIdToStepMap = new Map<String, Id>();
 
         // Initialize sequence counter by querying the last step number for this turn.
         // This ensures continuity across synchronous and asynchronous transaction boundaries.
@@ -218,6 +221,98 @@ public inherited sharing class AgentDecisionStepLogger {
     }
 
     /**
+     * Log LLM response with token usage and cost tracking
+     *
+     * @param title Descriptive title for the step
+     * @param responseDescription Description of the response
+     * @param responseJson JSON representation of the response
+     * @param durationMs Duration of processing this step
+     * @param promptTokens Number of tokens in the prompt
+     * @param completionTokens Number of tokens in the completion
+     * @param totalTokens Total tokens used
+     * @param modelIdentifier Model identifier (e.g., gpt-4)
+     * @param provider LLM provider (e.g., OpenAI)
+     * @param temperature Temperature setting used
+     */
+    public void logLLMResponseWithMetrics(
+        String title,
+        String responseDescription,
+        String responseJson,
+        Long durationMs,
+        Integer promptTokens,
+        Integer completionTokens,
+        Integer totalTokens,
+        String modelIdentifier,
+        String provider,
+        Decimal temperature
+    ) {
+        try {
+            // Calculate estimated cost based on model
+            Decimal estimatedCost = calculateCost(modelIdentifier, promptTokens, completionTokens);
+
+            // Calculate context size for tracking
+            Integer contextSize = responseJson != null ? responseJson.length() : 0;
+            Boolean isTruncated = contextSize > 131072; // Salesforce Long Text Area limit
+
+            // Get next global step sequence using in-memory counter
+            Integer globalStepSequence = getNextGlobalStepSequence();
+
+            // Map enum to picklist value
+            String stepTypeValue = mapStepTypeToPicklistValue(StepType.LLM_RESPONSE);
+
+            // Create the decision step record with enhanced metrics
+            AgentDecisionStep__c step = new AgentDecisionStep__c(
+                TurnIdentifier__c = this.turnIdentifier,
+                StepType__c = stepTypeValue,
+                StepOrder__c = globalStepSequence,
+                Title__c = title,
+                Description__c = responseDescription,
+                ContentJson__c = responseJson,
+                DurationMs__c = durationMs,
+                IsSuccess__c = true,
+                // NEW FIELDS
+                PromptTokens__c = promptTokens,
+                CompletionTokens__c = completionTokens,
+                TotalTokens__c = totalTokens,
+                EstimatedCostUSD__c = estimatedCost,
+                ModelIdentifier__c = modelIdentifier,
+                LLMProvider__c = provider,
+                Temperature__c = temperature,
+                ContextSizeBytes__c = contextSize,
+                ContextTruncated__c = isTruncated
+            );
+
+            // Set the AgentExecution lookup field
+            step.AgentExecution__c = this.executionId;
+
+            // Add user information if available
+            if (this.originalUserId != null) {
+                step.put('OriginalUser__c', this.originalUserId);
+            }
+
+            // Always set the execution user to the current user
+            step.put('ExecutionUser__c', UserInfo.getUserId());
+
+            // Add to the list of steps to commit
+            stepsToCommit.add(step);
+
+            // Track last logged step for causality
+            this.lastLoggedStepId = step.Id;
+
+            System.debug(
+                LoggingLevel.INFO,
+                '[AgentDecisionStepLogger] Collected LLM step with metrics: ' +
+                stepTypeValue + ' - ' + title +
+                ' | Tokens: ' + totalTokens +
+                ' | Cost: $' + estimatedCost +
+                ' | Sequence: ' + globalStepSequence
+            );
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, '[AgentDecisionStepLogger] Failed to log LLM metrics: ' + e.getMessage());
+        }
+    }
+
+    /**
      * Log the list of available tools presented to the LLM
      *
      * @param title Descriptive title for the step
@@ -323,6 +418,109 @@ public inherited sharing class AgentDecisionStepLogger {
      */
     public void logHandleRejectedFrameworkAction(String title, String description, String actionDetails, Long durationMs) {
         logStep(StepType.HANDLE_REJECTED_FRAMEWORK_ACTION, title, description, actionDetails, durationMs, true, null, null);
+    }
+
+    /**
+     * Log a step with parent relationship for causality tracking
+     *
+     * @param stepType The type of step
+     * @param title Descriptive title
+     * @param description Detailed description
+     * @param contentJson JSON content related to the step
+     * @param durationMs Duration in milliseconds
+     * @param isSuccess Whether the step was successful
+     * @param parentStepId The ID of the parent step
+     * @param triggeringToolCallId The tool call ID that triggered this step
+     */
+    public void logStepWithParent(
+        StepType stepType,
+        String title,
+        String description,
+        String contentJson,
+        Long durationMs,
+        Boolean isSuccess,
+        Id parentStepId,
+        String triggeringToolCallId
+    ) {
+        try {
+            // Get next global step sequence using in-memory counter
+            Integer globalStepSequence = getNextGlobalStepSequence();
+
+            // Map enum to picklist value
+            String stepTypeValue = mapStepTypeToPicklistValue(stepType);
+
+            // Create the decision step record with causality tracking
+            AgentDecisionStep__c step = new AgentDecisionStep__c(
+                TurnIdentifier__c = this.turnIdentifier,
+                StepType__c = stepTypeValue,
+                StepOrder__c = globalStepSequence,
+                Title__c = title,
+                Description__c = description,
+                ContentJson__c = contentJson,
+                DurationMs__c = durationMs,
+                IsSuccess__c = isSuccess,
+                ParentStepId__c = parentStepId
+            );
+
+            // Set the AgentExecution lookup field
+            step.AgentExecution__c = this.executionId;
+
+            // Add user information if available
+            if (this.originalUserId != null) {
+                step.put('OriginalUser__c', this.originalUserId);
+            }
+
+            // Always set the execution user to the current user
+            step.put('ExecutionUser__c', UserInfo.getUserId());
+
+            // Link to triggering tool call if provided
+            if (String.isNotBlank(triggeringToolCallId)) {
+                step.RelatedToolCallId__c = triggeringToolCallId;
+                if (toolCallIdToStepMap.containsKey(triggeringToolCallId)) {
+                    step.TriggeringStepId__c = toolCallIdToStepMap.get(triggeringToolCallId);
+                }
+            }
+
+            // Add to the list of steps to commit
+            stepsToCommit.add(step);
+
+            // Track last logged step for causality
+            this.lastLoggedStepId = step.Id;
+
+            System.debug(
+                LoggingLevel.INFO,
+                '[AgentDecisionStepLogger] Collected step with causality: ' +
+                stepTypeValue + ' - ' + title +
+                ' | Parent: ' + parentStepId +
+                ' | Tool Call: ' + triggeringToolCallId +
+                ' | Sequence: ' + globalStepSequence
+            );
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, '[AgentDecisionStepLogger] Failed to log step with parent: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Register a tool call ID for later reference
+     * This allows linking tool execution steps back to the LLM response that requested them
+     *
+     * @param toolCallId The tool call ID from the LLM response
+     * @param stepId The step ID that contains this tool call
+     */
+    public void registerToolCall(String toolCallId, Id stepId) {
+        if (String.isNotBlank(toolCallId) && stepId != null) {
+            toolCallIdToStepMap.put(toolCallId, stepId);
+            System.debug(LoggingLevel.INFO, '[AgentDecisionStepLogger] Registered tool call: ' + toolCallId + ' -> Step: ' + stepId);
+        }
+    }
+
+    /**
+     * Get the ID of the last logged step for causality chains
+     *
+     * @return The ID of the last logged step
+     */
+    public Id getLastLoggedStepId() {
+        return this.lastLoggedStepId;
     }
 
     /**
@@ -607,5 +805,81 @@ public inherited sharing class AgentDecisionStepLogger {
             System.debug(LoggingLevel.ERROR, '[AgentDecisionStepLogger] Failed to collect step: ' + e.getMessage());
             // We don't throw the exception to avoid disrupting the main agent flow
         }
+    }
+
+    /**
+     * Calculate estimated cost based on model pricing and token usage
+     * Pricing is based on published rates (as of October 2024) per 1M tokens
+     *
+     * @param modelIdentifier The model identifier (e.g., gpt-4, gpt-3.5-turbo)
+     * @param promptTokens Number of tokens in the prompt
+     * @param completionTokens Number of tokens in the completion
+     * @return The estimated cost in USD, or null if model is unknown
+     */
+    private Decimal calculateCost(String modelIdentifier, Integer promptTokens, Integer completionTokens) {
+        if (String.isBlank(modelIdentifier) || promptTokens == null || completionTokens == null) {
+            return null;
+        }
+
+        // Price per 1M tokens (USD) - Update these prices as needed
+        Map<String, Map<String, Decimal>> modelPricing = new Map<String, Map<String, Decimal>>{
+            'gpt-4' => new Map<String, Decimal>{
+                'prompt' => 30.00,
+                'completion' => 60.00
+            },
+            'gpt-4-turbo' => new Map<String, Decimal>{
+                'prompt' => 10.00,
+                'completion' => 30.00
+            },
+            'gpt-4-turbo-preview' => new Map<String, Decimal>{
+                'prompt' => 10.00,
+                'completion' => 30.00
+            },
+            'gpt-3.5-turbo' => new Map<String, Decimal>{
+                'prompt' => 0.50,
+                'completion' => 1.50
+            },
+            'gpt-3.5-turbo-16k' => new Map<String, Decimal>{
+                'prompt' => 3.00,
+                'completion' => 4.00
+            },
+            'claude-3-opus' => new Map<String, Decimal>{
+                'prompt' => 15.00,
+                'completion' => 75.00
+            },
+            'claude-3-sonnet' => new Map<String, Decimal>{
+                'prompt' => 3.00,
+                'completion' => 15.00
+            },
+            'claude-3-haiku' => new Map<String, Decimal>{
+                'prompt' => 0.25,
+                'completion' => 1.25
+            }
+        };
+
+        // Normalize model identifier to lowercase for matching
+        String normalizedModel = modelIdentifier.toLowerCase();
+
+        // Try exact match first
+        if (modelPricing.containsKey(normalizedModel)) {
+            Map<String, Decimal> pricing = modelPricing.get(normalizedModel);
+            Decimal promptCost = (Decimal.valueOf(promptTokens) / 1000000.0) * pricing.get('prompt');
+            Decimal completionCost = (Decimal.valueOf(completionTokens) / 1000000.0) * pricing.get('completion');
+            return promptCost + completionCost;
+        }
+
+        // Try partial matching for model families
+        for (String modelKey : modelPricing.keySet()) {
+            if (normalizedModel.contains(modelKey)) {
+                Map<String, Decimal> pricing = modelPricing.get(modelKey);
+                Decimal promptCost = (Decimal.valueOf(promptTokens) / 1000000.0) * pricing.get('prompt');
+                Decimal completionCost = (Decimal.valueOf(completionTokens) / 1000000.0) * pricing.get('completion');
+                return promptCost + completionCost;
+            }
+        }
+
+        // Unknown model - log warning and return null
+        System.debug(LoggingLevel.WARN, '[AgentDecisionStepLogger] Unknown model for cost calculation: ' + modelIdentifier);
+        return null;
     }
 }

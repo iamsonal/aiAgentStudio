@@ -284,30 +284,47 @@ pre.slds-code {
 /* Container for message actions */
 .message-actions {
     position: absolute;
-    top: var(--lwc-spacingXxSmall, 0.25rem);
-    right: var(--lwc-spacingXxSmall, 0.25rem);
+    top: 4px;
+    right: 8px;
     opacity: 0;
-    transition: opacity 0.2s ease-in-out;
+    transform: scale(0.85);
+    transition:
+        opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 10;
-    background-color: rgba(255, 255, 255, 0.9);
-    border-radius: var(--lwc-borderRadiusSmall, 0.125rem);
-    backdrop-filter: blur(4px);
+    pointer-events: none;
 }
 
 /* Show actions when hovering over the message */
 .slds-chat-listitem:hover .message-actions {
     opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
 }
 
-/* Style the action button */
-.message-actions lightning-button-icon {
-    --sds-c-button-neutral-color-background: transparent;
-    --sds-c-button-neutral-color-border: transparent;
+/* Polished icon button styling */
+.start-over-icon {
+    --sds-c-button-neutral-color-background: rgba(255, 255, 255, 0.98);
+    --sds-c-button-neutral-color-border: var(--lwc-colorBorder, #dddbda);
+
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(8px);
+    border-radius: 50%;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.message-actions lightning-button-icon:hover {
-    --sds-c-button-neutral-color-background: var(--lwc-colorBackgroundButtonDefaultHover, #f3f2f2);
-    --sds-c-button-neutral-color-border: var(--lwc-colorBorderButtonDefault, #dddbda);
+.start-over-icon:hover {
+    --sds-c-button-neutral-color-background: var(--lwc-colorBackground, #ffffff);
+    --sds-c-button-neutral-color-border: var(--lwc-brandAccessible, #0176d3);
+    --sds-c-icon-color-foreground-default: var(--lwc-brandAccessible, #0176d3);
+
+    box-shadow: 0 4px 12px rgba(1, 118, 211, 0.25);
+    transform: translateY(-1px) rotate(90deg);
+}
+
+.start-over-icon:active {
+    transform: translateY(0) rotate(90deg);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 /* Improve message bubble spacing and interaction */
@@ -432,15 +449,22 @@ pre.slds-code {
         min-height: 250px;
     }
 
-    /* On mobile, show actions by default since hover isn't reliable */
+    /* On mobile, show actions with higher opacity since hover isn't reliable */
     .message-actions {
         opacity: 0.7;
-        background-color: rgba(255, 255, 255, 0.95);
+        transform: scale(1);
+        pointer-events: auto;
     }
 
     .slds-chat-listitem:hover .message-actions,
     .message-actions:focus-within {
         opacity: 1;
+    }
+
+    /* Make icon button more touch-friendly on mobile */
+    .start-over-icon {
+        width: 32px;
+        height: 32px; /* Larger touch target */
     }
 
     /* Maintain professional styling on mobile */

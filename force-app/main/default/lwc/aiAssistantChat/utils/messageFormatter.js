@@ -151,10 +151,10 @@ export function formatDisplayMessages(messages, existingCount = 0) {
         // Define the message object to return
         const formattedMsg = {
             id: msg.Id || msg.id || null,
-            externalId: sourceExternalId || null,
             role: role,
             content: msg.Content__c || msg.content || '',
             timestamp: timestampValue || Date.now(),
+            turnIdentifier: msg.TurnIdentifier__c || msg.turnIdentifier || null,
             displayKey: key,
             formattedTimestamp: formattedTimestamp,
             toolInfoAvailable: toolInfoAvailable,

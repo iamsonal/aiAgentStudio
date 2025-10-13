@@ -44,11 +44,6 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AIAgentDefinition__c.EnableActionTransparency__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
         <field>AIAgentDefinition__c.ExamplesPrompt__c</field>
         <readable>true</readable>
     </fieldPermissions>

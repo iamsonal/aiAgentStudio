@@ -22,8 +22,6 @@
  * This class is not intended to be instantiated or extended.
  */
 public with sharing class ConversationalChatController {
-    public class ControllerException extends AIAgentException {
-    }
     public class ConfigurationException extends AIAgentException {
     }
 
@@ -206,13 +204,13 @@ public with sharing class ConversationalChatController {
             String executionLabel = 'Chat - ' + Datetime.now().format('MM/dd HH:mm:ss');
 
             Id newExecutionId = executionContextService.createExecution(
-                'Conversational', // ExecutionType__c
-                agentDef.Id, // AIAgentDefinition__c
-                'Chat', // TriggerSource__c
-                executionLabel, // TriggerPayload__c (using label as trigger data)
-                recordId, // SourceRecordId__c
-                userId, // User__c
-                null // ServiceUser__c (no service user needed for conversational)
+                'Conversational',
+                agentDef.Id,
+                'Chat',
+                executionLabel,
+                recordId,
+                userId,
+                null
             );
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Successfully created new agent execution: ' + newExecutionId);
@@ -458,31 +456,24 @@ public with sharing class ConversationalChatController {
     }
 
     /**
-     * Deletes all execution steps from a given step (by externalId) onward in an agent execution, enabling a 'start over' feature.
-     * Now uses the unified ExecutionStep__c data model exclusively.
+     * Deletes all execution steps and related decision steps from a given step (by turnIdentifier) onward in an agent execution,
+     * enabling a 'start over' feature. This method deletes both ExecutionStep__c and AgentDecisionStep__c records
+     * to ensure a complete cleanup of the conversation history from the specified point.
      *
-     * @param sessionId  The ID of the agent execution.
-     * @param externalId The external ID of the step to start over from.
+     * @param sessionId      The ID of the agent execution.
+     * @param turnIdentifier The turn identifier of the step to start over from.
      * @throws AuraHandledException for validation, access, or DML errors.
      */
     @AuraEnabled
-    public static void startOverFromMessage(Id sessionId, String externalId) {
-        // --- 1. SECURITY: Ensure the user has the specific custom permission ---
-        //        if (!FeatureManagement.checkPermission('Can_Start_Over_AI_Chat')) {
-        //            throw new AuraHandledException('You do not have the required permissions to perform this action.');
-        //        }
-
-        // --- 2. VALIDATION: Ensure the user owns the execution and the step belongs to it ---
+    public static void startOverFromMessage(Id sessionId, String turnIdentifier) {
         validateExecutionAccess(sessionId);
         String logPrefix = '[AIController.startOverFromMessage] ';
 
         try {
-            // --- 3. LOGIC: Get the timestamp of the step to delete from ---
-            // Query by the reliable ExternalId__c field (assuming ExecutionStep__c has this field)
             List<ExecutionStep__c> steps = [
                 SELECT Timestamp__c
                 FROM ExecutionStep__c
-                WHERE ExternalId__c = :externalId AND AgentExecution__c = :sessionId
+                WHERE TurnIdentifier__c = :turnIdentifier AND AgentExecution__c = :sessionId
                 WITH USER_MODE
                 LIMIT 1
             ];
@@ -492,21 +483,47 @@ public with sharing class ConversationalChatController {
             }
             Datetime targetTimestamp = steps[0].Timestamp__c;
 
-            // --- 4. DML: Delete the target step and all subsequent steps in a single, efficient operation ---
             List<ExecutionStep__c> stepsToDelete = [
-                SELECT Id
+                SELECT Id, TurnIdentifier__c
                 FROM ExecutionStep__c
                 WHERE AgentExecution__c = :sessionId AND Timestamp__c >= :targetTimestamp
+                WITH USER_MODE
             ];
 
             if (!stepsToDelete.isEmpty()) {
+                // Collect unique turn identifiers
+                Set<String> turnIdentifiersToDelete = new Set<String>();
+                for (ExecutionStep__c step : stepsToDelete) {
+                    if (String.isNotBlank(step.TurnIdentifier__c)) {
+                        turnIdentifiersToDelete.add(step.TurnIdentifier__c);
+                    }
+                }
+
                 System.debug(
-                    logPrefix + 'Deleting ' + stepsToDelete.size() + ' steps from execution ' + sessionId + ' starting at ' + targetTimestamp
+                    logPrefix + 'Deleting ' + stepsToDelete.size() + ' execution steps and related decision steps from execution ' +
+                    sessionId + ' starting at ' + targetTimestamp
                 );
-                delete stepsToDelete;
+
+                // Delete AgentDecisionStep__c records for these turns
+                if (!turnIdentifiersToDelete.isEmpty()) {
+                    List<AgentDecisionStep__c> decisionStepsToDelete = [
+                        SELECT Id
+                        FROM AgentDecisionStep__c
+                        WHERE AgentExecution__c = :sessionId AND TurnIdentifier__c IN :turnIdentifiersToDelete
+                        WITH USER_MODE
+                    ];
+
+                    if (!decisionStepsToDelete.isEmpty()) {
+                        System.debug(logPrefix + 'Deleting ' + decisionStepsToDelete.size() + ' decision steps');
+                        delete as user decisionStepsToDelete;
+                    }
+                }
+
+                // Delete the execution steps
+                delete as user stepsToDelete;
             }
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Error starting over from step with externalId ' + externalId + ': ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error starting over from step with turnIdentifier ' + turnIdentifier + ': ' + e.getMessage());
             throw new AuraHandledException('An error occurred while deleting steps: ' + e.getMessage());
         }
     }

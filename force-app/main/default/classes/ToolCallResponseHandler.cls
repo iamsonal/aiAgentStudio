@@ -75,6 +75,14 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             null // errorMessage
         );
 
+        // Register tool call ID for causality tracking
+        if (String.isNotBlank(toolRequest.id)) {
+            Id toolExecutionStepId = decisionLogger.getLastLoggedStepId();
+            if (toolExecutionStepId != null) {
+                decisionLogger.registerToolCall(toolRequest.id, toolExecutionStepId);
+            }
+        }
+
         // Persist user message for traceability using ExecutionStep__c
         Id savedUserMessageId = null;
         if (context.userMessageData != null && String.isNotBlank(context.userMessageData.content)) {
@@ -456,15 +464,17 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         String resultJsonForStorage = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
         Id newRecordContextId = OrchestrationService.extractRecordIdFromOutcome(outcome);
 
-        // Log the tool result step with full ActionOutcome details
-        decisionLogger.logToolResult(
+        // Log the tool result step with full ActionOutcome details and causality tracking
+        Id toolExecutionStepId = decisionLogger.getLastLoggedStepId();
+        decisionLogger.logStepWithParent(
+            AgentDecisionStepLogger.StepType.TOOL_RESULT,
             'Tool Execution Completed',
             'Tool execution has completed',
             resultJsonForStorage,
             actionDuration,
             outcome.isSuccess, // isSuccess
-            outcome.errorCode, // errorCode
-            outcome.errorMessage // errorMessage
+            toolExecutionStepId, // parentStepId - link to tool execution
+            toolRequest.id // triggeringToolCallId
         );
 
         // Save tool result message using ExecutionStep__c

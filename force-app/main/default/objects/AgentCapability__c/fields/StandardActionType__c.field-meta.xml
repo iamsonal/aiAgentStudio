@@ -1,41 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>StandardActionType__c</fullName>
-    <description>Required only when Implementation Type is &apos;Standard&apos;. This selects which built-in framework action to execute (e.g., Get Records, Create Record). The available options are defined by StandardActionHandler__mdt custom metadata records.</description>
-    <inlineHelpText>Required only if &apos;Implementation Type&apos; is &apos;Standard&apos;. Select the specific built-in action this capability represents (e.g., GetRecords, CreateRecord).</inlineHelpText>
+    <description>Required only when Implementation Type is &apos;Standard&apos;. Specify which built-in framework action to execute (e.g., Get Records, Create Record). The available action types are defined by StandardActionHandler__mdt custom metadata records.</description>
+    <inlineHelpText>Required only if &apos;Implementation Type&apos; is &apos;Standard&apos;. Enter the specific built-in action type this capability represents (e.g., GetRecords, CreateRecord).</inlineHelpText>
     <label>Standard Action Type</label>
+    <length>255</length>
     <required>false</required>
     <trackTrending>false</trackTrending>
-    <type>Picklist</type>
-    <valueSet>
-        <restricted>true</restricted>
-        <valueSetDefinition>
-            <sorted>false</sorted>
-            <value>
-                <fullName>GetRecords</fullName>
-                <default>false</default>
-                <label>Get Records</label>
-            </value>
-            <value>
-                <fullName>CreateRecord</fullName>
-                <default>false</default>
-                <label>Create Record</label>
-            </value>
-            <value>
-                <fullName>UpdateRecord</fullName>
-                <default>false</default>
-                <label>Update Record</label>
-            </value>
-            <value>
-                <fullName>PostChatter</fullName>
-                <default>false</default>
-                <label>Post Chatter</label>
-            </value>
-            <value>
-                <fullName>FindEntities</fullName>
-                <default>false</default>
-                <label>Find Entities</label>
-            </value>
-        </valueSetDefinition>
-    </valueSet>
+    <type>Text</type>
+    <unique>false</unique>
 </CustomField>

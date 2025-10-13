@@ -169,12 +169,8 @@ public inherited sharing class LLMInteractionService {
             Boolean isMultiStepTurn = this.currentTurnCount > 1;
             Boolean isFinalContentCall = (currentTurnUserMessage == null);
 
-            // Default to 'true' (action transparency enabled) if the field is null for backward compatibility.
-            Boolean actionTransparencyEnabled = (agentConfig.EnableActionTransparency__c != false);
-            Boolean transientMessagesDisabled = !actionTransparencyEnabled;
-
-            if (isMultiStepTurn && isFinalContentCall && transientMessagesDisabled) {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Injecting summarization instructions for multi-step turn without action transparency.');
+            if (isMultiStepTurn && isFinalContentCall) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Injecting summarization instructions for multi-step turn.');
 
                 String summarizationInstruction =
                     '\n\n# FINAL INSTRUCTIONS\n\n' +
@@ -285,11 +281,21 @@ public inherited sharing class LLMInteractionService {
 
                 // Log LLM response if decision logger is available
                 if (this.decisionLogger != null) {
-                    this.decisionLogger.logLLMResponse(
+                    // Extract provider name from adapter class (e.g., "OpenAIProviderAdapter" -> "OpenAI")
+                    String providerName = extractProviderName(llmConfig.ProviderAdapterClass__c);
+
+                    // Use enhanced logging method with cost and token tracking
+                    this.decisionLogger.logLLMResponseWithMetrics(
                         'LLM Response Received',
                         'Successfully received response from LLM',
                         JSON.serialize(llmApiResult),
-                        callDuration
+                        callDuration,
+                        llmApiResult.promptTokens,
+                        llmApiResult.completionTokens,
+                        llmApiResult.totalTokens,
+                        llmConfig.DefaultModelIdentifier__c,
+                        providerName,
+                        llmConfig.DefaultTemperature__c
                     );
                 }
 
@@ -357,5 +363,28 @@ public inherited sharing class LLMInteractionService {
 
             return new LLMInteractionResult('Interaction Setup Failed: ' + ex.getMessage(), AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex);
         }
+    }
+
+    /**
+     * Extract provider name from the adapter class name
+     * Example: "OpenAIProviderAdapter" -> "OpenAI"
+     *
+     * @param adapterClassName The adapter class name
+     * @return The provider name
+     */
+    private String extractProviderName(String adapterClassName) {
+        if (String.isBlank(adapterClassName)) {
+            return 'Unknown';
+        }
+
+        // Remove "ProviderAdapter" suffix if present
+        String providerName = adapterClassName.replace('ProviderAdapter', '');
+
+        // If nothing left, return the full class name
+        if (String.isBlank(providerName)) {
+            return adapterClassName;
+        }
+
+        return providerName;
     }
 }

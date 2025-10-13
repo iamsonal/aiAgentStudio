@@ -193,7 +193,6 @@ public class TestFactory {
             AgentType__c = 'Conversational',
             MemoryStrategy__c = 'Buffer Window',
             HistoryTurnLimit__c = 10,
-            EnableActionTransparency__c = false,
             EnableParallelToolCalling__c = true,
             AsyncDispatchType__c = 'High'
         );
@@ -226,11 +225,6 @@ public class TestFactory {
 
         public AgentDefinitionBuilder withHistoryTurnLimit(Integer limitValue) {
             record.HistoryTurnLimit__c = limitValue;
-            return this;
-        }
-
-        public AgentDefinitionBuilder withActionTransparency() {
-            record.EnableActionTransparency__c = true;
             return this;
         }
 
@@ -268,6 +262,8 @@ public class TestFactory {
             newCapability().forGetRecords('Contact').build(),
             newCapability().forFindEntities().build(),
             newCapability().forPostChatter().build(),
+            newCapability().forSearchKnowledge().build(),
+            newCapability().forSendEmail().build(),
             newCapability().forFlowHandler('Test_Flow').build()
         };
     }
@@ -357,6 +353,24 @@ public class TestFactory {
             record.ImplementationType__c = 'Standard';
             record.StandardActionType__c = 'PostChatter';
             record.Parameters__c = '{"type":"object","properties":{"text":{"type":"string"},"topics":{"type":"array"}}}';
+            return this;
+        }
+
+        public CapabilityBuilder forSearchKnowledge() {
+            record.CapabilityName__c = 'search_knowledge';
+            record.Description__c = 'Searches knowledge articles';
+            record.ImplementationType__c = 'Standard';
+            record.StandardActionType__c = 'SearchKnowledge';
+            record.Parameters__c = '{"type":"object","properties":{"searchQuery":{"type":"string"},"language":{"type":"string"}}}';
+            return this;
+        }
+
+        public CapabilityBuilder forSendEmail() {
+            record.CapabilityName__c = 'send_email';
+            record.Description__c = 'Sends an email';
+            record.ImplementationType__c = 'Standard';
+            record.StandardActionType__c = 'SendEmail';
+            record.Parameters__c = '{"type":"object","properties":{"toAddresses":{"type":"array","items":{"type":"string"}},"subject":{"type":"string"},"body":{"type":"string"},"htmlBody":{"type":"string"},"plainTextBody":{"type":"string"},"ccAddresses":{"type":"array","items":{"type":"string"}},"bccAddresses":{"type":"array","items":{"type":"string"}}},"required":["toAddresses","subject"]}';
             return this;
         }
 

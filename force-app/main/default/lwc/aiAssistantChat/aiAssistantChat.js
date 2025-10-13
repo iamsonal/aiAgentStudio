@@ -417,14 +417,24 @@ export default class AiAssistantChat extends LightningElement {
      * Handler for the "Start Over" button on a message. Branches the conversation from a specific message.
      */
     async handleStartOverClick(event) {
-        const externalId = event.target.dataset.messageId;
-        if (!externalId) return;
+        const turnIdentifier = event.target.dataset.turnIdentifier;
+        console.log('[handleStartOverClick] Clicked. TurnIdentifier:', turnIdentifier);
+
+        if (!turnIdentifier) {
+            console.error('[handleStartOverClick] No turnIdentifier found on message. Cannot start over.');
+            this._errorHandler._showToast('Error', 'Unable to start over: Message identifier is missing. Please refresh and try again.', 'error');
+            return;
+        }
+
         this._loadingManager.setLoading('sending', true);
         try {
+            console.log('[handleStartOverClick] Calling startOverFromMessage with sessionId:', this.currentSessionId, 'turnIdentifier:', turnIdentifier);
             await startOverFromMessage({
                 sessionId: this.currentSessionId,
-                externalId: externalId
+                turnIdentifier: turnIdentifier
             });
+            console.log('[handleStartOverClick] Successfully deleted messages. Reloading history...');
+
             // Reload history to show the new conversation state
             try {
                 await this._sessionManager.reloadHistory();
@@ -432,6 +442,7 @@ export default class AiAssistantChat extends LightningElement {
                 this._errorHandler.handleError('Failed to reload history after start over', reloadError);
             }
         } catch (error) {
+            console.error('[handleStartOverClick] Error:', error);
             this._errorHandler.handleError('Failed to start over from message', error);
         } finally {
             this._loadingManager.setLoading('sending', false);

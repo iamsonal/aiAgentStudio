@@ -62,16 +62,6 @@
                 <identifier>RecordDescription_cField</identifier>
             </fieldInstance>
         </itemInstances>
-        <itemInstances>
-            <fieldInstance>
-                <fieldInstanceProperties>
-                    <name>uiBehavior</name>
-                    <value>none</value>
-                </fieldInstanceProperties>
-                <fieldItem>Record.EnableActionTransparency__c</fieldItem>
-                <identifier>RecordEnableActionTransparency_cField</identifier>
-            </fieldInstance>
-        </itemInstances>
         <name>Facet-76a727d9-05f1-4ec9-bdf0-a9d1a1167974</name>
         <type>Facet</type>
     </flexiPageRegions>
