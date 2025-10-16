@@ -25,9 +25,6 @@ public class QueryService {
     // Supported Filter Operators
     private static final Set<String> SUPPORTED_OPERATORS = new Set<String>{ '=', '!=', '>', '<', '>=', '<=', 'LIKE', 'IN' };
 
-    // Performance thresholds
-    private static final Integer SIMPLE_PATH_FILTER_LIMIT = 3;
-    private static final Integer COMPLEX_OPERATOR_THRESHOLD = 2;
 
     public class FilterValidationException extends Exception {
     }
@@ -48,9 +45,6 @@ public class QueryService {
     private List<String> defaultFields = new List<String>();
     private String orderBy;
 
-    // Performance optimization state
-    private QueryPatternAnalyzer.PatternAnalysis patternAnalysis;
-    private Boolean useSimplePath = false;
 
     /**
      * @description
@@ -69,13 +63,13 @@ public class QueryService {
 
     /**
      * @description
-     * Retrieves field metadata map with lazy loading and caching via SchemaCache.
+     * Retrieves field metadata map with lazy loading and caching via SchemaUtils.
      *
      * @return Map of lowercase field API names to SObjectField describe tokens
      */
     private Map<String, Schema.SObjectField> getFieldMap() {
         if (this.allFieldsMap == null) {
-            this.allFieldsMap = SchemaCache.getFieldMap(this.targetSObjectType);
+            this.allFieldsMap = SchemaUtils.getObjectFields(this.targetSObjectType);
         }
         return this.allFieldsMap;
     }
@@ -176,39 +170,18 @@ public class QueryService {
         Long startTime = System.currentTimeMillis();
 
         try {
-            // Analyze query pattern to determine optimal execution strategy
-            this.patternAnalysis = QueryPatternAnalyzer.analyzeQuery(this.filters, this.orderBy, getFieldMap());
-            this.useSimplePath = this.patternAnalysis.canUseSimplePath;
+            // Execute query with comprehensive validation
+            String whereClause = buildWhereClauseWithBinds(this.filters, getFieldMap(), bindMap);
+            prepareSelectFields(this.filterFieldsUsed);
+            String orderByClause = validateAndBuildOrderBy(this.orderBy, getFieldMap());
 
-            System.debug(
-                LoggingLevel.DEBUG,
-                logPrefix +
-                    'Pattern=' +
-                    this.patternAnalysis.pattern +
-                    ', SimplePath=' +
-                    this.useSimplePath +
-                    ', ComplexityScore=' +
-                    this.patternAnalysis.complexityScore
-            );
-
-            // Log optimization recommendations for performance monitoring
-            if (!this.patternAnalysis.optimizationHints.isEmpty()) {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Optimization Hints: ' + String.join(this.patternAnalysis.optimizationHints, '; '));
-            }
-
-            // Route to appropriate execution path based on complexity analysis
-            List<SObject> results;
-            if (this.useSimplePath) {
-                results = executeSimpleQuery(bindMap);
-            } else {
-                results = executeComplexQuery(bindMap);
-            }
+            List<SObject> results = executeQueryString(whereClause, orderByClause, bindMap);
 
             // Log execution metrics for performance monitoring
             Long executionTime = System.currentTimeMillis() - startTime;
             System.debug(
                 LoggingLevel.INFO,
-                logPrefix + 'Query executed in ' + executionTime + 'ms. ' + 'Pattern=' + this.patternAnalysis.pattern + ', Records=' + results.size()
+                logPrefix + 'Query executed in ' + executionTime + 'ms. Records=' + results.size()
             );
 
             return ActionOutcome.success(results);
@@ -237,7 +210,7 @@ public class QueryService {
         }
 
         Map<String, Schema.SObjectField> fieldMap = getFieldMap();
-        String objectName = SchemaCache.getDescribe(this.targetSObjectType).getName();
+        String objectName = SchemaUtils.getDescribe(this.targetSObjectType).getName();
 
         for (String field : fields) {
             if (String.isBlank(field)) {
@@ -264,43 +237,10 @@ public class QueryService {
         return ActionOutcome.success();
     }
 
-    /**
-     * @description
-     * Fast execution path for simple query patterns with minimal validation overhead.
-     * Used for common patterns like single field lookups and basic AND conditions.
-     *
-     * @param bindMap Map to populate with bind variables
-     * @return List<SObject> Query results
-     */
-    private List<SObject> executeSimpleQuery(Map<String, Object> bindMap) {
-        // Simplified validation for known simple patterns
-        String whereClause = buildSimpleWhereClause(this.filters, bindMap);
-        prepareSelectFieldsSimple(this.filterFieldsUsed);
-        String orderByClause = buildSimpleOrderBy(this.orderBy);
-
-        return executeQueryString(whereClause, orderByClause, bindMap);
-    }
 
     /**
      * @description
-     * Comprehensive validation path for complex queries requiring full security and type checking.
-     * Handles complex operators, nested conditions, and advanced field validation.
-     *
-     * @param bindMap Map to populate with bind variables
-     * @return List<SObject> Query results
-     */
-    private List<SObject> executeComplexQuery(Map<String, Object> bindMap) {
-        // Full validation path (existing logic)
-        String whereClause = buildWhereClauseWithBinds(this.filters, getFieldMap(), bindMap);
-        prepareSelectFields(this.filterFieldsUsed);
-        String orderByClause = validateAndBuildOrderBy(this.orderBy, getFieldMap());
-
-        return executeQueryString(whereClause, orderByClause, bindMap);
-    }
-
-    /**
-     * @description
-     * Common query execution logic for both simple and complex paths.
+     * Executes the final SOQL query with comprehensive validation and security enforcement.
      *
      * @param whereClause The WHERE clause string
      * @param orderByClause The ORDER BY clause string
@@ -309,7 +249,7 @@ public class QueryService {
      */
     private List<SObject> executeQueryString(String whereClause, String orderByClause, Map<String, Object> bindMap) {
         // Assemble final query string
-        String objectName = SchemaCache.getDescribe(this.targetSObjectType).getName();
+        String objectName = SchemaUtils.getDescribe(this.targetSObjectType).getName();
         String queryString = 'SELECT ' + String.join(finalFieldsToSelect, ', ') + ' FROM ' + objectName;
 
         if (String.isNotBlank(whereClause)) {
@@ -326,72 +266,10 @@ public class QueryService {
         return Database.queryWithBinds(queryString, bindMap, AccessLevel.USER_MODE);
     }
 
-    /**
-     * @description
-     * Simplified field preparation for simple query patterns. Performs basic FLS check.
-     * Throws exception for invalid fields to maintain consistency with complex path.
-     *
-     * @param filterFields Fields identified as being used in the WHERE clause
-     * @throws AIFriendlyQueryException if invalid fields are found
-     */
-    private void prepareSelectFieldsSimple(Set<String> filterFields) {
-        this.requestedFields.clear();
-        this.finalFieldsToSelect.clear();
-
-        // Combine fields from configuration and parameters
-        if (this.defaultFields != null)
-            requestedFields.addAll(this.defaultFields);
-        if (this.additionalFields != null)
-            requestedFields.addAll(this.additionalFields);
-        if (filterFields != null)
-            requestedFields.addAll(filterFields);
-        requestedFields.add('Id'); // Always include Id
-
-        // Basic FLS check with USER_MODE reliance
-        Map<String, Schema.SObjectField> fieldMap = getFieldMap();
-        for (String fieldPath : requestedFields) {
-            if (String.isBlank(fieldPath))
-                continue;
-
-            String baseFieldName = fieldPath.contains('.') ? fieldPath.substringBefore('.') : fieldPath;
-            Schema.SObjectField fieldToken = fieldMap.get(baseFieldName.toLowerCase());
-
-            // If direct field lookup fails and this is a relationship field, try with 'Id' suffix
-            if (fieldToken == null && fieldPath.contains('.')) {
-                String relationshipFieldName = baseFieldName + 'Id';
-                fieldToken = fieldMap.get(relationshipFieldName.toLowerCase());
-            }
-
-            if (fieldToken != null) {
-                Boolean isAccessible = false;
-                // If direct field check its FLS directly
-                if (!fieldPath.contains('.')) {
-                    isAccessible = fieldToken.getDescribe().isAccessible();
-                } else {
-                    // If relationship, check if the relationship field itself is accessible.
-                    // USER_MODE will handle access to the field ON the related object.
-                    isAccessible = fieldToken.getDescribe().isAccessible();
-                }
-
-                if (isAccessible) {
-                    this.finalFieldsToSelect.add(fieldPath);
-                } else {
-                    throw AIFriendlyQueryException.fieldNotAccessible(fieldPath, SchemaCache.getDescribe(targetSObjectType).getName());
-                }
-            } else {
-                // Throw exception for invalid fields instead of silently ignoring
-                throw AIFriendlyQueryException.invalidField(fieldPath, SchemaCache.getDescribe(targetSObjectType).getName());
-            }
-        }
-
-        if (this.finalFieldsToSelect.isEmpty()) {
-            this.finalFieldsToSelect.add('Id'); // Fallback to Id only
-        }
-    }
 
     /**
      * @description
-     * Full field preparation with comprehensive FLS checks for complex queries.
+     * Field preparation with comprehensive FLS checks and validation.
      * Throws AIFriendlyQueryException if no accessible fields remain.
      *
      * @param filterFields Fields identified as being used in the WHERE clause
@@ -419,6 +297,12 @@ public class QueryService {
             // Simple Check for now - only direct fields or single level relationship
             String baseFieldName = fieldPath.contains('.') ? fieldPath.substringBefore('.') : fieldPath;
             Schema.SObjectField fieldToken = fieldMap.get(baseFieldName.toLowerCase());
+
+            // If direct field lookup fails and this is a relationship field, try with 'Id' suffix
+            if (fieldToken == null && fieldPath.contains('.')) {
+                String relationshipFieldName = baseFieldName + 'Id';
+                fieldToken = fieldMap.get(relationshipFieldName.toLowerCase());
+            }
 
             if (fieldToken != null) {
                 Boolean isAccessible = false;
@@ -456,102 +340,19 @@ public class QueryService {
                     );
                 }
             } else {
-                System.debug(
-                    LoggingLevel.WARN,
-                    logPrefix +
-                        'Skipping field for SELECT: "' +
-                        fieldPath +
-                        '" - base field/relationship "' +
-                        baseFieldName +
-                        '" not found on object ' +
-                        SchemaCache.getDescribe(targetSObjectType).getName() +
-                        '.'
-                );
+                // Throw exception for invalid fields instead of silently ignoring
+                throw AIFriendlyQueryException.invalidField(fieldPath, SchemaUtils.getDescribe(targetSObjectType).getName());
             }
         }
 
         if (this.finalFieldsToSelect.isEmpty()) {
             // It's possible after FLS that only Id remains, or no fields were accessible
-            throw AIFriendlyQueryException.fieldNotAccessible('requested fields', SchemaCache.getDescribe(targetSObjectType).getName())
+            throw AIFriendlyQueryException.fieldNotAccessible('requested fields', SchemaUtils.getDescribe(targetSObjectType).getName())
                 .withContext('requestedFields', requestedFields);
         }
     }
 
-    /**
-     * @description
-     * Simplified WHERE clause builder for simple query patterns. Only supports equals conditions.
-     *
-     * @param filters Map from LLM arguments
-     * @param bindMap Map to populate with bind variables
-     * @return WHERE clause string or empty string
-     */
-    private String buildSimpleWhereClause(Map<String, Object> filters, Map<String, Object> bindMap) {
-        if (filters == null || filters.isEmpty())
-            return '';
 
-        List<String> conditions = new List<String>();
-        this.bindCounter = 0;
-        this.filterFieldsUsed.clear();
-
-        Map<String, Schema.SObjectField> fieldMap = getFieldMap();
-
-        for (String fieldName : filters.keySet()) {
-            Object filterValue = filters.get(fieldName);
-
-            // Basic field validation
-            Schema.SObjectField fieldToken = fieldMap.get(fieldName.toLowerCase());
-            if (fieldToken == null) {
-                throw AIFriendlyQueryException.invalidField(fieldName, SchemaCache.getDescribe(targetSObjectType).getName());
-            }
-
-            Schema.DescribeFieldResult dfr = fieldToken.getDescribe();
-            if (!dfr.isAccessible()) {
-                throw AIFriendlyQueryException.fieldNotAccessible(fieldName, SchemaCache.getDescribe(targetSObjectType).getName());
-            }
-
-            this.filterFieldsUsed.add(dfr.getName());
-
-            // Simple condition generation (equals only for simple path)
-            // Reject complex operators - they should not reach simple path
-            if (filterValue instanceof Map<String, Object>) {
-                throw new FilterValidationException(
-                    'Complex operators detected in simple path for field "' + fieldName + '". This should be routed to complex path.'
-                );
-            }
-
-            if (filterValue == null) {
-                conditions.add(dfr.getName() + ' = null');
-            } else {
-                String bindName = 'filterBind' + this.bindCounter++;
-                conditions.add(dfr.getName() + ' = :' + bindName);
-                // Coerce the value to the correct type for binding
-                Object coercedValue = coerceFilterValue(filterValue, dfr, fieldName);
-                bindMap.put(bindName, coercedValue);
-            }
-        }
-
-        return String.join(conditions, ' AND ');
-    }
-
-    /**
-     * @description
-     * Simplified ORDER BY builder for simple patterns. Falls back to complex validation if needed.
-     *
-     * @param orderByParam The ORDER BY parameter
-     * @return ORDER BY clause string
-     */
-    private String buildSimpleOrderBy(String orderByParam) {
-        if (String.isBlank(orderByParam))
-            return '';
-
-        // Basic validation - just check format
-        if (orderByParam.containsIgnoreCase('NULLS') || orderByParam.split('\\s+').size() > 2) {
-            // Fall back to complex validation
-            return validateAndBuildOrderBy(orderByParam, getFieldMap());
-        }
-
-        return orderByParam.trim();
-    }
 
     /**
      * @description
@@ -582,14 +383,14 @@ public class QueryService {
             // Field validation (Perform once per field)
             Schema.SObjectField fieldToken = allFieldsMap.get(fieldName.toLowerCase());
             if (fieldToken == null) {
-                throw AIFriendlyQueryException.invalidField(fieldName, SchemaCache.getDescribe(targetSObjectType).getName());
+                throw AIFriendlyQueryException.invalidField(fieldName, SchemaUtils.getDescribe(targetSObjectType).getName());
             }
             Schema.DescribeFieldResult dfr = fieldToken.getDescribe();
             if (!dfr.isFilterable()) {
-                throw AIFriendlyQueryException.fieldNotFilterable(fieldName, SchemaCache.getDescribe(targetSObjectType).getName());
+                throw AIFriendlyQueryException.fieldNotFilterable(fieldName, SchemaUtils.getDescribe(targetSObjectType).getName());
             }
             if (!dfr.isAccessible()) {
-                throw AIFriendlyQueryException.fieldNotAccessible(fieldName, SchemaCache.getDescribe(targetSObjectType).getName());
+                throw AIFriendlyQueryException.fieldNotAccessible(fieldName, SchemaUtils.getDescribe(targetSObjectType).getName());
             }
             this.filterFieldsUsed.add(dfr.getName()); // Track fields used for filtering/selection
 
