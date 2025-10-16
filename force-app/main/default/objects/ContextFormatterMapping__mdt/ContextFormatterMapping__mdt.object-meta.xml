@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Maps context format strategies (XML, JSON, StructuredText) to their corresponding IContextFormatter implementation classes. Used by SystemPromptBuilder for dynamic context formatting.</description>
+    <label>Context Formatter Mapping</label>
+    <pluralLabel>Context Formatter Mappings</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>
+

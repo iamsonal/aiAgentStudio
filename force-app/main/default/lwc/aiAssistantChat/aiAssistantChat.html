@@ -66,12 +66,13 @@
                                         <template if:true={message.isOutbound}>
                                             <div class="message-actions">
                                                 <lightning-button-icon
-                                                    icon-name="utility:redo"
-                                                    variant="border-filled"
+                                                    icon-name="utility:refresh"
                                                     alternative-text="Start over from here"
                                                     title="Start over from here"
                                                     size="x-small"
-                                                    data-message-id={message.externalId}
+                                                    variant="border-filled"
+                                                    class="start-over-icon"
+                                                    data-turn-identifier={message.turnIdentifier}
                                                     onclick={handleStartOverClick}
                                                 >
                                                 </lightning-button-icon>

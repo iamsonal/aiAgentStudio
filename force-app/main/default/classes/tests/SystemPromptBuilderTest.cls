@@ -34,7 +34,7 @@ private class SystemPromptBuilderTest {
         // Given: Agent definition
         AIAgentDefinition__c agent = [
             SELECT Id, IdentityPrompt__c, InstructionsPrompt__c, ExamplesPrompt__c,
-                   PromptFooter__c, ContextFormatStrategy__c, EnableReasoningMode__c,
+                   PromptFooter__c, ContextFormatStrategy__c,
                    MemoryStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             LIMIT 1
@@ -73,37 +73,11 @@ private class SystemPromptBuilderTest {
     }
 
     @IsTest
-    static void testBuildPrompt_WithReasoningMode_ContainsInstructions() {
-        // Given: Agent with reasoning mode enabled
-        AIAgentDefinition__c agent = [
-            SELECT Id, EnableReasoningMode__c, IdentityPrompt__c, InstructionsPrompt__c, PromptFooter__c,
-                   MemoryStrategy__c, ContextFormatStrategy__c, DeveloperName__c, ExamplesPrompt__c
-            FROM AIAgentDefinition__c
-            LIMIT 1
-        ];
-        agent.EnableReasoningMode__c = true;
-        update agent;
-
-        AgentExecution__c session = [SELECT Id FROM AgentExecution__c LIMIT 1];
-        LLMConfiguration__c llmConfig = [SELECT Id FROM LLMConfiguration__c LIMIT 1];
-
-        // When: Building prompt
-        SystemPromptBuilder builder = new SystemPromptBuilder();
-        Test.startTest();
-        String prompt = builder.build(session.Id, agent, llmConfig, null, 1, UserInfo.getUserId());
-        Test.stopTest();
-
-        // Then: Should contain reasoning mode instructions
-        System.assert(prompt.contains('CRITICAL BEHAVIOR RULE: REASONING MODE'));
-        System.assert(prompt.contains('tool_calls'));
-    }
-
-    @IsTest
     static void testBuildPrompt_WithSummaryBuffer_IncludesSummary() {
         // Given: Agent with summary buffer
         AIAgentDefinition__c agent = [
             SELECT Id, MemoryStrategy__c, IdentityPrompt__c, InstructionsPrompt__c, PromptFooter__c,
-                   ContextFormatStrategy__c, DeveloperName__c, EnableReasoningMode__c, ExamplesPrompt__c
+                   ContextFormatStrategy__c, DeveloperName__c, ExamplesPrompt__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];
@@ -131,7 +105,7 @@ private class SystemPromptBuilderTest {
     static void testBuildPrompt_WithNullOptionalFields_HandlesGracefully() {
         // Given: Agent with null optional fields
         AIAgentDefinition__c agent = [
-            SELECT Id, IdentityPrompt__c, InstructionsPrompt__c, ExamplesPrompt__c, EnableReasoningMode__c,
+            SELECT Id, IdentityPrompt__c, InstructionsPrompt__c, ExamplesPrompt__c,
                    PromptFooter__c, ContextFormatStrategy__c, MemoryStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             LIMIT 1
@@ -166,7 +140,7 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = ContextFormatterFactory.createFormatter('StructuredText')
+        String formatted = SystemPromptBuilder.getContextFormatter('StructuredText', '[TEST] ')
             .formatContext(accounts, '[TEST] ');
         Test.stopTest();
 
@@ -183,7 +157,7 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = ContextFormatterFactory.createFormatter('XML')
+        String formatted = SystemPromptBuilder.getContextFormatter('XML', '[TEST] ')
             .formatContext(accounts, '[TEST] ');
         Test.stopTest();
 
@@ -201,7 +175,7 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = ContextFormatterFactory.createFormatter('JSON')
+        String formatted = SystemPromptBuilder.getContextFormatter('JSON', '[TEST] ')
             .formatContext(accounts, '[TEST] ');
         Test.stopTest();
 
@@ -226,7 +200,7 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = ContextFormatterFactory.createFormatter('StructuredText')
+        String formatted = SystemPromptBuilder.getContextFormatter('StructuredText', '[TEST] ')
             .formatContext(accounts, '[TEST] ');
         Test.stopTest();
 
@@ -247,7 +221,7 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = ContextFormatterFactory.createFormatter('StructuredText')
+        String formatted = SystemPromptBuilder.getContextFormatter('StructuredText', '[TEST] ')
             .formatContext(contacts, '[TEST] ');
         Test.stopTest();
 
@@ -265,7 +239,7 @@ private class SystemPromptBuilderTest {
         // Given: Agent and session
         AIAgentDefinition__c agent = [
             SELECT Id, DeveloperName__c, IdentityPrompt__c, InstructionsPrompt__c, ContextFormatStrategy__c,
-                   MemoryStrategy__c, EnableReasoningMode__c, ExamplesPrompt__c, PromptFooter__c
+                   MemoryStrategy__c, ExamplesPrompt__c, PromptFooter__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];

@@ -11,9 +11,9 @@
  * LLMInteractionService orchestrates the complete LLM interaction lifecycle for a single execution turn.
  *
  * Responsibilities:
- *   - Manages prompt composition, payload formatting, HTTP communication (with retry), and response parsing
+ *   - Manages prompt composition, payload formatting, HTTP communication, and response parsing
  *   - Integrates with SystemPromptBuilder for prompt assembly and MemoryManager for execution history
- *   - Supports both reasoning and non-reasoning modes, injecting summarization or error instructions as needed
+ *   - Supports action transparency mode, injecting summarization or error instructions as needed
  *   - Handles all configuration, error, and result packaging for downstream orchestration
  *
  * This service is the central entry point for all LLM calls in the agent framework, ensuring consistency,
@@ -122,7 +122,7 @@ public inherited sharing class LLMInteractionService {
      * - Delegates prompt composition to SystemPromptBuilder
      * - Injects summarization or error instructions as needed
      * - Assembles the final message and tool payloads
-     * - Calls the LLM provider adapter (with retry logic)
+     * - Calls the LLM provider adapter
      * - Packages the result or error for downstream processing
      *
      * @param currentTurnUserMessage  The DTO containing the user message for the current turn. Can be null for follow-up calls.
@@ -169,12 +169,8 @@ public inherited sharing class LLMInteractionService {
             Boolean isMultiStepTurn = this.currentTurnCount > 1;
             Boolean isFinalContentCall = (currentTurnUserMessage == null);
 
-            // Default to 'true' (reasoning enabled) if the field is null for backward compatibility.
-            Boolean reasoningModeEnabled = (agentConfig.EnableReasoningMode__c != false);
-            Boolean transientMessagesDisabled = !reasoningModeEnabled;
-
-            if (isMultiStepTurn && isFinalContentCall && transientMessagesDisabled) {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Injecting summarization instructions for non-reasoning multi-step turn.');
+            if (isMultiStepTurn && isFinalContentCall) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Injecting summarization instructions for multi-step turn.');
 
                 String summarizationInstruction =
                     '\n\n# FINAL INSTRUCTIONS\n\n' +
@@ -262,7 +258,7 @@ public inherited sharing class LLMInteractionService {
                 );
             }
 
-            // --- 6. Call LLM (Includes Retries) ---
+            // --- 6. Call LLM ---
             Long callStartTime = System.currentTimeMillis();
             try {
                 ILLMProviderAdapter adapter = LLMProviderFactory.getAdapter(llmConfig);
@@ -285,11 +281,21 @@ public inherited sharing class LLMInteractionService {
 
                 // Log LLM response if decision logger is available
                 if (this.decisionLogger != null) {
-                    this.decisionLogger.logLLMResponse(
+                    // Extract provider name from adapter class (e.g., "OpenAIProviderAdapter" -> "OpenAI")
+                    String providerName = extractProviderName(llmConfig.ProviderAdapterClass__c);
+
+                    // Use enhanced logging method with cost and token tracking
+                    this.decisionLogger.logLLMResponseWithMetrics(
                         'LLM Response Received',
                         'Successfully received response from LLM',
                         JSON.serialize(llmApiResult),
-                        callDuration
+                        callDuration,
+                        llmApiResult.promptTokens,
+                        llmApiResult.completionTokens,
+                        llmApiResult.totalTokens,
+                        llmConfig.DefaultModelIdentifier__c,
+                        providerName,
+                        llmConfig.DefaultTemperature__c
                     );
                 }
 
@@ -357,5 +363,28 @@ public inherited sharing class LLMInteractionService {
 
             return new LLMInteractionResult('Interaction Setup Failed: ' + ex.getMessage(), AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex);
         }
+    }
+
+    /**
+     * Extract provider name from the adapter class name
+     * Example: "OpenAIProviderAdapter" -> "OpenAI"
+     *
+     * @param adapterClassName The adapter class name
+     * @return The provider name
+     */
+    private String extractProviderName(String adapterClassName) {
+        if (String.isBlank(adapterClassName)) {
+            return 'Unknown';
+        }
+
+        // Remove "ProviderAdapter" suffix if present
+        String providerName = adapterClassName.replace('ProviderAdapter', '');
+
+        // If nothing left, return the full class name
+        if (String.isBlank(providerName)) {
+            return adapterClassName;
+        }
+
+        return providerName;
     }
 }

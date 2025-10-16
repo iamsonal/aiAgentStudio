@@ -8,10 +8,10 @@
 
 /**
  * @description
- * AIAgentHttpClient is a robust, internal HTTP client service for AI Agent REST API communications.
+ * AIAgentHttpClient is a fail-fast, internal HTTP client service for AI Agent REST API communications.
  * Responsibilities:
  *   - Provides secure, authenticated callouts via Named Credentials
- *   - Implements comprehensive error handling and automatic retry logic for transient failures
+ *   - Implements comprehensive error handling with single-attempt execution
  *   - Enables reliable, auditable communication between different execution contexts within the framework
  *   - Surfaces callout and parsing issues clearly via debug output for maintainability
  *
@@ -23,7 +23,7 @@ public class AIAgentHttpClient {
 
     /**
      * Processes an AI agent message by making a secure, authenticated REST callout to the internal API.
-     * Implements retry logic for transient failures and parses the response into a strongly-typed result.
+     * Executes a single attempt - callers should handle retries if needed.
      *
      * @param requestData The message request data to send to the internal API.
      * @return           The parsed HTTP response as an AIAgentHttpResponse.
@@ -35,15 +35,10 @@ public class AIAgentHttpClient {
         try {
             HttpRequest httpReq = buildHttpRequest(requestData, logPrefix);
 
-            // Configure retry strategy for transient failures
-            HttpRetryService.RetryConfig config = new HttpRetryService.RetryConfig(
-                    2, // maxAttempts - limit retries to prevent excessive delays
-                    1000, // initialDelayMs - 1 second initial delay
-                    new Set<Integer>{ 408, 429, 500, 502, 503, 504 } // Retryable HTTP status codes
-                )
-                .withLogPrefix(logPrefix);
+            // Configure callout
+            HttpCalloutService.CalloutConfig config = HttpCalloutService.createConfig(logPrefix);
 
-            HttpRetryService.HttpRetryResult result = HttpRetryService.executeWithRetry(httpReq, config);
+            HttpCalloutService.CalloutResult result = HttpCalloutService.execute(httpReq, config);
 
             return parseResponse(result.response, logPrefix);
         } catch (Exception e) {

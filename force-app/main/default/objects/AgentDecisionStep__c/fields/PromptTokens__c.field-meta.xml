@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PromptTokens__c</fullName>
+    <description>Number of tokens in the prompt/input sent to the LLM. Used for cost calculation and optimization.</description>
+    <externalId>false</externalId>
+    <label>Prompt Tokens</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>
+

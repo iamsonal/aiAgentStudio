@@ -135,8 +135,11 @@ public class MockHttpResponses implements HttpCalloutMock {
         if (endpoint.contains('/ai/agent/process/')) {
             // Internal REST API mock
             return createInternalApiResponse(req);
-        } else if (endpoint.contains('/v1/chat/completions') || endpoint.contains('/v1/messages')) {
-            // LLM API mock
+        } else if (endpoint.contains('/v1/chat/completions') ||
+                   endpoint.contains('/v1/messages') ||
+                   endpoint.contains('/v1beta/models/') ||
+                   endpoint.contains(':generateContent')) {
+            // LLM API mock (OpenAI, Claude, Gemini)
             return createLLMResponse(req);
         } else if (endpoint.contains('/v1/embeddings')) {
             // Embeddings API mock
@@ -552,6 +555,106 @@ public class MockHttpResponses implements HttpCalloutMock {
             'usage' => new Map<String, Object>{
                 'input_tokens' => 150,
                 'output_tokens' => 75
+            }
+        };
+
+        return new MockHttpResponses()
+            .withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
+    }
+
+    // ===================================================================================
+    // GOOGLE GEMINI RESPONSES
+    // ===================================================================================
+
+    /**
+     * @description Creates a Google Gemini-style text response
+     */
+    public static MockHttpResponses geminiTextResponse(String content) {
+        Map<String, Object> response = new Map<String, Object>{
+            'candidates' => new List<Object>{
+                new Map<String, Object>{
+                    'content' => new Map<String, Object>{
+                        'parts' => new List<Object>{
+                            new Map<String, Object>{
+                                'text' => content
+                            }
+                        },
+                        'role' => 'model'
+                    },
+                    'finishReason' => 'STOP'
+                }
+            },
+            'usageMetadata' => new Map<String, Object>{
+                'promptTokenCount' => 100,
+                'candidatesTokenCount' => 50,
+                'totalTokenCount' => 150
+            }
+        };
+
+        return new MockHttpResponses()
+            .withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
+    }
+
+    /**
+     * @description Creates a Google Gemini-style function call response
+     */
+    public static MockHttpResponses geminiFunctionCall(String functionName, String argsJson) {
+        Map<String, Object> response = new Map<String, Object>{
+            'candidates' => new List<Object>{
+                new Map<String, Object>{
+                    'content' => new Map<String, Object>{
+                        'parts' => new List<Object>{
+                            new Map<String, Object>{
+                                'functionCall' => new Map<String, Object>{
+                                    'name' => functionName,
+                                    'args' => JSON.deserializeUntyped(argsJson)
+                                }
+                            }
+                        },
+                        'role' => 'model'
+                    },
+                    'finishReason' => 'STOP'
+                }
+            },
+            'usageMetadata' => new Map<String, Object>{
+                'promptTokenCount' => 150,
+                'candidatesTokenCount' => 75,
+                'totalTokenCount' => 225
+            }
+        };
+
+        return new MockHttpResponses()
+            .withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
+    }
+
+    /**
+     * @description Creates a Gemini response with both text and function call
+     */
+    public static MockHttpResponses geminiMixedResponse(String text, String functionName, String argsJson) {
+        Map<String, Object> response = new Map<String, Object>{
+            'candidates' => new List<Object>{
+                new Map<String, Object>{
+                    'content' => new Map<String, Object>{
+                        'parts' => new List<Object>{
+                            new Map<String, Object>{
+                                'text' => text
+                            },
+                            new Map<String, Object>{
+                                'functionCall' => new Map<String, Object>{
+                                    'name' => functionName,
+                                    'args' => JSON.deserializeUntyped(argsJson)
+                                }
+                            }
+                        },
+                        'role' => 'model'
+                    },
+                    'finishReason' => 'STOP'
+                }
+            },
+            'usageMetadata' => new Map<String, Object>{
+                'promptTokenCount' => 200,
+                'candidatesTokenCount' => 100,
+                'totalTokenCount' => 300
             }
         };
 

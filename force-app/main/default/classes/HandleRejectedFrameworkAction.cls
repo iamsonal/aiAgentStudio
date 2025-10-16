@@ -103,7 +103,8 @@ public class HandleRejectedFrameworkAction {
                     rejectionContentJson,
                     har.OriginalTurnIdentifier__c,
                     har.OriginalTurnCount__c.intValue(),
-                    0L // actionDuration
+                    0L, // actionDuration
+                    false // isAsyncToolExecution - approval rejection is not async execution
                 );
                 // Notify the user of the rejection
                 NotificationService.sendUserNotification(

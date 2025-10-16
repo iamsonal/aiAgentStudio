@@ -9,21 +9,22 @@
 /**
  * @description
  * ConversationalChatController is the Lightning Web Component controller for conversational chat sessions in the AI Agent Framework.
- * This controller specifically handles UI-initiated chat interactions and should not be confused with the broader
- * AgentExecutionService, which serves as the unified entry point for all agent execution types.
+ * This controller serves as a thin UI layer that delegates all execution logic to AgentExecutionService.
  *
  * Responsibilities:
  *   - Manages conversational chat session lifecycle, including creation, validation, and access control
- *   - Processes user messages with intelligent routing between synchronous and asynchronous execution contexts
+ *   - Serves as a simple passthrough to AgentExecutionService for message processing
  *   - Provides secure, filtered access to conversation history for UI display
- *   - Handles service user context switching for elevated permissions when required
+ *   - Translates AgentExecutionService results into UI-friendly response formats
  *   - Surfaces operational and configuration issues clearly via debug output for maintainability
+ *
+ * Architectural Note:
+ *   This controller does NOT handle service user context switching or execution routing. All such logic
+ *   is centralized in AgentExecutionService to ensure a single, predictable execution path for all agent types.
  *
  * This class is not intended to be instantiated or extended.
  */
 public with sharing class ConversationalChatController {
-    public class ControllerException extends AIAgentException {
-    }
     public class ConfigurationException extends AIAgentException {
     }
 
@@ -38,11 +39,8 @@ public with sharing class ConversationalChatController {
 
     /**
      * Processes a user message for a given agent execution.
-     * CRITICAL: This method maintains the service user context switch via REST callout when required.
-     * The RequiresServiceUserContext__c flag check MUST remain here because:
-     *   - Platform Events DO NOT switch user context
-     *   - Only the REST callout via Named Credential switches to the service user
-     *   - Moving this logic into the orchestrator would bypass the context switch entirely
+     * This method serves as a simple passthrough to AgentExecutionService, which handles all routing logic
+     * including service user context switching when required.
      *
      * @param sessionId      The ID of the agent execution (AgentExecution__c).
      * @param userMessage    The message content from the user.
@@ -64,7 +62,7 @@ public with sharing class ConversationalChatController {
         Map<String, Object> lwcResponse = new Map<String, Object>{ 'success' => false, 'sessionId' => sessionId };
 
         try {
-            // Get the agent definition to determine routing requirements
+            // Get the agent execution details
             AgentExecution__c execution = [
                 SELECT
                     Id,
@@ -72,7 +70,6 @@ public with sharing class ConversationalChatController {
                     AIAgentDefinition__c,
                     AIAgentDefinition__r.DeveloperName__c,
                     AIAgentDefinition__r.IsActive__c,
-                    AIAgentDefinition__r.RequiresServiceUserContext__c,
                     User__c,
                     ServiceUser__c
                 FROM AgentExecution__c
@@ -88,35 +85,6 @@ public with sharing class ConversationalChatController {
                 throw new ConfigurationException('Agent Definition is missing or inactive on the AgentExecution.');
             }
 
-            // CRITICAL: Check if service user context switch is required
-            // This check MUST stay here because the REST callout is the ONLY way to switch context
-            if (execution.AIAgentDefinition__r.RequiresServiceUserContext__c) {
-                // Make REST callout to switch to service user context via Named Credential
-                AIAgentHttpClient.AIAgentMessageRequest httpRequest = new AIAgentHttpClient.AIAgentMessageRequest(
-                    String.valueOf(sessionId),
-                    String.valueOf(originalUserId),
-                    String.valueOf(execution.AIAgentDefinition__c),
-                    turnIdentifier,
-                    userMessage,
-                    currentRecordId != null ? String.valueOf(currentRecordId) : null
-                );
-
-                AIAgentHttpClient.AIAgentHttpResponse httpResponse = AIAgentHttpClient.processMessage(httpRequest);
-
-                if (httpResponse.success) {
-                    lwcResponse.put('success', true);
-                    lwcResponse.put('message', httpResponse.outcome != null ? httpResponse.outcome : 'Processing...');
-                } else {
-                    lwcResponse.put('success', false);
-                    lwcResponse.put('error', httpResponse.error ?? 'Agent processing failed via REST call.');
-                }
-
-                return lwcResponse;
-            }
-
-            // Process in current user context (no service user required)
-            System.debug(LoggingLevel.INFO, logPrefix + 'Processing message in original user context (no service user required)');
-
             // Build execution payload for unified service
             AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
             payload.userId = originalUserId;
@@ -128,8 +96,9 @@ public with sharing class ConversationalChatController {
             payload.turnIdentifier = turnIdentifier;
             payload.existingExecutionId = sessionId; // Continue existing execution
 
-            // Use unified AgentExecutionService to initiate/continue execution
+            // Delegate to AgentExecutionService - it will handle service user context switching if needed
             String agentDeveloperName = execution.AIAgentDefinition__r.DeveloperName__c;
+            System.debug(LoggingLevel.INFO, logPrefix + 'Delegating to AgentExecutionService for agent: ' + agentDeveloperName);
             AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution(agentDeveloperName, payload);
 
             if (result.success) {
@@ -206,13 +175,13 @@ public with sharing class ConversationalChatController {
             String executionLabel = 'Chat - ' + Datetime.now().format('MM/dd HH:mm:ss');
 
             Id newExecutionId = executionContextService.createExecution(
-                'Conversational', // ExecutionType__c
-                agentDef.Id, // AIAgentDefinition__c
-                'Chat', // TriggerSource__c
-                executionLabel, // TriggerPayload__c (using label as trigger data)
-                recordId, // SourceRecordId__c
-                userId, // User__c
-                null // ServiceUser__c (no service user needed for conversational)
+                'Conversational',
+                agentDef.Id,
+                'Chat',
+                executionLabel,
+                recordId,
+                userId,
+                null
             );
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Successfully created new agent execution: ' + newExecutionId);
@@ -275,8 +244,9 @@ public with sharing class ConversationalChatController {
         if (sessionId == null) {
             throw new AuraHandledException('Execution ID required.');
         }
-        Integer settingsLimit = AIAgentFrameworkSettings.getDefaultHistoryLimit();
-        Integer effectiveLimit = (limitCount != null && limitCount > 0) ? Math.min(limitCount, settingsLimit) : settingsLimit;
+        // Use hardcoded UI history limit (20 messages) for chat display
+        Integer uiHistoryLimit = 20;
+        Integer effectiveLimit = (limitCount != null && limitCount > 0) ? Math.min(limitCount, uiHistoryLimit) : uiHistoryLimit;
         validateExecutionAccess(sessionId);
 
         List<Map<String, Object>> formattedMessagesForUi = new List<Map<String, Object>>();
@@ -458,31 +428,24 @@ public with sharing class ConversationalChatController {
     }
 
     /**
-     * Deletes all execution steps from a given step (by externalId) onward in an agent execution, enabling a 'start over' feature.
-     * Now uses the unified ExecutionStep__c data model exclusively.
+     * Deletes all execution steps and related decision steps from a given step (by turnIdentifier) onward in an agent execution,
+     * enabling a 'start over' feature. This method deletes both ExecutionStep__c and AgentDecisionStep__c records
+     * to ensure a complete cleanup of the conversation history from the specified point.
      *
-     * @param sessionId  The ID of the agent execution.
-     * @param externalId The external ID of the step to start over from.
+     * @param sessionId      The ID of the agent execution.
+     * @param turnIdentifier The turn identifier of the step to start over from.
      * @throws AuraHandledException for validation, access, or DML errors.
      */
     @AuraEnabled
-    public static void startOverFromMessage(Id sessionId, String externalId) {
-        // --- 1. SECURITY: Ensure the user has the specific custom permission ---
-        //        if (!FeatureManagement.checkPermission('Can_Start_Over_AI_Chat')) {
-        //            throw new AuraHandledException('You do not have the required permissions to perform this action.');
-        //        }
-
-        // --- 2. VALIDATION: Ensure the user owns the execution and the step belongs to it ---
+    public static void startOverFromMessage(Id sessionId, String turnIdentifier) {
         validateExecutionAccess(sessionId);
         String logPrefix = '[AIController.startOverFromMessage] ';
 
         try {
-            // --- 3. LOGIC: Get the timestamp of the step to delete from ---
-            // Query by the reliable ExternalId__c field (assuming ExecutionStep__c has this field)
             List<ExecutionStep__c> steps = [
                 SELECT Timestamp__c
                 FROM ExecutionStep__c
-                WHERE ExternalId__c = :externalId AND AgentExecution__c = :sessionId
+                WHERE TurnIdentifier__c = :turnIdentifier AND AgentExecution__c = :sessionId
                 WITH USER_MODE
                 LIMIT 1
             ];
@@ -492,21 +455,47 @@ public with sharing class ConversationalChatController {
             }
             Datetime targetTimestamp = steps[0].Timestamp__c;
 
-            // --- 4. DML: Delete the target step and all subsequent steps in a single, efficient operation ---
             List<ExecutionStep__c> stepsToDelete = [
-                SELECT Id
+                SELECT Id, TurnIdentifier__c
                 FROM ExecutionStep__c
                 WHERE AgentExecution__c = :sessionId AND Timestamp__c >= :targetTimestamp
+                WITH USER_MODE
             ];
 
             if (!stepsToDelete.isEmpty()) {
+                // Collect unique turn identifiers
+                Set<String> turnIdentifiersToDelete = new Set<String>();
+                for (ExecutionStep__c step : stepsToDelete) {
+                    if (String.isNotBlank(step.TurnIdentifier__c)) {
+                        turnIdentifiersToDelete.add(step.TurnIdentifier__c);
+                    }
+                }
+
                 System.debug(
-                    logPrefix + 'Deleting ' + stepsToDelete.size() + ' steps from execution ' + sessionId + ' starting at ' + targetTimestamp
+                    logPrefix + 'Deleting ' + stepsToDelete.size() + ' execution steps and related decision steps from execution ' +
+                    sessionId + ' starting at ' + targetTimestamp
                 );
-                delete stepsToDelete;
+
+                // Delete AgentDecisionStep__c records for these turns
+                if (!turnIdentifiersToDelete.isEmpty()) {
+                    List<AgentDecisionStep__c> decisionStepsToDelete = [
+                        SELECT Id
+                        FROM AgentDecisionStep__c
+                        WHERE AgentExecution__c = :sessionId AND TurnIdentifier__c IN :turnIdentifiersToDelete
+                        WITH USER_MODE
+                    ];
+
+                    if (!decisionStepsToDelete.isEmpty()) {
+                        System.debug(logPrefix + 'Deleting ' + decisionStepsToDelete.size() + ' decision steps');
+                        delete as user decisionStepsToDelete;
+                    }
+                }
+
+                // Delete the execution steps
+                delete as user stepsToDelete;
             }
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Error starting over from step with externalId ' + externalId + ': ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error starting over from step with turnIdentifier ' + turnIdentifier + ': ' + e.getMessage());
             throw new AuraHandledException('An error occurred while deleting steps: ' + e.getMessage());
         }
     }

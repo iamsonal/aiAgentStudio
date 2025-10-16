@@ -282,7 +282,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         List<ExecutionStep__c> messages = [
-            SELECT Id, ExternalId__c, Timestamp__c
+            SELECT Id, TurnIdentifier__c, Timestamp__c
             FROM ExecutionStep__c
             WHERE AgentExecution__c = :execution.Id
             ORDER BY Timestamp__c
@@ -295,7 +295,7 @@ private class ConversationalChatControllerTest {
 
         // When: Starting over from middle message
         Test.startTest();
-        ConversationalChatController.startOverFromMessage(execution.Id, middleMessage.ExternalId__c);
+        ConversationalChatController.startOverFromMessage(execution.Id, middleMessage.TurnIdentifier__c);
         Test.stopTest();
 
         // Then: Should delete messages after target

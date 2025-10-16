@@ -75,6 +75,14 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             null // errorMessage
         );
 
+        // Register tool call ID for causality tracking
+        if (String.isNotBlank(toolRequest.id)) {
+            Id toolExecutionStepId = decisionLogger.getLastLoggedStepId();
+            if (toolExecutionStepId != null) {
+                decisionLogger.registerToolCall(toolRequest.id, toolExecutionStepId);
+            }
+        }
+
         // Persist user message for traceability using ExecutionStep__c
         Id savedUserMessageId = null;
         if (context.userMessageData != null && String.isNotBlank(context.userMessageData.content)) {
@@ -95,17 +103,22 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             Id savedAssistantMessageId = null;
             ExecutionStepService executionStepService = new ExecutionStepService();
 
-            // Create agent response step for the content
+            // Create agent response step for the content with token usage data
             if (String.isNotBlank(assistantData.content)) {
-                savedAssistantMessageId = executionStepService.createAgentResponseStep(
+                savedAssistantMessageId = executionStepService.createAgentResponseStepWithTokens(
                     context.executionId,
                     assistantData.content,
                     context.turnIdentifier,
-                    context.currentTurnCount
+                    context.currentTurnCount,
+                    context.llmResult.providerResult.promptTokens,
+                    context.llmResult.providerResult.completionTokens,
+                    context.llmResult.providerResult.totalTokens,
+                    context.llmResult.providerResult.modelIdentifier,
+                    context.llmResult.providerResult.llmCalloutDurationMs
                 );
             }
 
-            // Create tool call step
+            // Create tool call step with token usage data
             if (String.isNotBlank(toolRequest.arguments)) {
                 executionStepService.createToolCallStep(
                     context.executionId,
@@ -113,14 +126,19 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     toolRequest.name,
                     toolRequest.arguments,
                     context.turnIdentifier,
-                    context.currentTurnCount
+                    context.currentTurnCount,
+                    context.llmResult.providerResult.promptTokens,
+                    context.llmResult.providerResult.completionTokens,
+                    context.llmResult.providerResult.totalTokens,
+                    context.llmResult.providerResult.modelIdentifier,
+                    context.llmResult.providerResult.llmCalloutDurationMs
                 );
             }
 
             if (String.isNotBlank(assistantData.content)) {
                 try {
                     TransientMessage__e event = new TransientMessage__e(
-                        ChatSessionId__c = context.executionId,
+                        AgentExecutionId__c = context.executionId,
                         MessageId__c = savedAssistantMessageId,
                         MessageContent__c = assistantData.content
                     );
@@ -255,17 +273,22 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         Id assistantMessageId = null;
         ExecutionStepService executionStepService = new ExecutionStepService();
 
-        // Create agent response step
+        // Create agent response step with token usage data
         if (String.isNotBlank(assistantData.content)) {
-            assistantMessageId = executionStepService.createAgentResponseStep(
+            assistantMessageId = executionStepService.createAgentResponseStepWithTokens(
                 context.executionId,
                 assistantData.content,
                 context.turnIdentifier,
-                context.currentTurnCount
+                context.currentTurnCount,
+                context.llmResult.providerResult.promptTokens,
+                context.llmResult.providerResult.completionTokens,
+                context.llmResult.providerResult.totalTokens,
+                context.llmResult.providerResult.modelIdentifier,
+                context.llmResult.providerResult.llmCalloutDurationMs
             );
         }
 
-        // Create tool call step with approval pending metadata
+        // Create tool call step with approval pending metadata and token usage data
         if (String.isNotBlank(toolRequest.arguments)) {
             executionStepService.createStep(
                 context.executionId,
@@ -286,7 +309,13 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                         'pendingToolCallsJson' => assistantData.assistantToolCallsJson
                     }
                 ),
-                false // isInternal
+                context.llmResult.providerResult.promptTokens,
+                context.llmResult.providerResult.completionTokens,
+                context.llmResult.providerResult.totalTokens,
+                context.llmResult.providerResult.modelIdentifier,
+                context.llmResult.providerResult.llmCalloutDurationMs,
+                false, // isInternal
+                null // isAsyncToolExecution - not applicable to ToolCall steps
             );
         }
 
@@ -375,7 +404,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             toolResultContent,
             context.turnIdentifier,
             context.currentTurnCount,
-            0L
+            0L, // processingDuration
+            false // isAsyncToolExecution - approval workflow is not async execution
         );
 
         // Queue follow-up LLM call to inform user about pending approval
@@ -456,15 +486,17 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         String resultJsonForStorage = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
         Id newRecordContextId = OrchestrationService.extractRecordIdFromOutcome(outcome);
 
-        // Log the tool result step with full ActionOutcome details
-        decisionLogger.logToolResult(
+        // Log the tool result step with full ActionOutcome details and causality tracking
+        Id toolExecutionStepId = decisionLogger.getLastLoggedStepId();
+        decisionLogger.logStepWithParent(
+            AgentDecisionStepLogger.StepType.TOOL_RESULT,
             'Tool Execution Completed',
             'Tool execution has completed',
             resultJsonForStorage,
             actionDuration,
             outcome.isSuccess, // isSuccess
-            outcome.errorCode, // errorCode
-            outcome.errorMessage // errorMessage
+            toolExecutionStepId, // parentStepId - link to tool execution
+            toolRequest.id // triggeringToolCallId
         );
 
         // Save tool result message using ExecutionStep__c
@@ -476,7 +508,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             resultJsonForStorage,
             context.turnIdentifier,
             context.currentTurnCount,
-            actionDuration
+            actionDuration,
+            false // isAsyncToolExecution - synchronous execution
         );
 
         // If a new record was created, update the context ledger for future turns

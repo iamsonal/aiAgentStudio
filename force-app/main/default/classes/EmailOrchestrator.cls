@@ -18,10 +18,30 @@
  *   - Always uses Queueable (EmailQueueable) for stateful, sequential processing
  */
 public class EmailOrchestrator implements IAgentOrchestrator {
-    private final AIAgentDefinition__c agentDef;
+    private AIAgentDefinition__c agentDef;
     private static final String LOG_PREFIX = '[EmailOrch] ';
 
+    /**
+     * No-argument constructor for dynamic instantiation via Type.newInstance().
+     * Must call initialize() before using the orchestrator.
+     */
+    public EmailOrchestrator() {
+        // No-op constructor for reflection-based instantiation
+    }
+
+    /**
+     * Parameterized constructor for direct instantiation (backward compatibility).
+     * @param agentDefinition The agent definition
+     */
     public EmailOrchestrator(AIAgentDefinition__c agentDefinition) {
+        initialize(agentDefinition);
+    }
+
+    /**
+     * Initializes the orchestrator with the agent definition.
+     * @param agentDefinition The agent definition configuration
+     */
+    public void initialize(AIAgentDefinition__c agentDefinition) {
         if (agentDefinition == null) {
             throw new AgentOrchestratorException('Agent definition is required for EmailOrchestrator');
         }
@@ -88,12 +108,18 @@ public class EmailOrchestrator implements IAgentOrchestrator {
                 'Email',
                 turnIdentifier,
                 1,
-                null,
-                null,
-                null,
-                null,
+                null, // toolCallId
+                null, // toolName
+                null, // toolArguments
+                null, // toolResult
                 JSON.serialize(emailMetadata),
-                false
+                null, // promptTokens
+                null, // completionTokens
+                null, // totalTokens
+                null, // modelIdentifier
+                null, // llmCalloutDurationMs
+                false, // isInternal
+                null // isAsyncToolExecution
             );
 
             // Create attachment steps if present
@@ -116,12 +142,18 @@ public class EmailOrchestrator implements IAgentOrchestrator {
                         'Attachment',
                         turnIdentifier,
                         1,
-                        null,
-                        null,
-                        null,
-                        null,
+                        null, // toolCallId
+                        null, // toolName
+                        null, // toolArguments
+                        null, // toolResult
                         JSON.serialize(attachmentMetadata),
-                        false
+                        null, // promptTokens
+                        null, // completionTokens
+                        null, // totalTokens
+                        null, // modelIdentifier
+                        null, // llmCalloutDurationMs
+                        false, // isInternal
+                        null // isAsyncToolExecution
                     );
                 }
             }

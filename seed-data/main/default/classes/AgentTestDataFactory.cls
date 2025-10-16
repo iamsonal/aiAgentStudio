@@ -80,10 +80,7 @@ public with sharing class AgentTestDataFactory {
             NamedCredential__c = 'OpenAI_API', // Make sure a Named Credential with this name exists
             DefaultModelIdentifier__c = 'gpt-4o-mini',
             DefaultTemperature__c = 0.1,
-            IsActive__c = true,
-            MaxRetryAttempts__c = 2,
-            InitialRetryDelayMillis__c = 750,
-            RetryableHttpStatusCodes__c = '408,429,500,502,503,504'
+            IsActive__c = true
         );
         insert config;
         return config;
@@ -124,7 +121,6 @@ public with sharing class AgentTestDataFactory {
             LLMConfiguration__c = llmConfigId,
             HistoryTurnLimit__c = 10,
             RequiresServiceUserContext__c = true, // Critical for community user scenario
-            EnableReasoningMode__c = true,
             WelcomeMessageTemplate__c = 'Hi {User.FirstName}! I am the Order Management Copilot. How can I help you with your orders today?',
             IdentityPrompt__c = identityPrompt,
             InstructionsPrompt__c = instructionsPrompt,

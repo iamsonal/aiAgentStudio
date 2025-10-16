@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ModelIdentifier__c</fullName>
+    <description>The specific LLM model used (e.g., gpt-4, gpt-3.5-turbo, claude-3-opus). Critical for reproducibility and model comparison.</description>
+    <externalId>false</externalId>
+    <label>Model Identifier</label>
+    <length>100</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>
+

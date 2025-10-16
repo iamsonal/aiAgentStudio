@@ -168,7 +168,7 @@ export class ChatSessionManager {
      */
     handleAgentResponse(response) {
         const payload = response?.data?.payload;
-        if (!payload || payload.ChatSessionId__c !== this.currentSessionId) {
+        if (!payload || payload.AgentExecutionId__c !== this.currentSessionId) {
             return;
         }
         this.loadingManager.setLoading('sending', false);

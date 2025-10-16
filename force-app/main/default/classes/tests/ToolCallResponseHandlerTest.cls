@@ -231,6 +231,11 @@ private class ToolCallResponseHandlerTest {
         // Create LLM result with tool call
         ProviderResult providerResult = new ProviderResult();
         providerResult.content = 'Let me help with that.';
+        providerResult.promptTokens = 150;
+        providerResult.completionTokens = 75;
+        providerResult.totalTokens = 225;
+        providerResult.modelIdentifier = 'gpt-4o-mini';
+        providerResult.llmCalloutDurationMs = 1000;
         providerResult.requestedActions = new List<Map<String, String>>{
             new Map<String, String>{
                 'id' => 'call_' + String.valueOf(Math.random()).substring(2, 10),
@@ -282,6 +287,11 @@ private class ToolCallResponseHandlerTest {
         // Create LLM result with tool call
         ProviderResult providerResult = new ProviderResult();
         providerResult.content = 'I can help find those records.';
+        providerResult.promptTokens = 150;
+        providerResult.completionTokens = 75;
+        providerResult.totalTokens = 225;
+        providerResult.modelIdentifier = 'gpt-4o-mini';
+        providerResult.llmCalloutDurationMs = 1000;
         providerResult.requestedActions = new List<Map<String, String>>{
             new Map<String, String>{
                 'id' => 'call_' + String.valueOf(Math.random()).substring(2, 10),

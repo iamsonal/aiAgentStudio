@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ModelIdentifier__c</fullName>
+    <description>The specific LLM model used for this step (e.g., gpt-4o, gpt-4o-mini, claude-3-5-sonnet).</description>
+    <externalId>false</externalId>
+    <inlineHelpText>LLM model identifier used for this API call.</inlineHelpText>
+    <label>Model Identifier</label>
+    <length>100</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>
+

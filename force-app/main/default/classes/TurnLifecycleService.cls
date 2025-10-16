@@ -200,7 +200,7 @@ public inherited sharing class TurnLifecycleService {
 
         try {
             AgentResponse__e event = new AgentResponse__e(
-                ChatSessionId__c = executionId, // Note: Field name is legacy but now contains AgentExecution__c ID
+                AgentExecutionId__c = executionId,
                 IsSuccess__c = isSuccess,
                 FinalAssistantMessageId__c = (isSuccess && finalAssistantMessageId != null) ? String.valueOf(finalAssistantMessageId) : null,
                 ErrorDetails__c = errorDetails,

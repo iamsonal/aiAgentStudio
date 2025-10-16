@@ -50,7 +50,7 @@ public inherited sharing class ExecutionStepService {
         String turnIdentifier,
         Integer turnCount
     ) {
-        return createStep(executionId, stepType, stepRole, content, contentType, turnIdentifier, turnCount, null, null, null, null, null, false);
+        return createStep(executionId, stepType, stepRole, content, contentType, turnIdentifier, turnCount, null, null, null, null, null, null, null, null, null, null, false, null);
     }
 
     /**
@@ -68,7 +68,13 @@ public inherited sharing class ExecutionStepService {
      * @param toolArguments Optional tool arguments JSON
      * @param toolResult Optional tool result JSON
      * @param stepMetadata Optional step metadata JSON
+     * @param promptTokens Optional prompt tokens count for LLM calls
+     * @param completionTokens Optional completion tokens count for LLM calls
+     * @param totalTokens Optional total tokens count for LLM calls
+     * @param modelIdentifier Optional LLM model identifier (e.g., gpt-4o-mini)
+     * @param llmCalloutDurationMs Optional LLM API callout duration in milliseconds
      * @param isInternal Whether this is an internal system step
+     * @param isAsyncToolExecution Optional flag indicating if this is an async tool execution (applicable to ToolResult steps)
      * @return Id of the created ExecutionStep__c record
      */
     public Id createStep(
@@ -84,7 +90,13 @@ public inherited sharing class ExecutionStepService {
         String toolArguments,
         String toolResult,
         String stepMetadata,
-        Boolean isInternal
+        Integer promptTokens,
+        Integer completionTokens,
+        Integer totalTokens,
+        String modelIdentifier,
+        Long llmCalloutDurationMs,
+        Boolean isInternal,
+        Boolean isAsyncToolExecution
     ) {
         String logPrefix = LOG_PREFIX + '[createStep] ';
 
@@ -103,12 +115,21 @@ public inherited sharing class ExecutionStepService {
                 ToolArguments__c = toolArguments,
                 ToolResult__c = toolResult,
                 StepMetadata__c = stepMetadata,
-                IsInternal__c = isInternal != null ? isInternal : false
+                PromptTokens__c = promptTokens,
+                CompletionTokens__c = completionTokens,
+                TotalTokens__c = totalTokens,
+                ModelIdentifier__c = modelIdentifier,
+                LLMCalloutDurationMs__c = llmCalloutDurationMs,
+                IsInternal__c = isInternal != null ? isInternal : false,
+                IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false
             );
 
             insert step;
 
             System.debug(LoggingLevel.DEBUG, logPrefix + 'Created ExecutionStep__c: ' + step.Id + ' Type: ' + stepType + ' Role: ' + stepRole);
+            if (totalTokens != null) {
+                System.debug(LoggingLevel.DEBUG, logPrefix + 'Token usage - Prompt: ' + promptTokens + ', Completion: ' + completionTokens + ', Total: ' + totalTokens + ', Model: ' + modelIdentifier);
+            }
 
             return step.Id;
         } catch (Exception e) {
@@ -144,6 +165,54 @@ public inherited sharing class ExecutionStepService {
     }
 
     /**
+     * Creates an agent response step with token usage data and LLM metrics.
+     *
+     * @param executionId The execution ID
+     * @param agentResponse The agent's response content
+     * @param turnIdentifier The turn identifier
+     * @param turnCount The turn number
+     * @param promptTokens Number of tokens in the prompt
+     * @param completionTokens Number of tokens in the completion
+     * @param totalTokens Total tokens used
+     * @param modelIdentifier LLM model identifier (e.g., gpt-4o-mini)
+     * @param llmCalloutDurationMs LLM API callout duration in milliseconds
+     * @return Id of the created step
+     */
+    public Id createAgentResponseStepWithTokens(
+        Id executionId,
+        String agentResponse,
+        String turnIdentifier,
+        Integer turnCount,
+        Integer promptTokens,
+        Integer completionTokens,
+        Integer totalTokens,
+        String modelIdentifier,
+        Long llmCalloutDurationMs
+    ) {
+        return createStep(
+            executionId,
+            'AgentResponse',
+            'Assistant',
+            agentResponse,
+            'Text',
+            turnIdentifier,
+            turnCount,
+            null, // toolCallId
+            null, // toolName
+            null, // toolArguments
+            null, // toolResult
+            null, // stepMetadata
+            promptTokens,
+            completionTokens,
+            totalTokens,
+            modelIdentifier,
+            llmCalloutDurationMs,
+            false, // isInternal
+            null // isAsyncToolExecution
+        );
+    }
+
+    /**
      * Creates a tool call step.
      *
      * @param executionId The execution ID
@@ -152,9 +221,26 @@ public inherited sharing class ExecutionStepService {
      * @param toolArguments The arguments passed to the tool
      * @param turnIdentifier The turn identifier
      * @param turnCount The turn number
+     * @param promptTokens Optional prompt tokens count for the LLM call that generated this tool call
+     * @param completionTokens Optional completion tokens count for the LLM call that generated this tool call
+     * @param totalTokens Optional total tokens count for the LLM call that generated this tool call
+     * @param modelIdentifier Optional LLM model identifier (e.g., gpt-4o-mini)
+     * @param llmCalloutDurationMs Optional LLM API callout duration in milliseconds
      * @return Id of the created step
      */
-    public Id createToolCallStep(Id executionId, String toolCallId, String toolName, String toolArguments, String turnIdentifier, Integer turnCount) {
+    public Id createToolCallStep(
+        Id executionId,
+        String toolCallId,
+        String toolName,
+        String toolArguments,
+        String turnIdentifier,
+        Integer turnCount,
+        Integer promptTokens,
+        Integer completionTokens,
+        Integer totalTokens,
+        String modelIdentifier,
+        Long llmCalloutDurationMs
+    ) {
         return createStep(
             executionId,
             'ToolCall',
@@ -166,9 +252,15 @@ public inherited sharing class ExecutionStepService {
             toolCallId,
             toolName,
             toolArguments,
-            null,
-            null,
-            false
+            null, // toolResult
+            null, // stepMetadata
+            promptTokens,
+            completionTokens,
+            totalTokens,
+            modelIdentifier,
+            llmCalloutDurationMs,
+            false, // isInternal
+            null // isAsyncToolExecution - not applicable to ToolCall steps
         );
     }
 
@@ -182,6 +274,7 @@ public inherited sharing class ExecutionStepService {
      * @param turnIdentifier The turn identifier
      * @param turnCount The turn number
      * @param processingDuration Optional processing duration in milliseconds
+     * @param isAsyncToolExecution Whether this tool was executed asynchronously
      * @return Id of the created step
      */
     public Id createToolResultStep(
@@ -191,11 +284,15 @@ public inherited sharing class ExecutionStepService {
         String toolResult,
         String turnIdentifier,
         Integer turnCount,
-        Long processingDuration
+        Long processingDuration,
+        Boolean isAsyncToolExecution
     ) {
         Map<String, Object> metadata = new Map<String, Object>();
         if (processingDuration != null) {
             metadata.put('processingDuration', processingDuration);
+        }
+        if (isAsyncToolExecution != null) {
+            metadata.put('isAsyncToolExecution', isAsyncToolExecution);
         }
 
         ExecutionStep__c step = new ExecutionStep__c(
@@ -211,7 +308,13 @@ public inherited sharing class ExecutionStepService {
             ToolName__c = toolName,
             ToolResult__c = toolResult,
             ProcessingDuration__c = processingDuration,
-            StepMetadata__c = !metadata.isEmpty() ? JSON.serialize(metadata) : null
+            IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false,
+            StepMetadata__c = !metadata.isEmpty() ? JSON.serialize(metadata) : null,
+            PromptTokens__c = null,
+            CompletionTokens__c = null,
+            TotalTokens__c = null,
+            ModelIdentifier__c = null,
+            LLMCalloutDurationMs__c = null
         );
 
         insert step;
@@ -237,12 +340,18 @@ public inherited sharing class ExecutionStepService {
             'Text',
             turnIdentifier,
             turnCount,
-            null,
-            null,
-            null,
-            null,
-            null,
-            isInternal
+            null, // toolCallId
+            null, // toolName
+            null, // toolArguments
+            null, // toolResult
+            null, // stepMetadata
+            null, // promptTokens
+            null, // completionTokens
+            null, // totalTokens
+            null, // modelIdentifier
+            null, // llmCalloutDurationMs
+            isInternal,
+            null // isAsyncToolExecution
         );
     }
 
@@ -267,12 +376,18 @@ public inherited sharing class ExecutionStepService {
             'Text',
             turnIdentifier,
             turnCount,
-            null,
-            null,
-            null,
-            null,
+            null, // toolCallId
+            null, // toolName
+            null, // toolArguments
+            null, // toolResult
             JSON.serialize(metadata),
-            false
+            null, // promptTokens
+            null, // completionTokens
+            null, // totalTokens
+            null, // modelIdentifier
+            null, // llmCalloutDurationMs
+            false, // isInternal
+            null // isAsyncToolExecution
         );
     }
 

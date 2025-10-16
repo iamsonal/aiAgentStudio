@@ -18,10 +18,30 @@
  *   - Always uses Queueable (BatchQueueable) for stateful, sequential batch processing
  */
 public class BatchOrchestrator implements IAgentOrchestrator {
-    private final AIAgentDefinition__c agentDef;
+    private AIAgentDefinition__c agentDef;
     private static final String LOG_PREFIX = '[BatchOrch] ';
 
+    /**
+     * No-argument constructor for dynamic instantiation via Type.newInstance().
+     * Must call initialize() before using the orchestrator.
+     */
+    public BatchOrchestrator() {
+        // No-op constructor for reflection-based instantiation
+    }
+
+    /**
+     * Parameterized constructor for direct instantiation (backward compatibility).
+     * @param agentDefinition The agent definition
+     */
     public BatchOrchestrator(AIAgentDefinition__c agentDefinition) {
+        initialize(agentDefinition);
+    }
+
+    /**
+     * Initializes the orchestrator with the agent definition.
+     * @param agentDefinition The agent definition configuration
+     */
+    public void initialize(AIAgentDefinition__c agentDefinition) {
         if (agentDefinition == null) {
             throw new AgentOrchestratorException('Agent definition is required for BatchOrchestrator');
         }

@@ -160,7 +160,8 @@ public class AsyncActionEngine {
                 resultJsonForStorage,
                 this.turnIdentifier,
                 this.currentTurnCount,
-                actionDuration
+                actionDuration,
+                true // isAsyncToolExecution - asynchronous execution
             );
 
             // Validate turn limits and dispatch follow-up processing

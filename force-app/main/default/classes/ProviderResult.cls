@@ -31,6 +31,10 @@ public class ProviderResult {
     public List<Map<String, String>> requestedActions { get; set; }
     public String rawToolCallsJson { get; set; }
     public String rawAssistantMessageWithActionsJson { get; set; }
+    @AuraEnabled
+    public String modelIdentifier { get; set; }
+    @AuraEnabled
+    public Long llmCalloutDurationMs { get; set; }
 
     /**
      * Constructs a ProviderResult with all LLM response data.
@@ -42,6 +46,8 @@ public class ProviderResult {
      * @param actions         List of tool/action requests made by the LLM.
      * @param rawToolCalls    Raw JSON string of tool calls from the LLM response.
      * @param rawAssistantMsg Raw JSON string of the complete assistant message.
+     * @param modelIdentifier The LLM model identifier (e.g., gpt-4o-mini).
+     * @param llmCalloutDurationMs The duration of the HTTP callout to the LLM provider in milliseconds.
      */
     public ProviderResult(
         String content,
@@ -50,7 +56,9 @@ public class ProviderResult {
         Integer totalTokens,
         List<Map<String, String>> actions,
         String rawToolCalls,
-        String rawAssistantMsg
+        String rawAssistantMsg,
+        String modelIdentifier,
+        Long llmCalloutDurationMs
     ) {
         this.content = content;
         this.promptTokens = promptTokens;
@@ -59,6 +67,8 @@ public class ProviderResult {
         this.requestedActions = actions != null ? actions : new List<Map<String, String>>();
         this.rawToolCallsJson = rawToolCalls;
         this.rawAssistantMessageWithActionsJson = rawAssistantMsg;
+        this.modelIdentifier = modelIdentifier;
+        this.llmCalloutDurationMs = llmCalloutDurationMs;
     }
 
     /**

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>AgentType__c</fullName>
-    <description>Defines the agent's purpose and execution pattern: Conversational (interactive chat), Batch (bulk processing), Email (email-triggered), or Autonomous (self-directed). This determines which orchestrator and async pattern is used.</description>
+    <description>Defines the agent's purpose and execution pattern: Conversational (interactive chat), Function (synchronous one-shot tasks), Batch (bulk processing), Email (email-triggered), or Autonomous (self-directed). This determines which orchestrator and execution pattern is used.</description>
     <inlineHelpText>Select the agent's primary purpose. This determines how executions are initiated and processed.</inlineHelpText>
     <label>Agent Type</label>
     <required>true</required>
@@ -15,6 +15,11 @@
                 <fullName>Conversational</fullName>
                 <default>true</default>
                 <label>Conversational</label>
+            </value>
+            <value>
+                <fullName>Function</fullName>
+                <default>false</default>
+                <label>Function</label>
             </value>
             <value>
                 <fullName>Batch</fullName>

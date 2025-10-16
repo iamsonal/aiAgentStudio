@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Autonomous</label>
+    <protected>false</protected>
+    <values>
+        <field>AgentType__c</field>
+        <value xsi:type="xsd:string">Autonomous</value>
+    </values>
+    <values>
+        <field>Description__c</field>
+        <value xsi:type="xsd:string">Handles autonomous agent executions that run independently with goal-oriented behavior. Capable of multi-step reasoning, planning, and self-directed task execution.</value>
+    </values>
+    <values>
+        <field>IsActive__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>OrchestratorClassName__c</field>
+        <value xsi:type="xsd:string">AutonomousOrchestrator</value>
+    </values>
+</CustomMetadata>
+
