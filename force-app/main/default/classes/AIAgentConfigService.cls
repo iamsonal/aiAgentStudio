@@ -19,6 +19,10 @@
  * This service is designed for extensibility, reliability, and operational transparency.
  */
 public inherited sharing class AIAgentConfigService {
+
+    public class ConfigurationException extends AIAgentException {
+    }
+
     // Cache Keys: Use separate caches for ID and DeveloperName lookups
     private static Map<Id, AIAgentDefinition__c> agentDefIdCache = new Map<Id, AIAgentDefinition__c>();
     private static Map<String, AIAgentDefinition__c> agentDefNameCache = new Map<String, AIAgentDefinition__c>(); // Key: DeveloperName (lower case)
@@ -29,11 +33,14 @@ public inherited sharing class AIAgentConfigService {
     // Cache for AgentCapability records by ID for schema-driven parameter processing
     private static Map<Id, AgentCapability__c> agentCapabilityIdCache = new Map<Id, AgentCapability__c>();
 
+    // Cache for AgentCapability records by composite key (agentDefId + capabilityName) to prevent redundant queries
+    private static Map<String, AgentCapability__c> agentCapabilityNameCache = new Map<String, AgentCapability__c>();
+
     // Common field lists for queries to ensure consistency
     private static final List<String> AGENT_DEFINITION_FIELDS = new List<String>{
         'Id',
         'Name',
-        'DeveloperName__c', // Key fields
+        'DeveloperName__c',
         'LLMConfiguration__c',
         'IsActive__c',
         'AgentType__c',
@@ -45,6 +52,7 @@ public inherited sharing class AIAgentConfigService {
         'SummarizationChunkTurnCount__c',
         'WelcomeMessageTemplate__c',
         'IdentityPrompt__c',
+        'AuditLevel__c',
         'InstructionsPrompt__c',
         'ExamplesPrompt__c',
         'PromptFooter__c',
@@ -59,16 +67,12 @@ public inherited sharing class AIAgentConfigService {
     private static final List<String> LLM_CONFIGURATION_FIELDS = new List<String>{
         'Id',
         'Name',
-        'DeveloperName__c', // Key fields
+        'DeveloperName__c',
         'ProviderAdapterClass__c',
         'NamedCredential__c',
         'DefaultModelIdentifier__c',
         'DefaultTemperature__c',
-        'IsActive__c',
-        'MaxRetryAttempts__c',
-        'InitialRetryDelayMillis__c',
-        'RetryableHttpStatusCodes__c'
-        // Add other fields like MaxContextTokens__c, Retry settings if added
+        'IsActive__c'
     };
 
     private static final List<String> AGENT_CAPABILITY_FIELDS = new List<String>{
@@ -92,14 +96,14 @@ public inherited sharing class AIAgentConfigService {
      * Optimized for schema-driven parameter processing in BaseAgentAction.
      *
      * @param capabilityId The ID of the AgentCapability__c record.
-     * @return             The AgentCapability__c record, or null if not found.
-     * @throws ConfigurationException on query errors (not for 'not found').
+     * @return             The AgentCapability__c record.
+     * @throws ConfigurationException if the ID is null, record not found, or record is inactive.
+     * @throws ConfigurationException on query errors.
      */
     public static AgentCapability__c getCapabilityById(Id capabilityId) {
         String logPrefix = '[AIAgentCfgSvc] ';
         if (capabilityId == null) {
-            System.debug(LoggingLevel.WARN, logPrefix + 'getCapabilityById: capabilityId is null.');
-            return null;
+            throw new ConfigurationException('AgentCapability ID cannot be null.');
         }
 
         if (!agentCapabilityIdCache.containsKey(capabilityId)) {
@@ -110,8 +114,7 @@ public inherited sharing class AIAgentConfigService {
                 List<AgentCapability__c> results = Database.query(queryString);
 
                 if (results.isEmpty()) {
-                    System.debug(LoggingLevel.WARN, logPrefix + 'AgentCapability not found for ID: ' + capabilityId);
-                    return null; // Return null for 'not found' - this is expected behavior
+                    throw new ConfigurationException('AgentCapability not found for ID: ' + capabilityId);
                 }
 
                 AgentCapability__c capability = results[0];
@@ -132,20 +135,37 @@ public inherited sharing class AIAgentConfigService {
 
     /**
      * Retrieves a complete, active AgentCapability__c record for a given agent definition and capability name.
+     * Uses a composite cache key (agentDefId + capabilityName) to prevent redundant queries in the same transaction.
      *
      * @param agentDefId     The ID of the AIAgentDefinition__c.
      * @param capabilityName The CapabilityName__c of the AgentCapability__c record.
-     * @return               The AgentCapability__c record, or null if not found or inactive.
-     * @throws ConfigurationException on query errors (not for 'not found').
+     * @return               The AgentCapability__c record.
+     * @throws ConfigurationException if parameters are null/blank, record not found, or record is inactive.
+     * @throws ConfigurationException on query errors.
      */
     public static AgentCapability__c getCapability(Id agentDefId, String capabilityName) {
         String logPrefix = '[AIAgentCfgSvc] ';
-        if (agentDefId == null || String.isBlank(capabilityName)) {
-            System.debug(LoggingLevel.WARN, logPrefix + 'getCapability: agentDefId or capabilityName is null/blank.');
-            return null;
+        if (agentDefId == null) {
+            throw new ConfigurationException('Agent Definition ID cannot be null.');
+        }
+        if (String.isBlank(capabilityName)) {
+            throw new ConfigurationException('Capability Name cannot be blank.');
         }
 
-        System.debug(LoggingLevel.INFO, logPrefix + 'Querying capability "' + capabilityName + '" for Agent: ' + agentDefId);
+        // Create composite cache key: agentDefId + capabilityName
+        String cacheKey = String.valueOf(agentDefId) + '::' + capabilityName.toLowerCase();
+
+        // Check composite cache first
+        if (agentCapabilityNameCache.containsKey(cacheKey)) {
+            AgentCapability__c cachedCapability = agentCapabilityNameCache.get(cacheKey);
+            if (cachedCapability == null) {
+                throw new ConfigurationException('Active AgentCapability not found for Name: "' + capabilityName + '" on Agent: ' + agentDefId);
+            }
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Cache HIT for capability "' + capabilityName + '" on Agent: ' + agentDefId);
+            return cachedCapability;
+        }
+
+        System.debug(LoggingLevel.INFO, logPrefix + 'Cache MISS - Querying capability "' + capabilityName + '" for Agent: ' + agentDefId);
 
         try {
             String queryString = buildQuery(
@@ -156,16 +176,18 @@ public inherited sharing class AIAgentConfigService {
             List<AgentCapability__c> capabilities = Database.query(queryString);
 
             if (capabilities.isEmpty()) {
-                System.debug(
-                    LoggingLevel.WARN,
-                    logPrefix + 'No active AgentCapability found for Name: "' + capabilityName + '" on Agent: ' + agentDefId
-                );
-                return null;
+                // Cache null result to prevent repeated queries for non-existent capabilities
+                agentCapabilityNameCache.put(cacheKey, null);
+                throw new ConfigurationException('Active AgentCapability not found for Name: "' + capabilityName + '" on Agent: ' + agentDefId);
             }
 
             AgentCapability__c capability = capabilities[0];
-            // Cache the result for future getCapabilityById calls
+
+            // Cache the result in both caches
             agentCapabilityIdCache.put(capability.Id, capability);
+            agentCapabilityNameCache.put(cacheKey, capability);
+
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Cached capability "' + capabilityName + '" for Agent: ' + agentDefId);
             return capability;
         } catch (Exception e) {
             String errorMsg = 'System error querying AgentCapability "' + capabilityName + '" on Agent ' + agentDefId;
@@ -205,8 +227,7 @@ public inherited sharing class AIAgentConfigService {
             if (agentDef.LLMConfiguration__c != null && !llmConfigIdCache.containsKey(agentDef.LLMConfiguration__c)) {
                 try {
                     getLLMConfiguration(agentDef.LLMConfiguration__c);
-                } // Load/Cache LLM config
-                catch (ConfigurationException e) {
+                } catch (ConfigurationException e) {
                     System.debug(
                         LoggingLevel.WARN,
                         'Could not pre-warm LLM cache for linked LLM ID ' + agentDef.LLMConfiguration__c + ': ' + e.getMessage()
@@ -249,14 +270,9 @@ public inherited sharing class AIAgentConfigService {
                 throw new ConfigurationException('Active AI Agent Definition not found for Developer Name: "' + developerName + '"');
             }
             if (results.size() > 1) {
-                // Should not happen if DeveloperName is unique
-                System.debug(
-                    LoggingLevel.ERROR,
-                    'CRITICAL CONFIG WARNING: Multiple active Agent Definitions found for Developer Name: "' +
-                        developerName +
-                        '". Using the first one found.'
+                throw new ConfigurationException(
+                        'CRITICAL CONFIG ERROR: Multiple active Agent Definitions found for Developer Name: "' + developerName + '". Ensure developer names are unique.'
                 );
-                // Consider throwing an exception here instead for stricter enforcement.
             }
 
             AIAgentDefinition__c agentDef = results[0];
@@ -355,89 +371,30 @@ public inherited sharing class AIAgentConfigService {
      * Uses cached lookups for both Agent Definition and LLM Configuration.
      *
      * @param agentDefId The ID of the AIAgentDefinition__c.
-     * @return           The corresponding active LLMConfiguration__c record, or null if Agent/LLM not found, inactive, or link missing.
-     * @throws ConfigurationException only for unexpected query/system errors during lookup, not for 'not found'.
+     * @return           The corresponding active LLMConfiguration__c record, or null if the lookup field is blank.
+     * @throws ConfigurationException if the agent or LLM configuration is not found or inactive.
+     * @throws ConfigurationException for unexpected query/system errors during lookup.
      */
     public static LLMConfiguration__c getLLMConfigurationByAgentDefinitionId(Id agentDefId) {
         if (agentDefId == null) {
-            System.debug(LoggingLevel.WARN, '[AIAgentConfigService.getLLMConfigByAgentId] Agent Definition ID is null.');
-            return null;
+            throw new ConfigurationException('Agent Definition ID cannot be null.');
         }
 
-        AIAgentDefinition__c agentDef = null;
-        try {
-            // Use the existing cached method to get the Agent Definition
-            agentDef = getAgentDefinition(agentDefId); // This handles caching and throws if *query* fails
+        // Get the Agent Definition - this will throw ConfigurationException if not found
+        AIAgentDefinition__c agentDef = getAgentDefinition(agentDefId);
 
-            // If agentDef is null (e.g., not found/inactive), getAgentDefinition should handle logging/exceptions based on its implementation
-            // However, defensively check again. If getAgentDefinition throws for 'not found', it will be caught below.
-            if (agentDef == null) {
-                System.debug(
-                    LoggingLevel.WARN,
-                    '[AIAgentConfigService.getLLMConfigByAgentId] Agent Definition not found or inactive for ID: ' + agentDefId
-                );
-                return null; // Return null explicitly if getAgentDefinition doesn't throw for 'not found'
-            }
-        } catch (AIAgentConfigService.ConfigurationException configEx) {
-            // Catch if getAgentDefinition *throws* for 'not found' or other errors
-            System.debug(
-                LoggingLevel.ERROR,
-                '[AIAgentConfigService.getLLMConfigByAgentId] Error retrieving Agent Definition ' + agentDefId + ': ' + configEx.getMessage()
-            );
-            return null; // Return null if agent lookup failed critically
-        } catch (Exception e) {
-            // Catch unexpected system errors during agent lookup
-            System.debug(
-                LoggingLevel.ERROR,
-                '[AIAgentConfigService.getLLMConfigByAgentId] Unexpected error retrieving Agent Definition ' + agentDefId + ': ' + e.getMessage()
-            );
-            throw new ConfigurationException('System error during Agent lookup: ' + e.getMessage(), e); // Re-throw unexpected errors
-        }
-
-        // Agent Definition was found, now get the linked LLM Config ID
+        // Check if the LLM Configuration lookup field is blank
         Id llmConfigId = agentDef.LLMConfiguration__c;
         if (llmConfigId == null) {
             System.debug(
-                LoggingLevel.ERROR,
+                LoggingLevel.WARN,
                 '[AIAgentConfigService.getLLMConfigByAgentId] Agent Definition ' + agentDefId + ' has no LLM Configuration linked.'
             );
-            return null; // Link is missing
+            return null; // Return null only if the lookup field is blank
         }
 
-        LLMConfiguration__c llmConfig = null;
-        try {
-            // Use the existing cached method to get the actual LLM Configuration record
-            llmConfig = getLLMConfiguration(llmConfigId); // Handles caching and checks for active/found
-
-            // If llmConfig is null (e.g., LLM not found or inactive), getLLMConfiguration should handle logging/exceptions
-            // If getLLMConfiguration throws for 'not found', it will be caught below. Return null if it doesn't throw.
-            if (llmConfig == null) {
-                System.debug(
-                    LoggingLevel.ERROR,
-                    '[AIAgentConfigService.getLLMConfigByAgentId] Linked LLM Configuration ' +
-                        llmConfigId +
-                        ' not found or inactive for Agent ' +
-                        agentDefId
-                );
-                return null;
-            }
-        } catch (AIAgentConfigService.ConfigurationException configEx) {
-            // Catch if getLLMConfiguration *throws* for 'not found' or other errors
-            System.debug(
-                LoggingLevel.ERROR,
-                '[AIAgentConfigService.getLLMConfigByAgentId] Error retrieving linked LLM Configuration ' + llmConfigId + ': ' + configEx.getMessage()
-            );
-            return null; // Return null if LLM lookup failed critically
-        } catch (Exception e) {
-            // Catch unexpected system errors during LLM lookup
-            System.debug(
-                LoggingLevel.ERROR,
-                '[AIAgentConfigService.getLLMConfigByAgentId] Unexpected error retrieving LLM Configuration ' + llmConfigId + ': ' + e.getMessage()
-            );
-            throw new ConfigurationException('System error during LLM lookup: ' + e.getMessage(), e); // Re-throw unexpected errors
-        }
-
-        return llmConfig; // Return the successfully found, active LLM configuration
+        // Get the LLM Configuration - this will throw ConfigurationException if not found
+        return getLLMConfiguration(llmConfigId);
     }
 
     // --- Helper Methods ---
@@ -480,11 +437,5 @@ public inherited sharing class AIAgentConfigService {
         if (String.isNotBlank(llmConfig.DeveloperName__c)) {
             llmConfigNameCache.put(llmConfig.DeveloperName__c.toLowerCase(), llmConfig);
         }
-    }
-
-    /**
-     * Exception for configuration errors (e.g., not found, inactive, or query/system errors).
-     */
-    public class ConfigurationException extends AIAgentException {
     }
 }

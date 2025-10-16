@@ -9,7 +9,7 @@
 /**
  * @description
  * OpenAIProviderAdapter is a robust integration layer for the OpenAI Chat Completions API, implementing the ILLMProviderAdapter interface.
- * It manages HTTP request construction, retry logic, and response parsing, including support for function calling (tool calls),
+ * It manages HTTP request construction and response parsing, including support for function calling (tool calls),
  * token usage tracking, and structured error handling. The adapter is designed for resilience and maintainability, providing
  * detailed debug output and clear exception signaling for all failure modes. Its scope is limited to the OpenAI chat completions
  * endpoint, but it is architected for easy extension to future OpenAI API features or additional LLM providers.
@@ -25,17 +25,17 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
     }
 
     /**
-     * Sends a chat completion request to the OpenAI API with automatic retry handling.
+     * Sends a chat completion request to the OpenAI API.
      *
-     * Builds the HTTP request, applies retry logic, and parses the response into a ProviderResult. Handles all error conditions
+     * Builds the HTTP request and parses the response into a ProviderResult. Handles all error conditions
      * with clear debug output and exception signaling. Supports function calling (tool calls) and token usage tracking.
      *
      * @param messagesPayload Pre-formatted conversation history as OpenAI message objects (required)
      * @param toolsPayload    Pre-formatted tool definitions for function calling (optional)
-     * @param llmConfig       Configuration record containing API endpoint, model, and retry settings (required)
+     * @param llmConfig       Configuration record containing API endpoint and model settings (required)
      * @param agentConfig     Agent definition record (currently unused but required by interface)
      * @return                ProviderResult containing response content, token usage, and any tool call requests
-     * @throws LLMProviderException If API call fails after all retries or response parsing fails
+     * @throws LLMProviderException If API call fails or response parsing fails
      *
      * Side effects: Emits debug logs for request execution, response parsing, and error conditions.
      */
@@ -47,23 +47,21 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
     ) {
         // Build the HTTP request for OpenAI chat completions.
         HttpRequest request = buildHttpRequest(llmConfig, messagesPayload, toolsPayload, agentConfig);
-        // Create retry configuration based on LLM config.
-        HttpRetryService.RetryConfig retryConfig = HttpRetryService.createRetryConfig(llmConfig, LOG_PREFIX);
+        // Create callout configuration based on LLM config.
+        HttpCalloutService.CalloutConfig calloutConfig = HttpCalloutService.createConfig(LOG_PREFIX);
         try {
-            // Execute HTTP request with retry logic.
-            HttpRetryService.HttpRetryResult result = HttpRetryService.executeWithRetry(request, retryConfig);
+            // Execute HTTP request (single attempt).
+            HttpCalloutService.CalloutResult result = HttpCalloutService.execute(request, calloutConfig);
             System.debug(
                 LoggingLevel.INFO,
                 LOG_PREFIX +
-                    'OpenAI API call succeeded after ' +
-                    result.attemptsMade +
-                    ' attempt(s), total duration: ' +
-                    result.totalDurationMs +
+                    'OpenAI API call succeeded, duration: ' +
+                    result.durationMs +
                     ' ms.'
             );
             System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'OpenAI response body: ' + result.response.getBody());
             // Parse and return the successful response.
-            return parseOpenAIResponse(result.response.getBody());
+            return parseOpenAIResponse(result.response.getBody(), llmConfig.DefaultModelIdentifier__c, result.durationMs);
         } catch (OpenAIParseException pex) {
             System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Failed to parse OpenAI response: ' + pex.getMessage());
             throw new LLMProviderException('Failed to parse OpenAI response: ' + pex.getMessage(), pex);
@@ -125,13 +123,15 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
      * and throws OpenAIParseException for malformed or incomplete responses.
      *
      * @param jsonBody Raw JSON response string from OpenAI API (required)
+     * @param modelIdentifier The model identifier used for this request (required)
+     * @param calloutDurationMs The duration of the HTTP callout in milliseconds (required)
      * @return         ProviderResult containing parsed content, token usage, and tool calls
      * @throws OpenAIParseException If JSON is malformed or required response fields are missing
      *
      * Side effects: Emits debug logs for token usage, tool call extraction, and error conditions.
      */
     @TestVisible
-    private ProviderResult parseOpenAIResponse(String jsonBody) {
+    private ProviderResult parseOpenAIResponse(String jsonBody, String modelIdentifier, Long calloutDurationMs) {
         if (String.isBlank(jsonBody)) {
             throw new OpenAIParseException('Cannot parse blank response body.');
         }
@@ -208,7 +208,9 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
             totalTokens,
             parsedActions,
             rawToolCallsListJson,
-            rawAssistantMessageWithActionsJson
+            rawAssistantMessageWithActionsJson,
+            modelIdentifier,
+            calloutDurationMs
         );
     }
 

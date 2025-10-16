@@ -137,6 +137,9 @@ global with sharing class AIAgentRestService {
      * orchestrator. The orchestrator executes with the service user's permissions because we're already
      * in the service user context after the Named Credential switch.
      *
+     * CRITICAL: Sets isInServiceUserContext=true to prevent AgentExecutionService from attempting
+     * another context switch (which would cause infinite recursion).
+     *
      * @param requestData The parsed and validated AIAgentRequest.
      * @param logPrefix   The logging prefix for debug output.
      * @return            The processing status string (e.g., 'Processing').
@@ -166,6 +169,7 @@ global with sharing class AIAgentRestService {
             payload.currentRecordId = currentRecordId;
             payload.turnIdentifier = requestData.turnIdentifier;
             payload.existingExecutionId = sessionId; // Continue existing execution
+            payload.isInServiceUserContext = true; // CRITICAL: Prevent infinite recursion
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Delegating to AgentExecutionService as service user: ' + UserInfo.getUserName());
 

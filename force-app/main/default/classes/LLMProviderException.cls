@@ -21,31 +21,19 @@
 public virtual class LLMProviderException extends AIAgentException {
     /**
      * @description
-     * NonRetriableHttpException is thrown for immediate HTTP failures that are not eligible for retry.
+     * NonRetriableHttpException is thrown for HTTP failures that indicate a fundamental problem with the API request.
      * Examples include:
      *   - 400 Bad Request (malformed request)
      *   - 401 Unauthorized (authentication failure)
      *   - 403 Forbidden (insufficient permissions)
      *   - 404 Not Found (invalid endpoint)
+     *   - 429 Too Many Requests (rate limiting)
+     *   - 500 Internal Server Error (server issues)
+     *   - Network timeouts and connection failures
      *
-     * This exception signals a fundamental problem with the API request itself, not a transient failure.
-     * Downstream services can catch this specific exception to distinguish it from retry-exhausted scenarios.
+     * This exception signals a problem with the API request or external service that requires attention.
      */
     public class NonRetriableHttpException extends LLMProviderException {
     }
 
-    /**
-     * @description
-     * RetryExhaustedException is thrown when a retriable error persists after all retry attempts are exhausted.
-     * Examples include:
-     *   - 429 Too Many Requests (rate limiting that persists)
-     *   - 503 Service Unavailable (extended provider outage)
-     *   - Network timeouts that continue across all retry attempts
-     *
-     * This exception signals a prolonged external service disruption, not a flawed API request.
-     * Downstream services can catch this specific exception to implement alternative handling strategies
-     * such as fallback providers, circuit breakers, or extended retry queues.
-     */
-    public class RetryExhaustedException extends LLMProviderException {
-    }
 }

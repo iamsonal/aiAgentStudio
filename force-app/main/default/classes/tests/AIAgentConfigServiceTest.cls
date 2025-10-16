@@ -46,17 +46,6 @@ private class AIAgentConfigServiceTest {
     }
 
     @IsTest
-    static void testGetCapabilityById_Null_ReturnsNull() {
-        // When: Getting with null ID
-        Test.startTest();
-        AgentCapability__c result = AIAgentConfigService.getCapabilityById(null);
-        Test.stopTest();
-
-        // Then: Should return null
-        System.assertEquals(null, result);
-    }
-
-    @IsTest
     static void testGetCapability_ValidInputs_Success() {
         // Given: Agent and capability name
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];

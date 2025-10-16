@@ -86,15 +86,20 @@ public class ContentResponseHandler implements ILLMResponseHandler {
             );
         }
 
-        // Save assistant message using ExecutionStep__c
+        // Save assistant message with token usage data using ExecutionStep__c
         Id savedAssistantMessageId = null;
         if (String.isNotBlank(assistantData.content)) {
             ExecutionStepService executionStepService = new ExecutionStepService();
-            savedAssistantMessageId = executionStepService.createAgentResponseStep(
+            savedAssistantMessageId = executionStepService.createAgentResponseStepWithTokens(
                 context.executionId,
                 assistantData.content,
                 context.turnIdentifier,
-                context.currentTurnCount
+                context.currentTurnCount,
+                context.llmResult.providerResult.promptTokens,
+                context.llmResult.providerResult.completionTokens,
+                context.llmResult.providerResult.totalTokens,
+                context.llmResult.providerResult.modelIdentifier,
+                context.llmResult.providerResult.llmCalloutDurationMs
             );
         }
 
@@ -353,12 +358,18 @@ public class ContentResponseHandler implements ILLMResponseHandler {
                 'Text',
                 context.turnIdentifier,
                 context.currentTurnCount,
-                null,
-                null,
-                null,
+                null, // toolCallId
+                null, // toolName
+                null, // toolArguments
                 outcome.data != null ? JSON.serialize(outcome.data) : null,
                 JSON.serialize(stepMetadata),
-                false
+                null, // promptTokens
+                null, // completionTokens
+                null, // totalTokens
+                null, // modelIdentifier
+                null, // llmCalloutDurationMs
+                false, // isInternal
+                null // isAsyncToolExecution
             );
 
             System.debug(LoggingLevel.INFO, resultLogPrefix + 'Logged completion capability result');

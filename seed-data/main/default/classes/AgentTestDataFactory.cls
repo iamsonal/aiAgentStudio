@@ -80,10 +80,7 @@ public with sharing class AgentTestDataFactory {
             NamedCredential__c = 'OpenAI_API', // Make sure a Named Credential with this name exists
             DefaultModelIdentifier__c = 'gpt-4o-mini',
             DefaultTemperature__c = 0.1,
-            IsActive__c = true,
-            MaxRetryAttempts__c = 2,
-            InitialRetryDelayMillis__c = 750,
-            RetryableHttpStatusCodes__c = '408,429,500,502,503,504'
+            IsActive__c = true
         );
         insert config;
         return config;

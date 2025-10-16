@@ -135,9 +135,7 @@ public class TestFactory {
             NamedCredential__c = 'OpenAI_API_Test',
             DefaultModelIdentifier__c = 'gpt-4o-mini',
             IsActive__c = true,
-            DefaultTemperature__c = 0.7,
-            MaxRetryAttempts__c = 3,
-            InitialRetryDelayMillis__c = 1000
+            DefaultTemperature__c = 0.7
         );
 
         public LLMConfigurationBuilder withName(String name) {

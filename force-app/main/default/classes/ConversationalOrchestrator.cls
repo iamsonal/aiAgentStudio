@@ -17,8 +17,8 @@
  *   - Processes async results by invoking LLM and orchestrating the response
  *
  * Service User Context:
- *   - Service user context switching is handled at the entry point level (ConversationalChatController)
- *   - When RequiresServiceUserContext__c is true, ConversationalChatController routes through REST/Named Credential
+ *   - Service user context switching is handled centrally by AgentExecutionService
+ *   - When RequiresServiceUserContext__c is true, AgentExecutionService routes through REST/Named Credential
  *   - By the time this orchestrator executes, we're already in the correct user context
  *   - This orchestrator doesn't need to know about service user requirements
  *
@@ -27,10 +27,30 @@
  *   - High Dispatch Type: Publishes ProcessLLMMessage platform event for better scalability
  */
 public class ConversationalOrchestrator implements IAgentOrchestrator {
-    private final AIAgentDefinition__c agentDef;
+    private AIAgentDefinition__c agentDef;
     private static final String LOG_PREFIX = '[ConversationalOrch] ';
 
+    /**
+     * No-argument constructor for dynamic instantiation via Type.newInstance().
+     * Must call initialize() before using the orchestrator.
+     */
+    public ConversationalOrchestrator() {
+        // No-op constructor for reflection-based instantiation
+    }
+
+    /**
+     * Parameterized constructor for direct instantiation (backward compatibility).
+     * @param agentDefinition The agent definition
+     */
     public ConversationalOrchestrator(AIAgentDefinition__c agentDefinition) {
+        initialize(agentDefinition);
+    }
+
+    /**
+     * Initializes the orchestrator with the agent definition.
+     * @param agentDefinition The agent definition configuration
+     */
+    public void initialize(AIAgentDefinition__c agentDefinition) {
         if (agentDefinition == null) {
             throw new AgentOrchestratorException('Agent definition is required for ConversationalOrchestrator');
         }
@@ -62,7 +82,14 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
                 validateExecutionAccess(payload.existingExecutionId, payload.userId);
                 executionId = payload.existingExecutionId;
 
-                // Update execution status to processing
+                // Check if synchronous execution is enabled for conversational turns (initial LLM call only)
+                AIAgentSettings__c agentSettings = AIAgentSettings__c.getInstance(agentDef.DeveloperName__c);
+                if (agentSettings != null && agentSettings.ExecuteInitialLLMCallSynchronously__c == true) {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Executing initial LLM call synchronously');
+                    return executeSynchronously(executionId, payload, logPrefix);
+                }
+
+                // Update execution status to processing for async path
                 ExecutionContextService execContextSvc = new ExecutionContextService();
                 execContextSvc.updateStatus(
                     executionId,
@@ -173,6 +200,110 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
 
         Id jobId = System.enqueueJob(queueable);
         System.debug(LoggingLevel.INFO, logPrefix + 'Enqueued ConversationalQueueable job: ' + jobId + ' for execution: ' + executionId);
+    }
+
+    /**
+     * Executes a conversational turn synchronously without queueable overhead.
+     * This method performs the LLM callout directly and processes the result in the same transaction.
+     * No DML is performed before the callout to avoid CalloutException.
+     *
+     * @param executionId The existing AgentExecution__c ID
+     * @param payload The execution payload containing user message and context
+     * @param logPrefix Logging prefix for debug output
+     * @return ExecutionResult with the outcome of the synchronous execution
+     */
+    private AgentExecutionService.ExecutionResult executeSynchronously(
+        Id executionId,
+        AgentExecutionService.ExecutionPayload payload,
+        String logPrefix
+    ) {
+        try {
+            // Initialize decision logger
+            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(executionId, payload.turnIdentifier, payload.userId);
+
+            // Log user input
+            decisionLogger.logUserInput('User Input Received', payload.userMessage, null);
+
+            // Prepare user message data
+            LLMInteractionService.MessageData currentUserMessageData = new LLMInteractionService.MessageData();
+            currentUserMessageData.role = AIAgentConstants.ROLE_USER;
+            currentUserMessageData.content = payload.userMessage;
+
+            // Instantiate LLM interaction service
+            LLMInteractionService interactionService = new LLMInteractionService(
+                executionId,
+                payload.userId,
+                agentDef.Id,
+                agentDef.LLMConfiguration__c,
+                payload.turnIdentifier,
+                1, // Turn count for conversational turns
+                payload.currentRecordId,
+                false, // Not a final error turn
+                decisionLogger
+            );
+
+            // Execute LLM interaction (callout happens here, before any DML)
+            LLMInteractionService.LLMInteractionResult llmResult = interactionService.prepareAndCallLLM(currentUserMessageData);
+
+            if (llmResult == null) {
+                throw new AgentOrchestratorException('LLMInteractionService returned a null result');
+            }
+
+            // Process LLM result using orchestration service (DML happens here, after callout)
+            OrchestrationService orchestrationSvc = new OrchestrationService();
+            String outcome = orchestrationSvc.processLlmResult(
+                llmResult,
+                executionId,
+                payload.userId,
+                payload.userId, // execution user is same as original user for synchronous execution
+                agentDef.Id,
+                payload.turnIdentifier,
+                1,
+                currentUserMessageData,
+                payload.currentRecordId,
+                decisionLogger
+            );
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Synchronous execution completed. Outcome: ' + outcome);
+
+            // Determine status based on outcome
+            String status = AIAgentConstants.STATUS_IDLE;
+            String message = 'Turn completed';
+
+            if (outcome == OrchestrationService.OUTCOME_FAILED) {
+                status = AIAgentConstants.STATUS_FAILED;
+                message = 'Turn failed';
+            } else if (outcome == OrchestrationService.OUTCOME_QUEUED_ACTION || outcome == OrchestrationService.OUTCOME_QUEUED_FOLLOWUP) {
+                status = AIAgentConstants.STATUS_PROCESSING;
+                message = 'Processing tool actions';
+            } else if (outcome == OrchestrationService.OUTCOME_AWAITING_CONFIRMATION) {
+                status = AIAgentConstants.STATUS_IDLE;
+                message = 'Awaiting user confirmation';
+            }
+
+            return new AgentExecutionService.ExecutionResult(executionId, status, message);
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Synchronous execution failed: ' + e.getMessage() + '\nStack: ' + e.getStackTraceString()
+            );
+
+            // Mark turn as failed
+            try {
+                TurnLifecycleService tls = new TurnLifecycleService();
+                tls.failTurn(
+                    executionId,
+                    payload.turnIdentifier,
+                    'Synchronous execution failed: ' + e.getMessage(),
+                    AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+                    logPrefix
+                );
+            } catch (Exception failEx) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update execution state after error: ' + failEx.getMessage());
+            }
+
+            return new AgentExecutionService.ExecutionResult(executionId, AIAgentConstants.STATUS_FAILED, 'Execution failed: ' + e.getMessage());
+        }
     }
 
     /**

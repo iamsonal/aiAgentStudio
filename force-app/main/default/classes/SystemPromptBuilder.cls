@@ -195,9 +195,9 @@ public inherited sharing class SystemPromptBuilder {
             if (resolvedContext != null && !resolvedContext.recordsToLoad.isEmpty()) {
                 String formatStrategy = String.isNotBlank(agentConfig.ContextFormatStrategy__c)
                     ? agentConfig.ContextFormatStrategy__c
-                    : 'Structured Text';
+                    : 'StructuredText';
 
-                IContextFormatter formatter = ContextFormatterFactory.createFormatter(formatStrategy);
+                IContextFormatter formatter = getContextFormatter(formatStrategy, logPrefix);
                 String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix);
 
                 if (String.isNotBlank(formattedRecords)) {
@@ -450,5 +450,63 @@ public inherited sharing class SystemPromptBuilder {
             truncated = truncated.substring(0, lastNewline);
         }
         return truncated + '\n*[Context truncated...]*';
+    }
+
+    /**
+     * Retrieves the appropriate context formatter based on the format strategy from custom metadata.
+     * Uses metadata-driven configuration for extensibility and maintainability.
+     *
+     * @param formatStrategy The format strategy identifier (e.g., 'XML', 'JSON', 'StructuredText')
+     * @param logPrefix Logging prefix for debug output
+     * @return IContextFormatter instance for the requested strategy
+     * @throws AIAgentException if the formatter cannot be loaded or instantiated
+     */
+    @TestVisible
+    private static IContextFormatter getContextFormatter(String formatStrategy, String logPrefix) {
+        try {
+            // Query the custom metadata for the formatter mapping
+            List<ContextFormatterMapping__mdt> mappings = [
+                SELECT FormatterClassName__c, FormatStrategy__c, Description__c
+                FROM ContextFormatterMapping__mdt
+                WHERE FormatStrategy__c = :formatStrategy
+                AND IsActive__c = true
+                LIMIT 1
+            ];
+
+            // If no mapping found, default to StructuredText
+            if (mappings.isEmpty()) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'No active formatter found for strategy: ' + formatStrategy + '. Defaulting to StructuredText.');
+
+                // Try to load default StructuredText formatter
+                if (formatStrategy != 'StructuredText') {
+                    return getContextFormatter('StructuredText', logPrefix);
+                }
+
+                // Fallback to hardcoded default if metadata is missing
+                return new StructuredTextContextFormatter();
+            }
+
+            ContextFormatterMapping__mdt mapping = mappings[0];
+            String className = mapping.FormatterClassName__c;
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Loading context formatter: ' + className + ' for strategy: ' + formatStrategy);
+
+            // Dynamically instantiate the formatter class
+            Type formatterType = Type.forName(className);
+            if (formatterType == null) {
+                throw new AIAgentException('Context formatter class not found: ' + className);
+            }
+
+            Object formatterInstance = formatterType.newInstance();
+            if (!(formatterInstance instanceof IContextFormatter)) {
+                throw new AIAgentException('Class ' + className + ' does not implement IContextFormatter interface');
+            }
+
+            return (IContextFormatter) formatterInstance;
+
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error loading context formatter for strategy ' + formatStrategy + ': ' + e.getMessage());
+            throw new AIAgentException('Failed to load context formatter: ' + e.getMessage(), e);
+        }
     }
 }

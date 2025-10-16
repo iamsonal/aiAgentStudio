@@ -182,8 +182,8 @@ private class OpenAIProviderAdapterTest {
             DefaultTemperature__c = 0.5
         );
 
-        LLMConfiguration__c llmConfig = [SELECT Id, NamedCredential__c, DefaultModelIdentifier__c, RetryableHttpStatusCodes__c,
-                                         DefaultTemperature__c, MaxRetryAttempts__c, InitialRetryDelayMillis__c
+        LLMConfiguration__c llmConfig = [SELECT Id, NamedCredential__c, DefaultModelIdentifier__c,
+                                         DefaultTemperature__c
                                          FROM LLMConfiguration__c WHERE Id = :setup.llmConfig.Id];
 
         List<Map<String, Object>> messages = createMessages('Test with temperature');
@@ -221,8 +221,8 @@ private class OpenAIProviderAdapterTest {
 
     private static TestFactory.AgentSetup getTestSetup() {
         AIAgentDefinition__c agent = [SELECT Id, EnableParallelToolCalling__c FROM AIAgentDefinition__c LIMIT 1];
-        LLMConfiguration__c llm = [SELECT Id, NamedCredential__c, DefaultModelIdentifier__c, RetryableHttpStatusCodes__c,
-                                   DefaultTemperature__c, MaxRetryAttempts__c, InitialRetryDelayMillis__c
+        LLMConfiguration__c llm = [SELECT Id, NamedCredential__c, DefaultModelIdentifier__c,
+                                   DefaultTemperature__c
                                    FROM LLMConfiguration__c LIMIT 1];
 
         TestFactory.AgentSetup setup = new TestFactory.AgentSetup();

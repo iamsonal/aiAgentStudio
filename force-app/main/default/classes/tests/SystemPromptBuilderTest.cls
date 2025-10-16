@@ -140,7 +140,7 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = ContextFormatterFactory.createFormatter('StructuredText')
+        String formatted = SystemPromptBuilder.getContextFormatter('StructuredText', '[TEST] ')
             .formatContext(accounts, '[TEST] ');
         Test.stopTest();
 
@@ -157,7 +157,7 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = ContextFormatterFactory.createFormatter('XML')
+        String formatted = SystemPromptBuilder.getContextFormatter('XML', '[TEST] ')
             .formatContext(accounts, '[TEST] ');
         Test.stopTest();
 
@@ -175,7 +175,7 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = ContextFormatterFactory.createFormatter('JSON')
+        String formatted = SystemPromptBuilder.getContextFormatter('JSON', '[TEST] ')
             .formatContext(accounts, '[TEST] ');
         Test.stopTest();
 
@@ -200,7 +200,7 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = ContextFormatterFactory.createFormatter('StructuredText')
+        String formatted = SystemPromptBuilder.getContextFormatter('StructuredText', '[TEST] ')
             .formatContext(accounts, '[TEST] ');
         Test.stopTest();
 
@@ -221,7 +221,7 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = ContextFormatterFactory.createFormatter('StructuredText')
+        String formatted = SystemPromptBuilder.getContextFormatter('StructuredText', '[TEST] ')
             .formatContext(contacts, '[TEST] ');
         Test.stopTest();
 

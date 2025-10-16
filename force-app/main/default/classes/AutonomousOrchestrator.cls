@@ -18,10 +18,30 @@
  *   - Always uses Queueable (AutonomousQueueable) for stateful, goal-oriented processing
  */
 public class AutonomousOrchestrator implements IAgentOrchestrator {
-    private final AIAgentDefinition__c agentDef;
+    private AIAgentDefinition__c agentDef;
     private static final String LOG_PREFIX = '[AutonomousOrch] ';
 
+    /**
+     * No-argument constructor for dynamic instantiation via Type.newInstance().
+     * Must call initialize() before using the orchestrator.
+     */
+    public AutonomousOrchestrator() {
+        // No-op constructor for reflection-based instantiation
+    }
+
+    /**
+     * Parameterized constructor for direct instantiation (backward compatibility).
+     * @param agentDefinition The agent definition
+     */
     public AutonomousOrchestrator(AIAgentDefinition__c agentDefinition) {
+        initialize(agentDefinition);
+    }
+
+    /**
+     * Initializes the orchestrator with the agent definition.
+     * @param agentDefinition The agent definition configuration
+     */
+    public void initialize(AIAgentDefinition__c agentDefinition) {
         if (agentDefinition == null) {
             throw new AgentOrchestratorException('Agent definition is required for AutonomousOrchestrator');
         }

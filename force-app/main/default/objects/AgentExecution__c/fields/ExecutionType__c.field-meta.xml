@@ -47,6 +47,11 @@
                 <default>false</default>
                 <label>Autonomous</label>
             </value>
+            <value>
+                <fullName>Function</fullName>
+                <default>false</default>
+                <label>Function</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

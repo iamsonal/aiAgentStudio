@@ -11,7 +11,7 @@
  * LLMInteractionService orchestrates the complete LLM interaction lifecycle for a single execution turn.
  *
  * Responsibilities:
- *   - Manages prompt composition, payload formatting, HTTP communication (with retry), and response parsing
+ *   - Manages prompt composition, payload formatting, HTTP communication, and response parsing
  *   - Integrates with SystemPromptBuilder for prompt assembly and MemoryManager for execution history
  *   - Supports action transparency mode, injecting summarization or error instructions as needed
  *   - Handles all configuration, error, and result packaging for downstream orchestration
@@ -122,7 +122,7 @@ public inherited sharing class LLMInteractionService {
      * - Delegates prompt composition to SystemPromptBuilder
      * - Injects summarization or error instructions as needed
      * - Assembles the final message and tool payloads
-     * - Calls the LLM provider adapter (with retry logic)
+     * - Calls the LLM provider adapter
      * - Packages the result or error for downstream processing
      *
      * @param currentTurnUserMessage  The DTO containing the user message for the current turn. Can be null for follow-up calls.
@@ -258,7 +258,7 @@ public inherited sharing class LLMInteractionService {
                 );
             }
 
-            // --- 6. Call LLM (Includes Retries) ---
+            // --- 6. Call LLM ---
             Long callStartTime = System.currentTimeMillis();
             try {
                 ILLMProviderAdapter adapter = LLMProviderFactory.getAdapter(llmConfig);

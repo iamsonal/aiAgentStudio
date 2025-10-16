@@ -524,6 +524,30 @@ public inherited sharing class AgentDecisionStepLogger {
     }
 
     /**
+     * Update the execution ID for all collected (but not yet committed) decision steps.
+     * This is useful when steps are collected with a temporary execution ID during read-only operations,
+     * and need to be linked to a real execution record created later (after callout).
+     *
+     * @param newExecutionId The new execution ID to set on all collected steps
+     */
+    public void updateExecutionId(Id newExecutionId) {
+        if (newExecutionId == null) {
+            System.debug(LoggingLevel.WARN, '[AgentDecisionStepLogger] Cannot update to null execution ID.');
+            return;
+        }
+
+        // Update the instance variable so future steps use the correct ID
+        this.executionId = newExecutionId;
+
+        // Update all steps that have been collected but not yet committed
+        for (AgentDecisionStep__c step : stepsToCommit) {
+            step.AgentExecution__c = newExecutionId;
+        }
+
+        System.debug(LoggingLevel.INFO, '[AgentDecisionStepLogger] Updated execution ID to ' + newExecutionId + ' for ' + stepsToCommit.size() + ' collected steps.');
+    }
+
+    /**
      * Commit all collected steps in a single bulk DML operation
      * This method should be called at the end of the orchestration process
      */
@@ -807,79 +831,82 @@ public inherited sharing class AgentDecisionStepLogger {
         }
     }
 
+    // Static cache for LLM model pricing to avoid repeated SOQL queries
+    private static Map<String, LLMModelPricing__mdt> pricingCache;
+    private static Boolean isPricingCacheInitialized = false;
+
     /**
      * Calculate estimated cost based on model pricing and token usage
-     * Pricing is based on published rates (as of October 2024) per 1M tokens
+     * Pricing is retrieved from LLMModelPricing__mdt custom metadata
      *
-     * @param modelIdentifier The model identifier (e.g., gpt-4, gpt-3.5-turbo)
+     * @param modelIdentifier The model identifier (e.g., gpt-4o, gpt-4o-mini)
      * @param promptTokens Number of tokens in the prompt
      * @param completionTokens Number of tokens in the completion
-     * @return The estimated cost in USD, or null if model is unknown
+     * @return The estimated cost in USD, or null if model is unknown or pricing not configured
      */
     private Decimal calculateCost(String modelIdentifier, Integer promptTokens, Integer completionTokens) {
         if (String.isBlank(modelIdentifier) || promptTokens == null || completionTokens == null) {
             return null;
         }
 
-        // Price per 1M tokens (USD) - Update these prices as needed
-        Map<String, Map<String, Decimal>> modelPricing = new Map<String, Map<String, Decimal>>{
-            'gpt-4' => new Map<String, Decimal>{
-                'prompt' => 30.00,
-                'completion' => 60.00
-            },
-            'gpt-4-turbo' => new Map<String, Decimal>{
-                'prompt' => 10.00,
-                'completion' => 30.00
-            },
-            'gpt-4-turbo-preview' => new Map<String, Decimal>{
-                'prompt' => 10.00,
-                'completion' => 30.00
-            },
-            'gpt-3.5-turbo' => new Map<String, Decimal>{
-                'prompt' => 0.50,
-                'completion' => 1.50
-            },
-            'gpt-3.5-turbo-16k' => new Map<String, Decimal>{
-                'prompt' => 3.00,
-                'completion' => 4.00
-            },
-            'claude-3-opus' => new Map<String, Decimal>{
-                'prompt' => 15.00,
-                'completion' => 75.00
-            },
-            'claude-3-sonnet' => new Map<String, Decimal>{
-                'prompt' => 3.00,
-                'completion' => 15.00
-            },
-            'claude-3-haiku' => new Map<String, Decimal>{
-                'prompt' => 0.25,
-                'completion' => 1.25
-            }
-        };
+        // Initialize pricing cache if needed
+        ensurePricingCacheInitialized();
 
         // Normalize model identifier to lowercase for matching
         String normalizedModel = modelIdentifier.toLowerCase();
 
         // Try exact match first
-        if (modelPricing.containsKey(normalizedModel)) {
-            Map<String, Decimal> pricing = modelPricing.get(normalizedModel);
-            Decimal promptCost = (Decimal.valueOf(promptTokens) / 1000000.0) * pricing.get('prompt');
-            Decimal completionCost = (Decimal.valueOf(completionTokens) / 1000000.0) * pricing.get('completion');
+        if (pricingCache.containsKey(normalizedModel)) {
+            LLMModelPricing__mdt pricing = pricingCache.get(normalizedModel);
+            Decimal promptCost = (Decimal.valueOf(promptTokens) / 1000000.0) * pricing.PromptPricePer1MTokens__c;
+            Decimal completionCost = (Decimal.valueOf(completionTokens) / 1000000.0) * pricing.CompletionPricePer1MTokens__c;
             return promptCost + completionCost;
         }
 
-        // Try partial matching for model families
-        for (String modelKey : modelPricing.keySet()) {
+        // Try partial matching for model families (e.g., gpt-4o-2024-11-20 matches gpt-4o)
+        for (String modelKey : pricingCache.keySet()) {
             if (normalizedModel.contains(modelKey)) {
-                Map<String, Decimal> pricing = modelPricing.get(modelKey);
-                Decimal promptCost = (Decimal.valueOf(promptTokens) / 1000000.0) * pricing.get('prompt');
-                Decimal completionCost = (Decimal.valueOf(completionTokens) / 1000000.0) * pricing.get('completion');
+                LLMModelPricing__mdt pricing = pricingCache.get(modelKey);
+                Decimal promptCost = (Decimal.valueOf(promptTokens) / 1000000.0) * pricing.PromptPricePer1MTokens__c;
+                Decimal completionCost = (Decimal.valueOf(completionTokens) / 1000000.0) * pricing.CompletionPricePer1MTokens__c;
                 return promptCost + completionCost;
             }
         }
 
-        // Unknown model - log warning and return null
-        System.debug(LoggingLevel.WARN, '[AgentDecisionStepLogger] Unknown model for cost calculation: ' + modelIdentifier);
+        // Model not found in pricing metadata
+        System.debug(LoggingLevel.WARN, '[AgentDecisionStepLogger] No pricing found for model: ' + modelIdentifier);
         return null;
+    }
+
+    /**
+     * Ensures pricing cache is initialized with active LLM model pricing records
+     */
+    private static void ensurePricingCacheInitialized() {
+        if (isPricingCacheInitialized) {
+            return;
+        }
+
+        pricingCache = new Map<String, LLMModelPricing__mdt>();
+
+        try {
+            List<LLMModelPricing__mdt> pricingRecords = [
+                SELECT ModelIdentifier__c, PromptPricePer1MTokens__c, CompletionPricePer1MTokens__c
+                FROM LLMModelPricing__mdt
+                WHERE IsActive__c = TRUE
+            ];
+
+            for (LLMModelPricing__mdt pricing : pricingRecords) {
+                if (String.isNotBlank(pricing.ModelIdentifier__c)) {
+                    pricingCache.put(pricing.ModelIdentifier__c.toLowerCase(), pricing);
+                }
+            }
+
+            isPricingCacheInitialized = true;
+            System.debug(LoggingLevel.DEBUG, '[AgentDecisionStepLogger] Initialized pricing cache with ' + pricingCache.size() + ' models');
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, '[AgentDecisionStepLogger] Failed to initialize pricing cache: ' + e.getMessage());
+            // Initialize empty cache to avoid repeated failures
+            isPricingCacheInitialized = true;
+        }
     }
 }

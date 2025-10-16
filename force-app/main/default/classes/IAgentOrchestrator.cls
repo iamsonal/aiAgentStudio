@@ -16,8 +16,20 @@
  *
  * This interface enables the Strategy pattern for agent orchestration, allowing each agent type to define
  * its own async strategy (Platform Event vs Queueable) and execution flow while maintaining a consistent API.
+ *
+ * Orchestrators must provide a no-argument constructor for dynamic instantiation via Type.newInstance().
+ * The initialize() method is called immediately after construction to provide the agent configuration.
  */
 public interface IAgentOrchestrator {
+    /**
+     * Initializes the orchestrator with the agent definition configuration.
+     * This method is called by AgentExecutionService immediately after construction via reflection.
+     *
+     * @param agentDefinition The agent definition containing configuration for this orchestrator
+     * @throws               AgentOrchestratorException if the agent definition is invalid for this orchestrator type
+     */
+    void initialize(AIAgentDefinition__c agentDefinition);
+
     /**
      * Initiates a new agent execution. This method MUST:
      *   1. Create the AgentExecution__c record (DML)

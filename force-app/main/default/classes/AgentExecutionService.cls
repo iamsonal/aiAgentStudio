@@ -14,23 +14,39 @@
  *
  * Responsibilities:
  *   - Provides the single startExecution() method for all agent types
- *   - Uses OrchestratorFactory to delegate to the appropriate agent-type-specific orchestrator
+ *   - Centralizes service user context switching logic via REST callouts when required
+ *   - Creates and initializes the appropriate agent-type-specific orchestrator using custom metadata mappings
  *   - Standardizes execution initiation across conversational, batch, email, and autonomous agents
  *   - Enforces DML-before-callout pattern through orchestrator delegation
  *   - Provides clear error handling and operational transparency
  *
  * Design:
  *   - All execution types flow through startExecution(agentDeveloperName, ExecutionPayload)
- *   - Agent's AgentType__c determines which orchestrator handles the execution
+ *   - Checks RequiresServiceUserContext__c and routes through REST API if needed (only way to switch context)
+ *   - Agent's AgentType__c is mapped to an orchestrator class via AgentOrchestratorMapping__mdt custom metadata
+ *   - Orchestrators are instantiated dynamically using reflection and initialized with the agent definition
  *   - Each orchestrator implements IAgentOrchestrator.initiate() to create records and enqueue async work
  *   - Async work is processed via orchestrator's processAsyncResult() method
+ *   - Orchestrator mappings are cached for performance
  */
 public class AgentExecutionService {
     private static final String LOG_PREFIX = '[AgentExecutionService] ';
 
+    // Orchestrator mapping cache
+    @TestVisible
+    private static Map<String, AgentOrchestratorMapping__mdt> orchestratorMappingCache;
+    @TestVisible
+    private static Boolean isMappingCacheInitialized = false;
+
     /**
      * Unified entry point for initiating any agent execution.
-     * This method delegates to the appropriate orchestrator based on the agent's AgentType__c field.
+     * This method handles service user context switching when required and delegates to the appropriate orchestrator.
+     *
+     * CRITICAL: Service User Context Switching
+     * When an agent's RequiresServiceUserContext__c is true AND we're not already in service user context,
+     * this method makes a REST callout via Named Credential to switch to the service user. This is the ONLY
+     * way to switch execution context on the platform. The REST endpoint (AIAgentRestService) then calls back
+     * into this method with isInServiceUserContext=true to prevent infinite recursion.
      *
      * @param agentDeveloperName The developer name of the agent to execute
      * @param payload            ExecutionPayload containing all context and input data
@@ -51,8 +67,25 @@ public class AgentExecutionService {
             }
             payload.validate();
 
+            // Check if service user context switch is required
+            // We query the agent definition here to make the decision before delegating to orchestrator
+            AIAgentDefinition__c agentDef = getAgentDefinitionForContextCheck(agentDeveloperName);
+
+            if (agentDef.RequiresServiceUserContext__c && payload.isInServiceUserContext != true) {
+                // Service user context required but we're not in it yet - route through REST API
+                System.debug(LoggingLevel.INFO, logPrefix + 'Service user context required - routing through REST API');
+                return routeThroughRestApi(agentDef, payload, logPrefix);
+            }
+
+            // Either service user context not required, or we're already in it - proceed directly
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Processing in current context (ServiceUserRequired=' + agentDef.RequiresServiceUserContext__c +
+                ', InServiceContext=' + (payload.isInServiceUserContext == true) + ')'
+            );
+
             // Get the appropriate orchestrator for this agent type
-            IAgentOrchestrator orchestrator = OrchestratorFactory.getOrchestrator(agentDeveloperName);
+            IAgentOrchestrator orchestrator = getOrchestrator(agentDef);
 
             // Delegate to orchestrator for type-specific execution logic
             ExecutionResult result = orchestrator.initiate(agentDeveloperName, payload);
@@ -72,6 +105,60 @@ public class AgentExecutionService {
     }
 
     /**
+     * Retrieves agent definition with minimal fields needed for context switching decision.
+     * This is a separate query to avoid coupling with orchestrator creation logic.
+     */
+    private static AIAgentDefinition__c getAgentDefinitionForContextCheck(String agentDeveloperName) {
+        List<AIAgentDefinition__c> agentDefs = [
+            SELECT Id, DeveloperName__c, RequiresServiceUserContext__c, IsActive__c, AgentType__c, LLMConfiguration__c, AsyncDispatchType__c
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c = :agentDeveloperName AND IsActive__c = TRUE
+            LIMIT 1
+        ];
+
+        if (agentDefs.isEmpty()) {
+            throw new AgentOrchestratorException('Agent definition not found or inactive: ' + agentDeveloperName);
+        }
+
+        return agentDefs[0];
+    }
+
+    /**
+     * Routes the execution through the REST API to switch to service user context via Named Credential.
+     * The REST endpoint will call back into startExecution() with isInServiceUserContext=true.
+     */
+    private static ExecutionResult routeThroughRestApi(AIAgentDefinition__c agentDef, ExecutionPayload payload, String logPrefix) {
+        try {
+            // Build HTTP request for context switch
+            AIAgentHttpClient.AIAgentMessageRequest httpRequest = new AIAgentHttpClient.AIAgentMessageRequest(
+                payload.existingExecutionId != null ? String.valueOf(payload.existingExecutionId) : null,
+                String.valueOf(payload.userId),
+                String.valueOf(agentDef.Id),
+                payload.turnIdentifier,
+                payload.userMessage,
+                payload.currentRecordId != null ? String.valueOf(payload.currentRecordId) : null
+            );
+
+            // Make REST callout to switch to service user context
+            AIAgentHttpClient.AIAgentHttpResponse httpResponse = AIAgentHttpClient.processMessage(httpRequest);
+
+            if (httpResponse.success) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Successfully routed through REST API for service user context');
+                return new ExecutionResult(
+                    null, // Execution ID will be created in service user context
+                    httpResponse.outcome != null ? httpResponse.outcome : AIAgentConstants.STATUS_PROCESSING,
+                    httpResponse.outcome != null ? httpResponse.outcome : 'Processing in service user context'
+                );
+            } else {
+                throw new AgentOrchestratorException('REST API routing failed: ' + httpResponse.error);
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error routing through REST API: ' + e.getMessage());
+            throw new AgentOrchestratorException('Failed to switch to service user context: ' + e.getMessage());
+        }
+    }
+
+    /**
      * ExecutionPayload encapsulates all data needed to initiate an agent execution.
      * Different agent types may use different subsets of these fields.
      */
@@ -85,6 +172,8 @@ public class AgentExecutionService {
         public String triggerSource { get; set; } // Source that triggered this execution (e.g., 'Chat', 'Email', 'API')
         @AuraEnabled
         public Id sourceRecordId { get; set; } // Optional source record context
+        @AuraEnabled
+        public Boolean isInServiceUserContext { get; set; } // Flag to indicate we're already in service user context (prevents infinite recursion)
 
         // Conversational-specific fields
         @AuraEnabled
@@ -186,5 +275,173 @@ public class AgentExecutionService {
             this.success = false;
             this.errorMessage = errorMessage;
         }
+    }
+
+    // ===================================================================================
+    // ORCHESTRATOR CREATION - PRIVATE METHODS
+    // ===================================================================================
+
+    /**
+     * Ensures the orchestrator mapping cache is initialized from AgentOrchestratorMapping__mdt records.
+     * Loads active mappings and validates configuration.
+     */
+    private static void ensureOrchestratorMappingCacheInitialized() {
+        if (isMappingCacheInitialized) {
+            return;
+        }
+
+        orchestratorMappingCache = new Map<String, AgentOrchestratorMapping__mdt>();
+
+        try {
+            List<AgentOrchestratorMapping__mdt> mappings = [
+                SELECT DeveloperName, MasterLabel, AgentType__c, OrchestratorClassName__c, IsActive__c, Description__c
+                FROM AgentOrchestratorMapping__mdt
+                WHERE IsActive__c = TRUE
+            ];
+
+            for (AgentOrchestratorMapping__mdt mapping : mappings) {
+                if (String.isNotBlank(mapping.AgentType__c) && String.isNotBlank(mapping.OrchestratorClassName__c)) {
+                    orchestratorMappingCache.put(mapping.AgentType__c.toLowerCase(), mapping);
+                } else {
+                    System.debug(
+                        LoggingLevel.ERROR,
+                        LOG_PREFIX +
+                            'Skipped AgentOrchestratorMapping__mdt record (DeveloperName=' +
+                            mapping.DeveloperName +
+                            '): missing AgentType__c or OrchestratorClassName__c.'
+                    );
+                }
+            }
+
+            System.debug(
+                LoggingLevel.INFO,
+                LOG_PREFIX +
+                    'Orchestrator mapping cache initialized: ' +
+                    orchestratorMappingCache.size() +
+                    ' active mappings loaded.'
+            );
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.ERROR,
+                LOG_PREFIX + 'CRITICAL: Unable to load Orchestrator Mappings from Custom Metadata. Exception: ' + e.getMessage()
+            );
+            throw new AgentOrchestratorException(
+                'Failed to load Orchestrator Mappings from Custom Metadata. Check AgentOrchestratorMapping__mdt configuration.',
+                e
+            );
+        }
+
+        isMappingCacheInitialized = true;
+    }
+
+    /**
+     * Creates and returns the appropriate orchestrator for the given agent definition.
+     * Uses custom metadata mappings to dynamically instantiate the correct orchestrator implementation.
+     *
+     * @param agentDef The agent definition containing the AgentType__c
+     * @return         IAgentOrchestrator implementation for the agent's type
+     * @throws         AgentOrchestratorException if agent type is invalid or orchestrator cannot be created
+     */
+    private static IAgentOrchestrator getOrchestrator(AIAgentDefinition__c agentDef) {
+        // Ensure orchestrator mappings are loaded
+        ensureOrchestratorMappingCacheInitialized();
+
+        // Validate agent type
+        if (String.isBlank(agentDef.AgentType__c)) {
+            throw new AgentOrchestratorException(
+                'AgentType__c is required on agent definition: ' + agentDef.DeveloperName__c
+            );
+        }
+
+        // Look up orchestrator mapping for this agent type
+        String agentType = agentDef.AgentType__c;
+        AgentOrchestratorMapping__mdt mapping = orchestratorMappingCache.get(agentType.toLowerCase());
+
+        if (mapping == null) {
+            System.debug(
+                LoggingLevel.ERROR,
+                LOG_PREFIX + 'No orchestrator mapping found for agent type: "' + agentType + '"'
+            );
+            throw new AgentOrchestratorException(
+                'No active orchestrator mapping found for agent type: "' +
+                    agentType +
+                    '". ' +
+                    'Check AgentOrchestratorMapping__mdt configuration.'
+            );
+        }
+
+        // Instantiate orchestrator using reflection
+        try {
+            System.debug(
+                LoggingLevel.INFO,
+                LOG_PREFIX +
+                    'Instantiating orchestrator: ' +
+                    mapping.OrchestratorClassName__c +
+                    ' for agent type: ' +
+                    agentType
+            );
+
+            Type orchestratorType = Type.forName(mapping.OrchestratorClassName__c);
+            if (orchestratorType == null) {
+                throw new AgentOrchestratorException(
+                    'Orchestrator class not found: "' +
+                        mapping.OrchestratorClassName__c +
+                        '". ' +
+                        'Verify the class exists and is accessible.'
+                );
+            }
+
+            // Create instance using no-argument constructor
+            Object instanceObj = orchestratorType.newInstance();
+
+            // Validate interface implementation
+            if (!(instanceObj instanceof IAgentOrchestrator)) {
+                System.debug(
+                    LoggingLevel.ERROR,
+                    LOG_PREFIX +
+                        'Class "' +
+                        mapping.OrchestratorClassName__c +
+                        '" does not implement IAgentOrchestrator.'
+                );
+                throw new AgentOrchestratorException(
+                    'Class "' + mapping.OrchestratorClassName__c + '" must implement the IAgentOrchestrator interface.'
+                );
+            }
+
+            // Initialize orchestrator with agent definition
+            IAgentOrchestrator orchestrator = (IAgentOrchestrator) instanceObj;
+            orchestrator.initialize(agentDef);
+
+            System.debug(
+                LoggingLevel.INFO,
+                LOG_PREFIX + 'Successfully instantiated and initialized orchestrator: ' + mapping.OrchestratorClassName__c
+            );
+
+            return orchestrator;
+        } catch (AgentOrchestratorException e) {
+            throw e; // Re-throw our custom exceptions
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.ERROR,
+                LOG_PREFIX +
+                    'Failed to instantiate orchestrator "' +
+                    mapping.OrchestratorClassName__c +
+                    '": ' +
+                    e.getMessage()
+            );
+            throw new AgentOrchestratorException(
+                'Failed to instantiate orchestrator "' + mapping.OrchestratorClassName__c + '": ' + e.getMessage(),
+                e
+            );
+        }
+    }
+
+    /**
+     * Clears the orchestrator mapping cache. Intended for use in test contexts only.
+     */
+    @TestVisible
+    private static void clearOrchestratorCache_TestOnly() {
+        orchestratorMappingCache = null;
+        isMappingCacheInitialized = false;
     }
 }

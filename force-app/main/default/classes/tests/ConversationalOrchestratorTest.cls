@@ -82,7 +82,7 @@ private class ConversationalOrchestratorTest {
     static void testInitiate_ExistingExecution_Success() {
         // Given: Existing execution
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
-        AIAgentDefinition__c agent = [SELECT Id, LLMConfiguration__c, AsyncDispatchType__c
+        AIAgentDefinition__c agent = [SELECT Id, LLMConfiguration__c, AsyncDispatchType__c, DeveloperName__c
                                       FROM AIAgentDefinition__c LIMIT 1];
 
         AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
@@ -101,6 +101,51 @@ private class ConversationalOrchestratorTest {
 
         // Then: Should use existing execution
         System.assertEquals(execution.Id, result.executionId);
+    }
+
+    @IsTest
+    static void testInitiate_ExistingExecution_SynchronousMode_Success() {
+        // Given: Existing execution and custom setting enabled for synchronous execution
+        AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
+        AIAgentDefinition__c agent = [SELECT Id, LLMConfiguration__c, AsyncDispatchType__c, DeveloperName__c
+                                      FROM AIAgentDefinition__c LIMIT 1];
+
+        // Create custom setting to enable synchronous execution
+        AIAgentSettings__c agentSettings = new AIAgentSettings__c(
+            Name = agent.DeveloperName__c,
+            ExecuteInitialLLMCallSynchronously__c = true
+        );
+        insert agentSettings;
+
+        AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
+        payload.userId = UserInfo.getUserId();
+        payload.existingExecutionId = execution.Id;
+        payload.triggerSource = 'UI';
+        payload.userMessage = 'Follow up message for sync execution';
+        payload.turnIdentifier = 'turn-003';
+        payload.currentRecordId = null;
+
+        ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(agent);
+
+        // Set up mock HTTP response for LLM callout
+        Test.setMock(HttpCalloutMock.class, MockHttpResponses.success());
+
+        // When: Initiating with existing execution and synchronous mode enabled
+        Test.startTest();
+        AgentExecutionService.ExecutionResult result = orchestrator.initiate('Test_Agent', payload);
+        Test.stopTest();
+
+        // Then: Should use existing execution and complete synchronously
+        System.assertEquals(execution.Id, result.executionId, 'Should use existing execution ID');
+        System.assertNotEquals(null, result.status, 'Status should be set');
+
+        // Verify decision steps were created (indicates synchronous execution happened)
+        List<AgentDecisionStep__c> steps = [
+            SELECT Id, Title__c
+            FROM AgentDecisionStep__c
+            WHERE AgentExecution__c = :execution.Id
+        ];
+        System.assert(steps.size() > 0, 'Decision steps should be created for synchronous execution');
     }
 
     // ===================================================================================
