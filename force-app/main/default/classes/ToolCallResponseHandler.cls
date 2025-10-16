@@ -138,7 +138,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             if (String.isNotBlank(assistantData.content)) {
                 try {
                     TransientMessage__e event = new TransientMessage__e(
-                        ChatSessionId__c = context.executionId,
+                        AgentExecutionId__c = context.executionId,
                         MessageId__c = savedAssistantMessageId,
                         MessageContent__c = assistantData.content
                     );

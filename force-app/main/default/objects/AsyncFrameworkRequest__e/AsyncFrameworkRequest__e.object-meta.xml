@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
     <deploymentStatus>Deployed</deploymentStatus>
-    <description>Platform Event used to decouple and enqueue asynchronous work within the AI Agent Framework, mitigating governor limits at scale.</description>
+    <description>Platform Event used to decouple and enqueue asynchronous work within the AI Agent Framework for specific AgentExecution__c contexts, mitigating governor limits at scale.</description>
     <eventType>HighVolume</eventType>
     <label>Async Framework Request</label>
     <pluralLabel>Async Framework Requests</pluralLabel>

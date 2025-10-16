@@ -249,7 +249,7 @@ export default class AiAssistantChat extends LightningElement {
      */
     _handleTransientMessage(response) {
         const payload = response?.data?.payload;
-        if (payload && payload.ChatSessionId__c === this.currentSessionId) {
+        if (payload && payload.AgentExecutionId__c === this.currentSessionId) {
             this._sessionManager.addTransientAssistantMessage(payload.MessageContent__c, payload.MessageId__c);
         }
     }

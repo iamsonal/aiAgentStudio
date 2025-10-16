@@ -155,7 +155,7 @@ public inherited sharing class AgentJobEnqueuer {
             'isFinalErrorTurn' => finalErrorFlag
         };
         AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
-            SessionId__c = executionId,
+            AgentExecutionId__c = executionId,
             TurnIdentifier__c = turnId,
             JobType__c = 'FollowUpLLM',
             Payload__c = JSON.serialize(payload)
@@ -310,7 +310,7 @@ public inherited sharing class AgentJobEnqueuer {
             'currentTurnCount' => currentTurnCount
         };
         AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
-            SessionId__c = sessionId,
+            AgentExecutionId__c = sessionId,
             TurnIdentifier__c = turnId,
             JobType__c = 'ExecuteAction',
             Payload__c = JSON.serialize(payload)

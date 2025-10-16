@@ -167,7 +167,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
         };
 
         AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
-            SessionId__c = executionId,
+            AgentExecutionId__c = executionId,
             TurnIdentifier__c = payload.turnIdentifier,
             JobType__c = 'ProcessLLMMessage',
             Payload__c = JSON.serialize(llmPayload)
