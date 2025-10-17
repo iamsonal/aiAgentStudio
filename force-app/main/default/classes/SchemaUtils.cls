@@ -25,6 +25,8 @@ public inherited sharing class SchemaUtils {
     private static Map<String, SObjectType> sObjectTypeCache = new Map<String, SObjectType>();
     @TestVisible
     private static Map<String, Map<String, SObjectField>> fieldDescribeCache = new Map<String, Map<String, SObjectField>>();
+    @TestVisible
+    private static Map<String, DescribeSObjectResult> describeCache = new Map<String, DescribeSObjectResult>();
 
     /**
      * Retrieves an SObjectType by API name, using case-insensitive lookup and transaction-scoped caching.
@@ -101,5 +103,34 @@ public inherited sharing class SchemaUtils {
             return null;
         Map<String, SObjectField> objFields = getObjectFields(sObjectType);
         return objFields.get(fieldName.toLowerCase());
+    }
+
+    /**
+     * Retrieves the DescribeSObjectResult for an SObjectType with transaction-scoped caching.
+     *
+     * @param sObjectType   The SObjectType to describe.
+     * @return              DescribeSObjectResult with comprehensive object metadata, or null if describe fails.
+     * @sideeffect          Caches the result for the duration of the transaction.
+     * @debug               Logs warnings if describe fails.
+     */
+    public static DescribeSObjectResult getDescribe(SObjectType sObjectType) {
+        if (sObjectType == null) {
+            System.debug(LoggingLevel.WARN, '[SchemaUtils.getDescribe] Null SObjectType provided. Returning null.');
+            return null;
+        }
+        String typeName = sObjectType.getDescribe().getName().toLowerCase();
+        if (!describeCache.containsKey(typeName)) {
+            DescribeSObjectResult describeResult = null;
+            try {
+                describeResult = sObjectType.getDescribe(SObjectDescribeOptions.DEFERRED);
+            } catch (Exception e) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    '[SchemaUtils.getDescribe] Error describing SObject ' + sObjectType.getDescribe().getName() + ': ' + e.getMessage()
+                );
+            }
+            describeCache.put(typeName, describeResult);
+        }
+        return describeCache.get(typeName);
     }
 }
