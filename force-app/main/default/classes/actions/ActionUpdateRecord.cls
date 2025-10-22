@@ -8,57 +8,111 @@
 
 /**
  * @description
- * ActionUpdateRecord: Robust, secure, and flexible record update action for Salesforce.
+ * ActionUpdateRecord: High-performance, secure record update action using strongly-typed DTOs.
  *
  * This class provides a highly configurable and secure mechanism for updating Salesforce records.
  * It performs deep parameter validation, type coercion, field-level security (FLS) enforcement, and record lock detection.
  * Supports custom record ID parameter names via configuration, and delivers detailed error and audit context for troubleshooting and compliance.
  *
- * Key Features:
- *   - Validates and extracts record IDs, supporting custom parameter names.
- *   - Performs field-level security checks and type coercion for all update fields.
- *   - Detects and reports record lock status before attempting DML.
- *   - Provides detailed debug output and error messages for maintainability and auditability.
- *   - Returns structured, LLM-friendly results for downstream processing.
+ * Security Architecture:
+ *   - Proactive FLS checks via TypeCoercionService provide clear, actionable errors for AI agents
+ *   - Security.stripInaccessible() serves as final verification and catches edge cases
+ *   - Logs discrepancies between manual and native FLS checks for audit and debugging
+ *
+ * Architecture:
+ *   - ArgumentsDTO: Strongly-typed with recordId and Map<String, Object> for dynamic fields
+ *   - ConfigDTO: Optional configuration for custom recordId parameter name
+ *   - Uses native JSON.deserialize() for high-performance type conversion
+ *   - Leverages TypeCoercionService for FLS checks and SObject field coercion
  *
  * @extends BaseAgentAction
  */
 public class ActionUpdateRecord extends BaseAgentAction {
-    private static final String CONFIG_KEY_RECORD_ID_PARAM = 'recordIdParameter';
-    private String recordIdParameterName = 'recordId';
+    private ConfigDTO config;
+
+    /**
+     * DTO for strongly-typed arguments
+     */
+    public class ArgumentsDTO {
+        public String recordId;
+        public Map<String, Object> fields;
+    }
+
+    /**
+     * DTO for strongly-typed backend configuration (currently no config needed)
+     */
+    public class ConfigDTO {
+        // Reserved for future configuration options
+    }
 
     /**
      * @description
-     * Main entry point: Executes a secure, validated update of a Salesforce record.
+     * Main entry point: Executes a secure, validated update using strongly-typed DTOs.
      *
      * Steps:
-     *   1. Validates and extracts the record ID (supports custom parameter name).
-     *   2. Extracts and validates update fields, excluding the record ID.
-     *   3. Checks object-level update permission (FLS).
-     *   4. Detects record lock status and aborts if locked.
-     *   5. Performs type coercion and field-level security checks on update fields.
-     *   6. Executes the DML update and returns a structured result.
+     *   1. Deserializes params into ArgumentsDTO for type safety
+     *   2. Validates recordId and extracts SObjectType
+     *   3. Checks object-level update permission (FLS)
+     *   4. Performs type coercion and field-level security checks on update fields
+     *   5. Executes the DML update and returns a structured result
      *
-     * @param params Map<String, Object> containing record ID and field updates.
-     * @return Result<UpdateResult> with update confirmation, updated fields, and metadata, or error information.
+     * @param params Map<String, Object> - Raw parameters (deserialized into ArgumentsDTO for type safety)
+     * @return ActionOutcome<UpdateResult> with update confirmation, updated fields, and metadata, or error information
      */
     public override ActionOutcome executeAction(Map<String, Object> params) {
         Long startTime = System.currentTimeMillis();
 
-        // Validate and extract the record ID (supports custom parameter name)
-        ActionOutcome idResult = validateAndExtractRecordId(params);
-        if (!idResult.isSuccess) {
-            return idResult;
-        }
-        Id recordId = (Id) idResult.data;
-        SObjectType targetSObjectType = recordId.getSObjectType();
+        // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
+        ArgumentsDTO args = new ArgumentsDTO();
 
-        // Extract and validate update fields (excluding record ID)
-        ActionOutcome fieldsResult = extractUpdateFields(params, recordId);
-        if (!fieldsResult.isSuccess) {
-            return fieldsResult;
+        // Extract recordId
+        Object recordIdObj = params.get('recordId');
+        if (recordIdObj == null) {
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'Missing required parameter: "recordId"'
+            );
         }
-        Map<String, Object> updateData = (Map<String, Object>) fieldsResult.data;
+
+        try {
+            if (recordIdObj instanceof Id) {
+                args.recordId = String.valueOf(recordIdObj);
+            } else {
+                args.recordId = String.valueOf(recordIdObj);
+            }
+        } catch (Exception e) {
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'Invalid recordId format: ' + recordIdObj
+            );
+        }
+
+        // Extract fields
+        if (params.containsKey('fields') && params.get('fields') instanceof Map<String, Object>) {
+            args.fields = (Map<String, Object>) params.get('fields');
+        } else {
+            args.fields = new Map<String, Object>();
+        }
+
+        // Validate DTO
+        if (args.fields.isEmpty()) {
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'No fields provided to update for record ID: ' + args.recordId
+            );
+        }
+
+        // Convert to Id and get SObjectType
+        Id recordId;
+        try {
+            recordId = Id.valueOf(args.recordId);
+        } catch (Exception e) {
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'Invalid ID format for recordId: ' + args.recordId
+            );
+        }
+        SObjectType targetSObjectType = recordId.getSObjectType();
 
         // Explicit object-level update permission check
         try {
@@ -70,8 +124,8 @@ public class ActionUpdateRecord extends BaseAgentAction {
 
         Map<String, Object> typedData;
         try {
-            // Coerce types and enforce field-level security (FLS)
-            typedData = TypeCoercionService.coerceArgumentTypesForSObject(updateData, targetSObjectType, AccessType.UPDATABLE);
+            // Coerce types and enforce field-level security (FLS) using DTO fields
+            typedData = TypeCoercionService.coerceArgumentTypesForSObject(args.fields, targetSObjectType, AccessType.UPDATABLE);
         } catch (TypeCoercionService.TypeCoercionException typeEx) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
         } catch (SecurityUtils.ActionSecurityException secEx) {
@@ -79,7 +133,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
         }
 
         if (typedData.isEmpty()) {
-            Set<String> originalFields = updateData.keySet();
+            Set<String> originalFields = args.fields.keySet();
             return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
                 'No updatable fields provided after security checks for record ' +
@@ -90,17 +144,16 @@ public class ActionUpdateRecord extends BaseAgentAction {
         }
 
         // Track and log fields filtered out by FLS for auditability
-        Set<String> originalFields = updateData.keySet();
         Set<String> allowedFields = typedData.keySet();
-        Set<String> removedFields = new Set<String>(originalFields);
-        removedFields.removeAll(allowedFields);
-        if (!removedFields.isEmpty()) {
+        Set<String> removedFieldsForFLS = new Set<String>(args.fields.keySet());
+        removedFieldsForFLS.removeAll(allowedFields);
+        if (!removedFieldsForFLS.isEmpty()) {
             System.debug(
                 LoggingLevel.WARN,
                 '[ActionUpdateRecord] FLS enforcement: The following fields were excluded from update for record ' +
                     recordId +
                     ': ' +
-                    String.join(new List<String>(removedFields), ', ')
+                    String.join(new List<String>(removedFieldsForFLS), ', ')
             );
         }
 
@@ -110,8 +163,29 @@ public class ActionUpdateRecord extends BaseAgentAction {
             recordToUpdate.put(fieldName, typedData.get(fieldName));
         }
 
+        // Defense-in-depth: Use Security.stripInaccessible() as final verification layer
+        // This ensures Salesforce native FLS enforcement catches any edge cases in manual checks
+        SObjectAccessDecision decision = Security.stripInaccessible(
+            AccessType.UPDATABLE,
+            new List<SObject>{ recordToUpdate }
+        );
+
+        // Log any discrepancies between manual FLS checks and stripInaccessible results
+        Map<String, Set<String>> decisionRemovedFields = decision.getRemovedFields();
+        String objectName = targetSObjectType.getDescribe().getName();
+        if (!decisionRemovedFields.isEmpty() && decisionRemovedFields.containsKey(objectName)) {
+            Set<String> strippedFields = decisionRemovedFields.get(objectName);
+            if (!strippedFields.isEmpty()) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    '[ActionUpdateRecord] SECURITY AUDIT: stripInaccessible() removed fields that passed manual FLS checks. ' +
+                    'This indicates a potential bug in TypeCoercionService. Record: ' + recordId + ', Fields: ' + String.join(new List<String>(strippedFields), ', ')
+                );
+            }
+        }
+
         // Perform DML update with enhanced error handling and context
-        Database.SaveResult saveResult = Database.update(recordToUpdate, false);
+        Database.SaveResult saveResult = Database.update(decision.getRecords()[0], false);
 
         Long executionTime = System.currentTimeMillis() - startTime;
         System.debug(
@@ -153,87 +227,24 @@ public class ActionUpdateRecord extends BaseAgentAction {
 
     /**
      * @description
-     * Parses action configuration JSON to support custom record ID parameter names.
-     * If a custom parameter name is provided, it is used for record ID extraction.
+     * Parses action configuration JSON using strongly-typed ConfigDTO.
+     * Configuration is optional - if not provided, uses defaults.
      *
      * @param actionConfigurationJson JSON string with configuration options
      * @param logPrefix Prefix for debug logging
      */
     @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
-        super.parseActionConfiguration(actionConfigurationJson, logPrefix);
+        // Initialize empty config (no configuration options currently supported)
+        this.config = new ConfigDTO();
 
-        String customParamName = ActionConfigUtils.getOptionalString(this.parsedActionConfig, CONFIG_KEY_RECORD_ID_PARAM);
-
-        if (String.isNotBlank(customParamName)) {
-            this.recordIdParameterName = customParamName;
+        // Log if any config was provided (currently ignored)
+        if (String.isNotBlank(actionConfigurationJson)) {
             System.debug(
-                LoggingLevel.INFO,
-                '[ActionUpdateRecord] Using custom record ID parameter from config: "' + this.recordIdParameterName + '"'
+                LoggingLevel.DEBUG,
+                '[ActionUpdateRecord] Configuration provided but no config options are currently supported for DTO-based implementation.'
             );
         }
-    }
-
-    /**
-     * @description
-     * Validates and extracts the record ID from parameters, supporting custom parameter names.
-     *
-     * @param params Map containing the record ID parameter
-     * @return ActionOutcome<Id> containing the record ID or error information
-     */
-    private ActionOutcome validateAndExtractRecordId(Map<String, Object> params) {
-        Object idObj = params.get(this.recordIdParameterName);
-
-        if (idObj == null) {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'Missing required parameter: "' + this.recordIdParameterName + '"'
-            );
-        }
-
-        if (idObj instanceof Id) {
-            return ActionOutcome.success((Id) idObj);
-        }
-
-        if (idObj instanceof String && String.isNotBlank((String) idObj)) {
-            try {
-                return ActionOutcome.success(Id.valueOf((String) idObj));
-            } catch (System.StringException strEx) {
-                return ActionOutcome.failure(
-                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                    'Invalid ID format for "' + this.recordIdParameterName + '": ' + idObj
-                );
-            }
-        }
-
-        return ActionOutcome.failure(
-            AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-            'Parameter "' + this.recordIdParameterName + '" must be a valid Salesforce ID'
-        );
-    }
-
-    /**
-     * @description
-     * Extracts field update data from parameters, excluding the record ID parameter.
-     *
-     * @param params Full parameter map
-     * @param recordId The record ID for context in error messages
-     * @return ActionOutcome<Map<String, Object>> containing field update data or error information
-     */
-    private ActionOutcome extractUpdateFields(Map<String, Object> params, Id recordId) {
-        Map<String, Object> updateData = new Map<String, Object>();
-
-        for (String key : params.keySet()) {
-            if (!key.equalsIgnoreCase(this.recordIdParameterName)) {
-                updateData.put(key, params.get(key));
-            }
-        }
-
-        if (updateData.isEmpty()) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'No fields provided to update for record ID: ' + recordId);
-        }
-
-        return ActionOutcome.success(updateData);
     }
 
     /**

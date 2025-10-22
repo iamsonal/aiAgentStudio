@@ -332,7 +332,7 @@ public class TestFactory {
             record.ImplementationType__c = 'Standard';
             record.StandardActionType__c = 'GetRecords';
             record.BackendConfiguration__c = '{"objectApiName":"' + objectName + '","defaultFields":["Id","Name"]}';
-            record.Parameters__c = '{"type":"object","properties":{"filters":{"type":"object"},"limit":{"type":"integer"}}}';
+            record.Parameters__c = '{"type":"object","properties":{"filters":{"type":"object"},"queryLimit":{"type":"integer"}}}';
             return this;
         }
 

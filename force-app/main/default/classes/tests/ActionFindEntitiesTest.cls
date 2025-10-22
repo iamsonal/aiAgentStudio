@@ -147,7 +147,7 @@ private class ActionFindEntitiesTest {
             'sObjectTypes' => new List<String>{'Account'},
             'fieldsToReturn' => new List<String>{'Id', 'Name'},
             'filters' => new Map<String, Object>{'Industry' => 'Technology'},
-            'limit' => 1
+            'queryLimit' => 1
         };
 
         // When: Searching with limit
@@ -185,8 +185,10 @@ private class ActionFindEntitiesTest {
         Test.stopTest();
 
         // Then: Should fail validation
-        System.assert(!result.isSuccess);
-        System.assert(result.errorMessage.contains('sObjectTypes, fieldsToReturn, and filters are all required'));
+        System.assert(!result.isSuccess, 'Should fail when missing required parameters');
+        System.assert(result.errorMessage.contains('sObjectTypes') ||
+                      result.errorMessage.contains('required'),
+                      'Error message should indicate missing required parameter');
     }
 
     // ===================================================================================

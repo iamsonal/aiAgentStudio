@@ -8,37 +8,50 @@
 
 /**
  * @description
- * ActionGetRecords is a streamlined Apex action for querying Salesforce records with schema-driven parameter validation.
+ * ActionGetRecords is a high-performance Apex action for querying Salesforce records using strongly-typed DTOs.
  *
  * Responsibilities:
- *   - Leverages BaseAgentAction's schema-driven parameter validation (no manual validation needed)
+ *   - Uses DTOs for type-safe argument and configuration handling
  *   - Enforces object and field-level security before executing queries
  *   - Handles field selection, filtering, sorting, and result limiting with detailed error handling
  *   - Returns structured, LLM-friendly result data and AI-friendly error messages for downstream use
  *
- * Scope:
- *   - Strictly focused on secure, flexible record retrieval for any SObject type specified in configuration.
- *   - Designed for maintainability, extensibility, and clarity, with detailed debug output and robust error handling.
+ * Architecture:
+ *   - ArgumentsDTO: Strongly-typed with filters, additionalFields, limit, orderBy
+ *   - ConfigDTO: Strongly-typed configuration with objectApiName, defaultFields, maxReturnToLLM
+ *   - Uses native JSON.deserialize() for high-performance type conversion
  *
  * @extends BaseAgentAction
  */
 public class ActionGetRecords extends BaseAgentAction {
-    private static final String CONFIG_KEY_OBJECT_API_NAME = 'objectApiName';
-    private static final String CONFIG_KEY_DEFAULT_FIELDS = 'defaultFields';
-    private static final String CONFIG_KEY_MAX_RETURN = 'maxReturnToLLM';
-
     private static final Integer DEFAULT_QUERY_LIMIT = 10;
     private static final Integer MAX_PERMITTED_LIMIT = 50;
     private static final Integer DEFAULT_MAX_RETURNED_TO_LLM = 10;
 
-    // Configuration populated during parseActionConfiguration
-    private String objectApiName;
-    private List<String> defaultFields = new List<String>();
-    private Integer maxReturnToLLM = DEFAULT_MAX_RETURNED_TO_LLM;
+    private ConfigDTO config;
     private SObjectType targetSObjectType;
 
     // Dependency injection for QueryService
     private QueryService queryService;
+
+    /**
+     * DTO for strongly-typed arguments
+     */
+    public class ArgumentsDTO {
+        public Map<String, Object> filters;
+        public List<String> additionalFields;
+        public Integer queryLimit;
+        public String orderBy;
+    }
+
+    /**
+     * DTO for strongly-typed backend configuration
+     */
+    public class ConfigDTO {
+        public String objectApiName;
+        public List<String> defaultFields;
+        public Integer maxReturnToLLM;
+    }
 
     /**
      * @description
@@ -60,34 +73,29 @@ public class ActionGetRecords extends BaseAgentAction {
 
     /**
      * @description
-     * Main entry point for record query. Parameters are pre-validated by BaseAgentAction's schema-driven processing.
+     * Main entry point for record query using strongly-typed DTOs.
      *
-     * @param params Map<String, Object> - Pre-validated parameters: 'filters', 'additionalFields', 'limit', and 'orderBy'.
-     * @return ActionOutcome<QueryResult> - Contains found records and metadata or error information.
+     * @param params Map<String, Object> - Raw parameters (deserialized into ArgumentsDTO for type safety)
+     * @return ActionOutcome<QueryResult> - Contains found records and metadata or error information
      *
-     * Side effects: Logs key steps, errors, and performance metrics for troubleshooting and monitoring.
+     * Side effects: Logs key steps, errors, and performance metrics for troubleshooting and monitoring
      */
     public override ActionOutcome executeAction(Map<String, Object> params) {
         Long startTime = System.currentTimeMillis();
 
-        // Parameters are already validated and coerced by BaseAgentAction's schema-driven processing
-        Map<String, Object> filters = (Map<String, Object>) params.get('filters');
-        List<String> additionalFields = (List<String>) params.get('additionalFields');
-        Integer queryLimit = (Integer) params.get('limit');
-        String orderBy = (String) params.get('orderBy');
+        // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
+        ArgumentsDTO args = new ArgumentsDTO();
+        args.filters = params.get('filters') != null
+            ? (Map<String, Object>) params.get('filters')
+            : new Map<String, Object>();
+        args.additionalFields = ActionConfigUtils.getOptionalStringList(params, 'additionalFields');
+        args.queryLimit = params.get('queryLimit') != null
+            ? Integer.valueOf(params.get('queryLimit'))
+            : DEFAULT_QUERY_LIMIT;
+        args.orderBy = (String) params.get('orderBy');
 
-        // Apply defaults for optional parameters that weren't provided
-        if (filters == null) {
-            filters = new Map<String, Object>();
-        }
-        if (additionalFields == null) {
-            additionalFields = new List<String>();
-        }
-        if (queryLimit == null) {
-            queryLimit = DEFAULT_QUERY_LIMIT;
-        }
         // Enforce maximum limit for security
-        queryLimit = Math.min(queryLimit, MAX_PERMITTED_LIMIT);
+        args.queryLimit = Math.min(args.queryLimit, MAX_PERMITTED_LIMIT);
 
         try {
             SecurityUtils.checkObjectPermission(this.targetSObjectType, AccessType.READABLE);
@@ -106,24 +114,24 @@ public class ActionGetRecords extends BaseAgentAction {
             }
 
             this.queryService
-                .withDefaultFields(this.defaultFields)
-                .withAdditionalFields(additionalFields)
-                .withFilters(filters)
-                .withOrderBy(orderBy)
-                .withLimit(queryLimit, MAX_PERMITTED_LIMIT);
+                .withDefaultFields(config.defaultFields != null ? config.defaultFields : new List<String>())
+                .withAdditionalFields(args.additionalFields)
+                .withFilters(args.filters)
+                .withOrderBy(args.orderBy)
+                .withLimit(args.queryLimit, MAX_PERMITTED_LIMIT);
 
-            ActionOutcome queryResult = this.queryService.executeQuery(bindMap);
+            QueryResult queryResult = this.queryService.executeQuery(bindMap);
             if (!queryResult.isSuccess) {
                 return ActionOutcome.failure(queryResult.errorCode, queryResult.errorMessage);
             }
 
-            // Extract the data from the ActionOutcome
-            queryResults = (List<SObject>) queryResult.data;
-        } catch (AIFriendlyQueryException aie) {
+            // Extract the records from QueryResult
+            queryResults = queryResult.records;
+        } catch (QueryServiceException aie) {
             System.debug(LoggingLevel.ERROR, '[ActionGetRecords] AI-friendly query error: ' + aie.getErrorSummary());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, aie.getMessage());
         } catch (System.QueryException qe) {
-            String enhancedMessage = enhanceQueryExceptionMessage(qe.getMessage(), filters, orderBy, queryLimit);
+            String enhancedMessage = enhanceQueryExceptionMessage(qe.getMessage(), args.filters, args.orderBy, args.queryLimit);
             System.debug(LoggingLevel.ERROR, '[ActionGetRecords] SOQL execution failed: ' + enhancedMessage);
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_SOQL_ERROR, enhancedMessage);
         }
@@ -141,14 +149,14 @@ public class ActionGetRecords extends BaseAgentAction {
      * @description
      * Enhances query exception messages with contextual information for better troubleshooting.
      *
-     * @param originalMessage String - Original exception message.
-     * @param filters Map<String, Object> - Applied filter criteria.
-     * @param orderBy String - Sort specification.
-     * @param queryLimit Integer - Query limit value.
-     * @return String - Enhanced error message with query context.
+     * @param originalMessage String - Original exception message
+     * @param filters Map<String, Object> - Applied filter criteria
+     * @param orderBy String - Sort specification
+     * @param queryLimit Integer - Query limit value
+     * @return String - Enhanced error message with query context
      */
     private String enhanceQueryExceptionMessage(String originalMessage, Map<String, Object> filters, String orderBy, Integer queryLimit) {
-        String enhanced = originalMessage + ' | Query Context: Object=' + this.objectApiName;
+        String enhanced = originalMessage + ' | Query Context: Object=' + config.objectApiName;
 
         if (filters != null && !filters.isEmpty()) {
             enhanced += ', Filters=' + filters.size();
@@ -163,74 +171,100 @@ public class ActionGetRecords extends BaseAgentAction {
 
     /**
      * @description
-     * Parses and validates the action configuration JSON. Extracts the target SObject type, default fields, and max return limit.
+     * Parses and validates the action configuration JSON using strongly-typed ConfigDTO.
+     * Extracts the target SObject type, default fields, and max return limit.
      * Also validates that defaultFields are valid fields on the configured objectApiName.
      *
-     * @param actionConfigurationJson String - The JSON configuration string.
-     * @param logPrefix String - Prefix for log output.
-     * @throws ValidationException if required configuration is missing or invalid.
+     * @param actionConfigurationJson String - The JSON configuration string
+     * @param logPrefix String - Prefix for log output
+     * @throws ValidationException if required configuration is missing or invalid
      */
     @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
-        super.parseActionConfiguration(actionConfigurationJson, logPrefix);
+        // Parse config using hybrid approach for consistency
+        try {
+            if (String.isBlank(actionConfigurationJson)) {
+                throw new ValidationException('Configuration JSON is required', null);
+            }
 
-        this.objectApiName = ActionConfigUtils.getRequiredString(this.parsedActionConfig, CONFIG_KEY_OBJECT_API_NAME);
+            // First deserialize as untyped map
+            Map<String, Object> configMap = (Map<String, Object>) JSON.deserializeUntyped(actionConfigurationJson);
 
-        this.targetSObjectType = SchemaUtils.getSObjectType(this.objectApiName);
-        if (this.targetSObjectType == null) {
-            throw new ValidationException('Invalid SObject API Name in configuration: ' + this.objectApiName, CONFIG_KEY_OBJECT_API_NAME);
+            // Then manually populate ConfigDTO
+            this.config = new ConfigDTO();
+            this.config.objectApiName = (String) configMap.get('objectApiName');
+            this.config.defaultFields = ActionConfigUtils.getOptionalStringList(configMap, 'defaultFields');
+            this.config.maxReturnToLLM = configMap.get('maxReturnToLLM') != null
+                ? Integer.valueOf(configMap.get('maxReturnToLLM'))
+                : null;
+        } catch (Exception e) {
+            throw new ValidationException('Invalid configuration JSON: ' + e.getMessage(), e);
         }
 
-        this.defaultFields = ActionConfigUtils.getOptionalStringList(this.parsedActionConfig, CONFIG_KEY_DEFAULT_FIELDS);
+        // Validate required fields
+        if (String.isBlank(config.objectApiName)) {
+            throw new ValidationException('objectApiName is required in configuration', 'objectApiName');
+        }
+
+        this.targetSObjectType = SchemaUtils.getSObjectType(config.objectApiName);
+        if (this.targetSObjectType == null) {
+            throw new ValidationException('Invalid SObject API Name in configuration: ' + config.objectApiName, 'objectApiName');
+        }
+
+        // Initialize optional fields with defaults
+        if (config.defaultFields == null) {
+            config.defaultFields = new List<String>();
+        }
+        if (config.maxReturnToLLM == null) {
+            config.maxReturnToLLM = DEFAULT_MAX_RETURNED_TO_LLM;
+        }
 
         // Validate that defaultFields are valid fields on the configured object
-        if (this.defaultFields != null && !this.defaultFields.isEmpty()) {
+        if (!config.defaultFields.isEmpty()) {
             QueryService validatorService = new QueryService(this.targetSObjectType, '[ActionGetRecords] ');
-            ActionOutcome validationOutcome = validatorService.validateFields(this.defaultFields);
-            if (!validationOutcome.isSuccess) {
-                throw new ValidationException(validationOutcome.errorMessage, CONFIG_KEY_DEFAULT_FIELDS);
+            QueryResult validationResult = validatorService.validateFields(config.defaultFields);
+            if (!validationResult.isSuccess) {
+                throw new ValidationException(validationResult.errorMessage, 'defaultFields');
             }
         }
-
-        this.maxReturnToLLM = ActionConfigUtils.getOptionalInteger(this.parsedActionConfig, CONFIG_KEY_MAX_RETURN, DEFAULT_MAX_RETURNED_TO_LLM);
     }
 
     /**
      * @description
      * Processes query results, applies max return limit, and builds a user-facing message.
      *
-     * @param queryResults List<SObject> - The raw query results.
-     * @return QueryResult - Structured result with records, count, and metadata.
+     * @param queryResults List<SObject> - The raw query results
+     * @return GetRecordsResult - Structured result with records, count, and metadata
      */
-    private QueryResult processQueryResults(List<SObject> queryResults) {
+    private GetRecordsResult processQueryResults(List<SObject> queryResults) {
         Integer totalFoundCount = queryResults != null ? queryResults.size() : 0;
         List<SObject> finalResults = new List<SObject>();
 
         if (totalFoundCount > 0) {
-            Integer countToReturn = Math.min(totalFoundCount, this.maxReturnToLLM);
+            Integer countToReturn = Math.min(totalFoundCount, config.maxReturnToLLM);
             for (Integer i = 0; i < countToReturn; i++) {
                 finalResults.add(queryResults.get(i));
             }
 
-            if (totalFoundCount > this.maxReturnToLLM) {
+            if (totalFoundCount > config.maxReturnToLLM) {
                 System.debug(
                     LoggingLevel.INFO,
-                    '[ActionGetRecords] Truncated results: ' + totalFoundCount + ' found, returning ' + this.maxReturnToLLM + ' for LLM.'
+                    '[ActionGetRecords] Truncated results: ' + totalFoundCount + ' found, returning ' + config.maxReturnToLLM + ' for LLM.'
                 );
             }
         }
 
         String message;
         if (totalFoundCount == 0) {
-            message = 'No ' + this.objectApiName + ' records found matching the criteria.';
-        } else if (totalFoundCount > this.maxReturnToLLM) {
-            message = 'Found ' + totalFoundCount + ' ' + this.objectApiName + ' record(s). Showing the first ' + this.maxReturnToLLM + '.';
+            message = 'No ' + config.objectApiName + ' records found matching the criteria.';
+        } else if (totalFoundCount > config.maxReturnToLLM) {
+            message = 'Found ' + totalFoundCount + ' ' + config.objectApiName + ' record(s). Showing the first ' + config.maxReturnToLLM + '.';
         } else {
-            message = 'Found and showing all ' + totalFoundCount + ' ' + this.objectApiName + ' record(s).';
+            message = 'Found and showing all ' + totalFoundCount + ' ' + config.objectApiName + ' record(s).';
         }
 
         System.debug(LoggingLevel.INFO, '[ActionGetRecords] ' + message);
-        return new QueryResult(finalResults, totalFoundCount, this.objectApiName, message);
+        return new GetRecordsResult(finalResults, totalFoundCount, config.objectApiName, message);
     }
 
     /**
@@ -245,7 +279,7 @@ public class ActionGetRecords extends BaseAgentAction {
      *   - truncated: Boolean - True if results were truncated for LLM.
      *   - metadata: Map<String, Object> - Additional context for downstream consumers.
      */
-    public class QueryResult {
+    public class GetRecordsResult {
         public List<SObject> records;
         public Integer count;
         public String objectApiName;
@@ -253,7 +287,7 @@ public class ActionGetRecords extends BaseAgentAction {
         public Boolean truncated;
         public Map<String, Object> metadata; // Additional context for LLMs
 
-        public QueryResult(List<SObject> records, Integer count, String objectApiName, String message) {
+        public GetRecordsResult(List<SObject> records, Integer count, String objectApiName, String message) {
             this.records = records;
             this.count = count;
             this.objectApiName = objectApiName;

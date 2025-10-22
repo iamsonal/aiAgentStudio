@@ -52,6 +52,10 @@
       "type": "string",
       "format": "salesforce-id",
       "description": "The 18-character ID of the record to update."
+    },
+    "fields": {
+      "type": "object",
+      "description": "SObject field values to update. Property names should be valid field API names."
     }
   },
   "required": ["recordId"]

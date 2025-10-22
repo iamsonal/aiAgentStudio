@@ -54,7 +54,7 @@ private class ActionFlowHandlerTest {
         ActionContext context = createTestContext(TEST_FLOW_API_NAME);
 
         String configJson = '{}';
-        String argsJson = '{"param1": "test value", "param2": 42}';
+        String argsJson = '{"flowParameters": {"param1": "test value", "param2": 42}}';
 
         // When: Executing flow
         Test.startTest();
@@ -91,7 +91,7 @@ private class ActionFlowHandlerTest {
         ActionContext context = createTestContext(TEST_FLOW_API_NAME);
 
         String configJson = '{}';
-        String argsJson = '{"textParam": "test", "numberParam": 123, "booleanParam": true}';
+        String argsJson = '{"flowParameters": {"textParam": "test", "numberParam": 123, "booleanParam": true}}';
 
         // When: Executing with complex params
         Test.startTest();

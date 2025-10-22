@@ -53,8 +53,10 @@ private class ActionUpdateRecordTest {
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testContact.Id,
-            'FirstName' => 'Johnny',
-            'Email' => 'johnny.doe@test.com'
+            'fields' => new Map<String, Object>{
+                'FirstName' => 'Johnny',
+                'Email' => 'johnny.doe@test.com'
+            }
         };
 
         // When: Updating the contact
@@ -80,25 +82,27 @@ private class ActionUpdateRecordTest {
 
     @IsTest
     static void testUpdateAccount_CustomRecordIdParam_Success() {
-        // Given: Action with custom recordId parameter name
+        // Given: Action with DTO structure
         Account testAccount = [SELECT Id FROM Account WHERE Name = 'Test Account 1' LIMIT 1];
 
         ActionUpdateRecord action = new ActionUpdateRecord();
-        action.parseActionConfiguration('{"recordIdParameter": "accountId"}', '[TEST] ');
+        action.parseActionConfiguration('{}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'accountId' => testAccount.Id,  // Custom parameter name
-            'Name' => 'Updated Test Account',
-            'Industry' => 'Healthcare'
+            'recordId' => testAccount.Id,
+            'fields' => new Map<String, Object>{
+                'Name' => 'Updated Test Account',
+                'Industry' => 'Healthcare'
+            }
         };
 
-        // When: Updating with custom param name
+        // When: Updating with DTO structure
         Test.startTest();
         ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
         // Then: Update succeeds
-        System.assert(result.isSuccess);
+        System.assert(result.isSuccess, 'Should succeed with proper DTO structure');
         Account updated = [SELECT Name, Industry FROM Account WHERE Id = :testAccount.Id];
         System.assertEquals('Updated Test Account', updated.Name);
         System.assertEquals('Healthcare', updated.Industry);
@@ -114,8 +118,10 @@ private class ActionUpdateRecordTest {
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testAccount.Id,
-            'NumberOfEmployees' => '250',      // String -> Integer
-            'AnnualRevenue' => '2500000.75'    // String -> Decimal
+            'fields' => new Map<String, Object>{
+                'NumberOfEmployees' => '250',      // String -> Integer
+                'AnnualRevenue' => '2500000.75'    // String -> Decimal
+            }
         };
 
         // When: Updating with type coercion
@@ -140,8 +146,10 @@ private class ActionUpdateRecordTest {
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testContact.Id,
-            'Email' => null,
-            'FirstName' => 'John Updated'
+            'fields' => new Map<String, Object>{
+                'Email' => null,
+                'FirstName' => 'John Updated'
+            }
         };
 
         // When: Updating with null value
@@ -167,7 +175,9 @@ private class ActionUpdateRecordTest {
         action.parseActionConfiguration('{}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'Name' => 'Updated Name'
+            'fields' => new Map<String, Object>{
+                'Name' => 'Updated Name'
+            }
             // Missing recordId
         };
 
@@ -190,7 +200,9 @@ private class ActionUpdateRecordTest {
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => 'invalid-id-format',
-            'Name' => 'Test'
+            'fields' => new Map<String, Object>{
+                'Name' => 'Test'
+            }
         };
 
         // When: Attempting update
@@ -213,7 +225,7 @@ private class ActionUpdateRecordTest {
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testContact.Id
-            // No update fields
+            // No fields property - should fail
         };
 
         // When: Attempting update
@@ -235,7 +247,9 @@ private class ActionUpdateRecordTest {
         String fakeId = '003000000000000';
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => fakeId,
-            'FirstName' => 'Test'
+            'fields' => new Map<String, Object>{
+                'FirstName' => 'Test'
+            }
         };
 
         // When: Attempting update
@@ -244,8 +258,8 @@ private class ActionUpdateRecordTest {
         Test.stopTest();
 
         // Then: Should fail with DML error
-        System.assert(!result.isSuccess);
-        System.assert(result.errorMessage.contains('Failed to update record'));
+        System.assert(!result.isSuccess, 'Should fail for non-existent record');
+        System.assert(result.errorMessage.contains('Failed to update record'), 'Error message should mention update failure');
     }
 
     // ===================================================================================

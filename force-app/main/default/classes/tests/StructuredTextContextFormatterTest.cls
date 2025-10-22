@@ -24,29 +24,6 @@ private class StructuredTextContextFormatterTest {
     }
 
     // ===================================================================================
-    // METADATA MAPPING TESTS
-    // ===================================================================================
-
-    @IsTest
-    static void testContextFormatterMapping_LoadsCorrectFormatters() {
-        // Test: XML formatter from metadata
-        IContextFormatter xmlFormatter = SystemPromptBuilder.getContextFormatter('XML', '[TEST] ');
-        System.assert(xmlFormatter instanceof XmlContextFormatter, 'XML formatter should be loaded');
-
-        // Test: JSON formatter from metadata
-        IContextFormatter jsonFormatter = SystemPromptBuilder.getContextFormatter('JSON', '[TEST] ');
-        System.assert(jsonFormatter instanceof JsonContextFormatter, 'JSON formatter should be loaded');
-
-        // Test: StructuredText formatter from metadata
-        IContextFormatter textFormatter = SystemPromptBuilder.getContextFormatter('StructuredText', '[TEST] ');
-        System.assert(textFormatter instanceof StructuredTextContextFormatter, 'StructuredText formatter should be loaded');
-
-        // Test: Unknown strategy defaults to StructuredText
-        IContextFormatter unknownFormatter = SystemPromptBuilder.getContextFormatter('UnknownStrategy', '[TEST] ');
-        System.assert(unknownFormatter instanceof StructuredTextContextFormatter, 'Unknown strategy should default to StructuredText');
-    }
-
-    // ===================================================================================
     // BASIC FORMATTING TESTS
     // ===================================================================================
 

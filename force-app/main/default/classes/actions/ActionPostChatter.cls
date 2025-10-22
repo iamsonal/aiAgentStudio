@@ -8,44 +8,62 @@
 
 /**
  * @description
- * ActionPostChatter is a robust Apex action for posting messages to Chatter feeds with comprehensive validation, topic support, and security enforcement.
+ * ActionPostChatter is a high-performance Apex action for posting messages to Chatter feeds using strongly-typed DTOs.
  *
  * Responsibilities:
- *   - Validates feed type, target access, and message content before posting.
- *   - Handles text length limits, topic processing, and integrates with ConnectApi for Chatter functionality.
- *   - Returns structured, LLM-friendly result data and meaningful error messages for downstream use.
+ *   - Uses DTOs for type-safe argument and configuration handling
+ *   - Validates feed type, target access, and message content before posting
+ *   - Handles text length limits, topic processing, and integrates with ConnectApi for Chatter functionality
+ *   - Returns structured, LLM-friendly result data and meaningful error messages for downstream use
  *
- * Scope:
- *   - Strictly focused on secure, flexible Chatter posting for any supported feed type and target.
- *   - Designed for maintainability, extensibility, and clarity, with detailed debug output and robust error handling.
+ * Architecture:
+ *   - ArgumentsDTO: Strongly-typed with text and topics
+ *   - ConfigDTO: Strongly-typed configuration with feedType and targetId
+ *   - Uses native JSON.deserialize() for high-performance type conversion
  *
  * @extends BaseAgentAction
  */
 public class ActionPostChatter extends BaseAgentAction {
-    private static final String CONFIG_FEED_TYPE = 'feedType';
-    private static final String CONFIG_TARGET_ID = 'targetId';
-
-    private String feedType;
+    private ConfigDTO config;
     private Id targetSObjectId;
     private String targetSObjectName;
 
     /**
+     * DTO for strongly-typed arguments
+     */
+    public class ArgumentsDTO {
+        public String text;
+        public List<String> topics;
+    }
+
+    /**
+     * DTO for strongly-typed backend configuration
+     */
+    public class ConfigDTO {
+        public String feedType;
+        public String targetId;
+    }
+
+    /**
      * @description
-     * Main entry point for Chatter posting. Validates parameters, enforces security, creates the Chatter post, and processes topics.
+     * Main entry point for Chatter posting using strongly-typed DTOs.
+     * Validates parameters, enforces security, creates the Chatter post, and processes topics.
      *
-     * @param params Map<String, Object> - Must include 'text' (String), may include 'topics' (List<String>).
-     * @return Result<ChatterResult> - Contains post confirmation and metadata or error information.
+     * @param params Map<String, Object> - Raw parameters (deserialized into ArgumentsDTO for type safety)
+     * @return ActionOutcome<ChatterResult> - Contains post confirmation and metadata or error information
      *
-     * Side effects: Logs key steps, errors, and performance metrics for troubleshooting and monitoring.
+     * Side effects: Logs key steps, errors, and performance metrics for troubleshooting and monitoring
      */
     public override ActionOutcome executeAction(Map<String, Object> params) {
         Long startTime = System.currentTimeMillis();
 
-        // Framework automatically validates required text parameter
-        String text = (String) params.get('text');
-        List<String> topics = (List<String>) params.get('topics');
+        // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
+        ArgumentsDTO args = new ArgumentsDTO();
+        args.text = (String) params.get('text');
+        args.topics = ActionConfigUtils.getOptionalStringList(params, 'topics');
 
-        if (String.isBlank(text)) {
+        // Validate required DTO parameters
+        if (String.isBlank(args.text)) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Text parameter cannot be blank for Chatter post');
         }
 
@@ -54,13 +72,13 @@ public class ActionPostChatter extends BaseAgentAction {
             return targetValidationResult;
         }
 
-        System.debug(LoggingLevel.INFO, '[ActionPostChatter] Posting to ' + this.feedType + ' feed. Target ID: ' + this.targetSObjectId);
+        System.debug(LoggingLevel.INFO, '[ActionPostChatter] Posting to ' + config.feedType + ' feed. Target ID: ' + targetSObjectId);
         System.debug(
             LoggingLevel.DEBUG,
-            '[ActionPostChatter] Message length: ' + text.length() + ' characters. Topics: ' + (topics != null ? topics.size() : 0)
+            '[ActionPostChatter] Message length: ' + args.text.length() + ' characters. Topics: ' + args.topics.size()
         );
 
-        ActionOutcome chatterResult = createChatterPost(text, topics);
+        ActionOutcome chatterResult = createChatterPost(args.text, args.topics);
         if (!chatterResult.isSuccess) {
             return chatterResult;
         }
@@ -72,38 +90,62 @@ public class ActionPostChatter extends BaseAgentAction {
         return ActionOutcome.success(
             new ChatterResult(
                 feedElement.id,
-                'I have successfully posted the message to the ' + this.feedType + ' feed.',
-                text.length(),
-                topics != null ? topics.size() : 0
+                'I have successfully posted the message to the ' + config.feedType + ' feed.',
+                args.text.length(),
+                args.topics.size()
             )
         );
     }
 
     /**
      * @description
-     * Parses and validates the action configuration JSON. Extracts feed type and target, and checks for consistency.
+     * Parses and validates the action configuration JSON using strongly-typed ConfigDTO.
+     * Extracts feed type and target, and checks for consistency.
      *
-     * @param actionConfigurationJson String - The JSON configuration string.
-     * @param logPrefix String - Prefix for log output.
-     * @throws ValidationException if required configuration is missing or invalid.
+     * @param actionConfigurationJson String - The JSON configuration string
+     * @param logPrefix String - Prefix for log output
+     * @throws ValidationException if required configuration is missing or invalid
      */
     @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
-        super.parseActionConfiguration(actionConfigurationJson, logPrefix);
+        // Parse config using hybrid approach for consistency
+        try {
+            if (String.isBlank(actionConfigurationJson)) {
+                throw new ValidationException('Configuration JSON is required', null);
+            }
 
-        if (this.parsedActionConfig == null || this.parsedActionConfig.isEmpty()) {
-            throw new ValidationException('BackendConfiguration is required for ActionPostChatter.', null);
+            // First deserialize as untyped map
+            Map<String, Object> configMap = (Map<String, Object>) JSON.deserializeUntyped(actionConfigurationJson);
+
+            // Then manually populate ConfigDTO
+            this.config = new ConfigDTO();
+            this.config.feedType = (String) configMap.get('feedType');
+            this.config.targetId = (String) configMap.get('targetId');
+        } catch (Exception e) {
+            throw new ValidationException('Invalid configuration JSON: ' + e.getMessage(), e);
         }
 
-        this.feedType = ActionConfigUtils.getRequiredString(this.parsedActionConfig, CONFIG_FEED_TYPE);
-        this.targetSObjectId = ActionConfigUtils.getRequiredId(this.parsedActionConfig, CONFIG_TARGET_ID, null);
-        this.targetSObjectName = this.targetSObjectId.getSObjectType().getDescribe().getName();
+        // Validate required fields
+        if (String.isBlank(config.feedType)) {
+            throw new ValidationException('feedType is required in configuration', 'feedType');
+        }
+        if (String.isBlank(config.targetId)) {
+            throw new ValidationException('targetId is required in configuration', 'targetId');
+        }
+
+        // Convert targetId to Id type
+        try {
+            this.targetSObjectId = Id.valueOf(config.targetId);
+            this.targetSObjectName = this.targetSObjectId.getSObjectType().getDescribe().getName();
+        } catch (Exception e) {
+            throw new ValidationException('Invalid targetId format: ' + config.targetId, 'targetId', e);
+        }
 
         validateFeedTypeConsistency();
 
         System.debug(
             LoggingLevel.DEBUG,
-            '[ActionPostChatter] Configuration parsed. FeedType: ' + this.feedType + ', Target: ' + this.targetSObjectId
+            '[ActionPostChatter] Configuration parsed. FeedType: ' + config.feedType + ', Target: ' + targetSObjectId
         );
     }
 
@@ -112,19 +154,19 @@ public class ActionPostChatter extends BaseAgentAction {
      * Validates that feed type matches the target object type for consistency.
      * Prevents mismatched configurations like User feed with Group target.
      *
-     * @throws ValidationException if feed type and target object type are inconsistent.
+     * @throws ValidationException if feed type and target object type are inconsistent
      */
     private void validateFeedTypeConsistency() {
         if (
-            (this.feedType == 'User' &&
-            this.targetSObjectName != 'User') ||
-            (this.feedType == 'Group' &&
-            this.targetSObjectName != 'CollaborationGroup') ||
-            (this.feedType == 'Record' && (this.targetSObjectName == 'User' || this.targetSObjectName == 'CollaborationGroup'))
+            (config.feedType == 'User' &&
+            targetSObjectName != 'User') ||
+            (config.feedType == 'Group' &&
+            targetSObjectName != 'CollaborationGroup') ||
+            (config.feedType == 'Record' && (targetSObjectName == 'User' || targetSObjectName == 'CollaborationGroup'))
         ) {
             throw new ValidationException(
-                'Mismatch between feedType "' + this.feedType + '" and targetId object type "' + this.targetSObjectName + '".',
-                CONFIG_FEED_TYPE
+                'Mismatch between feedType "' + config.feedType + '" and targetId object type "' + targetSObjectName + '".',
+                'feedType'
             );
         }
     }
@@ -134,24 +176,24 @@ public class ActionPostChatter extends BaseAgentAction {
      * Validates that the user has access to the Chatter target before attempting to post.
      * Performs a security check to ensure the target exists and is accessible.
      *
-     * @return ActionOutcome indicating success or failure with access violation details.
+     * @return ActionOutcome indicating success or failure with access violation details
      */
     private ActionOutcome validateChatterTargetAccess() {
         try {
-            String query = 'SELECT Id FROM ' + this.targetSObjectName + ' WHERE Id = :targetId LIMIT 1';
+            String query = 'SELECT Id FROM ' + targetSObjectName + ' WHERE Id = :targetId LIMIT 1';
             List<SObject> targetCheck = Database.queryWithBinds(
                 query,
-                new Map<String, Object>{ 'targetId' => this.targetSObjectId },
+                new Map<String, Object>{ 'targetId' => targetSObjectId },
                 AccessLevel.USER_MODE
             );
             if (targetCheck.isEmpty()) {
                 System.debug(
                     LoggingLevel.ERROR,
-                    '[ActionPostChatter] Target ' + this.feedType + ' with ID ' + this.targetSObjectId + ' not found or user lacks access.'
+                    '[ActionPostChatter] Target ' + config.feedType + ' with ID ' + targetSObjectId + ' not found or user lacks access.'
                 );
                 return ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
-                    'Target ' + this.feedType + ' with ID ' + this.targetSObjectId + ' not found or user lacks access.'
+                    'Target ' + config.feedType + ' with ID ' + targetSObjectId + ' not found or user lacks access.'
                 );
             }
             return ActionOutcome.success();
@@ -309,7 +351,7 @@ public class ActionPostChatter extends BaseAgentAction {
             messageBodyInput.messageSegments = messageSegments;
 
             feedItemInput.body = messageBodyInput;
-            feedItemInput.subjectId = this.targetSObjectId;
+            feedItemInput.subjectId = targetSObjectId;
 
             if (topics != null && !topics.isEmpty()) {
                 ConnectApi.FeedElementCapabilitiesInput capabilitiesInput = new ConnectApi.FeedElementCapabilitiesInput();

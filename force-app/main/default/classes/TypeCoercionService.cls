@@ -8,25 +8,27 @@
 
 /**
  * @description
- * TypeCoercionService provides unified, enterprise-grade type coercion capabilities for the AI Agent Framework.
- * This service consolidates type conversion logic and Field-Level Security (FLS) validation, eliminating code
- * duplication and providing consistent, secure coercion behavior throughout the framework.
+ * TypeCoercionService provides unified, high-performance type coercion capabilities for the AI Agent Framework.
+ * This service consolidates type conversion logic and Field-Level Security (FLS) validation for SObject operations.
  *
  * Key Responsibilities:
- *   - Unified type coercion methods supporting both generic parameter extraction and SObject field assignment
- *   - Schema-aware coercion using Schema.DisplayType for precise Salesforce field type handling
+ *   - Unified type coercion methods for Salesforce field types using Schema.DisplayType
  *   - Integrated Field-Level Security (FLS) enforcement for CREATABLE and UPDATABLE operations
  *   - Centralized picklist and multipicklist validation when DescribeFieldResult is provided
  *   - Comprehensive validation with structured error reporting (string length, range checking, format validation)
  *   - Support for all standard Salesforce types and common JSON/LLM input formats
- *   - Extensible architecture for custom type coercion requirements
+ *
+ * Architecture:
+ *   - Primary method: coerceArgumentTypesForSObject() - Takes Map<String, Object> from DTOs and SObjectType
+ *   - Performs FLS checks and type coercion against Salesforce schema
+ *   - Individual coerce methods (coerceToString, coerceToInteger, etc.) for specific type conversions
+ *   - No longer handles JSON schema parsing - actions use native JSON.deserialize() with DTOs instead
  *
  * Design Benefits:
- *   - Single source of truth for type coercion logic and security validation
+ *   - Focused, single-responsibility utility for SObject field coercion
+ *   - Leverages native Apex JSON deserialization for speed
  *   - Consistent error handling and validation patterns
- *   - Reduced maintenance overhead and improved testability
- *   - Enhanced performance through optimized coercion algorithms
- *   - Unified security model preventing divergent FLS implementations
+ *   - Reduced complexity and improved maintainability
  */
 public with sharing class TypeCoercionService {
     /**
@@ -586,10 +588,6 @@ public with sharing class TypeCoercionService {
     }
 
     // ============================================================================
-    // --- Utility Methods ---
-    // ============================================================================
-
-    // ============================================================================
     // --- Format Validation Methods ---
     // ============================================================================
 
@@ -650,256 +648,6 @@ public with sharing class TypeCoercionService {
             'URL String',
             getInputTypeString(value)
         );
-    }
-
-    // ============================================================================
-    // --- Collection Coercion Methods ---
-    // ============================================================================
-
-    /**
-     * Coerces a value to List<String> with validation.
-     */
-    public static List<String> coerceToStringList(Object value, String fieldName) {
-        if (value == null) {
-            return null;
-        }
-
-        if (value instanceof List<Object>) {
-            List<Object> rawList = (List<Object>) value;
-            List<String> stringList = new List<String>();
-
-            for (Integer i = 0; i < rawList.size(); i++) {
-                Object item = rawList[i];
-                if (item == null) {
-                    stringList.add(null);
-                } else {
-                    try {
-                        stringList.add(coerceToString(item, fieldName + '[' + i + ']', null));
-                    } catch (TypeCoercionException e) {
-                        throw new TypeCoercionException(
-                            'Invalid item at index ' + i + ' in list: ' + e.getMessage(),
-                            fieldName,
-                            'List<String>',
-                            getInputTypeString(item),
-                            e
-                        );
-                    }
-                }
-            }
-            return stringList;
-        }
-
-        throw new TypeCoercionException('Cannot coerce to List<String>', fieldName, 'List<String>', getInputTypeString(value));
-    }
-
-    /**
-     * Coerces a value to Map<String, Object> with validation.
-     */
-    public static Map<String, Object> coerceToStringObjectMap(Object value, String fieldName) {
-        if (value == null) {
-            return null;
-        }
-
-        if (value instanceof Map<String, Object>) {
-            return (Map<String, Object>) value;
-        }
-
-        throw new TypeCoercionException('Cannot coerce to Map<String, Object>', fieldName, 'Map<String, Object>', getInputTypeString(value));
-    }
-
-    // ============================================================================
-    // --- Recursive Schema-Driven Coercion Methods ---
-    // ============================================================================
-
-    /**
-     * Recursively coerces an array value based on its JSON Schema items definition.
-     * This method validates each element in the array according to the items schema.
-     *
-     * @param value The raw array value to coerce
-     * @param fieldName The field name for error context
-     * @param itemsSchema The JSON Schema definition for array items
-     * @return The coerced List<Object> with all elements properly typed
-     * @throws TypeCoercionException for validation or coercion failures
-     */
-    public static List<Object> coerceArrayBySchema(Object value, String fieldName, Map<String, Object> itemsSchema) {
-        if (value == null) {
-            return null;
-        }
-
-        if (!(value instanceof List<Object>)) {
-            throw new TypeCoercionException(
-                'Expected array/list value but received ' + getInputTypeString(value),
-                fieldName,
-                'Array',
-                getInputTypeString(value)
-            );
-        }
-
-        List<Object> rawList = (List<Object>) value;
-        List<Object> coercedList = new List<Object>();
-
-        for (Integer i = 0; i < rawList.size(); i++) {
-            Object item = rawList[i];
-            String itemFieldName = fieldName + '[' + i + ']';
-
-            try {
-                Object coercedItem = coerceValueByJsonSchema(item, itemFieldName, itemsSchema);
-                coercedList.add(coercedItem);
-            } catch (TypeCoercionException e) {
-                throw new TypeCoercionException(
-                    'Invalid array item at index ' + i + ': ' + e.getMessage(),
-                    fieldName,
-                    'Array',
-                    getInputTypeString(item),
-                    e
-                );
-            }
-        }
-
-        return coercedList;
-    }
-
-    /**
-     * Recursively coerces an object value based on its JSON Schema properties definition.
-     * This method validates each property in the object according to the properties schema.
-     *
-     * @param value The raw object value to coerce
-     * @param fieldName The field name for error context
-     * @param propertiesSchema The JSON Schema properties definition for the object
-     * @return The coerced Map<String, Object> with all properties properly typed
-     * @throws TypeCoercionException for validation or coercion failures
-     */
-    public static Map<String, Object> coerceObjectBySchema(Object value, String fieldName, Map<String, Object> propertiesSchema) {
-        if (value == null) {
-            return null;
-        }
-
-        if (!(value instanceof Map<String, Object>)) {
-            throw new TypeCoercionException(
-                'Expected object/map value but received ' + getInputTypeString(value),
-                fieldName,
-                'Object',
-                getInputTypeString(value)
-            );
-        }
-
-        Map<String, Object> rawMap = (Map<String, Object>) value;
-        Map<String, Object> coercedMap = new Map<String, Object>();
-
-        // Process each property in the input object
-        for (String propertyName : rawMap.keySet()) {
-            Object propertyValue = rawMap.get(propertyName);
-            String propertyFieldName = fieldName + '.' + propertyName;
-
-            // If we have a schema definition for this property, use it for coercion
-            if (propertiesSchema.containsKey(propertyName)) {
-                Map<String, Object> propertySchema = (Map<String, Object>) propertiesSchema.get(propertyName);
-                try {
-                    Object coercedValue = coerceValueByJsonSchema(propertyValue, propertyFieldName, propertySchema);
-                    coercedMap.put(propertyName, coercedValue);
-                } catch (TypeCoercionException e) {
-                    throw new TypeCoercionException(
-                        'Invalid object property "' + propertyName + '": ' + e.getMessage(),
-                        fieldName,
-                        'Object',
-                        getInputTypeString(propertyValue),
-                        e
-                    );
-                }
-            } else {
-                // No schema definition for this property, pass through as-is
-                coercedMap.put(propertyName, propertyValue);
-            }
-        }
-
-        return coercedMap;
-    }
-
-    /**
-     * Generic recursive coercion method that processes any value based on its JSON Schema definition.
-     * This is the core method that handles the recursive descent through complex data structures.
-     *
-     * @param value The raw value to coerce
-     * @param fieldName The field name for error context
-     * @param schema The JSON Schema definition for this value
-     * @return The coerced value with proper typing
-     * @throws TypeCoercionException for validation or coercion failures
-     */
-    public static Object coerceValueByJsonSchema(Object value, String fieldName, Map<String, Object> schema) {
-        if (value == null) {
-            return null;
-        }
-
-        if (schema == null || !schema.containsKey('type')) {
-            // No type information, return as-is
-            return value;
-        }
-
-        String schemaType = (String) schema.get('type');
-        if (String.isBlank(schemaType)) {
-            return value;
-        }
-
-        try {
-            switch on schemaType.toLowerCase() {
-                when 'string' {
-                    String format = (String) schema.get('format');
-                    if (format == 'salesforce-id' || format == 'id') {
-                        return coerceToId(value, fieldName);
-                    } else if (format == 'date') {
-                        return coerceToDate(value, fieldName);
-                    } else if (format == 'date-time' || format == 'datetime') {
-                        return coerceToDateTime(value, fieldName);
-                    } else if (format == 'email') {
-                        return coerceToEmailString(value, fieldName);
-                    } else if (format == 'url' || format == 'uri') {
-                        return coerceToUrlString(value, fieldName);
-                    }
-                    return coerceToString(value, fieldName, null);
-                }
-                when 'integer' {
-                    return coerceToInteger(value, fieldName);
-                }
-                when 'number' {
-                    return coerceToDecimal(value, fieldName);
-                }
-                when 'boolean' {
-                    return coerceToBoolean(value, fieldName);
-                }
-                when 'array' {
-                    // Handle array type recursively
-                    Map<String, Object> itemsSchema = (Map<String, Object>) schema.get('items');
-                    if (itemsSchema == null) {
-                        // No items schema, return the array as-is
-                        return value;
-                    }
-                    return coerceArrayBySchema(value, fieldName, itemsSchema);
-                }
-                when 'object' {
-                    // Handle object type recursively
-                    Map<String, Object> propertiesSchema = (Map<String, Object>) schema.get('properties');
-                    if (propertiesSchema == null) {
-                        // No properties schema, return the object as-is
-                        return value;
-                    }
-                    return coerceObjectBySchema(value, fieldName, propertiesSchema);
-                }
-                when else {
-                    // Unsupported type, return as-is
-                    return value;
-                }
-            }
-        } catch (TypeCoercionException e) {
-            throw e; // Re-throw our exceptions
-        } catch (Exception e) {
-            throw new TypeCoercionException(
-                'Unexpected error during schema-based coercion: ' + e.getMessage(),
-                fieldName,
-                schemaType,
-                getInputTypeString(value),
-                e
-            );
-        }
     }
 
     // ============================================================================

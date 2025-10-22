@@ -219,20 +219,38 @@ public with sharing class ActionConfigUtils {
             throw new ArgumentValidationException('Missing required parameter: "' + key + '" (List<String>)');
         }
 
+        Object value = params.get(key);
+        List<String> stringList = new List<String>();
+
         try {
-            List<String> stringList = TypeCoercionService.coerceToStringList(params.get(key), key);
-            if (requireNonEmpty && (stringList == null || stringList.isEmpty())) {
+            if (value instanceof List<Object>) {
+                for (Object item : (List<Object>) value) {
+                    if (item != null) {
+                        stringList.add(String.valueOf(item));
+                    }
+                }
+            } else if (value instanceof List<String>) {
+                stringList = (List<String>) value;
+            } else if (value instanceof String) {
+                stringList.add((String) value);
+            } else {
+                throw new ArgumentValidationException('Invalid type for parameter "' + key + '". Expected List<String>, got: ' + value);
+            }
+
+            if (requireNonEmpty && stringList.isEmpty()) {
                 throw new ArgumentValidationException('Required List parameter "' + key + '" cannot be empty.');
             }
             return stringList;
-        } catch (TypeCoercionService.TypeCoercionException e) {
+        } catch (ArgumentValidationException e) {
+            throw e;
+        } catch (Exception e) {
             throw new ArgumentValidationException('Invalid value for parameter "' + key + '". ' + e.getMessage());
         }
     }
 
     /**
      * Retrieves an optional List<String> value from a parameters map.
-     * Uses TypeCoercionService for consistent coercion behavior across the framework.
+     * Handles type conversion directly for List<Object>, List<String>, and String.
      *
      * @param params   Map of parameters.
      * @param key      Key for the optional List<String> parameter.
@@ -244,12 +262,31 @@ public with sharing class ActionConfigUtils {
         }
 
         try {
-            List<String> result = TypeCoercionService.coerceToStringList(params.get(key), key);
-            return result != null ? result : new List<String>();
-        } catch (TypeCoercionService.TypeCoercionException e) {
+            Object value = params.get(key);
+            List<String> stringList = new List<String>();
+
+            if (value instanceof List<Object>) {
+                for (Object item : (List<Object>) value) {
+                    if (item != null) {
+                        stringList.add(String.valueOf(item));
+                    }
+                }
+            } else if (value instanceof List<String>) {
+                stringList = (List<String>) value;
+            } else if (value instanceof String) {
+                stringList.add((String) value);
+            } else {
+                System.debug(
+                    LoggingLevel.WARN,
+                    '[ActionConfigUtils.getOptionalStringList] Unexpected type for key "' + key + '". Returning empty list.'
+                );
+            }
+
+            return stringList;
+        } catch (Exception e) {
             System.debug(
                 LoggingLevel.WARN,
-                '[ActionConfigUtils.getOptionalStringList] Invalid list contents for key "' +
+                '[ActionConfigUtils.getOptionalStringList] Error processing list for key "' +
                     key +
                     '". Returning empty list. Error: ' +
                     e.getMessage()
@@ -260,7 +297,7 @@ public with sharing class ActionConfigUtils {
 
     /**
      * Retrieves a required Map<String, Object> value from a parameters map, enforcing type and (optionally) non-emptiness.
-     * Uses TypeCoercionService for consistent coercion behavior across the framework.
+     * Handles type conversion directly.
      *
      * @param params         Map of parameters.
      * @param key            Key for the required Map<String, Object> parameter.
@@ -273,20 +310,24 @@ public with sharing class ActionConfigUtils {
             throw new ArgumentValidationException('Missing required parameter: "' + key + '" (Map<String, Object>)');
         }
 
-        try {
-            Map<String, Object> mapValue = TypeCoercionService.coerceToStringObjectMap(params.get(key), key);
-            if (requireNonEmpty && (mapValue == null || mapValue.isEmpty())) {
-                throw new ArgumentValidationException('Required Map parameter "' + key + '" cannot be empty.');
-            }
-            return mapValue;
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            throw new ArgumentValidationException('Invalid value for parameter "' + key + '". ' + e.getMessage());
+        Object value = params.get(key);
+
+        if (!(value instanceof Map<String, Object>)) {
+            throw new ArgumentValidationException('Invalid type for parameter "' + key + '". Expected Map<String, Object>, got: ' + value);
         }
+
+        Map<String, Object> mapValue = (Map<String, Object>) value;
+
+        if (requireNonEmpty && mapValue.isEmpty()) {
+            throw new ArgumentValidationException('Required Map parameter "' + key + '" cannot be empty.');
+        }
+
+        return mapValue;
     }
 
     /**
      * Retrieves an optional Map<String, Object> value from a parameters map.
-     * Uses TypeCoercionService for consistent coercion behavior across the framework.
+     * Handles type conversion directly.
      *
      * @param params   Map of parameters.
      * @param key      Key for the optional Map<String, Object> parameter.
@@ -297,19 +338,19 @@ public with sharing class ActionConfigUtils {
             return new Map<String, Object>();
         }
 
-        try {
-            Map<String, Object> result = TypeCoercionService.coerceToStringObjectMap(params.get(key), key);
-            return result != null ? result : new Map<String, Object>();
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.debug(
-                LoggingLevel.WARN,
-                '[ActionConfigUtils.getOptionalMap] Invalid type for key "' +
-                    key +
-                    '". Expected Map<String, Object>. Returning empty map. Error: ' +
-                    e.getMessage()
-            );
-            return new Map<String, Object>();
+        Object value = params.get(key);
+
+        if (value instanceof Map<String, Object>) {
+            return (Map<String, Object>) value;
         }
+
+        System.debug(
+            LoggingLevel.WARN,
+            '[ActionConfigUtils.getOptionalMap] Invalid type for key "' +
+                key +
+                '". Expected Map<String, Object>. Returning empty map.'
+        );
+        return new Map<String, Object>();
     }
 
     /**

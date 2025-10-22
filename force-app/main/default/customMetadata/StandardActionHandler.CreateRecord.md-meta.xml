@@ -49,7 +49,12 @@
         <field>ParametersTemplate__c</field>
         <value xsi:type="xsd:string">{
   "type": "object",
-  "properties": {},
+  "properties": {
+    "fields": {
+      "type": "object",
+      "description": "SObject field values to set on the new record. Property names should be valid field API names."
+    }
+  },
   "required": []
 }</value>
     </values>

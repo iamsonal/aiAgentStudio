@@ -42,7 +42,7 @@
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;filters&lt;/strong&gt; (Object): Key-value pairs for WHERE clause (e.g., {&quot;Status&quot;: &quot;Active&quot;})&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;additionalFields&lt;/strong&gt; (Array): Extra fields to retrieve beyond defaults&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;limit&lt;/strong&gt; (Number): Maximum number of records to return&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;queryLimit&lt;/strong&gt; (Number): Maximum number of records to return&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;orderBy&lt;/strong&gt; (String): Sort order (e.g., &quot;CreatedDate DESC&quot;)&lt;/li&gt;
 &lt;/ul&gt;</value>
     </values>
@@ -60,7 +60,7 @@
       "description": "Optional list of extra field API names to retrieve.",
       "items": { "type": "string" }
     },
-    "limit": {
+    "queryLimit": {
       "type": "integer",
       "description": "Maximum number of records to return."
     },
