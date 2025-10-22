@@ -282,7 +282,8 @@ export class ChatSessionManager {
             role: 'user',
             content,
             timestamp: Date.now(),
-            externalId: turnIdentifier
+            externalId: turnIdentifier,
+            turnIdentifier: turnIdentifier
         };
         const formatted = formatDisplayMessages([userMsg], this.messages.length)[0];
         this.messages = [...this.messages, formatted];

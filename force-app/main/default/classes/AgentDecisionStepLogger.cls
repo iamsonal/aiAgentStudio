@@ -863,15 +863,6 @@ public inherited sharing class AgentDecisionStepLogger {
             return promptCost + completionCost;
         }
 
-        // Try partial matching for model families (e.g., gpt-4o-2024-11-20 matches gpt-4o)
-        for (String modelKey : pricingCache.keySet()) {
-            if (normalizedModel.contains(modelKey)) {
-                LLMModelPricing__mdt pricing = pricingCache.get(modelKey);
-                Decimal promptCost = (Decimal.valueOf(promptTokens) / 1000000.0) * pricing.PromptPricePer1MTokens__c;
-                Decimal completionCost = (Decimal.valueOf(completionTokens) / 1000000.0) * pricing.CompletionPricePer1MTokens__c;
-                return promptCost + completionCost;
-            }
-        }
 
         // Model not found in pricing metadata
         System.debug(LoggingLevel.WARN, '[AgentDecisionStepLogger] No pricing found for model: ' + modelIdentifier);

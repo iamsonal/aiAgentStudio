@@ -154,7 +154,7 @@ export function formatDisplayMessages(messages, existingCount = 0) {
             role: role,
             content: msg.Content__c || msg.content || '',
             timestamp: timestampValue || Date.now(),
-            turnIdentifier: msg.TurnIdentifier__c || msg.turnIdentifier || null,
+            turnIdentifier: msg.TurnIdentifier__c || msg.turnIdentifier || msg.externalId || null,
             displayKey: key,
             formattedTimestamp: formattedTimestamp,
             toolInfoAvailable: toolInfoAvailable,

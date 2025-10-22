@@ -442,19 +442,23 @@ public with sharing class ConversationalChatController {
         String logPrefix = '[AIController.startOverFromMessage] ';
 
         try {
-            List<ExecutionStep__c> steps = [
+            // First, find all steps with the target turn identifier to get the earliest timestamp
+            List<ExecutionStep__c> targetSteps = [
                 SELECT Timestamp__c
                 FROM ExecutionStep__c
                 WHERE TurnIdentifier__c = :turnIdentifier AND AgentExecution__c = :sessionId
                 WITH USER_MODE
-                LIMIT 1
+                ORDER BY Timestamp__c ASC
             ];
 
-            if (steps.isEmpty()) {
+            if (targetSteps.isEmpty()) {
                 throw new AuraHandledException('Target step not found or does not belong to this execution.');
             }
-            Datetime targetTimestamp = steps[0].Timestamp__c;
 
+            // Use the earliest timestamp of the target turn to ensure we delete the entire turn
+            Datetime targetTimestamp = targetSteps[0].Timestamp__c;
+
+            // Delete all steps from the target timestamp onwards (including the target turn)
             List<ExecutionStep__c> stepsToDelete = [
                 SELECT Id, TurnIdentifier__c
                 FROM ExecutionStep__c

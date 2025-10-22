@@ -14,6 +14,7 @@
  *   - Features high-performance, cached schema-driven parameter processing using AIAgentConfigService
  *   - Automatic type coercion based on JSON Schema from AgentCapability__c.Parameters__c (no more SOQL per execution)
  *   - Supports standard JSON Schema types (string, integer, number, boolean) and formats (date, date-time, email, url, salesforce-id)
+ *   - Enhanced security validation using schema-driven approach with "format": "salesforce-id" and "sObjectType" properties
  *   - Validates required parameters as defined in the JSON Schema "required" array to prevent NullPointerExceptions
  *   - Differentiates between configuration issues (graceful fallback) and system errors (halt execution)
  *   - Includes security validation and standardized error handling
@@ -462,8 +463,10 @@ public abstract class BaseAgentAction implements IAgentAction {
     }
 
     /**
-     * Performs comprehensive security validation by analyzing parameter patterns and action context.
-     * Automatically detects required permissions based on action type and validates object access.
+     * Performs intelligent security checks on processed parameters using JSON schema information.
+     * Uses declarative schema-driven security validation instead of brittle naming conventions.
+     * Leverages the "format": "salesforce-id" and "sObjectType" properties in the parameter schema
+     * to perform precise, explicit security checks.
      *
      * @param params   The processed parameter map.
      * @param logPrefix The logging prefix for debug output.
@@ -471,27 +474,52 @@ public abstract class BaseAgentAction implements IAgentAction {
      */
     private ActionOutcome performIntelligentSecurityChecks(Map<String, Object> params, String logPrefix) {
         try {
+            // Get the parameter schema for this capability to perform schema-driven security checks
+            Map<String, Object> parameterSchema = getParameterSchema(logPrefix);
+            Map<String, Object> schemaProperties = getSchemaProperties(parameterSchema);
+
             for (String paramName : params.keySet()) {
                 Object value = params.get(paramName);
 
-                // Check ID parameters for object access
-                if (value instanceof Id && (paramName.toLowerCase().endsWith('id') || paramName.toLowerCase().contains('recordid'))) {
-                    Id recordId = (Id) value;
-                    SObjectType objType = recordId.getSObjectType();
+                // Skip null values
+                if (value == null) {
+                    continue;
+                }
 
-                    // Intelligent access type detection based on action name
-                    String actionName = String.valueOf(this).toLowerCase();
-                    System.AccessType accessType = System.AccessType.READABLE; // Default
+                // Check if this parameter is defined as a Salesforce ID in the schema
+                if (value instanceof Id && schemaProperties.containsKey(paramName)) {
+                    Map<String, Object> propertySchema = (Map<String, Object>) schemaProperties.get(paramName);
+                    String format = (String) propertySchema.get('format');
 
-                    if (actionName.contains('create')) {
-                        accessType = System.AccessType.CREATABLE;
-                    } else if (actionName.contains('update') || actionName.contains('edit')) {
-                        accessType = System.AccessType.UPDATABLE;
-                    } else if (actionName.contains('delete')) {
-                        accessType = System.AccessType.UPDATABLE; // Use UPDATABLE for delete operations
+                    // Only perform security checks on parameters explicitly marked as salesforce-id
+                    if (format == 'salesforce-id' || format == 'id') {
+                        Id recordId = (Id) value;
+                        SObjectType objType = recordId.getSObjectType();
+
+                        // Check if schema specifies the expected sObjectType
+                        String expectedSObjectType = (String) propertySchema.get('sObjectType');
+                        if (String.isNotBlank(expectedSObjectType)) {
+                            // Validate that the actual record type matches the expected type
+                            if (objType.getDescribe().getName() != expectedSObjectType) {
+                                return ActionOutcome.failure(
+                                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                                    'Parameter "' + paramName + '" expects ' + expectedSObjectType +
+                                    ' but received ' + objType.getDescribe().getName()
+                                );
+                            }
+                        }
+
+                        // Determine access type based on action context and parameter semantics
+                        System.AccessType accessType = determineAccessType(paramName, propertySchema, logPrefix);
+
+                        // Perform the security check
+                        SecurityUtils.checkObjectPermission(objType, accessType);
+
+                        System.debug(LoggingLevel.DEBUG,
+                            logPrefix + 'Security check passed for parameter "' + paramName +
+                            '" (type: ' + objType.getDescribe().getName() +
+                            ', access: ' + accessType + ')');
                     }
-
-                    SecurityUtils.checkObjectPermission(objType, accessType);
                 }
             }
             return ActionOutcome.success();
@@ -500,6 +528,67 @@ public abstract class BaseAgentAction implements IAgentAction {
         } catch (Exception e) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Security validation failed: ' + e.getMessage());
         }
+    }
+
+    /**
+     * Determines the appropriate access type for a parameter based on action context and parameter semantics.
+     * Uses both action name patterns and explicit parameter metadata to make intelligent decisions.
+     *
+     * @param paramName      The parameter name.
+     * @param propertySchema The JSON schema property definition for this parameter.
+     * @param logPrefix      The logging prefix for debug output.
+     * @return               The appropriate System.AccessType for security validation.
+     */
+    private System.AccessType determineAccessType(String paramName, Map<String, Object> propertySchema, String logPrefix) {
+        // Check for explicit access type in schema
+        String explicitAccessType = (String) propertySchema.get('accessType');
+        if (String.isNotBlank(explicitAccessType)) {
+            try {
+                System.AccessType accessType = System.AccessType.valueOf(explicitAccessType.toUpperCase());
+                System.debug(LoggingLevel.DEBUG,
+                    logPrefix + 'Using explicit access type "' + explicitAccessType + '" for parameter "' + paramName + '"');
+                return accessType;
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN,
+                    logPrefix + 'Invalid accessType "' + explicitAccessType + '" for parameter "' + paramName +
+                    '", falling back to intelligent detection');
+            }
+        }
+
+        // Intelligent access type detection based on action name and parameter semantics
+        String actionName = String.valueOf(this).toLowerCase();
+        String paramNameLower = paramName.toLowerCase();
+
+        // Default to READABLE for most cases
+        System.AccessType accessType = System.AccessType.READABLE;
+
+        // Check action name patterns
+        if (actionName.contains('create')) {
+            accessType = System.AccessType.CREATABLE;
+        } else if (actionName.contains('update') || actionName.contains('edit')) {
+            accessType = System.AccessType.UPDATABLE;
+        } else if (actionName.contains('delete')) {
+            accessType = System.AccessType.UPDATABLE; // Use UPDATABLE for delete operations
+        }
+
+        // Override based on parameter semantics
+        if (paramNameLower.contains('parent') || paramNameLower.contains('owner') || paramNameLower.contains('createdby')) {
+            // Parent/owner references typically need READABLE access
+            accessType = System.AccessType.READABLE;
+        } else if (paramNameLower.contains('target') || paramNameLower.contains('destination')) {
+            // Target/destination parameters often need CREATABLE or UPDATABLE access
+            if (actionName.contains('create') || actionName.contains('clone')) {
+                accessType = System.AccessType.CREATABLE;
+            } else {
+                accessType = System.AccessType.UPDATABLE;
+            }
+        }
+
+        System.debug(LoggingLevel.DEBUG,
+            logPrefix + 'Determined access type "' + accessType + '" for parameter "' + paramName +
+            '" based on action "' + actionName + '" and parameter semantics');
+
+        return accessType;
     }
 
     // ============================================================================
