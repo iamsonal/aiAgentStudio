@@ -176,15 +176,13 @@ public class AsyncActionEngine {
                     logPrefix
                 );
             } else {
-                turnLifecycleSvc.resumeForFollowUpLlmCall(this.executionId, this.turnIdentifier, null, logPrefix);
-                orchestrationDispatchSvc.enqueueFollowUp(
+                // Check if this is part of a parallel execution and if all async tools are complete
+                ParallelResultGatherer.onAsyncToolCompleted(
                     this.executionId,
-                    this.originalUserId,
-                    this.agentDefinitionId,
                     this.turnIdentifier,
-                    this.currentTurnCount + 1,
-                    logPrefix,
-                    false
+                    this.currentTurnCount,
+                    this.toolCallId,
+                    logPrefix
                 );
             }
         } catch (Exception ex) {
