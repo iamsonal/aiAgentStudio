@@ -353,9 +353,6 @@ Each "turn" represents one complete user→LLM→action→LLM→response cycle:
    - Click "New" (for Organization-level default)
    - Set values:
      - `DefaultMaxConversationTurns__c`: 5
-     - `DefaultHistoryTurnLimit__c`: 20
-     - `DefaultMaxRetryAttempts__c`: 1
-     - `DefaultRetryableHttpStatusCodes__c`: 408,429,500,502,503,504
    - Save
 
 4. **Create LLM Configuration**

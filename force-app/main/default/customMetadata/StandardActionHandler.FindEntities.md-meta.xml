@@ -55,6 +55,19 @@
       "type": "array",
       "description": "Optional list of SObject API names to limit the search to.",
       "items": { "type": "string" }
+    },
+    "queryLimit": {
+      "type": "integer",
+      "description": "Maximum number of records to return per object."
+    },
+    "filters": {
+      "type": "object",
+      "description": "Optional additional filters to apply to search results."
+    },
+    "fieldsToReturn": {
+      "type": "array",
+      "description": "Optional list of fields to return for each record.",
+      "items": { "type": "string" }
     }
   },
   "required": ["searchQuery"]

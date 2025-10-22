@@ -35,10 +35,12 @@ private class ActionCreateRecordTest {
         action.parseActionConfiguration('{"objectApiName": "Contact"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'FirstName' => 'John',
-            'LastName' => 'Doe',
-            'Email' => 'john.doe@example.com',
-            'AccountId' => testAccount.Id
+            'fields' => new Map<String, Object>{
+                'FirstName' => 'John',
+                'LastName' => 'Doe',
+                'Email' => 'john.doe@example.com',
+                'AccountId' => testAccount.Id
+            }
         };
 
         // When: Creating a contact
@@ -77,7 +79,9 @@ private class ActionCreateRecordTest {
         action.parseActionConfiguration(config, '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'Name' => 'New Tech Corp'
+            'fields' => new Map<String, Object>{
+                'Name' => 'New Tech Corp'
+            }
         };
 
         // When: Creating account with defaults
@@ -109,8 +113,10 @@ private class ActionCreateRecordTest {
         action.parseActionConfiguration(config, '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'Name' => 'Partner Corp',
-            'Type' => 'Technology Partner' // Override default
+            'fields' => new Map<String, Object>{
+                'Name' => 'Partner Corp',
+                'Type' => 'Technology Partner' // Override default
+            }
         };
 
         // When: Creating with override
@@ -132,9 +138,11 @@ private class ActionCreateRecordTest {
         action.parseActionConfiguration('{"objectApiName": "Account"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'Name' => 'Big Corp',
-            'NumberOfEmployees' => '500',        // String -> Integer
-            'AnnualRevenue' => '10000000.50'     // String -> Decimal
+            'fields' => new Map<String, Object>{
+                'Name' => 'Big Corp',
+                'NumberOfEmployees' => '500',        // String -> Integer
+                'AnnualRevenue' => '10000000.50'     // String -> Decimal
+            }
         };
 
         // When: Creating with type coercion
@@ -162,8 +170,10 @@ private class ActionCreateRecordTest {
         action.parseActionConfiguration('{"objectApiName": "Account"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'Name' => 'Test Account',
-            'RecordTypeId' => '001000000000000' // Invalid ID format
+            'fields' => new Map<String, Object>{
+                'Name' => 'Test Account',
+                'RecordTypeId' => '001000000000000' // Invalid ID format
+            }
         };
 
         // When: Attempting to create with invalid RecordType
@@ -206,8 +216,10 @@ private class ActionCreateRecordTest {
         action.parseActionConfiguration('{"objectApiName": "Contact"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'FirstName' => 'John'
-            // Missing required LastName
+            'fields' => new Map<String, Object>{
+                'FirstName' => 'John'
+                // Missing required LastName
+            }
         };
 
         // When: Creating incomplete contact
@@ -227,8 +239,10 @@ private class ActionCreateRecordTest {
         action.parseActionConfiguration('{"objectApiName": "Account"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'Name' => 'Valid Name',
-            'NonExistentField__c' => 'Invalid Value'
+            'fields' => new Map<String, Object>{
+                'Name' => 'Valid Name',
+                'NonExistentField__c' => 'Invalid Value'
+            }
         };
 
         // When: Creating with invalid field
@@ -278,7 +292,7 @@ private class ActionCreateRecordTest {
         try {
             action.parseActionConfiguration(config, '[TEST] ');
             System.assert(false, 'Should throw exception for missing objectApiName');
-        } catch (ActionConfigUtils.ArgumentValidationException e) {
+        } catch (BaseAgentAction.ValidationException e) {
             System.assert(e.getMessage().contains('objectApiName'), 'Should mention missing parameter');
         }
         Test.stopTest();

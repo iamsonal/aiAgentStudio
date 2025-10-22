@@ -236,140 +236,16 @@ private class TypeCoercionServiceTest {
     }
 
     // ===================================================================================
-    // SCHEMA-BASED COERCION TESTS
+    // NOTE: SCHEMA-BASED COERCION TESTS REMOVED
     // ===================================================================================
-
-    @IsTest
-    static void testCoerceValueByJsonSchema_VariousTypes_Success() {
-        // String schema
-        Map<String, Object> stringSchema = new Map<String, Object>{'type' => 'string'};
-        System.assertEquals('test', TypeCoercionService.coerceValueByJsonSchema('test', 'Field', stringSchema));
-
-        // Integer schema
-        Map<String, Object> intSchema = new Map<String, Object>{'type' => 'integer'};
-        System.assertEquals(123, TypeCoercionService.coerceValueByJsonSchema('123', 'Field', intSchema));
-
-        // Boolean schema
-        Map<String, Object> boolSchema = new Map<String, Object>{'type' => 'boolean'};
-        System.assertEquals(true, TypeCoercionService.coerceValueByJsonSchema('true', 'Field', boolSchema));
-    }
-
-    @IsTest
-    static void testCoerceObjectBySchema_ValidObject_Success() {
-        // Given: Object with properties
-        Map<String, Object> inputObject = new Map<String, Object>{
-            'name' => 'John',
-            'age' => '30',
-            'isActive' => 'true'
-        };
-
-        Map<String, Object> propertiesSchema = new Map<String, Object>{
-            'name' => new Map<String, Object>{'type' => 'string'},
-            'age' => new Map<String, Object>{'type' => 'integer'},
-            'isActive' => new Map<String, Object>{'type' => 'boolean'}
-        };
-
-        // When: Coercing
-        Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceObjectBySchema(
-            inputObject,
-            'Field',
-            propertiesSchema
-        );
-        Test.stopTest();
-
-        // Then: Types should be coerced
-        System.assertNotEquals(null, result);
-        System.assertEquals('John', result.get('name'));
-        System.assertEquals(30, result.get('age'));
-        System.assertEquals(true, result.get('isActive'));
-    }
-
-    @IsTest
-    static void testCoerceObjectBySchema_NonObjectInput_ThrowsException() {
-        Map<String, Object> schema = new Map<String, Object>();
-
-        try {
-            TypeCoercionService.coerceObjectBySchema('not an object', 'Field', schema);
-            System.assert(false, 'Should throw exception');
-        } catch (TypeCoercionService.TypeCoercionException e) {
-            System.assert(e.getMessage().contains('Expected object/map value'));
-        }
-    }
-
-    @IsTest
-    static void testCoerceValueByJsonSchema_ArrayType_CoercesArrayElements() {
-        // Given: Array schema with items schema
-        Map<String, Object> itemsSchema = new Map<String, Object>{
-            'type' => 'integer'
-        };
-        Map<String, Object> arraySchema = new Map<String, Object>{
-            'type' => 'array',
-            'items' => itemsSchema
-        };
-
-        // Input array with string numbers
-        List<Object> inputArray = new List<Object>{'1', '2', '3', '4', '5'};
-
-        // When: Coercing array value by JSON schema
-        Test.startTest();
-        Object result = TypeCoercionService.coerceValueByJsonSchema(inputArray, 'testArray', arraySchema);
-        Test.stopTest();
-
-        // Then: Should coerce to list of integers
-        System.assert(result instanceof List<Object>, 'Result should be a List');
-        List<Object> resultList = (List<Object>) result;
-        System.assertEquals(5, resultList.size(), 'Should have 5 elements');
-        System.assertEquals(1, resultList[0], 'First element should be integer 1');
-        System.assertEquals(2, resultList[1], 'Second element should be integer 2');
-        System.assertEquals(3, resultList[2], 'Third element should be integer 3');
-        System.assertEquals(4, resultList[3], 'Fourth element should be integer 4');
-        System.assertEquals(5, resultList[4], 'Fifth element should be integer 5');
-    }
-
-    @IsTest
-    static void testCoerceValueByJsonSchema_ObjectType_CoercesObjectProperties() {
-        // Given: Object schema with properties schema
-        Map<String, Object> propertiesSchema = new Map<String, Object>{
-            'accountName' => new Map<String, Object>{'type' => 'string'},
-            'employeeCount' => new Map<String, Object>{'type' => 'integer'},
-            'annualRevenue' => new Map<String, Object>{'type' => 'number'},
-            'isActive' => new Map<String, Object>{'type' => 'boolean'},
-            'websiteUrl' => new Map<String, Object>{
-                'type' => 'string',
-                'format' => 'url'
-            }
-        };
-        Map<String, Object> objectSchema = new Map<String, Object>{
-            'type' => 'object',
-            'properties' => propertiesSchema
-        };
-
-        // Input object with mixed types (strings that need coercion)
-        Map<String, Object> inputObject = new Map<String, Object>{
-            'accountName' => 'Acme Corp',
-            'employeeCount' => '500',
-            'annualRevenue' => '1500000.75',
-            'isActive' => 'true',
-            'websiteUrl' => 'https://www.acme.com'
-        };
-
-        // When: Coercing object value by JSON schema
-        Test.startTest();
-        Object result = TypeCoercionService.coerceValueByJsonSchema(inputObject, 'testObject', objectSchema);
-        Test.stopTest();
-
-        // Then: Should coerce to properly typed object
-        System.assert(result instanceof Map<String, Object>, 'Result should be a Map');
-        Map<String, Object> resultMap = (Map<String, Object>) result;
-
-        System.assertEquals(5, resultMap.size(), 'Should have 5 properties');
-        System.assertEquals('Acme Corp', resultMap.get('accountName'), 'accountName should be string');
-        System.assertEquals(500, resultMap.get('employeeCount'), 'employeeCount should be integer');
-        System.assertEquals(1500000.75, resultMap.get('annualRevenue'), 'annualRevenue should be decimal');
-        System.assertEquals(true, resultMap.get('isActive'), 'isActive should be boolean');
-        System.assertEquals('https://www.acme.com', resultMap.get('websiteUrl'), 'websiteUrl should be validated URL');
-    }
+    // The following methods were removed during the DTO refactoring as they are no longer needed:
+    // - coerceValueByJsonSchema
+    // - coerceObjectBySchema
+    // - coerceArrayBySchema
+    //
+    // These methods have been replaced with the Two-Pass Hybrid Deserialization Pattern
+    // where DTOs are manually populated from untyped maps, and TypeCoercionService
+    // is only used for SObject field-level type coercion via coerceArgumentTypesForSObject.
 
     // ===================================================================================
     // EXCEPTION TESTS

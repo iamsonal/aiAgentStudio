@@ -151,45 +151,6 @@ private class SystemPromptBuilderTest {
     }
 
     @IsTest
-    static void testFormatContext_XML_FormatsCorrectly() {
-        // Given: Test accounts
-        List<Account> accounts = [SELECT Id, Name FROM Account LIMIT 1];
-
-        // When: Formatting
-        Test.startTest();
-        String formatted = SystemPromptBuilder.getContextFormatter('XML', '[TEST] ')
-            .formatContext(accounts, '[TEST] ');
-        Test.stopTest();
-
-        // Then: Should be XML
-        System.assert(String.isNotBlank(formatted));
-        System.assert(formatted.contains('<object_group'));
-        System.assert(formatted.contains('<record>'));
-        System.assert(formatted.contains('Test Account'));
-    }
-
-    @IsTest
-    static void testFormatContext_JSON_FormatsCorrectly() {
-        // Given: Test accounts
-        List<Account> accounts = [SELECT Id, Name FROM Account LIMIT 1];
-
-        // When: Formatting
-        Test.startTest();
-        String formatted = SystemPromptBuilder.getContextFormatter('JSON', '[TEST] ')
-            .formatContext(accounts, '[TEST] ');
-        Test.stopTest();
-
-        // Then: Should be valid JSON
-        System.assert(String.isNotBlank(formatted));
-        System.assert(formatted.contains('"objectInfo"'));
-        System.assert(formatted.contains('"records"'));
-
-        // Verify valid JSON
-        Map<String, Object> parsedJson = (Map<String, Object>) JSON.deserializeUntyped(formatted);
-        System.assertNotEquals(null, parsedJson);
-    }
-
-    @IsTest
     static void testFormatContext_WithChildRelationships_IncludesChildren() {
         // Given: Account with contacts
         List<Account> accounts = [

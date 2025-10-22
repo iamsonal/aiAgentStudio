@@ -8,17 +8,19 @@
 
 /**
  * @description
- * ActionFlowHandler is a robust Apex action for securely executing Salesforce Flows with comprehensive parameter validation, error handling, and admin-driven configuration.
+ * ActionFlowHandler is a high-performance Apex action for securely executing Salesforce Flows using strongly-typed DTOs.
  *
  * Responsibilities:
- *   - Validates and extracts the Flow API name from admin configuration (Implementation Detail field).
- *   - Validates and processes Flow input parameters for compatibility and naming conventions.
- *   - Executes the specified Flow, handling both success and fault scenarios with detailed diagnostics.
- *   - Returns a structured, LLM-friendly result object for downstream consumption or user display.
+ *   - Uses DTOs for type-safe argument handling
+ *   - Validates and extracts the Flow API name from admin configuration (Implementation Detail field)
+ *   - Validates and processes Flow input parameters for compatibility and naming conventions
+ *   - Executes the specified Flow, handling both success and fault scenarios with detailed diagnostics
+ *   - Returns a structured, LLM-friendly result object for downstream consumption or user display
  *
- * Scope:
- *   - Strictly executes Flows as configured by admins; does not allow arbitrary Flow execution.
- *   - Designed for maintainability, extensibility, and clarity, with detailed debug output and robust error handling.
+ * Architecture:
+ *   - ArgumentsDTO: Contains Map<String, Object> for dynamic Flow parameters
+ *   - No configuration needed - Flow name comes from ActionContext.implementationDetail
+ *   - Uses native JSON.deserialize() for high-performance type conversion
  *
  * Flow Conventions: Use 'faultMessage' for errors and 'outputResult' for success data.
  * Security: Flow name must be configured in Implementation Detail field by admin.
@@ -30,13 +32,21 @@ public class ActionFlowHandler extends BaseAgentAction {
     private static final String OUTPUT_RESULT_VAR = 'outputResult';
 
     /**
+     * DTO for strongly-typed arguments
+     */
+    public class ArgumentsDTO {
+        public Map<String, Object> flowParameters;
+    }
+
+    /**
      * @description
-     * Main entry point for Flow execution. Validates Flow name and parameters, executes the Flow, and processes results.
+     * Main entry point for Flow execution using strongly-typed DTOs.
+     * Validates Flow name and parameters, executes the Flow, and processes results.
      *
-     * @param params Map<String, Object> - Flow input variables.
-     * @return Result<FlowResult> - Contains Flow output and execution details or error information.
+     * @param params Map<String, Object> - Raw parameters (deserialized into ArgumentsDTO for type safety)
+     * @return ActionOutcome<FlowResult> - Contains Flow output and execution details or error information
      *
-     * Side effects: Logs key steps, parameters, and performance metrics for troubleshooting and monitoring.
+     * Side effects: Logs key steps, parameters, and performance metrics for troubleshooting and monitoring
      */
     public override ActionOutcome executeAction(Map<String, Object> params) {
         Long startTime = System.currentTimeMillis();
@@ -47,7 +57,14 @@ public class ActionFlowHandler extends BaseAgentAction {
         }
         String flowApiName = (String) flowNameResult.data;
 
-        Map<String, Object> flowParams = validateFlowParameters(params);
+        // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
+        ArgumentsDTO args = new ArgumentsDTO();
+        args.flowParameters = params.containsKey('flowParameters') && params.get('flowParameters') instanceof Map<String, Object>
+            ? (Map<String, Object>) params.get('flowParameters')
+            : new Map<String, Object>();
+
+        // Validate and prepare flow parameters from DTO
+        Map<String, Object> flowParams = validateFlowParameters(args.flowParameters);
 
         System.debug(LoggingLevel.INFO, '[ActionFlowHandler] Starting execution of Flow: "' + flowApiName + '"');
         System.debug(LoggingLevel.DEBUG, '[ActionFlowHandler] Flow input parameters: ' + JSON.serialize(flowParams).abbreviate(500));
@@ -320,14 +337,15 @@ public class ActionFlowHandler extends BaseAgentAction {
      * Parses action configuration JSON if provided. This action does not require custom configuration,
      * but logs a debug message if configuration is present for transparency.
      *
-     * @param actionConfigurationJson String - The JSON configuration string (optional).
-     * @param logPrefix String - Prefix for log output.
+     * @param actionConfigurationJson String - The JSON configuration string (optional)
+     * @param logPrefix String - Prefix for log output
      */
     @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
-        super.parseActionConfiguration(actionConfigurationJson, logPrefix);
-        if (this.parsedActionConfig != null && !this.parsedActionConfig.isEmpty()) {
-            System.debug(LoggingLevel.DEBUG, '[ActionFlowHandler] Action configuration JSON was provided but is not required for this action.');
+        // No configuration needed for this action. Flow name comes from ActionContext.implementationDetail.
+        // Flow parameters are passed via ArgumentsDTO at runtime.
+        if (String.isNotBlank(actionConfigurationJson)) {
+            System.debug(LoggingLevel.DEBUG, '[ActionFlowHandler] Action configuration JSON was provided but is not used by this action.');
         }
     }
 

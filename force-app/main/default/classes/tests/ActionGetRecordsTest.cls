@@ -51,11 +51,11 @@ private class ActionGetRecordsTest {
         // Then: Should return all accounts
         System.assert(result.isSuccess);
 
-        ActionGetRecords.QueryResult queryResult = (ActionGetRecords.QueryResult) result.data;
-        System.assertEquals('Account', queryResult.objectApiName);
-        System.assertEquals(3, queryResult.count);
-        System.assertEquals(3, queryResult.records.size());
-        System.assertEquals(false, queryResult.truncated);
+        ActionGetRecords.GetRecordsResult getRecordsResult = (ActionGetRecords.GetRecordsResult) result.data;
+        System.assertEquals('Account', getRecordsResult.objectApiName);
+        System.assertEquals(3, getRecordsResult.count);
+        System.assertEquals(3, getRecordsResult.records.size());
+        System.assertEquals(false, getRecordsResult.truncated);
     }
 
     @IsTest
@@ -81,10 +81,10 @@ private class ActionGetRecordsTest {
         // Then: Should return filtered results
         System.assert(result.isSuccess);
 
-        ActionGetRecords.QueryResult queryResult = (ActionGetRecords.QueryResult) result.data;
-        System.assertEquals(1, queryResult.count);
-        System.assertEquals('John', queryResult.records[0].get('FirstName'));
-        System.assertEquals('Smith', queryResult.records[0].get('LastName'));
+        ActionGetRecords.GetRecordsResult getRecordsResult = (ActionGetRecords.GetRecordsResult) result.data;
+        System.assertEquals(1, getRecordsResult.count);
+        System.assertEquals('John', getRecordsResult.records[0].get('FirstName'));
+        System.assertEquals('Smith', getRecordsResult.records[0].get('LastName'));
     }
 
     @IsTest
@@ -99,7 +99,7 @@ private class ActionGetRecordsTest {
         action.parseActionConfiguration(config, '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'limit' => 2,
+            'queryLimit' => 2,
             'orderBy' => 'Name ASC'
         };
 
@@ -111,9 +111,9 @@ private class ActionGetRecordsTest {
         // Then: Should return ordered, limited results
         System.assert(result.isSuccess);
 
-        ActionGetRecords.QueryResult queryResult = (ActionGetRecords.QueryResult) result.data;
-        System.assertEquals(2, queryResult.records.size());
-        System.assertEquals('Another Company', queryResult.records[0].get('Name'), 'Should be ordered alphabetically');
+        ActionGetRecords.GetRecordsResult getRecordsResult = (ActionGetRecords.GetRecordsResult) result.data;
+        System.assertEquals(2, getRecordsResult.records.size());
+        System.assertEquals('Another Company', getRecordsResult.records[0].get('Name'), 'Should be ordered alphabetically');
     }
 
     @IsTest
@@ -137,11 +137,11 @@ private class ActionGetRecordsTest {
         // Then: Should truncate results
         System.assert(result.isSuccess);
 
-        ActionGetRecords.QueryResult queryResult = (ActionGetRecords.QueryResult) result.data;
-        System.assertEquals(3, queryResult.count, 'Total found');
-        System.assertEquals(2, queryResult.records.size(), 'Returned to LLM');
-        System.assertEquals(true, queryResult.truncated);
-        System.assert(queryResult.message.contains('Showing the first 2'));
+        ActionGetRecords.GetRecordsResult getRecordsResult = (ActionGetRecords.GetRecordsResult) result.data;
+        System.assertEquals(3, getRecordsResult.count, 'Total found');
+        System.assertEquals(2, getRecordsResult.records.size(), 'Returned to LLM');
+        System.assertEquals(true, getRecordsResult.truncated);
+        System.assert(getRecordsResult.message.contains('Showing the first 2'));
     }
 
     @IsTest
@@ -167,10 +167,10 @@ private class ActionGetRecordsTest {
         // Then: Should return empty results successfully
         System.assert(result.isSuccess);
 
-        ActionGetRecords.QueryResult queryResult = (ActionGetRecords.QueryResult) result.data;
-        System.assertEquals(0, queryResult.count);
-        System.assertEquals(0, queryResult.records.size());
-        System.assertEquals('No Contact records found matching the criteria.', queryResult.message);
+        ActionGetRecords.GetRecordsResult getRecordsResult = (ActionGetRecords.GetRecordsResult) result.data;
+        System.assertEquals(0, getRecordsResult.count);
+        System.assertEquals(0, getRecordsResult.records.size());
+        System.assertEquals('No Contact records found matching the criteria.', getRecordsResult.message);
     }
 
     // ===================================================================================
@@ -188,7 +188,7 @@ private class ActionGetRecordsTest {
         try {
             action.parseActionConfiguration(config, '[TEST] ');
             System.assert(false, 'Should throw exception');
-        } catch (ActionConfigUtils.ArgumentValidationException e) {
+        } catch (BaseAgentAction.ValidationException e) {
             System.assert(e.getMessage().contains('objectApiName'));
         }
         Test.stopTest();
@@ -226,7 +226,7 @@ private class ActionGetRecordsTest {
 
         // When: Creating result
         Test.startTest();
-        ActionGetRecords.QueryResult result = new ActionGetRecords.QueryResult(
+        ActionGetRecords.GetRecordsResult result = new ActionGetRecords.GetRecordsResult(
             testAccounts,
             5,
             'Account',

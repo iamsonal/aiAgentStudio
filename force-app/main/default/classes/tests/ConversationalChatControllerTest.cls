@@ -298,12 +298,23 @@ private class ConversationalChatControllerTest {
         ConversationalChatController.startOverFromMessage(execution.Id, middleMessage.TurnIdentifier__c);
         Test.stopTest();
 
-        // Then: Should delete messages after target
+        // Then: Should delete the target message and all messages after it
         List<ExecutionStep__c> remainingMessages = [
-            SELECT Id
+            SELECT Id, TurnIdentifier__c, Timestamp__c
             FROM ExecutionStep__c
             WHERE AgentExecution__c = :execution.Id
+            ORDER BY Timestamp__c
         ];
         System.assert(remainingMessages.size() < originalCount);
+
+        // Verify the target message is deleted
+        Boolean targetMessageStillExists = false;
+        for (ExecutionStep__c msg : remainingMessages) {
+            if (msg.TurnIdentifier__c == middleMessage.TurnIdentifier__c) {
+                targetMessageStillExists = true;
+                break;
+            }
+        }
+        System.assert(!targetMessageStillExists, 'Target message should be deleted after start over');
     }
 }

@@ -71,12 +71,12 @@ private class QueryServiceTest {
 
         // When: Executing query
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should return matching records
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
         for (SObject record : results) {
             System.assertEquals('Technology', ((Account) record).Industry);
@@ -95,12 +95,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
     }
 
@@ -114,12 +114,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Results should be ordered
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
     }
 
@@ -132,12 +132,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should include relationship data
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
     }
 
@@ -154,12 +154,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should find both accounts
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assertEquals(2, results.size());
     }
 
@@ -173,7 +173,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should handle null filter
@@ -193,7 +193,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should fail
@@ -211,7 +211,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should fail
@@ -229,7 +229,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should fail
@@ -247,11 +247,11 @@ private class QueryServiceTest {
         QueryService service = new QueryService(Account.SObjectType, '[Test]');
 
         Test.startTest();
-        ActionOutcome result1 = service.withDefaultFields(new List<String>{'Name'})
+        QueryResult result1 = service.withDefaultFields(new List<String>{'Name'})
             .withOrderBy('Name ASC').withLimit(5, null).executeQuery();
-        ActionOutcome result2 = service.withDefaultFields(new List<String>{'Name'})
+        QueryResult result2 = service.withDefaultFields(new List<String>{'Name'})
             .withOrderBy('Name DESC').withLimit(5, null).executeQuery();
-        ActionOutcome result3 = service.withDefaultFields(new List<String>{'Name'})
+        QueryResult result3 = service.withDefaultFields(new List<String>{'Name'})
             .withOrderBy('Name ASC NULLS FIRST').withLimit(5, null).executeQuery();
         Test.stopTest();
 
@@ -269,7 +269,7 @@ private class QueryServiceTest {
             .withLimit(5, null);
 
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         System.assert(result.isSuccess, 'Null ORDER BY should be valid');
@@ -287,7 +287,7 @@ private class QueryServiceTest {
 
         // When: Validating
         Test.startTest();
-        ActionOutcome result = service.validateFields(validFields);
+        QueryResult result = service.validateFields(validFields);
         Test.stopTest();
 
         // Then: Should succeed
@@ -302,7 +302,7 @@ private class QueryServiceTest {
 
         // When: Validating
         Test.startTest();
-        ActionOutcome result = service.validateFields(invalidFields);
+        QueryResult result = service.validateFields(invalidFields);
         Test.stopTest();
 
         // Then: Should fail
@@ -317,8 +317,8 @@ private class QueryServiceTest {
 
         // When: Validating
         Test.startTest();
-        ActionOutcome result1 = service.validateFields(new List<String>());
-        ActionOutcome result2 = service.validateFields(null);
+        QueryResult result1 = service.validateFields(new List<String>());
+        QueryResult result2 = service.validateFields(null);
         Test.stopTest();
 
         // Then: Should succeed
@@ -339,7 +339,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should succeed with custom limit
@@ -355,7 +355,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should succeed with enforced limit
@@ -378,7 +378,7 @@ private class QueryServiceTest {
 
         // When: Executing with bind map
         Test.startTest();
-        ActionOutcome result = service.executeQuery(bindMap);
+        QueryResult result = service.executeQuery(bindMap);
         Test.stopTest();
 
         // Then: Bind map should be populated
@@ -402,12 +402,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
         for (SObject record : results) {
             Account acc = (Account) record;
@@ -427,12 +427,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
         for (SObject record : results) {
             Account acc = (Account) record;
@@ -452,12 +452,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
         for (SObject record : results) {
             Account acc = (Account) record;
@@ -477,12 +477,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
         for (SObject record : results) {
             Account acc = (Account) record;
@@ -502,12 +502,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
         for (SObject record : results) {
             Account acc = (Account) record;
@@ -527,12 +527,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assertEquals(1, results.size());
         System.assert(((Account) results[0]).Name.contains('Account 1'));
     }
@@ -549,12 +549,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
         for (SObject record : results) {
             Account acc = (Account) record;
@@ -577,12 +577,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should apply both conditions
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
         for (SObject record : results) {
             Account acc = (Account) record;
@@ -605,12 +605,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
         for (SObject record : results) {
             System.assertEquals(true, ((Contact) record).DoNotCall);
@@ -627,12 +627,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should coerce and filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
         for (SObject record : results) {
             System.assertEquals(false, ((Contact) record).DoNotCall);
@@ -651,12 +651,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should coerce date string and filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
         for (SObject record : results) {
             Contact con = (Contact) record;
@@ -676,12 +676,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should coerce string to decimal and filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
         for (SObject record : results) {
             Account acc = (Account) record;
@@ -701,12 +701,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assert(results.size() > 0);
         for (SObject record : results) {
             System.assertEquals(100, ((Account) record).NumberOfEmployees);
@@ -727,12 +727,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should coerce string to Id and filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assertEquals(1, results.size());
         System.assertEquals(accountId, results[0].Id);
     }
@@ -747,12 +747,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should filter correctly
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assertEquals(1, results.size());
         System.assertEquals('john@test.com', ((Contact) results[0]).Email);
     }
@@ -774,12 +774,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should find accounts with matching employee counts
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assertEquals(2, results.size());
     }
 
@@ -796,12 +796,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should find accounts with matching revenues
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assertEquals(2, results.size());
     }
 
@@ -823,12 +823,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should find specified accounts
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assertEquals(2, results.size());
     }
 
@@ -848,12 +848,12 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should find contacts with matching birthdates
         System.assert(result.isSuccess);
-        List<SObject> results = (List<SObject>) result.data;
+        List<SObject> results = (List<SObject>) result.records;
         System.assertEquals(2, results.size());
     }
 
@@ -873,7 +873,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should fail with validation error
@@ -893,7 +893,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should fail with validation error
@@ -913,7 +913,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should fail with validation error
@@ -933,7 +933,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should fail with validation error
@@ -952,7 +952,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should fail with validation error
@@ -972,7 +972,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should fail with validation error
@@ -992,7 +992,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should fail with validation error
@@ -1012,7 +1012,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should fail with validation error
@@ -1032,7 +1032,7 @@ private class QueryServiceTest {
 
         // When: Executing
         Test.startTest();
-        ActionOutcome result = service.executeQuery();
+        QueryResult result = service.executeQuery();
         Test.stopTest();
 
         // Then: Should fail with validation error

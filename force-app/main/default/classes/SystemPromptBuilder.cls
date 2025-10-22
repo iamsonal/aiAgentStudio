@@ -195,14 +195,24 @@ public inherited sharing class SystemPromptBuilder {
             if (resolvedContext != null && !resolvedContext.recordsToLoad.isEmpty()) {
                 String formatStrategy = String.isNotBlank(agentConfig.ContextFormatStrategy__c)
                     ? agentConfig.ContextFormatStrategy__c
-                    : 'StructuredText';
+                    : null;
 
-                IContextFormatter formatter = getContextFormatter(formatStrategy, logPrefix);
-                String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix);
+                // Only format if a format strategy is specified and a formatter is available
+                if (String.isNotBlank(formatStrategy)) {
+                    IContextFormatter formatter = getContextFormatter(formatStrategy, logPrefix);
 
-                if (String.isNotBlank(formattedRecords)) {
-                    contextBlocks.add('<RESOLVED_CONTEXT_DATA>\n' + formattedRecords + '\n</RESOLVED_CONTEXT_DATA>');
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Added ' + resolvedContext.recordsToLoad.size() + ' resolved records to context.');
+                    if (formatter != null) {
+                        String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix);
+
+                        if (String.isNotBlank(formattedRecords)) {
+                            contextBlocks.add('<RESOLVED_CONTEXT_DATA>\n' + formattedRecords + '\n</RESOLVED_CONTEXT_DATA>');
+                            System.debug(LoggingLevel.INFO, logPrefix + 'Added ' + resolvedContext.recordsToLoad.size() + ' resolved records to context.');
+                        }
+                    } else {
+                        System.debug(LoggingLevel.INFO, logPrefix + 'No formatter available for strategy: ' + formatStrategy + '. Skipping formatting of ' + resolvedContext.recordsToLoad.size() + ' resolved records.');
+                    }
+                } else {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'No format strategy specified. Skipping formatting of ' + resolvedContext.recordsToLoad.size() + ' resolved records.');
                 }
             }
 
@@ -458,7 +468,7 @@ public inherited sharing class SystemPromptBuilder {
      *
      * @param formatStrategy The format strategy identifier (e.g., 'XML', 'JSON', 'StructuredText')
      * @param logPrefix Logging prefix for debug output
-     * @return IContextFormatter instance for the requested strategy
+     * @return IContextFormatter instance for the requested strategy, or null if no mapping found
      * @throws AIAgentException if the formatter cannot be loaded or instantiated
      */
     @TestVisible
@@ -473,17 +483,10 @@ public inherited sharing class SystemPromptBuilder {
                 LIMIT 1
             ];
 
-            // If no mapping found, default to StructuredText
+            // If no mapping found, return null to skip formatting
             if (mappings.isEmpty()) {
-                System.debug(LoggingLevel.WARN, logPrefix + 'No active formatter found for strategy: ' + formatStrategy + '. Defaulting to StructuredText.');
-
-                // Try to load default StructuredText formatter
-                if (formatStrategy != 'StructuredText') {
-                    return getContextFormatter('StructuredText', logPrefix);
-                }
-
-                // Fallback to hardcoded default if metadata is missing
-                return new StructuredTextContextFormatter();
+                System.debug(LoggingLevel.WARN, logPrefix + 'No active formatter found for strategy: ' + formatStrategy + '. Resolved records will not be formatted.');
+                return null;
             }
 
             ContextFormatterMapping__mdt mapping = mappings[0];

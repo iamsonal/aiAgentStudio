@@ -139,7 +139,7 @@ private class ActionPostChatterTest {
             action.parseActionConfiguration(config, '[TEST] ');
             System.assert(false, 'Should throw exception');
         } catch (BaseAgentAction.ValidationException e) {
-            System.assert(e.getMessage().contains('BackendConfiguration is required'));
+            System.assert(e.getMessage().contains('Configuration JSON is required'), 'Expected error about missing configuration');
         }
         Test.stopTest();
     }
@@ -155,7 +155,7 @@ private class ActionPostChatterTest {
         try {
             action.parseActionConfiguration(config, '[TEST] ');
             System.assert(false, 'Should throw exception');
-        } catch (ActionConfigUtils.ArgumentValidationException e) {
+        } catch (BaseAgentAction.ValidationException e) {
             System.assert(e.getMessage().contains('targetId'));
         }
         Test.stopTest();

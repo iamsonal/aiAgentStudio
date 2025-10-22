@@ -8,20 +8,23 @@
 
 /**
  * @description
- * AIFriendlyQueryException: Structured, AI-optimized exception for SOQL query validation and troubleshooting.
+ * QueryServiceException: Structured, AI-optimized exception for SOQL query validation and troubleshooting.
  *
  * This custom exception class provides machine-readable, context-rich error information for SOQL query operations.
  * It enables AI agents and developer tools to understand, classify, and suggest corrections for query failures.
  *
  * Key Features:
- *   - Standardized error codes and severity levels for programmatic handling.
- *   - Contextual metadata and actionable fix suggestions for common query validation scenarios.
- *   - Fluent API for adding context and alternative solutions.
- *   - Serialization to a structured JSON format for LLMs and automation.
+ *   - Standardized error codes and severity levels for programmatic handling
+ *   - Contextual metadata and actionable fix suggestions for common query validation scenarios
+ *   - Fluent API for adding context and alternative solutions
+ *   - Serialization to a structured JSON format for LLMs and automation
  *
- * Use this exception to surface query errors in a way that is both human- and machine-actionable, supporting advanced AI-driven troubleshooting and self-healing workflows.
+ * Use this exception to surface query errors in a way that is both human- and machine-actionable,
+ * supporting advanced AI-driven troubleshooting and self-healing workflows.
+ *
+ * @group QueryService Package
  */
-public class AIFriendlyQueryException extends Exception {
+public class QueryServiceException extends Exception {
     /**
      * @description
      * Enumeration of standardized error codes for categorizing SOQL query failures.
@@ -76,7 +79,7 @@ public class AIFriendlyQueryException extends Exception {
      * @param fieldName Name of the field involved in the error (null if not field-specific)
      * @param objectName Name of the SObject involved in the error (null if not object-specific)
      */
-    public AIFriendlyQueryException(
+    public QueryServiceException(
         String message,
         ErrorCode errorCode,
         Severity severity,
@@ -103,8 +106,8 @@ public class AIFriendlyQueryException extends Exception {
      * @param errorCode Standardized error classification code
      * @param suggestedFix Actionable recommendation for resolving the error
      */
-    public AIFriendlyQueryException(String message, ErrorCode errorCode, String suggestedFix) {
-        this(message, errorCode, AIFriendlyQueryException.Severity.MEDIUM, suggestedFix, null, null);
+    public QueryServiceException(String message, ErrorCode errorCode, String suggestedFix) {
+        this(message, errorCode, QueryServiceException.Severity.MEDIUM, suggestedFix, null, null);
     }
 
     /**
@@ -116,7 +119,7 @@ public class AIFriendlyQueryException extends Exception {
      * @param value Associated data value (any serializable type)
      * @return This exception instance (for method chaining)
      */
-    public AIFriendlyQueryException withContext(String key, Object value) {
+    public QueryServiceException withContext(String key, Object value) {
         if (this.context == null) {
             this.context = new Map<String, Object>();
         }
@@ -132,7 +135,7 @@ public class AIFriendlyQueryException extends Exception {
      * @param solution Description of an alternative approach to resolve the error
      * @return This exception instance (for method chaining)
      */
-    public AIFriendlyQueryException withAlternative(String solution) {
+    public QueryServiceException withAlternative(String solution) {
         if (this.alternativeSolutions == null) {
             this.alternativeSolutions = new List<String>();
         }
@@ -189,7 +192,9 @@ public class AIFriendlyQueryException extends Exception {
         return summary;
     }
 
-    // Static factory methods: create pre-configured exceptions for common query error scenarios
+    // ============================================================================
+    // STATIC FACTORY METHODS: Pre-configured exceptions for common query error scenarios
+    // ============================================================================
 
     /**
      * @description
@@ -200,11 +205,11 @@ public class AIFriendlyQueryException extends Exception {
      * @param objectName The SObject type where the field was expected
      * @return Configured exception with field validation error details
      */
-    public static AIFriendlyQueryException invalidField(String fieldName, String objectName) {
-        return new AIFriendlyQueryException(
+    public static QueryServiceException invalidField(String fieldName, String objectName) {
+        return new QueryServiceException(
                 'Field "' + fieldName + '" does not exist on object ' + objectName,
-                AIFriendlyQueryException.ErrorCode.INVALID_FIELD,
-                AIFriendlyQueryException.Severity.MEDIUM,
+                QueryServiceException.ErrorCode.INVALID_FIELD,
+                QueryServiceException.Severity.MEDIUM,
                 'Check field API name spelling and verify field exists on ' + objectName,
                 fieldName,
                 objectName
@@ -222,11 +227,11 @@ public class AIFriendlyQueryException extends Exception {
      * @param objectName The SObject containing the restricted field
      * @return Configured exception with field access security error details
      */
-    public static AIFriendlyQueryException fieldNotAccessible(String fieldName, String objectName) {
-        return new AIFriendlyQueryException(
+    public static QueryServiceException fieldNotAccessible(String fieldName, String objectName) {
+        return new QueryServiceException(
                 'Field "' + fieldName + '" is not accessible to current user',
-                AIFriendlyQueryException.ErrorCode.FIELD_NOT_ACCESSIBLE,
-                AIFriendlyQueryException.Severity.HIGH,
+                QueryServiceException.ErrorCode.FIELD_NOT_ACCESSIBLE,
+                QueryServiceException.Severity.HIGH,
                 'Grant field-level security read access for ' + fieldName + ' field',
                 fieldName,
                 objectName
@@ -244,11 +249,11 @@ public class AIFriendlyQueryException extends Exception {
      * @param objectName The SObject containing the non-filterable field
      * @return Configured exception with field filtering restriction details
      */
-    public static AIFriendlyQueryException fieldNotFilterable(String fieldName, String objectName) {
-        return new AIFriendlyQueryException(
+    public static QueryServiceException fieldNotFilterable(String fieldName, String objectName) {
+        return new QueryServiceException(
                 'Field "' + fieldName + '" cannot be used in WHERE clause filters',
-                AIFriendlyQueryException.ErrorCode.FIELD_NOT_FILTERABLE,
-                AIFriendlyQueryException.Severity.MEDIUM,
+                QueryServiceException.ErrorCode.FIELD_NOT_FILTERABLE,
+                QueryServiceException.Severity.MEDIUM,
                 'Remove "' + fieldName + '" from filters or use it only in SELECT clause',
                 fieldName,
                 objectName
@@ -266,11 +271,11 @@ public class AIFriendlyQueryException extends Exception {
      * @param fieldName The field where the operator was applied
      * @return Configured exception with operator validation error details
      */
-    public static AIFriendlyQueryException invalidOperator(String operator, String fieldName) {
-        return new AIFriendlyQueryException(
+    public static QueryServiceException invalidOperator(String operator, String fieldName) {
+        return new QueryServiceException(
                 'Operator "' + operator + '" is not supported for field "' + fieldName + '"',
-                AIFriendlyQueryException.ErrorCode.INVALID_OPERATOR,
-                AIFriendlyQueryException.Severity.MEDIUM,
+                QueryServiceException.ErrorCode.INVALID_OPERATOR,
+                QueryServiceException.Severity.MEDIUM,
                 'Use supported operators: =, !=, >, <, >=, <=, LIKE, IN',
                 fieldName,
                 null
@@ -290,11 +295,11 @@ public class AIFriendlyQueryException extends Exception {
      * @param actualValue The value that caused the type mismatch
      * @return Configured exception with type validation error details
      */
-    public static AIFriendlyQueryException invalidValueType(String fieldName, String expectedType, Object actualValue) {
-        return new AIFriendlyQueryException(
+    public static QueryServiceException invalidValueType(String fieldName, String expectedType, Object actualValue) {
+        return new QueryServiceException(
                 'Invalid value type for field "' + fieldName + '". Expected ' + expectedType + ', got: ' + String.valueOf(actualValue),
-                AIFriendlyQueryException.ErrorCode.INVALID_VALUE_TYPE,
-                AIFriendlyQueryException.Severity.MEDIUM,
+                QueryServiceException.ErrorCode.INVALID_VALUE_TYPE,
+                QueryServiceException.Severity.MEDIUM,
                 'Convert value to ' + expectedType + ' format before filtering',
                 fieldName,
                 null
@@ -313,11 +318,11 @@ public class AIFriendlyQueryException extends Exception {
      * @param orderByClause The malformed ORDER BY clause that caused the error
      * @return Configured exception with ORDER BY syntax error details
      */
-    public static AIFriendlyQueryException invalidOrderBy(String orderByClause) {
-        return new AIFriendlyQueryException(
+    public static QueryServiceException invalidOrderBy(String orderByClause) {
+        return new QueryServiceException(
                 'Invalid ORDER BY syntax: "' + orderByClause + '"',
-                AIFriendlyQueryException.ErrorCode.INVALID_ORDER_BY,
-                AIFriendlyQueryException.Severity.MEDIUM,
+                QueryServiceException.ErrorCode.INVALID_ORDER_BY,
+                QueryServiceException.Severity.MEDIUM,
                 'Use format: "FieldName ASC|DESC" or "FieldName ASC|DESC NULLS FIRST|LAST"',
                 null,
                 null
@@ -336,11 +341,11 @@ public class AIFriendlyQueryException extends Exception {
      * @param operation The operation that was denied (e.g., 'read', 'create', 'update')
      * @return Configured exception with object security violation details
      */
-    public static AIFriendlyQueryException securityViolation(String objectName, String operation) {
-        return new AIFriendlyQueryException(
+    public static QueryServiceException securityViolation(String objectName, String operation) {
+        return new QueryServiceException(
                 'Access denied: Cannot ' + operation + ' ' + objectName + ' records',
-                AIFriendlyQueryException.ErrorCode.SECURITY_VIOLATION,
-                AIFriendlyQueryException.Severity.HIGH,
+                QueryServiceException.ErrorCode.SECURITY_VIOLATION,
+                QueryServiceException.Severity.HIGH,
                 'Grant ' + operation + ' permission for ' + objectName + ' object to current user',
                 null,
                 objectName
@@ -349,3 +354,4 @@ public class AIFriendlyQueryException extends Exception {
             .withAlternative('Contact system administrator for access');
     }
 }
+
