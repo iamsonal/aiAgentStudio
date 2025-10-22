@@ -41,8 +41,17 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
         LLMInteractionService.MessageData assistantData = context.llmResult.assistantMessageData;
 
-        // Currently, only one tool call per turn is supported. Extend here for parallel tool calls if needed.
-        Map<String, String> firstActionRequestMap = context.llmResult.providerResult.requestedActions[0];
+        // Check if multiple tool calls are requested for parallel execution
+        List<Map<String, String>> requestedActions = context.llmResult.providerResult.requestedActions;
+
+        if (requestedActions.size() > 1) {
+            // Handle multiple tool calls in parallel
+            System.debug(LoggingLevel.INFO, logPrefix + 'Multiple tool calls detected (' + requestedActions.size() + '). Using parallel execution handler.');
+            return ParallelToolCallHandler.handleParallelToolCalls(context, requestedActions, decisionLogger);
+        }
+
+        // Single tool call - use existing logic
+        Map<String, String> firstActionRequestMap = requestedActions[0];
         ConversationalChatController.ActionRequest toolRequest = this.parseToolRequestMap(firstActionRequestMap);
 
         System.debug(LoggingLevel.DEBUG, logPrefix + 'Parsed tool request: Capability=' + toolRequest.name + ', ToolCallID=' + toolRequest.id);
@@ -613,7 +622,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             return null;
         try {
             Map<String, Object> argsMap = (Map<String, Object>) JSON.deserializeUntyped(argumentsJson);
-            return ActionConfigUtils.getOptionalString(argsMap, ToolDefinitionFormatter.SUBMISSION_COMMENT_PARAM_NAME);
+            Object commentValue = argsMap.get(ToolDefinitionFormatter.SUBMISSION_COMMENT_PARAM_NAME);
+            return (commentValue != null && commentValue instanceof String) ? (String) commentValue : null;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to parse confirmation message for ' + capabilityName + ': ' + e.getMessage());
             return null;
