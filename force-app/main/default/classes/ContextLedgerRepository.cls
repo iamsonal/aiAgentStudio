@@ -246,10 +246,7 @@ public inherited sharing class ContextLedgerRepository {
      * @return List of active context items
      */
     public List<ContextLedgerItem__c> getActiveItemsForExecution(Id executionId) {
-        return queryBuilder()
-            .forExecution(executionId)
-            .withStatus('ACTIVE')
-            .execute();
+        return queryBuilder().forExecution(executionId).withStatus('ACTIVE').execute();
     }
 
     /**
@@ -258,9 +255,7 @@ public inherited sharing class ContextLedgerRepository {
      * @return List of all context items
      */
     public List<ContextLedgerItem__c> getAllItemsForExecution(Id executionId) {
-        return queryBuilder()
-            .forExecution(executionId)
-            .execute();
+        return queryBuilder().forExecution(executionId).execute();
     }
 
     /**
@@ -271,10 +266,24 @@ public inherited sharing class ContextLedgerRepository {
      */
     public ContextLedgerItem__c getItemByRecordId(Id executionId, String recordId) {
         List<ContextLedgerItem__c> items = [
-            SELECT Id, RecordId__c, RecordType__c, ContextType__c, Status__c,
-                TurnAdded__c, LastAccessedTurn__c, AccessCount__c, RelevanceScore__c,
-                SourceRecordId__c, ChildRecordIds__c, Metadata__c, OriginalContextType__c,
-                LastDataRefreshTime__c, PrunedAt__c, PrunedReason__c, LastModifiedDate
+            SELECT
+                Id,
+                RecordId__c,
+                RecordType__c,
+                ContextType__c,
+                Status__c,
+                TurnAdded__c,
+                LastAccessedTurn__c,
+                AccessCount__c,
+                RelevanceScore__c,
+                SourceRecordId__c,
+                ChildRecordIds__c,
+                Metadata__c,
+                OriginalContextType__c,
+                LastDataRefreshTime__c,
+                PrunedAt__c,
+                PrunedReason__c,
+                LastModifiedDate
             FROM ContextLedgerItem__c
             WHERE AgentExecution__c = :executionId AND RecordId__c = :recordId
             LIMIT 1
@@ -426,4 +435,3 @@ public inherited sharing class ContextLedgerRepository {
         return toDelete.size();
     }
 }
-

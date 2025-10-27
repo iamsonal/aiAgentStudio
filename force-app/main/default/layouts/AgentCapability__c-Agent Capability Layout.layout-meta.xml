@@ -57,7 +57,7 @@
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
-                <field>HaltAndReportError__c</field>
+                <field>FailFastOnError__c</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>

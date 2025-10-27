@@ -8,17 +8,8 @@
 
 /**
  * @description
- * ContentResponseHandler processes LLM responses that contain only textual content (no tool calls),
- * orchestrating the full flow from message persistence to context ledger updates and memory management.
- *
- * Responsibilities:
- *   - Persists user and assistant messages for a text-only LLM turn
- *   - Validates LLM response content and handles error/failure scenarios
- *   - Updates the context ledger and invokes memory management hooks
- *   - Invokes completion capabilities via LLM for non-conversational agents
- *   - Ensures robust logging and error handling throughout the response lifecycle
- *
- * This class is not intended for direct use outside the orchestration and response handling subsystems.
+ * Processes LLM responses that contain only textual content (no tool calls).
+ * Orchestrates message persistence, context ledger updates, and memory management.
  */
 public class ContentResponseHandler implements ILLMResponseHandler {
     /**
@@ -216,7 +207,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
                     StandardActionType__c,
                     BackendConfiguration__c,
                     ExecutionContext__c,
-                    HaltAndReportError__c,
+                    FailFastOnError__c,
                     RunAsynchronously__c,
                     RequiresConfirmation__c,
                     RequiresApproval__c,

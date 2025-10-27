@@ -3,7 +3,6 @@
  */
 @IsTest
 private class SystemPromptBuilderTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -13,16 +12,9 @@ private class SystemPromptBuilderTest {
         TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
 
         // Create test data for context
-        Account account = TestFactory.newAccount()
-            .withName('Test Account')
-            .withDescription('Test account for context')
-            .save();
+        Account account = TestFactory.newAccount().withName('Test Account').withDescription('Test account for context').save();
 
-        TestFactory.newContact()
-            .withName('John', 'Doe')
-            .withEmail('john.doe@test.com')
-            .withAccount(account.Id)
-            .save();
+        TestFactory.newContact().withName('John', 'Doe').withEmail('john.doe@test.com').withAccount(account.Id).save();
     }
 
     // ===================================================================================
@@ -33,9 +25,15 @@ private class SystemPromptBuilderTest {
     static void testBuildBasicPrompt_ContainsAllSections() {
         // Given: Agent definition
         AIAgentDefinition__c agent = [
-            SELECT Id, IdentityPrompt__c, InstructionsPrompt__c, ExamplesPrompt__c,
-                   PromptFooter__c, ContextFormatStrategy__c,
-                   MemoryStrategy__c, DeveloperName__c
+            SELECT
+                Id,
+                IdentityPrompt__c,
+                InstructionsPrompt__c,
+                ExamplesPrompt__c,
+                PromptFooter__c,
+                ContextFormatStrategy__c,
+                MemoryStrategy__c,
+                DeveloperName__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];
@@ -54,14 +52,7 @@ private class SystemPromptBuilderTest {
         // When: Building prompt
         SystemPromptBuilder builder = new SystemPromptBuilder();
         Test.startTest();
-        String prompt = builder.build(
-            session.Id,
-            agent,
-            llmConfig,
-            null,
-            1,
-            UserInfo.getUserId()
-        );
+        String prompt = builder.build(session.Id, agent, llmConfig, null, 1, UserInfo.getUserId());
         Test.stopTest();
 
         // Then: Should contain all sections
@@ -76,8 +67,15 @@ private class SystemPromptBuilderTest {
     static void testBuildPrompt_WithSummaryBuffer_IncludesSummary() {
         // Given: Agent with summary buffer
         AIAgentDefinition__c agent = [
-            SELECT Id, MemoryStrategy__c, IdentityPrompt__c, InstructionsPrompt__c, PromptFooter__c,
-                   ContextFormatStrategy__c, DeveloperName__c, ExamplesPrompt__c
+            SELECT
+                Id,
+                MemoryStrategy__c,
+                IdentityPrompt__c,
+                InstructionsPrompt__c,
+                PromptFooter__c,
+                ContextFormatStrategy__c,
+                DeveloperName__c,
+                ExamplesPrompt__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];
@@ -105,8 +103,15 @@ private class SystemPromptBuilderTest {
     static void testBuildPrompt_WithNullOptionalFields_HandlesGracefully() {
         // Given: Agent with null optional fields
         AIAgentDefinition__c agent = [
-            SELECT Id, IdentityPrompt__c, InstructionsPrompt__c, ExamplesPrompt__c,
-                   PromptFooter__c, ContextFormatStrategy__c, MemoryStrategy__c, DeveloperName__c
+            SELECT
+                Id,
+                IdentityPrompt__c,
+                InstructionsPrompt__c,
+                ExamplesPrompt__c,
+                PromptFooter__c,
+                ContextFormatStrategy__c,
+                MemoryStrategy__c,
+                DeveloperName__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];
@@ -140,8 +145,7 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = SystemPromptBuilder.getContextFormatter('StructuredText', '[TEST] ')
-            .formatContext(accounts, '[TEST] ');
+        String formatted = SystemPromptBuilder.getContextFormatter('Structured Text', '[TEST] ').formatContext(accounts, '[TEST] ');
         Test.stopTest();
 
         // Then: Should be structured text
@@ -161,8 +165,7 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = SystemPromptBuilder.getContextFormatter('StructuredText', '[TEST] ')
-            .formatContext(accounts, '[TEST] ');
+        String formatted = SystemPromptBuilder.getContextFormatter('Structured Text', '[TEST] ').formatContext(accounts, '[TEST] ');
         Test.stopTest();
 
         // Then: Should include child relationships
@@ -182,8 +185,7 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = SystemPromptBuilder.getContextFormatter('StructuredText', '[TEST] ')
-            .formatContext(contacts, '[TEST] ');
+        String formatted = SystemPromptBuilder.getContextFormatter('Structured Text', '[TEST] ').formatContext(contacts, '[TEST] ');
         Test.stopTest();
 
         // Then: Should include relationship data
@@ -199,8 +201,15 @@ private class SystemPromptBuilderTest {
     static void testPrompt_IncludesTemporalContext() {
         // Given: Agent and session
         AIAgentDefinition__c agent = [
-            SELECT Id, DeveloperName__c, IdentityPrompt__c, InstructionsPrompt__c, ContextFormatStrategy__c,
-                   MemoryStrategy__c, ExamplesPrompt__c, PromptFooter__c
+            SELECT
+                Id,
+                DeveloperName__c,
+                IdentityPrompt__c,
+                InstructionsPrompt__c,
+                ContextFormatStrategy__c,
+                MemoryStrategy__c,
+                ExamplesPrompt__c,
+                PromptFooter__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];
@@ -361,67 +370,81 @@ private class SystemPromptBuilderTest {
 
         // Create many primary context items to exceed the limit
         for (Integer i = 0; i < 50; i++) {
-            ledgerItems.add(new ContextLedgerItem__c(
-                AgentExecution__c = session.Id,
-                RecordId__c = '001TestRecord' + String.valueOf(i).leftPad(3, '0'),
-                RecordType__c = 'Account',
-                ContextType__c = 'IMPLICIT_PRIMARY',
-                Status__c = 'ACTIVE',
-                TurnAdded__c = 1,
-                LastAccessedTurn__c = 1,
-                AccessCount__c = 1,
-                RelevanceScore__c = 100.0,
-                SourceRecordId__c = account.Id,
-                ChildRecordIds__c = '["003Child' + i + '","003Child' + (i+1) + '"]',
-                Metadata__c = '{"field' + i + '":"value' + i + '","description":"This is a long description for item ' + i + ' to help increase the total character count"}'
-            ));
+            ledgerItems.add(
+                new ContextLedgerItem__c(
+                    AgentExecution__c = session.Id,
+                    RecordId__c = '001TestRecord' + String.valueOf(i).leftPad(3, '0'),
+                    RecordType__c = 'Account',
+                    ContextType__c = 'IMPLICIT_PRIMARY',
+                    Status__c = 'ACTIVE',
+                    TurnAdded__c = 1,
+                    LastAccessedTurn__c = 1,
+                    AccessCount__c = 1,
+                    RelevanceScore__c = 100.0,
+                    SourceRecordId__c = account.Id,
+                    ChildRecordIds__c = '["003Child' + i + '","003Child' + (i + 1) + '"]',
+                    Metadata__c = '{"field' +
+                        i +
+                        '":"value' +
+                        i +
+                        '","description":"This is a long description for item ' +
+                        i +
+                        ' to help increase the total character count"}'
+                )
+            );
         }
 
         // Add recent context items
         for (Integer i = 50; i < 100; i++) {
-            ledgerItems.add(new ContextLedgerItem__c(
-                AgentExecution__c = session.Id,
-                RecordId__c = '001TestRecord' + String.valueOf(i).leftPad(3, '0'),
-                RecordType__c = 'Contact',
-                ContextType__c = 'ACTION_GENERATED',
-                Status__c = 'ACTIVE',
-                TurnAdded__c = 8,
-                LastAccessedTurn__c = 9,
-                AccessCount__c = 2,
-                RelevanceScore__c = 80.0,
-                SourceRecordId__c = account.Id,
-                ChildRecordIds__c = '["004Related' + i + '","004Related' + (i+1) + '","004Related' + (i+2) + '"]'
-            ));
+            ledgerItems.add(
+                new ContextLedgerItem__c(
+                    AgentExecution__c = session.Id,
+                    RecordId__c = '001TestRecord' + String.valueOf(i).leftPad(3, '0'),
+                    RecordType__c = 'Contact',
+                    ContextType__c = 'ACTION_GENERATED',
+                    Status__c = 'ACTIVE',
+                    TurnAdded__c = 8,
+                    LastAccessedTurn__c = 9,
+                    AccessCount__c = 2,
+                    RelevanceScore__c = 80.0,
+                    SourceRecordId__c = account.Id,
+                    ChildRecordIds__c = '["004Related' + i + '","004Related' + (i + 1) + '","004Related' + (i + 2) + '"]'
+                )
+            );
         }
 
         // Add related context items
         for (Integer i = 100; i < 120; i++) {
-            ledgerItems.add(new ContextLedgerItem__c(
-                AgentExecution__c = session.Id,
-                RecordId__c = '001TestRecord' + String.valueOf(i).leftPad(3, '0'),
-                RecordType__c = 'Opportunity',
-                ContextType__c = 'RELATED_RECORD',
-                Status__c = 'ACTIVE',
-                TurnAdded__c = 1,
-                LastAccessedTurn__c = 5,
-                AccessCount__c = 1,
-                RelevanceScore__c = 60.0
-            ));
+            ledgerItems.add(
+                new ContextLedgerItem__c(
+                    AgentExecution__c = session.Id,
+                    RecordId__c = '001TestRecord' + String.valueOf(i).leftPad(3, '0'),
+                    RecordType__c = 'Opportunity',
+                    ContextType__c = 'RELATED_RECORD',
+                    Status__c = 'ACTIVE',
+                    TurnAdded__c = 1,
+                    LastAccessedTurn__c = 5,
+                    AccessCount__c = 1,
+                    RelevanceScore__c = 60.0
+                )
+            );
         }
 
         // Add background context items
         for (Integer i = 120; i < 140; i++) {
-            ledgerItems.add(new ContextLedgerItem__c(
-                AgentExecution__c = session.Id,
-                RecordId__c = '001TestRecord' + String.valueOf(i).leftPad(3, '0'),
-                RecordType__c = 'Case',
-                ContextType__c = 'BACKGROUND_CONTEXT',
-                Status__c = 'ACTIVE',
-                TurnAdded__c = 1,
-                LastAccessedTurn__c = 2,
-                AccessCount__c = 1,
-                RelevanceScore__c = 40.0
-            ));
+            ledgerItems.add(
+                new ContextLedgerItem__c(
+                    AgentExecution__c = session.Id,
+                    RecordId__c = '001TestRecord' + String.valueOf(i).leftPad(3, '0'),
+                    RecordType__c = 'Case',
+                    ContextType__c = 'BACKGROUND_CONTEXT',
+                    Status__c = 'ACTIVE',
+                    TurnAdded__c = 1,
+                    LastAccessedTurn__c = 2,
+                    AccessCount__c = 1,
+                    RelevanceScore__c = 40.0
+                )
+            );
         }
 
         insert ledgerItems;
@@ -470,11 +493,26 @@ private class SystemPromptBuilderTest {
         insert ledgerItem;
 
         // Query it back to get all fields including system fields
-        ledgerItem = [SELECT Id, RecordId__c, RecordType__c, ContextType__c, Status__c,
-                      TurnAdded__c, LastAccessedTurn__c, AccessCount__c, RelevanceScore__c,
-                      SourceRecordId__c, ChildRecordIds__c, Metadata__c, OriginalContextType__c,
-                      LastDataRefreshTime__c, LastModifiedDate
-                      FROM ContextLedgerItem__c WHERE Id = :ledgerItem.Id];
+        ledgerItem = [
+            SELECT
+                Id,
+                RecordId__c,
+                RecordType__c,
+                ContextType__c,
+                Status__c,
+                TurnAdded__c,
+                LastAccessedTurn__c,
+                AccessCount__c,
+                RelevanceScore__c,
+                SourceRecordId__c,
+                ChildRecordIds__c,
+                Metadata__c,
+                OriginalContextType__c,
+                LastDataRefreshTime__c,
+                LastModifiedDate
+            FROM ContextLedgerItem__c
+            WHERE Id = :ledgerItem.Id
+        ];
 
         ContextManagerService.ContextItem item = new ContextManagerService.ContextItem(ledgerItem);
         List<ContextManagerService.ContextItem> items = new List<ContextManagerService.ContextItem>{ item };
@@ -515,11 +553,26 @@ private class SystemPromptBuilderTest {
         insert ledgerItem;
 
         // Query it back
-        ledgerItem = [SELECT Id, RecordId__c, RecordType__c, ContextType__c, Status__c,
-                      TurnAdded__c, LastAccessedTurn__c, AccessCount__c, RelevanceScore__c,
-                      SourceRecordId__c, ChildRecordIds__c, Metadata__c, OriginalContextType__c,
-                      LastDataRefreshTime__c, LastModifiedDate
-                      FROM ContextLedgerItem__c WHERE Id = :ledgerItem.Id];
+        ledgerItem = [
+            SELECT
+                Id,
+                RecordId__c,
+                RecordType__c,
+                ContextType__c,
+                Status__c,
+                TurnAdded__c,
+                LastAccessedTurn__c,
+                AccessCount__c,
+                RelevanceScore__c,
+                SourceRecordId__c,
+                ChildRecordIds__c,
+                Metadata__c,
+                OriginalContextType__c,
+                LastDataRefreshTime__c,
+                LastModifiedDate
+            FROM ContextLedgerItem__c
+            WHERE Id = :ledgerItem.Id
+        ];
 
         ContextManagerService.ContextItem item = new ContextManagerService.ContextItem(ledgerItem);
 
@@ -570,11 +623,26 @@ private class SystemPromptBuilderTest {
             insert ledgerItem;
 
             // Query it back and create ContextItem
-            ledgerItem = [SELECT Id, RecordId__c, RecordType__c, ContextType__c, Status__c,
-                          TurnAdded__c, LastAccessedTurn__c, AccessCount__c, RelevanceScore__c,
-                          SourceRecordId__c, ChildRecordIds__c, Metadata__c, OriginalContextType__c,
-                          LastDataRefreshTime__c, LastModifiedDate
-                          FROM ContextLedgerItem__c WHERE Id = :ledgerItem.Id];
+            ledgerItem = [
+                SELECT
+                    Id,
+                    RecordId__c,
+                    RecordType__c,
+                    ContextType__c,
+                    Status__c,
+                    TurnAdded__c,
+                    LastAccessedTurn__c,
+                    AccessCount__c,
+                    RelevanceScore__c,
+                    SourceRecordId__c,
+                    ChildRecordIds__c,
+                    Metadata__c,
+                    OriginalContextType__c,
+                    LastDataRefreshTime__c,
+                    LastModifiedDate
+                FROM ContextLedgerItem__c
+                WHERE Id = :ledgerItem.Id
+            ];
 
             ContextManagerService.ContextItem item = new ContextManagerService.ContextItem(ledgerItem);
 
@@ -582,8 +650,7 @@ private class SystemPromptBuilderTest {
             String explanation = builder.getContextTypeExplanation(item);
 
             // Then: Should match expected
-            System.assertEquals(typeToExpectedExplanation.get(contextType), explanation,
-                               'Explanation for ' + contextType + ' should match');
+            System.assertEquals(typeToExpectedExplanation.get(contextType), explanation, 'Explanation for ' + contextType + ' should match');
 
             // Clean up for next iteration
             delete ledgerItem;

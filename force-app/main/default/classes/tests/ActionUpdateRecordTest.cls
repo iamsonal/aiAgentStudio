@@ -3,7 +3,6 @@
  */
 @IsTest
 private class ActionUpdateRecordTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -11,31 +10,17 @@ private class ActionUpdateRecordTest {
     @TestSetup
     static void setupTestData() {
         // Create test accounts with TestFactory
-        TestFactory.newAccount()
-            .withName('Test Account 1')
-            .withIndustry('Technology')
-            .save();
+        TestFactory.newAccount().withName('Test Account 1').withIndustry('Technology').save();
 
-        TestFactory.newAccount()
-            .withName('Test Account 2')
-            .withIndustry('Finance')
-            .save();
+        TestFactory.newAccount().withName('Test Account 2').withIndustry('Finance').save();
 
         // Create test contacts
         Account acc1 = [SELECT Id FROM Account WHERE Name = 'Test Account 1' LIMIT 1];
         Account acc2 = [SELECT Id FROM Account WHERE Name = 'Test Account 2' LIMIT 1];
 
-        TestFactory.newContact()
-            .withName('John', 'Doe')
-            .withEmail('john.doe@test.com')
-            .withAccount(acc1.Id)
-            .save();
+        TestFactory.newContact().withName('John', 'Doe').withEmail('john.doe@test.com').withAccount(acc1.Id).save();
 
-        TestFactory.newContact()
-            .withName('Jane', 'Smith')
-            .withEmail('jane.smith@test.com')
-            .withAccount(acc2.Id)
-            .save();
+        TestFactory.newContact().withName('Jane', 'Smith').withEmail('jane.smith@test.com').withAccount(acc2.Id).save();
     }
 
     // ===================================================================================
@@ -45,18 +30,19 @@ private class ActionUpdateRecordTest {
     @IsTest
     static void testUpdateContact_WithMultipleFields_Success() {
         // Given: A contact to update
-        Contact testContact = [SELECT Id, FirstName, LastName, Email
-                              FROM Contact WHERE FirstName = 'John' LIMIT 1];
+        Contact testContact = [
+            SELECT Id, FirstName, LastName, Email
+            FROM Contact
+            WHERE FirstName = 'John'
+            LIMIT 1
+        ];
 
         ActionUpdateRecord action = new ActionUpdateRecord();
         action.parseActionConfiguration('{}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testContact.Id,
-            'fields' => new Map<String, Object>{
-                'FirstName' => 'Johnny',
-                'Email' => 'johnny.doe@test.com'
-            }
+            'fields' => new Map<String, Object>{ 'FirstName' => 'Johnny', 'Email' => 'johnny.doe@test.com' }
         };
 
         // When: Updating the contact
@@ -90,10 +76,7 @@ private class ActionUpdateRecordTest {
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testAccount.Id,
-            'fields' => new Map<String, Object>{
-                'Name' => 'Updated Test Account',
-                'Industry' => 'Healthcare'
-            }
+            'fields' => new Map<String, Object>{ 'Name' => 'Updated Test Account', 'Industry' => 'Healthcare' }
         };
 
         // When: Updating with DTO structure
@@ -119,8 +102,8 @@ private class ActionUpdateRecordTest {
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testAccount.Id,
             'fields' => new Map<String, Object>{
-                'NumberOfEmployees' => '250',      // String -> Integer
-                'AnnualRevenue' => '2500000.75'    // String -> Decimal
+                'NumberOfEmployees' => '250', // String -> Integer
+                'AnnualRevenue' => '2500000.75' // String -> Decimal
             }
         };
 
@@ -146,10 +129,7 @@ private class ActionUpdateRecordTest {
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testContact.Id,
-            'fields' => new Map<String, Object>{
-                'Email' => null,
-                'FirstName' => 'John Updated'
-            }
+            'fields' => new Map<String, Object>{ 'Email' => null, 'FirstName' => 'John Updated' }
         };
 
         // When: Updating with null value
@@ -175,9 +155,7 @@ private class ActionUpdateRecordTest {
         action.parseActionConfiguration('{}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'fields' => new Map<String, Object>{
-                'Name' => 'Updated Name'
-            }
+            'fields' => new Map<String, Object>{ 'Name' => 'Updated Name' }
             // Missing recordId
         };
 
@@ -200,9 +178,7 @@ private class ActionUpdateRecordTest {
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => 'invalid-id-format',
-            'fields' => new Map<String, Object>{
-                'Name' => 'Test'
-            }
+            'fields' => new Map<String, Object>{ 'Name' => 'Test' }
         };
 
         // When: Attempting update
@@ -245,12 +221,7 @@ private class ActionUpdateRecordTest {
         action.parseActionConfiguration('{}', '[TEST] ');
 
         String fakeId = '003000000000000';
-        Map<String, Object> params = new Map<String, Object>{
-            'recordId' => fakeId,
-            'fields' => new Map<String, Object>{
-                'FirstName' => 'Test'
-            }
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'recordId' => fakeId, 'fields' => new Map<String, Object>{ 'FirstName' => 'Test' } };
 
         // When: Attempting update
         Test.startTest();
@@ -301,15 +272,11 @@ private class ActionUpdateRecordTest {
     @IsTest
     static void testUpdateResult_Constructor_SetsProperties() {
         // Given: Result data
-        List<String> updatedFields = new List<String>{'Name', 'Email'};
+        List<String> updatedFields = new List<String>{ 'Name', 'Email' };
 
         // When: Creating result
         Test.startTest();
-        ActionUpdateRecord.UpdateResult result = new ActionUpdateRecord.UpdateResult(
-            '003000000000001',
-            'Success message',
-            updatedFields
-        );
+        ActionUpdateRecord.UpdateResult result = new ActionUpdateRecord.UpdateResult('003000000000001', 'Success message', updatedFields);
         Test.stopTest();
 
         // Then: Properties should be set

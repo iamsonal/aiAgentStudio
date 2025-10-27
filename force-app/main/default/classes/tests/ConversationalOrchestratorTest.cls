@@ -3,15 +3,13 @@
  */
 @IsTest
 private class ConversationalOrchestratorTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
 
     @TestSetup
     static void setupTestData() {
-        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
-            .save();
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
     }
 
     // ===================================================================================
@@ -21,8 +19,11 @@ private class ConversationalOrchestratorTest {
     @IsTest
     static void testInitiate_NewExecutionLowDispatchType_Success() {
         // Given: Agent with low dispatch type
-        AIAgentDefinition__c agent = [SELECT Id, LLMConfiguration__c, AsyncDispatchType__c
-                                      FROM AIAgentDefinition__c LIMIT 1];
+        AIAgentDefinition__c agent = [
+            SELECT Id, LLMConfiguration__c, AsyncDispatchType__c
+            FROM AIAgentDefinition__c
+            LIMIT 1
+        ];
         update new AIAgentDefinition__c(Id = agent.Id, AsyncDispatchType__c = 'Low');
 
         agent = [SELECT Id, LLMConfiguration__c, AsyncDispatchType__c FROM AIAgentDefinition__c WHERE Id = :agent.Id];
@@ -49,8 +50,11 @@ private class ConversationalOrchestratorTest {
     @IsTest
     static void testInitiate_NewExecutionHighDispatchType_Success() {
         // Given: Agent with high dispatch type
-        AIAgentDefinition__c agent = [SELECT Id, LLMConfiguration__c, AsyncDispatchType__c
-                                      FROM AIAgentDefinition__c LIMIT 1];
+        AIAgentDefinition__c agent = [
+            SELECT Id, LLMConfiguration__c, AsyncDispatchType__c
+            FROM AIAgentDefinition__c
+            LIMIT 1
+        ];
         update new AIAgentDefinition__c(Id = agent.Id, AsyncDispatchType__c = 'High');
 
         agent = [SELECT Id, LLMConfiguration__c, AsyncDispatchType__c FROM AIAgentDefinition__c WHERE Id = :agent.Id];
@@ -82,8 +86,11 @@ private class ConversationalOrchestratorTest {
     static void testInitiate_ExistingExecution_Success() {
         // Given: Existing execution
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
-        AIAgentDefinition__c agent = [SELECT Id, LLMConfiguration__c, AsyncDispatchType__c, DeveloperName__c
-                                      FROM AIAgentDefinition__c LIMIT 1];
+        AIAgentDefinition__c agent = [
+            SELECT Id, LLMConfiguration__c, AsyncDispatchType__c, DeveloperName__c
+            FROM AIAgentDefinition__c
+            LIMIT 1
+        ];
 
         AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
         payload.userId = UserInfo.getUserId();
@@ -107,14 +114,14 @@ private class ConversationalOrchestratorTest {
     static void testInitiate_ExistingExecution_SynchronousMode_Success() {
         // Given: Existing execution and custom setting enabled for synchronous execution
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
-        AIAgentDefinition__c agent = [SELECT Id, LLMConfiguration__c, AsyncDispatchType__c, DeveloperName__c
-                                      FROM AIAgentDefinition__c LIMIT 1];
+        AIAgentDefinition__c agent = [
+            SELECT Id, LLMConfiguration__c, AsyncDispatchType__c, DeveloperName__c
+            FROM AIAgentDefinition__c
+            LIMIT 1
+        ];
 
         // Create custom setting to enable synchronous execution
-        AIAgentSettings__c agentSettings = new AIAgentSettings__c(
-            Name = agent.DeveloperName__c,
-            ExecuteInitialLLMCallSynchronously__c = true
-        );
+        AIAgentSettings__c agentSettings = new AIAgentSettings__c(Name = agent.DeveloperName__c, ExecuteInitialLLMCallSynchronously__c = true);
         insert agentSettings;
 
         AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
@@ -240,7 +247,7 @@ private class ConversationalOrchestratorTest {
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
 
-        Map<String, Object> asyncPayload = new Map<String, Object>{'result' => 'success'};
+        Map<String, Object> asyncPayload = new Map<String, Object>{ 'result' => 'success' };
 
         ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(agent);
 
@@ -253,4 +260,3 @@ private class ConversationalOrchestratorTest {
         System.assert(true, 'Should complete successfully');
     }
 }
-

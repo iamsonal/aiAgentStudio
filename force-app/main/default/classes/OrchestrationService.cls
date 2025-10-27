@@ -8,13 +8,8 @@
 
 /**
  * @description
- * OrchestrationService coordinates the end-to-end flow of AI agent actions following LLM response processing.
- * It applies the Strategy pattern to delegate response handling to the appropriate handler (content-only or tool call),
- * manages turn lifecycle and state transitions, and provides robust error handling with comprehensive logging.
- * The service is designed for extensibility, testability, and operational transparency, serving as the central
- * orchestrator for all LLM-driven agent workflows.
- *
- * Supports the unified AgentExecution__c model for all agent workflows.
+ * Coordinates end-to-end flow of AI agent actions following LLM response processing.
+ * Applies Strategy pattern for response handling and manages turn lifecycle.
  */
 public inherited sharing class OrchestrationService {
     public virtual class OrchestrationException extends AIAgentException {
@@ -36,9 +31,7 @@ public inherited sharing class OrchestrationService {
     private final ContextManagerService contextManagerSvc;
 
     /**
-     * Default constructor. Initializes all service dependencies with their default implementations.
-     *
-     * Side effects: Instantiates all required services for orchestration.
+     * Default constructor with default service dependencies.
      */
     public OrchestrationService() {
         // Initialize with default service implementations
@@ -48,11 +41,10 @@ public inherited sharing class OrchestrationService {
     /**
      * Constructor with dependency injection for testing and customization.
      *
-     * @param turnSvc    TurnLifecycleService instance (required)
-     * @param actionSvc  CapabilityExecutionRouter instance (required)
-     * @param dispatchSvc AgentJobEnqueuer instance (required)
-     * @param contextSvc ContextManagerService instance (required)
-     * @throws IllegalArgumentException if any dependency is null
+     * @param turnSvc    TurnLifecycleService instance
+     * @param actionSvc  CapabilityExecutionRouter instance
+     * @param dispatchSvc AgentJobEnqueuer instance
+     * @param contextSvc ContextManagerService instance
      */
     public OrchestrationService(
         TurnLifecycleService turnSvc,
@@ -199,31 +191,46 @@ public inherited sharing class OrchestrationService {
         try {
             if (actionOutcome == null) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Action outcome is null. Returning error response for LLM.');
-                return JSON.serialize(new Map<String, Object>{ 'error' => 'Action execution did not return an outcome object.' });
+                return JSON.serialize(
+                    new Map<String, Object>{ 'isSuccess' => false, 'error' => 'Action execution did not return an outcome object.' }
+                );
             }
 
             if (actionOutcome.isSuccess) {
-                // For success, serialize the data directly if present
+                // ✅ CRITICAL FIX: ALWAYS include isSuccess flag for standardized resume logic
+                // This enables WorkflowAgent.buildResumeContext() to reliably identify successful tools
+                Map<String, Object> successOutput = new Map<String, Object>{ 'isSuccess' => true };
+
+                // Include the actual data payload if present
                 if (actionOutcome.data != null) {
-                    return JSON.serialize(actionOutcome.data);
+                    successOutput.put('data', actionOutcome.data);
                 } else {
-                    // No data but successful
-                    return JSON.serialize(new Map<String, Object>{ 'success' => true, 'data' => new Map<String, Object>() });
+                    successOutput.put('data', new Map<String, Object>());
                 }
+
+                return JSON.serialize(successOutput);
             } else {
                 // For failure, create structured error output with LLM-friendly message
+                // Note: Using 'isSuccess' for consistency (was 'success' before)
                 Map<String, Object> errorOutput = new Map<String, Object>{
-                    'success' => false,
+                    'isSuccess' => false,
                     'errorCode' => actionOutcome.errorCode,
                     'messageForUser' => actionOutcome.llmFriendlyMessage != null ? actionOutcome.llmFriendlyMessage : actionOutcome.errorMessage,
                     'data' => new Map<String, Object>()
                 };
+
+                // Include correction guidance if provided (format requirements and examples)
+                if (String.isNotBlank(actionOutcome.correctionGuidance)) {
+                    errorOutput.put('correctionGuidance', actionOutcome.correctionGuidance);
+                }
+
                 return JSON.serialize(errorOutput);
             }
         } catch (Exception jsonEx) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to serialize action outcome for LLM. Error: ' + jsonEx.getMessage());
             return JSON.serialize(
                 new Map<String, Object>{
+                    'isSuccess' => false,
                     'error' => 'Failed to serialize action outcome data',
                     'serialization_error_details' => jsonEx.getMessage(),
                     'original_action_success_status' => actionOutcome?.isSuccess,
@@ -333,5 +340,73 @@ public inherited sharing class OrchestrationService {
                 e.getMessage() +
                 '"}';
         }
+    }
+
+    /**
+     * @description Determines if agent execution should fail immediately on tool error.
+     *
+     * Implements Three-Tier Hierarchy for Error Handling:
+     * Priority 1 (Highest): Capability.FailFastOnError__c = true → FAIL
+     * Priority 2: Agent.ErrorHandlingPolicy__c = 'Fail-Fast' → FAIL
+     * Priority 3 (Default): 'Autonomous Recovery' → CONTINUE
+     *
+     * This method centralizes error handling policy for all orchestrators (Function, Conversational, Workflow).
+     *
+     * @param capability The capability that was executed
+     * @param agentDefinition The agent definition configuration
+     * @param toolOutcome The outcome of the tool execution
+     * @param logPrefix Logging prefix for debug output
+     * @return true if execution should fail immediately, false to allow LLM recovery
+     */
+    public static Boolean shouldFailFast(
+        AgentCapability__c capability,
+        AIAgentDefinition__c agentDefinition,
+        ActionOutcome toolOutcome,
+        String logPrefix
+    ) {
+        // Only applies to tool failures
+        if (toolOutcome == null || toolOutcome.isSuccess) {
+            return false;
+        }
+
+        // Tier 1: Capability-level override (highest priority)
+        // If this specific tool is marked as critical, always fail fast
+        if (capability.FailFastOnError__c == true) {
+            System.debug(
+                LoggingLevel.WARN,
+                logPrefix +
+                    '⚠️ FAIL-FAST (Tier 1): Capability "' +
+                    capability.CapabilityName__c +
+                    '" has FailFastOnError=true. Halting execution immediately.'
+            );
+            return true;
+        }
+
+        // Tier 2: Agent-level policy
+        // Check if agent is configured for fail-fast behavior
+        if (agentDefinition.ErrorHandlingPolicy__c == 'Fail-Fast') {
+            System.debug(
+                LoggingLevel.WARN,
+                logPrefix +
+                    '⚠️ FAIL-FAST (Tier 2): Agent "' +
+                    agentDefinition.DeveloperName__c +
+                    '" has ErrorHandlingPolicy=Fail-Fast. Halting execution.'
+            );
+            return true;
+        }
+
+        // Tier 3: Default behavior (autonomous recovery)
+        // Let LLM see the error and attempt to handle it
+        System.debug(
+            LoggingLevel.INFO,
+            logPrefix +
+                '✓ AUTONOMOUS RECOVERY (Tier 3): Passing error to LLM for handling. ' +
+                'Capability: ' +
+                capability.CapabilityName__c +
+                ', ' +
+                'Agent Policy: ' +
+                (agentDefinition.ErrorHandlingPolicy__c != null ? agentDefinition.ErrorHandlingPolicy__c : 'Not Set (Default)')
+        );
+        return false;
     }
 }

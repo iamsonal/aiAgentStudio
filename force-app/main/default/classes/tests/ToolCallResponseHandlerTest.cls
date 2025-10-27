@@ -3,16 +3,13 @@
  */
 @IsTest
 private class ToolCallResponseHandlerTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
 
     @TestSetup
     static void setupTestData() {
-        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
-            .withStandardActions()
-            .save();
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().withStandardActions().save();
     }
 
     // ===================================================================================
@@ -23,14 +20,14 @@ private class ToolCallResponseHandlerTest {
     static void testHandle_SyncToolCall_Success() {
         // Given: Context with sync tool call
         TestFactory.AgentSetup setup = getTestSetup();
-        AgentCapability__c capability = [SELECT Id, CapabilityName__c FROM AgentCapability__c
-                                         WHERE RunAsynchronously__c = false LIMIT 1];
+        AgentCapability__c capability = [
+            SELECT Id, CapabilityName__c
+            FROM AgentCapability__c
+            WHERE RunAsynchronously__c = FALSE
+            LIMIT 1
+        ];
 
-        OrchestrationContext context = createToolCallContext(
-            setup,
-            capability.CapabilityName__c,
-            '{"searchQuery":"test"}'
-        );
+        OrchestrationContext context = createToolCallContext(setup, capability.CapabilityName__c, '{"searchQuery":"test"}');
 
         ToolCallResponseHandler handler = new ToolCallResponseHandler();
 
@@ -47,8 +44,12 @@ private class ToolCallResponseHandlerTest {
     static void testHandle_SyncToolCallWithUserMessage_CreatesSteps() {
         // Given: Context with user message and tool call
         TestFactory.AgentSetup setup = getTestSetup();
-        AgentCapability__c capability = [SELECT Id, CapabilityName__c FROM AgentCapability__c
-                                         WHERE RunAsynchronously__c = false LIMIT 1];
+        AgentCapability__c capability = [
+            SELECT Id, CapabilityName__c
+            FROM AgentCapability__c
+            WHERE RunAsynchronously__c = FALSE
+            LIMIT 1
+        ];
 
         OrchestrationContext context = createToolCallContextWithUser(
             setup,
@@ -65,8 +66,11 @@ private class ToolCallResponseHandlerTest {
         Test.stopTest();
 
         // Then: Should create execution steps
-        List<ExecutionStep__c> steps = [SELECT StepType__c FROM ExecutionStep__c
-                                        WHERE AgentExecution__c = :setup.agentExecution.Id];
+        List<ExecutionStep__c> steps = [
+            SELECT StepType__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :setup.agentExecution.Id
+        ];
         System.assert(!steps.isEmpty(), 'Should create execution steps');
     }
 
@@ -93,11 +97,7 @@ private class ToolCallResponseHandlerTest {
         );
         insert asyncCap;
 
-        OrchestrationContext context = createToolCallContext(
-            setup,
-            asyncCapName,
-            '{"searchQuery":"async test"}'
-        );
+        OrchestrationContext context = createToolCallContext(setup, asyncCapName, '{"searchQuery":"async test"}');
 
         ToolCallResponseHandler handler = new ToolCallResponseHandler();
 
@@ -149,9 +149,11 @@ private class ToolCallResponseHandlerTest {
         // Then: Should queue follow-up and create approval request
         System.assertEquals(OrchestrationService.OUTCOME_QUEUED_FOLLOWUP, outcome);
 
-        List<HumanApprovalRequest__c> approvals = [SELECT Id, ApprovalStatus__c
-                                                    FROM HumanApprovalRequest__c
-                                                    WHERE AgentExecution__c = :setup.agentExecution.Id];
+        List<HumanApprovalRequest__c> approvals = [
+            SELECT Id, ApprovalStatus__c
+            FROM HumanApprovalRequest__c
+            WHERE AgentExecution__c = :setup.agentExecution.Id
+        ];
         System.assertEquals(1, approvals.size(), 'Should create approval request');
         System.assertEquals('Pending', approvals[0].ApprovalStatus__c);
     }
@@ -177,7 +179,7 @@ private class ToolCallResponseHandlerTest {
         OrchestrationContext context = createToolCallContext(
             setup,
             approvalCapName,
-            '{"text":"Test message"}'  // No submission_comment
+            '{"text":"Test message"}' // No submission_comment
         );
 
         ToolCallResponseHandler handler = new ToolCallResponseHandler();
@@ -223,11 +225,7 @@ private class ToolCallResponseHandlerTest {
         return setup;
     }
 
-    private static OrchestrationContext createToolCallContext(
-        TestFactory.AgentSetup setup,
-        String toolName,
-        String toolArguments
-    ) {
+    private static OrchestrationContext createToolCallContext(TestFactory.AgentSetup setup, String toolName, String toolArguments) {
         // Create LLM result with tool call
         ProviderResult providerResult = new ProviderResult();
         providerResult.content = 'Let me help with that.';
@@ -250,8 +248,7 @@ private class ToolCallResponseHandlerTest {
         assistantData.processingTimeMs = 100;
         assistantData.assistantToolCallsJson = JSON.serialize(providerResult.requestedActions);
 
-        LLMInteractionService.LLMInteractionResult llmResult =
-            new LLMInteractionService.LLMInteractionResult(providerResult, assistantData);
+        LLMInteractionService.LLMInteractionResult llmResult = new LLMInteractionService.LLMInteractionResult(providerResult, assistantData);
 
         // Create services
         TurnLifecycleService turnSvc = new TurnLifecycleService();
@@ -306,8 +303,7 @@ private class ToolCallResponseHandlerTest {
         assistantData.processingTimeMs = 100;
         assistantData.assistantToolCallsJson = JSON.serialize(providerResult.requestedActions);
 
-        LLMInteractionService.LLMInteractionResult llmResult =
-            new LLMInteractionService.LLMInteractionResult(providerResult, assistantData);
+        LLMInteractionService.LLMInteractionResult llmResult = new LLMInteractionService.LLMInteractionResult(providerResult, assistantData);
 
         // Create user message
         LLMInteractionService.MessageData userData = new LLMInteractionService.MessageData();
@@ -339,4 +335,3 @@ private class ToolCallResponseHandlerTest {
         );
     }
 }
-

@@ -19,7 +19,6 @@
  * while maximizing parallel execution where possible.
  */
 public class ParallelToolCallHandler {
-
     /**
      * @description
      * Data structure to hold information about a tool call request
@@ -32,8 +31,14 @@ public class ParallelToolCallHandler {
         public Boolean isAsync;
         public Integer executionOrder;
 
-        public ToolCallRequest(String toolCallId, String toolName, String toolArguments,
-                              AgentCapability__c capability, Boolean isAsync, Integer executionOrder) {
+        public ToolCallRequest(
+            String toolCallId,
+            String toolName,
+            String toolArguments,
+            AgentCapability__c capability,
+            Boolean isAsync,
+            Integer executionOrder
+        ) {
             this.toolCallId = toolCallId;
             this.toolName = toolName;
             this.toolArguments = toolArguments;
@@ -55,8 +60,14 @@ public class ParallelToolCallHandler {
         public Boolean isAsync;
         public Integer executionOrder;
 
-        public ToolExecutionResult(String toolCallId, String toolName, ActionOutcome outcome,
-                                  Long processingTime, Boolean isAsync, Integer executionOrder) {
+        public ToolExecutionResult(
+            String toolCallId,
+            String toolName,
+            ActionOutcome outcome,
+            Long processingTime,
+            Boolean isAsync,
+            Integer executionOrder
+        ) {
             this.toolCallId = toolCallId;
             this.toolName = toolName;
             this.outcome = outcome;
@@ -85,9 +96,7 @@ public class ParallelToolCallHandler {
 
         try {
             // Step 1: Parse and validate all tool calls
-            List<ToolCallRequest> toolRequests = parseAndValidateToolCalls(
-                context, requestedActions, decisionLogger, logPrefix
-            );
+            List<ToolCallRequest> toolRequests = parseAndValidateToolCalls(context, requestedActions, decisionLogger, logPrefix);
 
             if (toolRequests.isEmpty()) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'No valid tool calls found after parsing');
@@ -98,9 +107,7 @@ public class ParallelToolCallHandler {
             createToolCallExecutionSteps(context, toolRequests, decisionLogger, logPrefix);
 
             // Step 3: Execute synchronous tools immediately in same transaction
-            List<ToolExecutionResult> syncResults = executeSynchronousTools(
-                context, toolRequests, decisionLogger, logPrefix
-            );
+            List<ToolExecutionResult> syncResults = executeSynchronousTools(context, toolRequests, decisionLogger, logPrefix);
 
             // Step 4: Create execution step records for sync tool results
             createToolResultExecutionSteps(context, syncResults, decisionLogger, logPrefix);
@@ -113,7 +120,6 @@ public class ParallelToolCallHandler {
 
             // Step 6: Determine next orchestration step
             return determineNextOrchestrationStep(context, syncResults, asyncTools, logPrefix);
-
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error in parallel tool call handling: ' + e.getMessage() + '\n' + e.getStackTraceString());
             context.turnLifecycleSvc.failTurn(
@@ -163,13 +169,10 @@ public class ParallelToolCallHandler {
                 // Determine if tool should run asynchronously
                 Boolean isAsync = capability.RunAsynchronously__c == true;
 
-                ToolCallRequest toolRequest = new ToolCallRequest(
-                    toolCallId, toolName, toolArguments, capability, isAsync, i + 1
-                );
+                ToolCallRequest toolRequest = new ToolCallRequest(toolCallId, toolName, toolArguments, capability, isAsync, i + 1);
                 toolRequests.add(toolRequest);
 
                 System.debug(LoggingLevel.INFO, logPrefix + 'Parsed tool call ' + (i + 1) + ': ' + toolName + ' (async=' + isAsync + ')');
-
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Error parsing tool call at index ' + i + ': ' + e.getMessage());
                 continue;
@@ -186,12 +189,15 @@ public class ParallelToolCallHandler {
             };
 
             for (ToolCallRequest req : toolRequests) {
-                ((List<Map<String, Object>>)planData.get('tools')).add(new Map<String, Object>{
-                    'name' => req.toolName,
-                    'id' => req.toolCallId,
-                    'isAsync' => req.isAsync,
-                    'order' => req.executionOrder
-                });
+                ((List<Map<String, Object>>) planData.get('tools'))
+                    .add(
+                        new Map<String, Object>{
+                            'name' => req.toolName,
+                            'id' => req.toolCallId,
+                            'isAsync' => req.isAsync,
+                            'order' => req.executionOrder
+                        }
+                    );
             }
 
             decisionLogger.logToolExecution(
@@ -237,9 +243,11 @@ public class ParallelToolCallHandler {
                 );
 
                 System.debug(LoggingLevel.DEBUG, logPrefix + 'Created execution step for tool call: ' + toolRequest.toolName);
-
             } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create execution step for tool ' + toolRequest.toolName + ': ' + e.getMessage());
+                System.debug(
+                    LoggingLevel.ERROR,
+                    logPrefix + 'Failed to create execution step for tool ' + toolRequest.toolName + ': ' + e.getMessage()
+                );
                 // Continue with other tools even if one fails
             }
         }
@@ -286,11 +294,7 @@ public class ParallelToolCallHandler {
                 );
 
                 // Execute the tool
-                ActionOutcome outcome = context.actionExecSvc.executeSingleAction(
-                    toolRequest.capability,
-                    toolRequest.toolArguments,
-                    actionContext
-                );
+                ActionOutcome outcome = context.actionExecSvc.executeSingleAction(toolRequest.capability, toolRequest.toolArguments, actionContext);
 
                 Long processingTime = System.currentTimeMillis() - startTime;
 
@@ -305,7 +309,10 @@ public class ParallelToolCallHandler {
 
                 syncResults.add(result);
 
-                System.debug(LoggingLevel.INFO, logPrefix + 'Executed sync tool ' + toolRequest.toolName + ' in ' + processingTime + 'ms (success=' + outcome.isSuccess + ')');
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix + 'Executed sync tool ' + toolRequest.toolName + ' in ' + processingTime + 'ms (success=' + outcome.isSuccess + ')'
+                );
 
                 // Log the tool execution result
                 if (decisionLogger != null) {
@@ -319,7 +326,6 @@ public class ParallelToolCallHandler {
                         outcome.errorMessage
                     );
                 }
-
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Error executing sync tool ' + toolRequest.toolName + ': ' + e.getMessage());
 
@@ -374,9 +380,11 @@ public class ParallelToolCallHandler {
                 );
 
                 System.debug(LoggingLevel.DEBUG, logPrefix + 'Created execution step for sync tool result: ' + result.toolName);
-
             } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create execution step for sync tool result ' + result.toolName + ': ' + e.getMessage());
+                System.debug(
+                    LoggingLevel.ERROR,
+                    logPrefix + 'Failed to create execution step for sync tool result ' + result.toolName + ': ' + e.getMessage()
+                );
                 // Continue with other results even if one fails
             }
         }
@@ -397,13 +405,7 @@ public class ParallelToolCallHandler {
         System.debug(LoggingLevel.INFO, logPrefix + 'Queuing ' + asyncTools.size() + ' asynchronous tools');
 
         // Pause the turn for async action processing
-        context.turnLifecycleSvc.pauseForAsyncAction(
-            context.executionId,
-            context.turnIdentifier,
-            null,
-            'Multiple Async Tools',
-            logPrefix
-        );
+        context.turnLifecycleSvc.pauseForAsyncAction(context.executionId, context.turnIdentifier, null, 'Multiple Async Tools', logPrefix);
 
         // Queue each async tool individually
         for (ToolCallRequest toolRequest : asyncTools) {
@@ -423,7 +425,6 @@ public class ParallelToolCallHandler {
                 );
 
                 System.debug(LoggingLevel.INFO, logPrefix + 'Queued async tool: ' + toolRequest.toolName);
-
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to queue async tool ' + toolRequest.toolName + ': ' + e.getMessage());
                 // Continue with other tools even if one fails to queue

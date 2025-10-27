@@ -12,13 +12,10 @@
  */
 @IsTest
 public class ParallelToolCallHandlerTest {
-
     @TestSetup
     static void setupTestData() {
         // Use TestFactory to create proper test data with standard capabilities
-        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
-            .withStandardActions()
-            .save();
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().withStandardActions().save();
     }
 
     @IsTest
@@ -31,7 +28,7 @@ public class ParallelToolCallHandlerTest {
         List<AgentCapability__c> syncCapabilities = [
             SELECT Id, CapabilityName__c
             FROM AgentCapability__c
-            WHERE RunAsynchronously__c = false
+            WHERE RunAsynchronously__c = FALSE
             LIMIT 2
         ];
 
@@ -42,16 +39,12 @@ public class ParallelToolCallHandlerTest {
 
         // Create mock requested actions for sync tools only
         List<Map<String, String>> requestedActions = new List<Map<String, String>>();
-        requestedActions.add(new Map<String, String>{
-            'id' => 'call_1',
-            'name' => syncCapabilities[0].CapabilityName__c,
-            'arguments' => '{"param1": "value1"}'
-        });
-        requestedActions.add(new Map<String, String>{
-            'id' => 'call_2',
-            'name' => syncCapabilities[1].CapabilityName__c,
-            'arguments' => '{"param2": "value2"}'
-        });
+        requestedActions.add(
+            new Map<String, String>{ 'id' => 'call_1', 'name' => syncCapabilities[0].CapabilityName__c, 'arguments' => '{"param1": "value1"}' }
+        );
+        requestedActions.add(
+            new Map<String, String>{ 'id' => 'call_2', 'name' => syncCapabilities[1].CapabilityName__c, 'arguments' => '{"param2": "value2"}' }
+        );
 
         // Create mock decision logger
         AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(execution.Id, 'test-turn', UserInfo.getUserId());
@@ -61,8 +54,7 @@ public class ParallelToolCallHandlerTest {
         Test.stopTest();
 
         // For all sync tools, should return QUEUED_FOLLOWUP (no async tools to wait for)
-        System.assertEquals(OrchestrationService.OUTCOME_QUEUED_FOLLOWUP, result,
-                           'All sync tools should return QUEUED_FOLLOWUP outcome');
+        System.assertEquals(OrchestrationService.OUTCOME_QUEUED_FOLLOWUP, result, 'All sync tools should return QUEUED_FOLLOWUP outcome');
     }
 
     @IsTest
@@ -89,16 +81,12 @@ public class ParallelToolCallHandlerTest {
 
         // Create mock requested actions for async tools only
         List<Map<String, String>> requestedActions = new List<Map<String, String>>();
-        requestedActions.add(new Map<String, String>{
-            'id' => 'call_1',
-            'name' => existingCapabilities[0].CapabilityName__c,
-            'arguments' => '{"param1": "value1"}'
-        });
-        requestedActions.add(new Map<String, String>{
-            'id' => 'call_2',
-            'name' => existingCapabilities[1].CapabilityName__c,
-            'arguments' => '{"param2": "value2"}'
-        });
+        requestedActions.add(
+            new Map<String, String>{ 'id' => 'call_1', 'name' => existingCapabilities[0].CapabilityName__c, 'arguments' => '{"param1": "value1"}' }
+        );
+        requestedActions.add(
+            new Map<String, String>{ 'id' => 'call_2', 'name' => existingCapabilities[1].CapabilityName__c, 'arguments' => '{"param2": "value2"}' }
+        );
 
         // Create mock decision logger
         AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(execution.Id, 'test-turn', UserInfo.getUserId());
@@ -108,8 +96,7 @@ public class ParallelToolCallHandlerTest {
         Test.stopTest();
 
         // For all async tools, should return QUEUED_ACTION (waiting for async tools to complete)
-        System.assertEquals(OrchestrationService.OUTCOME_QUEUED_ACTION, result,
-                           'All async tools should return QUEUED_ACTION outcome');
+        System.assertEquals(OrchestrationService.OUTCOME_QUEUED_ACTION, result, 'All async tools should return QUEUED_ACTION outcome');
     }
 
     @IsTest
@@ -135,16 +122,12 @@ public class ParallelToolCallHandlerTest {
 
         // Create mock requested actions for mixed sync and async tools
         List<Map<String, String>> requestedActions = new List<Map<String, String>>();
-        requestedActions.add(new Map<String, String>{
-            'id' => 'call_1',
-            'name' => existingCapabilities[0].CapabilityName__c,
-            'arguments' => '{"param1": "value1"}'
-        });
-        requestedActions.add(new Map<String, String>{
-            'id' => 'call_2',
-            'name' => existingCapabilities[1].CapabilityName__c,
-            'arguments' => '{"param2": "value2"}'
-        });
+        requestedActions.add(
+            new Map<String, String>{ 'id' => 'call_1', 'name' => existingCapabilities[0].CapabilityName__c, 'arguments' => '{"param1": "value1"}' }
+        );
+        requestedActions.add(
+            new Map<String, String>{ 'id' => 'call_2', 'name' => existingCapabilities[1].CapabilityName__c, 'arguments' => '{"param2": "value2"}' }
+        );
 
         // Create mock decision logger
         AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(execution.Id, 'test-turn', UserInfo.getUserId());
@@ -154,8 +137,7 @@ public class ParallelToolCallHandlerTest {
         Test.stopTest();
 
         // For mixed tools, should return QUEUED_ACTION (waiting for async tools to complete)
-        System.assertEquals(OrchestrationService.OUTCOME_QUEUED_ACTION, result,
-                           'Mixed sync/async tools should return QUEUED_ACTION outcome');
+        System.assertEquals(OrchestrationService.OUTCOME_QUEUED_ACTION, result, 'Mixed sync/async tools should return QUEUED_ACTION outcome');
     }
 
     @IsTest
@@ -169,16 +151,8 @@ public class ParallelToolCallHandlerTest {
 
         // Create mock requested actions with invalid tool names
         List<Map<String, String>> requestedActions = new List<Map<String, String>>();
-        requestedActions.add(new Map<String, String>{
-            'id' => 'call_1',
-            'name' => 'nonExistentTool',
-            'arguments' => '{"param1": "value1"}'
-        });
-        requestedActions.add(new Map<String, String>{
-            'id' => 'call_2',
-            'name' => 'anotherNonExistentTool',
-            'arguments' => '{"param2": "value2"}'
-        });
+        requestedActions.add(new Map<String, String>{ 'id' => 'call_1', 'name' => 'nonExistentTool', 'arguments' => '{"param1": "value1"}' });
+        requestedActions.add(new Map<String, String>{ 'id' => 'call_2', 'name' => 'anotherNonExistentTool', 'arguments' => '{"param2": "value2"}' });
 
         // Create mock decision logger
         AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(execution.Id, 'test-turn', UserInfo.getUserId());
@@ -188,8 +162,7 @@ public class ParallelToolCallHandlerTest {
         Test.stopTest();
 
         // For invalid tools, should return FAILED
-        System.assertEquals(OrchestrationService.OUTCOME_FAILED, result,
-                           'Invalid tool calls should return FAILED outcome');
+        System.assertEquals(OrchestrationService.OUTCOME_FAILED, result, 'Invalid tool calls should return FAILED outcome');
     }
 
     @IsTest
@@ -204,21 +177,10 @@ public class ParallelToolCallHandlerTest {
         Test.startTest();
 
         // Test the result gatherer (should not throw exceptions)
-        ParallelResultGatherer.checkAndTriggerFinalFollowUp(
-            execution.Id,
-            turnIdentifier,
-            currentTurnCount,
-            logPrefix
-        );
+        ParallelResultGatherer.checkAndTriggerFinalFollowUp(execution.Id, turnIdentifier, currentTurnCount, logPrefix);
 
         // Test async tool completion
-        ParallelResultGatherer.onAsyncToolCompleted(
-            execution.Id,
-            turnIdentifier,
-            currentTurnCount,
-            'test-tool-call-id',
-            logPrefix
-        );
+        ParallelResultGatherer.onAsyncToolCompleted(execution.Id, turnIdentifier, currentTurnCount, 'test-tool-call-id', logPrefix);
 
         Test.stopTest();
 
@@ -295,8 +257,7 @@ public class ParallelToolCallHandlerTest {
         assistantData.processingTimeMs = 100;
 
         // Create mock LLM result using the success constructor
-        LLMInteractionService.LLMInteractionResult llmResult =
-            new LLMInteractionService.LLMInteractionResult(providerResult, assistantData);
+        LLMInteractionService.LLMInteractionResult llmResult = new LLMInteractionService.LLMInteractionResult(providerResult, assistantData);
 
         // Create mock message data
         LLMInteractionService.MessageData userMessageData = new LLMInteractionService.MessageData();
@@ -351,8 +312,7 @@ public class ParallelToolCallHandlerTest {
         assistantData.processingTimeMs = 100;
 
         // Create mock LLM result using the success constructor
-        LLMInteractionService.LLMInteractionResult llmResult =
-            new LLMInteractionService.LLMInteractionResult(providerResult, assistantData);
+        LLMInteractionService.LLMInteractionResult llmResult = new LLMInteractionService.LLMInteractionResult(providerResult, assistantData);
 
         // Create mock message data
         LLMInteractionService.MessageData userMessageData = new LLMInteractionService.MessageData();

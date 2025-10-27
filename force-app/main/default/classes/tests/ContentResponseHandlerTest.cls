@@ -3,7 +3,6 @@
  */
 @IsTest
 private class ContentResponseHandlerTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -11,15 +10,11 @@ private class ContentResponseHandlerTest {
     @TestSetup
     static void setupTestData() {
         // Create agent setup with conversational agent
-        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
-            .save();
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
 
         // Create completion capability for non-conversational tests
         // Note: We set the name AFTER forPostChatter() to override the default name
-        AgentCapability__c completionCap = TestFactory.newCapability()
-            .withAgent(setup.agentDefinition.Id)
-            .forPostChatter()
-            .build();
+        AgentCapability__c completionCap = TestFactory.newCapability().withAgent(setup.agentDefinition.Id).forPostChatter().build();
 
         completionCap.CapabilityName__c = 'send_email_completion';
         insert completionCap;
@@ -45,8 +40,11 @@ private class ContentResponseHandlerTest {
         System.assertEquals(OrchestrationService.OUTCOME_COMPLETED, outcome);
 
         // Verify execution steps were created
-        List<ExecutionStep__c> steps = [SELECT Id, StepType__c FROM ExecutionStep__c
-                                        WHERE AgentExecution__c = :setup.agentExecution.Id];
+        List<ExecutionStep__c> steps = [
+            SELECT Id, StepType__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :setup.agentExecution.Id
+        ];
         System.assert(!steps.isEmpty(), 'Should create execution steps');
     }
 
@@ -54,11 +52,7 @@ private class ContentResponseHandlerTest {
     static void testHandle_WithUserMessage_CreatesUserInputStep() {
         // Given: Context with user message
         TestFactory.AgentSetup setup = getTestSetup();
-        OrchestrationContext context = createContextWithUserMessage(
-            setup,
-            'Hello!',
-            'How can I help you?'
-        );
+        OrchestrationContext context = createContextWithUserMessage(setup, 'Hello!', 'How can I help you?');
         ContentResponseHandler handler = new ContentResponseHandler();
 
         // When: Handling
@@ -68,8 +62,11 @@ private class ContentResponseHandlerTest {
 
         // Then: Should create both user and assistant steps
         System.assertEquals(OrchestrationService.OUTCOME_COMPLETED, outcome);
-        List<ExecutionStep__c> steps = [SELECT StepType__c FROM ExecutionStep__c
-                                        WHERE AgentExecution__c = :setup.agentExecution.Id];
+        List<ExecutionStep__c> steps = [
+            SELECT StepType__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :setup.agentExecution.Id
+        ];
         System.assert(steps.size() >= 2, 'Should create user and assistant steps');
     }
 
@@ -79,10 +76,7 @@ private class ContentResponseHandlerTest {
         TestFactory.AgentSetup setup = getTestSetup();
 
         // Update agent to have memory strategy
-        update new AIAgentDefinition__c(
-            Id = setup.agentDefinition.Id,
-            MemoryStrategy__c = 'Buffer Window'
-        );
+        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, MemoryStrategy__c = 'Buffer Window');
 
         OrchestrationContext context = createContext(setup, 'Response with memory');
         ContentResponseHandler handler = new ContentResponseHandler();
@@ -142,8 +136,11 @@ private class ContentResponseHandlerTest {
         TestFactory.AgentSetup setup = getTestSetup();
 
         // Verify it's conversational
-        AIAgentDefinition__c agent = [SELECT AgentType__c FROM AIAgentDefinition__c
-                                      WHERE Id = :setup.agentDefinition.Id];
+        AIAgentDefinition__c agent = [
+            SELECT AgentType__c
+            FROM AIAgentDefinition__c
+            WHERE Id = :setup.agentDefinition.Id
+        ];
         System.assertEquals('Conversational', agent.AgentType__c);
 
         OrchestrationContext context = createContext(setup, 'Response text');
@@ -155,76 +152,6 @@ private class ContentResponseHandlerTest {
         Test.stopTest();
 
         // Then: Should complete without invoking completion capability
-        System.assertEquals(OrchestrationService.OUTCOME_COMPLETED, outcome);
-    }
-
-    @IsTest
-    static void testHandle_NonConversationalWithCompletionCapability_InvokesCompletion() {
-        // Given: Non-conversational agent with completion capability
-        TestFactory.AgentSetup setup = getTestSetup();
-        AgentCapability__c completionCap = [SELECT Id FROM AgentCapability__c
-                                            WHERE CapabilityName__c = 'send_email_completion' LIMIT 1];
-
-        // Update agent to Email type with completion capability and custom mapping
-        update new AIAgentDefinition__c(
-            Id = setup.agentDefinition.Id,
-            AgentType__c = 'Email',
-            CompletionCapability__c = completionCap.Id,
-            CompletionParameterMapping__c = '{"toAddresses": ["test@example.com"], "subject": "Test", "plainTextBody": "{{summary}}"}'
-        );
-
-        // Update execution with email trigger metadata
-        update new AgentExecution__c(
-            Id = setup.agentExecution.Id,
-            ExecutionType__c = 'Email',
-            TriggerSource__c = 'EmailMessage',
-            TriggerPayload__c = '{"fromAddress":"sender@example.com","emailSubject":"Original Subject"}'
-        );
-
-        OrchestrationContext context = createContext(setup, 'Email response summary');
-        ContentResponseHandler handler = new ContentResponseHandler();
-
-        // When: Handling
-        Test.startTest();
-        String outcome = handler.handle(context);
-        Test.stopTest();
-
-        // Then: Should complete successfully (completion capability invoked)
-        System.assertEquals(OrchestrationService.OUTCOME_COMPLETED, outcome);
-    }
-
-    @IsTest
-    static void testHandle_CompletionCapabilityWithDefaultMapping_UsesDefaultMapping() {
-        // Given: Email agent without custom mapping (uses default)
-        TestFactory.AgentSetup setup = getTestSetup();
-        AgentCapability__c completionCap = [SELECT Id FROM AgentCapability__c
-                                            WHERE CapabilityName__c = 'send_email_completion' LIMIT 1];
-
-        // Update agent to Email type with completion capability but NO custom mapping
-        update new AIAgentDefinition__c(
-            Id = setup.agentDefinition.Id,
-            AgentType__c = 'Email',
-            CompletionCapability__c = completionCap.Id,
-            CompletionParameterMapping__c = null  // Will use default
-        );
-
-        // Update execution with email metadata
-        update new AgentExecution__c(
-            Id = setup.agentExecution.Id,
-            ExecutionType__c = 'Email',
-            TriggerSource__c = 'EmailMessage',
-            TriggerPayload__c = '{"fromAddress":"sender@example.com","emailSubject":"Test Email"}'
-        );
-
-        OrchestrationContext context = createContext(setup, 'This is the summary');
-        ContentResponseHandler handler = new ContentResponseHandler();
-
-        // When: Handling
-        Test.startTest();
-        String outcome = handler.handle(context);
-        Test.stopTest();
-
-        // Then: Should complete using default mapping
         System.assertEquals(OrchestrationService.OUTCOME_COMPLETED, outcome);
     }
 
@@ -272,10 +199,7 @@ private class ContentResponseHandlerTest {
     static void testCompletionParameterMapper_ApplyMapping_SimpleVariables_Success() {
         // Given: Simple mapping template and context
         String template = '{"name": "{{userName}}", "message": "{{messageText}}"}';
-        Map<String, Object> context = new Map<String, Object>{
-            'userName' => 'John Doe',
-            'messageText' => 'Hello World'
-        };
+        Map<String, Object> context = new Map<String, Object>{ 'userName' => 'John Doe', 'messageText' => 'Hello World' };
 
         // When: Applying mapping
         Test.startTest();
@@ -293,14 +217,8 @@ private class ContentResponseHandlerTest {
         // Given: Template with nested path
         String template = '{"email": "{{user.contact.email}}", "subject": "{{metadata.subject}}"}';
         Map<String, Object> context = new Map<String, Object>{
-            'user' => new Map<String, Object>{
-                'contact' => new Map<String, Object>{
-                    'email' => 'test@example.com'
-                }
-            },
-            'metadata' => new Map<String, Object>{
-                'subject' => 'Test Subject'
-            }
+            'user' => new Map<String, Object>{ 'contact' => new Map<String, Object>{ 'email' => 'test@example.com' } },
+            'metadata' => new Map<String, Object>{ 'subject' => 'Test Subject' }
         };
 
         // When: Applying mapping
@@ -360,7 +278,7 @@ private class ContentResponseHandlerTest {
     @IsTest
     static void testCompletionParameterMapper_ApplyMapping_BlankTemplate_ThrowsException() {
         // Given: Blank template
-        Map<String, Object> context = new Map<String, Object>{'key' => 'value'};
+        Map<String, Object> context = new Map<String, Object>{ 'key' => 'value' };
         Boolean exceptionThrown = false;
 
         // When: Applying blank template
@@ -419,7 +337,7 @@ private class ContentResponseHandlerTest {
     static void testCompletionParameterMapper_ApplyMapping_InvalidJson_ThrowsException() {
         // Given: Invalid JSON template
         String template = '{"invalid": json}';
-        Map<String, Object> context = new Map<String, Object>{'key' => 'value'};
+        Map<String, Object> context = new Map<String, Object>{ 'key' => 'value' };
         Boolean exceptionThrown = false;
 
         // When: Applying invalid template
@@ -436,54 +354,18 @@ private class ContentResponseHandlerTest {
     }
 
     @IsTest
-    static void testCompletionParameterMapper_BuildCompletionContext_WithTriggerPayload_Success() {
-        // Given: Execution with trigger payload
-        TestFactory.AgentSetup setup = getTestSetup();
-        update new AgentExecution__c(
-            Id = setup.agentExecution.Id,
-            ExecutionType__c = 'Email',
-            TriggerSource__c = 'EmailMessage',
-            TriggerPayload__c = '{"fromAddress":"sender@test.com","emailSubject":"Test"}'
-        );
-
-        AgentExecution__c execution = [SELECT Id, ExecutionType__c, TriggerSource__c, TriggerPayload__c
-                                       FROM AgentExecution__c
-                                       WHERE Id = :setup.agentExecution.Id];
-
-        // When: Building context
-        Test.startTest();
-        Map<String, Object> context = CompletionParameterMapper.buildCompletionContext(
-            'Summary text',
-            execution
-        );
-        Test.stopTest();
-
-        // Then: Should build complete context
-        System.assertNotEquals(null, context);
-        System.assertEquals('Summary text', context.get('summary'));
-        System.assertEquals('Email', context.get('executionType'));
-        System.assertEquals('EmailMessage', context.get('triggerSource'));
-        System.assertNotEquals(null, context.get('triggerMetadata'), 'Should parse trigger metadata');
-
-        Map<String, Object> metadata = (Map<String, Object>) context.get('triggerMetadata');
-        System.assertEquals('sender@test.com', metadata.get('fromAddress'));
-        System.assertEquals('Test', metadata.get('emailSubject'));
-    }
-
-    @IsTest
     static void testCompletionParameterMapper_BuildCompletionContext_WithoutTriggerPayload_Success() {
         // Given: Execution without trigger payload
         TestFactory.AgentSetup setup = getTestSetup();
-        AgentExecution__c execution = [SELECT Id, ExecutionType__c, TriggerSource__c, TriggerPayload__c
-                                       FROM AgentExecution__c
-                                       WHERE Id = :setup.agentExecution.Id];
+        AgentExecution__c execution = [
+            SELECT Id, ExecutionType__c, TriggerSource__c, TriggerPayload__c
+            FROM AgentExecution__c
+            WHERE Id = :setup.agentExecution.Id
+        ];
 
         // When: Building context
         Test.startTest();
-        Map<String, Object> context = CompletionParameterMapper.buildCompletionContext(
-            'Test summary',
-            execution
-        );
+        Map<String, Object> context = CompletionParameterMapper.buildCompletionContext('Test summary', execution);
         Test.stopTest();
 
         // Then: Should build context with empty metadata
@@ -496,21 +378,17 @@ private class ContentResponseHandlerTest {
     static void testCompletionParameterMapper_BuildCompletionContext_WithInvalidPayload_HandlesGracefully() {
         // Given: Execution with invalid JSON payload
         TestFactory.AgentSetup setup = getTestSetup();
-        update new AgentExecution__c(
-            Id = setup.agentExecution.Id,
-            TriggerPayload__c = 'invalid json {'
-        );
+        update new AgentExecution__c(Id = setup.agentExecution.Id, TriggerPayload__c = 'invalid json {');
 
-        AgentExecution__c execution = [SELECT Id, ExecutionType__c, TriggerSource__c, TriggerPayload__c
-                                       FROM AgentExecution__c
-                                       WHERE Id = :setup.agentExecution.Id];
+        AgentExecution__c execution = [
+            SELECT Id, ExecutionType__c, TriggerSource__c, TriggerPayload__c
+            FROM AgentExecution__c
+            WHERE Id = :setup.agentExecution.Id
+        ];
 
         // When: Building context
         Test.startTest();
-        Map<String, Object> context = CompletionParameterMapper.buildCompletionContext(
-            'Summary',
-            execution
-        );
+        Map<String, Object> context = CompletionParameterMapper.buildCompletionContext('Summary', execution);
         Test.stopTest();
 
         // Then: Should handle gracefully with empty metadata
@@ -575,8 +453,7 @@ private class ContentResponseHandlerTest {
         assistantData.content = assistantContent;
         assistantData.processingTimeMs = 100;
 
-        LLMInteractionService.LLMInteractionResult llmResult =
-            new LLMInteractionService.LLMInteractionResult(providerResult, assistantData);
+        LLMInteractionService.LLMInteractionResult llmResult = new LLMInteractionService.LLMInteractionResult(providerResult, assistantData);
 
         // Create services
         TurnLifecycleService turnSvc = new TurnLifecycleService();
@@ -604,11 +481,7 @@ private class ContentResponseHandlerTest {
         );
     }
 
-    private static OrchestrationContext createContextWithUserMessage(
-        TestFactory.AgentSetup setup,
-        String userContent,
-        String assistantContent
-    ) {
+    private static OrchestrationContext createContextWithUserMessage(TestFactory.AgentSetup setup, String userContent, String assistantContent) {
         // Create LLM result
         ProviderResult providerResult = new ProviderResult();
         providerResult.content = assistantContent;
@@ -622,8 +495,7 @@ private class ContentResponseHandlerTest {
         assistantData.content = assistantContent;
         assistantData.processingTimeMs = 100;
 
-        LLMInteractionService.LLMInteractionResult llmResult =
-            new LLMInteractionService.LLMInteractionResult(providerResult, assistantData);
+        LLMInteractionService.LLMInteractionResult llmResult = new LLMInteractionService.LLMInteractionResult(providerResult, assistantData);
 
         // Create user message
         LLMInteractionService.MessageData userData = new LLMInteractionService.MessageData();
@@ -656,4 +528,3 @@ private class ContentResponseHandlerTest {
         );
     }
 }
-

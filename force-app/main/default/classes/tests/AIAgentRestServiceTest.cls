@@ -3,7 +3,6 @@
  */
 @IsTest
 private class AIAgentRestServiceTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -196,12 +195,7 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void testAIAgentResponse_Constructor_SetsProperties() {
         // When: Creating response
-        AIAgentRestService.AIAgentResponse response = new AIAgentRestService.AIAgentResponse(
-            true,
-            'Success',
-            null,
-            'req-123'
-        );
+        AIAgentRestService.AIAgentResponse response = new AIAgentRestService.AIAgentResponse(true, 'Success', null, 'req-123');
 
         // Then: Properties should be set
         System.assert(response.success);

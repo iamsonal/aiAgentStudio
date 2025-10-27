@@ -8,18 +8,8 @@
 
 /**
  * @description
- * AsyncActionEngine is the core asynchronous action execution engine for the AI Agent Framework.
- * This engine contains all the business logic for asynchronous action processing and can be invoked
- * from multiple contexts (Platform Events, Queueables) via thin wrapper classes.
- *
- * Responsibilities:
- *   - Handles individual agent actions independently of invocation context (user, REST, or platform event)
- *   - Provides comprehensive action execution lifecycle management: validation, execution, result processing, and follow-up orchestration
- *   - Ensures robust error handling and execution state management throughout the action lifecycle
- *   - Surfaces operational and execution issues clearly via debug output for maintainability
- *   - Uses the unified AgentExecution__c and ExecutionStep__c data models exclusively
- *
- * This class is not intended to be instantiated or extended outside the framework.
+ * Core asynchronous action execution engine for the AI Agent Framework.
+ * Handles action processing lifecycle: validation, execution, result processing, and orchestration.
  */
 public class AsyncActionEngine {
     // Core execution properties
@@ -35,18 +25,18 @@ public class AsyncActionEngine {
     private final AgentCapability__c capability;
 
     /**
-     * Constructor for asynchronous action processing using the unified AgentExecution__c model.
+     * Constructor for asynchronous action processing.
      *
-     * @param executionId      The execution ID (AgentExecution__c).
-     * @param origUserId       The original user ID.
-     * @param agentDefId       The agent definition ID.
-     * @param parentMsgId      The parent assistant message ID.
-     * @param toolCallId       The tool call ID.
-     * @param llmArgs          The LLM arguments as a JSON string.
-     * @param cap              The AgentCapability__c record to execute.
-     * @param relId            The related record ID for context.
-     * @param turnId           The unique turn identifier.
-     * @param turnCount        The current turn count.
+     * @param executionId      Execution ID
+     * @param origUserId       Original user ID
+     * @param agentDefId       Agent definition ID
+     * @param parentMsgId      Parent message ID
+     * @param toolCallId       Tool call ID
+     * @param llmArgs          LLM arguments JSON
+     * @param cap              Agent capability
+     * @param relId            Related record ID
+     * @param turnId           Turn identifier
+     * @param turnCount        Turn count
      */
     public AsyncActionEngine(
         Id executionId,
@@ -73,11 +63,9 @@ public class AsyncActionEngine {
     }
 
     /**
-     * Main processing method for asynchronous agent action execution.
-     * Handles session validation, action execution, result processing, and follow-up orchestration.
+     * Main processing method for asynchronous action execution.
      *
-     * @param jobIdForLogging The Apex Job ID or other identifier for logging purposes. Can be null.
-     * @sideeffect May update session state, enqueue follow-up jobs, and log errors.
+     * @param jobIdForLogging Job ID for logging purposes
      */
     public void process(String jobIdForLogging) {
         Id executionUserId = UserInfo.getUserId();
@@ -164,6 +152,35 @@ public class AsyncActionEngine {
                 true // isAsyncToolExecution - asynchronous execution
             );
 
+            // FAIL-FAST CHECK: Apply three-tier error handling policy
+            // This ensures async tools respect the same error handling policy as sync tools
+            AIAgentDefinition__c agentDefinition = AIAgentConfigService.getAgentDefinition(this.agentDefinitionId);
+            Boolean shouldFailFast = OrchestrationService.shouldFailFast(this.capability, agentDefinition, outcome, logPrefix);
+
+            if (!outcome.isSuccess && shouldFailFast) {
+                // Tool failed and policy requires immediate failure
+                System.debug(LoggingLevel.WARN, logPrefix + 'Async tool failed with fail-fast policy enabled. Halting execution immediately.');
+
+                decisionLogger.logToolResult(
+                    'Fail-Fast Policy Triggered',
+                    'Async tool execution failed and fail-fast policy is enabled - halting execution',
+                    '{"reason":"fail_fast_policy","capability":"' + this.capability.CapabilityName__c + '"}',
+                    0,
+                    false,
+                    outcome.errorCode,
+                    outcome.errorMessage
+                );
+
+                turnLifecycleSvc.failTurn(
+                    this.executionId,
+                    this.turnIdentifier,
+                    'Async tool execution failed (fail-fast policy): ' + outcome.errorMessage,
+                    outcome.errorCode != null ? outcome.errorCode : AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                    logPrefix
+                );
+                return; // Don't continue to follow-up processing
+            }
+
             // Validate turn limits and dispatch follow-up processing
             Integer maxTurns = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
             if ((this.currentTurnCount + 1) > maxTurns) {
@@ -177,13 +194,7 @@ public class AsyncActionEngine {
                 );
             } else {
                 // Check if this is part of a parallel execution and if all async tools are complete
-                ParallelResultGatherer.onAsyncToolCompleted(
-                    this.executionId,
-                    this.turnIdentifier,
-                    this.currentTurnCount,
-                    this.toolCallId,
-                    logPrefix
-                );
+                ParallelResultGatherer.onAsyncToolCompleted(this.executionId, this.turnIdentifier, this.currentTurnCount, this.toolCallId, logPrefix);
             }
         } catch (Exception ex) {
             System.debug(

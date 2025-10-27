@@ -346,9 +346,7 @@ private class ActionConfigUtilsTest {
 
     @IsTest
     static void testGetRequiredStringList_Success() {
-        Map<String, Object> params = new Map<String, Object>{
-            'fields' => new List<String>{ 'Name', 'Email', 'Phone' }
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'fields' => new List<String>{ 'Name', 'Email', 'Phone' } };
 
         List<String> result = ActionConfigUtils.getRequiredStringList(params, 'fields', false);
 
@@ -358,9 +356,7 @@ private class ActionConfigUtilsTest {
 
     @IsTest
     static void testGetRequiredStringList_ObjectList() {
-        Map<String, Object> params = new Map<String, Object>{
-            'fields' => new List<Object>{ 'Name', 'Email', 123 }
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'fields' => new List<Object>{ 'Name', 'Email', 123 } };
 
         List<String> result = ActionConfigUtils.getRequiredStringList(params, 'fields', false);
 
@@ -380,9 +376,7 @@ private class ActionConfigUtilsTest {
 
     @IsTest
     static void testGetRequiredStringList_RequireNonEmpty_Success() {
-        Map<String, Object> params = new Map<String, Object>{
-            'fields' => new List<String>{ 'Name' }
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'fields' => new List<String>{ 'Name' } };
 
         List<String> result = ActionConfigUtils.getRequiredStringList(params, 'fields', true);
 
@@ -391,9 +385,7 @@ private class ActionConfigUtilsTest {
 
     @IsTest
     static void testGetRequiredStringList_RequireNonEmpty_Empty() {
-        Map<String, Object> params = new Map<String, Object>{
-            'fields' => new List<String>()
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'fields' => new List<String>() };
 
         try {
             ActionConfigUtils.getRequiredStringList(params, 'fields', true);
@@ -433,9 +425,7 @@ private class ActionConfigUtilsTest {
 
     @IsTest
     static void testGetOptionalStringList_Success() {
-        Map<String, Object> params = new Map<String, Object>{
-            'fields' => new List<String>{ 'Name', 'Email' }
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'fields' => new List<String>{ 'Name', 'Email' } };
 
         List<String> result = ActionConfigUtils.getOptionalStringList(params, 'fields');
 
@@ -464,9 +454,7 @@ private class ActionConfigUtilsTest {
 
     @IsTest
     static void testGetOptionalStringList_ObjectList() {
-        Map<String, Object> params = new Map<String, Object>{
-            'fields' => new List<Object>{ 'Name', 123, null, 'Email' }
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'fields' => new List<Object>{ 'Name', 123, null, 'Email' } };
 
         List<String> result = ActionConfigUtils.getOptionalStringList(params, 'fields');
 
@@ -655,4 +643,3 @@ private class ActionConfigUtilsTest {
         }
     }
 }
-

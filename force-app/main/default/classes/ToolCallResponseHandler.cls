@@ -46,7 +46,10 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
         if (requestedActions.size() > 1) {
             // Handle multiple tool calls in parallel
-            System.debug(LoggingLevel.INFO, logPrefix + 'Multiple tool calls detected (' + requestedActions.size() + '). Using parallel execution handler.');
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Multiple tool calls detected (' + requestedActions.size() + '). Using parallel execution handler.'
+            );
             return ParallelToolCallHandler.handleParallelToolCalls(context, requestedActions, decisionLogger);
         }
 
@@ -535,7 +538,41 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             }
         }
 
-        if (outcome.isSuccess || capability.HaltAndReportError__c == false) {
+        // Check if execution is in tool-terminating mode (Function agent with ≤1 capabilities)
+        // In this mode, tool result is the final response - no follow-up LLM processing
+        AgentExecution__c execution = [
+            SELECT IsToolTerminatingMode__c, ExecutionStatus__c
+            FROM AgentExecution__c
+            WHERE Id = :context.executionId
+            LIMIT 1
+        ];
+
+        if (execution.IsToolTerminatingMode__c == true) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Tool-terminating mode detected. Tool result is final - no follow-up LLM.');
+
+            // Mark execution as completed with tool result as final response
+            // Note: The actual response is stored in ExecutionStep__c records
+            AgentExecution__c completedExecution = new AgentExecution__c(
+                Id = context.executionId,
+                ExecutionStatus__c = outcome.isSuccess ? 'Completed' : 'Failed',
+                ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
+                EndTime__c = Datetime.now()
+            );
+            update completedExecution;
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Execution marked as ' + (outcome.isSuccess ? 'Completed' : 'Failed') + ' in tool-terminating mode.'
+            );
+
+            return outcome.isSuccess ? OrchestrationService.OUTCOME_COMPLETED : OrchestrationService.OUTCOME_FAILED;
+        }
+
+        // Check fail-fast policy using three-tier hierarchy
+        AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinition(context.agentDefinitionId);
+        Boolean shouldHalt = OrchestrationService.shouldFailFast(capability, agentDef, outcome, logPrefix);
+
+        if (outcome.isSuccess || !shouldHalt) {
             System.debug(LoggingLevel.INFO, logPrefix + 'Tool action succeeded or is configured for autonomous recovery. Continuing agent loop.');
 
             // Enforce maximum turn limit to prevent infinite loops
@@ -566,19 +603,31 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             );
             return OrchestrationService.OUTCOME_QUEUED_FOLLOWUP;
         } else {
-            // Action failed and is configured to halt - dispatch final error formulation call
-            System.debug(LoggingLevel.WARN, logPrefix + 'Tool action failed and is configured to HALT. Dispatching final error-formulation call.');
-            context.turnLifecycleSvc.resumeForFollowUpLlmCall(context.executionId, context.turnIdentifier, null, logPrefix);
-            context.dispatchSvc.enqueueFollowUp(
-                context.executionId,
-                context.originalUserId,
-                context.agentDefinitionId,
-                context.turnIdentifier,
-                context.currentTurnCount + 1,
-                logPrefix,
-                true // Final error turn
+            // Action failed and fail-fast policy is enabled - immediately fail execution
+            // DO NOT call LLM for error formulation - fail fast means fail FAST
+            System.debug(
+                LoggingLevel.WARN,
+                logPrefix + 'Tool action failed with fail-fast policy enabled. Halting execution immediately (no LLM call).'
             );
-            return OrchestrationService.OUTCOME_QUEUED_FOLLOWUP;
+
+            context.decisionLogger.logToolResult(
+                'Fail-Fast Policy Triggered',
+                'Tool execution failed and fail-fast policy is enabled - execution halted without LLM error recovery',
+                '{"reason":"fail_fast_policy","capability":"' + capability.CapabilityName__c + '","error":"' + outcome.errorMessage + '"}',
+                0,
+                false,
+                outcome.errorCode,
+                outcome.errorMessage
+            );
+
+            context.turnLifecycleSvc.failTurn(
+                context.executionId,
+                context.turnIdentifier,
+                'Tool execution failed (fail-fast policy): ' + outcome.errorMessage,
+                outcome.errorCode != null ? outcome.errorCode : AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                logPrefix
+            );
+            return OrchestrationService.OUTCOME_FAILED;
         }
     }
 

@@ -163,7 +163,7 @@
     <searchLayouts>
         <searchResultsAdditionalFields>DeveloperName__c</searchResultsAdditionalFields>
         <searchResultsAdditionalFields>LLMConfiguration__c</searchResultsAdditionalFields>
-        <searchResultsAdditionalFields>MemoryStrategy__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>AgentType__c</searchResultsAdditionalFields>
         <searchResultsAdditionalFields>IsActive__c</searchResultsAdditionalFields>
     </searchLayouts>
     <sharingModel>ReadWrite</sharingModel>

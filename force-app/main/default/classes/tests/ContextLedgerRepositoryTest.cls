@@ -4,7 +4,6 @@
  */
 @IsTest
 private class ContextLedgerRepositoryTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -19,12 +18,7 @@ private class ContextLedgerRepositoryTest {
         return new TestFactory.AgentSetup();
     }
 
-    private static ContextLedgerItem__c createLedgerItem(
-        Id executionId,
-        String recordId,
-        String status,
-        Decimal relevanceScore
-    ) {
+    private static ContextLedgerItem__c createLedgerItem(Id executionId, String recordId, String status, Decimal relevanceScore) {
         return new ContextLedgerItem__c(
             AgentExecution__c = executionId,
             RecordId__c = recordId,
@@ -174,7 +168,7 @@ private class ContextLedgerRepositoryTest {
 
         List<ContextLedgerItem__c> items = new List<ContextLedgerItem__c>{
             createLedgerItem(execution.Id, '001ExistingRec', 'ACTIVE', 1.0), // Update
-            createLedgerItem(execution.Id, '001NewRecord001', 'ACTIVE', 0.9)  // Insert
+            createLedgerItem(execution.Id, '001NewRecord001', 'ACTIVE', 0.9) // Insert
         };
         ContextLedgerRepository repo = new ContextLedgerRepository();
 
@@ -222,9 +216,7 @@ private class ContextLedgerRepositoryTest {
 
         // When: Querying by execution
         Test.startTest();
-        List<ContextLedgerItem__c> results = repo.queryBuilder()
-            .forExecution(execution.Id)
-            .execute();
+        List<ContextLedgerItem__c> results = repo.queryBuilder().forExecution(execution.Id).execute();
         Test.stopTest();
 
         // Then: Should return items for execution
@@ -246,10 +238,7 @@ private class ContextLedgerRepositoryTest {
 
         // When: Querying by status
         Test.startTest();
-        List<ContextLedgerItem__c> results = repo.queryBuilder()
-            .forExecution(execution.Id)
-            .withStatus('ACTIVE')
-            .execute();
+        List<ContextLedgerItem__c> results = repo.queryBuilder().forExecution(execution.Id).withStatus('ACTIVE').execute();
         Test.stopTest();
 
         // Then: Should return only ACTIVE items
@@ -274,7 +263,7 @@ private class ContextLedgerRepositoryTest {
         Test.startTest();
         List<ContextLedgerItem__c> results = repo.queryBuilder()
             .forExecution(execution.Id)
-            .withStatuses(new Set<String>{'ACTIVE', 'ARCHIVED'})
+            .withStatuses(new Set<String>{ 'ACTIVE', 'ARCHIVED' })
             .execute();
         Test.stopTest();
 
@@ -296,10 +285,7 @@ private class ContextLedgerRepositoryTest {
 
         // When: Querying by context type
         Test.startTest();
-        List<ContextLedgerItem__c> results = repo.queryBuilder()
-            .forExecution(execution.Id)
-            .withContextType('IMPLICIT_PRIMARY')
-            .execute();
+        List<ContextLedgerItem__c> results = repo.queryBuilder().forExecution(execution.Id).withContextType('IMPLICIT_PRIMARY').execute();
         Test.stopTest();
 
         // Then: Should return only IMPLICIT_PRIMARY items
@@ -322,10 +308,7 @@ private class ContextLedgerRepositoryTest {
 
         // When: Querying with min relevance
         Test.startTest();
-        List<ContextLedgerItem__c> results = repo.queryBuilder()
-            .forExecution(execution.Id)
-            .withMinRelevance(0.5)
-            .execute();
+        List<ContextLedgerItem__c> results = repo.queryBuilder().forExecution(execution.Id).withMinRelevance(0.5).execute();
         Test.stopTest();
 
         // Then: Should return items with relevance >= 0.5
@@ -352,10 +335,7 @@ private class ContextLedgerRepositoryTest {
         // When: Querying with max turns since access (current turn = 12, max = 5)
         // minLastAccessedTurn = 12 - 5 = 7, so items with LastAccessedTurn >= 7 should be returned
         Test.startTest();
-        List<ContextLedgerItem__c> results = repo.queryBuilder()
-            .forExecution(execution.Id)
-            .withMaxTurnsSinceAccess(5, 12)
-            .execute();
+        List<ContextLedgerItem__c> results = repo.queryBuilder().forExecution(execution.Id).withMaxTurnsSinceAccess(5, 12).execute();
         Test.stopTest();
 
         // Then: Should return items accessed within last 5 turns (turn >= 7)
@@ -380,10 +360,7 @@ private class ContextLedgerRepositoryTest {
 
         // When: Querying with custom order
         Test.startTest();
-        List<ContextLedgerItem__c> results = repo.queryBuilder()
-            .forExecution(execution.Id)
-            .orderBy('RelevanceScore__c ASC')
-            .execute();
+        List<ContextLedgerItem__c> results = repo.queryBuilder().forExecution(execution.Id).orderBy('RelevanceScore__c ASC').execute();
         Test.stopTest();
 
         // Then: Should return items in ascending order
@@ -407,10 +384,7 @@ private class ContextLedgerRepositoryTest {
 
         // When: Querying with limit
         Test.startTest();
-        List<ContextLedgerItem__c> results = repo.queryBuilder()
-            .forExecution(execution.Id)
-            .limitTo(5)
-            .execute();
+        List<ContextLedgerItem__c> results = repo.queryBuilder().forExecution(execution.Id).limitTo(5).execute();
         Test.stopTest();
 
         // Then: Should return only 5 items
@@ -885,9 +859,7 @@ private class ContextLedgerRepositoryTest {
     static void testQueryResult_Constructor_InitializesCorrectly() {
         // Given: Query result data
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
-        List<ContextLedgerItem__c> items = new List<ContextLedgerItem__c>{
-            createLedgerItem(execution.Id, '001TestRecord001', 'ACTIVE', 1.0)
-        };
+        List<ContextLedgerItem__c> items = new List<ContextLedgerItem__c>{ createLedgerItem(execution.Id, '001TestRecord001', 'ACTIVE', 1.0) };
 
         // When: Creating QueryResult
         Test.startTest();
@@ -916,4 +888,3 @@ private class ContextLedgerRepositoryTest {
         System.assertEquals(false, result.hasMore);
     }
 }
-

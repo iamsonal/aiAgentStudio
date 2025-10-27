@@ -22,7 +22,6 @@
  */
 @IsTest
 public class MockHttpResponses implements HttpCalloutMock {
-
     // ===================================================================================
     // INSTANCE VARIABLES
     // ===================================================================================
@@ -40,8 +39,7 @@ public class MockHttpResponses implements HttpCalloutMock {
      * @description Creates a simple success response mock
      */
     public static MockHttpResponses success() {
-        return new MockHttpResponses()
-            .withDefaultResponse(textResponse('Hello! How can I assist you today?'));
+        return new MockHttpResponses().withDefaultResponse(textResponse('Hello! How can I assist you today?'));
     }
 
     /**
@@ -56,8 +54,7 @@ public class MockHttpResponses implements HttpCalloutMock {
      */
     public static MockHttpResponses toolCall(String toolName, String arguments) {
         Map<String, Object> response = createToolCallResponse(toolName, arguments, null);
-        return new MockHttpResponses()
-            .withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
+        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
     }
 
     /**
@@ -65,14 +62,9 @@ public class MockHttpResponses implements HttpCalloutMock {
      */
     public static MockHttpResponses error(Integer statusCode, String errorMessage) {
         Map<String, Object> errorResponse = new Map<String, Object>{
-            'error' => new Map<String, Object>{
-                'message' => errorMessage,
-                'type' => 'invalid_request_error',
-                'code' => String.valueOf(statusCode)
-            }
+            'error' => new Map<String, Object>{ 'message' => errorMessage, 'type' => 'invalid_request_error', 'code' => String.valueOf(statusCode) }
         };
-        return new MockHttpResponses()
-            .withDefaultResponse(new ResponseConfig(statusCode, JSON.serialize(errorResponse)));
+        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(statusCode, JSON.serialize(errorResponse)));
     }
 
     /**
@@ -135,10 +127,12 @@ public class MockHttpResponses implements HttpCalloutMock {
         if (endpoint.contains('/ai/agent/process/')) {
             // Internal REST API mock
             return createInternalApiResponse(req);
-        } else if (endpoint.contains('/v1/chat/completions') ||
-                   endpoint.contains('/v1/messages') ||
-                   endpoint.contains('/v1beta/models/') ||
-                   endpoint.contains(':generateContent')) {
+        } else if (
+            endpoint.contains('/v1/chat/completions') ||
+            endpoint.contains('/v1/messages') ||
+            endpoint.contains('/v1beta/models/') ||
+            endpoint.contains(':generateContent')
+        ) {
             // LLM API mock (OpenAI, Claude, Gemini)
             return createLLMResponse(req);
         } else if (endpoint.contains('/v1/embeddings')) {
@@ -217,21 +211,15 @@ public class MockHttpResponses implements HttpCalloutMock {
 
         // Parse request to identify intent
         if (requestBody.contains('find') || requestBody.contains('search')) {
-            return new ResponseConfig(200, JSON.serialize(
-                createToolCallResponse('find_records', '{"searchQuery":"test"}', null)
-            ));
+            return new ResponseConfig(200, JSON.serialize(createToolCallResponse('find_records', '{"searchQuery":"test"}', null)));
         }
 
         if (requestBody.contains('create') || requestBody.contains('new')) {
-            return new ResponseConfig(200, JSON.serialize(
-                createToolCallResponse('create_record', '{"objectType":"Account"}', null)
-            ));
+            return new ResponseConfig(200, JSON.serialize(createToolCallResponse('create_record', '{"objectType":"Account"}', null)));
         }
 
         if (requestBody.contains('update') || requestBody.contains('change')) {
-            return new ResponseConfig(200, JSON.serialize(
-                createToolCallResponse('update_record', '{"recordId":"001xx000003DHP0"}', null)
-            ));
+            return new ResponseConfig(200, JSON.serialize(createToolCallResponse('update_record', '{"recordId":"001xx000003DHP0"}', null)));
         }
 
         // Default text response
@@ -255,18 +243,9 @@ public class MockHttpResponses implements HttpCalloutMock {
 
         Map<String, Object> response = new Map<String, Object>{
             'object' => 'list',
-            'data' => new List<Object>{
-                new Map<String, Object>{
-                    'object' => 'embedding',
-                    'embedding' => embedding,
-                    'index' => 0
-                }
-            },
+            'data' => new List<Object>{ new Map<String, Object>{ 'object' => 'embedding', 'embedding' => embedding, 'index' => 0 } },
             'model' => 'text-embedding-ada-002',
-            'usage' => new Map<String, Object>{
-                'prompt_tokens' => 8,
-                'total_tokens' => 8
-            }
+            'usage' => new Map<String, Object>{ 'prompt_tokens' => 8, 'total_tokens' => 8 }
         };
 
         res.setBody(JSON.serialize(response));
@@ -305,18 +284,11 @@ public class MockHttpResponses implements HttpCalloutMock {
             'choices' => new List<Object>{
                 new Map<String, Object>{
                     'index' => 0,
-                    'message' => new Map<String, Object>{
-                        'role' => 'assistant',
-                        'content' => content
-                    },
+                    'message' => new Map<String, Object>{ 'role' => 'assistant', 'content' => content },
                     'finish_reason' => 'stop'
                 }
             },
-            'usage' => new Map<String, Object>{
-                'prompt_tokens' => 100,
-                'completion_tokens' => 50,
-                'total_tokens' => 150
-            }
+            'usage' => new Map<String, Object>{ 'prompt_tokens' => 100, 'completion_tokens' => 50, 'total_tokens' => 150 }
         };
     }
 
@@ -339,21 +311,14 @@ public class MockHttpResponses implements HttpCalloutMock {
                             new Map<String, Object>{
                                 'id' => 'call_' + generateRandomId(),
                                 'type' => 'function',
-                                'function' => new Map<String, Object>{
-                                    'name' => toolName,
-                                    'arguments' => arguments
-                                }
+                                'function' => new Map<String, Object>{ 'name' => toolName, 'arguments' => arguments }
                             }
                         }
                     },
                     'finish_reason' => 'tool_calls'
                 }
             },
-            'usage' => new Map<String, Object>{
-                'prompt_tokens' => 150,
-                'completion_tokens' => 75,
-                'total_tokens' => 225
-            }
+            'usage' => new Map<String, Object>{ 'prompt_tokens' => 150, 'completion_tokens' => 75, 'total_tokens' => 225 }
         };
     }
 
@@ -400,8 +365,7 @@ public class MockHttpResponses implements HttpCalloutMock {
      * @description Malformed JSON response
      */
     public static MockHttpResponses malformedJson() {
-        return new MockHttpResponses()
-            .withDefaultResponse(new ResponseConfig(200, '{"incomplete": "json", "missing":'));
+        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(200, '{"incomplete": "json", "missing":'));
     }
 
     /**
@@ -413,8 +377,7 @@ public class MockHttpResponses implements HttpCalloutMock {
             'object' => 'chat.completion'
             // Missing 'choices' field
         };
-        return new MockHttpResponses()
-            .withDefaultResponse(new ResponseConfig(200, JSON.serialize(incomplete)));
+        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(200, JSON.serialize(incomplete)));
     }
 
     // ===================================================================================
@@ -426,13 +389,18 @@ public class MockHttpResponses implements HttpCalloutMock {
      */
     public static MockHttpResponses approvalFlow() {
         return new MockHttpResponses()
-            .withDefaultResponse(new ResponseConfig(200, JSON.serialize(
-                createToolCallResponse(
-                    'find_records',
-                    '{"searchQuery":"test","submission_comment":"Needs approval"}',
-                    'I need to search records, requesting approval.'
+            .withDefaultResponse(
+                new ResponseConfig(
+                    200,
+                    JSON.serialize(
+                        createToolCallResponse(
+                            'find_records',
+                            '{"searchQuery":"test","submission_comment":"Needs approval"}',
+                            'I need to search records, requesting approval.'
+                        )
+                    )
                 )
-            )));
+            );
     }
 
     /**
@@ -454,33 +422,22 @@ public class MockHttpResponses implements HttpCalloutMock {
                             new Map<String, Object>{
                                 'id' => 'call_1',
                                 'type' => 'function',
-                                'function' => new Map<String, Object>{
-                                    'name' => 'find_records',
-                                    'arguments' => '{"searchQuery":"accounts"}'
-                                }
+                                'function' => new Map<String, Object>{ 'name' => 'find_records', 'arguments' => '{"searchQuery":"accounts"}' }
                             },
                             new Map<String, Object>{
                                 'id' => 'call_2',
                                 'type' => 'function',
-                                'function' => new Map<String, Object>{
-                                    'name' => 'find_records',
-                                    'arguments' => '{"searchQuery":"contacts"}'
-                                }
+                                'function' => new Map<String, Object>{ 'name' => 'find_records', 'arguments' => '{"searchQuery":"contacts"}' }
                             }
                         }
                     },
                     'finish_reason' => 'tool_calls'
                 }
             },
-            'usage' => new Map<String, Object>{
-                'prompt_tokens' => 200,
-                'completion_tokens' => 100,
-                'total_tokens' => 300
-            }
+            'usage' => new Map<String, Object>{ 'prompt_tokens' => 200, 'completion_tokens' => 100, 'total_tokens' => 300 }
         };
 
-        return new MockHttpResponses()
-            .withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
+        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
     }
 
     /**
@@ -516,22 +473,13 @@ public class MockHttpResponses implements HttpCalloutMock {
             'id' => 'msg_' + generateRandomId(),
             'type' => 'message',
             'role' => 'assistant',
-            'content' => new List<Object>{
-                new Map<String, Object>{
-                    'type' => 'text',
-                    'text' => content
-                }
-            },
+            'content' => new List<Object>{ new Map<String, Object>{ 'type' => 'text', 'text' => content } },
             'model' => 'claude-3-opus-20240229',
             'stop_reason' => 'end_turn',
-            'usage' => new Map<String, Object>{
-                'input_tokens' => 100,
-                'output_tokens' => 50
-            }
+            'usage' => new Map<String, Object>{ 'input_tokens' => 100, 'output_tokens' => 50 }
         };
 
-        return new MockHttpResponses()
-            .withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
+        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
     }
 
     /**
@@ -552,14 +500,10 @@ public class MockHttpResponses implements HttpCalloutMock {
             },
             'model' => 'claude-3-opus-20240229',
             'stop_reason' => 'tool_use',
-            'usage' => new Map<String, Object>{
-                'input_tokens' => 150,
-                'output_tokens' => 75
-            }
+            'usage' => new Map<String, Object>{ 'input_tokens' => 150, 'output_tokens' => 75 }
         };
 
-        return new MockHttpResponses()
-            .withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
+        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
     }
 
     // ===================================================================================
@@ -574,25 +518,16 @@ public class MockHttpResponses implements HttpCalloutMock {
             'candidates' => new List<Object>{
                 new Map<String, Object>{
                     'content' => new Map<String, Object>{
-                        'parts' => new List<Object>{
-                            new Map<String, Object>{
-                                'text' => content
-                            }
-                        },
+                        'parts' => new List<Object>{ new Map<String, Object>{ 'text' => content } },
                         'role' => 'model'
                     },
                     'finishReason' => 'STOP'
                 }
             },
-            'usageMetadata' => new Map<String, Object>{
-                'promptTokenCount' => 100,
-                'candidatesTokenCount' => 50,
-                'totalTokenCount' => 150
-            }
+            'usageMetadata' => new Map<String, Object>{ 'promptTokenCount' => 100, 'candidatesTokenCount' => 50, 'totalTokenCount' => 150 }
         };
 
-        return new MockHttpResponses()
-            .withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
+        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
     }
 
     /**
@@ -605,10 +540,7 @@ public class MockHttpResponses implements HttpCalloutMock {
                     'content' => new Map<String, Object>{
                         'parts' => new List<Object>{
                             new Map<String, Object>{
-                                'functionCall' => new Map<String, Object>{
-                                    'name' => functionName,
-                                    'args' => JSON.deserializeUntyped(argsJson)
-                                }
+                                'functionCall' => new Map<String, Object>{ 'name' => functionName, 'args' => JSON.deserializeUntyped(argsJson) }
                             }
                         },
                         'role' => 'model'
@@ -616,15 +548,10 @@ public class MockHttpResponses implements HttpCalloutMock {
                     'finishReason' => 'STOP'
                 }
             },
-            'usageMetadata' => new Map<String, Object>{
-                'promptTokenCount' => 150,
-                'candidatesTokenCount' => 75,
-                'totalTokenCount' => 225
-            }
+            'usageMetadata' => new Map<String, Object>{ 'promptTokenCount' => 150, 'candidatesTokenCount' => 75, 'totalTokenCount' => 225 }
         };
 
-        return new MockHttpResponses()
-            .withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
+        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
     }
 
     /**
@@ -636,14 +563,9 @@ public class MockHttpResponses implements HttpCalloutMock {
                 new Map<String, Object>{
                     'content' => new Map<String, Object>{
                         'parts' => new List<Object>{
+                            new Map<String, Object>{ 'text' => text },
                             new Map<String, Object>{
-                                'text' => text
-                            },
-                            new Map<String, Object>{
-                                'functionCall' => new Map<String, Object>{
-                                    'name' => functionName,
-                                    'args' => JSON.deserializeUntyped(argsJson)
-                                }
+                                'functionCall' => new Map<String, Object>{ 'name' => functionName, 'args' => JSON.deserializeUntyped(argsJson) }
                             }
                         },
                         'role' => 'model'
@@ -651,15 +573,10 @@ public class MockHttpResponses implements HttpCalloutMock {
                     'finishReason' => 'STOP'
                 }
             },
-            'usageMetadata' => new Map<String, Object>{
-                'promptTokenCount' => 200,
-                'candidatesTokenCount' => 100,
-                'totalTokenCount' => 300
-            }
+            'usageMetadata' => new Map<String, Object>{ 'promptTokenCount' => 200, 'candidatesTokenCount' => 100, 'totalTokenCount' => 300 }
         };
 
-        return new MockHttpResponses()
-            .withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
+        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
     }
 
     // ===================================================================================
@@ -705,8 +622,8 @@ public class MockHttpResponses implements HttpCalloutMock {
      * @description Response mode enumeration
      */
     private enum ResponseMode {
-        SINGLE,          // Always return the same response
-        SEQUENTIAL,      // Return responses in sequence
-        CONTEXT_AWARE    // Examine request and return appropriate response
+        SINGLE, // Always return the same response
+        SEQUENTIAL, // Return responses in sequence
+        CONTEXT_AWARE // Examine request and return appropriate response
     }
 }

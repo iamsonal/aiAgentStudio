@@ -8,23 +8,8 @@
 
 /**
  * @description
- * ContextManagerService orchestrates the lifecycle of conversational context for AI-driven chat sessions.
- * Uses ContextLedgerItem__c child records for improved scalability, performance, and maintainability.
- *
- * Key Features:
- * - Uses ContextLedgerItem__c child object for unlimited scalability
- * - Fixed PINNED items to never decay (maintain relevance score of 9999)
- * - Improved relevance scoring algorithm (prevents negative/zero scores)
- * - Deduplication logic prevents duplicate context items
- * - Efficient Math.pow() for temporal decay calculations
- * - Soft delete for audit trail (items marked PRUNED, not deleted)
- * - Enhanced categorization with 'pinned' and 'stale' categories
- *
- * Responsibilities:
- * - Maintain and update a context ledger per chat session, tracking context items and relationships
- * - Dynamically score, filter, and categorize context items for prompt optimization
- * - Archive or soft-delete context items based on relevance, recency, and user actions
- * - Provide robust error handling, debug output, and extensible metadata
+ * Orchestrates lifecycle of conversational context for AI-driven chat sessions.
+ * Uses ContextLedgerItem__c child records for scalability and performance.
  */
 public inherited sharing class ContextManagerService {
     // --- CONSTANTS ---
@@ -33,15 +18,15 @@ public inherited sharing class ContextManagerService {
     private static final Decimal BASE_RELEVANCE_SCORE = 100.0;
 
     // Scoring algorithm constants (configurable in future via custom metadata)
-    private static final Decimal AGE_DECAY_RATE = 0.99;           // Slow decay per turn
-    private static final Decimal RECENCY_DECAY_RATE = 0.95;       // Fast decay per turn
-    private static final Decimal AGE_WEIGHT = 0.3;                 // Weight for age decay
-    private static final Decimal RECENCY_WEIGHT = 0.7;             // Weight for recency decay
-    private static final Decimal ACCESS_BOOST_MULTIPLIER = 20.0;   // Multiplier for access frequency
-    private static final Decimal RECENT_ACCESS_BOOST = 1.5;        // Boost for recently accessed items
-    private static final Integer RECENT_ACCESS_THRESHOLD = 2;      // Turns threshold for "recent"
-    private static final Decimal MIN_RELEVANCE_SCORE = 1.0;        // Floor to prevent zero/negative
-    private static final Decimal PINNED_RELEVANCE_SCORE = 9999.0;  // PINNED items never decay
+    private static final Decimal AGE_DECAY_RATE = 0.99; // Slow decay per turn
+    private static final Decimal RECENCY_DECAY_RATE = 0.95; // Fast decay per turn
+    private static final Decimal AGE_WEIGHT = 0.3; // Weight for age decay
+    private static final Decimal RECENCY_WEIGHT = 0.7; // Weight for recency decay
+    private static final Decimal ACCESS_BOOST_MULTIPLIER = 20.0; // Multiplier for access frequency
+    private static final Decimal RECENT_ACCESS_BOOST = 1.5; // Boost for recently accessed items
+    private static final Integer RECENT_ACCESS_THRESHOLD = 2; // Turns threshold for "recent"
+    private static final Decimal MIN_RELEVANCE_SCORE = 1.0; // Floor to prevent zero/negative
+    private static final Decimal PINNED_RELEVANCE_SCORE = 9999.0; // PINNED items never decay
 
     // --- DEPENDENCIES ---
     private final ContextLedgerRepository repository;
@@ -52,14 +37,14 @@ public inherited sharing class ContextManagerService {
 
     // --- ENUMS ---
     public enum ContextType {
-        IMPLICIT_PRIMARY,      // User's current page (highest priority)
-        IMPLICIT_SECONDARY,    // Related to current page
-        ACTION_GENERATED,      // Created by agent action
-        USER_MENTIONED,        // Explicitly referenced by user
-        SEARCH_RESULT,         // Found via search action
-        RELATED_RECORD,        // Discovered through relationships
-        PINNED,                // User explicitly pinned
-        BACKGROUND_CONTEXT     // Supporting information
+        IMPLICIT_PRIMARY, // User's current page (highest priority)
+        IMPLICIT_SECONDARY, // Related to current page
+        ACTION_GENERATED, // Created by agent action
+        USER_MENTIONED, // Explicitly referenced by user
+        SEARCH_RESULT, // Found via search action
+        RELATED_RECORD, // Discovered through relationships
+        PINNED, // User explicitly pinned
+        BACKGROUND_CONTEXT // Supporting information
     }
 
     public enum ContextStatus {
@@ -285,7 +270,8 @@ public inherited sharing class ContextManagerService {
          * IMPROVED: Comparison with null handling and type priority.
          */
         public Integer compareTo(Object compareTo) {
-            if (compareTo == null) return -1;
+            if (compareTo == null)
+                return -1;
             if (!(compareTo instanceof ContextItem)) {
                 throw new IllegalArgumentException('Can only compare to ContextItem');
             }
@@ -321,10 +307,14 @@ public inherited sharing class ContextManagerService {
 
         public String getTemporalLabel(Integer currentTurn) {
             Integer turnsSince = currentTurn - this.lastAccessed;
-            if (turnsSince == 0) return 'Current Turn';
-            if (turnsSince == 1) return 'Last Turn';
-            if (turnsSince <= 3) return turnsSince + ' turns ago';
-            if (turnsSince <= 10) return 'Recently';
+            if (turnsSince == 0)
+                return 'Current Turn';
+            if (turnsSince == 1)
+                return 'Last Turn';
+            if (turnsSince <= 3)
+                return turnsSince + ' turns ago';
+            if (turnsSince <= 10)
+                return 'Recently';
             return 'Earlier in conversation';
         }
 
@@ -332,7 +322,8 @@ public inherited sharing class ContextManagerService {
          * Checks if context data needs refreshing (stale detection).
          */
         public Boolean needsRefresh() {
-            if (this.lastDataRefreshTime == null) return true;
+            if (this.lastDataRefreshTime == null)
+                return true;
             // Refresh if older than 5 minutes
             Long ageMillis = Datetime.now().getTime() - this.lastDataRefreshTime.getTime();
             return ageMillis > 300000;
@@ -381,8 +372,7 @@ public inherited sharing class ContextManagerService {
         } catch (Exception e) {
             System.debug(
                 LoggingLevel.ERROR,
-                '[ContextManagerService.getContextLedger] Failed to retrieve context ledger for execution ' +
-                executionId + ': ' + e.getMessage()
+                '[ContextManagerService.getContextLedger] Failed to retrieve context ledger for execution ' + executionId + ': ' + e.getMessage()
             );
             return new List<ContextItem>();
         }
@@ -391,12 +381,7 @@ public inherited sharing class ContextManagerService {
     /**
      * Retrieves context items filtered by type and minimum relevance.
      */
-    public List<ContextItem> getFilteredContext(
-        Id executionId,
-        Integer currentTurn,
-        Set<ContextType> contextTypes,
-        Decimal minRelevance
-    ) {
+    public List<ContextItem> getFilteredContext(Id executionId, Integer currentTurn, Set<ContextType> contextTypes, Decimal minRelevance) {
         List<ContextItem> allItems = getContextLedger(executionId, currentTurn);
         List<ContextItem> filtered = new List<ContextItem>();
 
@@ -421,12 +406,12 @@ public inherited sharing class ContextManagerService {
         Map<String, List<ContextItem>> structured = new Map<String, List<ContextItem>>();
 
         // Initialize categories
-        structured.put('pinned', new List<ContextItem>());  // NEW: Separate pinned category
+        structured.put('pinned', new List<ContextItem>()); // NEW: Separate pinned category
         structured.put('primary', new List<ContextItem>());
         structured.put('recent', new List<ContextItem>());
         structured.put('related', new List<ContextItem>());
         structured.put('background', new List<ContextItem>());
-        structured.put('stale', new List<ContextItem>());    // NEW: Stale category
+        structured.put('stale', new List<ContextItem>()); // NEW: Stale category
 
         for (ContextItem item : items) {
             String category = categorizeForPrompt(item, currentTurn);
@@ -447,12 +432,7 @@ public inherited sharing class ContextManagerService {
      * @param newRecordFromActionId   The ID of a record created by an agent action (can be null)
      * @throws                     ContextManagementException if critical error occurs
      */
-    public void commitExecutionTurnContext(
-        Id executionId,
-        Integer currentTurn,
-        Id pageContextId,
-        Id newRecordFromActionId
-    ) {
+    public void commitExecutionTurnContext(Id executionId, Integer currentTurn, Id pageContextId, Id newRecordFromActionId) {
         if (executionId == null || (pageContextId == null && newRecordFromActionId == null)) {
             return;
         }
@@ -480,13 +460,7 @@ public inherited sharing class ContextManagerService {
             if (newRecordFromActionId != null) {
                 String actionRecordIdStr = String.valueOf(newRecordFromActionId);
                 String pageRecordIdStr = pageContextId != null ? String.valueOf(pageContextId) : null;
-                processActionContextWithDeduplication(
-                    ledgerMapByRecordId,
-                    ledger,
-                    actionRecordIdStr,
-                    currentTurn,
-                    pageRecordIdStr
-                );
+                processActionContextWithDeduplication(ledgerMapByRecordId, ledger, actionRecordIdStr, currentTurn, pageRecordIdStr);
             }
 
             // Apply pruning (soft delete)
@@ -500,10 +474,7 @@ public inherited sharing class ContextManagerService {
 
             repository.upsertItems(recordsToUpsert);
 
-            System.debug(
-                LoggingLevel.INFO,
-                logPrefix + 'Context ledger updated. Item count: ' + ledger.size()
-            );
+            System.debug(LoggingLevel.INFO, logPrefix + 'Context ledger updated. Item count: ' + ledger.size());
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Context commit failed: ' + e.getMessage());
             throw new ContextManagementException('Context commit failed: ' + e.getMessage(), e);
@@ -527,8 +498,10 @@ public inherited sharing class ContextManagerService {
             existing.recordAccess(currentTurn);
 
             // Promote to primary if not pinned
-            if (existing.contextType != ContextManagerService.ContextType.PINNED &&
-                existing.contextType != ContextManagerService.ContextType.IMPLICIT_PRIMARY) {
+            if (
+                existing.contextType != ContextManagerService.ContextType.PINNED &&
+                existing.contextType != ContextManagerService.ContextType.IMPLICIT_PRIMARY
+            ) {
                 // Track original type before promotion
                 if (existing.originalContextType == null) {
                     existing.originalContextType = existing.contextType;
@@ -587,14 +560,17 @@ public inherited sharing class ContextManagerService {
      * FIX: Soft delete pruning instead of permanent deletion.
      */
     private void pruneLedger(List<ContextItem> ledger, Integer currentTurn) {
-        if (ledger == null || ledger.isEmpty()) return;
+        if (ledger == null || ledger.isEmpty())
+            return;
 
         try {
             // Soft delete items with very low relevance (except PINNED)
             for (ContextItem item : ledger) {
-                if (item.status == ContextManagerService.ContextStatus.ACTIVE &&
-                    item.contextType != ContextManagerService.ContextType.PINNED &&  // Never prune PINNED
-                    item.relevanceScore < 0.1) {
+                if (
+                    item.status == ContextManagerService.ContextStatus.ACTIVE &&
+                    item.contextType != ContextManagerService.ContextType.PINNED && // Never prune PINNED
+                    item.relevanceScore < 0.1
+                ) {
                     item.status = ContextStatus.PRUNED;
                     item.setMetadata('prunedAt', Datetime.now());
                     item.setMetadata('prunedReason', 'Low relevance: ' + item.relevanceScore + ' at turn ' + currentTurn);
@@ -643,8 +619,7 @@ public inherited sharing class ContextManagerService {
                     activeItems.add(item);
                 }
             } catch (Exception e) {
-                System.debug(LoggingLevel.WARN, '[ContextManagerService] Failed to update relevance for item ' +
-                    item.id + ': ' + e.getMessage());
+                System.debug(LoggingLevel.WARN, '[ContextManagerService] Failed to update relevance for item ' + item.id + ': ' + e.getMessage());
             }
         }
 
@@ -691,4 +666,3 @@ public inherited sharing class ContextManagerService {
         return 'background';
     }
 }
-

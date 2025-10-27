@@ -7,11 +7,9 @@
  */
 
 /**
- * @description Generic outcome container for agent actions that provides explicit success/failure states.
- *              Replaces mixed error handling patterns with a unified approach.
- *              Includes LLM-friendly error formatting with emojis and contextual suggestions.
- * @author Sonal
- * @since 2025
+ * @description
+ * Generic outcome container for agent actions with explicit success/failure states.
+ * Provides unified error handling with LLM-friendly formatting.
  */
 public class ActionOutcome {
     @AuraEnabled
@@ -29,24 +27,29 @@ public class ActionOutcome {
     @AuraEnabled
     public String llmFriendlyMessage { get; private set; }
 
+    @AuraEnabled
+    public String correctionGuidance { get; private set; } // Format requirements and examples for LLM self-correction
+
     /**
-     * @description Private constructor to enforce factory method usage
+     * Private constructor to enforce factory method usage.
      */
-    private ActionOutcome(Boolean isSuccess, Object data, String errorCode, String errorMessage) {
+    private ActionOutcome(Boolean isSuccess, Object data, String errorCode, String errorMessage, String correctionGuidance) {
         this.isSuccess = isSuccess;
         this.data = data;
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
-        this.llmFriendlyMessage = formatLLMFriendlyMessage(isSuccess, errorCode, errorMessage);
+        this.correctionGuidance = correctionGuidance;
+        this.llmFriendlyMessage = formatLLMFriendlyMessage(isSuccess, errorCode, errorMessage, correctionGuidance);
     }
 
     /**
-     * @description Factory method for successful outcomes
-     * @param data The success data to return
-     * @return ActionOutcome instance representing success
+     * Factory method for successful outcomes.
+     *
+     * @param data Success data to return
+     * @return     ActionOutcome representing success
      */
     public static ActionOutcome success(Object data) {
-        return new ActionOutcome(true, data, null, null);
+        return new ActionOutcome(true, data, null, null, null);
     }
 
     /**
@@ -64,7 +67,19 @@ public class ActionOutcome {
      * @return ActionOutcome instance representing failure
      */
     public static ActionOutcome failure(String errorCode, String errorMessage) {
-        return new ActionOutcome(false, null, errorCode, errorMessage);
+        return new ActionOutcome(false, null, errorCode, errorMessage, null);
+    }
+
+    /**
+     * @description Factory method for failure outcomes with correction guidance
+     * Enables LLM self-correction by providing format requirements and examples
+     * @param errorCode Standardized error code from AIAgentConstants
+     * @param errorMessage Detailed error message
+     * @param correctionGuidance Format requirements and examples (e.g., "Expected format: YYYY-MM-DD. Example: 2024-03-15")
+     * @return ActionOutcome instance representing failure with actionable guidance
+     */
+    public static ActionOutcome failureWithGuidance(String errorCode, String errorMessage, String correctionGuidance) {
+        return new ActionOutcome(false, null, errorCode, errorMessage, correctionGuidance);
     }
 
     /**
@@ -79,12 +94,14 @@ public class ActionOutcome {
     /**
      * @description Creates LLM-friendly error messages with emojis and structured suggestions.
      * Sanitizes technical details and provides user-appropriate messaging.
+     * Now includes optional correction guidance for format requirements and examples.
      * @param isSuccess Whether the outcome was successful
      * @param errorCode The error code
      * @param errorMessage The detailed error message (may contain technical details)
+     * @param correctionGuidance Format requirements and examples for self-correction (optional)
      * @return Formatted message for LLM consumption, sanitized for end users
      */
-    private String formatLLMFriendlyMessage(Boolean isSuccess, String errorCode, String errorMessage) {
+    private String formatLLMFriendlyMessage(Boolean isSuccess, String errorCode, String errorMessage, String correctionGuidance) {
         if (isSuccess) {
             return null; // No LLM message needed for success cases
         }
@@ -92,6 +109,14 @@ public class ActionOutcome {
         String emoji = getErrorEmoji(errorCode);
         String userFriendlyError = sanitizeErrorMessage(errorCode, errorMessage);
         String suggestion = getErrorSuggestion(errorCode);
+
+        // Enhance with correction guidance if provided
+        if (String.isNotBlank(correctionGuidance)) {
+            return String.format(
+                '{0} **Error**: {1}\n\n**How to Fix**: {2}\n\n**Suggestion**: {3}',
+                new List<String>{ emoji, userFriendlyError, correctionGuidance, suggestion }
+            );
+        }
 
         return String.format('{0} **Error**: {1}\n\n**Suggestion**: {2}', new List<String>{ emoji, userFriendlyError, suggestion });
     }

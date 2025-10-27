@@ -3,16 +3,13 @@
  */
 @IsTest
 private class OrchestrationServiceTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
 
     @TestSetup
     static void setupTestData() {
-        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
-            .withStandardActions()
-            .save();
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().withStandardActions().save();
     }
 
     // ===================================================================================
@@ -130,8 +127,11 @@ private class OrchestrationServiceTest {
         // Then: Should complete successfully and create execution steps
         System.assertEquals(OrchestrationService.OUTCOME_COMPLETED, outcome);
 
-        List<ExecutionStep__c> steps = [SELECT Id, StepType__c FROM ExecutionStep__c
-                                       WHERE AgentExecution__c = :setup.agentExecution.Id];
+        List<ExecutionStep__c> steps = [
+            SELECT Id, StepType__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :setup.agentExecution.Id
+        ];
         System.assert(!steps.isEmpty(), 'Should create execution steps');
     }
 
@@ -264,8 +264,7 @@ private class OrchestrationServiceTest {
 
         // Then: Should queue follow-up
         System.assert(
-            outcome == OrchestrationService.OUTCOME_QUEUED_FOLLOWUP ||
-            outcome == OrchestrationService.OUTCOME_QUEUED_ACTION,
+            outcome == OrchestrationService.OUTCOME_QUEUED_FOLLOWUP || outcome == OrchestrationService.OUTCOME_QUEUED_ACTION,
             'Should queue action or follow-up for tool call'
         );
     }
@@ -285,16 +284,13 @@ private class OrchestrationServiceTest {
             StandardActionType__c = 'FindEntities',
             Parameters__c = '{"type":"object","properties":{"searchQuery":{"type":"string"}}}',
             ExecutionPriority__c = 10,
-            RunAsynchronously__c = true,  // This is the key difference - async execution
+            RunAsynchronously__c = true, // This is the key difference - async execution
             RequiresApproval__c = false,
-            HaltAndReportError__c = false
+            FailFastOnError__c = false
         );
         insert asyncCapability;
 
-        LLMInteractionService.LLMInteractionResult llmResult = createToolCallResponse(
-            uniqueCapabilityName,
-            '{"searchQuery":"test"}'
-        );
+        LLMInteractionService.LLMInteractionResult llmResult = createToolCallResponse(uniqueCapabilityName, '{"searchQuery":"test"}');
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(setup.agentExecution.Id, 'turn-007');
 
         OrchestrationService service = new OrchestrationService();
@@ -326,12 +322,7 @@ private class OrchestrationServiceTest {
     @IsTest
     static void testSerializeActionOutcome_SuccessWithData_ReturnsJson() {
         // Given: Success outcome with data
-        ActionOutcome outcome = ActionOutcome.success(
-            new Map<String, Object>{
-                'recordId' => '001xx000003DHP0',
-                'name' => 'Test Account'
-            }
-        );
+        ActionOutcome outcome = ActionOutcome.success(new Map<String, Object>{ 'recordId' => '001xx000003DHP0', 'name' => 'Test Account' });
 
         // When: Serializing
         Test.startTest();
@@ -353,18 +344,16 @@ private class OrchestrationServiceTest {
         String result = OrchestrationService.serializeActionOutcome(outcome, '[Test] ');
         Test.stopTest();
 
-        // Then: Should return success JSON
+        // Then: Should return success JSON with isSuccess field
         System.assertNotEquals(null, result);
-        System.assert(result.contains('success'), 'Should indicate success');
+        System.assert(result.contains('isSuccess'), 'Should contain isSuccess field');
+        System.assert(result.contains('true'), 'Should indicate success');
     }
 
     @IsTest
     static void testSerializeActionOutcome_Failure_ReturnsError() {
         // Given: Failure outcome
-        ActionOutcome outcome = ActionOutcome.failure(
-            AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-            'Invalid input provided'
-        );
+        ActionOutcome outcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Invalid input provided');
 
         // When: Serializing
         Test.startTest();
@@ -395,10 +384,7 @@ private class OrchestrationServiceTest {
     @IsTest
     static void testSerializeActionOutcome_WithLLMFriendlyMessage_UsesLLMMessage() {
         // Given: Failure with automatically generated LLM-friendly message
-        ActionOutcome outcome = ActionOutcome.failure(
-            AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-            'Technical error'
-        );
+        ActionOutcome outcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Technical error');
 
         // When: Serializing
         Test.startTest();
@@ -419,12 +405,7 @@ private class OrchestrationServiceTest {
         // Given: Outcome with direct recordId
         Account testAccount = TestFactory.newAccount().save();
         ActionOutcome outcome = ActionOutcome.success(
-            new Map<String, Object>{
-                'status' => 'SUCCESS',
-                'data' => new Map<String, Object>{
-                    'recordId' => testAccount.Id
-                }
-            }
+            new Map<String, Object>{ 'status' => 'SUCCESS', 'data' => new Map<String, Object>{ 'recordId' => testAccount.Id } }
         );
 
         // When: Extracting record ID
@@ -444,9 +425,7 @@ private class OrchestrationServiceTest {
             new Map<String, Object>{
                 'status' => 'SUCCESS',
                 'data' => new Map<String, Object>{
-                    'records' => new List<Object>{
-                        new Map<String, Object>{ 'Id' => testAccount.Id, 'Name' => 'Test' }
-                    }
+                    'records' => new List<Object>{ new Map<String, Object>{ 'Id' => testAccount.Id, 'Name' => 'Test' } }
                 }
             }
         );
@@ -467,12 +446,7 @@ private class OrchestrationServiceTest {
         ActionOutcome outcome = ActionOutcome.success(
             new Map<String, Object>{
                 'status' => 'SUCCESS',
-                'data' => new Map<String, Object>{
-                    'record' => new Map<String, Object>{
-                        'Id' => testAccount.Id,
-                        'Name' => 'Test Account'
-                    }
-                }
+                'data' => new Map<String, Object>{ 'record' => new Map<String, Object>{ 'Id' => testAccount.Id, 'Name' => 'Test Account' } }
             }
         );
 
@@ -502,10 +476,7 @@ private class OrchestrationServiceTest {
     @IsTest
     static void testExtractRecordIdFromOutcome_FailedOutcome_ReturnsNull() {
         // Given: Failed outcome
-        ActionOutcome outcome = ActionOutcome.failure(
-            AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-            'Error'
-        );
+        ActionOutcome outcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Error');
 
         // When: Extracting record ID
         Test.startTest();
@@ -520,12 +491,7 @@ private class OrchestrationServiceTest {
     static void testExtractRecordIdFromOutcome_NoRecordId_ReturnsNull() {
         // Given: Outcome without record ID
         ActionOutcome outcome = ActionOutcome.success(
-            new Map<String, Object>{
-                'status' => 'SUCCESS',
-                'data' => new Map<String, Object>{
-                    'message' => 'Success but no record'
-                }
-            }
+            new Map<String, Object>{ 'status' => 'SUCCESS', 'data' => new Map<String, Object>{ 'message' => 'Success but no record' } }
         );
 
         // When: Extracting record ID
@@ -547,10 +513,7 @@ private class OrchestrationServiceTest {
             new Map<String, Object>{
                 'status' => 'SUCCESS',
                 'data' => new Map<String, Object>{
-                    'records' => new List<Object>{
-                        new Map<String, Object>{ 'Id' => acc1.Id },
-                        new Map<String, Object>{ 'Id' => acc2.Id }
-                    }
+                    'records' => new List<Object>{ new Map<String, Object>{ 'Id' => acc1.Id }, new Map<String, Object>{ 'Id' => acc2.Id } }
                 }
             }
         );
@@ -636,11 +599,7 @@ private class OrchestrationServiceTest {
         providerResult.completionTokens = 75;
         providerResult.totalTokens = 225;
         providerResult.requestedActions = new List<Map<String, String>>{
-            new Map<String, String>{
-                'id' => 'call_' + String.valueOf(Math.random()).substring(2, 10),
-                'name' => toolName,
-                'arguments' => arguments
-            }
+            new Map<String, String>{ 'id' => 'call_' + String.valueOf(Math.random()).substring(2, 10), 'name' => toolName, 'arguments' => arguments }
         };
 
         // Create message data
@@ -666,5 +625,325 @@ private class OrchestrationServiceTest {
 
         return message;
     }
-}
 
+    // ===================================================================================
+    // ERROR HANDLING POLICY TESTS (Three-Tier Hierarchy)
+    // ===================================================================================
+
+    @IsTest
+    static void testShouldFailFast_Tier1_CapabilityFailFastOnError_ReturnsTrue() {
+        // Given: Capability with FailFastOnError = true (highest priority)
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
+
+        AgentCapability__c capability = new AgentCapability__c(
+            AIAgentDefinition__c = setup.agentDefinition.Id,
+            CapabilityName__c = 'criticalTool',
+            Description__c = 'Critical tool for testing fail-fast behavior',
+            ImplementationType__c = 'Standard',
+            StandardActionType__c = 'GetRecords',
+            Parameters__c = '{"type":"object","properties":{}}',
+            FailFastOnError__c = true // Tier 1: Always fail fast
+        );
+        insert capability;
+
+        AIAgentDefinition__c agentDef = new AIAgentDefinition__c(
+            Id = setup.agentDefinition.Id,
+            ErrorHandlingPolicy__c = 'Autonomous Recovery' // Tier 2: Should be overridden
+        );
+        update agentDef;
+
+        ActionOutcome failedOutcome = ActionOutcome.failure('ERROR', 'Tool failed');
+
+        // When: Checking fail-fast policy
+        Test.startTest();
+        Boolean result = OrchestrationService.shouldFailFast(capability, agentDef, failedOutcome, '[Test] ');
+        Test.stopTest();
+
+        // Then: Should fail fast (Tier 1 overrides Tier 2)
+        System.assertEquals(true, result, 'Tier 1: Capability FailFastOnError should override agent policy');
+    }
+
+    @IsTest
+    static void testShouldFailFast_Tier2_AgentFailFast_ReturnsTrue() {
+        // Given: Agent with Fail-Fast policy, capability without override
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
+
+        AgentCapability__c capability = new AgentCapability__c(
+            AIAgentDefinition__c = setup.agentDefinition.Id,
+            CapabilityName__c = 'standardTool',
+            Description__c = 'Standard tool for testing agent-level policy',
+            ImplementationType__c = 'Standard',
+            StandardActionType__c = 'GetRecords',
+            Parameters__c = '{"type":"object","properties":{}}',
+            FailFastOnError__c = false // Tier 1: Not set
+        );
+        insert capability;
+
+        AIAgentDefinition__c agentDef = new AIAgentDefinition__c(
+            Id = setup.agentDefinition.Id,
+            ErrorHandlingPolicy__c = 'Fail-Fast' // Tier 2: Agent-level policy
+        );
+        update agentDef;
+
+        ActionOutcome failedOutcome = ActionOutcome.failure('ERROR', 'Tool failed');
+
+        // When: Checking fail-fast policy
+        Test.startTest();
+        Boolean result = OrchestrationService.shouldFailFast(capability, agentDef, failedOutcome, '[Test] ');
+        Test.stopTest();
+
+        // Then: Should fail fast (Tier 2 applies)
+        System.assertEquals(true, result, 'Tier 2: Agent Fail-Fast policy should apply');
+    }
+
+    @IsTest
+    static void testShouldFailFast_Tier3_AutonomousRecovery_ReturnsFalse() {
+        // Given: No fail-fast configuration (default to autonomous recovery)
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
+
+        AgentCapability__c capability = new AgentCapability__c(
+            AIAgentDefinition__c = setup.agentDefinition.Id,
+            CapabilityName__c = 'flexibleTool',
+            Description__c = 'Flexible tool for testing autonomous recovery',
+            ImplementationType__c = 'Standard',
+            StandardActionType__c = 'GetRecords',
+            Parameters__c = '{"type":"object","properties":{}}',
+            FailFastOnError__c = false // Tier 1: Not set
+        );
+        insert capability;
+
+        AIAgentDefinition__c agentDef = new AIAgentDefinition__c(
+            Id = setup.agentDefinition.Id,
+            ErrorHandlingPolicy__c = 'Autonomous Recovery' // Tier 3: Default
+        );
+        update agentDef;
+
+        ActionOutcome failedOutcome = ActionOutcome.failure('ERROR', 'Tool failed');
+
+        // When: Checking fail-fast policy
+        Test.startTest();
+        Boolean result = OrchestrationService.shouldFailFast(capability, agentDef, failedOutcome, '[Test] ');
+        Test.stopTest();
+
+        // Then: Should NOT fail fast (allow LLM recovery)
+        System.assertEquals(false, result, 'Tier 3: Default autonomous recovery should continue to LLM');
+    }
+
+    @IsTest
+    static void testShouldFailFast_SuccessfulOutcome_ReturnsFalse() {
+        // Given: Successful tool execution
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
+
+        AgentCapability__c capability = new AgentCapability__c(
+            AIAgentDefinition__c = setup.agentDefinition.Id,
+            CapabilityName__c = 'anyTool',
+            Description__c = 'Tool for testing successful outcome behavior',
+            ImplementationType__c = 'Standard',
+            StandardActionType__c = 'GetRecords',
+            Parameters__c = '{"type":"object","properties":{}}',
+            FailFastOnError__c = true // Even with fail-fast enabled
+        );
+        insert capability;
+
+        AIAgentDefinition__c agentDef = new AIAgentDefinition__c(Id = setup.agentDefinition.Id, ErrorHandlingPolicy__c = 'Fail-Fast');
+        update agentDef;
+
+        ActionOutcome successOutcome = ActionOutcome.success('Success!');
+
+        // When: Checking fail-fast policy on success
+        Test.startTest();
+        Boolean result = OrchestrationService.shouldFailFast(capability, agentDef, successOutcome, '[Test] ');
+        Test.stopTest();
+
+        // Then: Should NOT fail fast (only applies to failures)
+        System.assertEquals(false, result, 'Success outcomes should never fail-fast');
+    }
+
+    @IsTest
+    static void testShouldFailFast_NullPolicyDefaultsToAutonomous_ReturnsFalse() {
+        // Given: Agent with null/unset error handling policy
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
+
+        AgentCapability__c capability = new AgentCapability__c(
+            AIAgentDefinition__c = setup.agentDefinition.Id,
+            CapabilityName__c = 'tool',
+            Description__c = 'Tool for testing null policy behavior',
+            ImplementationType__c = 'Standard',
+            StandardActionType__c = 'GetRecords',
+            Parameters__c = '{"type":"object","properties":{}}',
+            FailFastOnError__c = false
+        );
+        insert capability;
+
+        AIAgentDefinition__c agentDef = new AIAgentDefinition__c(
+            Id = setup.agentDefinition.Id,
+            ErrorHandlingPolicy__c = null // Not set - should default to autonomous
+        );
+        update agentDef;
+
+        ActionOutcome failedOutcome = ActionOutcome.failure('ERROR', 'Failed');
+
+        // When: Checking fail-fast policy
+        Test.startTest();
+        Boolean result = OrchestrationService.shouldFailFast(capability, agentDef, failedOutcome, '[Test] ');
+        Test.stopTest();
+
+        // Then: Should default to autonomous recovery (Tier 3)
+        System.assertEquals(false, result, 'Null policy should default to autonomous recovery');
+    }
+
+    @IsTest
+    static void testShouldFailFast_HierarchyPriority_Tier1OverridesTier2() {
+        // Given: Conflicting policies - capability says DON'T fail fast, agent says DO fail fast
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
+
+        AgentCapability__c capability = new AgentCapability__c(
+            AIAgentDefinition__c = setup.agentDefinition.Id,
+            CapabilityName__c = 'tool',
+            Description__c = 'Tool for testing hierarchy priority',
+            ImplementationType__c = 'Standard',
+            StandardActionType__c = 'GetRecords',
+            Parameters__c = '{"type":"object","properties":{}}',
+            FailFastOnError__c = false // Tier 1: Explicitly set to NOT fail fast
+        );
+        insert capability;
+
+        AIAgentDefinition__c agentDef = new AIAgentDefinition__c(
+            Id = setup.agentDefinition.Id,
+            ErrorHandlingPolicy__c = 'Fail-Fast' // Tier 2: Agent says fail fast
+        );
+        update agentDef;
+
+        ActionOutcome failedOutcome = ActionOutcome.failure('ERROR', 'Failed');
+
+        // When: Checking fail-fast policy
+        Test.startTest();
+        Boolean result = OrchestrationService.shouldFailFast(capability, agentDef, failedOutcome, '[Test] ');
+        Test.stopTest();
+
+        // Then: Should follow agent policy (Tier 1 only overrides when TRUE)
+        // When Tier 1 is false, Tier 2 applies
+        System.assertEquals(true, result, 'When capability FailFastOnError=false, agent policy should apply');
+    }
+
+    // ===================================================================================
+    // SERIALIZE ACTION OUTCOME - STANDARDIZED isSuccess FLAG
+    // ===================================================================================
+
+    @IsTest
+    static void testSerializeActionOutcome_SuccessWithData_IncludesIsSuccessFlag() {
+        // Given: Successful action outcome with data
+        Map<String, Object> resultData = new Map<String, Object>{ 'recordId' => '001000000000001', 'message' => 'Record created successfully' };
+        ActionOutcome outcome = ActionOutcome.success(resultData);
+
+        // When: Serializing for LLM
+        Test.startTest();
+        String serialized = OrchestrationService.serializeActionOutcome(outcome, '[Test] ');
+        Test.stopTest();
+
+        // Then: Should include isSuccess flag for resume logic compatibility
+        Map<String, Object> parsed = (Map<String, Object>) JSON.deserializeUntyped(serialized);
+        System.assertEquals(true, parsed.get('isSuccess'), 'Success outcomes MUST include isSuccess=true flag');
+        System.assertNotEquals(null, parsed.get('data'), 'Should include data payload');
+
+        Map<String, Object> data = (Map<String, Object>) parsed.get('data');
+        System.assertEquals('001000000000001', data.get('recordId'), 'Should preserve recordId in data');
+    }
+
+    @IsTest
+    static void testSerializeActionOutcome_SuccessWithoutData_IncludesIsSuccessFlag() {
+        // Given: Successful action outcome without data
+        ActionOutcome outcome = ActionOutcome.success();
+
+        // When: Serializing for LLM
+        Test.startTest();
+        String serialized = OrchestrationService.serializeActionOutcome(outcome, '[Test] ');
+        Test.stopTest();
+
+        // Then: Should include isSuccess flag even when data is empty
+        Map<String, Object> parsed = (Map<String, Object>) JSON.deserializeUntyped(serialized);
+        System.assertEquals(true, parsed.get('isSuccess'), 'Success outcomes MUST include isSuccess=true flag');
+        System.assertNotEquals(null, parsed.get('data'), 'Should include empty data object');
+    }
+
+    @IsTest
+    static void testSerializeActionOutcome_FailureWithoutGuidance_IncludesIsSuccessFlag() {
+        // Given: Failed action outcome without correction guidance
+        ActionOutcome outcome = ActionOutcome.failure('INPUT_VALIDATION', 'Invalid date format');
+
+        // When: Serializing for LLM
+        Test.startTest();
+        String serialized = OrchestrationService.serializeActionOutcome(outcome, '[Test] ');
+        Test.stopTest();
+
+        // Then: Should include isSuccess=false flag
+        Map<String, Object> parsed = (Map<String, Object>) JSON.deserializeUntyped(serialized);
+        System.assertEquals(false, parsed.get('isSuccess'), 'Failed outcomes MUST include isSuccess=false flag');
+        System.assertEquals('INPUT_VALIDATION', parsed.get('errorCode'), 'Should include error code');
+        System.assertNotEquals(null, parsed.get('messageForUser'), 'Should include LLM-friendly message');
+    }
+
+    @IsTest
+    static void testSerializeActionOutcome_FailureWithGuidance_IncludesCorrectionGuidance() {
+        // Given: Failed action outcome WITH correction guidance for LLM self-correction
+        ActionOutcome outcome = ActionOutcome.failureWithGuidance(
+            'INPUT_VALIDATION',
+            'Invalid date format for field StartDate',
+            'Expected format: YYYY-MM-DD. Example: 2024-03-15'
+        );
+
+        // When: Serializing for LLM
+        Test.startTest();
+        String serialized = OrchestrationService.serializeActionOutcome(outcome, '[Test] ');
+        Test.stopTest();
+
+        // Then: Should include isSuccess=false AND correction guidance
+        Map<String, Object> parsed = (Map<String, Object>) JSON.deserializeUntyped(serialized);
+        System.assertEquals(false, parsed.get('isSuccess'), 'Failed outcomes MUST include isSuccess=false flag');
+        System.assertNotEquals(null, parsed.get('correctionGuidance'), 'Should include correction guidance for LLM');
+
+        String guidance = (String) parsed.get('correctionGuidance');
+        System.assert(guidance.contains('YYYY-MM-DD'), 'Guidance should include expected format');
+        System.assert(guidance.contains('Example'), 'Guidance should include example');
+    }
+
+    @IsTest
+    static void testSerializeActionOutcome_NullOutcome_IncludesIsSuccessFalseFlag() {
+        // Given: Null action outcome (error scenario)
+        ActionOutcome outcome = null;
+
+        // When: Serializing for LLM
+        Test.startTest();
+        String serialized = OrchestrationService.serializeActionOutcome(outcome, '[Test] ');
+        Test.stopTest();
+
+        // Then: Should return error structure with isSuccess=false
+        Map<String, Object> parsed = (Map<String, Object>) JSON.deserializeUntyped(serialized);
+        System.assertEquals(false, parsed.get('isSuccess'), 'Null outcomes MUST include isSuccess=false flag');
+        System.assertNotEquals(null, parsed.get('error'), 'Should include error message');
+    }
+
+    @IsTest
+    static void testSerializeActionOutcome_ResumeLogicCompatibility() {
+        // Given: Successful tool execution (simulating what WorkflowAgent.buildResumeContext expects)
+        Map<String, Object> toolResult = new Map<String, Object>{ 'status' => 'SUCCESS', 'recordId' => '001000000000001' };
+        ActionOutcome outcome = ActionOutcome.success(toolResult);
+
+        // When: Serializing and deserializing (simulating storage to ExecutionStep__c and retrieval)
+        Test.startTest();
+        String serialized = OrchestrationService.serializeActionOutcome(outcome, '[Test] ');
+        Map<String, Object> deserialized = (Map<String, Object>) JSON.deserializeUntyped(serialized);
+        Test.stopTest();
+
+        // Then: WorkflowAgent.buildResumeContext can reliably check isSuccess
+        System.assert(deserialized.containsKey('isSuccess'), 'MUST include isSuccess key for resume logic');
+        System.assertEquals(true, deserialized.get('isSuccess'), 'isSuccess MUST be true for successful tools');
+
+        // Simulate WorkflowAgent's fail-closed logic
+        Boolean isSuccessForResume = false;
+        if (deserialized.containsKey('isSuccess')) {
+            isSuccessForResume = (Boolean) deserialized.get('isSuccess');
+        }
+        System.assertEquals(true, isSuccessForResume, 'Resume logic should identify this as successful');
+    }
+}

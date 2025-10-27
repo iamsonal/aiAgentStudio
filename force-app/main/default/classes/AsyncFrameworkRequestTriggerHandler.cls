@@ -8,24 +8,14 @@
 
 /**
  * @description
- * AsyncFrameworkRequestTriggerHandler is the comprehensive platform event handler for AsyncFrameworkRequest__e events.
- *
- * In the unified agent architecture:
- *   - ProcessLLMMessage: Handles high-concurrency conversational agents (via ConversationalOrchestrator)
- *   - ExecuteAction: Handles tool/action execution (from ToolCallResponseHandler via AgentJobEnqueuer)
- *   - FollowUpLLM: Handles multi-turn LLM continuations (via AgentJobEnqueuer)
- *
- * Note: Most orchestrators (Email, Batch, Autonomous, low-concurrency Conversational) now use Queueables directly,
- * bypassing platform events for better statefulness and simpler flows.
- *
- * This class is not intended to be instantiated or extended outside the framework.
+ * Platform event handler for AsyncFrameworkRequest__e events.
+ * Routes events to appropriate handlers based on job type (ProcessLLMMessage, ExecuteAction, FollowUpLLM).
  */
 public class AsyncFrameworkRequestTriggerHandler {
     /**
-     * Main event processing method that routes AsyncFrameworkRequest__e events to the appropriate handler based on job type.
-     * Ensures batch isolation and robust error handling for each event.
+     * Routes AsyncFrameworkRequest__e events to appropriate handlers based on job type.
      *
-     * @param events List of AsyncFrameworkRequest__e platform events to process.
+     * @param events List of AsyncFrameworkRequest__e platform events
      */
     public static void handleEvents(List<AsyncFrameworkRequest__e> events) {
         System.debug(LoggingLevel.INFO, '[AsyncFrameworkRequestTriggerHandler] Processing ' + events.size() + ' AsyncFrameworkRequest__e event(s).');

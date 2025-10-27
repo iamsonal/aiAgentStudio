@@ -8,25 +8,8 @@
 
 /**
  * @description
- * ActionContext is an immutable Data Transfer Object (DTO) that encapsulates all contextual information
- * required for executing agent actions and hooks within the unified agent framework.
- * Its primary responsibility is to securely and reliably transport execution context—including user, execution,
- * agent, and turn metadata—between framework components.
- *
- * This class is designed for thread safety, data integrity, and extensibility, ensuring that all relevant context
- * is available throughout the lifecycle of an agent action without risk of accidental mutation.
- *
- * Usage:
- *   - Pass as a parameter to agent actions, hooks, and services that require execution context.
- *   - Use to access immutable context properties for auditing, debugging, or business logic decisions.
- *   - Supports both conversational and non-conversational execution patterns.
- *
- * Scope:
- *   - Encapsulates only the data required for a single agent action execution.
- *   - Does not manage state transitions or perform side effects.
- *
- * Extensibility:
- *   - New context fields should be added via constructor and private set properties to preserve immutability.
+ * Immutable DTO that encapsulates contextual information for executing agent actions.
+ * Securely transports execution context including user, execution, agent, and turn metadata.
  */
 public class ActionContext {
     /**

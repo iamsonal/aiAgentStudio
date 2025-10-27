@@ -3,7 +3,6 @@
  */
 @IsTest
 private class ActionFlowHandlerTest {
-
     private static final String TEST_FLOW_API_NAME = 'Test_Flow_API_Name';
     private static final String INVALID_FLOW_API_NAME = 'Invalid Flow Name With Spaces';
 
@@ -17,11 +16,7 @@ private class ActionFlowHandlerTest {
         TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
 
         // Create test flow capability
-        TestFactory.newCapability()
-            .withAgent(setup.agentDefinition.Id)
-            .forFlowHandler('Test_Flow')
-            .withName('test_flow_capability')
-            .save();
+        TestFactory.newCapability().withAgent(setup.agentDefinition.Id).forFlowHandler('Test_Flow').withName('test_flow_capability').save();
     }
 
     private static ActionContext createTestContext(String implementationDetail) {
@@ -211,7 +206,7 @@ private class ActionFlowHandlerTest {
     static void testFlowResult_Constructor_SetsProperties() {
         // Given: Flow result data
         String flowName = 'Test_Flow';
-        Map<String, Object> result = new Map<String, Object>{'outputKey' => 'value', 'count' => 5};
+        Map<String, Object> result = new Map<String, Object>{ 'outputKey' => 'value', 'count' => 5 };
         String message = 'Success message';
 
         // When: Creating result
@@ -252,7 +247,7 @@ private class ActionFlowHandlerTest {
     static void testExecuteAction_DirectCall() {
         // Given: Direct method call
         ActionFlowHandler action = new ActionFlowHandler();
-        Map<String, Object> params = new Map<String, Object>{'param1' => 'test'};
+        Map<String, Object> params = new Map<String, Object>{ 'param1' => 'test' };
 
         // When: Calling executeAction directly
         Test.startTest();

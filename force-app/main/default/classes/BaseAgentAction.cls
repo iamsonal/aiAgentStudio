@@ -8,262 +8,15 @@
 
 /**
  * @description
- * BaseAgentAction is the abstract base class for all agent actions in the AI Agent Framework.
+ * Abstract base class for all agent actions in the AI Agent Framework.
  *
- * ARCHITECTURE: TWO-PASS HYBRID DESERIALIZATION PATTERN
- * =====================================================
- * This class implements a carefully-designed "Two-Pass Hybrid Deserialization" pattern that balances
- * performance, type safety, flexibility, and LLM resilience. Before considering changes to this pattern,
- * please read this documentation thoroughly to understand the architectural decisions and constraints.
+ * Uses two-pass deserialization pattern: JSON.deserializeUntyped() followed by manual DTO population
+ * with ActionConfigUtils for type safety and LLM output variability handling.
  *
- * THE PATTERN:
- * -----------
- * Pass 1: JSON.deserializeUntyped(argumentsJson) → Map<String, Object>
- *         - Fast, native Salesforce JSON parser
- *         - Produces untyped map structure
+ * Subclasses must implement executeAction() method and define ArgumentsDTO/ConfigDTO classes.
+ * For SObject operations, use TypeCoercionService.coerceArgumentTypesForSObject() for field type coercion.
  *
- * Pass 2: Manual DTO population from the map
- *         - Subclasses define inner ArgumentsDTO classes for type safety
- *         - Use ActionConfigUtils helpers for safe extraction and type coercion
- *         - Example: args.fields = ActionConfigUtils.getOptionalStringList(params, 'fields')
- *
- * Pass 3 (Dynamic SObject Fields Only): TypeCoercionService.coerceArgumentTypesForSObject()
- *         - For Map<String, Object> containing dynamic SObject field data
- *         - Performs Salesforce-specific type coercion (String "123" → Decimal for AnnualRevenue)
- *         - Enforces Field-Level Security (FLS)
- *         - Validates against SObject schema
- *
- * WHY THIS PATTERN? (Critical Technical Constraints)
- * ==================================================
- *
- * 1. LLM OUTPUT VARIABILITY - The #1 Reason
- *    LLMs send data in unpredictable formats:
- *
- *    Common: { "queryLimit": "10" }        // String instead of Integer
- *    Common: { "topics": "single-topic" }  // String instead of List<String>
- *    Common: { "includeDetails": "true" }  // String instead of Boolean
- *
- *    Native JSON.deserialize(json, ArgumentsDTO.class) FAILS on these variations with:
- *    "System.JSONException: Cannot deserialize instance of Integer from String value"
- *
- *    Our pattern SUCCEEDS because ActionConfigUtils handles these gracefully:
- *    - getOptionalInteger(): String "10" → Integer 10
- *    - getOptionalStringList(): Single value → List with one element
- *    - getOptionalBoolean(): String "true" → Boolean true
- *
- * 2. DYNAMIC SOBJECT FIELDS - Cannot Use Native Deserialization
- *    LLMs send arbitrary SObject field data:
- *
- *    JSON from LLM:
- *    {
- *      "fields": {
- *        "AnnualRevenue": "1000000",      // String, but field expects Decimal
- *        "NumberOfEmployees": "500",       // String, but field expects Integer
- *        "IsActive": "true"                // String, but field expects Boolean
- *      }
- *    }
- *
- *    Even with proper JSON types, native deserialization creates:
- *    Map<String, Object> fields = { 'AnnualRevenue' => '1000000' }  // Still String!
- *
- *    When you do: account.put('AnnualRevenue', fields.get('AnnualRevenue'))
- *    Result: System.TypeException: Invalid decimal: 1000000
- *
- *    WHY: Native deserialization doesn't know that 'AnnualRevenue' should be Decimal.
- *         It needs SObject schema awareness, which only TypeCoercionService provides.
- *
- * 3. SMART DEFAULTS & VALIDATION
- *    Actions need intelligent defaults and bounds checking:
- *
- *    args.queryLimit = params.containsKey('queryLimit')
- *        ? Integer.valueOf(params.get('queryLimit'))
- *        : DEFAULT_QUERY_LIMIT;                    // Default if missing
- *    args.queryLimit = Math.min(args.queryLimit, MAX_LIMIT);  // Bounds check
- *
- *    With native deserialization, missing fields = null. You'd need to add this logic
- *    AFTER deserialization anyway, defeating the purpose of "single-pass" optimization.
- *
- * 4. CLEAR ERROR MESSAGES FOR LLM FEEDBACK
- *    Our pattern produces actionable errors:
- *    ✅ "Missing required parameter: recordId"
- *    ✅ "Invalid SObject API Name in configuration: InvalidObject__c"
- *
- *    Native deserialization produces cryptic parser errors:
- *    ❌ "System.JSONException: Unexpected character '}' at line 1 column 23"
- *
- *    LLMs need clear, semantic error messages to self-correct.
- *
- * ALTERNATIVES CONSIDERED AND REJECTED
- * ====================================
- *
- * Alternative 1: "Single-Pass Native Deserialization"
- *    Idea: JSON.deserialize(argumentsJson, ArgumentsDTO.class)
- *
- *    REJECTED because:
- *    ❌ Fails on LLM type variations (String "10" when Integer expected)
- *    ❌ Cannot handle dynamic SObject field type matching
- *    ❌ Cannot convert single values to lists
- *    ❌ Still needs post-processing for defaults/validation
- *    ❌ Produces cryptic error messages
- *    ❌ Breaking change to all 15+ action classes and 30+ test classes
- *
- *    Net benefit: Save ~0.7ms per action (JSON parsing is <1% of total execution time)
- *    Net cost: Breaks LLM resilience, requires fallback code paths anyway
- *
- * Alternative 2: "Refined Hybrid with Try/Catch Native"
- *    Idea: Try native deserialize, fall back to manual if it fails
- *
- *    REJECTED because:
- *    ❌ Two code paths to maintain (native + fallback)
- *    ❌ Still need ActionConfigUtils for edge cases
- *    ❌ Still need TypeCoercionService for SObject fields
- *    ❌ Error handling becomes complex
- *    ❌ Testing burden doubles
- *    ❌ Performance gain negligible (~0.7ms vs database ops at 50-500ms)
- *
- *    Net benefit: ~13% code reduction, ~20% faster JSON parsing
- *    Net cost: Increased complexity, scattered validation logic
- *
- * PERFORMANCE CONSIDERATIONS
- * =========================
- * The Two-Pass pattern is NOT a performance bottleneck:
- *
- * Typical action execution breakdown:
- *   - JSON parsing (our pattern):      ~3.5ms  (0.7% - 7% of total)
- *   - Database queries/DML:            ~50-200ms
- *   - HTTP callouts (if any):          ~100-500ms
- *   - FLS checks & validation:         ~5-10ms
- *   - Business logic:                  ~10-50ms
- *   Total:                             ~165-765ms
- *
- * Optimizing JSON parsing would save ~0.7ms (20% of 3.5ms).
- * This is 0.1% - 0.4% of total execution time - NOT MEANINGFUL.
- *
- * Better optimization targets:
- *   ✅ Cache SObject describes:        Save 5-10ms per action
- *   ✅ Batch FLS checks:                Save 2-5ms per action
- *   ✅ Optimize SOQL queries:           Save 20-100ms per action
- *
- * IMPLEMENTATION PATTERN FOR SUBCLASSES
- * =====================================
- *
- * Step 1: Define ArgumentsDTO inner class
- *   public class ArgumentsDTO {
- *       public String recordId;                    // Static field
- *       public Integer queryLimit;                  // Static field
- *       public Map<String, Object> fields;          // Dynamic SObject fields
- *   }
- *
- * Step 2: Implement executeAction with manual DTO population
- *   public override ActionOutcome executeAction(Map<String, Object> params) {
- *       // Manual population using ActionConfigUtils for safety
- *       ArgumentsDTO args = new ArgumentsDTO();
- *       args.recordId = (String) params.get('recordId');
- *       args.queryLimit = ActionConfigUtils.getOptionalInteger(params, 'queryLimit', DEFAULT_LIMIT);
- *       args.fields = ActionConfigUtils.getOptionalMap(params, 'fields');
- *
- *       // Validate DTO
- *       if (String.isBlank(args.recordId)) {
- *           return ActionOutcome.failure('INPUT_VALIDATION', 'recordId is required');
- *       }
- *
- *       // For dynamic SObject fields, use TypeCoercionService
- *       Map<String, Object> typedFields = TypeCoercionService.coerceArgumentTypesForSObject(
- *           args.fields,
- *           Schema.Account.SObjectType,
- *           AccessType.CREATABLE
- *       );
- *
- *       // Execute business logic using typed DTO and validated fields
- *       Account acc = new Account();
- *       for (String fieldName : typedFields.keySet()) {
- *           acc.put(fieldName, typedFields.get(fieldName));
- *       }
- *       insert acc;
- *
- *       return ActionOutcome.success(acc.Id);
- *   }
- *
- * KEY UTILITIES
- * ============
- * - ActionConfigUtils: Type-safe extraction from Map<String, Object>
- *   Methods: getOptionalStringList, getRequiredString, getOptionalInteger, etc.
- *   Purpose: Handle LLM output variability, provide defaults, validate types
- *
- * - TypeCoercionService: SObject-specific field processing
- *   Method: coerceArgumentTypesForSObject(fields, SObjectType, AccessType)
- *   Purpose: Match JSON types to SObject schema, enforce FLS, validate data
- *
- * WHEN TO CHANGE THIS PATTERN
- * ===========================
- * DO NOT change this pattern unless:
- *   ✅ You have data showing JSON parsing is >20% of execution time (it's currently <7%)
- *   ✅ You have a solution for LLM type variability (String "10" vs Integer 10)
- *   ✅ You have a solution for dynamic SObject field type matching
- *   ✅ You have a solution for List<String> coercion (single value → list)
- *   ✅ You maintain clear error messages for LLM feedback
- *   ✅ You avoid breaking 15 action classes and 30+ test classes
- *
- * This pattern is battle-tested with real LLM integrations. Changes should be
- * approached with extreme caution and thorough testing across all action types.
- *
- * SCHEMA CONTRACT REQUIREMENT (CRITICAL)
- * =======================================
- * For Standard Actions, there is a MANDATORY contract between:
- *
- * 1. StandardActionHandler__mdt Custom Metadata Records
- *    - ParametersTemplate__c: JSON Schema defining expected parameters
- *    - BackendConfigTemplate__c: JSON template for backend configuration
- *
- * 2. Action Class DTOs
- *    - ArgumentsDTO: Inner class with fields matching ParametersTemplate__c properties
- *    - ConfigDTO: Inner class with fields matching BackendConfigTemplate__c keys
- *
- * CONTRACT RULES:
- * --------------
- * ✅ MUST: Every ArgumentsDTO field MUST have a corresponding property in ParametersTemplate__c
- * ✅ MUST: Every ConfigDTO field MUST have a corresponding key in BackendConfigTemplate__c
- * ✅ MUST: Field names must match EXACTLY (case-sensitive)
- * ⚠️  AVOID: Using Apex reserved keywords as field names (e.g., use queryLimit not limit)
- *
- * WHY THIS MATTERS:
- * ----------------
- * - ParametersTemplate__c → Sent to LLM as function schema
- * - LLM generates JSON matching the schema
- * - ArgumentsDTO extracts fields from that JSON
- * - Mismatch = Runtime failure when LLM sends "limit" but code expects "queryLimit"
- *
- * ENFORCEMENT:
- * -----------
- * - Automated validation via StandardActionSchemaValidationTest
- * - Test fails if metadata schemas don't match DTOs
- * - Run tests after changing any DTO or metadata template
- *
- * EXAMPLE MISMATCH (DON'T DO THIS):
- * ---------------------------------
- * ❌ BAD:
- *   ParametersTemplate__c: { "properties": { "limit": { "type": "integer" } } }
- *   ArgumentsDTO: public Integer queryLimit;  // ← MISMATCH!
- *
- * ✅ GOOD:
- *   ParametersTemplate__c: { "properties": { "queryLimit": { "type": "integer" } } }
- *   ArgumentsDTO: public Integer queryLimit;  // ← MATCH!
- *
- * When modifying actions:
- * 1. Update BOTH DTO and metadata template in sync
- * 2. Run StandardActionSchemaValidationTest
- * 3. Fix any validation errors before deployment
- *
- * See: SchemaValidator.cls and StandardActionSchemaValidationTest.cls
- *
- * RESPONSIBILITIES
- * ===============
- *   - Provides streamlined framework for implementing agent actions
- *   - Performs JSON.deserializeUntyped() for arguments and configuration
- *   - Delegates DTO population, validation, and security checks to subclasses
- *   - Subclasses define ArgumentsDTO and ConfigDTO classes for type safety
- *   - Requires subclasses to implement only executeAction() method
- *   - Surfaces operational issues via ActionOutcome and logging
+ * Schema Contract: ArgumentsDTO fields must match ParametersTemplate__c properties exactly.
  *
  * @implements IAgentAction
  */
@@ -273,13 +26,11 @@ public abstract class BaseAgentAction implements IAgentAction {
     protected Map<String, Object> parsedActionConfig { get; private set; }
 
     /**
-     * Exception for errors during argument or configuration validation.
-     * Includes an optional field name for more precise error reporting.
+     * Exception for validation errors with optional field name.
      */
     public virtual class ValidationException extends AIAgentException {
         public String fieldName; // Optional
 
-        // Only define this constructor because it has an extra param
         public ValidationException(String message, String field) {
             super(message);
             this.fieldName = field;
@@ -293,35 +44,28 @@ public abstract class BaseAgentAction implements IAgentAction {
     }
 
     public virtual override String toString() {
-        // Use a simple static string to avoid recursion with getLogPrefixName()
         return 'ActionHandler (Context: ' + (actionContext != null ? 'Set' : 'Not Set') + ')';
     }
 
     /**
-     * Exception specifically for security/permission denials.
+     * Exception for security/permission denials.
      */
     public virtual class ActionSecurityException extends AIAgentException {
     }
 
     /**
-     * Exception for when performAction implementation returns null.
+     * Exception for null ActionOutcome.
      */
     private class ActionHandlerNullException extends AIAgentException {
     }
 
-    // ============================================================================
-    // --- Template Method ---
-    // ============================================================================
-
     /**
-     * Template method for executing an agent action.
-     * Handles basic parameter deserialization and outcome wrapping.
-     * Subclasses implement executeAction() with their business logic and can use DTOs for type safety.
+     * Executes an agent action with parameter deserialization and outcome wrapping.
      *
-     * @param actionConfigurationJson The action configuration as a JSON string.
-     * @param argumentsJson           The action arguments as a JSON string.
-     * @param context                 The ActionContext for this execution.
-     * @return                        The ActionOutcome for the action.
+     * @param actionConfigurationJson Action configuration JSON
+     * @param argumentsJson           Action arguments JSON
+     * @param context                 ActionContext for execution
+     * @return                        ActionOutcome result
      */
     public virtual ActionOutcome execute(String actionConfigurationJson, String argumentsJson, ActionContext context) {
         if (context == null) {
@@ -335,15 +79,12 @@ public abstract class BaseAgentAction implements IAgentAction {
         try {
             System.debug(LoggingLevel.INFO, logPrefix + 'Starting action execution');
 
-            // Simple JSON deserialization - subclasses can use DTOs for type safety
             Map<String, Object> argsMap = String.isBlank(argumentsJson)
                 ? new Map<String, Object>()
                 : (Map<String, Object>) JSON.deserializeUntyped(argumentsJson);
 
-            // Parse configuration (actions handle their own DTO conversion if needed)
             this.parseActionConfiguration(actionConfigurationJson, logPrefix);
 
-            // Call the action method directly - actions handle their own validation and security
             ActionOutcome actionOutcome = executeAction(argsMap);
 
             if (actionOutcome == null) {
@@ -355,43 +96,22 @@ public abstract class BaseAgentAction implements IAgentAction {
             finalOutcome = mapExceptionToOutcome(ex, logPrefix);
         }
 
-        // Log action outcome with performance metrics
         Long duration = System.currentTimeMillis() - startTime;
-
         System.debug(LoggingLevel.INFO, logPrefix + 'Execution Finished. Success: ' + finalOutcome.isSuccess);
         return finalOutcome;
     }
 
-    // ============================================================================
-    // --- SINGLE METHOD APPROACH - Actions implement this ONE method only ---
-    // ============================================================================
-
     /**
-     * The only method actions need to implement!
-     * Actions should deserialize params into strongly-typed DTOs, perform validation and security checks,
-     * then execute business logic. Uses ActionOutcome pattern for consistent success/failure handling.
+     * Abstract method for action implementation.
+     * Subclasses deserialize params into DTOs, validate, and execute business logic.
      *
-     * Pattern:
-     *   1. Deserialize params Map into a strongly-typed ArgumentsDTO
-     *   2. Validate required fields and business rules
-     *   3. For SObject operations, extract Map<String, Object> from DTO and use TypeCoercionService
-     *   4. Perform security checks using SecurityUtils
-     *   5. Execute business logic
-     *   6. Return ActionOutcome with success data or error information
-     *
-     * @param params Raw parameters from JSON deserialization (use DTOs for type safety)
-     * @return       ActionOutcome object containing either success data or structured error information
+     * @param params Raw parameters from JSON
+     * @return       ActionOutcome with result or error
      */
     public abstract ActionOutcome executeAction(Map<String, Object> params);
 
-
-    // ============================================================================
-    // --- Helper Methods ---
-    // ============================================================================
-
     protected virtual String getLogPrefixName() {
         String className = String.valueOf(this);
-        // Extract class name from toString() output like "ActionCreateRecord:..."
         if (className.contains(':')) {
             className = className.substring(0, className.indexOf(':'));
         }
@@ -414,16 +134,12 @@ public abstract class BaseAgentAction implements IAgentAction {
         }
     }
 
-    // ============================================================================
-    // --- Private: Exception Mapping ---
-    // ============================================================================
-
     /**
-     * Maps caught exceptions to ActionOutcome.
+     * Maps exceptions to ActionOutcome.
      *
-     * @param ex       The caught exception.
-     * @param logPrefix The logging prefix for debug output.
-     * @return         The ActionOutcome representing the error.
+     * @param ex       Exception to map
+     * @param logPrefix Logging prefix
+     * @return         ActionOutcome representing error
      */
     private ActionOutcome mapExceptionToOutcome(Exception ex, String logPrefix) {
         System.debug(
@@ -437,7 +153,6 @@ public abstract class BaseAgentAction implements IAgentAction {
             String errorCode = mapStatusCodeToErrorCode(initialCode, AIAgentConstants.ERR_CODE_DML_ERROR);
             return ActionOutcome.failure(errorCode, 'DML failed: ' + firstDmlMsg);
         }
-        // (Keep QueryException, CalloutException, LimitException checks)
         if (ex instanceof System.QueryException) {
             String msgLower = ex.getMessage().toLowerCase();
             String errCode = (msgLower.contains('security enforced') || msgLower.contains('insufficient access'))
@@ -452,7 +167,23 @@ public abstract class BaseAgentAction implements IAgentAction {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_SYSTEM_LIMIT, 'System limit exceeded: ' + ex.getMessage());
         }
 
-        // --- Handle framework specific exceptions (Use base AIAgentException or check type name if needed) ---
+        if (ex instanceof TypeCoercionService.TypeCoercionException) {
+            TypeCoercionService.TypeCoercionException tce = (TypeCoercionService.TypeCoercionException) ex;
+            if (String.isNotBlank(tce.correctionGuidance)) {
+                return ActionOutcome.failureWithGuidance(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, tce.getMessage(), tce.correctionGuidance);
+            }
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, tce.getMessage());
+        }
+
+        if (ex instanceof QueryServiceException) {
+            QueryServiceException qse = (QueryServiceException) ex;
+            String guidance = extractGuidanceFromQueryException(qse);
+            if (String.isNotBlank(guidance)) {
+                return ActionOutcome.failureWithGuidance(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, qse.getMessage(), guidance);
+            }
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, qse.getMessage());
+        }
+
         if (ex instanceof ValidationException) {
             ValidationException ve = (ValidationException) ex;
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, ve.getMessage());
@@ -466,7 +197,6 @@ public abstract class BaseAgentAction implements IAgentAction {
         if (ex instanceof LlmPayloadUtils.LlmPayloadException) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'LLM Data Error: ' + ex.getMessage());
         }
-        // Handle LLM Provider Exceptions (adjust based on final class definition/inheritance)
         if (ex.getTypeName().contains('LLMProviderException') || (ex instanceof AIAgentException && ex.getMessage().contains('LLM'))) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_LLM_CALL_FAILED, 'LLM Communication Failed: ' + ex.getMessage());
         }
@@ -474,16 +204,43 @@ public abstract class BaseAgentAction implements IAgentAction {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Action Setup Failed: ' + ex.getMessage());
         }
 
-        // --- Default Fallback ---
         return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex.getMessage());
     }
 
     /**
-     * Maps DML StatusCode enum values to framework error codes.
+     * Extracts correction guidance from QueryServiceException.
      *
-     * @param statusCodeStr The status code as a string.
-     * @param defaultCode   The default error code to use if no mapping is found.
-     * @return              The mapped error code.
+     * @param qse QueryServiceException
+     * @return Correction guidance or null
+     */
+    private String extractGuidanceFromQueryException(QueryServiceException qse) {
+        if (qse == null) {
+            return null;
+        }
+
+        List<String> guidanceParts = new List<String>();
+
+        if (String.isNotBlank(qse.suggestedFix)) {
+            guidanceParts.add(qse.suggestedFix);
+        }
+
+        if (qse.alternativeSolutions != null && !qse.alternativeSolutions.isEmpty()) {
+            for (String alternative : qse.alternativeSolutions) {
+                if (String.isNotBlank(alternative)) {
+                    guidanceParts.add(alternative);
+                }
+            }
+        }
+
+        return guidanceParts.isEmpty() ? null : String.join(guidanceParts, ' | ');
+    }
+
+    /**
+     * Maps DML StatusCode to framework error codes.
+     *
+     * @param statusCodeStr Status code string
+     * @param defaultCode   Default error code
+     * @return              Mapped error code
      */
     private String mapStatusCodeToErrorCode(String statusCodeStr, String defaultCode) {
         if (statusCodeStr == null)
@@ -520,11 +277,10 @@ public abstract class BaseAgentAction implements IAgentAction {
     }
 
     /**
-     * Extracts public properties from custom objects using JSON serialization for result formatting.
-     * Provides fallback handling for objects that cannot be serialized.
+     * Extracts object properties using JSON serialization.
      *
-     * @param obj The custom object to extract properties from.
-     * @return    A map of public properties, or a fallback map if serialization fails.
+     * @param obj Object to extract properties from
+     * @return    Map of properties or fallback
      */
     private Map<String, Object> extractObjectProperties(Object obj) {
         Map<String, Object> properties = new Map<String, Object>();
@@ -534,7 +290,6 @@ public abstract class BaseAgentAction implements IAgentAction {
             Map<String, Object> deserialized = (Map<String, Object>) JSON.deserializeUntyped(jsonStr);
             properties.putAll(deserialized);
         } catch (Exception e) {
-            // Fallback: just put the object itself
             properties.put('result', obj);
         }
 

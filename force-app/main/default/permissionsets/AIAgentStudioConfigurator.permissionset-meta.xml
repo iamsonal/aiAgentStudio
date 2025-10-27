@@ -149,7 +149,7 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AgentCapability__c.HaltAndReportError__c</field>
+        <field>AgentCapability__c.FailFastOnError__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>

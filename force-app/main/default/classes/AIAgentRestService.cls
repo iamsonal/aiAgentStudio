@@ -8,24 +8,17 @@
 
 /**
  * @description
- * AIAgentRestService is the enterprise-grade REST API endpoint for AI agent message processing.
- * Responsibilities:
- *   - Provides secure, scalable message processing with advanced user context management
- *   - Implements comprehensive error handling, request validation, and proper HTTP status code responses
- *   - Eliminates concurrency bottlenecks by publishing platform events for asynchronous processing
- *   - Surfaces operational and validation issues clearly via debug output for maintainability
- *
- * This class is not intended to be instantiated or extended.
+ * REST API endpoint for AI agent message processing with user context management.
+ * Provides secure message processing and asynchronous handling via platform events.
  */
 @RestResource(urlMapping='/ai/agent/process/*')
 global with sharing class AIAgentRestService {
     private static final String LOG_PREFIX = '[AIAgentRestService] ';
 
     /**
-     * Processes AI agent messages in the context of the specified execution user.
-     * Supports HTTP callouts and eliminates queueable job limitations by publishing platform events for asynchronous processing.
+     * Processes AI agent messages with user context management.
      *
-     * @return AIAgentResponse containing the processing outcome and any errors.
+     * @return AIAgentResponse with processing outcome
      */
     @HttpPost
     global static AIAgentResponse processMessage() {
@@ -72,12 +65,11 @@ global with sharing class AIAgentRestService {
     }
 
     /**
-     * Parses and validates the incoming request data from the REST request body.
+     * Parses and validates incoming request data.
      *
-     * @param requestBody The raw JSON request body as a string.
-     * @param logPrefix   The logging prefix for debug output.
-     * @return            The parsed and validated AIAgentRequest.
-     * @throws AIAgentRestException if validation fails or required fields are missing/invalid.
+     * @param requestBody Raw JSON request body
+     * @param logPrefix   Logging prefix
+     * @return            Parsed and validated request
      */
     private static AIAgentRequest parseAndValidateRequest(String requestBody, String logPrefix) {
         try {

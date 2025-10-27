@@ -2,6 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>CurrentTurnIdentifier__c</fullName>
     <description>Unique identifier for the current turn/step in the execution. Used for async processing coordination and preventing stale operations.</description>
+    <externalId>false</externalId>
     <inlineHelpText>Internal identifier for the current execution turn.</inlineHelpText>
     <label>Current Turn Identifier</label>
     <length>255</length>

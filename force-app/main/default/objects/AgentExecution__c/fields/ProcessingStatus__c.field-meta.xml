@@ -2,6 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ProcessingStatus__c</fullName>
     <description>Detailed processing status for internal framework coordination. Maps to legacy ChatSession ProcessingStatus for compatibility.</description>
+    <externalId>false</externalId>
     <inlineHelpText>Internal processing state for framework coordination.</inlineHelpText>
     <label>Processing Status</label>
     <length>255</length>

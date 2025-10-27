@@ -8,42 +8,26 @@
 
 /**
  * @description
- * TypeCoercionService provides unified, high-performance type coercion capabilities for the AI Agent Framework.
- * This service consolidates type conversion logic and Field-Level Security (FLS) validation for SObject operations.
- *
- * Key Responsibilities:
- *   - Unified type coercion methods for Salesforce field types using Schema.DisplayType
- *   - Integrated Field-Level Security (FLS) enforcement for CREATABLE and UPDATABLE operations
- *   - Centralized picklist and multipicklist validation when DescribeFieldResult is provided
- *   - Comprehensive validation with structured error reporting (string length, range checking, format validation)
- *   - Support for all standard Salesforce types and common JSON/LLM input formats
- *
- * Architecture:
- *   - Primary method: coerceArgumentTypesForSObject() - Takes Map<String, Object> from DTOs and SObjectType
- *   - Performs FLS checks and type coercion against Salesforce schema
- *   - Individual coerce methods (coerceToString, coerceToInteger, etc.) for specific type conversions
- *   - No longer handles JSON schema parsing - actions use native JSON.deserialize() with DTOs instead
- *
- * Design Benefits:
- *   - Focused, single-responsibility utility for SObject field coercion
- *   - Leverages native Apex JSON deserialization for speed
- *   - Consistent error handling and validation patterns
- *   - Reduced complexity and improved maintainability
+ * Provides unified type coercion capabilities for the AI Agent Framework.
+ * Consolidates type conversion logic and Field-Level Security validation for SObject operations.
  */
 public with sharing class TypeCoercionService {
     /**
-     * Exception for type coercion failures with detailed context.
+     * Exception for type coercion failures with detailed context and auto-generated correction guidance.
+     * Provides LLM with format requirements and examples to enable self-correction on subsequent attempts.
      */
     public class TypeCoercionException extends AIAgentException {
         public String fieldName { get; private set; }
         public String targetType { get; private set; }
         public String inputType { get; private set; }
+        public String correctionGuidance { get; private set; } // Format requirements and examples for LLM
 
         public TypeCoercionException(String message, String field, String target, String input) {
             super(message);
             this.fieldName = field;
             this.targetType = target;
             this.inputType = input;
+            this.correctionGuidance = generateCorrectionGuidance(target);
         }
 
         public TypeCoercionException(String message, String field, String target, String input, Exception cause) {
@@ -51,7 +35,48 @@ public with sharing class TypeCoercionService {
             this.fieldName = field;
             this.targetType = target;
             this.inputType = input;
+            this.correctionGuidance = generateCorrectionGuidance(target);
             this.initCause(cause);
+        }
+
+        /**
+         * Auto-generates correction guidance based on target type.
+         * Provides format requirements and concrete examples to help LLM self-correct.
+         */
+        private String generateCorrectionGuidance(String targetType) {
+            if (String.isBlank(targetType)) {
+                return null;
+            }
+
+            switch on targetType.toLowerCase() {
+                when 'id' {
+                    return 'Expected: 18-character Salesforce ID (e.g., 001000000000001AAA) or 15-character ID (e.g., 001000000000001)';
+                }
+                when 'date' {
+                    return 'Expected format: YYYY-MM-DD. Example: 2024-03-15';
+                }
+                when 'datetime' {
+                    return 'Expected ISO-8601 format: YYYY-MM-DDTHH:MM:SSZ. Example: 2024-03-15T14:30:00Z';
+                }
+                when 'time' {
+                    return 'Expected format: HH:MM:SS. Example: 14:30:00';
+                }
+                when 'boolean' {
+                    return 'Expected: true, false, 1, 0, yes, no, on, or off';
+                }
+                when 'decimal', 'currency', 'double', 'percent' {
+                    return 'Expected: numeric value without commas or currency symbols. Example: 1234.56';
+                }
+                when 'integer', 'long' {
+                    return 'Expected: whole number without commas. Example: 1234';
+                }
+                when 'string', 'textarea', 'email', 'phone', 'url' {
+                    return 'Expected: text value as a string';
+                }
+                when else {
+                    return null; // No specific guidance for complex types
+                }
+            }
         }
     }
 

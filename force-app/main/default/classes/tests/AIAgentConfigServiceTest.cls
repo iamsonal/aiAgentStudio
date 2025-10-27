@@ -3,7 +3,6 @@
  */
 @IsTest
 private class AIAgentConfigServiceTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -13,17 +12,9 @@ private class AIAgentConfigServiceTest {
         TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
 
         // Create test capabilities for AIAgentConfigService testing
-        TestFactory.newCapability()
-            .withAgent(setup.agentDefinition.Id)
-            .forCreateRecord('Account')
-            .withName('test_create_account')
-            .save();
+        TestFactory.newCapability().withAgent(setup.agentDefinition.Id).forCreateRecord('Account').withName('test_create_account').save();
 
-        TestFactory.newCapability()
-            .withAgent(setup.agentDefinition.Id)
-            .forGetRecords('Contact')
-            .withName('test_get_contacts')
-            .save();
+        TestFactory.newCapability().withAgent(setup.agentDefinition.Id).forGetRecords('Contact').withName('test_get_contacts').save();
     }
 
     // ===================================================================================
@@ -53,10 +44,7 @@ private class AIAgentConfigServiceTest {
 
         // When: Getting by agent and name
         Test.startTest();
-        AgentCapability__c result = AIAgentConfigService.getCapability(
-            agent.Id,
-            cap.CapabilityName__c
-        );
+        AgentCapability__c result = AIAgentConfigService.getCapability(agent.Id, cap.CapabilityName__c);
         Test.stopTest();
 
         // Then: Should return capability
@@ -106,9 +94,7 @@ private class AIAgentConfigServiceTest {
 
         // When: Getting by developer name
         Test.startTest();
-        AIAgentDefinition__c result = AIAgentConfigService.getAgentDefinitionByDeveloperName(
-            agent.DeveloperName__c
-        );
+        AIAgentDefinition__c result = AIAgentConfigService.getAgentDefinitionByDeveloperName(agent.DeveloperName__c);
         Test.stopTest();
 
         // Then: Should return agent

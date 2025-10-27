@@ -8,47 +8,33 @@
 
 /**
  * @description
- * ConversationalOrchestrator handles conversational (chat-based) agent executions.
- * This orchestrator:
- *   - Creates or updates AgentExecution__c for conversational interactions
- *   - Chooses async strategy based on AsyncDispatchType__c field:
- *     * Low dispatch type: Uses Queueable for guaranteed sequential processing
- *     * High dispatch type: Uses Platform Events for high-throughput, fire-and-forget processing
- *   - Processes async results by invoking LLM and orchestrating the response
- *
- * Service User Context:
- *   - Service user context switching is handled centrally by AgentExecutionService
- *   - When RequiresServiceUserContext__c is true, AgentExecutionService routes through REST/Named Credential
- *   - By the time this orchestrator executes, we're already in the correct user context
- *   - This orchestrator doesn't need to know about service user requirements
- *
- * Async Strategy:
- *   - Low Dispatch Type: Enqueues ConversationalQueueable directly for stateful processing
- *   - High Dispatch Type: Publishes ProcessLLMMessage platform event for better scalability
+ * Orchestrator for conversational (chat-based) agent executions.
+ * Handles AgentExecution__c creation and async dispatch strategy selection.
  */
 public class ConversationalOrchestrator implements IAgentOrchestrator {
     private AIAgentDefinition__c agentDef;
     private static final String LOG_PREFIX = '[ConversationalOrch] ';
 
     /**
-     * No-argument constructor for dynamic instantiation via Type.newInstance().
-     * Must call initialize() before using the orchestrator.
+     * No-argument constructor for dynamic instantiation.
      */
     public ConversationalOrchestrator() {
         // No-op constructor for reflection-based instantiation
     }
 
     /**
-     * Parameterized constructor for direct instantiation (backward compatibility).
-     * @param agentDefinition The agent definition
+     * Parameterized constructor for direct instantiation.
+     *
+     * @param agentDefinition Agent definition
      */
     public ConversationalOrchestrator(AIAgentDefinition__c agentDefinition) {
         initialize(agentDefinition);
     }
 
     /**
-     * Initializes the orchestrator with the agent definition.
-     * @param agentDefinition The agent definition configuration
+     * Initializes orchestrator with agent definition.
+     *
+     * @param agentDefinition Agent definition configuration
      */
     public void initialize(AIAgentDefinition__c agentDefinition) {
         if (agentDefinition == null) {
@@ -283,10 +269,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
 
             return new AgentExecutionService.ExecutionResult(executionId, status, message);
         } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix + 'Synchronous execution failed: ' + e.getMessage() + '\nStack: ' + e.getStackTraceString()
-            );
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Synchronous execution failed: ' + e.getMessage() + '\nStack: ' + e.getStackTraceString());
 
             // Mark turn as failed
             try {

@@ -7,34 +7,24 @@
  */
 
 /**
- * TurnLifecycleService manages the state transitions and lifecycle events for execution turns
- * within the agent orchestration framework.
- *
- * Responsibilities:
- *   - Coordinates turn state changes (processing, awaiting action, follow-up, completion, failure).
- *   - Delegates persistence and event publication to ExecutionContextService.
- *   - Integrates with orchestration logging for traceability and audit.
- *   - Provides user-friendly status descriptions for UI and debugging.
- *   - Uses the unified AgentExecution__c and ExecutionStep__c data models exclusively.
- *
- * This class is the central point for all turn-level state management, ensuring robust, auditable,
- * and maintainable orchestration of agent executions.
+ * @description
+ * Manages state transitions and lifecycle events for execution turns.
+ * Coordinates turn state changes and integrates with orchestration logging.
  */
 public inherited sharing class TurnLifecycleService {
     private final ExecutionContextService executionContextService;
 
     /**
-     * Constructs a TurnLifecycleService with the default service dependencies.
+     * Default constructor with default service dependencies.
      */
     public TurnLifecycleService() {
         this(new ExecutionContextService());
     }
 
     /**
-     * Constructs a TurnLifecycleService with injected service dependencies.
+     * Constructor with injected service dependencies.
      *
-     * @param executionContextService The ExecutionContextService implementation to use for unified execution persistence.
-     * @throws IllegalArgumentException if the service is null.
+     * @param executionContextService ExecutionContextService implementation
      */
     public TurnLifecycleService(ExecutionContextService executionContextService) {
         if (executionContextService == null) {

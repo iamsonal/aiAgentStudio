@@ -15,7 +15,6 @@
  * This class ensures proper ordering and completion detection for parallel tool execution.
  */
 public class ParallelResultGatherer {
-
     /**
      * @description
      * Checks if all async tools for a given execution have completed and triggers
@@ -29,12 +28,7 @@ public class ParallelResultGatherer {
      * @param currentTurnCount The current turn count
      * @param logPrefix Logging prefix for debug output
      */
-    public static void checkAndTriggerFinalFollowUp(
-        Id executionId,
-        String turnIdentifier,
-        Integer currentTurnCount,
-        String logPrefix
-    ) {
+    public static void checkAndTriggerFinalFollowUp(Id executionId, String turnIdentifier, Integer currentTurnCount, String logPrefix) {
         try {
             System.debug(LoggingLevel.INFO, logPrefix + 'Checking if all async tools have completed for parallel execution');
 
@@ -42,10 +36,11 @@ public class ParallelResultGatherer {
             List<ExecutionStep__c> toolCallSteps = [
                 SELECT Id, ToolCallId__c, ToolName__c, StepType__c
                 FROM ExecutionStep__c
-                WHERE AgentExecution__c = :executionId
-                AND TurnIdentifier__c = :turnIdentifier
-                AND TurnCount__c = :currentTurnCount
-                AND StepType__c = 'ToolCall'
+                WHERE
+                    AgentExecution__c = :executionId
+                    AND TurnIdentifier__c = :turnIdentifier
+                    AND TurnCount__c = :currentTurnCount
+                    AND StepType__c = 'ToolCall'
                 ORDER BY CreatedDate
             ];
 
@@ -53,10 +48,11 @@ public class ParallelResultGatherer {
             List<ExecutionStep__c> toolResultSteps = [
                 SELECT Id, ToolCallId__c, ToolName__c, StepType__c, IsAsyncToolExecution__c
                 FROM ExecutionStep__c
-                WHERE AgentExecution__c = :executionId
-                AND TurnIdentifier__c = :turnIdentifier
-                AND TurnCount__c = :currentTurnCount
-                AND StepType__c = 'ToolResult'
+                WHERE
+                    AgentExecution__c = :executionId
+                    AND TurnIdentifier__c = :turnIdentifier
+                    AND TurnCount__c = :currentTurnCount
+                    AND StepType__c = 'ToolResult'
                 ORDER BY CreatedDate
             ];
 
@@ -85,21 +81,34 @@ public class ParallelResultGatherer {
             Integer syncToolResults = toolResultSteps.size() - asyncToolResults;
             asyncToolCalls = toolCallSteps.size() - syncToolResults;
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Tool execution status - Total calls: ' + toolCallSteps.size() +
-                        ', Sync results: ' + syncToolResults + ', Async results: ' + asyncToolResults +
-                        ', Expected async calls: ' + asyncToolCalls);
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix +
+                    'Tool execution status - Total calls: ' +
+                    toolCallSteps.size() +
+                    ', Sync results: ' +
+                    syncToolResults +
+                    ', Async results: ' +
+                    asyncToolResults +
+                    ', Expected async calls: ' +
+                    asyncToolCalls
+            );
 
             // Check if all async tools have completed
             if (asyncToolCalls > 0 && asyncToolResults >= asyncToolCalls) {
                 System.debug(LoggingLevel.INFO, logPrefix + 'All async tools have completed. Triggering final follow-up LLM call.');
                 triggerFinalFollowUpLLMCall(executionId, turnIdentifier, currentTurnCount, logPrefix);
             } else {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Still waiting for async tools to complete. ' +
-                            (asyncToolCalls - asyncToolResults) + ' remaining.');
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix + 'Still waiting for async tools to complete. ' + (asyncToolCalls - asyncToolResults) + ' remaining.'
+                );
             }
-
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Error checking parallel execution completion: ' + e.getMessage() + '\n' + e.getStackTraceString());
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Error checking parallel execution completion: ' + e.getMessage() + '\n' + e.getStackTraceString()
+            );
         }
     }
 
@@ -107,12 +116,7 @@ public class ParallelResultGatherer {
      * @description
      * Triggers the final follow-up LLM call to process all tool results
      */
-    private static void triggerFinalFollowUpLLMCall(
-        Id executionId,
-        String turnIdentifier,
-        Integer currentTurnCount,
-        String logPrefix
-    ) {
+    private static void triggerFinalFollowUpLLMCall(Id executionId, String turnIdentifier, Integer currentTurnCount, String logPrefix) {
         try {
             // Get the execution record to find the agent definition
             AgentExecution__c execution = [
@@ -144,9 +148,11 @@ public class ParallelResultGatherer {
             );
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Final follow-up LLM call queued for parallel execution completion');
-
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Error triggering final follow-up LLM call: ' + e.getMessage() + '\n' + e.getStackTraceString());
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Error triggering final follow-up LLM call: ' + e.getMessage() + '\n' + e.getStackTraceString()
+            );
         }
     }
 
@@ -175,11 +181,12 @@ public class ParallelResultGatherer {
             List<ExecutionStep__c> asyncToolResults = [
                 SELECT Id, ToolCallId__c, ToolName__c
                 FROM ExecutionStep__c
-                WHERE AgentExecution__c = :executionId
-                AND TurnIdentifier__c = :turnIdentifier
-                AND TurnCount__c = :currentTurnCount
-                AND StepType__c = 'ToolResult'
-                AND IsAsyncToolExecution__c = true
+                WHERE
+                    AgentExecution__c = :executionId
+                    AND TurnIdentifier__c = :turnIdentifier
+                    AND TurnCount__c = :currentTurnCount
+                    AND StepType__c = 'ToolResult'
+                    AND IsAsyncToolExecution__c = TRUE
                 ORDER BY CreatedDate
             ];
 
@@ -187,10 +194,11 @@ public class ParallelResultGatherer {
             List<ExecutionStep__c> allToolCalls = [
                 SELECT Id, ToolCallId__c, ToolName__c
                 FROM ExecutionStep__c
-                WHERE AgentExecution__c = :executionId
-                AND TurnIdentifier__c = :turnIdentifier
-                AND TurnCount__c = :currentTurnCount
-                AND StepType__c = 'ToolCall'
+                WHERE
+                    AgentExecution__c = :executionId
+                    AND TurnIdentifier__c = :turnIdentifier
+                    AND TurnCount__c = :currentTurnCount
+                    AND StepType__c = 'ToolCall'
                 ORDER BY CreatedDate
             ];
 
@@ -198,27 +206,32 @@ public class ParallelResultGatherer {
             List<ExecutionStep__c> syncToolResults = [
                 SELECT Id, ToolCallId__c, ToolName__c
                 FROM ExecutionStep__c
-                WHERE AgentExecution__c = :executionId
-                AND TurnIdentifier__c = :turnIdentifier
-                AND TurnCount__c = :currentTurnCount
-                AND StepType__c = 'ToolResult'
-                AND IsAsyncToolExecution__c = false
+                WHERE
+                    AgentExecution__c = :executionId
+                    AND TurnIdentifier__c = :turnIdentifier
+                    AND TurnCount__c = :currentTurnCount
+                    AND StepType__c = 'ToolResult'
+                    AND IsAsyncToolExecution__c = FALSE
                 ORDER BY CreatedDate
             ];
 
             Integer totalAsyncTools = allToolCalls.size() - syncToolResults.size();
             Integer completedAsyncTools = asyncToolResults.size();
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Async tool completion status - Total async tools: ' + totalAsyncTools +
-                        ', Completed: ' + completedAsyncTools);
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Async tool completion status - Total async tools: ' + totalAsyncTools + ', Completed: ' + completedAsyncTools
+            );
 
             if (totalAsyncTools > 0 && completedAsyncTools >= totalAsyncTools) {
                 System.debug(LoggingLevel.INFO, logPrefix + 'All async tools have completed. Triggering final follow-up LLM call.');
                 triggerFinalFollowUpLLMCall(executionId, turnIdentifier, currentTurnCount, logPrefix);
             } else {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Still waiting for ' + (totalAsyncTools - completedAsyncTools) + ' more async tools to complete.');
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix + 'Still waiting for ' + (totalAsyncTools - completedAsyncTools) + ' more async tools to complete.'
+                );
             }
-
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error in async tool completion check: ' + e.getMessage() + '\n' + e.getStackTraceString());
         }

@@ -3,7 +3,6 @@
  */
 @IsTest
 private class TypeCoercionServiceTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -176,19 +175,11 @@ private class TypeCoercionServiceTest {
     @IsTest
     static void testCoerceArgumentTypesForSObject_ValidArgs_Success() {
         // Given: Valid arguments
-        Map<String, Object> args = new Map<String, Object>{
-            'Name' => 'Test Account',
-            'NumberOfEmployees' => '100',
-            'AnnualRevenue' => '1000000.50'
-        };
+        Map<String, Object> args = new Map<String, Object>{ 'Name' => 'Test Account', 'NumberOfEmployees' => '100', 'AnnualRevenue' => '1000000.50' };
 
         // When: Coercing
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
-            args,
-            Account.SObjectType,
-            AccessType.CREATABLE
-        );
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(args, Account.SObjectType, AccessType.CREATABLE);
         Test.stopTest();
 
         // Then: Types should be coerced
@@ -201,11 +192,7 @@ private class TypeCoercionServiceTest {
     @IsTest
     static void testCoerceArgumentTypesForSObject_NullArgs_ReturnsEmpty() {
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
-            null,
-            Account.SObjectType,
-            AccessType.CREATABLE
-        );
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(null, Account.SObjectType, AccessType.CREATABLE);
         Test.stopTest();
 
         System.assertNotEquals(null, result);
@@ -215,18 +202,11 @@ private class TypeCoercionServiceTest {
     @IsTest
     static void testCoerceArgumentTypesForSObject_NonExistentField_Skips() {
         // Given: Args with non-existent field
-        Map<String, Object> args = new Map<String, Object>{
-            'Name' => 'Test',
-            'NonExistentField__c' => 'Value'
-        };
+        Map<String, Object> args = new Map<String, Object>{ 'Name' => 'Test', 'NonExistentField__c' => 'Value' };
 
         // When: Coercing
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
-            args,
-            Account.SObjectType,
-            AccessType.CREATABLE
-        );
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(args, Account.SObjectType, AccessType.CREATABLE);
         Test.stopTest();
 
         // Then: Should skip non-existent field

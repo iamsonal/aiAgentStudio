@@ -8,14 +8,8 @@
 
 /**
  * @description
- * AIAgentFrameworkSettings is the centralized configuration management service for the AI Agent Framework.
- * Responsibilities:
- *   - Provides cached, read-optimized access to AIAgentFrameworkSettings__c custom settings
- *   - Implements intelligent fallback to hardcoded defaults when settings are missing or invalid
- *   - Ensures framework stability and predictable behavior regardless of configuration state
- *   - Surfaces configuration issues clearly via debug output for maintainability
- *
- * This class is not intended to be instantiated or extended.
+ * Centralized configuration management service for the AI Agent Framework.
+ * Provides cached access to custom settings with intelligent fallback to defaults.
  */
 public inherited sharing class AIAgentFrameworkSettings {
     private static AIAgentFrameworkSettings__c settings;
@@ -60,8 +54,6 @@ public inherited sharing class AIAgentFrameworkSettings {
     public static Integer getDefaultMaxConversationTurns() {
         return Integer.valueOf(getInstance().DefaultMaxConversationTurns__c);
     }
-
-
 
     /**
      * Clears the cached settings instance. Intended for use in test methods only.

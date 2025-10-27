@@ -3,7 +3,6 @@
  */
 @IsTest
 private class ConversationalChatControllerTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -62,12 +61,7 @@ private class ConversationalChatControllerTest {
 
         // When: Sending message
         Test.startTest();
-        Map<String, Object> response = ConversationalChatController.sendMessage(
-            session.Id,
-            'Hello',
-            null,
-            'test-turn-' + Datetime.now().getTime()
-        );
+        Map<String, Object> response = ConversationalChatController.sendMessage(session.Id, 'Hello', null, 'test-turn-' + Datetime.now().getTime());
         Test.stopTest();
 
         // Then: Should route via REST
@@ -106,8 +100,7 @@ private class ConversationalChatControllerTest {
 
         // When: Creating session
         Test.startTest();
-        ConversationalChatController.SessionDetails session =
-            ConversationalChatController.createNewChatSession(null, agent.DeveloperName__c);
+        ConversationalChatController.SessionDetails session = ConversationalChatController.createNewChatSession(null, agent.DeveloperName__c);
         Test.stopTest();
 
         // Then: Session should be created
@@ -117,9 +110,11 @@ private class ConversationalChatControllerTest {
         System.assertEquals(true, session.transientMessagesEnabled);
 
         // Verify execution record
-        AgentExecution__c execution = [SELECT ExecutionType__c, User__c
-                                       FROM AgentExecution__c
-                                       WHERE Id = :session.sessionId];
+        AgentExecution__c execution = [
+            SELECT ExecutionType__c, User__c
+            FROM AgentExecution__c
+            WHERE Id = :session.sessionId
+        ];
         System.assertEquals('Conversational', execution.ExecutionType__c);
         System.assertEquals(UserInfo.getUserId(), execution.User__c);
     }
@@ -132,14 +127,18 @@ private class ConversationalChatControllerTest {
 
         // When: Creating session with record context
         Test.startTest();
-        ConversationalChatController.SessionDetails session =
-            ConversationalChatController.createNewChatSession(recordContext.Id, agent.DeveloperName__c);
+        ConversationalChatController.SessionDetails session = ConversationalChatController.createNewChatSession(
+            recordContext.Id,
+            agent.DeveloperName__c
+        );
         Test.stopTest();
 
         // Then: Should have source record
-        AgentExecution__c execution = [SELECT SourceRecordId__c
-                                       FROM AgentExecution__c
-                                       WHERE Id = :session.sessionId];
+        AgentExecution__c execution = [
+            SELECT SourceRecordId__c
+            FROM AgentExecution__c
+            WHERE Id = :session.sessionId
+        ];
         System.assertEquals(recordContext.Id, execution.SourceRecordId__c);
     }
 
@@ -167,11 +166,7 @@ private class ConversationalChatControllerTest {
 
         // When: Getting chat history
         Test.startTest();
-        List<Map<String, Object>> history = ConversationalChatController.getChatHistory(
-            execution.Id,
-            50,
-            null
-        );
+        List<Map<String, Object>> history = ConversationalChatController.getChatHistory(execution.Id, 50, null);
         Test.stopTest();
 
         // Then: Should return messages
@@ -191,11 +186,7 @@ private class ConversationalChatControllerTest {
 
         // When: Getting limited history
         Test.startTest();
-        List<Map<String, Object>> history = ConversationalChatController.getChatHistory(
-            execution.Id,
-            5,
-            null
-        );
+        List<Map<String, Object>> history = ConversationalChatController.getChatHistory(execution.Id, 5, null);
         Test.stopTest();
 
         // Then: Should respect limit
@@ -219,11 +210,7 @@ private class ConversationalChatControllerTest {
 
         // When: Getting history
         Test.startTest();
-        List<Map<String, Object>> history = ConversationalChatController.getChatHistory(
-            execution.Id,
-            50,
-            null
-        );
+        List<Map<String, Object>> history = ConversationalChatController.getChatHistory(execution.Id, 50, null);
         Test.stopTest();
 
         // Then: Should filter tool messages
@@ -247,8 +234,7 @@ private class ConversationalChatControllerTest {
 
         // When: Getting most recent session
         Test.startTest();
-        ConversationalChatController.SessionDetails session =
-            ConversationalChatController.getMostRecentSession(agent.DeveloperName__c, null);
+        ConversationalChatController.SessionDetails session = ConversationalChatController.getMostRecentSession(agent.DeveloperName__c, null);
         Test.stopTest();
 
         // Then: Should find session
@@ -264,8 +250,7 @@ private class ConversationalChatControllerTest {
 
         // When: Getting most recent session
         Test.startTest();
-        ConversationalChatController.SessionDetails session =
-            ConversationalChatController.getMostRecentSession(agent.DeveloperName__c, null);
+        ConversationalChatController.SessionDetails session = ConversationalChatController.getMostRecentSession(agent.DeveloperName__c, null);
         Test.stopTest();
 
         // Then: Should return null

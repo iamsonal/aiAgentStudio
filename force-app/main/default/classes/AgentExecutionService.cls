@@ -8,26 +8,8 @@
 
 /**
  * @description
- * AgentExecutionService is the single, unified entry point for all agent execution initiations in the AI Agent Framework.
- * This service replaces the scattered initialization logic across ConversationalChatController, AIAgentRestService, and
- * InboundEmailHandler with a centralized, type-aware execution flow.
- *
- * Responsibilities:
- *   - Provides the single startExecution() method for all agent types
- *   - Centralizes service user context switching logic via REST callouts when required
- *   - Creates and initializes the appropriate agent-type-specific orchestrator using custom metadata mappings
- *   - Standardizes execution initiation across conversational, batch, email, and autonomous agents
- *   - Enforces DML-before-callout pattern through orchestrator delegation
- *   - Provides clear error handling and operational transparency
- *
- * Design:
- *   - All execution types flow through startExecution(agentDeveloperName, ExecutionPayload)
- *   - Checks RequiresServiceUserContext__c and routes through REST API if needed (only way to switch context)
- *   - Agent's AgentType__c is mapped to an orchestrator class via AgentOrchestratorMapping__mdt custom metadata
- *   - Orchestrators are instantiated dynamically using reflection and initialized with the agent definition
- *   - Each orchestrator implements IAgentOrchestrator.initiate() to create records and enqueue async work
- *   - Async work is processed via orchestrator's processAsyncResult() method
- *   - Orchestrator mappings are cached for performance
+ * Unified entry point for all agent execution initiations in the AI Agent Framework.
+ * Handles service user context switching and delegates to appropriate orchestrators.
  */
 public class AgentExecutionService {
     private static final String LOG_PREFIX = '[AgentExecutionService] ';
@@ -39,19 +21,11 @@ public class AgentExecutionService {
     private static Boolean isMappingCacheInitialized = false;
 
     /**
-     * Unified entry point for initiating any agent execution.
-     * This method handles service user context switching when required and delegates to the appropriate orchestrator.
+     * Initiates agent execution with service user context switching when required.
      *
-     * CRITICAL: Service User Context Switching
-     * When an agent's RequiresServiceUserContext__c is true AND we're not already in service user context,
-     * this method makes a REST callout via Named Credential to switch to the service user. This is the ONLY
-     * way to switch execution context on the platform. The REST endpoint (AIAgentRestService) then calls back
-     * into this method with isInServiceUserContext=true to prevent infinite recursion.
-     *
-     * @param agentDeveloperName The developer name of the agent to execute
-     * @param payload            ExecutionPayload containing all context and input data
-     * @return                   ExecutionResult containing the execution ID and status
-     * @throws                   AgentOrchestratorException for validation or configuration errors
+     * @param agentDeveloperName Agent developer name
+     * @param payload            Execution payload
+     * @return                   Execution result
      */
     public static ExecutionResult startExecution(String agentDeveloperName, ExecutionPayload payload) {
         String logPrefix = LOG_PREFIX + '[Agent:' + agentDeveloperName + '] ';
@@ -80,8 +54,12 @@ public class AgentExecutionService {
             // Either service user context not required, or we're already in it - proceed directly
             System.debug(
                 LoggingLevel.INFO,
-                logPrefix + 'Processing in current context (ServiceUserRequired=' + agentDef.RequiresServiceUserContext__c +
-                ', InServiceContext=' + (payload.isInServiceUserContext == true) + ')'
+                logPrefix +
+                    'Processing in current context (ServiceUserRequired=' +
+                    agentDef.RequiresServiceUserContext__c +
+                    ', InServiceContext=' +
+                    (payload.isInServiceUserContext == true) +
+                    ')'
             );
 
             // Get the appropriate orchestrator for this agent type
@@ -124,8 +102,7 @@ public class AgentExecutionService {
     }
 
     /**
-     * Routes the execution through the REST API to switch to service user context via Named Credential.
-     * The REST endpoint will call back into startExecution() with isInServiceUserContext=true.
+     * Routes execution through REST API for service user context switching.
      */
     private static ExecutionResult routeThroughRestApi(AIAgentDefinition__c agentDef, ExecutionPayload payload, String logPrefix) {
         try {
@@ -159,8 +136,7 @@ public class AgentExecutionService {
     }
 
     /**
-     * ExecutionPayload encapsulates all data needed to initiate an agent execution.
-     * Different agent types may use different subsets of these fields.
+     * Execution payload containing all data needed for agent execution.
      */
     public class ExecutionPayload {
         // Common fields for all agent types
@@ -185,40 +161,6 @@ public class AgentExecutionService {
         @AuraEnabled
         public Id existingExecutionId { get; set; } // For continuing existing execution (conversational)
 
-        // Email-specific fields
-        @AuraEnabled
-        public String emailSubject { get; set; }
-        @AuraEnabled
-        public String emailBody { get; set; }
-        @AuraEnabled
-        public String emailFromAddress { get; set; }
-        @AuraEnabled
-        public String emailToAddress { get; set; }
-        @AuraEnabled
-        public List<String> emailCcAddresses { get; set; }
-        @AuraEnabled
-        public Map<String, Object> emailHeaders { get; set; }
-        @AuraEnabled
-        public List<EmailAttachment> emailAttachments { get; set; }
-
-        // Batch-specific fields
-        @AuraEnabled
-        public List<Id> batchRecordIds { get; set; } // Records to process in batch
-        @AuraEnabled
-        public String batchQuery { get; set; } // SOQL query for batch processing
-        @AuraEnabled
-        public Map<String, Object> batchParameters { get; set; } // Additional batch parameters
-
-        // Autonomous-specific fields
-        @AuraEnabled
-        public Map<String, Object> autonomousContext { get; set; } // Context for autonomous execution
-        @AuraEnabled
-        public String autonomousGoal { get; set; } // Goal or objective for autonomous agent
-
-        // Generic trigger payload (for non-standard triggers)
-        @AuraEnabled
-        public Map<String, Object> customPayload { get; set; }
-
         /**
          * Validates that required fields are present based on the payload type.
          * @throws AgentOrchestratorException if validation fails
@@ -231,22 +173,6 @@ public class AgentExecutionService {
                 throw new AgentOrchestratorException('TriggerSource is required in execution payload');
             }
         }
-    }
-
-    /**
-     * EmailAttachment encapsulates email attachment data for email-triggered agents.
-     */
-    public class EmailAttachment {
-        @AuraEnabled
-        public String fileName { get; set; }
-        @AuraEnabled
-        public String contentType { get; set; }
-        @AuraEnabled
-        public Integer fileSize { get; set; }
-        @AuraEnabled
-        public Blob fileContent { get; set; }
-        @AuraEnabled
-        public String description { get; set; }
     }
 
     /**
@@ -315,10 +241,7 @@ public class AgentExecutionService {
 
             System.debug(
                 LoggingLevel.INFO,
-                LOG_PREFIX +
-                    'Orchestrator mapping cache initialized: ' +
-                    orchestratorMappingCache.size() +
-                    ' active mappings loaded.'
+                LOG_PREFIX + 'Orchestrator mapping cache initialized: ' + orchestratorMappingCache.size() + ' active mappings loaded.'
             );
         } catch (Exception e) {
             System.debug(
@@ -348,9 +271,7 @@ public class AgentExecutionService {
 
         // Validate agent type
         if (String.isBlank(agentDef.AgentType__c)) {
-            throw new AgentOrchestratorException(
-                'AgentType__c is required on agent definition: ' + agentDef.DeveloperName__c
-            );
+            throw new AgentOrchestratorException('AgentType__c is required on agent definition: ' + agentDef.DeveloperName__c);
         }
 
         // Look up orchestrator mapping for this agent type
@@ -358,15 +279,9 @@ public class AgentExecutionService {
         AgentOrchestratorMapping__mdt mapping = orchestratorMappingCache.get(agentType.toLowerCase());
 
         if (mapping == null) {
-            System.debug(
-                LoggingLevel.ERROR,
-                LOG_PREFIX + 'No orchestrator mapping found for agent type: "' + agentType + '"'
-            );
+            System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'No orchestrator mapping found for agent type: "' + agentType + '"');
             throw new AgentOrchestratorException(
-                'No active orchestrator mapping found for agent type: "' +
-                    agentType +
-                    '". ' +
-                    'Check AgentOrchestratorMapping__mdt configuration.'
+                'No active orchestrator mapping found for agent type: "' + agentType + '". ' + 'Check AgentOrchestratorMapping__mdt configuration.'
             );
         }
 
@@ -374,20 +289,13 @@ public class AgentExecutionService {
         try {
             System.debug(
                 LoggingLevel.INFO,
-                LOG_PREFIX +
-                    'Instantiating orchestrator: ' +
-                    mapping.OrchestratorClassName__c +
-                    ' for agent type: ' +
-                    agentType
+                LOG_PREFIX + 'Instantiating orchestrator: ' + mapping.OrchestratorClassName__c + ' for agent type: ' + agentType
             );
 
             Type orchestratorType = Type.forName(mapping.OrchestratorClassName__c);
             if (orchestratorType == null) {
                 throw new AgentOrchestratorException(
-                    'Orchestrator class not found: "' +
-                        mapping.OrchestratorClassName__c +
-                        '". ' +
-                        'Verify the class exists and is accessible.'
+                    'Orchestrator class not found: "' + mapping.OrchestratorClassName__c + '". ' + 'Verify the class exists and is accessible.'
                 );
             }
 
@@ -398,10 +306,7 @@ public class AgentExecutionService {
             if (!(instanceObj instanceof IAgentOrchestrator)) {
                 System.debug(
                     LoggingLevel.ERROR,
-                    LOG_PREFIX +
-                        'Class "' +
-                        mapping.OrchestratorClassName__c +
-                        '" does not implement IAgentOrchestrator.'
+                    LOG_PREFIX + 'Class "' + mapping.OrchestratorClassName__c + '" does not implement IAgentOrchestrator.'
                 );
                 throw new AgentOrchestratorException(
                     'Class "' + mapping.OrchestratorClassName__c + '" must implement the IAgentOrchestrator interface.'
@@ -423,11 +328,7 @@ public class AgentExecutionService {
         } catch (Exception e) {
             System.debug(
                 LoggingLevel.ERROR,
-                LOG_PREFIX +
-                    'Failed to instantiate orchestrator "' +
-                    mapping.OrchestratorClassName__c +
-                    '": ' +
-                    e.getMessage()
+                LOG_PREFIX + 'Failed to instantiate orchestrator "' + mapping.OrchestratorClassName__c + '": ' + e.getMessage()
             );
             throw new AgentOrchestratorException(
                 'Failed to instantiate orchestrator "' + mapping.OrchestratorClassName__c + '": ' + e.getMessage(),

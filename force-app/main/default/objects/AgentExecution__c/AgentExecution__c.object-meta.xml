@@ -162,7 +162,14 @@
         <type>AutoNumber</type>
     </nameField>
     <pluralLabel>Agent Executions</pluralLabel>
-    <searchLayouts></searchLayouts>
+    <searchLayouts>
+        <searchResultsAdditionalFields>AIAgentDefinition__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>ParentExecution__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>CurrentTurnIdentifier__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>ExecutionType__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>ExecutionStatus__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>ProcessingStatus__c</searchResultsAdditionalFields>
+    </searchLayouts>
     <sharingModel>ReadWrite</sharingModel>
     <visibility>Public</visibility>
 </CustomObject>

@@ -79,14 +79,7 @@ public class QueryServiceException extends Exception {
      * @param fieldName Name of the field involved in the error (null if not field-specific)
      * @param objectName Name of the SObject involved in the error (null if not object-specific)
      */
-    public QueryServiceException(
-        String message,
-        ErrorCode errorCode,
-        Severity severity,
-        String suggestedFix,
-        String fieldName,
-        String objectName
-    ) {
+    public QueryServiceException(String message, ErrorCode errorCode, Severity severity, String suggestedFix, String fieldName, String objectName) {
         this(message);
         this.errorCode = errorCode;
         this.severity = severity;
@@ -354,4 +347,3 @@ public class QueryServiceException extends Exception {
             .withAlternative('Contact system administrator for access');
     }
 }
-
