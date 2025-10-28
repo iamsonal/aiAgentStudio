@@ -3,7 +3,6 @@
  */
 @IsTest
 private class ActionGetRecordsTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -34,11 +33,9 @@ private class ActionGetRecordsTest {
     static void testGetRecords_BasicQuery_Success() {
         // Given: Basic query configuration
         ActionGetRecords action = new ActionGetRecords();
-        String config = JSON.serialize(new Map<String, Object>{
-            'objectApiName' => 'Account',
-            'defaultFields' => new List<String>{'Id', 'Name'},
-            'maxReturnToLLM' => 10
-        });
+        String config = JSON.serialize(
+            new Map<String, Object>{ 'objectApiName' => 'Account', 'defaultFields' => new List<String>{ 'Id', 'Name' }, 'maxReturnToLLM' => 10 }
+        );
         action.parseActionConfiguration(config, '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>();
@@ -62,16 +59,16 @@ private class ActionGetRecordsTest {
     static void testGetRecords_WithFilters_Success() {
         // Given: Query with filters
         ActionGetRecords action = new ActionGetRecords();
-        String config = JSON.serialize(new Map<String, Object>{
-            'objectApiName' => 'Contact',
-            'defaultFields' => new List<String>{'Id', 'FirstName', 'LastName', 'Email'},
-            'maxReturnToLLM' => 10
-        });
+        String config = JSON.serialize(
+            new Map<String, Object>{
+                'objectApiName' => 'Contact',
+                'defaultFields' => new List<String>{ 'Id', 'FirstName', 'LastName', 'Email' },
+                'maxReturnToLLM' => 10
+            }
+        );
         action.parseActionConfiguration(config, '[TEST] ');
 
-        Map<String, Object> params = new Map<String, Object>{
-            'filters' => new Map<String, Object>{'LastName' => 'Smith'}
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'filters' => new Map<String, Object>{ 'LastName' => 'Smith' } };
 
         // When: Querying with filter
         Test.startTest();
@@ -91,17 +88,12 @@ private class ActionGetRecordsTest {
     static void testGetRecords_WithLimitAndOrderBy_Success() {
         // Given: Query with limit and ordering
         ActionGetRecords action = new ActionGetRecords();
-        String config = JSON.serialize(new Map<String, Object>{
-            'objectApiName' => 'Account',
-            'defaultFields' => new List<String>{'Id', 'Name'},
-            'maxReturnToLLM' => 10
-        });
+        String config = JSON.serialize(
+            new Map<String, Object>{ 'objectApiName' => 'Account', 'defaultFields' => new List<String>{ 'Id', 'Name' }, 'maxReturnToLLM' => 10 }
+        );
         action.parseActionConfiguration(config, '[TEST] ');
 
-        Map<String, Object> params = new Map<String, Object>{
-            'queryLimit' => 2,
-            'orderBy' => 'Name ASC'
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'queryLimit' => 2, 'orderBy' => 'Name ASC' };
 
         // When: Querying with limit and order
         Test.startTest();
@@ -120,11 +112,13 @@ private class ActionGetRecordsTest {
     static void testGetRecords_TruncatedResults_Success() {
         // Given: maxReturnToLLM smaller than result count
         ActionGetRecords action = new ActionGetRecords();
-        String config = JSON.serialize(new Map<String, Object>{
-            'objectApiName' => 'Account',
-            'defaultFields' => new List<String>{'Id', 'Name'},
-            'maxReturnToLLM' => 2  // Less than 3 accounts
-        });
+        String config = JSON.serialize(
+            new Map<String, Object>{
+                'objectApiName' => 'Account',
+                'defaultFields' => new List<String>{ 'Id', 'Name' },
+                'maxReturnToLLM' => 2 // Less than 3 accounts
+            }
+        );
         action.parseActionConfiguration(config, '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>();
@@ -148,16 +142,16 @@ private class ActionGetRecordsTest {
     static void testGetRecords_NoResults_Success() {
         // Given: Filter that matches nothing
         ActionGetRecords action = new ActionGetRecords();
-        String config = JSON.serialize(new Map<String, Object>{
-            'objectApiName' => 'Contact',
-            'defaultFields' => new List<String>{'Id', 'FirstName', 'LastName'},
-            'maxReturnToLLM' => 10
-        });
+        String config = JSON.serialize(
+            new Map<String, Object>{
+                'objectApiName' => 'Contact',
+                'defaultFields' => new List<String>{ 'Id', 'FirstName', 'LastName' },
+                'maxReturnToLLM' => 10
+            }
+        );
         action.parseActionConfiguration(config, '[TEST] ');
 
-        Map<String, Object> params = new Map<String, Object>{
-            'filters' => new Map<String, Object>{'LastName' => 'NonExistentName'}
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'filters' => new Map<String, Object>{ 'LastName' => 'NonExistentName' } };
 
         // When: Querying
         Test.startTest();
@@ -198,11 +192,9 @@ private class ActionGetRecordsTest {
     static void testParseConfig_InvalidObjectApiName_ThrowsException() {
         // Given: Invalid object name
         ActionGetRecords action = new ActionGetRecords();
-        String config = JSON.serialize(new Map<String, Object>{
-            'objectApiName' => 'InvalidObject__c',
-            'defaultFields' => new List<String>{'Id'},
-            'maxReturnToLLM' => 10
-        });
+        String config = JSON.serialize(
+            new Map<String, Object>{ 'objectApiName' => 'InvalidObject__c', 'defaultFields' => new List<String>{ 'Id' }, 'maxReturnToLLM' => 10 }
+        );
 
         // When/Then: Should throw exception
         Test.startTest();
@@ -226,12 +218,7 @@ private class ActionGetRecordsTest {
 
         // When: Creating result
         Test.startTest();
-        ActionGetRecords.GetRecordsResult result = new ActionGetRecords.GetRecordsResult(
-            testAccounts,
-            5,
-            'Account',
-            'Test message'
-        );
+        ActionGetRecords.GetRecordsResult result = new ActionGetRecords.GetRecordsResult(testAccounts, 5, 'Account', 'Test message');
         Test.stopTest();
 
         // Then: Properties should be set

@@ -3,7 +3,6 @@
  */
 @IsTest
 private class BaseAgentActionTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -14,11 +13,7 @@ private class BaseAgentActionTest {
         TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
 
         // Create test capability for BaseAgentAction testing
-        TestFactory.newCapability()
-            .withAgent(setup.agentDefinition.Id)
-            .forCreateRecord('Opportunity')
-            .withName('test_create_opportunity')
-            .save();
+        TestFactory.newCapability().withAgent(setup.agentDefinition.Id).forCreateRecord('Opportunity').withName('test_create_opportunity').save();
 
         // Create test accounts for security testing
         TestFactory.newAccount().withName('Test Account 1').save();
@@ -32,8 +27,11 @@ private class BaseAgentActionTest {
     @IsTest
     static void testExecute_ValidInputs_Success() {
         // Given: Valid configuration and arguments
-        AgentCapability__c capability = [SELECT Id, Parameters__c
-                                         FROM AgentCapability__c LIMIT 1];
+        AgentCapability__c capability = [
+            SELECT Id, Parameters__c
+            FROM AgentCapability__c
+            LIMIT 1
+        ];
 
         ActionContext context = new ActionContext(
             'a01000000000001AAA',
@@ -97,10 +95,7 @@ private class BaseAgentActionTest {
     static void testActionOutcome_Failure_CreatesCorrectOutcome() {
         // Given: Failure outcome
         Test.startTest();
-        ActionOutcome outcome = ActionOutcome.failure(
-            AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-            'Test validation error'
-        );
+        ActionOutcome outcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Test validation error');
         Test.stopTest();
 
         // Then: Properties should be set correctly
@@ -174,7 +169,6 @@ private class BaseAgentActionTest {
      * @description Test implementation of BaseAgentAction
      */
     private class TestAgentAction extends BaseAgentAction {
-
         public Map<String, Object> getParsedActionConfig() {
             return this.parsedActionConfig;
         }
@@ -200,4 +194,3 @@ private class BaseAgentActionTest {
         }
     }
 }
-

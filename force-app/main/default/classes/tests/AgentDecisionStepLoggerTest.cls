@@ -3,7 +3,6 @@
  */
 @IsTest
 private class AgentDecisionStepLoggerTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -40,11 +39,7 @@ private class AgentDecisionStepLoggerTest {
 
         // When: Creating logger with user ID
         Test.startTest();
-        AgentDecisionStepLogger logger = new AgentDecisionStepLogger(
-            session.Id,
-            turnId,
-            UserInfo.getUserId()
-        );
+        AgentDecisionStepLogger logger = new AgentDecisionStepLogger(session.Id, turnId, UserInfo.getUserId());
         Test.stopTest();
 
         // Then: Logger should be created
@@ -69,9 +64,11 @@ private class AgentDecisionStepLoggerTest {
         Test.stopTest();
 
         // Then: Step should be created
-        List<AgentDecisionStep__c> steps = [SELECT StepType__c, Title__c, ContentJson__c
-                                            FROM AgentDecisionStep__c
-                                            WHERE AgentExecution__c = :session.Id];
+        List<AgentDecisionStep__c> steps = [
+            SELECT StepType__c, Title__c, ContentJson__c
+            FROM AgentDecisionStep__c
+            WHERE AgentExecution__c = :session.Id
+        ];
         System.assertEquals(1, steps.size());
         System.assertEquals('User Input', steps[0].StepType__c);
         System.assertEquals('Hello, how are you?', steps[0].ContentJson__c);
@@ -93,10 +90,12 @@ private class AgentDecisionStepLoggerTest {
         Test.stopTest();
 
         // Then: Steps should be ordered
-        List<AgentDecisionStep__c> steps = [SELECT StepType__c, StepOrder__c
-                                            FROM AgentDecisionStep__c
-                                            WHERE AgentExecution__c = :session.Id
-                                            ORDER BY StepOrder__c];
+        List<AgentDecisionStep__c> steps = [
+            SELECT StepType__c, StepOrder__c
+            FROM AgentDecisionStep__c
+            WHERE AgentExecution__c = :session.Id
+            ORDER BY StepOrder__c
+        ];
         System.assertEquals(3, steps.size());
         System.assertEquals('User Input', steps[0].StepType__c);
         System.assertEquals('Context Gathering', steps[1].StepType__c);
@@ -133,9 +132,11 @@ private class AgentDecisionStepLoggerTest {
         Test.stopTest();
 
         // Then: Error step should be created
-        List<AgentDecisionStep__c> steps = [SELECT StepType__c, IsSuccess__c, ErrorCode__c
-                                            FROM AgentDecisionStep__c
-                                            WHERE AgentExecution__c = :session.Id];
+        List<AgentDecisionStep__c> steps = [
+            SELECT StepType__c, IsSuccess__c, ErrorCode__c
+            FROM AgentDecisionStep__c
+            WHERE AgentExecution__c = :session.Id
+        ];
         System.assertEquals('Error', steps[0].StepType__c);
         System.assertEquals(false, steps[0].IsSuccess__c);
         System.assertEquals('ERR_CODE', steps[0].ErrorCode__c);
@@ -153,8 +154,11 @@ private class AgentDecisionStepLoggerTest {
         Test.stopTest();
 
         // Then: No steps should be created
-        List<AgentDecisionStep__c> steps = [SELECT Id FROM AgentDecisionStep__c
-                                            WHERE AgentExecution__c = :session.Id];
+        List<AgentDecisionStep__c> steps = [
+            SELECT Id
+            FROM AgentDecisionStep__c
+            WHERE AgentExecution__c = :session.Id
+        ];
         System.assertEquals(0, steps.size());
     }
 }

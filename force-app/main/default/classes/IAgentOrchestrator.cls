@@ -8,49 +8,31 @@
 
 /**
  * @description
- * IAgentOrchestrator defines the contract for agent-type-specific orchestrators in the unified AI agent framework.
- * Each agent type (Conversational, Batch, Email, Autonomous) has its own orchestrator implementation that handles:
- *   - Execution initiation and AgentExecution__c record creation (DML phase)
- *   - Immediate handoff to asynchronous context before callouts
- *   - Processing of asynchronous results and continuation of execution flow
- *
- * This interface enables the Strategy pattern for agent orchestration, allowing each agent type to define
- * its own async strategy (Platform Event vs Queueable) and execution flow while maintaining a consistent API.
- *
- * Orchestrators must provide a no-argument constructor for dynamic instantiation via Type.newInstance().
- * The initialize() method is called immediately after construction to provide the agent configuration.
+ * Contract for agent-type-specific orchestrators in the AI agent framework.
+ * Handles execution initiation, async handoff, and result processing.
  */
 public interface IAgentOrchestrator {
     /**
-     * Initializes the orchestrator with the agent definition configuration.
-     * This method is called by AgentExecutionService immediately after construction via reflection.
+     * Initializes orchestrator with agent definition.
      *
-     * @param agentDefinition The agent definition containing configuration for this orchestrator
-     * @throws               AgentOrchestratorException if the agent definition is invalid for this orchestrator type
+     * @param agentDefinition Agent definition configuration
      */
     void initialize(AIAgentDefinition__c agentDefinition);
 
     /**
-     * Initiates a new agent execution. This method MUST:
-     *   1. Create the AgentExecution__c record (DML)
-     *   2. Create initial ExecutionStep__c records if needed (DML)
-     *   3. Immediately hand off to async context (Platform Event or Queueable)
-     *   4. Return before any HTTP callouts
+     * Initiates agent execution with DML and async handoff.
      *
-     * @param agentDeveloperName The developer name of the agent to execute
-     * @param payload            ExecutionPayload containing all context and input data
-     * @return                   ExecutionResult containing the execution ID and status
-     * @throws                   AgentOrchestratorException for validation or configuration errors
+     * @param agentDeveloperName Agent developer name
+     * @param payload            Execution payload
+     * @return                   Execution result
      */
     AgentExecutionService.ExecutionResult initiate(String agentDeveloperName, AgentExecutionService.ExecutionPayload payload);
 
     /**
-     * Processes the result of an asynchronous operation. This method is called by async handlers
-     * (AsyncFrameworkRequestTriggerHandler or Queueable jobs) to continue execution after async work completes.
+     * Processes async operation results.
      *
-     * @param executionId The ID of the AgentExecution__c record
-     * @param asyncPayload Map containing async-specific context and results
-     * @throws            AgentOrchestratorException for processing errors
+     * @param executionId  Execution ID
+     * @param asyncPayload Async-specific context and results
      */
     void processAsyncResult(Id executionId, Map<String, Object> asyncPayload);
 }

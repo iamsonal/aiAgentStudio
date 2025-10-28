@@ -3,7 +3,6 @@
  */
 @IsTest
 private class ActionFindEntitiesTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -11,40 +10,20 @@ private class ActionFindEntitiesTest {
     @TestSetup
     static void setupTestData() {
         // Create accounts using TestFactory
-        TestFactory.newAccount()
-            .withName('Acme Corporation')
-            .withIndustry('Technology')
-            .save();
+        TestFactory.newAccount().withName('Acme Corporation').withIndustry('Technology').save();
 
-        TestFactory.newAccount()
-            .withName('Global Industries')
-            .withIndustry('Manufacturing')
-            .save();
+        TestFactory.newAccount().withName('Global Industries').withIndustry('Manufacturing').save();
 
-        TestFactory.newAccount()
-            .withName('Tech Solutions Inc')
-            .withIndustry('Technology')
-            .save();
+        TestFactory.newAccount().withName('Tech Solutions Inc').withIndustry('Technology').save();
 
         // Create contacts
         List<Account> accounts = [SELECT Id FROM Account ORDER BY Name];
 
-        TestFactory.newContact()
-            .withName('John', 'Smith')
-            .withEmail('john.smith@acme.com')
-            .withAccount(accounts[0].Id)
-            .save();
+        TestFactory.newContact().withName('John', 'Smith').withEmail('john.smith@acme.com').withAccount(accounts[0].Id).save();
 
-        TestFactory.newContact()
-            .withName('Jane', 'Doe')
-            .withEmail('jane.doe@global.com')
-            .withAccount(accounts[1].Id)
-            .save();
+        TestFactory.newContact().withName('Jane', 'Doe').withEmail('jane.doe@global.com').withAccount(accounts[1].Id).save();
 
-        TestFactory.newContact()
-            .withName('Robert', 'Johnson')
-            .withEmail('bob.johnson@tech.com')
-            .save();
+        TestFactory.newContact().withName('Robert', 'Johnson').withEmail('bob.johnson@tech.com').save();
     }
 
     // ===================================================================================
@@ -55,15 +34,15 @@ private class ActionFindEntitiesTest {
     static void testFindEntities_SingleMatch_Success() {
         // Given: Search for specific contact
         Contact expected = [SELECT Id FROM Contact WHERE Email = 'john.smith@acme.com' LIMIT 1];
-        Test.setFixedSearchResults(new List<Id>{expected.Id});
+        Test.setFixedSearchResults(new List<Id>{ expected.Id });
 
         ActionFindEntities action = new ActionFindEntities();
         action.parseActionConfiguration('{}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'sObjectTypes' => new List<String>{'Contact'},
-            'fieldsToReturn' => new List<String>{'Id', 'FirstName', 'LastName', 'Email'},
-            'filters' => new Map<String, Object>{'Email' => 'john.smith@acme.com'}
+            'sObjectTypes' => new List<String>{ 'Contact' },
+            'fieldsToReturn' => new List<String>{ 'Id', 'FirstName', 'LastName', 'Email' },
+            'filters' => new Map<String, Object>{ 'Email' => 'john.smith@acme.com' }
         };
 
         // When: Searching
@@ -90,9 +69,9 @@ private class ActionFindEntitiesTest {
         action.parseActionConfiguration('{}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'sObjectTypes' => new List<String>{'Account'},
-            'fieldsToReturn' => new List<String>{'Id', 'Name', 'Industry'},
-            'filters' => new Map<String, Object>{'Industry' => 'Technology'},
+            'sObjectTypes' => new List<String>{ 'Account' },
+            'fieldsToReturn' => new List<String>{ 'Id', 'Name', 'Industry' },
+            'filters' => new Map<String, Object>{ 'Industry' => 'Technology' },
             'limit' => 10
         };
 
@@ -116,9 +95,9 @@ private class ActionFindEntitiesTest {
         action.parseActionConfiguration('{}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'sObjectTypes' => new List<String>{'Account'},
-            'fieldsToReturn' => new List<String>{'Id', 'Name'},
-            'filters' => new Map<String, Object>{'Name' => 'NonExistent12345'}
+            'sObjectTypes' => new List<String>{ 'Account' },
+            'fieldsToReturn' => new List<String>{ 'Id', 'Name' },
+            'filters' => new Map<String, Object>{ 'Name' => 'NonExistent12345' }
         };
 
         // When: Searching
@@ -144,9 +123,9 @@ private class ActionFindEntitiesTest {
         action.parseActionConfiguration('{}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'sObjectTypes' => new List<String>{'Account'},
-            'fieldsToReturn' => new List<String>{'Id', 'Name'},
-            'filters' => new Map<String, Object>{'Industry' => 'Technology'},
+            'sObjectTypes' => new List<String>{ 'Account' },
+            'fieldsToReturn' => new List<String>{ 'Id', 'Name' },
+            'filters' => new Map<String, Object>{ 'Industry' => 'Technology' },
             'queryLimit' => 1
         };
 
@@ -174,8 +153,8 @@ private class ActionFindEntitiesTest {
         action.parseActionConfiguration('{}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'fieldsToReturn' => new List<String>{'Id', 'Name'},
-            'filters' => new Map<String, Object>{'Name' => 'Test'}
+            'fieldsToReturn' => new List<String>{ 'Id', 'Name' },
+            'filters' => new Map<String, Object>{ 'Name' => 'Test' }
             // Missing sObjectTypes
         };
 
@@ -186,9 +165,10 @@ private class ActionFindEntitiesTest {
 
         // Then: Should fail validation
         System.assert(!result.isSuccess, 'Should fail when missing required parameters');
-        System.assert(result.errorMessage.contains('sObjectTypes') ||
-                      result.errorMessage.contains('required'),
-                      'Error message should indicate missing required parameter');
+        System.assert(
+            result.errorMessage.contains('sObjectTypes') || result.errorMessage.contains('required'),
+            'Error message should indicate missing required parameter'
+        );
     }
 
     // ===================================================================================
@@ -199,8 +179,8 @@ private class ActionFindEntitiesTest {
     static void testQueryResult_Constructor_WithRecords() {
         // Given: Test records
         Account testAccount = new Account(Id = '001000000000001AAA', Name = 'Test Account');
-        List<SObject> testRecords = new List<SObject>{testAccount};
-        List<String> sObjectTypes = new List<String>{'Account'};
+        List<SObject> testRecords = new List<SObject>{ testAccount };
+        List<String> sObjectTypes = new List<String>{ 'Account' };
 
         // When: Creating result
         Test.startTest();
@@ -219,7 +199,7 @@ private class ActionFindEntitiesTest {
     static void testQueryResult_Constructor_Empty() {
         // Given: Empty results
         List<SObject> testRecords = new List<SObject>();
-        List<String> sObjectTypes = new List<String>{'Account'};
+        List<String> sObjectTypes = new List<String>{ 'Account' };
 
         // When: Creating result
         Test.startTest();

@@ -302,10 +302,15 @@ public inherited sharing class AgentDecisionStepLogger {
             System.debug(
                 LoggingLevel.INFO,
                 '[AgentDecisionStepLogger] Collected LLM step with metrics: ' +
-                stepTypeValue + ' - ' + title +
-                ' | Tokens: ' + totalTokens +
-                ' | Cost: $' + estimatedCost +
-                ' | Sequence: ' + globalStepSequence
+                    stepTypeValue +
+                    ' - ' +
+                    title +
+                    ' | Tokens: ' +
+                    totalTokens +
+                    ' | Cost: $' +
+                    estimatedCost +
+                    ' | Sequence: ' +
+                    globalStepSequence
             );
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[AgentDecisionStepLogger] Failed to log LLM metrics: ' + e.getMessage());
@@ -490,10 +495,15 @@ public inherited sharing class AgentDecisionStepLogger {
             System.debug(
                 LoggingLevel.INFO,
                 '[AgentDecisionStepLogger] Collected step with causality: ' +
-                stepTypeValue + ' - ' + title +
-                ' | Parent: ' + parentStepId +
-                ' | Tool Call: ' + triggeringToolCallId +
-                ' | Sequence: ' + globalStepSequence
+                    stepTypeValue +
+                    ' - ' +
+                    title +
+                    ' | Parent: ' +
+                    parentStepId +
+                    ' | Tool Call: ' +
+                    triggeringToolCallId +
+                    ' | Sequence: ' +
+                    globalStepSequence
             );
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[AgentDecisionStepLogger] Failed to log step with parent: ' + e.getMessage());
@@ -544,7 +554,10 @@ public inherited sharing class AgentDecisionStepLogger {
             step.AgentExecution__c = newExecutionId;
         }
 
-        System.debug(LoggingLevel.INFO, '[AgentDecisionStepLogger] Updated execution ID to ' + newExecutionId + ' for ' + stepsToCommit.size() + ' collected steps.');
+        System.debug(
+            LoggingLevel.INFO,
+            '[AgentDecisionStepLogger] Updated execution ID to ' + newExecutionId + ' for ' + stepsToCommit.size() + ' collected steps.'
+        );
     }
 
     /**
@@ -862,7 +875,6 @@ public inherited sharing class AgentDecisionStepLogger {
             Decimal completionCost = (Decimal.valueOf(completionTokens) / 1000000.0) * pricing.CompletionPricePer1MTokens__c;
             return promptCost + completionCost;
         }
-
 
         // Model not found in pricing metadata
         System.debug(LoggingLevel.WARN, '[AgentDecisionStepLogger] No pricing found for model: ' + modelIdentifier);

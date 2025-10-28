@@ -3,7 +3,6 @@
  */
 @IsTest
 private class StructuredTextContextFormatterTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -11,16 +10,9 @@ private class StructuredTextContextFormatterTest {
     @TestSetup
     static void setupTestData() {
         // Create test data
-        Account account = TestFactory.newAccount()
-            .withName('Test Account')
-            .withDescription('Test account for structured text formatting')
-            .save();
+        Account account = TestFactory.newAccount().withName('Test Account').withDescription('Test account for structured text formatting').save();
 
-        TestFactory.newContact()
-            .withName('John', 'Doe')
-            .withEmail('john.doe@test.com')
-            .withAccount(account.Id)
-            .save();
+        TestFactory.newContact().withName('John', 'Doe').withEmail('john.doe@test.com').withAccount(account.Id).save();
     }
 
     // ===================================================================================
@@ -133,4 +125,3 @@ private class StructuredTextContextFormatterTest {
         System.assert(formatted.contains('No records to format'));
     }
 }
-

@@ -35,5 +35,4 @@ public virtual class LLMProviderException extends AIAgentException {
      */
     public class NonRetriableHttpException extends LLMProviderException {
     }
-
 }

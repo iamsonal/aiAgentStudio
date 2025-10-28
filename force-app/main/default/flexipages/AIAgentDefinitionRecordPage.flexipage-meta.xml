@@ -140,6 +140,16 @@
                     <name>uiBehavior</name>
                     <value>none</value>
                 </fieldInstanceProperties>
+                <fieldItem>Record.ErrorHandlingPolicy__c</fieldItem>
+                <identifier>RecordErrorHandlingPolicy_cField</identifier>
+            </fieldInstance>
+        </itemInstances>
+        <itemInstances>
+            <fieldInstance>
+                <fieldInstanceProperties>
+                    <name>uiBehavior</name>
+                    <value>none</value>
+                </fieldInstanceProperties>
                 <fieldItem>Record.AsyncDispatchType__c</fieldItem>
                 <identifier>RecordAsyncDispatchType_cField</identifier>
                 <visibilityRule>
@@ -180,62 +190,6 @@
                 </fieldInstanceProperties>
                 <fieldItem>Record.EnableParallelToolCalling__c</fieldItem>
                 <identifier>RecordEnableParallelToolCalling_cField</identifier>
-            </fieldInstance>
-        </itemInstances>
-        <itemInstances>
-            <fieldInstance>
-                <fieldInstanceProperties>
-                    <name>uiBehavior</name>
-                    <value>none</value>
-                </fieldInstanceProperties>
-                <fieldItem>Record.CompletionCapability__c</fieldItem>
-                <identifier>RecordCompletionCapability_cField</identifier>
-                <visibilityRule>
-                    <booleanFilter>1 OR 2 OR 3</booleanFilter>
-                    <criteria>
-                        <leftValue>{!Record.AgentType__c}</leftValue>
-                        <operator>EQUAL</operator>
-                        <rightValue>Batch</rightValue>
-                    </criteria>
-                    <criteria>
-                        <leftValue>{!Record.AgentType__c}</leftValue>
-                        <operator>EQUAL</operator>
-                        <rightValue>Email</rightValue>
-                    </criteria>
-                    <criteria>
-                        <leftValue>{!Record.AgentType__c}</leftValue>
-                        <operator>EQUAL</operator>
-                        <rightValue>Autonomous</rightValue>
-                    </criteria>
-                </visibilityRule>
-            </fieldInstance>
-        </itemInstances>
-        <itemInstances>
-            <fieldInstance>
-                <fieldInstanceProperties>
-                    <name>uiBehavior</name>
-                    <value>none</value>
-                </fieldInstanceProperties>
-                <fieldItem>Record.CompletionParameterMapping__c</fieldItem>
-                <identifier>RecordCompletionParameterMapping_cField</identifier>
-                <visibilityRule>
-                    <booleanFilter>1 OR 2 OR 3</booleanFilter>
-                    <criteria>
-                        <leftValue>{!Record.AgentType__c}</leftValue>
-                        <operator>EQUAL</operator>
-                        <rightValue>Batch</rightValue>
-                    </criteria>
-                    <criteria>
-                        <leftValue>{!Record.AgentType__c}</leftValue>
-                        <operator>EQUAL</operator>
-                        <rightValue>Email</rightValue>
-                    </criteria>
-                    <criteria>
-                        <leftValue>{!Record.AgentType__c}</leftValue>
-                        <operator>EQUAL</operator>
-                        <rightValue>Autonomous</rightValue>
-                    </criteria>
-                </visibilityRule>
             </fieldInstance>
         </itemInstances>
         <name>Facet-6a58fca1-77b9-4b14-84ab-b265601238cd</name>
@@ -359,7 +313,7 @@
             <fieldInstance>
                 <fieldInstanceProperties>
                     <name>uiBehavior</name>
-                    <value>required</value>
+                    <value>none</value>
                 </fieldInstanceProperties>
                 <fieldItem>Record.ContextFormatStrategy__c</fieldItem>
                 <identifier>RecordContextFormatStrategy_cField</identifier>
@@ -839,6 +793,72 @@
                 </componentInstanceProperties>
                 <componentName>lst:dynamicRelatedList</componentName>
                 <identifier>lst_dynamicRelatedList</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
+                    <name>actionNames</name>
+                    <valueList>
+                        <valueListItems>
+                            <value>New</value>
+                        </valueListItems>
+                    </valueList>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>adminFilters</name>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>maxRecordsToDisplay</name>
+                    <value>10</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>parentFieldApiName</name>
+                    <value>AIAgentDefinition__c.Id</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>relatedListApiName</name>
+                    <value>WorkflowSteps__r</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>relatedListDisplayType</name>
+                    <value>ADVGRID</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>relatedListFieldAliases</name>
+                    <valueList>
+                        <valueListItems>
+                            <value>NAME</value>
+                        </valueListItems>
+                        <valueListItems>
+                            <value>ChildAgent__c</value>
+                        </valueListItems>
+                        <valueListItems>
+                            <value>ExecutionOrder__c</value>
+                        </valueListItems>
+                        <valueListItems>
+                            <value>IsActive__c</value>
+                        </valueListItems>
+                    </valueList>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>relatedListLabel</name>
+                    <value>Workflow Steps</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>showActionBar</name>
+                    <value>true</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>sortFieldAlias</name>
+                    <value>__DEFAULT__</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>sortFieldOrder</name>
+                    <value>Default</value>
+                </componentInstanceProperties>
+                <componentName>lst:dynamicRelatedList</componentName>
+                <identifier>lst_dynamicRelatedList3</identifier>
             </componentInstance>
         </itemInstances>
         <itemInstances>

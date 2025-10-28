@@ -50,7 +50,27 @@ public inherited sharing class ExecutionStepService {
         String turnIdentifier,
         Integer turnCount
     ) {
-        return createStep(executionId, stepType, stepRole, content, contentType, turnIdentifier, turnCount, null, null, null, null, null, null, null, null, null, null, false, null);
+        return createStep(
+            executionId,
+            stepType,
+            stepRole,
+            content,
+            contentType,
+            turnIdentifier,
+            turnCount,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            false,
+            null
+        );
     }
 
     /**
@@ -128,7 +148,18 @@ public inherited sharing class ExecutionStepService {
 
             System.debug(LoggingLevel.DEBUG, logPrefix + 'Created ExecutionStep__c: ' + step.Id + ' Type: ' + stepType + ' Role: ' + stepRole);
             if (totalTokens != null) {
-                System.debug(LoggingLevel.DEBUG, logPrefix + 'Token usage - Prompt: ' + promptTokens + ', Completion: ' + completionTokens + ', Total: ' + totalTokens + ', Model: ' + modelIdentifier);
+                System.debug(
+                    LoggingLevel.DEBUG,
+                    logPrefix +
+                        'Token usage - Prompt: ' +
+                        promptTokens +
+                        ', Completion: ' +
+                        completionTokens +
+                        ', Total: ' +
+                        totalTokens +
+                        ', Model: ' +
+                        modelIdentifier
+                );
             }
 
             return step.Id;
@@ -307,6 +338,7 @@ public inherited sharing class ExecutionStepService {
             ToolCallId__c = toolCallId,
             ToolName__c = toolName,
             ToolResult__c = toolResult,
+            HasResult__c = String.isNotBlank(toolResult),
             ProcessingDuration__c = processingDuration,
             IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false,
             StepMetadata__c = !metadata.isEmpty() ? JSON.serialize(metadata) : null,

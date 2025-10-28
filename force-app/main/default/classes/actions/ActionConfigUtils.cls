@@ -8,36 +8,22 @@
 
 /**
  * @description
- * ActionConfigUtils provides robust, type-safe extraction and validation of parameters from
- * untyped maps (such as those produced by JSON.deserializeUntyped). It offers a suite of static methods
- * for retrieving required and optional values of various types (String, Id, Boolean, List<String>, Map<String,Object>),
- * with comprehensive validation, error handling, and clear exception semantics. This utility leverages
- * TypeCoercionService for consistent type conversion behavior across the framework.
- *
- * Key responsibilities:
- *   - Enforce presence, type, and format of required parameters using TypeCoercionService
- *   - Provide safe, null-tolerant access to optional parameters
- *   - Validate Salesforce Ids and object types
- *   - Validate lists and maps for content and type
- *   - Log warnings for recoverable issues in optional extraction
- *   - Raise clear exceptions for unrecoverable validation failures
+ * Provides type-safe extraction and validation of parameters from untyped maps.
+ * Offers static methods for retrieving required and optional values with comprehensive validation.
  */
 public with sharing class ActionConfigUtils {
     /**
-     * Exception thrown when parameter validation fails.
-     * Used to signal unrecoverable extraction/validation errors.
+     * Exception for parameter validation failures.
      */
     public class ArgumentValidationException extends AIAgentException {
     }
 
     /**
-     * Retrieves a required String value from a parameters map, enforcing presence and non-blankness.
-     * Uses TypeCoercionService for consistent coercion behavior across the framework.
+     * Retrieves a required String value from parameters map.
      *
-     * @param params   Map of parameters (typically from JSON.deserializeUntyped).
-     * @param key      Key for the required String parameter.
-     * @return         The non-blank String value.
-     * @throws         ArgumentValidationException if missing, blank, or not a String.
+     * @param params Parameters map
+     * @param key    Key for required String parameter
+     * @return       Non-blank String value
      */
     public static String getRequiredString(Map<String, Object> params, String key) {
         if (params == null || !params.containsKey(key) || params.get(key) == null) {
@@ -346,9 +332,7 @@ public with sharing class ActionConfigUtils {
 
         System.debug(
             LoggingLevel.WARN,
-            '[ActionConfigUtils.getOptionalMap] Invalid type for key "' +
-                key +
-                '". Expected Map<String, Object>. Returning empty map.'
+            '[ActionConfigUtils.getOptionalMap] Invalid type for key "' + key + '". Expected Map<String, Object>. Returning empty map.'
         );
         return new Map<String, Object>();
     }

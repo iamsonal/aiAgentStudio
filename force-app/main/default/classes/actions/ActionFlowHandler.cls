@@ -8,24 +8,8 @@
 
 /**
  * @description
- * ActionFlowHandler is a high-performance Apex action for securely executing Salesforce Flows using strongly-typed DTOs.
- *
- * Responsibilities:
- *   - Uses DTOs for type-safe argument handling
- *   - Validates and extracts the Flow API name from admin configuration (Implementation Detail field)
- *   - Validates and processes Flow input parameters for compatibility and naming conventions
- *   - Executes the specified Flow, handling both success and fault scenarios with detailed diagnostics
- *   - Returns a structured, LLM-friendly result object for downstream consumption or user display
- *
- * Architecture:
- *   - ArgumentsDTO: Contains Map<String, Object> for dynamic Flow parameters
- *   - No configuration needed - Flow name comes from ActionContext.implementationDetail
- *   - Uses native JSON.deserialize() for high-performance type conversion
- *
- * Flow Conventions: Use 'faultMessage' for errors and 'outputResult' for success data.
- * Security: Flow name must be configured in Implementation Detail field by admin.
- *
- * @extends BaseAgentAction
+ * Executes Salesforce Flows with strongly-typed DTOs.
+ * Uses DTOs for type-safe argument handling and flow input parameter processing.
  */
 public class ActionFlowHandler extends BaseAgentAction {
     private static final String FAULT_MESSAGE_VAR = 'faultMessage';
@@ -212,8 +196,7 @@ public class ActionFlowHandler extends BaseAgentAction {
             List<FlowVariableView> flowVariables = [
                 SELECT ApiName, DataType, IsInput
                 FROM FlowVariableView
-                WHERE FlowVersionViewId = :flowDef.ActiveVersionId
-                AND IsInput = true
+                WHERE FlowVersionViewId = :flowDef.ActiveVersionId AND IsInput = TRUE
                 WITH USER_MODE
             ];
 
@@ -235,16 +218,19 @@ public class ActionFlowHandler extends BaseAgentAction {
             if (!unexpectedParams.isEmpty()) {
                 System.debug(
                     LoggingLevel.WARN,
-                    '[ActionFlowHandler] Flow "' + flowApiName + '" received unexpected parameters: ' +
-                    String.join(unexpectedParams, ', ') + '. These will be ignored. ' +
-                    'Expected inputs: ' + String.join(new List<String>(expectedInputs.keySet()), ', ')
+                    '[ActionFlowHandler] Flow "' +
+                        flowApiName +
+                        '" received unexpected parameters: ' +
+                        String.join(unexpectedParams, ', ') +
+                        '. These will be ignored. ' +
+                        'Expected inputs: ' +
+                        String.join(new List<String>(expectedInputs.keySet()), ', ')
                 );
             }
 
             System.debug(
                 LoggingLevel.DEBUG,
-                '[ActionFlowHandler] Flow parameter validation passed. Expected inputs: ' +
-                expectedInputs.size() + ', Provided: ' + flowParams.size()
+                '[ActionFlowHandler] Flow parameter validation passed. Expected inputs: ' + expectedInputs.size() + ', Provided: ' + flowParams.size()
             );
 
             return ActionOutcome.success();
@@ -252,8 +238,9 @@ public class ActionFlowHandler extends BaseAgentAction {
             // If we can't query Flow metadata, log warning but allow execution to proceed
             System.debug(
                 LoggingLevel.WARN,
-                '[ActionFlowHandler] Unable to validate Flow parameters (metadata query failed): ' + qe.getMessage() +
-                '. Proceeding with Flow execution.'
+                '[ActionFlowHandler] Unable to validate Flow parameters (metadata query failed): ' +
+                    qe.getMessage() +
+                    '. Proceeding with Flow execution.'
             );
             return ActionOutcome.success();
         }
@@ -280,8 +267,7 @@ public class ActionFlowHandler extends BaseAgentAction {
             if (flowInterview == null) {
                 return ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_CONFIG_ERROR,
-                    'Failed to create Flow interview for: ' + flowApiName + '. ' +
-                    'Please verify the Flow API name and that the Flow is active.'
+                    'Failed to create Flow interview for: ' + flowApiName + '. ' + 'Please verify the Flow API name and that the Flow is active.'
                 );
             }
 
@@ -292,8 +278,10 @@ public class ActionFlowHandler extends BaseAgentAction {
 
             // Provide more specific error context based on exception message
             if (ex.getMessage().containsIgnoreCase('variable')) {
-                enhancedMessage += ' | This may indicate a parameter mismatch. ' +
-                                  'Provided parameters: ' + String.join(new List<String>(flowParams.keySet()), ', ');
+                enhancedMessage +=
+                    ' | This may indicate a parameter mismatch. ' +
+                    'Provided parameters: ' +
+                    String.join(new List<String>(flowParams.keySet()), ', ');
             } else if (ex.getMessage().containsIgnoreCase('not found') || ex.getMessage().containsIgnoreCase('does not exist')) {
                 enhancedMessage += ' | Please verify the Flow API name is correct and the Flow is active.';
             }

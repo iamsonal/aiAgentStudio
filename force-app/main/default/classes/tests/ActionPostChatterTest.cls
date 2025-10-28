@@ -3,7 +3,6 @@
  */
 @IsTest
 private class ActionPostChatterTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -14,9 +13,7 @@ private class ActionPostChatterTest {
         TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
 
         // Create test account for Chatter
-        TestFactory.newAccount()
-            .withName('Test Account for Chatter')
-            .save();
+        TestFactory.newAccount().withName('Test Account for Chatter').save();
     }
 
     // ===================================================================================
@@ -29,15 +26,10 @@ private class ActionPostChatterTest {
         Account testAccount = [SELECT Id FROM Account WHERE Name = 'Test Account for Chatter' LIMIT 1];
 
         ActionPostChatter action = new ActionPostChatter();
-        String config = JSON.serialize(new Map<String, Object>{
-            'feedType' => 'Record',
-            'targetId' => testAccount.Id
-        });
+        String config = JSON.serialize(new Map<String, Object>{ 'feedType' => 'Record', 'targetId' => testAccount.Id });
         action.parseActionConfiguration(config, '[TEST] ');
 
-        Map<String, Object> params = new Map<String, Object>{
-            'text' => 'Test Chatter message from unit test'
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'text' => 'Test Chatter message from unit test' };
 
         // When: Posting to Chatter
         Test.startTest();
@@ -54,15 +46,12 @@ private class ActionPostChatterTest {
         Account testAccount = [SELECT Id FROM Account LIMIT 1];
 
         ActionPostChatter action = new ActionPostChatter();
-        String config = JSON.serialize(new Map<String, Object>{
-            'feedType' => 'Record',
-            'targetId' => testAccount.Id
-        });
+        String config = JSON.serialize(new Map<String, Object>{ 'feedType' => 'Record', 'targetId' => testAccount.Id });
         action.parseActionConfiguration(config, '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
             'text' => 'Test message with topics',
-            'topics' => new List<String>{'TestTopic1', 'TestTopic2'}
+            'topics' => new List<String>{ 'TestTopic1', 'TestTopic2' }
         };
 
         // When: Posting with topics
@@ -80,15 +69,10 @@ private class ActionPostChatterTest {
         Account testAccount = [SELECT Id FROM Account LIMIT 1];
 
         ActionPostChatter action = new ActionPostChatter();
-        String config = JSON.serialize(new Map<String, Object>{
-            'feedType' => 'Record',
-            'targetId' => testAccount.Id
-        });
+        String config = JSON.serialize(new Map<String, Object>{ 'feedType' => 'Record', 'targetId' => testAccount.Id });
         action.parseActionConfiguration(config, '[TEST] ');
 
-        Map<String, Object> params = new Map<String, Object>{
-            'text' => 'Test message mentioning user {@' + UserInfo.getUserId() + '}'
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'text' => 'Test message mentioning user {@' + UserInfo.getUserId() + '}' };
 
         // When: Posting with mentions
         Test.startTest();
@@ -109,10 +93,7 @@ private class ActionPostChatterTest {
         Account testAccount = [SELECT Id FROM Account LIMIT 1];
 
         ActionPostChatter action = new ActionPostChatter();
-        String config = JSON.serialize(new Map<String, Object>{
-            'feedType' => 'Record',
-            'targetId' => testAccount.Id
-        });
+        String config = JSON.serialize(new Map<String, Object>{ 'feedType' => 'Record', 'targetId' => testAccount.Id });
         action.parseActionConfiguration(config, '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>();
@@ -175,12 +156,7 @@ private class ActionPostChatterTest {
 
         // When: Creating result
         Test.startTest();
-        ActionPostChatter.ChatterResult result = new ActionPostChatter.ChatterResult(
-            feedElementId,
-            message,
-            messageLength,
-            topicCount
-        );
+        ActionPostChatter.ChatterResult result = new ActionPostChatter.ChatterResult(feedElementId, message, messageLength, topicCount);
         Test.stopTest();
 
         // Then: Properties should be set

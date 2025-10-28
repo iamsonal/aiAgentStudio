@@ -8,16 +8,8 @@
 
 /**
  * @description
- * SecurityUtils is a robust utility class for enforcing Salesforce CRUD and Field-Level Security (FLS) permissions.
- * It provides static methods to validate and check user access for SObject and field operations, ensuring that all
- * data access in the application is properly guarded. The class supports both exception-based and boolean permission
- * checks, and logs meaningful debug output for both success and failure scenarios.
- *
- * Responsibilities:
- *   - Enforce CRUD and FLS permissions for SObject and field operations
- *   - Provide both throwing and non-throwing (boolean) permission checks
- *   - Log clear, actionable debug output for permission checks
- *   - Centralize security logic for maintainability and auditability
+ * Utility class for enforcing Salesforce CRUD and Field-Level Security permissions.
+ * Provides static methods to validate and check user access for SObject and field operations.
  */
 public with sharing class SecurityUtils {
     /**

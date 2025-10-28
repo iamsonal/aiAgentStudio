@@ -68,9 +68,10 @@ public class ActionUpdateRecord extends BaseAgentAction {
         // Extract recordId
         Object recordIdObj = params.get('recordId');
         if (recordIdObj == null) {
-            return ActionOutcome.failure(
+            return ActionOutcome.failureWithGuidance(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'Missing required parameter: "recordId"'
+                'Missing required parameter: "recordId"',
+                'Expected: 18-character Salesforce ID (e.g., 001000000000001AAA) or 15-character ID (e.g., 001000000000001)'
             );
         }
 
@@ -81,9 +82,10 @@ public class ActionUpdateRecord extends BaseAgentAction {
                 args.recordId = String.valueOf(recordIdObj);
             }
         } catch (Exception e) {
-            return ActionOutcome.failure(
+            return ActionOutcome.failureWithGuidance(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'Invalid recordId format: ' + recordIdObj
+                'Invalid recordId format: ' + recordIdObj,
+                'Expected: 18-character Salesforce ID (e.g., 001000000000001AAA) or 15-character ID (e.g., 001000000000001)'
             );
         }
 
@@ -96,10 +98,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
 
         // Validate DTO
         if (args.fields.isEmpty()) {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'No fields provided to update for record ID: ' + args.recordId
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'No fields provided to update for record ID: ' + args.recordId);
         }
 
         // Convert to Id and get SObjectType
@@ -107,9 +106,10 @@ public class ActionUpdateRecord extends BaseAgentAction {
         try {
             recordId = Id.valueOf(args.recordId);
         } catch (Exception e) {
-            return ActionOutcome.failure(
+            return ActionOutcome.failureWithGuidance(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'Invalid ID format for recordId: ' + args.recordId
+                'Invalid ID format for recordId: ' + args.recordId,
+                'Expected: 18-character Salesforce ID (e.g., 001000000000001AAA) or 15-character ID (e.g., 001000000000001)'
             );
         }
         SObjectType targetSObjectType = recordId.getSObjectType();
@@ -127,6 +127,10 @@ public class ActionUpdateRecord extends BaseAgentAction {
             // Coerce types and enforce field-level security (FLS) using DTO fields
             typedData = TypeCoercionService.coerceArgumentTypesForSObject(args.fields, targetSObjectType, AccessType.UPDATABLE);
         } catch (TypeCoercionService.TypeCoercionException typeEx) {
+            // Extract auto-generated correction guidance to help LLM self-correct format errors
+            if (String.isNotBlank(typeEx.correctionGuidance)) {
+                return ActionOutcome.failureWithGuidance(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage(), typeEx.correctionGuidance);
+            }
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
         } catch (SecurityUtils.ActionSecurityException secEx) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, secEx.getMessage());
@@ -165,10 +169,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
 
         // Defense-in-depth: Use Security.stripInaccessible() as final verification layer
         // This ensures Salesforce native FLS enforcement catches any edge cases in manual checks
-        SObjectAccessDecision decision = Security.stripInaccessible(
-            AccessType.UPDATABLE,
-            new List<SObject>{ recordToUpdate }
-        );
+        SObjectAccessDecision decision = Security.stripInaccessible(AccessType.UPDATABLE, new List<SObject>{ recordToUpdate });
 
         // Log any discrepancies between manual FLS checks and stripInaccessible results
         Map<String, Set<String>> decisionRemovedFields = decision.getRemovedFields();
@@ -179,7 +180,10 @@ public class ActionUpdateRecord extends BaseAgentAction {
                 System.debug(
                     LoggingLevel.WARN,
                     '[ActionUpdateRecord] SECURITY AUDIT: stripInaccessible() removed fields that passed manual FLS checks. ' +
-                    'This indicates a potential bug in TypeCoercionService. Record: ' + recordId + ', Fields: ' + String.join(new List<String>(strippedFields), ', ')
+                        'This indicates a potential bug in TypeCoercionService. Record: ' +
+                        recordId +
+                        ', Fields: ' +
+                        String.join(new List<String>(strippedFields), ', ')
                 );
             }
         }
@@ -214,10 +218,12 @@ public class ActionUpdateRecord extends BaseAgentAction {
                 errorCode = AIAgentConstants.ERR_CODE_RECORD_LOCKED;
             } else if (error.getStatusCode() == StatusCode.INSUFFICIENT_ACCESS_OR_READONLY) {
                 errorCode = AIAgentConstants.ERR_CODE_PERMISSION_DENIED;
-            } else if (error.getStatusCode() == StatusCode.FIELD_CUSTOM_VALIDATION_EXCEPTION ||
-                       error.getStatusCode() == StatusCode.REQUIRED_FIELD_MISSING ||
-                       error.getStatusCode() == StatusCode.STRING_TOO_LONG ||
-                       error.getStatusCode() == StatusCode.DUPLICATE_VALUE) {
+            } else if (
+                error.getStatusCode() == StatusCode.FIELD_CUSTOM_VALIDATION_EXCEPTION ||
+                error.getStatusCode() == StatusCode.REQUIRED_FIELD_MISSING ||
+                error.getStatusCode() == StatusCode.STRING_TOO_LONG ||
+                error.getStatusCode() == StatusCode.DUPLICATE_VALUE
+            ) {
                 errorCode = AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
             }
 
@@ -261,9 +267,10 @@ public class ActionUpdateRecord extends BaseAgentAction {
         String enhanced = 'Failed to update record ' + recordId + ': ' + error.getMessage();
 
         if (error.getStatusCode() == StatusCode.UNABLE_TO_LOCK_ROW) {
-            enhanced += ' | The record is currently locked by another process. ' +
-                       'This typically means the record is in an approval process or being edited by another user. ' +
-                       'Please try again in a few moments.';
+            enhanced +=
+                ' | The record is currently locked by another process. ' +
+                'This typically means the record is in an approval process or being edited by another user. ' +
+                'Please try again in a few moments.';
         } else if (error.getStatusCode() == StatusCode.INSUFFICIENT_ACCESS_OR_READONLY) {
             enhanced += ' | User lacks update permission or field is read-only.';
         }

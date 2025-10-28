@@ -19,7 +19,6 @@
  * This service is designed for extensibility, reliability, and operational transparency.
  */
 public inherited sharing class AIAgentConfigService {
-
     public class ConfigurationException extends AIAgentException {
     }
 
@@ -58,6 +57,7 @@ public inherited sharing class AIAgentConfigService {
         'PromptFooter__c',
         'EnableParallelToolCalling__c',
         'RequiresServiceUserContext__c',
+        'ErrorHandlingPolicy__c',
         'SummarizerAgent__c',
         'SummarizerAgent__r.DeveloperName__c',
         'SummarizerAgent__r.LLMConfiguration__c',
@@ -87,7 +87,7 @@ public inherited sharing class AIAgentConfigService {
         'RunAsynchronously__c',
         'RequiresConfirmation__c',
         'RequiresApproval__c',
-        'HaltAndReportError__c',
+        'FailFastOnError__c',
         'ExposureLevel__c'
     };
 
@@ -271,7 +271,9 @@ public inherited sharing class AIAgentConfigService {
             }
             if (results.size() > 1) {
                 throw new ConfigurationException(
-                        'CRITICAL CONFIG ERROR: Multiple active Agent Definitions found for Developer Name: "' + developerName + '". Ensure developer names are unique.'
+                    'CRITICAL CONFIG ERROR: Multiple active Agent Definitions found for Developer Name: "' +
+                        developerName +
+                        '". Ensure developer names are unique.'
                 );
             }
 

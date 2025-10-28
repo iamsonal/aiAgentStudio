@@ -3,7 +3,6 @@
  */
 @IsTest
 private class MemoryManagerFactoryTest {
-
     // ===================================================================================
     // FACTORY TESTS
     // ===================================================================================
@@ -51,10 +50,7 @@ private class MemoryManagerFactoryTest {
     @IsTest
     static void testBufferWindow_GetHistoryPayload_WithNullLimit() {
         // Given: Setup with unlimited history
-        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
-            .withMemoryStrategy('Buffer Window')
-            .withHistoryTurnLimit(null)
-            .save();
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().withMemoryStrategy('Buffer Window').withHistoryTurnLimit(null).save();
 
         // Create messages
         List<ExecutionStep__c> messages = new List<ExecutionStep__c>{
@@ -78,12 +74,7 @@ private class MemoryManagerFactoryTest {
         // When: Getting history
         BufferWindowMemoryManager manager = new BufferWindowMemoryManager();
         Test.startTest();
-        List<Map<String, Object>> history = manager.getHistoryPayload(
-            setup.agentExecution.Id,
-            setup.agentDefinition,
-            setup.llmConfig,
-            'Test: '
-        );
+        List<Map<String, Object>> history = manager.getHistoryPayload(setup.agentExecution.Id, setup.agentDefinition, setup.llmConfig, 'Test: ');
         Test.stopTest();
 
         // Then: Should return all messages
@@ -94,10 +85,7 @@ private class MemoryManagerFactoryTest {
     @IsTest
     static void testBufferWindow_GetHistoryPayload_WithZeroLimit() {
         // Given: Setup with zero limit
-        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
-            .withMemoryStrategy('Buffer Window')
-            .withHistoryTurnLimit(0)
-            .save();
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().withMemoryStrategy('Buffer Window').withHistoryTurnLimit(0).save();
 
         // Create messages
         List<ExecutionStep__c> messages = new List<ExecutionStep__c>{
@@ -114,12 +102,7 @@ private class MemoryManagerFactoryTest {
         // When: Getting history
         BufferWindowMemoryManager manager = new BufferWindowMemoryManager();
         Test.startTest();
-        List<Map<String, Object>> history = manager.getHistoryPayload(
-            setup.agentExecution.Id,
-            setup.agentDefinition,
-            setup.llmConfig,
-            'Test: '
-        );
+        List<Map<String, Object>> history = manager.getHistoryPayload(setup.agentExecution.Id, setup.agentDefinition, setup.llmConfig, 'Test: ');
         Test.stopTest();
 
         // Then: Should return no messages
@@ -130,19 +113,12 @@ private class MemoryManagerFactoryTest {
     @IsTest
     static void testBufferWindow_OnTurnCompletion_DoesNotThrow() {
         // Given: Setup
-        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
-            .withMemoryStrategy('Buffer Window')
-            .save();
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().withMemoryStrategy('Buffer Window').save();
 
         // When: Calling onTurnCompletion
         BufferWindowMemoryManager manager = new BufferWindowMemoryManager();
         Test.startTest();
-        manager.onTurnCompletion(
-            setup.agentExecution.Id,
-            setup.agentDefinition,
-            setup.llmConfig,
-            'Test: '
-        );
+        manager.onTurnCompletion(setup.agentExecution.Id, setup.agentDefinition, setup.llmConfig, 'Test: ');
         Test.stopTest();
 
         // Then: Should complete without error
@@ -156,9 +132,7 @@ private class MemoryManagerFactoryTest {
     @IsTest
     static void testSummaryBuffer_GetHistoryPayload_ReturnsMessages() {
         // Given: Setup with summary buffer
-        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
-            .withMemoryStrategy('Summary Buffer')
-            .save();
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().withMemoryStrategy('Summary Buffer').save();
 
         // Create messages
         List<ExecutionStep__c> messages = new List<ExecutionStep__c>{
@@ -182,12 +156,7 @@ private class MemoryManagerFactoryTest {
         // When: Getting history
         SummaryBufferMemoryManager manager = new SummaryBufferMemoryManager();
         Test.startTest();
-        List<Map<String, Object>> history = manager.getHistoryPayload(
-            setup.agentExecution.Id,
-            setup.agentDefinition,
-            setup.llmConfig,
-            'Test: '
-        );
+        List<Map<String, Object>> history = manager.getHistoryPayload(setup.agentExecution.Id, setup.agentDefinition, setup.llmConfig, 'Test: ');
         Test.stopTest();
 
         // Then: Should return messages
@@ -198,9 +167,7 @@ private class MemoryManagerFactoryTest {
     @IsTest
     static void testSummaryBuffer_OnTurnCompletion_WithTrigger() {
         // Given: Setup with summarization trigger
-        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
-            .withMemoryStrategy('Summary Buffer')
-            .save();
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().withMemoryStrategy('Summary Buffer').save();
 
         setup.agentDefinition.SummarizationTriggerTurnCount__c = 2;
         update setup.agentDefinition;
@@ -227,12 +194,7 @@ private class MemoryManagerFactoryTest {
         // When: Calling onTurnCompletion
         SummaryBufferMemoryManager manager = new SummaryBufferMemoryManager();
         Test.startTest();
-        manager.onTurnCompletion(
-            setup.agentExecution.Id,
-            setup.agentDefinition,
-            setup.llmConfig,
-            'Test: '
-        );
+        manager.onTurnCompletion(setup.agentExecution.Id, setup.agentDefinition, setup.llmConfig, 'Test: ');
         Test.stopTest();
 
         // Then: Should complete without error
@@ -242,9 +204,7 @@ private class MemoryManagerFactoryTest {
     @IsTest
     static void testSummaryBuffer_OnTurnCompletion_WithoutTrigger() {
         // Given: Setup without summarization trigger
-        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
-            .withMemoryStrategy('Summary Buffer')
-            .save();
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().withMemoryStrategy('Summary Buffer').save();
 
         setup.agentDefinition.SummarizationTriggerTurnCount__c = 5;
         update setup.agentDefinition;
@@ -264,12 +224,7 @@ private class MemoryManagerFactoryTest {
         // When: Calling onTurnCompletion
         SummaryBufferMemoryManager manager = new SummaryBufferMemoryManager();
         Test.startTest();
-        manager.onTurnCompletion(
-            setup.agentExecution.Id,
-            setup.agentDefinition,
-            setup.llmConfig,
-            'Test: '
-        );
+        manager.onTurnCompletion(setup.agentExecution.Id, setup.agentDefinition, setup.llmConfig, 'Test: ');
         Test.stopTest();
 
         // Then: Should complete without error

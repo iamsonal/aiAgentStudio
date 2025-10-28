@@ -16,7 +16,6 @@
  * This service is designed for use in AI agent and LLM provider integrations, but is general-purpose.
  */
 public class HttpCalloutService {
-
     /**
      * Configuration object for HTTP callout execution.
      *
@@ -76,12 +75,7 @@ public class HttpCalloutService {
 
             System.debug(
                 LoggingLevel.DEBUG,
-                config.logPrefix +
-                    'HTTP response: status=' +
-                    response.getStatusCode() +
-                    ', duration=' +
-                    duration +
-                    'ms'
+                config.logPrefix + 'HTTP response: status=' + response.getStatusCode() + ', duration=' + duration + 'ms'
             );
 
             // Success response (2xx)
@@ -90,34 +84,22 @@ public class HttpCalloutService {
             }
 
             // Error response - throw exception for any HTTP error
-            String errorMsg =
-                'HTTP error: status=' +
-                response.getStatusCode() +
-                ' (' +
-                response.getStatus() +
-                ')';
+            String errorMsg = 'HTTP error: status=' + response.getStatusCode() + ' (' + response.getStatus() + ')';
 
             System.debug(LoggingLevel.ERROR, config.logPrefix + errorMsg + ' - throwing NonRetriableHttpException');
             throw new LLMProviderException.NonRetriableHttpException(errorMsg);
-
         } catch (System.CalloutException ce) {
             System.debug(LoggingLevel.ERROR, config.logPrefix + 'Callout exception: ' + ce.getMessage());
             throw new LLMProviderException.NonRetriableHttpException('Callout failed: ' + ce.getMessage(), ce);
-
         } catch (LLMProviderException llmEx) {
             // Re-throw LLMProviderException subtypes
             throw llmEx;
-
         } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                config.logPrefix + 'Unexpected exception during HTTP execution: ' + e.getMessage()
-            );
+            System.debug(LoggingLevel.ERROR, config.logPrefix + 'Unexpected exception during HTTP execution: ' + e.getMessage());
             // Unexpected exceptions are non-retryable
             throw new LLMProviderException.NonRetriableHttpException('Unexpected HTTP error: ' + e.getMessage(), e);
         }
     }
-
 
     /**
      * Creates a CalloutConfig for HTTP callouts.

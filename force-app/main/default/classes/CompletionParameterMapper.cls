@@ -265,4 +265,3 @@ public class CompletionParameterMapper {
         return context;
     }
 }
-

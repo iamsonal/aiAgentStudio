@@ -4,7 +4,6 @@
  */
 @IsTest
 private class ContextResolverServiceTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -14,18 +13,13 @@ private class ContextResolverServiceTest {
         // Create test accounts and contacts for context resolution
         List<Account> accounts = new List<Account>();
         for (Integer i = 0; i < 3; i++) {
-            accounts.add(TestFactory.newAccount()
-                .withName('Test Account ' + i)
-                .build());
+            accounts.add(TestFactory.newAccount().withName('Test Account ' + i).build());
         }
         insert accounts;
 
         List<Contact> contacts = new List<Contact>();
         for (Integer i = 0; i < 2; i++) {
-            contacts.add(TestFactory.newContact()
-                .withName('Test', 'Contact ' + i)
-                .withAccount(accounts[0].Id)
-                .build());
+            contacts.add(TestFactory.newContact().withName('Test', 'Contact ' + i).withAccount(accounts[0].Id).build());
         }
         insert contacts;
 
@@ -43,28 +37,32 @@ private class ContextResolverServiceTest {
 
         // Create context ledger items
         List<ContextLedgerItem__c> ledgerItems = new List<ContextLedgerItem__c>();
-        ledgerItems.add(new ContextLedgerItem__c(
-            AgentExecution__c = execution.Id,
-            RecordId__c = accounts[0].Id,
-            RecordType__c = 'Account',
-            ContextType__c = 'IMPLICIT_PRIMARY',
-            Status__c = 'ACTIVE',
-            TurnAdded__c = 1,
-            LastAccessedTurn__c = 1,
-            AccessCount__c = 1,
-            RelevanceScore__c = 100.0
-        ));
-        ledgerItems.add(new ContextLedgerItem__c(
-            AgentExecution__c = execution.Id,
-            RecordId__c = contacts[0].Id,
-            RecordType__c = 'Contact',
-            ContextType__c = 'ACTION_GENERATED',
-            Status__c = 'ACTIVE',
-            TurnAdded__c = 1,
-            LastAccessedTurn__c = 2,
-            AccessCount__c = 2,
-            RelevanceScore__c = 90.0
-        ));
+        ledgerItems.add(
+            new ContextLedgerItem__c(
+                AgentExecution__c = execution.Id,
+                RecordId__c = accounts[0].Id,
+                RecordType__c = 'Account',
+                ContextType__c = 'IMPLICIT_PRIMARY',
+                Status__c = 'ACTIVE',
+                TurnAdded__c = 1,
+                LastAccessedTurn__c = 1,
+                AccessCount__c = 1,
+                RelevanceScore__c = 100.0
+            )
+        );
+        ledgerItems.add(
+            new ContextLedgerItem__c(
+                AgentExecution__c = execution.Id,
+                RecordId__c = contacts[0].Id,
+                RecordType__c = 'Contact',
+                ContextType__c = 'ACTION_GENERATED',
+                Status__c = 'ACTIVE',
+                TurnAdded__c = 1,
+                LastAccessedTurn__c = 2,
+                AccessCount__c = 2,
+                RelevanceScore__c = 90.0
+            )
+        );
         insert ledgerItems;
 
         // Create context provider config
@@ -133,14 +131,9 @@ private class ContextResolverServiceTest {
     @IsTest
     static void testResolve_WithNoConfigs_ReturnsEmptyResult() {
         // Given: Agent with no context provider configs
-        LLMConfiguration__c llmConfig = TestFactory.newLLMConfiguration()
-            .withName('No Config LLM')
-            .save();
+        LLMConfiguration__c llmConfig = TestFactory.newLLMConfiguration().withName('No Config LLM').save();
 
-        AIAgentDefinition__c agentWithNoConfig = TestFactory.newAgentDefinition()
-            .withName('No_Config_Agent')
-            .withLLM(llmConfig.Id)
-            .save();
+        AIAgentDefinition__c agentWithNoConfig = TestFactory.newAgentDefinition().withName('No_Config_Agent').withLLM(llmConfig.Id).save();
 
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agentWithNoConfig.Id,
@@ -154,13 +147,7 @@ private class ContextResolverServiceTest {
 
         // When: Resolving context
         Test.startTest();
-        ContextResolverService.ResolutionResult result = resolver.resolve(
-            execution.Id,
-            agentWithNoConfig.Id,
-            UserInfo.getUserId(),
-            null,
-            1
-        );
+        ContextResolverService.ResolutionResult result = resolver.resolve(execution.Id, agentWithNoConfig.Id, UserInfo.getUserId(), null, 1);
         Test.stopTest();
 
         // Then: Should return empty result
@@ -192,7 +179,7 @@ private class ContextResolverServiceTest {
             execution.Id,
             execution.AIAgentDefinition__c,
             UserInfo.getUserId(),
-            null,  // No immediate page record
+            null, // No immediate page record
             1
         );
         Test.stopTest();
@@ -255,7 +242,7 @@ private class ContextResolverServiceTest {
             execution.Id,
             execution.AIAgentDefinition__c,
             UserInfo.getUserId(),
-            contact.Id,  // Contact as immediate page record
+            contact.Id, // Contact as immediate page record
             2
         );
         Test.stopTest();
@@ -341,7 +328,7 @@ private class ContextResolverServiceTest {
             ImplementationName__c = 'MockContextProvider',
             ApplicableSObjectTypes__c = 'Account',
             RequiresRecordContext__c = true,
-            IsActive__c = false,  // Inactive
+            IsActive__c = false, // Inactive
             ExecutionOrder__c = 99
         );
         insert inactiveConfig;
@@ -427,10 +414,7 @@ private class ContextResolverServiceTest {
 
         // When: Creating ResolutionException
         Test.startTest();
-        ContextResolverService.ResolutionException ex = new ContextResolverService.ResolutionException(
-            'Failed to resolve context',
-            cause
-        );
+        ContextResolverService.ResolutionException ex = new ContextResolverService.ResolutionException('Failed to resolve context', cause);
         Test.stopTest();
 
         // Then: Should contain message
@@ -444,14 +428,9 @@ private class ContextResolverServiceTest {
     @IsTest
     static void testResolve_WithEmptyLedger_UsesOnlyPageRecord() {
         // Given: Execution with empty ledger
-        LLMConfiguration__c llmConfig = TestFactory.newLLMConfiguration()
-            .withName('Empty Ledger LLM')
-            .save();
+        LLMConfiguration__c llmConfig = TestFactory.newLLMConfiguration().withName('Empty Ledger LLM').save();
 
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition()
-            .withName('Empty_Ledger_Agent')
-            .withLLM(llmConfig.Id)
-            .save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Empty_Ledger_Agent').withLLM(llmConfig.Id).save();
 
         AgentExecution__c emptyExecution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
@@ -478,13 +457,7 @@ private class ContextResolverServiceTest {
 
         // When: Resolving with only page record
         Test.startTest();
-        ContextResolverService.ResolutionResult result = resolver.resolve(
-            emptyExecution.Id,
-            agent.Id,
-            UserInfo.getUserId(),
-            account.Id,
-            1
-        );
+        ContextResolverService.ResolutionResult result = resolver.resolve(emptyExecution.Id, agent.Id, UserInfo.getUserId(), account.Id, 1);
         Test.stopTest();
 
         // Then: Should use only page record
@@ -504,7 +477,7 @@ private class ContextResolverServiceTest {
             execution.Id,
             execution.AIAgentDefinition__c,
             UserInfo.getUserId(),
-            null,  // No page record
+            null, // No page record
             2
         );
         Test.stopTest();
@@ -513,4 +486,3 @@ private class ContextResolverServiceTest {
         System.assertNotEquals(null, result, 'Should return result');
     }
 }
-

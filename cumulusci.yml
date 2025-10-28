@@ -63,7 +63,7 @@ flows:
                 task: execute_anon
                 description: Set up Salesforce Data
                 options:
-                    apex: "AgentTestDataFactory.createSupportShowcaseData();"
+                    apex: "AgentTestDataFactory.createComprehensiveShowcase();"
             8:
                 task: execute_anon
                 description: Set up Salesforce Data

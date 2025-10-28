@@ -8,252 +8,12 @@
 
 /**
  * @description
- * QueryService: Production-Ready SOQL Query Builder for LLM-Driven Data Access
- *
- * STANDALONE PACKAGE - Zero External Dependencies
- * ==============================================
- * This is a self-contained, reusable package that can be installed in any Salesforce org.
- *
- * WHY THIS CLASS EXISTS: THE PROBLEM IT SOLVES
- * =============================================
- * This 1000-line class is NOT over-engineering. It solves critical problems that native Salesforce
- * features (WITH USER_MODE, Security.stripInaccessible) do not address when working with LLMs.
- * Before considering removal or simplification, understand these architectural constraints.
- *
- * @group QueryService Package
- *
- * THE CORE PROBLEM: LLM-DRIVEN DYNAMIC QUERIES
- * ============================================
- * LLMs send arbitrary filter criteria and field selections in unpredictable formats:
- *
- * Example LLM Request:
- * {
- *   "filters": {
- *     "Industry": "Technology",
- *     "AnnualRevenue": { ">": 1000000 },
- *     "Name": { "LIKE": "%Corp%" },
- *     "$or": [
- *       { "NumberOfEmployees": { "<": 50 } },
- *       { "Rating": "Hot" }
- *     ]
- *   },
- *   "fields": ["Name", "Owner.Name", "Industry"],
- *   "orderBy": "AnnualRevenue DESC"
- * }
- *
- * Native Salesforce provides NO built-in way to:
- * ❌ Convert this structure to SOQL
- * ❌ Validate field existence BEFORE query execution
- * ❌ Generate bind variables for SOQL injection prevention
- * ❌ Handle complex operators (>, <, >=, <=, LIKE, IN)
- * ❌ Support AND/OR logic
- * ❌ Provide AI-friendly error messages
- *
- * THIS is why QueryService exists.
- *
- * ARCHITECTURE: WITH USER_MODE + PROACTIVE VALIDATION PATTERN
- * ===========================================================
- * QueryService uses a "defense in depth" security approach that COMPLEMENTS native Salesforce features.
- *
- * Layer 1: PROACTIVE VALIDATION (Pre-Query)
- * ----------------------------------------
- * Purpose: Fail fast with AI-friendly error messages
- *
- * A. Field Existence Validation
- *    - Checks if requested fields exist on SObject BEFORE building query
- *    - LLM-Friendly Error: "Invalid field 'InvalidField__c' on object 'Account'. Field does not exist."
- *    - Native Error Would Be: "System.QueryException: No such column 'InvalidField__c'"
- *
- *    Why This Matters: LLMs need semantic errors to self-correct. QueryException parsing is unreliable.
- *
- * B. WHERE Clause Field FLS Validation
- *    - Validates FLS permissions on fields used in WHERE clause
- *    - LLM-Friendly Error: "Field 'SensitiveField__c' is not accessible. User lacks field-level security."
- *    - Native Behavior: UNDEFINED (WITH USER_MODE behavior on WHERE clause fields is not documented)
- *
- *    Why This Matters: WITH USER_MODE only guarantees FLS enforcement on SELECT fields.
- *                      WHERE clause field FLS behavior is UNDEFINED per Salesforce documentation.
- *                      Proactive validation ensures predictable, secure behavior.
- *
- * C. ORDER BY Field Validation
- *    - Validates fields in ORDER BY clause exist
- *    - Prevents runtime query errors
- *
- * Layer 2: WITH USER_MODE EXECUTION (Query Time)
- * ----------------------------------------------
- * Purpose: Leverage native Salesforce FLS enforcement for SELECT fields
- *
- * Line 271: return Database.queryWithBinds(queryString, bindMap, AccessLevel.USER_MODE);
- *
- * This provides:
- * ✅ Automatic FLS enforcement on SELECT fields (removes inaccessible fields from results)
- * ✅ Object-level permission checks
- * ✅ Record-level sharing enforcement
- * ✅ Optimal performance (native Salesforce security engine)
- *
- * THE TWO-LAYER APPROACH: Why Both Are Needed
- * -------------------------------------------
- *
- * Example: User without FLS access to 'SensitiveField__c' requests it
- *
- * WITH QUERYSERVICE (Proactive + USER_MODE):
- *   1. WHERE clause validation: "Field not accessible" ← Clear error BEFORE query
- *   2. SELECT fields: USER_MODE silently removes from results
- *   Result: ✅ Predictable behavior, clear errors, efficient execution
- *
- * WITHOUT QUERYSERVICE (USER_MODE only):
- *   1. WHERE clause: UNDEFINED behavior (might fail, might ignore, might succeed unexpectedly)
- *   2. SELECT fields: USER_MODE removes from results (works fine)
- *   Result: ❌ Unpredictable WHERE clause behavior, cryptic errors
- *
- * WHAT ALTERNATIVES WERE CONSIDERED
- * ==================================
- *
- * Alternative 1: "Just Use WITH USER_MODE"
- * Proposal: Remove QueryService, use WITH USER_MODE directly
- *
- * REJECTED because:
- * ❌ Doesn't solve dynamic query building from LLM input
- * ❌ Requires ~290 lines of query building logic per action
- * ❌ WHERE clause field FLS behavior is undefined
- * ❌ No field existence validation = cryptic runtime errors
- * ❌ No complex operator support (>, <, LIKE, IN)
- * ❌ No AND/OR logic support
- * ❌ No bind variable management = SOQL injection risk
- * ❌ No AI-friendly error messages
- *
- * What you'd have to implement manually:
- *   - Dynamic WHERE clause building: ~100 lines
- *   - Complex operator support: ~50 lines
- *   - AND/OR logic: ~50 lines
- *   - Bind variable management: ~30 lines
- *   - Field existence validation: ~30 lines
- *   - ORDER BY validation: ~20 lines
- *   - Error message formatting: ~40 lines
- *   TOTAL: ~320 lines per action needing queries
- *
- * Current: 787 lines in QueryService (used by ActionGetRecords)
- * Alternative: ~320 lines × 3-5 actions = 960-1600 lines of DUPLICATED code
- *
- * Alternative 2: "Use Security.stripInaccessible()"
- * Proposal: Use stripInaccessible() instead of query validation
- *
- * REJECTED because:
- * ❌ stripInaccessible() is for DML (INSERT/UPDATE/DELETE), not SOQL
- * ❌ Doesn't help with query building or validation
- * ❌ We DO use it for DML operations (in TypeCoercionService)
- *
- * KEY FEATURES THAT WOULD BE LOST WITHOUT QUERYSERVICE
- * ====================================================
- *
- * 1. DYNAMIC QUERY BUILDING
- *    Input: { "Industry": "Tech", "Revenue": { ">": 1000000 } }
- *    Output: WHERE Industry = :bind1 AND AnnualRevenue > :bind2
- *    With bind variables: {'bind1' => 'Tech', 'bind2' => 1000000}
- *
- * 2. COMPLEX OPERATOR SUPPORT
- *    Operators: =, !=, >, <, >=, <=, LIKE, IN
- *    Example: { "Name": { "LIKE": "%Corp%" } }
- *    Output: WHERE Name LIKE :bind1
- *
- * 3. AND/OR LOGIC
- *    Input: { "$or": [{"Industry": "Tech"}, {"Rating": "Hot"}] }
- *    Output: WHERE (Industry = :bind1 OR Rating = :bind2)
- *
- * 4. RELATIONSHIP FIELD SUPPORT
- *    Input: ["Name", "Owner.Name", "Account.Owner.Email"]
- *    Validates parent relationships and builds correct SELECT clause
- *
- * 5. BIND VARIABLE MANAGEMENT
- *    Prevents SOQL injection by using parameterized queries
- *    Auto-generates unique bind variable names
- *
- * 6. AI-FRIENDLY ERROR MESSAGES
- *    ✅ "Invalid field 'Price__c' on object 'Account'. Did you mean 'AnnualRevenue'?"
- *    ❌ "System.QueryException: No such column 'Price__c' on entity 'Account'. If you are attempting to..."
- *
- * 7. PRE-QUERY VALIDATION
- *    Fails fast with clear errors BEFORE hitting database
- *    Saves query limits and provides better UX
- *
- * USAGE PATTERN
- * =============
- *
- * QueryService is designed as a fluent builder:
- *
- * QueryService service = new QueryService(Account.SObjectType, '[MyAction]')
- *     .withDefaultFields(['Id', 'Name', 'Industry'])
- *     .withAdditionalFields(userRequestedFields)
- *     .withFilters(llmProvidedFilters)
- *     .withOrderBy('AnnualRevenue DESC')
- *     .withLimit(100, 200);  // requested limit, max allowed
- *
- * QueryResult result = service.executeQuery();
- *
- * CURRENT USAGE
- * =============
- * - Used by: ActionGetRecords (1 action)
- * - Test Coverage: 45+ test methods in QueryServiceTest
- * - Lines of Code: 787 lines
- * - Alternative: ~290 lines per action = 870-1600 lines if duplicated
- *
- * PERFORMANCE CONSIDERATIONS
- * =========================
- * QueryService is NOT a bottleneck:
- *
- * Typical ActionGetRecords execution:
- *   - QueryService overhead:      ~2-3ms (validation + SOQL building)
- *   - Database query execution:   ~50-200ms
- *   - Total:                      ~52-203ms
- *
- * QueryService represents <2% of total execution time.
- *
- * Optimization opportunities (if needed):
- *   ✅ Add static caching for Schema.DescribeSObjectResult (save 1-2ms)
- *   ✅ Batch field map operations (save 0.5-1ms)
- *   ❌ Remove validation logic (saves ~1ms, loses 90% of value)
- *
- * WHEN TO CHANGE THIS CLASS
- * =========================
- * DO NOT remove or simplify this class unless:
- *   ✅ You have an alternative solution for dynamic SOQL building from LLM input
- *   ✅ You have an alternative for complex operator support (>, <, LIKE, IN)
- *   ✅ You have an alternative for AND/OR logic
- *   ✅ You have an alternative for proactive WHERE clause FLS validation
- *   ✅ You can maintain AI-friendly error messages
- *   ✅ You can prevent SOQL injection with bind variables
- *   ✅ You're willing to duplicate ~290 lines across multiple actions
- *
- * This class is battle-tested with real LLM integrations. Changes should be
- * approached with extreme caution.
- *
- * PACKAGE INSTALLATION
- * ====================
- * This is a standalone unmanaged package. Install via:
- *
- * Salesforce CLI:
- *   sf project deploy start -d QueryServicePackage -o your-org-alias
- *
- * Package Contents:
- *   - QueryService.cls (~1000 lines) - Main query builder
- *   - QueryResult.cls (~120 lines) - Result wrapper
- *   - QueryServiceException.cls (~350 lines) - Structured exceptions
- *   - SchemaUtils.cls (~137 lines) - Field validation utilities
- *
- * RESPONSIBILITIES
- * ===============
- *   - Builds dynamic SOQL queries from LLM-provided structures
- *   - Manages bind variables for SOQL injection prevention
- *   - Validates field existence and FLS permissions proactively
- *   - Executes queries with WITH USER_MODE for SELECT field FLS
- *   - Provides AI-friendly structured error messages
- *   - Supports complex operators, AND/OR logic, and relationship fields
- *   - Optimizes performance with lazy loading and schema caching
+ * Production-ready SOQL query builder for LLM-driven data access.
+ * Converts dynamic filter criteria and field selections to validated SOQL queries.
  */
 public class QueryService {
     // Supported Filter Operators
     private static final Set<String> SUPPORTED_OPERATORS = new Set<String>{ '=', '!=', '>', '<', '>=', '<=', 'LIKE', 'IN' };
-
 
     public class FilterValidationException extends Exception {
     }
@@ -274,13 +34,11 @@ public class QueryService {
     private List<String> defaultFields = new List<String>();
     private String orderBy;
 
-
     /**
-     * @description
-     * Initializes QueryService with lazy-loaded schema caching for optimal memory usage.
+     * Initializes QueryService with schema caching.
      *
      * @param targetSObjectType SObject type to query against
-     * @param logPrefix Logging prefix for debug output (defaults to '[QueryService]' if blank)
+     * @param logPrefix Logging prefix for debug output
      */
     public QueryService(SObjectType targetSObjectType, String logPrefix) {
         this.targetSObjectType = targetSObjectType;
@@ -291,10 +49,9 @@ public class QueryService {
     }
 
     /**
-     * @description
-     * Retrieves field metadata map with lazy loading and caching via SchemaUtils.
+     * Retrieves field metadata map with caching.
      *
-     * @return Map of lowercase field API names to SObjectField describe tokens
+     * @return Map of lowercase field API names to SObjectField tokens
      */
     private Map<String, Schema.SObjectField> getFieldMap() {
         if (this.allFieldsMap == null) {
@@ -304,11 +61,10 @@ public class QueryService {
     }
 
     /**
-     * @description
-     * Sets the default fields to select for the query.
+     * Sets default fields to select.
      *
      * @param fields List of field API names
-     * @return QueryService instance for method chaining
+     * @return QueryService instance for chaining
      */
     public QueryService withDefaultFields(List<String> fields) {
         if (fields != null) {
@@ -318,11 +74,10 @@ public class QueryService {
     }
 
     /**
-     * @description
-     * Sets additional fields to select for the query.
+     * Sets additional fields to select.
      *
      * @param fields List of field API names
-     * @return QueryService instance for method chaining
+     * @return QueryService instance for chaining
      */
     public QueryService withAdditionalFields(List<String> fields) {
         if (fields != null) {
@@ -332,11 +87,10 @@ public class QueryService {
     }
 
     /**
-     * @description
-     * Sets the filters for the WHERE clause.
+     * Sets filters for the WHERE clause.
      *
      * @param filters Map of field name to filter value or complex filter map
-     * @return QueryService instance for method chaining
+     * @return QueryService instance for chaining
      */
     public QueryService withFilters(Map<String, Object> filters) {
         if (filters != null) {
@@ -346,11 +100,10 @@ public class QueryService {
     }
 
     /**
-     * @description
-     * Sets the ORDER BY clause for the query.
+     * Sets ORDER BY clause for the query.
      *
      * @param orderBy String in format "FieldName [ASC|DESC] [NULLS FIRST|LAST]"
-     * @return QueryService instance for method chaining
+     * @return QueryService instance for chaining
      */
     public QueryService withOrderBy(String orderBy) {
         this.orderBy = orderBy;
@@ -358,12 +111,11 @@ public class QueryService {
     }
 
     /**
-     * @description
-     * Sets the query LIMIT, enforcing an optional maximum permitted limit.
+     * Sets query LIMIT with optional maximum enforcement.
      *
      * @param queryLimit Integer value for query limit
-     * @param maxPermittedLimit Optional maximum allowed limit value
-     * @return QueryService instance for method chaining
+     * @param maxPermittedLimit Optional maximum allowed limit
+     * @return QueryService instance for chaining
      */
     public QueryService withLimit(Integer queryLimit, Integer maxPermittedLimit) {
         if (queryLimit > 0) {
@@ -377,10 +129,9 @@ public class QueryService {
     }
 
     /**
-     * @description
-     * Builds and executes the SOQL query using the configured parameters.
+     * Builds and executes the SOQL query.
      *
-     * @return QueryResult Results of the query or error information
+     * @return QueryResult with results or error information
      */
     public QueryResult executeQuery() {
         Map<String, Object> bindMap = new Map<String, Object>();
@@ -388,9 +139,7 @@ public class QueryService {
     }
 
     /**
-     * @description
-     * Executes SOQL query with intelligent pattern analysis and optimized execution routing.
-     * Analyzes query complexity to choose between simple and comprehensive validation paths.
+     * Executes SOQL query with optimized validation routing.
      *
      * @param bindMap Map populated with bind variables for secure parameter binding
      * @return QueryResult Query results with USER_MODE security enforcement or error information
@@ -408,10 +157,7 @@ public class QueryService {
 
             // Log execution metrics for performance monitoring
             Long executionTime = System.currentTimeMillis() - startTime;
-            System.debug(
-                LoggingLevel.INFO,
-                logPrefix + 'Query executed in ' + executionTime + 'ms. Records=' + results.size()
-            );
+            System.debug(LoggingLevel.INFO, logPrefix + 'Query executed in ' + executionTime + 'ms. Records=' + results.size());
 
             return QueryResult.success(results);
         } catch (Exception e) {
@@ -427,11 +173,10 @@ public class QueryService {
     }
 
     /**
-     * @description
-     * Validates that the provided fields are valid fields on the configured SObject.
+     * Validates that provided fields are valid on the configured SObject.
      *
      * @param fields List of field API names to validate
-     * @return QueryResult indicating success or failure with validation details
+     * @return QueryResult with validation details
      */
     public QueryResult validateFields(List<String> fields) {
         if (fields == null || fields.isEmpty()) {
@@ -456,22 +201,17 @@ public class QueryService {
             }
 
             if (fieldToken == null) {
-                return QueryResult.failure(
-                    'INPUT_VALIDATION',
-                    'Invalid field "' + field + '" on object "' + objectName + '". Field does not exist.'
-                );
+                return QueryResult.failure('INPUT_VALIDATION', 'Invalid field "' + field + '" on object "' + objectName + '". Field does not exist.');
             }
         }
 
         return QueryResult.success(new List<SObject>());
     }
 
-
     /**
-     * @description
-     * Executes the final SOQL query with comprehensive validation and security enforcement.
+     * Executes final SOQL query with validation and security enforcement.
      *
-     * @param whereClause The WHERE clause string
+     * @param whereClause WHERE clause string
      * @param orderByClause The ORDER BY clause string
      * @param bindMap The bind variables map
      * @return List<SObject> Results of the query
@@ -495,12 +235,9 @@ public class QueryService {
         return Database.queryWithBinds(queryString, bindMap, AccessLevel.USER_MODE);
     }
 
-
     /**
-     * @description
-     * Field preparation with field existence validation.
-     * FLS enforcement for SELECT fields is delegated to USER_MODE query execution for optimal performance.
-     * Invalid fields will throw clear exceptions to help AI agents learn proper field usage.
+     * Prepares fields with existence validation.
+     * FLS enforcement delegated to USER_MODE execution.
      *
      * @param filterFields Fields identified as being used in the WHERE clause
      * @throws QueryServiceException if fields don't exist or no valid fields remain
@@ -539,10 +276,7 @@ public class QueryService {
                 this.finalFieldsToSelect.add(fieldPath);
                 System.debug(
                     LoggingLevel.DEBUG,
-                    logPrefix +
-                        'Added field "' +
-                        fieldPath +
-                        '" to SELECT clause. FLS will be enforced by USER_MODE query execution.'
+                    logPrefix + 'Added field "' + fieldPath + '" to SELECT clause. FLS will be enforced by USER_MODE query execution.'
                 );
             } else {
                 // Throw exception for invalid fields to provide clear feedback to AI agents
@@ -556,12 +290,9 @@ public class QueryService {
         }
     }
 
-
-
     /**
-     * @description
-     * Builds WHERE clause using bind variables with enhanced operator support.
-     * Handles simple filters {field: value} and complex {field: {op1: val1, op2: val2}}.
+     * Builds WHERE clause with bind variables.
+     * Handles simple and complex filters with operator support.
      *
      * @param filters Map from LLM arguments
      * @param allFieldsMap Describe result map for the SObjectType
@@ -634,9 +365,8 @@ public class QueryService {
     }
 
     /**
-     * @description
-     * Generates the SOQL clause string and populates bindMap for a SINGLE condition.
-     * Called by buildWhereClauseWithBinds for both simple and complex filter structures.
+     * Generates SOQL clause for a single condition with bind variables.
+     * Called by buildWhereClauseWithBinds for both simple and complex filters.
      *
      * @param dfr DescribeFieldResult of the target field
      * @param fieldName API name of the field
@@ -752,9 +482,7 @@ public class QueryService {
     }
 
     /**
-     * @description
-     * Coerces a filter value based on the field type for WHERE clause conditions.
-     * Throws FilterValidationException or QueryServiceException on invalid input.
+     * Coerces filter value based on field type for WHERE clause.
      *
      * @param rawValue The raw filter value
      * @param dfr DescribeFieldResult of the target field
@@ -944,9 +672,7 @@ public class QueryService {
     }
 
     /**
-     * @description
-     * Validates and builds ORDER BY clause, enforcing field existence, sortability, and FLS.
-     * Throws OrderByValidationException or QueryServiceException on invalid input.
+     * Validates and builds ORDER BY clause, enforcing field existence and FLS.
      *
      * @param orderByParam The ORDER BY parameter
      * @param allFieldsMap Describe result map for the SObjectType

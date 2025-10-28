@@ -3,16 +3,13 @@
  */
 @IsTest
 private class HumanApprovalRequestTriggerHandlerTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
 
     @TestSetup
     static void setupTestData() {
-        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
-            .withStandardActions()
-            .save();
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().withStandardActions().save();
     }
 
     // ===================================================================================
@@ -41,11 +38,13 @@ private class HumanApprovalRequestTriggerHandlerTest {
             LLMConfirmationMessage__c = 'User requested search',
             LLMToolCallId__c = 'call_123',
             LLMToolName__c = 'find_records',
-                LLMToolArgumentsJSON__c = JSON.serialize(new Map<String, Object>{
-                        'sObjectTypes' => new List<String>{'Account'},
-                        'fieldsToReturn' => new List<String>{'Id', 'Name'},
-                        'filters' => new Map<String, Object>{ 'Name' => 'Test Account' }
-                }),
+            LLMToolArgumentsJSON__c = JSON.serialize(
+                new Map<String, Object>{
+                    'sObjectTypes' => new List<String>{ 'Account' },
+                    'fieldsToReturn' => new List<String>{ 'Id', 'Name' },
+                    'filters' => new Map<String, Object>{ 'Name' => 'Test Account' }
+                }
+            ),
             OriginalTurnIdentifier__c = 'turn-123',
             OriginalTurnCount__c = 1,
             ApprovalStatus__c = 'Pending'
@@ -53,7 +52,7 @@ private class HumanApprovalRequestTriggerHandlerTest {
         insert har;
 
         Account testAccount = TestFactory.newAccount().withName('Test Account').save();
-        Test.setFixedSearchResults(new List<Id>{testAccount.Id});
+        Test.setFixedSearchResults(new List<Id>{ testAccount.Id });
 
         // When: Approving request
         Test.startTest();
@@ -121,8 +120,7 @@ private class HumanApprovalRequestTriggerHandlerTest {
         List<ExecutionStep__c> toolMessages = [
             SELECT ToolCallId__c, ToolResult__c
             FROM ExecutionStep__c
-            WHERE AgentExecution__c = :session.Id
-            AND StepRole__c = 'tool'
+            WHERE AgentExecution__c = :session.Id AND StepRole__c = 'tool'
         ];
 
         System.assertEquals(1, toolMessages.size());
@@ -136,14 +134,16 @@ private class HumanApprovalRequestTriggerHandlerTest {
 
         List<ExecutionStep__c> assistantMessages = new List<ExecutionStep__c>();
         for (Integer i = 1; i <= 3; i++) {
-            assistantMessages.add(new ExecutionStep__c(
-                AgentExecution__c = session.Id,
-                StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
-                Content__c = 'Request ' + i,
-                ExternalId__c = 'turn-' + i,
-                Timestamp__c = System.now(),
-                StepType__c = 'AgentResponse'
-            ));
+            assistantMessages.add(
+                new ExecutionStep__c(
+                    AgentExecution__c = session.Id,
+                    StepRole__c = AIAgentConstants.ROLE_ASSISTANT,
+                    Content__c = 'Request ' + i,
+                    ExternalId__c = 'turn-' + i,
+                    Timestamp__c = System.now(),
+                    StepType__c = 'AgentResponse'
+                )
+            );
         }
         insert assistantMessages;
 
@@ -153,11 +153,13 @@ private class HumanApprovalRequestTriggerHandlerTest {
                 OriginalAssistantStep__c = assistantMessages[0].Id,
                 LLMToolCallId__c = 'call_1',
                 LLMToolName__c = 'find_records',
-                    LLMToolArgumentsJSON__c = JSON.serialize(new Map<String, Object>{
-                            'sObjectTypes' => new List<String>{'Account'},
-                            'fieldsToReturn' => new List<String>{'Id', 'Name'},
-                            'filters' => new Map<String, Object>{ 'Name' => 'Test Account' }
-                    }),
+                LLMToolArgumentsJSON__c = JSON.serialize(
+                    new Map<String, Object>{
+                        'sObjectTypes' => new List<String>{ 'Account' },
+                        'fieldsToReturn' => new List<String>{ 'Id', 'Name' },
+                        'filters' => new Map<String, Object>{ 'Name' => 'Test Account' }
+                    }
+                ),
                 OriginalTurnIdentifier__c = 'turn-1',
                 OriginalTurnCount__c = 1,
                 ApprovalStatus__c = 'Pending'
@@ -186,7 +188,7 @@ private class HumanApprovalRequestTriggerHandlerTest {
         insert hars;
 
         Account testAccount = TestFactory.newAccount().withName('Test Account').save();
-        Test.setFixedSearchResults(new List<Id>{testAccount.Id});
+        Test.setFixedSearchResults(new List<Id>{ testAccount.Id });
 
         // When: Processing mixed statuses
         Test.startTest();
@@ -256,10 +258,7 @@ private class HumanApprovalRequestTriggerHandlerTest {
     static void testHandleAfterUpdate_EmptyList_NoProcessing() {
         // When: Calling with empty list
         Test.startTest();
-        HumanApprovalRequestTriggerHandler.handleAfterUpdate(
-            new List<HumanApprovalRequest__c>(),
-            new Map<Id, HumanApprovalRequest__c>()
-        );
+        HumanApprovalRequestTriggerHandler.handleAfterUpdate(new List<HumanApprovalRequest__c>(), new Map<Id, HumanApprovalRequest__c>());
         Test.stopTest();
 
         // Then: Should handle gracefully

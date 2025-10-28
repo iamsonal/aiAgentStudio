@@ -4,7 +4,6 @@
  */
 @IsTest
 private class AgentJobEnqueuerTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -15,20 +14,12 @@ private class AgentJobEnqueuerTest {
         TestFactory.AgentSetup highDispatchTypeSetup = TestFactory.createFullAgentSetup().save();
 
         // Update agent to have high dispatch type
-        update new AIAgentDefinition__c(
-            Id = highDispatchTypeSetup.agentDefinition.Id,
-            AsyncDispatchType__c = 'High'
-        );
+        update new AIAgentDefinition__c(Id = highDispatchTypeSetup.agentDefinition.Id, AsyncDispatchType__c = 'High');
 
         // Create another agent with low dispatch type
-        LLMConfiguration__c llmConfig = TestFactory.newLLMConfiguration()
-            .withName('Low Dispatch Type LLM')
-            .save();
+        LLMConfiguration__c llmConfig = TestFactory.newLLMConfiguration().withName('Low Dispatch Type LLM').save();
 
-        AIAgentDefinition__c lowDispatchTypeAgent = TestFactory.newAgentDefinition()
-            .withName('Low_DispatchType_Agent')
-            .withLLM(llmConfig.Id)
-            .build();
+        AIAgentDefinition__c lowDispatchTypeAgent = TestFactory.newAgentDefinition().withName('Low_DispatchType_Agent').withLLM(llmConfig.Id).build();
         lowDispatchTypeAgent.AsyncDispatchType__c = 'Low';
         insert lowDispatchTypeAgent;
 
@@ -94,23 +85,17 @@ private class AgentJobEnqueuerTest {
 
         // When: Enqueuing follow-up (Platform Event will be published with this turn ID)
         Test.startTest();
-        enqueuer.enqueueFollowUp(
-            execution.Id,
-            UserInfo.getUserId(),
-            agent.Id,
-            turnId,
-            2,
-            '[TEST] ',
-            false
-        );
+        enqueuer.enqueueFollowUp(execution.Id, UserInfo.getUserId(), agent.Id, turnId, 2, '[TEST] ', false);
         Test.stopTest();
 
         // Then: In test context, Platform Event triggers synchronously but should not error
         // The execution record already has the turn ID set, so validation should pass
         // Platform Events in test context actually trigger the flow synchronously
-        List<AsyncApexJob> jobs = [SELECT Id, ApexClass.Name FROM AsyncApexJob
-                                   WHERE ApexClass.Name = 'FollowUpLLMQueueable'
-                                   AND Status IN ('Queued', 'Processing', 'Completed')];
+        List<AsyncApexJob> jobs = [
+            SELECT Id, ApexClass.Name
+            FROM AsyncApexJob
+            WHERE ApexClass.Name = 'FollowUpLLMQueueable' AND Status IN ('Queued', 'Processing', 'Completed')
+        ];
         // Platform Events work in test context, so we may not see a Queueable job
         System.assert(true, 'Platform Event should process without error when turn ID is pre-set');
     }
@@ -132,20 +117,15 @@ private class AgentJobEnqueuerTest {
 
         // When: Enqueuing follow-up
         Test.startTest();
-        enqueuer.enqueueFollowUp(
-            execution.Id,
-            UserInfo.getUserId(),
-            agent.Id,
-            turnId,
-            1,
-            '[TEST] ',
-            false
-        );
+        enqueuer.enqueueFollowUp(execution.Id, UserInfo.getUserId(), agent.Id, turnId, 1, '[TEST] ', false);
         Test.stopTest();
 
         // Then: Should use Queueable
-        List<AsyncApexJob> jobs = [SELECT Id, ApexClass.Name FROM AsyncApexJob
-                                   WHERE ApexClass.Name = 'FollowUpLLMQueueable'];
+        List<AsyncApexJob> jobs = [
+            SELECT Id, ApexClass.Name
+            FROM AsyncApexJob
+            WHERE ApexClass.Name = 'FollowUpLLMQueueable'
+        ];
         System.assertEquals(1, jobs.size(), 'Should enqueue FollowUpLLMQueueable');
     }
 
@@ -166,20 +146,15 @@ private class AgentJobEnqueuerTest {
 
         // When: Enqueuing with final error turn flag
         Test.startTest();
-        enqueuer.enqueueFollowUp(
-            execution.Id,
-            UserInfo.getUserId(),
-            agent.Id,
-            turnId,
-            1,
-            '[TEST] ',
-            true
-        );
+        enqueuer.enqueueFollowUp(execution.Id, UserInfo.getUserId(), agent.Id, turnId, 1, '[TEST] ', true);
         Test.stopTest();
 
         // Then: Should enqueue successfully
-        List<AsyncApexJob> jobs = [SELECT Id FROM AsyncApexJob
-                                   WHERE ApexClass.Name = 'FollowUpLLMQueueable'];
+        List<AsyncApexJob> jobs = [
+            SELECT Id
+            FROM AsyncApexJob
+            WHERE ApexClass.Name = 'FollowUpLLMQueueable'
+        ];
         System.assertEquals(1, jobs.size(), 'Should enqueue with final error flag');
     }
 
@@ -193,10 +168,7 @@ private class AgentJobEnqueuerTest {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE AsyncDispatchType__c = 'High' LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
 
-        AgentCapability__c capability = TestFactory.newCapability()
-            .withAgent(agent.Id)
-            .forFindEntities()
-            .save();
+        AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).forFindEntities().save();
 
         String turnId = UuidUtils.generateUUID();
 
@@ -214,13 +186,13 @@ private class AgentJobEnqueuerTest {
             execution.Id,
             UserInfo.getUserId(),
             agent.Id,
-            null,  // parentAsstMsgId
+            null, // parentAsstMsgId
             toolCallId,
             '{"searchQuery":"test"}',
             capability,
-            null,  // relatedId
+            null, // relatedId
             turnId,
-            1,     // currentTurnCount
+            1, // currentTurnCount
             '[TEST] '
         );
         Test.stopTest();
@@ -235,10 +207,7 @@ private class AgentJobEnqueuerTest {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE AsyncDispatchType__c = 'Low' LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
 
-        AgentCapability__c capability = TestFactory.newCapability()
-            .withAgent(agent.Id)
-            .forFindEntities()
-            .save();
+        AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).forFindEntities().save();
 
         AgentJobEnqueuer enqueuer = new AgentJobEnqueuer();
         String turnId = UuidUtils.generateUUID();
@@ -261,8 +230,11 @@ private class AgentJobEnqueuerTest {
         Test.stopTest();
 
         // Then: Should use Queueable
-        List<AsyncApexJob> jobs = [SELECT Id FROM AsyncApexJob
-                                   WHERE ApexClass.Name = 'AsyncActionQueueable'];
+        List<AsyncApexJob> jobs = [
+            SELECT Id
+            FROM AsyncApexJob
+            WHERE ApexClass.Name = 'AsyncActionQueueable'
+        ];
         System.assertEquals(1, jobs.size(), 'Should enqueue AsyncActionQueueable');
     }
 
@@ -313,7 +285,7 @@ private class AgentJobEnqueuerTest {
         enqueuer.enqueueFollowUp(
             execution.Id,
             UserInfo.getUserId(),
-            null,  // null agent ID
+            null, // null agent ID
             turnId,
             1,
             '[TEST] ',
@@ -322,8 +294,11 @@ private class AgentJobEnqueuerTest {
         Test.stopTest();
 
         // Then: Should use Queueable (Low dispatch type default)
-        List<AsyncApexJob> jobs = [SELECT Id FROM AsyncApexJob
-                                   WHERE ApexClass.Name = 'FollowUpLLMQueueable'];
+        List<AsyncApexJob> jobs = [
+            SELECT Id
+            FROM AsyncApexJob
+            WHERE ApexClass.Name = 'FollowUpLLMQueueable'
+        ];
         System.assertEquals(1, jobs.size(), 'Should default to Queueable for null agent ID');
     }
 
@@ -343,7 +318,7 @@ private class AgentJobEnqueuerTest {
         try {
             // This should succeed in publishing the event, but async processing will fail
             enqueuer.enqueueFollowUp(
-                agent.Id,  // Using agent ID as execution ID (wrong type but valid ID format)
+                agent.Id, // Using agent ID as execution ID (wrong type but valid ID format)
                 UserInfo.getUserId(),
                 agent.Id,
                 turnId,
@@ -367,10 +342,7 @@ private class AgentJobEnqueuerTest {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
-        AgentCapability__c capability = TestFactory.newCapability()
-            .withAgent(agent.Id)
-            .forFindEntities()
-            .save();
+        AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).forFindEntities().save();
 
         String turnId = UuidUtils.generateUUID();
 

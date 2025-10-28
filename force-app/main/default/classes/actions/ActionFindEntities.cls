@@ -55,31 +55,18 @@ public class ActionFindEntities extends BaseAgentAction {
             ArgumentsDTO args = new ArgumentsDTO();
             args.sObjectTypes = ActionConfigUtils.getOptionalStringList(params, 'sObjectTypes');
             args.fieldsToReturn = ActionConfigUtils.getOptionalStringList(params, 'fieldsToReturn');
-            args.filters = params.get('filters') != null
-                ? (Map<String, Object>) params.get('filters')
-                : new Map<String, Object>();
-            args.queryLimit = params.get('queryLimit') != null
-                ? Integer.valueOf(params.get('queryLimit'))
-                : DEFAULT_QUERY_LIMIT;
+            args.filters = params.get('filters') != null ? (Map<String, Object>) params.get('filters') : new Map<String, Object>();
+            args.queryLimit = params.get('queryLimit') != null ? Integer.valueOf(params.get('queryLimit')) : DEFAULT_QUERY_LIMIT;
 
             // Validate required DTO parameters
             if (args.sObjectTypes.isEmpty()) {
-                return ActionOutcome.failure(
-                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                    'sObjectTypes is required and cannot be empty'
-                );
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'sObjectTypes is required and cannot be empty');
             }
             if (args.fieldsToReturn.isEmpty()) {
-                return ActionOutcome.failure(
-                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                    'fieldsToReturn is required and cannot be empty'
-                );
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'fieldsToReturn is required and cannot be empty');
             }
             if (args.filters.isEmpty()) {
-                return ActionOutcome.failure(
-                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                    'filters is required and cannot be empty'
-                );
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'filters is required and cannot be empty');
             }
 
             Integer finalLimit = Math.min(args.queryLimit, MAX_QUERY_LIMIT);
@@ -165,9 +152,7 @@ public class ActionFindEntities extends BaseAgentAction {
 
         for (String sObjName : sObjectTypes) {
             SObjectType sObjToken = globalDescribe.get(sObjName);
-            if (sObjToken == null ||
-                !sObjToken.getDescribe().isQueryable() ||
-                !sObjToken.getDescribe().isAccessible()) {
+            if (sObjToken == null || !sObjToken.getDescribe().isQueryable() || !sObjToken.getDescribe().isAccessible()) {
                 System.debug(LoggingLevel.WARN, '[ActionFindEntities] Skipping inaccessible or invalid object: ' + sObjName);
                 continue;
             }

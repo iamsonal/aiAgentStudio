@@ -52,13 +52,7 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
         try {
             // Execute HTTP request (single attempt).
             HttpCalloutService.CalloutResult result = HttpCalloutService.execute(request, calloutConfig);
-            System.debug(
-                LoggingLevel.INFO,
-                LOG_PREFIX +
-                    'OpenAI API call succeeded, duration: ' +
-                    result.durationMs +
-                    ' ms.'
-            );
+            System.debug(LoggingLevel.INFO, LOG_PREFIX + 'OpenAI API call succeeded, duration: ' + result.durationMs + ' ms.');
             System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'OpenAI response body: ' + result.response.getBody());
             // Parse and return the successful response.
             return parseOpenAIResponse(result.response.getBody(), llmConfig.DefaultModelIdentifier__c, result.durationMs);

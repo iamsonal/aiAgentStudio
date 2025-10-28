@@ -8,39 +8,17 @@
 
 /**
  * @description
- * CapabilityExecutionRouter is responsible for routing the execution of individual agent capabilities
- * within the AI Agent framework. This router operates at the capability layer (not the agent execution layer)
- * and should not be confused with AgentExecutionService, which handles agent-level execution orchestration.
- *
- * This class acts as a central routing mechanism, dynamically dispatching individual capability executions
- * to the appropriate handler based on the capability's implementation type (Standard, Apex, Flow).
- * It ensures robust error handling, consistent logging, and uniform result processing.
- *
- * Responsibilities:
- *   - Route individual capability execution requests to the correct handler (via ActionRegistry)
- *   - Enforce input validation and context integrity for capability execution
- *   - Provide detailed, actionable debug output for observability and troubleshooting
- *   - Normalize error handling and result construction across all execution paths
- *
- * This class is designed for extensibility and maintainability, serving as the routing backbone for capability-level execution.
+ * Routes execution of individual agent capabilities to appropriate handlers.
+ * Dynamically dispatches capability executions based on implementation type (Standard, Apex, Flow).
  */
 public inherited sharing class CapabilityExecutionRouter {
     /**
-     * @description
-     * Executes a single agent capability by routing the request to the appropriate execution engine
-     * based on the capability's implementation type. Handles all supported types (Standard, Apex, Flow)
-     * and ensures consistent error handling and logging.
+     * Executes a single agent capability by routing to appropriate execution engine.
      *
-     * @param capability         The AgentCapability__c record describing the action to execute. Must not be null.
-     * @param llmArgumentsJson   JSON string of arguments provided by the LLM for this action call. May be null or empty if not required by the handler.
-     * @param context            The ActionContext containing all relevant execution context. Must not be null.
-     * @return                   ActionOutcome representing the outcome of the execution, including error details if applicable.
-     * @throws IllegalArgumentException if capability or context is null.
-     * @throws ActionRegistry.ActionRegistryException for configuration errors in the ActionRegistry.
-     *
-     * Side effects:
-     *   - Writes detailed debug output to logs for observability.
-     *   - May throw exceptions for unrecoverable configuration errors.
+     * @param capability         Agent capability record
+     * @param llmArgumentsJson   LLM arguments JSON
+     * @param context            Action context
+     * @return                   Action outcome
      */
     public ActionOutcome executeSingleAction(AgentCapability__c capability, String llmArgumentsJson, ActionContext context) {
         String logPrefix =

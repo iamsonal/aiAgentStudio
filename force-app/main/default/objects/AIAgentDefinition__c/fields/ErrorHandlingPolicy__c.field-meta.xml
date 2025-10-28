@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ErrorHandlingPolicy__c</fullName>
+    <description>Determines how this agent handles tool execution errors. Fail-Fast: Any tool error immediately fails the agent execution. Autonomous Recovery: Agent attempts to handle errors via LLM reasoning. Individual capabilities can override this with FailFastOnError__c flag.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Controls error handling behavior: Fail-Fast stops immediately on any tool error. Autonomous Recovery allows the LLM to adapt and continue. Critical tools can override this setting.</inlineHelpText>
+    <label>Error Handling Policy</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Fail-Fast</fullName>
+                <default>false</default>
+                <label>Fail-Fast</label>
+            </value>
+            <value>
+                <fullName>Autonomous Recovery</fullName>
+                <default>true</default>
+                <label>Autonomous Recovery</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>
+

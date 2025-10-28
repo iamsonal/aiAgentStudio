@@ -476,8 +476,13 @@ public with sharing class ConversationalChatController {
                 }
 
                 System.debug(
-                    logPrefix + 'Deleting ' + stepsToDelete.size() + ' execution steps and related decision steps from execution ' +
-                    sessionId + ' starting at ' + targetTimestamp
+                    logPrefix +
+                        'Deleting ' +
+                        stepsToDelete.size() +
+                        ' execution steps and related decision steps from execution ' +
+                        sessionId +
+                        ' starting at ' +
+                        targetTimestamp
                 );
 
                 // Delete AgentDecisionStep__c records for these turns
@@ -499,7 +504,10 @@ public with sharing class ConversationalChatController {
                 delete as user stepsToDelete;
             }
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Error starting over from step with turnIdentifier ' + turnIdentifier + ': ' + e.getMessage());
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Error starting over from step with turnIdentifier ' + turnIdentifier + ': ' + e.getMessage()
+            );
             throw new AuraHandledException('An error occurred while deleting steps: ' + e.getMessage());
         }
     }

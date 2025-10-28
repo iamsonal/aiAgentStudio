@@ -3,7 +3,6 @@
  */
 @IsTest
 private class ActionCreateRecordTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -11,15 +10,9 @@ private class ActionCreateRecordTest {
     @TestSetup
     static void setupTestData() {
         // Create test accounts using TestFactory
-        TestFactory.newAccount()
-            .withName('Test Account 1')
-            .withIndustry('Technology')
-            .save();
+        TestFactory.newAccount().withName('Test Account 1').withIndustry('Technology').save();
 
-        TestFactory.newAccount()
-            .withName('Test Account 2')
-            .withIndustry('Finance')
-            .save();
+        TestFactory.newAccount().withName('Test Account 2').withIndustry('Finance').save();
     }
 
     // ===================================================================================
@@ -57,8 +50,11 @@ private class ActionCreateRecordTest {
         System.assertEquals(4, createResult.fieldsSet.size(), 'Should set 4 fields');
 
         // Verify database state
-        Contact created = [SELECT FirstName, LastName, Email, AccountId
-                          FROM Contact WHERE Id = :createResult.recordId];
+        Contact created = [
+            SELECT FirstName, LastName, Email, AccountId
+            FROM Contact
+            WHERE Id = :createResult.recordId
+        ];
         System.assertEquals('John', created.FirstName);
         System.assertEquals('Doe', created.LastName);
         System.assertEquals('john.doe@example.com', created.Email);
@@ -69,20 +65,15 @@ private class ActionCreateRecordTest {
     static void testCreateAccount_WithDefaults_Success() {
         // Given: Action configured with default values
         ActionCreateRecord action = new ActionCreateRecord();
-        String config = JSON.serialize(new Map<String, Object>{
-            'objectApiName' => 'Account',
-            'defaultFieldValues' => new Map<String, Object>{
-                'Type' => 'Customer - Direct',
-                'Industry' => 'Technology'
+        String config = JSON.serialize(
+            new Map<String, Object>{
+                'objectApiName' => 'Account',
+                'defaultFieldValues' => new Map<String, Object>{ 'Type' => 'Customer - Direct', 'Industry' => 'Technology' }
             }
-        });
+        );
         action.parseActionConfiguration(config, '[TEST] ');
 
-        Map<String, Object> params = new Map<String, Object>{
-            'fields' => new Map<String, Object>{
-                'Name' => 'New Tech Corp'
-            }
-        };
+        Map<String, Object> params = new Map<String, Object>{ 'fields' => new Map<String, Object>{ 'Name' => 'New Tech Corp' } };
 
         // When: Creating account with defaults
         Test.startTest();
@@ -104,12 +95,9 @@ private class ActionCreateRecordTest {
     static void testCreateAccount_UserValueOverridesDefault_Success() {
         // Given: Action with defaults that will be overridden
         ActionCreateRecord action = new ActionCreateRecord();
-        String config = JSON.serialize(new Map<String, Object>{
-            'objectApiName' => 'Account',
-            'defaultFieldValues' => new Map<String, Object>{
-                'Type' => 'Customer - Direct'
-            }
-        });
+        String config = JSON.serialize(
+            new Map<String, Object>{ 'objectApiName' => 'Account', 'defaultFieldValues' => new Map<String, Object>{ 'Type' => 'Customer - Direct' } }
+        );
         action.parseActionConfiguration(config, '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
@@ -140,8 +128,8 @@ private class ActionCreateRecordTest {
         Map<String, Object> params = new Map<String, Object>{
             'fields' => new Map<String, Object>{
                 'Name' => 'Big Corp',
-                'NumberOfEmployees' => '500',        // String -> Integer
-                'AnnualRevenue' => '10000000.50'     // String -> Decimal
+                'NumberOfEmployees' => '500', // String -> Integer
+                'AnnualRevenue' => '10000000.50' // String -> Decimal
             }
         };
 
@@ -239,10 +227,7 @@ private class ActionCreateRecordTest {
         action.parseActionConfiguration('{"objectApiName": "Account"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'fields' => new Map<String, Object>{
-                'Name' => 'Valid Name',
-                'NonExistentField__c' => 'Invalid Value'
-            }
+            'fields' => new Map<String, Object>{ 'Name' => 'Valid Name', 'NonExistentField__c' => 'Invalid Value' }
         };
 
         // When: Creating with invalid field
@@ -253,8 +238,7 @@ private class ActionCreateRecordTest {
         // Then: Valid fields are processed, invalid ones ignored
         System.assert(result.isSuccess, 'Should succeed by filtering invalid field');
         ActionCreateRecord.CreateResult createResult = (ActionCreateRecord.CreateResult) result.data;
-        System.assertEquals(false, createResult.fieldsSet.contains('NonExistentField__c'),
-                          'Should not include invalid field');
+        System.assertEquals(false, createResult.fieldsSet.contains('NonExistentField__c'), 'Should not include invalid field');
     }
 
     // ===================================================================================
@@ -265,12 +249,9 @@ private class ActionCreateRecordTest {
     static void testParseConfig_ValidConfig_Success() {
         // Given: Valid configuration
         ActionCreateRecord action = new ActionCreateRecord();
-        String config = JSON.serialize(new Map<String, Object>{
-            'objectApiName' => 'Contact',
-            'defaultFieldValues' => new Map<String, Object>{
-                'LeadSource' => 'Web'
-            }
-        });
+        String config = JSON.serialize(
+            new Map<String, Object>{ 'objectApiName' => 'Contact', 'defaultFieldValues' => new Map<String, Object>{ 'LeadSource' => 'Web' } }
+        );
 
         // When: Parsing configuration
         Test.startTest();
@@ -330,11 +311,7 @@ private class ActionCreateRecordTest {
 
         // When: Coercing types
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
-            rawArgs,
-            Account.SObjectType,
-            AccessType.CREATABLE
-        );
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArgs, Account.SObjectType, AccessType.CREATABLE);
         Test.stopTest();
 
         // Then: Types should be coerced
@@ -346,7 +323,7 @@ private class ActionCreateRecordTest {
     @IsTest
     static void testTypeCoercionService_NullSObjectType_ThrowsException() {
         // Given: Null SObjectType
-        Map<String, Object> rawArgs = new Map<String, Object>{'Name' => 'Test'};
+        Map<String, Object> rawArgs = new Map<String, Object>{ 'Name' => 'Test' };
 
         // When/Then: Should throw exception
         Test.startTest();
@@ -366,11 +343,7 @@ private class ActionCreateRecordTest {
 
         // When: Coercing
         Test.startTest();
-        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(
-            rawArgs,
-            Account.SObjectType,
-            AccessType.CREATABLE
-        );
+        Map<String, Object> result = TypeCoercionService.coerceArgumentTypesForSObject(rawArgs, Account.SObjectType, AccessType.CREATABLE);
         Test.stopTest();
 
         // Then: Should return empty map
@@ -385,15 +358,11 @@ private class ActionCreateRecordTest {
     @IsTest
     static void testCreateResult_Constructor_SetsProperties() {
         // Given: Result data
-        List<String> fieldsSet = new List<String>{'Name', 'Email'};
+        List<String> fieldsSet = new List<String>{ 'Name', 'Email' };
 
         // When: Creating result
         Test.startTest();
-        ActionCreateRecord.CreateResult result = new ActionCreateRecord.CreateResult(
-            '003000000000001',
-            'Success message',
-            fieldsSet
-        );
+        ActionCreateRecord.CreateResult result = new ActionCreateRecord.CreateResult('003000000000001', 'Success message', fieldsSet);
         Test.stopTest();
 
         // Then: Properties should be set

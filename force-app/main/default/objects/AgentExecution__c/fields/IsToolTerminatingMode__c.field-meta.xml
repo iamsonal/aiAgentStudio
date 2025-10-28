@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsToolTerminatingMode__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Indicates if this execution is in tool-terminating mode where the tool result is the final response without follow-up LLM processing. Used for Function agents with 0-1 capabilities where the tool output should be returned directly.</description>
+    <inlineHelpText>When true, tool results are treated as final responses without additional LLM processing. Used for single-tool function agents.</inlineHelpText>
+    <label>Is Tool Terminating Mode</label>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

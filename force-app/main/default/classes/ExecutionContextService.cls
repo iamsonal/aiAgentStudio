@@ -8,18 +8,8 @@
 
 /**
  * @description
- * ExecutionContextService manages the lifecycle and state of AgentExecution__c records in the unified agentic framework.
- * Support all execution types: conversational, batch, scheduled, email, and triggered.
- *
- * Responsibilities:
- *   - Create and manage AgentExecution__c records for all execution patterns
- *   - Update execution status and state throughout the lifecycle
- *   - Provide unified state management across different execution types
- *   - Handle execution completion, failure, and cleanup
- *   - Support both synchronous and asynchronous execution patterns
- *
- * This service abstracts execution state management from the specific execution type,
- * enabling consistent behavior across conversational, batch, scheduled, and triggered executions.
+ * Manages lifecycle and state of AgentExecution__c records for all execution types.
+ * Provides unified state management across conversational, batch, scheduled, and triggered executions.
  */
 public inherited sharing class ExecutionContextService {
     // --- CONSTANTS ---
@@ -32,14 +22,14 @@ public inherited sharing class ExecutionContextService {
     /**
      * Creates a new AgentExecution__c record for any execution type.
      *
-     * @param executionType The type of execution (Conversational, Batch, Scheduled, Email, Trigger, API)
-     * @param agentDefinitionId The AI agent definition to execute
-     * @param triggerSource The source that initiated this execution
-     * @param triggerPayload JSON payload from the trigger source
-     * @param sourceRecordId Optional record ID that is the primary context
-     * @param userId The user context for this execution
-     * @param serviceUserId Optional service user for elevated permissions
-     * @return Id of the created AgentExecution__c record
+     * @param executionType     Execution type
+     * @param agentDefinitionId Agent definition ID
+     * @param triggerSource     Trigger source
+     * @param triggerPayload    Trigger payload JSON
+     * @param sourceRecordId    Source record ID
+     * @param userId            User ID
+     * @param serviceUserId     Service user ID
+     * @return                  Created execution ID
      */
     public Id createExecution(
         String executionType,

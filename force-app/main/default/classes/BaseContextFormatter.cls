@@ -80,6 +80,22 @@ public virtual inherited sharing class BaseContextFormatter {
         }
 
         Map<String, SObjectField> fieldMap = SchemaUtils.getObjectFields(objectDescribe.getSObjectType());
+        return getFieldLabelFromFieldMap(fieldName, fieldMap);
+    }
+
+    /**
+     * Gets the field label using a pre-fetched field map.
+     * Use this overload in loops to avoid redundant schema lookups.
+     *
+     * @param fieldName  The API name of the field.
+     * @param fieldMap   Pre-fetched field map for the object.
+     * @return           The field label, or the field name if label cannot be determined.
+     */
+    protected String getFieldLabelFromFieldMap(String fieldName, Map<String, SObjectField> fieldMap) {
+        if (fieldMap == null || String.isBlank(fieldName)) {
+            return fieldName;
+        }
+
         SObjectField fieldToken = fieldMap.get(fieldName.toLowerCase());
 
         if (fieldToken != null && fieldToken.getDescribe().isAccessible()) {
@@ -114,6 +130,9 @@ public virtual inherited sharing class BaseContextFormatter {
         System.debug(logPrefix + '[BaseContextFormatter] Populated fields: ' + populatedFields);
         Schema.DescribeSObjectResult recordDescribe = record.getSObjectType().getDescribe();
 
+        // Fetch field map once for performance optimization
+        Map<String, SObjectField> fieldMap = SchemaUtils.getObjectFields(recordDescribe.getSObjectType());
+
         // Process each populated field
         for (String fieldName : populatedFields.keySet()) {
             Object fieldValue = populatedFields.get(fieldName);
@@ -127,7 +146,7 @@ public virtual inherited sharing class BaseContextFormatter {
 
             // For direct fields, add them with proper labels
             if (!(fieldValue instanceof SObject)) {
-                String fieldLabel = getFieldLabel(fieldName, recordDescribe);
+                String fieldLabel = getFieldLabelFromFieldMap(fieldName, fieldMap);
                 allFields.put(fieldLabel, fieldValue);
                 System.debug(
                     logPrefix + '[BaseContextFormatter] Added direct field ' + fieldName + ' with label ' + fieldLabel + ' and value ' + fieldValue
@@ -135,7 +154,7 @@ public virtual inherited sharing class BaseContextFormatter {
             } else {
                 // For relationship fields, we need to traverse and extract accessible fields
                 SObject relatedRecord = (SObject) fieldValue;
-                String relationshipLabel = getFieldLabel(fieldName, recordDescribe);
+                String relationshipLabel = getFieldLabelFromFieldMap(fieldName, fieldMap);
                 System.debug(logPrefix + '[BaseContextFormatter] Processing relationship field ' + fieldName + ' with label ' + relationshipLabel);
                 Map<String, Object> relatedFields = extractRelatedFields(relatedRecord, relationshipLabel, logPrefix);
                 allFields.putAll(relatedFields);
@@ -170,6 +189,9 @@ public virtual inherited sharing class BaseContextFormatter {
             Schema.DescribeSObjectResult relatedDescribe = relatedRecord.getSObjectType().getDescribe();
             System.debug(logPrefix + '[BaseContextFormatter] Related describe: ' + relatedDescribe);
 
+            // Fetch field map once for performance optimization
+            Map<String, SObjectField> relatedFieldMap = SchemaUtils.getObjectFields(relatedDescribe.getSObjectType());
+
             for (String fieldName : relatedPopulatedFields.keySet()) {
                 Object fieldValue = relatedPopulatedFields.get(fieldName);
                 System.debug(logPrefix + '[BaseContextFormatter] Processing related field ' + fieldName + ' with value: ' + fieldValue);
@@ -180,7 +202,7 @@ public virtual inherited sharing class BaseContextFormatter {
                     continue;
                 }
 
-                String fieldLabel = getFieldLabel(fieldName, relatedDescribe);
+                String fieldLabel = getFieldLabelFromFieldMap(fieldName, relatedFieldMap);
                 String fullLabelPath = pathPrefix + ' → ' + fieldLabel;
                 System.debug(logPrefix + '[BaseContextFormatter] Full label path: ' + fullLabelPath);
 

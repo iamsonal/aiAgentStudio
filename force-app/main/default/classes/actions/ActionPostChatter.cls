@@ -73,10 +73,7 @@ public class ActionPostChatter extends BaseAgentAction {
         }
 
         System.debug(LoggingLevel.INFO, '[ActionPostChatter] Posting to ' + config.feedType + ' feed. Target ID: ' + targetSObjectId);
-        System.debug(
-            LoggingLevel.DEBUG,
-            '[ActionPostChatter] Message length: ' + args.text.length() + ' characters. Topics: ' + args.topics.size()
-        );
+        System.debug(LoggingLevel.DEBUG, '[ActionPostChatter] Message length: ' + args.text.length() + ' characters. Topics: ' + args.topics.size());
 
         ActionOutcome chatterResult = createChatterPost(args.text, args.topics);
         if (!chatterResult.isSuccess) {
@@ -143,10 +140,7 @@ public class ActionPostChatter extends BaseAgentAction {
 
         validateFeedTypeConsistency();
 
-        System.debug(
-            LoggingLevel.DEBUG,
-            '[ActionPostChatter] Configuration parsed. FeedType: ' + config.feedType + ', Target: ' + targetSObjectId
-        );
+        System.debug(LoggingLevel.DEBUG, '[ActionPostChatter] Configuration parsed. FeedType: ' + config.feedType + ', Target: ' + targetSObjectId);
     }
 
     /**

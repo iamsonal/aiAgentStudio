@@ -8,14 +8,8 @@
 
 /**
  * @description
- * LlmPayloadUtils is a utility class providing common functionality for LLM API payload construction and validation.
- *
- * Responsibilities:
- *   - Standardizes message formatting, role validation, and payload structure for LLM API requests
- *   - Provides base exception classes and generic helper methods for use by specialized formatters
- *   - Enforces message role conventions and structure, with robust debug logging for troubleshooting
- *
- * This class is intended to be used by all LLM payload construction logic to ensure consistency and maintainability.
+ * Utility class providing common functionality for LLM API payload construction and validation.
+ * Standardizes message formatting, role validation, and payload structure for LLM API requests.
  */
 public inherited sharing class LlmPayloadUtils {
     public virtual class LlmPayloadException extends AIAgentException {

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>WorkflowAgent__c</fullName>
+    <deleteConstraint>Restrict</deleteConstraint>
+    <description>The parent workflow agent that owns this step</description>
+    <inlineHelpText>Select the workflow agent (AgentType__c = 'Workflow') that owns this workflow step</inlineHelpText>
+    <label>Workflow Agent</label>
+    <referenceTo>AIAgentDefinition__c</referenceTo>
+    <relationshipLabel>Workflow Steps</relationshipLabel>
+    <relationshipName>WorkflowSteps</relationshipName>
+    <required>true</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

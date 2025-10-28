@@ -3,15 +3,13 @@
  */
 @IsTest
 private class OpenAIProviderAdapterTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
 
     @TestSetup
     static void setupTestData() {
-        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup()
-            .save();
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
     }
 
     // ===================================================================================
@@ -64,16 +62,15 @@ private class OpenAIProviderAdapterTest {
     static void testSendMessage_WithParallelToolsEnabled_Success() {
         // Given: Agent with parallel tools enabled
         TestFactory.AgentSetup setup = getTestSetup();
-        update new AIAgentDefinition__c(
-            Id = setup.agentDefinition.Id,
-            EnableParallelToolCalling__c = true
-        );
+        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, EnableParallelToolCalling__c = true);
 
         Test.setMock(HttpCalloutMock.class, MockHttpResponses.parallelToolCalls());
 
-        AIAgentDefinition__c agent = [SELECT Id, EnableParallelToolCalling__c
-                                      FROM AIAgentDefinition__c
-                                      WHERE Id = :setup.agentDefinition.Id];
+        AIAgentDefinition__c agent = [
+            SELECT Id, EnableParallelToolCalling__c
+            FROM AIAgentDefinition__c
+            WHERE Id = :setup.agentDefinition.Id
+        ];
 
         List<Map<String, Object>> messages = createMessages('Find accounts and contacts');
         List<Map<String, Object>> tools = createTools();
@@ -177,14 +174,13 @@ private class OpenAIProviderAdapterTest {
         TestFactory.AgentSetup setup = getTestSetup();
 
         // Update LLM config with specific temperature
-        update new LLMConfiguration__c(
-            Id = setup.llmConfig.Id,
-            DefaultTemperature__c = 0.5
-        );
+        update new LLMConfiguration__c(Id = setup.llmConfig.Id, DefaultTemperature__c = 0.5);
 
-        LLMConfiguration__c llmConfig = [SELECT Id, NamedCredential__c, DefaultModelIdentifier__c,
-                                         DefaultTemperature__c
-                                         FROM LLMConfiguration__c WHERE Id = :setup.llmConfig.Id];
+        LLMConfiguration__c llmConfig = [
+            SELECT Id, NamedCredential__c, DefaultModelIdentifier__c, DefaultTemperature__c
+            FROM LLMConfiguration__c
+            WHERE Id = :setup.llmConfig.Id
+        ];
 
         List<Map<String, Object>> messages = createMessages('Test with temperature');
 
@@ -221,9 +217,11 @@ private class OpenAIProviderAdapterTest {
 
     private static TestFactory.AgentSetup getTestSetup() {
         AIAgentDefinition__c agent = [SELECT Id, EnableParallelToolCalling__c FROM AIAgentDefinition__c LIMIT 1];
-        LLMConfiguration__c llm = [SELECT Id, NamedCredential__c, DefaultModelIdentifier__c,
-                                   DefaultTemperature__c
-                                   FROM LLMConfiguration__c LIMIT 1];
+        LLMConfiguration__c llm = [
+            SELECT Id, NamedCredential__c, DefaultModelIdentifier__c, DefaultTemperature__c
+            FROM LLMConfiguration__c
+            LIMIT 1
+        ];
 
         TestFactory.AgentSetup setup = new TestFactory.AgentSetup();
         setup.agentDefinition = agent;
@@ -233,12 +231,7 @@ private class OpenAIProviderAdapterTest {
     }
 
     private static List<Map<String, Object>> createMessages(String content) {
-        return new List<Map<String, Object>>{
-            new Map<String, Object>{
-                'role' => 'user',
-                'content' => content
-            }
-        };
+        return new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => content } };
     }
 
     private static List<Map<String, Object>> createTools() {
@@ -250,15 +243,10 @@ private class OpenAIProviderAdapterTest {
                     'description' => 'Find records',
                     'parameters' => new Map<String, Object>{
                         'type' => 'object',
-                        'properties' => new Map<String, Object>{
-                            'searchQuery' => new Map<String, Object>{
-                                'type' => 'string'
-                            }
-                        }
+                        'properties' => new Map<String, Object>{ 'searchQuery' => new Map<String, Object>{ 'type' => 'string' } }
                     }
                 }
             }
         };
     }
 }
-

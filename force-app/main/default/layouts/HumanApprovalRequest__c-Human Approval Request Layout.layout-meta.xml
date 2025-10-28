@@ -11,27 +11,27 @@
                 <field>Name</field>
             </layoutItems>
             <layoutItems>
-                <behavior>Edit</behavior>
+                <behavior>Readonly</behavior>
                 <field>LLMConfirmationMessage__c</field>
             </layoutItems>
             <layoutItems>
-                <behavior>Edit</behavior>
+                <behavior>Readonly</behavior>
                 <field>LLMToolCallId__c</field>
             </layoutItems>
             <layoutItems>
-                <behavior>Edit</behavior>
+                <behavior>Readonly</behavior>
                 <field>LLMToolName__c</field>
             </layoutItems>
             <layoutItems>
-                <behavior>Edit</behavior>
+                <behavior>Readonly</behavior>
                 <field>LLMToolArgumentsJSON__c</field>
             </layoutItems>
             <layoutItems>
-                <behavior>Edit</behavior>
+                <behavior>Readonly</behavior>
                 <field>OriginalTurnIdentifier__c</field>
             </layoutItems>
             <layoutItems>
-                <behavior>Edit</behavior>
+                <behavior>Readonly</behavior>
                 <field>OriginalTurnCount__c</field>
             </layoutItems>
             <layoutItems>
@@ -45,6 +45,10 @@
             <layoutItems>
                 <behavior>Edit</behavior>
                 <field>RelatedApprovalProcessInstanceId__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>OriginalAssistantStep__c</field>
             </layoutItems>
         </layoutColumns>
         <layoutColumns>

@@ -176,8 +176,8 @@
                     <name>uiBehavior</name>
                     <value>none</value>
                 </fieldInstanceProperties>
-                <fieldItem>Record.HaltAndReportError__c</fieldItem>
-                <identifier>RecordHaltAndReportError_cField</identifier>
+                <fieldItem>Record.FailFastOnError__c</fieldItem>
+                <identifier>RecordFailFastOnError_cField</identifier>
             </fieldInstance>
         </itemInstances>
         <name>Facet-a0d95c0d-e49f-4331-a016-b1d026392365</name>

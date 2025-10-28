@@ -51,7 +51,11 @@ public inherited sharing class SystemPromptBuilder {
     }
 
     @TestVisible
-    private SystemPromptBuilder(ContextManagerService contextService, ContextResolverService contextResolverSvc, AgentDecisionStepLogger decisionLogger) {
+    private SystemPromptBuilder(
+        ContextManagerService contextService,
+        ContextResolverService contextResolverSvc,
+        AgentDecisionStepLogger decisionLogger
+    ) {
         this.contextManager = contextService;
         this.contextResolver = contextResolverSvc;
         this.decisionLogger = decisionLogger;
@@ -180,49 +184,73 @@ public inherited sharing class SystemPromptBuilder {
             contextBlocks.add('<CONVERSATION_SUMMARY>\n' + summary.escapeHtml4() + '\n</CONVERSATION_SUMMARY>');
         }
 
-        // RESTORED INTEGRATION: Use ContextResolverService to gather actual SObject data from context providers
-        // This orchestrates the retrieval of full record data based on the context ledger (IDs tracked by ContextManagerService)
-        try {
-            ContextResolverService.ResolutionResult resolvedContext = this.contextResolver.resolve(
-                executionId,
-                agentConfig.Id,
-                conversationalUserId,
-                currentPageRecordId,
-                currentTurn
-            );
+        // Check if context format strategy is configured before attempting context resolution
+        // Without a formatter, we cannot use the resolved SObject records, so skip the expensive resolution
+        String formatStrategy = String.isNotBlank(agentConfig.ContextFormatStrategy__c) ? agentConfig.ContextFormatStrategy__c : null;
 
-            // Format the resolved SObject records using the configured formatting strategy
-            if (resolvedContext != null && !resolvedContext.recordsToLoad.isEmpty()) {
-                String formatStrategy = String.isNotBlank(agentConfig.ContextFormatStrategy__c)
-                    ? agentConfig.ContextFormatStrategy__c
-                    : null;
+        if (String.isBlank(formatStrategy)) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'No ContextFormatStrategy__c configured. Skipping context resolution and formatting.');
+        } else {
+            // RESTORED INTEGRATION: Use ContextResolverService to gather actual SObject data from context providers
+            // This orchestrates the retrieval of full record data based on the context ledger (IDs tracked by ContextManagerService)
+            try {
+                ContextResolverService.ResolutionResult resolvedContext = this.contextResolver.resolve(
+                    executionId,
+                    agentConfig.Id,
+                    conversationalUserId,
+                    currentPageRecordId,
+                    currentTurn
+                );
 
-                // Only format if a format strategy is specified and a formatter is available
-                if (String.isNotBlank(formatStrategy)) {
-                    IContextFormatter formatter = getContextFormatter(formatStrategy, logPrefix);
+                // Format the resolved SObject records using the configured formatting strategy
+                if (resolvedContext != null && !resolvedContext.recordsToLoad.isEmpty()) {
+                    try {
+                        IContextFormatter formatter = getContextFormatter(formatStrategy, logPrefix);
 
-                    if (formatter != null) {
-                        String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix);
+                        if (formatter != null) {
+                            String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix);
 
-                        if (String.isNotBlank(formattedRecords)) {
-                            contextBlocks.add('<RESOLVED_CONTEXT_DATA>\n' + formattedRecords + '\n</RESOLVED_CONTEXT_DATA>');
-                            System.debug(LoggingLevel.INFO, logPrefix + 'Added ' + resolvedContext.recordsToLoad.size() + ' resolved records to context.');
+                            if (String.isNotBlank(formattedRecords)) {
+                                contextBlocks.add('<RESOLVED_CONTEXT_DATA>\n' + formattedRecords + '\n</RESOLVED_CONTEXT_DATA>');
+                                System.debug(
+                                    LoggingLevel.INFO,
+                                    logPrefix + 'Added ' + resolvedContext.recordsToLoad.size() + ' resolved records to context.'
+                                );
+                            }
+                        } else {
+                            System.debug(
+                                LoggingLevel.WARN,
+                                logPrefix +
+                                    'No formatter available for strategy: ' +
+                                    formatStrategy +
+                                    '. Skipping formatting of ' +
+                                    resolvedContext.recordsToLoad.size() +
+                                    ' resolved records.'
+                            );
                         }
-                    } else {
-                        System.debug(LoggingLevel.INFO, logPrefix + 'No formatter available for strategy: ' + formatStrategy + '. Skipping formatting of ' + resolvedContext.recordsToLoad.size() + ' resolved records.');
+                    } catch (Exception formatterEx) {
+                        // If formatter loading or execution fails, log the error and continue without formatted context
+                        System.debug(
+                            LoggingLevel.ERROR,
+                            logPrefix + 'Failed to load or execute formatter for strategy: ' + formatStrategy + '. Error: ' + formatterEx.getMessage()
+                        );
+                        System.debug(
+                            LoggingLevel.INFO,
+                            logPrefix + 'Skipping formatting of ' + resolvedContext.recordsToLoad.size() + ' resolved records due to formatter error.'
+                        );
                     }
                 } else {
-                    System.debug(LoggingLevel.INFO, logPrefix + 'No format strategy specified. Skipping formatting of ' + resolvedContext.recordsToLoad.size() + ' resolved records.');
+                    System.debug(LoggingLevel.INFO, logPrefix + 'No records resolved from context providers.');
                 }
-            }
 
-            // Include long-term context summary if available
-            if (String.isNotBlank(resolvedContext.longTermContextSummary)) {
-                contextBlocks.add('<LONG_TERM_CONTEXT>\n' + resolvedContext.longTermContextSummary + '\n</LONG_TERM_CONTEXT>');
+                // Include long-term context summary if available (currently not populated, but leaving for future use)
+                if (String.isNotBlank(resolvedContext.longTermContextSummary)) {
+                    contextBlocks.add('<LONG_TERM_CONTEXT>\n' + resolvedContext.longTermContextSummary + '\n</LONG_TERM_CONTEXT>');
+                }
+            } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to resolve context via ContextResolverService: ' + e.getMessage());
+                // Continue building prompt without resolved context data
             }
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to resolve context via ContextResolverService: ' + e.getMessage());
-            // Continue building prompt without resolved context data
         }
 
         // Build structured context ledger overview using ContextManagerService
@@ -478,14 +506,16 @@ public inherited sharing class SystemPromptBuilder {
             List<ContextFormatterMapping__mdt> mappings = [
                 SELECT FormatterClassName__c, FormatStrategy__c, Description__c
                 FROM ContextFormatterMapping__mdt
-                WHERE FormatStrategy__c = :formatStrategy
-                AND IsActive__c = true
+                WHERE FormatStrategy__c = :formatStrategy AND IsActive__c = TRUE
                 LIMIT 1
             ];
 
             // If no mapping found, return null to skip formatting
             if (mappings.isEmpty()) {
-                System.debug(LoggingLevel.WARN, logPrefix + 'No active formatter found for strategy: ' + formatStrategy + '. Resolved records will not be formatted.');
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix + 'No active formatter found for strategy: ' + formatStrategy + '. Resolved records will not be formatted.'
+                );
                 return null;
             }
 
@@ -506,7 +536,6 @@ public inherited sharing class SystemPromptBuilder {
             }
 
             return (IContextFormatter) formatterInstance;
-
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error loading context formatter for strategy ' + formatStrategy + ': ' + e.getMessage());
             throw new AIAgentException('Failed to load context formatter: ' + e.getMessage(), e);

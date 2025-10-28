@@ -85,13 +85,9 @@ public class ActionGetRecords extends BaseAgentAction {
 
         // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
         ArgumentsDTO args = new ArgumentsDTO();
-        args.filters = params.get('filters') != null
-            ? (Map<String, Object>) params.get('filters')
-            : new Map<String, Object>();
+        args.filters = params.get('filters') != null ? (Map<String, Object>) params.get('filters') : new Map<String, Object>();
         args.additionalFields = ActionConfigUtils.getOptionalStringList(params, 'additionalFields');
-        args.queryLimit = params.get('queryLimit') != null
-            ? Integer.valueOf(params.get('queryLimit'))
-            : DEFAULT_QUERY_LIMIT;
+        args.queryLimit = params.get('queryLimit') != null ? Integer.valueOf(params.get('queryLimit')) : DEFAULT_QUERY_LIMIT;
         args.orderBy = (String) params.get('orderBy');
 
         // Enforce maximum limit for security
@@ -127,9 +123,6 @@ public class ActionGetRecords extends BaseAgentAction {
 
             // Extract the records from QueryResult
             queryResults = queryResult.records;
-        } catch (QueryServiceException aie) {
-            System.debug(LoggingLevel.ERROR, '[ActionGetRecords] AI-friendly query error: ' + aie.getErrorSummary());
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, aie.getMessage());
         } catch (System.QueryException qe) {
             String enhancedMessage = enhanceQueryExceptionMessage(qe.getMessage(), args.filters, args.orderBy, args.queryLimit);
             System.debug(LoggingLevel.ERROR, '[ActionGetRecords] SOQL execution failed: ' + enhancedMessage);
@@ -194,9 +187,7 @@ public class ActionGetRecords extends BaseAgentAction {
             this.config = new ConfigDTO();
             this.config.objectApiName = (String) configMap.get('objectApiName');
             this.config.defaultFields = ActionConfigUtils.getOptionalStringList(configMap, 'defaultFields');
-            this.config.maxReturnToLLM = configMap.get('maxReturnToLLM') != null
-                ? Integer.valueOf(configMap.get('maxReturnToLLM'))
-                : null;
+            this.config.maxReturnToLLM = configMap.get('maxReturnToLLM') != null ? Integer.valueOf(configMap.get('maxReturnToLLM')) : null;
         } catch (Exception e) {
             throw new ValidationException('Invalid configuration JSON: ' + e.getMessage(), e);
         }

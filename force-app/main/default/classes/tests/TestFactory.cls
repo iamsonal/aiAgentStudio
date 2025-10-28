@@ -19,7 +19,6 @@
  */
 @IsTest
 public class TestFactory {
-
     // ===================================================================================
     // FRAMEWORK OBJECTS - COMPLETE AGENT SETUP
     // ===================================================================================
@@ -261,7 +260,6 @@ public class TestFactory {
             newCapability().forFindEntities().build(),
             newCapability().forPostChatter().build(),
             newCapability().forSearchKnowledge().build(),
-            newCapability().forSendEmail().build(),
             newCapability().forFlowHandler('Test_Flow').build()
         };
     }
@@ -277,7 +275,7 @@ public class TestFactory {
             ExecutionPriority__c = 10,
             RunAsynchronously__c = false,
             RequiresApproval__c = false,
-            HaltAndReportError__c = false
+            FailFastOnError__c = false
         );
 
         public CapabilityBuilder withAgent(Id agentId) {
@@ -360,15 +358,6 @@ public class TestFactory {
             record.ImplementationType__c = 'Standard';
             record.StandardActionType__c = 'SearchKnowledge';
             record.Parameters__c = '{"type":"object","properties":{"searchQuery":{"type":"string"},"language":{"type":"string"}}}';
-            return this;
-        }
-
-        public CapabilityBuilder forSendEmail() {
-            record.CapabilityName__c = 'send_email';
-            record.Description__c = 'Sends an email';
-            record.ImplementationType__c = 'Standard';
-            record.StandardActionType__c = 'SendEmail';
-            record.Parameters__c = '{"type":"object","properties":{"toAddresses":{"type":"array","items":{"type":"string"}},"subject":{"type":"string"},"body":{"type":"string"},"htmlBody":{"type":"string"},"plainTextBody":{"type":"string"},"ccAddresses":{"type":"array","items":{"type":"string"}},"bccAddresses":{"type":"array","items":{"type":"string"}}},"required":["toAddresses","subject"]}';
             return this;
         }
 
@@ -462,30 +451,34 @@ public class TestFactory {
             String turnId = UuidUtils.generateUUID();
 
             // User message
-            steps.add(new ExecutionStep__c(
-                AgentExecution__c = executionId,
-                StepType__c = 'UserInput',
-                StepRole__c = 'user',
-                Content__c = 'User message ' + i,
-                ContentType__c = 'Text',
-                TurnIdentifier__c = turnId,
-                TurnCount__c = i,
-                Timestamp__c = now.addMinutes(i * 2 - 1),
-                ExternalId__c = UuidUtils.generateUUID()
-            ));
+            steps.add(
+                new ExecutionStep__c(
+                    AgentExecution__c = executionId,
+                    StepType__c = 'UserInput',
+                    StepRole__c = 'user',
+                    Content__c = 'User message ' + i,
+                    ContentType__c = 'Text',
+                    TurnIdentifier__c = turnId,
+                    TurnCount__c = i,
+                    Timestamp__c = now.addMinutes(i * 2 - 1),
+                    ExternalId__c = UuidUtils.generateUUID()
+                )
+            );
 
             // Assistant response
-            steps.add(new ExecutionStep__c(
-                AgentExecution__c = executionId,
-                StepType__c = 'AgentResponse',
-                StepRole__c = 'assistant',
-                Content__c = 'Assistant response ' + i,
-                ContentType__c = 'Text',
-                TurnIdentifier__c = turnId,
-                TurnCount__c = i,
-                Timestamp__c = now.addMinutes(i * 2),
-                ExternalId__c = UuidUtils.generateUUID()
-            ));
+            steps.add(
+                new ExecutionStep__c(
+                    AgentExecution__c = executionId,
+                    StepType__c = 'AgentResponse',
+                    StepRole__c = 'assistant',
+                    Content__c = 'Assistant response ' + i,
+                    ContentType__c = 'Text',
+                    TurnIdentifier__c = turnId,
+                    TurnCount__c = i,
+                    Timestamp__c = now.addMinutes(i * 2),
+                    ExternalId__c = UuidUtils.generateUUID()
+                )
+            );
         }
 
         insert steps;
@@ -684,12 +677,7 @@ public class TestFactory {
     }
 
     public class CaseBuilder {
-        private Case record = new Case(
-            Subject = 'Test Case ' + generateRandomString(6),
-            Status = 'New',
-            Origin = 'Web',
-            Priority = 'Medium'
-        );
+        private Case record = new Case(Subject = 'Test Case ' + generateRandomString(6), Status = 'New', Origin = 'Web', Priority = 'Medium');
 
         public CaseBuilder withSubject(String subject) {
             record.Subject = subject;
@@ -858,7 +846,8 @@ public class TestFactory {
             LocaleSidKey = 'en_US',
             EmailEncodingKey = 'UTF-8',
             LanguageLocaleKey = 'en_US',
-            ProfileId = [SELECT Id FROM Profile WHERE Name = :profileName LIMIT 1].Id
+            ProfileId = [SELECT Id FROM Profile WHERE Name = :profileName LIMIT 1]
+            .Id
         );
         insert testUser;
         return testUser;

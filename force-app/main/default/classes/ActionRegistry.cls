@@ -8,14 +8,8 @@
 
 /**
  * @description
- * ActionRegistry is the central factory and registry for all IAgentAction implementations in the Agent Framework.
- * It is responsible for:
- *   - Discovering, registering, and instantiating action handlers (Standard, Apex, and Flow) based on AgentCapability__c configuration.
- *   - Loading and caching handler metadata from StandardActionHandler__mdt for performance and consistency.
- *   - Enforcing interface compliance and robust error handling for all handler instantiations.
- *   - Providing clear diagnostics and debug output to aid troubleshooting and extension.
- *
- * This class is designed for extensibility and maintainability, enabling new action types or handler classes to be added with minimal code changes.
+ * Central factory and registry for all IAgentAction implementations.
+ * Discovers, registers, and instantiates action handlers based on AgentCapability__c configuration.
  */
 public class ActionRegistry {
     @TestVisible
@@ -24,17 +18,13 @@ public class ActionRegistry {
     private static Boolean isCacheInitialized = false;
 
     /**
-     * Exception type for errors encountered during action handler registration or instantiation.
+     * Exception for action handler registration or instantiation errors.
      */
     public class ActionRegistryException extends AIAgentException {
     }
 
     /**
-     * Ensures the handler cache is initialized from active StandardActionHandler__mdt records.
-     * Loads and validates handler metadata, logging any issues and throwing on critical errors.
-     *
-     * Side effects: Populates standardHandlerCache and sets isCacheInitialized.
-     * Throws: ActionRegistryException if loading fails.
+     * Ensures handler cache is initialized from StandardActionHandler__mdt records.
      */
     private static void ensureCacheInitialized() {
         if (isCacheInitialized)

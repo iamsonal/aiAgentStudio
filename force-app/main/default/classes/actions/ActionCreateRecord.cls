@@ -96,7 +96,10 @@ public class ActionCreateRecord extends BaseAgentAction {
         try {
             SecurityUtils.checkObjectPermission(this.targetSObjectType, AccessType.CREATABLE);
         } catch (SecurityUtils.ActionSecurityException ase) {
-            System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Security check failed for object ' + config.objectApiName + ': ' + ase.getMessage());
+            System.debug(
+                LoggingLevel.ERROR,
+                '[ActionCreateRecord] Security check failed for object ' + config.objectApiName + ': ' + ase.getMessage()
+            );
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ase.getMessage());
         }
 
@@ -106,6 +109,10 @@ public class ActionCreateRecord extends BaseAgentAction {
             typedData = TypeCoercionService.coerceArgumentTypesForSObject(finalData, this.targetSObjectType, AccessType.CREATABLE);
         } catch (TypeCoercionService.TypeCoercionException typeEx) {
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Type coercion failed: ' + typeEx.getMessage());
+            // Extract auto-generated correction guidance to help LLM self-correct format errors
+            if (String.isNotBlank(typeEx.correctionGuidance)) {
+                return ActionOutcome.failureWithGuidance(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage(), typeEx.correctionGuidance);
+            }
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
         } catch (SecurityUtils.ActionSecurityException secEx) {
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Field-level security check failed: ' + secEx.getMessage());
@@ -145,10 +152,7 @@ public class ActionCreateRecord extends BaseAgentAction {
 
         // Defense-in-depth: Use Security.stripInaccessible() as final verification layer
         // This ensures Salesforce native FLS enforcement catches any edge cases in manual checks
-        SObjectAccessDecision decision = Security.stripInaccessible(
-            AccessType.CREATABLE,
-            new List<SObject>{ newRecord }
-        );
+        SObjectAccessDecision decision = Security.stripInaccessible(AccessType.CREATABLE, new List<SObject>{ newRecord });
 
         // Log any discrepancies between manual FLS checks and stripInaccessible results
         Map<String, Set<String>> decisionRemovedFields = decision.getRemovedFields();
@@ -158,7 +162,8 @@ public class ActionCreateRecord extends BaseAgentAction {
                 System.debug(
                     LoggingLevel.WARN,
                     '[ActionCreateRecord] SECURITY AUDIT: stripInaccessible() removed fields that passed manual FLS checks. ' +
-                    'This indicates a potential bug in TypeCoercionService. Fields: ' + String.join(new List<String>(strippedFields), ', ')
+                        'This indicates a potential bug in TypeCoercionService. Fields: ' +
+                        String.join(new List<String>(strippedFields), ', ')
                 );
             }
         }
@@ -167,7 +172,10 @@ public class ActionCreateRecord extends BaseAgentAction {
         Database.SaveResult saveResult = Database.insert(decision.getRecords()[0], false);
 
         Long executionTime = System.currentTimeMillis() - startTime;
-        System.debug(LoggingLevel.INFO, '[ActionCreateRecord] Record creation for ' + config.objectApiName + ' completed in ' + executionTime + ' ms.');
+        System.debug(
+            LoggingLevel.INFO,
+            '[ActionCreateRecord] Record creation for ' + config.objectApiName + ' completed in ' + executionTime + ' ms.'
+        );
 
         if (saveResult.isSuccess()) {
             System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] Successfully created record with ID: ' + saveResult.getId());
@@ -291,25 +299,24 @@ public class ActionCreateRecord extends BaseAgentAction {
             } else if (recordTypeIdObj instanceof String) {
                 recordTypeId = Id.valueOf((String) recordTypeIdObj);
             } else {
-                return ActionOutcome.failure(
+                return ActionOutcome.failureWithGuidance(
                     AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                    'RecordTypeId must be a valid Salesforce ID'
+                    'RecordTypeId must be a valid Salesforce ID',
+                    'Expected: 18-character Salesforce ID (e.g., 012000000000001AAA) or 15-character ID (e.g., 012000000000001)'
                 );
             }
         } catch (Exception e) {
-            return ActionOutcome.failure(
+            return ActionOutcome.failureWithGuidance(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'Invalid RecordTypeId format: ' + recordTypeIdObj
+                'Invalid RecordTypeId format: ' + recordTypeIdObj,
+                'Expected: 18-character Salesforce ID (e.g., 012000000000001AAA) or 15-character ID (e.g., 012000000000001)'
             );
         }
 
         // Validate the RecordType ID is for a RecordType object
         String sObjectTypeName = recordTypeId.getSObjectType().getDescribe().getName();
         if (sObjectTypeName != 'RecordType') {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'The provided ID is not a RecordType ID: ' + recordTypeId
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'The provided ID is not a RecordType ID: ' + recordTypeId);
         }
 
         // Query the RecordType to validate it exists and belongs to this object
@@ -317,8 +324,7 @@ public class ActionCreateRecord extends BaseAgentAction {
             List<RecordType> recordTypes = [
                 SELECT Id, DeveloperName, Name, IsActive
                 FROM RecordType
-                WHERE Id = :recordTypeId
-                AND SObjectType = :config.objectApiName
+                WHERE Id = :recordTypeId AND SObjectType = :config.objectApiName
                 WITH USER_MODE
                 LIMIT 1
             ];
