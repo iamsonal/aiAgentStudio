@@ -21,7 +21,7 @@
                 <field>ChildAgent__c</field>
             </layoutItems>
             <layoutItems>
-                <behavior>Required</behavior>
+                <behavior>Edit</behavior>
                 <field>ExecutionOrder__c</field>
             </layoutItems>
         </layoutColumns>

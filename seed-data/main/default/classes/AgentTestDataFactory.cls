@@ -363,7 +363,7 @@ public with sharing class AgentTestDataFactory {
             ProviderAdapterClass__c = 'OpenAIProviderAdapter',
             NamedCredential__c = 'OpenAI_API',
             DefaultModelIdentifier__c = 'gpt-4o-mini',
-            DefaultTemperature__c = 0.2,
+            DefaultTemperature__c = 0.1,
             IsActive__c = true
         );
         insert config;
