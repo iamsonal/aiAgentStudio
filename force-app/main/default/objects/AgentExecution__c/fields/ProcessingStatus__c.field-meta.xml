@@ -1,14 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ProcessingStatus__c</fullName>
-    <description>Detailed processing status for internal framework coordination. Maps to legacy ChatSession ProcessingStatus for compatibility.</description>
-    <externalId>false</externalId>
+    <description>Detailed processing status for internal framework coordination. Tracks granular state transitions during execution lifecycle.</description>
     <inlineHelpText>Internal processing state for framework coordination.</inlineHelpText>
     <label>Processing Status</label>
-    <length>255</length>
     <required>false</required>
     <trackHistory>false</trackHistory>
     <trackTrending>false</trackTrending>
-    <type>Text</type>
-    <unique>false</unique>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Idle</fullName>
+                <default>true</default>
+                <label>Idle</label>
+            </value>
+            <value>
+                <fullName>Processing</fullName>
+                <default>false</default>
+                <label>Processing</label>
+            </value>
+            <value>
+                <fullName>Awaiting Action</fullName>
+                <default>false</default>
+                <label>Awaiting Action</label>
+            </value>
+            <value>
+                <fullName>Awaiting Followup</fullName>
+                <default>false</default>
+                <label>Awaiting Followup</label>
+            </value>
+            <value>
+                <fullName>Failed</fullName>
+                <default>false</default>
+                <label>Failed</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
 </CustomField>
+

@@ -154,6 +154,8 @@ public inherited sharing class TurnLifecycleService {
 
     /**
      * Publishes AgentResponse__e event for AgentExecution__c records to notify UI of completion.
+     * Only publishes events for Conversational executions (chat UI). Function and Workflow
+     * executions are background/API operations that don't need UI notifications.
      *
      * @param executionId The AgentExecution__c ID
      * @param isSuccess Whether the turn completed successfully
@@ -170,6 +172,15 @@ public inherited sharing class TurnLifecycleService {
         String turnIdentifier,
         String logPrefix
     ) {
+        // Check if we should publish events based on execution type
+        if (!shouldPublishEventsForExecution(executionId, logPrefix)) {
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Skipping AgentResponse__e event (non-conversational execution type)'
+            );
+            return;
+        }
+
         System.debug(
             LoggingLevel.INFO,
             logPrefix + 'Publishing AgentResponse__e event: success=' + isSuccess + ', stepId=' + finalAssistantMessageId
@@ -206,6 +217,56 @@ public inherited sharing class TurnLifecycleService {
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'AgentResponse__e event publishing failed: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Determines if platform events should be published for this execution.
+     * Only conversational agents need UI notification events. Function and Workflow
+     * executions are backend/API operations that should not trigger UI events.
+     *
+     * @param executionId The execution ID to check
+     * @param logPrefix String prefix for log output
+     * @return true if events should be published (Conversational type), false otherwise
+     */
+    @TestVisible
+    private Boolean shouldPublishEventsForExecution(Id executionId, String logPrefix) {
+        try {
+            List<AgentExecution__c> executions = [
+                SELECT ExecutionType__c
+                FROM AgentExecution__c
+                WHERE Id = :executionId
+                LIMIT 1
+            ];
+
+            if (executions.isEmpty()) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix + 'Execution record not found for event publishing check, defaulting to no event'
+                );
+                return false;
+            }
+
+            String executionType = executions[0].ExecutionType__c;
+            Boolean shouldPublish = (executionType == 'Conversational');
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix +
+                    'Event publishing decision: ExecutionType=' +
+                    executionType +
+                    ', ShouldPublish=' +
+                    shouldPublish
+            );
+
+            return shouldPublish;
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Error checking execution type for event publishing: ' + e.getMessage()
+            );
+            // Fail-safe: don't publish if we can't determine type
+            return false;
         }
     }
 
