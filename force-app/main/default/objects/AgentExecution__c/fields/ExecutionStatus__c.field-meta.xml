@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ExecutionStatus__c</fullName>
-    <description>Current status of the agent execution lifecycle.</description>
-    <inlineHelpText>The current state of this agent execution.</inlineHelpText>
+    <description>High-level lifecycle status of the agent execution visible to users and admins. Represents the overall execution state (Pending, Processing, Completed, Failed, etc.). Changes infrequently at major lifecycle transitions. Used for reporting, dashboards, and user-facing displays.</description>
+    <inlineHelpText>Overall execution lifecycle status. Shows whether this execution is pending, actively processing, completed, failed, or in another major state. This is the primary status field for monitoring execution progress.</inlineHelpText>
     <label>Execution Status</label>
     <required>true</required>
     <trackHistory>true</trackHistory>

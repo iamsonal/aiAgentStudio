@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ProcessingStatus__c</fullName>
-    <description>Detailed processing status for internal framework coordination. Tracks granular state transitions during execution lifecycle.</description>
-    <inlineHelpText>Internal processing state for framework coordination.</inlineHelpText>
+    <description>Granular turn-level status for internal framework coordination and async job management. Tracks micro-states within a single turn (Processing, Awaiting Action, Awaiting Followup, Idle). Works with CurrentTurnIdentifier__c to prevent race conditions and ensure async jobs don't process stale turns. Changes frequently during turn execution. Not tracked in field history.</description>
+    <inlineHelpText>Internal turn-level status used by the framework to coordinate async processing and prevent race conditions. Shows the current micro-state within an active turn. Used primarily for framework orchestration rather than user visibility.</inlineHelpText>
     <label>Processing Status</label>
     <required>false</required>
     <trackHistory>false</trackHistory>

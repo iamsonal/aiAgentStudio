@@ -32,7 +32,7 @@ public class ActionPostChatter extends BaseAgentAction {
      * DTO for strongly-typed arguments
      */
     public class ArgumentsDTO {
-        public String text;
+        public String messageText;
         public List<String> topics;
     }
 
@@ -59,12 +59,12 @@ public class ActionPostChatter extends BaseAgentAction {
 
         // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
         ArgumentsDTO args = new ArgumentsDTO();
-        args.text = (String) params.get('text');
+        args.messageText = (String) params.get('messageText');
         args.topics = ActionConfigUtils.getOptionalStringList(params, 'topics');
 
         // Validate required DTO parameters
-        if (String.isBlank(args.text)) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Text parameter cannot be blank for Chatter post');
+        if (String.isBlank(args.messageText)) {
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'messageText parameter cannot be blank for Chatter post');
         }
 
         ActionOutcome targetValidationResult = validateChatterTargetAccess();
@@ -73,9 +73,12 @@ public class ActionPostChatter extends BaseAgentAction {
         }
 
         System.debug(LoggingLevel.INFO, '[ActionPostChatter] Posting to ' + config.feedType + ' feed. Target ID: ' + targetSObjectId);
-        System.debug(LoggingLevel.DEBUG, '[ActionPostChatter] Message length: ' + args.text.length() + ' characters. Topics: ' + args.topics.size());
+        System.debug(
+            LoggingLevel.DEBUG,
+            '[ActionPostChatter] Message length: ' + args.messageText.length() + ' characters. Topics: ' + args.topics.size()
+        );
 
-        ActionOutcome chatterResult = createChatterPost(args.text, args.topics);
+        ActionOutcome chatterResult = createChatterPost(args.messageText, args.topics);
         if (!chatterResult.isSuccess) {
             return chatterResult;
         }
@@ -88,7 +91,7 @@ public class ActionPostChatter extends BaseAgentAction {
             new ChatterResult(
                 feedElement.id,
                 'I have successfully posted the message to the ' + config.feedType + ' feed.',
-                args.text.length(),
+                args.messageText.length(),
                 args.topics.size()
             )
         );
@@ -325,23 +328,23 @@ public class ActionPostChatter extends BaseAgentAction {
      * @description
      * Creates and posts a Chatter message with text validation, topic processing, and mention support.
      *
-     * @param text String - Message text to post (can include {@UserId} mention syntax).
+     * @param messageText String - Message text to post (can include {@UserId} mention syntax).
      * @param topics List<String> - Optional list of topics to associate with the post.
      * @return ActionOutcome<ConnectApi.FeedElement> - The posted message or error information.
      */
-    private ActionOutcome createChatterPost(String text, List<String> topics) {
+    private ActionOutcome createChatterPost(String messageText, List<String> topics) {
         try {
-            if (text.length() > 10000) {
+            if (messageText.length() > 10000) {
                 System.debug(LoggingLevel.WARN, '[ActionPostChatter] Message text exceeded 10000 characters. Truncating.');
-                text = text.substring(0, 10000) + '... [truncated]';
+                messageText = messageText.substring(0, 10000) + '... [truncated]';
             }
 
             // Create feed item input
             ConnectApi.FeedItemInput feedItemInput = new ConnectApi.FeedItemInput();
             ConnectApi.MessageBodyInput messageBodyInput = new ConnectApi.MessageBodyInput();
 
-            // Parse text for mentions and build appropriate message segments
-            List<ConnectApi.MessageSegmentInput> messageSegments = parseMentions(text);
+            // Parse messageText for mentions and build appropriate message segments
+            List<ConnectApi.MessageSegmentInput> messageSegments = parseMentions(messageText);
             messageBodyInput.messageSegments = messageSegments;
 
             feedItemInput.body = messageBodyInput;

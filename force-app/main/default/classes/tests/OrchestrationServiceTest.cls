@@ -279,10 +279,11 @@ private class OrchestrationServiceTest {
         AgentCapability__c asyncCapability = new AgentCapability__c(
             AIAgentDefinition__c = setup.agentDefinition.Id,
             CapabilityName__c = uniqueCapabilityName,
-            Description__c = 'Async search capability for testing',
+            Description__c = 'Async create capability for testing',
             ImplementationType__c = 'Standard',
-            StandardActionType__c = 'FindEntities',
-            Parameters__c = '{"type":"object","properties":{"searchQuery":{"type":"string"}}}',
+            StandardActionType__c = 'CreateRecord',
+            BackendConfiguration__c = '{"objectApiName":"Account"}',
+            Parameters__c = '{"type":"object","properties":{"recordData":{"type":"object"}}}',
             ExecutionPriority__c = 10,
             RunAsynchronously__c = true, // This is the key difference - async execution
             RequiresApproval__c = false,

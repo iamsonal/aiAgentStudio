@@ -257,7 +257,7 @@ public class TestFactory {
             newCapability().forCreateRecord('Opportunity').build(),
             newCapability().forUpdateRecord('Account').build(),
             newCapability().forGetRecords('Contact').build(),
-            newCapability().forFindEntities().build(),
+            // FindEntities removed - action class doesn't exist
             newCapability().forPostChatter().build(),
             newCapability().forSearchKnowledge().build(),
             newCapability().forFlowHandler('Test_Flow').build()
@@ -310,7 +310,7 @@ public class TestFactory {
             record.ImplementationType__c = 'Standard';
             record.StandardActionType__c = 'CreateRecord';
             record.BackendConfiguration__c = '{"objectApiName":"' + objectName + '"}';
-            record.Parameters__c = '{"type":"object","properties":{"Name":{"type":"string"}},"required":["Name"]}';
+            record.Parameters__c = '{"type":"object","properties":{"recordData":{"type":"object","additionalProperties":true}},"required":[]}';
             return this;
         }
 
@@ -319,8 +319,8 @@ public class TestFactory {
             record.Description__c = 'Updates an existing ' + objectName + ' record';
             record.ImplementationType__c = 'Standard';
             record.StandardActionType__c = 'UpdateRecord';
-            record.BackendConfiguration__c = '{"objectApiName":"' + objectName + '","recordIdParameterName":"id"}';
-            record.Parameters__c = '{"type":"object","properties":{"id":{"type":"string","format":"salesforce-id"}},"required":["id"]}';
+            record.BackendConfiguration__c = '{}';
+            record.Parameters__c = '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id"},"recordData":{"type":"object","additionalProperties":true}},"required":["recordId","recordData"]}';
             return this;
         }
 
@@ -334,21 +334,12 @@ public class TestFactory {
             return this;
         }
 
-        public CapabilityBuilder forFindEntities() {
-            record.CapabilityName__c = 'find_records';
-            record.Description__c = 'Searches across multiple object types';
-            record.ImplementationType__c = 'Standard';
-            record.StandardActionType__c = 'FindEntities';
-            record.Parameters__c = '{"type":"object","properties":{"searchQuery":{"type":"string"},"sObjectTypes":{"type":"array"},"fieldsToReturn":{"type":"array"}}}';
-            return this;
-        }
-
         public CapabilityBuilder forPostChatter() {
             record.CapabilityName__c = 'post_chatter';
             record.Description__c = 'Posts a message to Chatter';
             record.ImplementationType__c = 'Standard';
             record.StandardActionType__c = 'PostChatter';
-            record.Parameters__c = '{"type":"object","properties":{"text":{"type":"string"},"topics":{"type":"array"}}}';
+            record.Parameters__c = '{"type":"object","properties":{"messageText":{"type":"string"},"topics":{"type":"array"}},"required":["messageText"]}';
             return this;
         }
 
@@ -367,7 +358,7 @@ public class TestFactory {
             record.ImplementationType__c = 'Flow';
             record.ImplementationDetail__c = flowName;
             record.BackendConfiguration__c = '{"flowApiName":"' + flowName + '"}';
-            record.Parameters__c = '{"type":"object","properties":{}}';
+            record.Parameters__c = '{"type":"object","properties":{"inputParameters":{"type":"object","additionalProperties":true}}}';
             return this;
         }
 

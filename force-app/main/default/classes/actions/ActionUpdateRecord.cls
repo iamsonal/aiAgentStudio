@@ -12,7 +12,10 @@
  *
  * This class provides a highly configurable and secure mechanism for updating Salesforce records.
  * It performs deep parameter validation, type coercion, field-level security (FLS) enforcement, and record lock detection.
- * Supports custom record ID parameter names via configuration, and delivers detailed error and audit context for troubleshooting and compliance.
+ *
+ * Parameter Format:
+ *   SObject fields are provided in nested recordData object:
+ *   {"recordId": "500...", "recordData": {"Priority": "High", "Status": "Closed", "Subject": "Updated"}}
  *
  * Security Architecture:
  *   - Proactive FLS checks via TypeCoercionService provide clear, actionable errors for AI agents
@@ -20,8 +23,8 @@
  *   - Logs discrepancies between manual and native FLS checks for audit and debugging
  *
  * Architecture:
- *   - ArgumentsDTO: Strongly-typed with recordId and Map<String, Object> for dynamic fields
- *   - ConfigDTO: Optional configuration for custom recordId parameter name
+ *   - ArgumentsDTO: Strongly-typed with recordId and nested recordData Map<String, Object>
+ *   - ConfigDTO: Optional configuration for future enhancements
  *   - Uses native JSON.deserialize() for high-performance type conversion
  *   - Leverages TypeCoercionService for FLS checks and SObject field coercion
  *
@@ -35,7 +38,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
      */
     public class ArgumentsDTO {
         public String recordId;
-        public Map<String, Object> fields;
+        public Map<String, Object> recordData;
     }
 
     /**
@@ -49,14 +52,17 @@ public class ActionUpdateRecord extends BaseAgentAction {
      * @description
      * Main entry point: Executes a secure, validated update using strongly-typed DTOs.
      *
+     * Expected Parameter Format:
+     *   Nested recordData object: {"recordId": "500...", "recordData": {"Priority": "High", "Status": "Closed"}}
+     *
      * Steps:
-     *   1. Deserializes params into ArgumentsDTO for type safety
+     *   1. Extracts recordId and nested recordData from parameters
      *   2. Validates recordId and extracts SObjectType
      *   3. Checks object-level update permission (FLS)
      *   4. Performs type coercion and field-level security checks on update fields
      *   5. Executes the DML update and returns a structured result
      *
-     * @param params Map<String, Object> - Raw parameters (deserialized into ArgumentsDTO for type safety)
+     * @param params Map<String, Object> - Raw parameters with recordId and nested recordData
      * @return ActionOutcome<UpdateResult> with update confirmation, updated fields, and metadata, or error information
      */
     public override ActionOutcome executeAction(Map<String, Object> params) {
@@ -89,16 +95,20 @@ public class ActionUpdateRecord extends BaseAgentAction {
             );
         }
 
-        // Extract fields
-        if (params.containsKey('fields') && params.get('fields') instanceof Map<String, Object>) {
-            args.fields = (Map<String, Object>) params.get('fields');
+        // Extract recordData from nested structure
+        // Expected format: {"recordId": "...", "recordData": {"Field1": "value1", "Field2": "value2"}}
+        if (params.containsKey('recordData') && params.get('recordData') instanceof Map<String, Object>) {
+            args.recordData = (Map<String, Object>) params.get('recordData');
         } else {
-            args.fields = new Map<String, Object>();
+            args.recordData = new Map<String, Object>();
         }
 
         // Validate DTO
-        if (args.fields.isEmpty()) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'No fields provided to update for record ID: ' + args.recordId);
+        if (args.recordData.isEmpty()) {
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'No field data provided in recordData for record ID: ' + args.recordId
+            );
         }
 
         // Convert to Id and get SObjectType
@@ -124,8 +134,8 @@ public class ActionUpdateRecord extends BaseAgentAction {
 
         Map<String, Object> typedData;
         try {
-            // Coerce types and enforce field-level security (FLS) using DTO fields
-            typedData = TypeCoercionService.coerceArgumentTypesForSObject(args.fields, targetSObjectType, AccessType.UPDATABLE);
+            // Coerce types and enforce field-level security (FLS) using DTO recordData
+            typedData = TypeCoercionService.coerceArgumentTypesForSObject(args.recordData, targetSObjectType, AccessType.UPDATABLE);
         } catch (TypeCoercionService.TypeCoercionException typeEx) {
             // Extract auto-generated correction guidance to help LLM self-correct format errors
             if (String.isNotBlank(typeEx.correctionGuidance)) {
@@ -137,7 +147,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
         }
 
         if (typedData.isEmpty()) {
-            Set<String> originalFields = args.fields.keySet();
+            Set<String> originalFields = args.recordData.keySet();
             return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
                 'No updatable fields provided after security checks for record ' +
@@ -149,7 +159,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
 
         // Track and log fields filtered out by FLS for auditability
         Set<String> allowedFields = typedData.keySet();
-        Set<String> removedFieldsForFLS = new Set<String>(args.fields.keySet());
+        Set<String> removedFieldsForFLS = new Set<String>(args.recordData.keySet());
         removedFieldsForFLS.removeAll(allowedFields);
         if (!removedFieldsForFLS.isEmpty()) {
             System.debug(

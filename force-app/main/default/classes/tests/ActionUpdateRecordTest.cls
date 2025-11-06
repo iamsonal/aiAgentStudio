@@ -42,7 +42,7 @@ private class ActionUpdateRecordTest {
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testContact.Id,
-            'fields' => new Map<String, Object>{ 'FirstName' => 'Johnny', 'Email' => 'johnny.doe@test.com' }
+            'recordData' => new Map<String, Object>{ 'FirstName' => 'Johnny', 'Email' => 'johnny.doe@test.com' }
         };
 
         // When: Updating the contact
@@ -76,7 +76,7 @@ private class ActionUpdateRecordTest {
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testAccount.Id,
-            'fields' => new Map<String, Object>{ 'Name' => 'Updated Test Account', 'Industry' => 'Healthcare' }
+            'recordData' => new Map<String, Object>{ 'Name' => 'Updated Test Account', 'Industry' => 'Healthcare' }
         };
 
         // When: Updating with DTO structure
@@ -101,7 +101,7 @@ private class ActionUpdateRecordTest {
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testAccount.Id,
-            'fields' => new Map<String, Object>{
+            'recordData' => new Map<String, Object>{
                 'NumberOfEmployees' => '250', // String -> Integer
                 'AnnualRevenue' => '2500000.75' // String -> Decimal
             }
@@ -129,7 +129,7 @@ private class ActionUpdateRecordTest {
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => testContact.Id,
-            'fields' => new Map<String, Object>{ 'Email' => null, 'FirstName' => 'John Updated' }
+            'recordData' => new Map<String, Object>{ 'Email' => null, 'FirstName' => 'John Updated' }
         };
 
         // When: Updating with null value
@@ -155,7 +155,7 @@ private class ActionUpdateRecordTest {
         action.parseActionConfiguration('{}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'fields' => new Map<String, Object>{ 'Name' => 'Updated Name' }
+            'recordData' => new Map<String, Object>{ 'Name' => 'Updated Name' }
             // Missing recordId
         };
 
@@ -178,7 +178,7 @@ private class ActionUpdateRecordTest {
 
         Map<String, Object> params = new Map<String, Object>{
             'recordId' => 'invalid-id-format',
-            'fields' => new Map<String, Object>{ 'Name' => 'Test' }
+            'recordData' => new Map<String, Object>{ 'Name' => 'Test' }
         };
 
         // When: Attempting update
@@ -211,7 +211,7 @@ private class ActionUpdateRecordTest {
 
         // Then: Should fail
         System.assert(!result.isSuccess);
-        System.assert(result.errorMessage.contains('No fields provided to update'));
+        System.assert(result.errorMessage.contains('No field data provided in recordData'));
     }
 
     @IsTest
@@ -221,7 +221,10 @@ private class ActionUpdateRecordTest {
         action.parseActionConfiguration('{}', '[TEST] ');
 
         String fakeId = '003000000000000';
-        Map<String, Object> params = new Map<String, Object>{ 'recordId' => fakeId, 'fields' => new Map<String, Object>{ 'FirstName' => 'Test' } };
+        Map<String, Object> params = new Map<String, Object>{
+            'recordId' => fakeId,
+            'recordData' => new Map<String, Object>{ 'FirstName' => 'Test' }
+        };
 
         // When: Attempting update
         Test.startTest();

@@ -20,11 +20,11 @@
     </values>
     <values>
         <field>RequiredBackendProperties__c</field>
-        <value xsi:type="xsd:string">objectApiName,recordIdParameter</value>
+        <value xsi:type="xsd:string"></value>
     </values>
     <values>
         <field>RequiredParameters__c</field>
-        <value xsi:type="xsd:string">recordId</value>
+        <value xsi:type="xsd:string">recordId,recordData</value>
     </values>
     <values>
         <field>GuidanceText__c</field>
@@ -32,16 +32,17 @@
 &lt;p&gt;This action updates an existing record in Salesforce.&lt;/p&gt;
 
 &lt;h4&gt;Backend Configuration&lt;/h4&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;objectApiName&lt;/strong&gt; (String): The Salesforce object to update (required, auto-populated)&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;recordIdParameter&lt;/strong&gt; (String): Name of the parameter containing the record ID (default: &quot;recordId&quot;)&lt;/li&gt;
-&lt;/ul&gt;
+&lt;p&gt;No specific backend configuration required. The object type is automatically detected from the recordId.&lt;/p&gt;
 
 &lt;h4&gt;Parameters (AI will provide)&lt;/h4&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;recordId&lt;/strong&gt; (String): The 18-character Salesforce ID of the record to update (required)&lt;/li&gt;
-&lt;li&gt;Add additional parameters for fields the AI should be able to update&lt;/li&gt;
-&lt;/ul&gt;</value>
+&lt;li&gt;&lt;strong&gt;recordData&lt;/strong&gt; (Object): SObject field values to update (required)&lt;/li&gt;
+&lt;li&gt;Add field properties inside recordData (e.g., recordData.Status, recordData.Priority)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h4&gt;Example&lt;/h4&gt;
+&lt;p&gt;To update a Case: &lt;code&gt;{&quot;recordId&quot;: &quot;500...&quot;, &quot;recordData&quot;: {&quot;Priority&quot;: &quot;High&quot;, &quot;Status&quot;: &quot;Closed&quot;}}&lt;/code&gt;&lt;/p&gt;</value>
     </values>
     <values>
         <field>ParametersTemplate__c</field>
@@ -53,19 +54,17 @@
       "format": "salesforce-id",
       "description": "The 18-character ID of the record to update."
     },
-    "fields": {
+    "recordData": {
       "type": "object",
-      "description": "SObject field values to update. Property names should be valid field API names."
+      "description": "SObject field values to update. Property names should be valid field API names.",
+      "additionalProperties": true
     }
   },
-  "required": ["recordId"]
+  "required": ["recordId", "recordData"]
 }</value>
     </values>
     <values>
         <field>BackendConfigTemplate__c</field>
-        <value xsi:type="xsd:string">{
-  "objectApiName": "",
-  "recordIdParameter": "recordId"
-}</value>
+        <value xsi:type="xsd:string">{}</value>
     </values>
 </CustomMetadata>

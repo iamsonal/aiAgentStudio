@@ -166,11 +166,14 @@ public inherited sharing class LLMInteractionService {
             );
 
             // --- 3. FINAL SUMMARY INJECTION LOGIC
+            // Only inject summarization instructions for Conversational agents to provide user-friendly summaries.
+            // Function and Workflow agents should be allowed to continue multi-step reasoning autonomously.
             Boolean isMultiStepTurn = this.currentTurnCount > 1;
             Boolean isFinalContentCall = (currentTurnUserMessage == null);
+            Boolean isConversationalAgent = (agentConfig.AgentType__c == 'Conversational');
 
-            if (isMultiStepTurn && isFinalContentCall) {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Injecting summarization instructions for multi-step turn.');
+            if (isMultiStepTurn && isFinalContentCall && isConversationalAgent) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Injecting summarization instructions for multi-step conversational turn.');
 
                 String summarizationInstruction =
                     '\n\n# FINAL INSTRUCTIONS\n\n' +
@@ -180,6 +183,14 @@ public inherited sharing class LLMInteractionService {
                     'Do not ask questions; provide a conclusive, final response.';
 
                 finalSystemPrompt += summarizationInstruction;
+            } else if (isMultiStepTurn && isFinalContentCall && !isConversationalAgent) {
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix +
+                        'Skipping summarization injection for non-conversational agent (AgentType=' +
+                        agentConfig.AgentType__c +
+                        ') - allowing autonomous multi-step reasoning.'
+                );
             }
 
             // This logic handles the "Halt and Report" error path.

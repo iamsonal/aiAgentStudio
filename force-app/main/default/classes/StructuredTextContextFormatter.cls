@@ -47,7 +47,6 @@ public inherited sharing class StructuredTextContextFormatter extends BaseContex
                 List<SObject> sObjectList = recordsByType.get(sObjTypeName);
                 System.debug(logPrefix + 'Formatting ' + sObjectList.size() + ' records of type ' + sObjTypeName);
                 String formattedBlock = formatAsStructuredText(sObjectList, logPrefix);
-                System.debug(logPrefix + 'Formatted block for ' + sObjTypeName + ': ' + formattedBlock);
 
                 if (String.isNotBlank(formattedBlock)) {
                     allFormattedBlocks.add(formattedBlock);
@@ -57,7 +56,6 @@ public inherited sharing class StructuredTextContextFormatter extends BaseContex
             result += String.join(allFormattedBlocks, '\n\n');
             result += '\n\n---\nEND OF CONTEXT DATA\n---';
 
-            System.debug(logPrefix + 'Final result: ' + result);
             return result;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Unexpected error in formatContext: ' + e.getMessage());
@@ -150,7 +148,6 @@ public inherited sharing class StructuredTextContextFormatter extends BaseContex
                         String displayValue = (value == null) ? '[Not Set]' : String.valueOf(value).replace('\n', ' ').replace('\r', '');
 
                         fieldEntries.add(fieldLabel + ': ' + displayValue);
-                        System.debug(logPrefix + 'Added field entry: ' + fieldLabel + ': ' + displayValue);
                     }
 
                     // Combine main record fields with child relationships
@@ -165,7 +162,6 @@ public inherited sharing class StructuredTextContextFormatter extends BaseContex
                     if (!recordParts.isEmpty()) {
                         String recordBlock = String.join(recordParts, '\n\n');
                         recordBlocks.add(recordBlock);
-                        System.debug(logPrefix + 'Added record block: ' + recordBlock);
                     }
                 } catch (Exception e) {
                     System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing record: ' + e.getMessage());
@@ -178,7 +174,6 @@ public inherited sharing class StructuredTextContextFormatter extends BaseContex
 
             // Combine record blocks with clear separators
             String result = groupHeader + '\n\n' + String.join(recordBlocks, '\n\n---\n\n');
-            System.debug(logPrefix + 'Final formatted text: ' + result);
             return result;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Unexpected error in formatAsStructuredText: ' + e.getMessage());

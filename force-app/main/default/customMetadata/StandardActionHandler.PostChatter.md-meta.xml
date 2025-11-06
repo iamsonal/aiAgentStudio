@@ -24,7 +24,7 @@
     </values>
     <values>
         <field>RequiredParameters__c</field>
-        <value xsi:type="xsd:string">text</value>
+        <value xsi:type="xsd:string">messageText</value>
     </values>
     <values>
         <field>GuidanceText__c</field>
@@ -39,7 +39,7 @@
 
 &lt;h4&gt;Parameters (AI will provide)&lt;/h4&gt;
 &lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;text&lt;/strong&gt; (String): The message content to post (required)&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;messageText&lt;/strong&gt; (String): The message content to post (required)&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;topics&lt;/strong&gt; (Array): Optional topics to associate with the post&lt;/li&gt;
 &lt;/ul&gt;</value>
     </values>
@@ -48,7 +48,7 @@
         <value xsi:type="xsd:string">{
   "type": "object",
   "properties": {
-    "text": {
+    "messageText": {
       "type": "string",
       "description": "The content of the message to post to Chatter."
     },
@@ -58,7 +58,7 @@
       "items": { "type": "string" }
     }
   },
-  "required": ["text"]
+  "required": ["messageText"]
 }</value>
     </values>
     <values>

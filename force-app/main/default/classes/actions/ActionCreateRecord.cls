@@ -38,7 +38,7 @@ public class ActionCreateRecord extends BaseAgentAction {
      * DTO for strongly-typed arguments
      */
     public class ArgumentsDTO {
-        public Map<String, Object> fields;
+        public Map<String, Object> recordData;
     }
 
     /**
@@ -65,10 +65,10 @@ public class ActionCreateRecord extends BaseAgentAction {
 
         // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
         ArgumentsDTO args = new ArgumentsDTO();
-        if (params.containsKey('fields') && params.get('fields') instanceof Map<String, Object>) {
-            args.fields = (Map<String, Object>) params.get('fields');
+        if (params.containsKey('recordData') && params.get('recordData') instanceof Map<String, Object>) {
+            args.recordData = (Map<String, Object>) params.get('recordData');
         } else {
-            args.fields = new Map<String, Object>();
+            args.recordData = new Map<String, Object>();
         }
 
         // Merge default and user-supplied field values
@@ -76,8 +76,8 @@ public class ActionCreateRecord extends BaseAgentAction {
         if (config.defaultFieldValues != null) {
             finalData.putAll(config.defaultFieldValues);
         }
-        if (!args.fields.isEmpty()) {
-            finalData.putAll(args.fields);
+        if (!args.recordData.isEmpty()) {
+            finalData.putAll(args.recordData);
         }
 
         if (finalData.isEmpty()) {

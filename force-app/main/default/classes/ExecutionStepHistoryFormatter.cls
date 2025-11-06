@@ -42,15 +42,106 @@ public class ExecutionStepHistoryFormatter {
 
         System.debug(LoggingLevel.DEBUG, debugPrefix + 'Formatting ' + steps.size() + ' execution steps for LLM API.');
 
-        for (ExecutionStep__c step : steps) {
-            Map<String, Object> messageMap = formatSingleStep(step, debugPrefix);
-            if (messageMap != null) {
-                formattedMessages.add(messageMap);
+        Integer i = 0;
+        while (i < steps.size()) {
+            ExecutionStep__c currentStep = steps[i];
+
+            // Check if this is a ToolCall step that might need grouping
+            if ('ToolCall'.equals(currentStep.StepType__c) && 'Assistant'.equals(currentStep.StepRole__c)) {
+                // Group consecutive ToolCall steps from the same turn
+                List<ExecutionStep__c> toolCallGroup = new List<ExecutionStep__c>();
+                String currentTurnId = currentStep.TurnIdentifier__c;
+
+                // Collect all consecutive ToolCall steps with the same TurnIdentifier
+                while (i < steps.size()) {
+                    ExecutionStep__c nextStep = steps[i];
+                    if (
+                        'ToolCall'.equals(nextStep.StepType__c) &&
+                        'Assistant'.equals(nextStep.StepRole__c) &&
+                        nextStep.TurnIdentifier__c == currentTurnId
+                    ) {
+                        toolCallGroup.add(nextStep);
+                        i++;
+                    } else {
+                        break;
+                    }
+                }
+
+                // Format the grouped tool calls as a single assistant message
+                Map<String, Object> groupedMessage = formatGroupedToolCalls(toolCallGroup, debugPrefix);
+                if (groupedMessage != null) {
+                    formattedMessages.add(groupedMessage);
+                }
+            } else {
+                // Process non-ToolCall steps individually
+                Map<String, Object> messageMap = formatSingleStep(currentStep, debugPrefix);
+                if (messageMap != null) {
+                    formattedMessages.add(messageMap);
+                }
+                i++;
             }
         }
 
         System.debug(LoggingLevel.DEBUG, debugPrefix + 'Formatted ' + formattedMessages.size() + ' messages for LLM API.');
         return formattedMessages;
+    }
+
+    /**
+     * Formats a group of ToolCall ExecutionStep__c records from the same turn into a single assistant message.
+     * This ensures parallel tool calls are properly represented as one assistant message with multiple tool_calls.
+     *
+     * @param toolCallSteps List of ToolCall ExecutionStep__c records from the same turn
+     * @param debugPrefix Debug logging prefix
+     * @return Formatted message map with all tool_calls or null if group is invalid
+     */
+    private static Map<String, Object> formatGroupedToolCalls(List<ExecutionStep__c> toolCallSteps, String debugPrefix) {
+        if (toolCallSteps == null || toolCallSteps.isEmpty()) {
+            return null;
+        }
+
+        Map<String, Object> messageMap = new Map<String, Object>();
+        messageMap.put('role', 'assistant');
+
+        List<Map<String, Object>> toolCalls = new List<Map<String, Object>>();
+        String content = null;
+
+        // Build the tool_calls array from all steps in the group
+        for (ExecutionStep__c step : toolCallSteps) {
+            if (String.isNotBlank(step.ToolName__c) && String.isNotBlank(step.ToolArguments__c)) {
+                Map<String, Object> toolCall = new Map<String, Object>{
+                    'id' => step.ToolCallId__c,
+                    'type' => 'function',
+                    'function' => new Map<String, Object>{ 'name' => step.ToolName__c, 'arguments' => step.ToolArguments__c }
+                };
+                toolCalls.add(toolCall);
+
+                // Use content from the first step that has it
+                if (content == null && String.isNotBlank(step.Content__c)) {
+                    content = step.Content__c;
+                }
+            }
+        }
+
+        if (toolCalls.isEmpty()) {
+            System.debug(LoggingLevel.WARN, debugPrefix + 'No valid tool calls found in group of ' + toolCallSteps.size() + ' steps');
+            return null;
+        }
+
+        messageMap.put('tool_calls', toolCalls);
+
+        // Include content if available, otherwise set to null (required by some LLM APIs)
+        if (String.isNotBlank(content)) {
+            messageMap.put('content', content);
+        } else {
+            messageMap.put('content', null);
+        }
+
+        System.debug(
+            LoggingLevel.DEBUG,
+            debugPrefix + 'Grouped ' + toolCallSteps.size() + ' ToolCall steps into single assistant message with ' + toolCalls.size() + ' tool_calls'
+        );
+
+        return messageMap;
     }
 
     /**

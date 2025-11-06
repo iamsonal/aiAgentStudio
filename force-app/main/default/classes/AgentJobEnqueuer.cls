@@ -193,7 +193,16 @@ public inherited sharing class AgentJobEnqueuer {
         String logPrefix
     ) {
         FollowUpLLMQueueable queueable = new FollowUpLLMQueueable(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag);
-        Id jobId = System.enqueueJob(queueable);
+
+        // Get AsyncOptions if configured (for scratch/developer orgs)
+        AsyncOptions asyncOptions = getAsyncOptions(logPrefix);
+        Id jobId;
+        if (asyncOptions != null) {
+            jobId = System.enqueueJob(queueable, asyncOptions);
+        } else {
+            jobId = System.enqueueJob(queueable);
+        }
+
         System.debug(
             LoggingLevel.INFO,
             logPrefix +
@@ -363,7 +372,16 @@ public inherited sharing class AgentJobEnqueuer {
             turnId,
             currentTurnCount
         );
-        Id jobId = System.enqueueJob(queueable);
+
+        // Get AsyncOptions if configured (for scratch/developer orgs)
+        AsyncOptions asyncOptions = getAsyncOptions(logPrefix);
+        Id jobId;
+        if (asyncOptions != null) {
+            jobId = System.enqueueJob(queueable, asyncOptions);
+        } else {
+            jobId = System.enqueueJob(queueable);
+        }
+
         System.debug(
             LoggingLevel.INFO,
             logPrefix +
@@ -378,6 +396,54 @@ public inherited sharing class AgentJobEnqueuer {
                 ', currentTurnCount=' +
                 currentTurnCount
         );
+    }
+
+    /**
+     * Creates AsyncOptions for queueable job enqueueing if configured.
+     * Returns null if MaxQueueableStackDepth is 0 (use Salesforce defaults).
+     * This is primarily for scratch/developer orgs which have a 5-job chain limit.
+     *
+     * IMPORTANT: AsyncOptions can only be set on the FIRST job in a chain.
+     * You cannot reset MaximumQueueableStackDepth from within a running queueable.
+     * This method checks if max stack depth was already configured in the parent chain.
+     *
+     * @param logPrefix A logging prefix for debug output.
+     * @return AsyncOptions with configured stack depth, or null to use defaults.
+     */
+    private AsyncOptions getAsyncOptions(String logPrefix) {
+        Integer maxStackDepth = AIAgentFrameworkSettings.getMaxQueueableStackDepth();
+
+        if (maxStackDepth == null || maxStackDepth <= 0) {
+            // Use Salesforce defaults (recommended for production/sandbox)
+            return null;
+        }
+
+        // Check if MaxStackDepth was already configured in parent chain
+        // AsyncInfo.hasMaxStackDepth() returns true if AsyncOptions was set on a parent job
+        if (AsyncInfo.hasMaxStackDepth()) {
+            System.debug(
+                LoggingLevel.DEBUG,
+                logPrefix +
+                    '[AgentJobEnqueuer] MaxStackDepth already configured in parent chain (depth=' +
+                    AsyncInfo.getMaximumQueueableStackDepth() +
+                    ') - skipping AsyncOptions'
+            );
+            return null;
+        }
+
+        // Set AsyncOptions for the first job in the chain
+        AsyncOptions asyncOptions = new AsyncOptions();
+        asyncOptions.MaximumQueueableStackDepth = maxStackDepth;
+
+        System.debug(
+            LoggingLevel.INFO,
+            logPrefix +
+                '[AgentJobEnqueuer] Setting AsyncOptions with MaximumQueueableStackDepth=' +
+                maxStackDepth +
+                ' (first job in chain for scratch/developer org)'
+        );
+
+        return asyncOptions;
     }
 
     /**

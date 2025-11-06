@@ -50,9 +50,10 @@
         <value xsi:type="xsd:string">{
   "type": "object",
   "properties": {
-    "fields": {
+    "recordData": {
       "type": "object",
-      "description": "SObject field values to set on the new record. Property names should be valid field API names."
+      "description": "SObject field values to set on the new record. Property names should be valid field API names.",
+      "additionalProperties": true
     }
   },
   "required": []

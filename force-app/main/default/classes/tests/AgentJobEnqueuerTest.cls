@@ -168,7 +168,7 @@ private class AgentJobEnqueuerTest {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE AsyncDispatchType__c = 'High' LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
 
-        AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).forFindEntities().save();
+        AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').save();
 
         String turnId = UuidUtils.generateUUID();
 
@@ -207,7 +207,7 @@ private class AgentJobEnqueuerTest {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE AsyncDispatchType__c = 'Low' LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
 
-        AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).forFindEntities().save();
+        AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').save();
 
         AgentJobEnqueuer enqueuer = new AgentJobEnqueuer();
         String turnId = UuidUtils.generateUUID();
@@ -342,7 +342,7 @@ private class AgentJobEnqueuerTest {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
-        AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).forFindEntities().save();
+        AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').save();
 
         String turnId = UuidUtils.generateUUID();
 

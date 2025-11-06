@@ -175,15 +175,6 @@ public abstract class BaseAgentAction implements IAgentAction {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, tce.getMessage());
         }
 
-        if (ex instanceof QueryServiceException) {
-            QueryServiceException qse = (QueryServiceException) ex;
-            String guidance = extractGuidanceFromQueryException(qse);
-            if (String.isNotBlank(guidance)) {
-                return ActionOutcome.failureWithGuidance(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, qse.getMessage(), guidance);
-            }
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, qse.getMessage());
-        }
-
         if (ex instanceof ValidationException) {
             ValidationException ve = (ValidationException) ex;
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, ve.getMessage());
@@ -205,34 +196,6 @@ public abstract class BaseAgentAction implements IAgentAction {
         }
 
         return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex.getMessage());
-    }
-
-    /**
-     * Extracts correction guidance from QueryServiceException.
-     *
-     * @param qse QueryServiceException
-     * @return Correction guidance or null
-     */
-    private String extractGuidanceFromQueryException(QueryServiceException qse) {
-        if (qse == null) {
-            return null;
-        }
-
-        List<String> guidanceParts = new List<String>();
-
-        if (String.isNotBlank(qse.suggestedFix)) {
-            guidanceParts.add(qse.suggestedFix);
-        }
-
-        if (qse.alternativeSolutions != null && !qse.alternativeSolutions.isEmpty()) {
-            for (String alternative : qse.alternativeSolutions) {
-                if (String.isNotBlank(alternative)) {
-                    guidanceParts.add(alternative);
-                }
-            }
-        }
-
-        return guidanceParts.isEmpty() ? null : String.join(guidanceParts, ' | ');
     }
 
     /**

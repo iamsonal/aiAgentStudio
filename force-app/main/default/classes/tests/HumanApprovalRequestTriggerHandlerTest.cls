@@ -32,27 +32,22 @@ private class HumanApprovalRequestTriggerHandlerTest {
         );
         insert assistantMessage;
 
+        Account testAccount = TestFactory.newAccount().withName('Test Account').save();
+
         HumanApprovalRequest__c har = new HumanApprovalRequest__c(
             AgentExecution__c = session.Id,
             OriginalAssistantStep__c = assistantMessage.Id,
-            LLMConfirmationMessage__c = 'User requested search',
+            LLMConfirmationMessage__c = 'User requested update',
             LLMToolCallId__c = 'call_123',
-            LLMToolName__c = 'find_records',
+            LLMToolName__c = 'update_account',
             LLMToolArgumentsJSON__c = JSON.serialize(
-                new Map<String, Object>{
-                    'sObjectTypes' => new List<String>{ 'Account' },
-                    'fieldsToReturn' => new List<String>{ 'Id', 'Name' },
-                    'filters' => new Map<String, Object>{ 'Name' => 'Test Account' }
-                }
+                new Map<String, Object>{ 'recordId' => testAccount.Id, 'recordData' => new Map<String, Object>{ 'Name' => 'Updated Test Account' } }
             ),
             OriginalTurnIdentifier__c = 'turn-123',
             OriginalTurnCount__c = 1,
             ApprovalStatus__c = 'Pending'
         );
         insert har;
-
-        Account testAccount = TestFactory.newAccount().withName('Test Account').save();
-        Test.setFixedSearchResults(new List<Id>{ testAccount.Id });
 
         // When: Approving request
         Test.startTest();
@@ -87,12 +82,16 @@ private class HumanApprovalRequestTriggerHandlerTest {
         );
         insert assistantMessage;
 
+        Account testAccount = TestFactory.newAccount().withName('Test Account').save();
+
         HumanApprovalRequest__c har = new HumanApprovalRequest__c(
             AgentExecution__c = session.Id,
             OriginalAssistantStep__c = assistantMessage.Id,
             LLMToolCallId__c = 'call_456',
-            LLMToolName__c = 'find_records',
-            LLMToolArgumentsJSON__c = '{}',
+            LLMToolName__c = 'update_account',
+            LLMToolArgumentsJSON__c = JSON.serialize(
+                new Map<String, Object>{ 'recordId' => testAccount.Id, 'recordData' => new Map<String, Object>{ 'Name' => 'Updated Account' } }
+            ),
             OriginalTurnIdentifier__c = 'turn-456',
             OriginalTurnCount__c = 1,
             ApprovalStatus__c = 'Pending'
@@ -147,18 +146,16 @@ private class HumanApprovalRequestTriggerHandlerTest {
         }
         insert assistantMessages;
 
+        Account testAccount = TestFactory.newAccount().withName('Test Account').save();
+
         List<HumanApprovalRequest__c> hars = new List<HumanApprovalRequest__c>{
             new HumanApprovalRequest__c(
                 AgentExecution__c = session.Id,
                 OriginalAssistantStep__c = assistantMessages[0].Id,
                 LLMToolCallId__c = 'call_1',
-                LLMToolName__c = 'find_records',
+                LLMToolName__c = 'update_account',
                 LLMToolArgumentsJSON__c = JSON.serialize(
-                    new Map<String, Object>{
-                        'sObjectTypes' => new List<String>{ 'Account' },
-                        'fieldsToReturn' => new List<String>{ 'Id', 'Name' },
-                        'filters' => new Map<String, Object>{ 'Name' => 'Test Account' }
-                    }
+                    new Map<String, Object>{ 'recordId' => testAccount.Id, 'recordData' => new Map<String, Object>{ 'Name' => 'Updated Account 1' } }
                 ),
                 OriginalTurnIdentifier__c = 'turn-1',
                 OriginalTurnCount__c = 1,
@@ -168,8 +165,10 @@ private class HumanApprovalRequestTriggerHandlerTest {
                 AgentExecution__c = session.Id,
                 OriginalAssistantStep__c = assistantMessages[1].Id,
                 LLMToolCallId__c = 'call_2',
-                LLMToolName__c = 'find_records',
-                LLMToolArgumentsJSON__c = '{}',
+                LLMToolName__c = 'update_account',
+                LLMToolArgumentsJSON__c = JSON.serialize(
+                    new Map<String, Object>{ 'recordId' => testAccount.Id, 'recordData' => new Map<String, Object>{ 'Name' => 'Updated Account 2' } }
+                ),
                 OriginalTurnIdentifier__c = 'turn-2',
                 OriginalTurnCount__c = 1,
                 ApprovalStatus__c = 'Pending'
@@ -178,17 +177,16 @@ private class HumanApprovalRequestTriggerHandlerTest {
                 AgentExecution__c = session.Id,
                 OriginalAssistantStep__c = assistantMessages[2].Id,
                 LLMToolCallId__c = 'call_3',
-                LLMToolName__c = 'find_records',
-                LLMToolArgumentsJSON__c = '{}',
+                LLMToolName__c = 'update_account',
+                LLMToolArgumentsJSON__c = JSON.serialize(
+                    new Map<String, Object>{ 'recordId' => testAccount.Id, 'recordData' => new Map<String, Object>{ 'Name' => 'Updated Account 3' } }
+                ),
                 OriginalTurnIdentifier__c = 'turn-3',
                 OriginalTurnCount__c = 1,
                 ApprovalStatus__c = 'Pending'
             )
         };
         insert hars;
-
-        Account testAccount = TestFactory.newAccount().withName('Test Account').save();
-        Test.setFixedSearchResults(new List<Id>{ testAccount.Id });
 
         // When: Processing mixed statuses
         Test.startTest();
@@ -225,12 +223,16 @@ private class HumanApprovalRequestTriggerHandlerTest {
         );
         insert assistantMessage;
 
+        Account testAccount = TestFactory.newAccount().withName('Test Account').save();
+
         HumanApprovalRequest__c har = new HumanApprovalRequest__c(
             AgentExecution__c = session.Id,
             OriginalAssistantStep__c = assistantMessage.Id,
             LLMToolCallId__c = 'call_789',
-            LLMToolName__c = 'find_records',
-            LLMToolArgumentsJSON__c = '{}',
+            LLMToolName__c = 'update_account',
+            LLMToolArgumentsJSON__c = JSON.serialize(
+                new Map<String, Object>{ 'recordId' => testAccount.Id, 'recordData' => new Map<String, Object>{ 'Name' => 'Updated Account' } }
+            ),
             OriginalTurnIdentifier__c = 'turn-789',
             OriginalTurnCount__c = 1,
             ApprovalStatus__c = 'Pending'

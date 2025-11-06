@@ -84,10 +84,14 @@ public class HttpCalloutService {
             }
 
             // Error response - throw exception for any HTTP error
+            String responseBody = response.getBody();
             String errorMsg = 'HTTP error: status=' + response.getStatusCode() + ' (' + response.getStatus() + ')';
 
+            System.debug(LoggingLevel.ERROR, config.logPrefix + errorMsg + ' - Response body: ' + responseBody);
             System.debug(LoggingLevel.ERROR, config.logPrefix + errorMsg + ' - throwing NonRetriableHttpException');
-            throw new LLMProviderException.NonRetriableHttpException(errorMsg);
+            throw new LLMProviderException.NonRetriableHttpException(
+                errorMsg + (String.isNotBlank(responseBody) ? ' - Response: ' + responseBody : '')
+            );
         } catch (System.CalloutException ce) {
             System.debug(LoggingLevel.ERROR, config.logPrefix + 'Callout exception: ' + ce.getMessage());
             throw new LLMProviderException.NonRetriableHttpException('Callout failed: ' + ce.getMessage(), ce);

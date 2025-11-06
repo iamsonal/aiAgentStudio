@@ -524,8 +524,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             false // isAsyncToolExecution - synchronous execution
         );
 
-        // If a new record was created, update the context ledger for future turns
-        if (outcome.isSuccess && newRecordContextId != null) {
+        // Update the context ledger for future turns
+        // Always commit page context if present; also commit newly created records
+        if (context.currentPageRecordId != null || newRecordContextId != null) {
             try {
                 context.contextManagerSvc.commitExecutionTurnContext(
                     context.executionId,
@@ -533,8 +534,12 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     context.currentPageRecordId,
                     newRecordContextId
                 );
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix + 'Committed context to ledger: pageContext=' + context.currentPageRecordId + ', newRecord=' + newRecordContextId
+                );
             } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Non-fatal: Failed to commit new record context to ledger: ' + e.getMessage());
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Non-fatal: Failed to commit context to ledger: ' + e.getMessage());
             }
         }
 

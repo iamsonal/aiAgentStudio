@@ -465,6 +465,22 @@ public class ParallelToolCallHandler {
             System.debug(LoggingLevel.INFO, logPrefix + 'All sync tools succeeded, continuing with follow-up LLM call');
         }
 
+        // Commit the page context to the ledger BEFORE queuing follow-up LLM call
+        // This ensures the initial record context (e.g., Case ID) is persisted across async boundaries
+        if (context.currentPageRecordId != null) {
+            try {
+                context.contextManagerSvc.commitExecutionTurnContext(
+                    context.executionId,
+                    context.currentTurnCount,
+                    context.currentPageRecordId,
+                    null // no new record created by action
+                );
+                System.debug(LoggingLevel.INFO, logPrefix + 'Committed initial page context to ledger: ' + context.currentPageRecordId);
+            } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Non-fatal: Failed to commit page context to ledger: ' + e.getMessage());
+            }
+        }
+
         // Queue follow-up LLM call to process results
         context.turnLifecycleSvc.resumeForFollowUpLlmCall(context.executionId, context.turnIdentifier, null, logPrefix);
         context.dispatchSvc.enqueueFollowUp(

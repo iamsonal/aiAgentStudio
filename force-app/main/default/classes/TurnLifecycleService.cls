@@ -174,10 +174,7 @@ public inherited sharing class TurnLifecycleService {
     ) {
         // Check if we should publish events based on execution type
         if (!shouldPublishEventsForExecution(executionId, logPrefix)) {
-            System.debug(
-                LoggingLevel.INFO,
-                logPrefix + 'Skipping AgentResponse__e event (non-conversational execution type)'
-            );
+            System.debug(LoggingLevel.INFO, logPrefix + 'Skipping AgentResponse__e event (non-conversational execution type)');
             return;
         }
 
@@ -240,10 +237,7 @@ public inherited sharing class TurnLifecycleService {
             ];
 
             if (executions.isEmpty()) {
-                System.debug(
-                    LoggingLevel.WARN,
-                    logPrefix + 'Execution record not found for event publishing check, defaulting to no event'
-                );
+                System.debug(LoggingLevel.WARN, logPrefix + 'Execution record not found for event publishing check, defaulting to no event');
                 return false;
             }
 
@@ -252,19 +246,12 @@ public inherited sharing class TurnLifecycleService {
 
             System.debug(
                 LoggingLevel.INFO,
-                logPrefix +
-                    'Event publishing decision: ExecutionType=' +
-                    executionType +
-                    ', ShouldPublish=' +
-                    shouldPublish
+                logPrefix + 'Event publishing decision: ExecutionType=' + executionType + ', ShouldPublish=' + shouldPublish
             );
 
             return shouldPublish;
         } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix + 'Error checking execution type for event publishing: ' + e.getMessage()
-            );
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error checking execution type for event publishing: ' + e.getMessage());
             // Fail-safe: don't publish if we can't determine type
             return false;
         }

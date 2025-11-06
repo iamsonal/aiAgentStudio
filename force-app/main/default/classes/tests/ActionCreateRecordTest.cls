@@ -28,7 +28,7 @@ private class ActionCreateRecordTest {
         action.parseActionConfiguration('{"objectApiName": "Contact"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'fields' => new Map<String, Object>{
+            'recordData' => new Map<String, Object>{
                 'FirstName' => 'John',
                 'LastName' => 'Doe',
                 'Email' => 'john.doe@example.com',
@@ -73,7 +73,7 @@ private class ActionCreateRecordTest {
         );
         action.parseActionConfiguration(config, '[TEST] ');
 
-        Map<String, Object> params = new Map<String, Object>{ 'fields' => new Map<String, Object>{ 'Name' => 'New Tech Corp' } };
+        Map<String, Object> params = new Map<String, Object>{ 'recordData' => new Map<String, Object>{ 'Name' => 'New Tech Corp' } };
 
         // When: Creating account with defaults
         Test.startTest();
@@ -101,7 +101,7 @@ private class ActionCreateRecordTest {
         action.parseActionConfiguration(config, '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'fields' => new Map<String, Object>{
+            'recordData' => new Map<String, Object>{
                 'Name' => 'Partner Corp',
                 'Type' => 'Technology Partner' // Override default
             }
@@ -126,7 +126,7 @@ private class ActionCreateRecordTest {
         action.parseActionConfiguration('{"objectApiName": "Account"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'fields' => new Map<String, Object>{
+            'recordData' => new Map<String, Object>{
                 'Name' => 'Big Corp',
                 'NumberOfEmployees' => '500', // String -> Integer
                 'AnnualRevenue' => '10000000.50' // String -> Decimal
@@ -158,7 +158,7 @@ private class ActionCreateRecordTest {
         action.parseActionConfiguration('{"objectApiName": "Account"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'fields' => new Map<String, Object>{
+            'recordData' => new Map<String, Object>{
                 'Name' => 'Test Account',
                 'RecordTypeId' => '001000000000000' // Invalid ID format
             }
@@ -204,7 +204,7 @@ private class ActionCreateRecordTest {
         action.parseActionConfiguration('{"objectApiName": "Contact"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'fields' => new Map<String, Object>{
+            'recordData' => new Map<String, Object>{
                 'FirstName' => 'John'
                 // Missing required LastName
             }
@@ -227,7 +227,7 @@ private class ActionCreateRecordTest {
         action.parseActionConfiguration('{"objectApiName": "Account"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{
-            'fields' => new Map<String, Object>{ 'Name' => 'Valid Name', 'NonExistentField__c' => 'Invalid Value' }
+            'recordData' => new Map<String, Object>{ 'Name' => 'Valid Name', 'NonExistentField__c' => 'Invalid Value' }
         };
 
         // When: Creating with invalid field

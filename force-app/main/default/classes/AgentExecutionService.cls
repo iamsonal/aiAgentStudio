@@ -41,8 +41,7 @@ public class AgentExecutionService {
             }
             payload.validate();
 
-            // Check if service user context switch is required
-            // We query the agent definition here to make the decision before delegating to orchestrator
+            // Query the agent definition to make context switching decision
             AIAgentDefinition__c agentDef = getAgentDefinitionForContextCheck(agentDeveloperName);
 
             if (agentDef.RequiresServiceUserContext__c && payload.isInServiceUserContext != true) {
@@ -80,6 +79,41 @@ public class AgentExecutionService {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Unexpected error: ' + e.getMessage() + '\nStack: ' + e.getStackTraceString());
             throw new AgentOrchestratorException('Failed to start execution: ' + e.getMessage());
         }
+    }
+
+    /**
+     * @description Flow-compatible entry point for agent execution (single or bulk)
+     * Note: Bulk execution support depends on the orchestrator implementation.
+     * Workflow agents (addon) support bulk execution for multiple records.
+     *
+     * @param requests List of invocable requests from Flow
+     * @return List of execution results
+     */
+    @InvocableMethod(label='Start Agent Execution' description='Starts agent execution for single or multiple records' category='AI Agent')
+    public static List<ExecutionResult> startExecutionFromFlow(List<InvocableRequest> requests) {
+        List<ExecutionResult> results = new List<ExecutionResult>();
+
+        for (InvocableRequest request : requests) {
+            try {
+                // Build ExecutionPayload from Flow-friendly request
+                ExecutionPayload payload = new ExecutionPayload();
+                payload.userId = request.userId != null ? request.userId : UserInfo.getUserId();
+                payload.sourceRecordIds = request.recordIds; // Could be 1 or many - orchestrator handles bulk logic
+                payload.userMessage = request.userMessage;
+                payload.triggerSource = 'Flow';
+                payload.turnIdentifier = UuidUtils.generateUUID();
+
+                // Delegate to orchestrator (which may handle bulk execution internally)
+                ExecutionResult result = startExecution(request.agentName, payload);
+                results.add(result);
+            } catch (Exception e) {
+                // Return error result for this request
+                ExecutionResult errorResult = new ExecutionResult('Failed to start execution: ' + e.getMessage());
+                results.add(errorResult);
+            }
+        }
+
+        return results;
     }
 
     /**
@@ -135,6 +169,35 @@ public class AgentExecutionService {
         }
     }
 
+    // ===================================================================================
+    // FLOW INTEGRATION - INVOCABLE REQUEST/RESULT WRAPPERS
+    // ===================================================================================
+
+    /**
+     * @description Flow-friendly request wrapper for @InvocableMethod
+     */
+    public class InvocableRequest {
+        @InvocableVariable(label='Agent Name' description='Developer name of the agent to execute' required=true)
+        public String agentName;
+
+        @InvocableVariable(
+            label='Record IDs'
+            description='One or more record IDs to process (1 = single execution, 2+ = bulk execution)'
+            required=true
+        )
+        public List<Id> recordIds;
+
+        @InvocableVariable(label='User Message' description='Optional message for the agent (for conversational agents)')
+        public String userMessage;
+
+        @InvocableVariable(label='User ID' description='ID of the user initiating the execution (defaults to current user)')
+        public Id userId;
+    }
+
+    // ===================================================================================
+    // EXECUTION PAYLOAD AND RESULT CLASSES
+    // ===================================================================================
+
     /**
      * Execution payload containing all data needed for agent execution.
      */
@@ -161,6 +224,12 @@ public class AgentExecutionService {
         @AuraEnabled
         public Id existingExecutionId { get; set; } // For continuing existing execution (conversational)
 
+        // Bulk execution fields
+        @AuraEnabled
+        public List<Id> sourceRecordIds { get; set; } // Multiple records for bulk execution
+        @AuraEnabled
+        public Id bulkExecutionId { get; set; } // Parent bulk execution ID (set by framework)
+
         /**
          * Validates that required fields are present based on the payload type.
          * @throws AgentOrchestratorException if validation fails
@@ -177,18 +246,28 @@ public class AgentExecutionService {
 
     /**
      * ExecutionResult encapsulates the result of an execution initiation.
+     * Used by both Apex callers and Flow (via @InvocableMethod).
      */
     public class ExecutionResult {
         @AuraEnabled
-        public Id executionId { get; set; } // The created AgentExecution__c ID
+        @InvocableVariable(label='Execution ID' description='ID of created AgentExecution__c or BulkExecution__c')
+        public Id executionId; // The created AgentExecution__c ID (or BulkExecution__c for bulk)
+
         @AuraEnabled
-        public String status { get; set; } // Execution status (e.g., 'Processing', 'Queued')
+        @InvocableVariable(label='Status' description='Execution status (Processing, Queued, etc.)')
+        public String status; // Execution status (e.g., 'Processing', 'Queued')
+
         @AuraEnabled
-        public String message { get; set; } // Human-readable status message
+        @InvocableVariable(label='Message' description='Human-readable status message')
+        public String message; // Human-readable status message
+
         @AuraEnabled
-        public Boolean success { get; set; } // Whether initiation succeeded
+        @InvocableVariable(label='Success' description='Whether execution started successfully')
+        public Boolean success; // Whether initiation succeeded
+
         @AuraEnabled
-        public String errorMessage { get; set; } // Error message if failed
+        @InvocableVariable(label='Error Message' description='Error details if failed')
+        public String errorMessage; // Error message if failed
 
         public ExecutionResult(Id executionId, String status, String message) {
             this.executionId = executionId;

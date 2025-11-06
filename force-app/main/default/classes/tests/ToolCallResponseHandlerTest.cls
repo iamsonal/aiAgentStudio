@@ -90,7 +90,8 @@ private class ToolCallResponseHandlerTest {
             CapabilityName__c = asyncCapName,
             Description__c = 'Async tool for testing',
             ImplementationType__c = 'Standard',
-            StandardActionType__c = 'FindEntities',
+            StandardActionType__c = 'CreateRecord',
+            BackendConfiguration__c = '{"objectApiName":"Account"}',
             Parameters__c = '{"type":"object"}',
             RunAsynchronously__c = true,
             RequiresApproval__c = false

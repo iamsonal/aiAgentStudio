@@ -19,7 +19,7 @@ public class ActionFlowHandler extends BaseAgentAction {
      * DTO for strongly-typed arguments
      */
     public class ArgumentsDTO {
-        public Map<String, Object> flowParameters;
+        public Map<String, Object> inputParameters;
     }
 
     /**
@@ -43,12 +43,12 @@ public class ActionFlowHandler extends BaseAgentAction {
 
         // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
         ArgumentsDTO args = new ArgumentsDTO();
-        args.flowParameters = params.containsKey('flowParameters') && params.get('flowParameters') instanceof Map<String, Object>
-            ? (Map<String, Object>) params.get('flowParameters')
+        args.inputParameters = params.containsKey('inputParameters') && params.get('inputParameters') instanceof Map<String, Object>
+            ? (Map<String, Object>) params.get('inputParameters')
             : new Map<String, Object>();
 
         // Validate and prepare flow parameters from DTO
-        Map<String, Object> flowParams = validateFlowParameters(args.flowParameters);
+        Map<String, Object> flowParams = validateFlowParameters(args.inputParameters);
 
         System.debug(LoggingLevel.INFO, '[ActionFlowHandler] Starting execution of Flow: "' + flowApiName + '"');
         System.debug(LoggingLevel.DEBUG, '[ActionFlowHandler] Flow input parameters: ' + JSON.serialize(flowParams).abbreviate(500));
@@ -331,7 +331,7 @@ public class ActionFlowHandler extends BaseAgentAction {
     @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         // No configuration needed for this action. Flow name comes from ActionContext.implementationDetail.
-        // Flow parameters are passed via ArgumentsDTO at runtime.
+        // Flow input parameters are passed via ArgumentsDTO at runtime.
         if (String.isNotBlank(actionConfigurationJson)) {
             System.debug(LoggingLevel.DEBUG, '[ActionFlowHandler] Action configuration JSON was provided but is not used by this action.');
         }

@@ -73,7 +73,6 @@ public virtual inherited sharing class BaseContextFormatter {
      * @return                  The field label, or the field name if label cannot be determined.
      */
     protected String getFieldLabel(String fieldName, Schema.DescribeSObjectResult objectDescribe) {
-        System.debug('[BaseContextFormatter] getFieldLabel called with fieldName: ' + fieldName);
         if (objectDescribe == null || String.isBlank(fieldName)) {
             System.debug('[BaseContextFormatter] objectDescribe is null or fieldName is blank');
             return fieldName;
@@ -100,7 +99,6 @@ public virtual inherited sharing class BaseContextFormatter {
 
         if (fieldToken != null && fieldToken.getDescribe().isAccessible()) {
             String label = fieldToken.getDescribe().getLabel();
-            System.debug('[BaseContextFormatter] Found label for ' + fieldName + ': ' + label);
             return label;
         }
 
@@ -187,7 +185,6 @@ public virtual inherited sharing class BaseContextFormatter {
             Map<String, Object> relatedPopulatedFields = relatedRecord.getPopulatedFieldsAsMap();
             System.debug(logPrefix + '[BaseContextFormatter] Related populated fields: ' + relatedPopulatedFields);
             Schema.DescribeSObjectResult relatedDescribe = relatedRecord.getSObjectType().getDescribe();
-            System.debug(logPrefix + '[BaseContextFormatter] Related describe: ' + relatedDescribe);
 
             // Fetch field map once for performance optimization
             Map<String, SObjectField> relatedFieldMap = SchemaUtils.getObjectFields(relatedDescribe.getSObjectType());
