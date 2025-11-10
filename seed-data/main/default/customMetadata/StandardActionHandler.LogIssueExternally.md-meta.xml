@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Log Issue Externally</label>
+    <protected>false</protected>
+    <values>
+        <field>Description__c</field>
+        <value xsi:type="xsd:string">Logs a Salesforce case in an external tracking system like Jira (simulates API call)</value>
+    </values>
+    <values>
+        <field>GuidanceText__c</field>
+        <value xsi:type="xsd:string">&lt;p&gt;This action logs a Salesforce case to an external issue tracking system.&lt;/p&gt;&lt;h3&gt;Features:&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;Simulates external API call to systems like Jira&lt;/li&gt;&lt;li&gt;Maps Salesforce Case fields to external system&lt;/li&gt;&lt;li&gt;Returns external tracking ID for reference&lt;/li&gt;&lt;li&gt;Useful for escalation workflows&lt;/li&gt;&lt;/ul&gt;</value>
+    </values>
+    <values>
+        <field>HandlerClassName__c</field>
+        <value xsi:type="xsd:string">ActionLogIssueExternally</value>
+    </values>
+    <values>
+        <field>IsActive__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>IsStandardAction__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>RequiresSObject__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+</CustomMetadata>
+

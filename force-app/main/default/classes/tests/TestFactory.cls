@@ -272,7 +272,6 @@ public class TestFactory {
         private AgentCapability__c record = new AgentCapability__c(
             CapabilityName__c = 'test_capability_' + generateRandomString(6),
             Description__c = 'Test capability for unit testing',
-            ExecutionPriority__c = 10,
             RunAsynchronously__c = false,
             RequiresApproval__c = false,
             FailFastOnError__c = false

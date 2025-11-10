@@ -16,7 +16,7 @@
  * Subclasses must implement executeAction() method and define ArgumentsDTO/ConfigDTO classes.
  * For SObject operations, use TypeCoercionService.coerceArgumentTypesForSObject() for field type coercion.
  *
- * Schema Contract: ArgumentsDTO fields must match ParametersTemplate__c properties exactly.
+ * Schema Contract: ArgumentsDTO fields must match the describe() method's parameterFields exactly.
  *
  * @implements IAgentAction
  */
@@ -257,5 +257,20 @@ public abstract class BaseAgentAction implements IAgentAction {
         }
 
         return properties;
+    }
+
+    /**
+     * Provides self-description of this action including JSON schemas and field descriptors.
+     * Default implementation returns minimal metadata. Subclasses should override to provide
+     * detailed schemas using SchemaBuilder.
+     *
+     * @return ActionDescription with minimal or detailed metadata
+     */
+    public virtual ActionDescription describe() {
+        return new ActionDescription()
+            .setLabel(this.getLogPrefixName())
+            .setDescription('Custom action - configure using JSON')
+            .setConfigJsonSchema('{"type": "object", "properties": {}}')
+            .setParametersJsonSchema('{"type": "object", "properties": {}}');
     }
 }

@@ -24,6 +24,11 @@
  * @extends BaseAgentAction
  */
 public class ActionPostChatter extends BaseAgentAction {
+    // Feed type constants - SINGLE SOURCE OF TRUTH
+    private static final String FEED_TYPE_USER = 'User';
+    private static final String FEED_TYPE_GROUP = 'Group';
+    private static final String FEED_TYPE_RECORD = 'Record';
+
     private ConfigDTO config;
     private Id targetSObjectId;
     private String targetSObjectName;
@@ -42,6 +47,32 @@ public class ActionPostChatter extends BaseAgentAction {
     public class ConfigDTO {
         public String feedType;
         public String targetId;
+    }
+
+    /**
+     * Returns field descriptors for ConfigDTO
+     */
+    private static List<FieldDescriptor> describeConfig() {
+        return new List<FieldDescriptor>{
+            FieldDescriptor.string('feedType').required().help('Type of Chatter feed: User, Group, or Record').options(getAllFeedTypes()),
+            FieldDescriptor.salesforceId('targetId')
+                .required()
+                .help('Salesforce ID of the User, Group, or Record to post to')
+                .setPlaceholder('005000000000000AAA')
+        };
+    }
+
+    /**
+     * Returns field descriptors for ArgumentsDTO
+     */
+    private static List<FieldDescriptor> describeArguments() {
+        return new List<FieldDescriptor>{
+            FieldDescriptor.string('messageText')
+                .required()
+                .help('The text content of the Chatter post (max 10,000 characters). Use {@UserId} syntax for mentions.')
+                .setMaxLength(10000),
+            FieldDescriptor.array('topics').help('Optional list of topics/hashtags to associate with the post')
+        };
     }
 
     /**
@@ -155,11 +186,11 @@ public class ActionPostChatter extends BaseAgentAction {
      */
     private void validateFeedTypeConsistency() {
         if (
-            (config.feedType == 'User' &&
+            (config.feedType == FEED_TYPE_USER &&
             targetSObjectName != 'User') ||
-            (config.feedType == 'Group' &&
+            (config.feedType == FEED_TYPE_GROUP &&
             targetSObjectName != 'CollaborationGroup') ||
-            (config.feedType == 'Record' && (targetSObjectName == 'User' || targetSObjectName == 'CollaborationGroup'))
+            (config.feedType == FEED_TYPE_RECORD && (targetSObjectName == 'User' || targetSObjectName == 'CollaborationGroup'))
         ) {
             throw new ValidationException(
                 'Mismatch between feedType "' + config.feedType + '" and targetId object type "' + targetSObjectName + '".',
@@ -415,5 +446,29 @@ public class ActionPostChatter extends BaseAgentAction {
                 'postSuccessful' => true
             };
         }
+    }
+
+    /**
+     * @description
+     * Returns all supported feed types for this action.
+     * Single source of truth for feed type names.
+     */
+    private static List<String> getAllFeedTypes() {
+        return new List<String>{ FEED_TYPE_USER, FEED_TYPE_GROUP, FEED_TYPE_RECORD };
+    }
+
+    /**
+     * @description
+     * Provides self-description with JSON schemas and field descriptors for dynamic UI generation.
+     * Uses AutoDescriptor for simplified schema generation from DTO metadata.
+     *
+     * @return ActionDescription with complete configuration and parameter schemas
+     */
+    public override ActionDescription describe() {
+        return new AutoDescriptor()
+            .loadFromMetadata('ActionPostChatter') // Loads label, description, guidance from metadata
+            .setConfigFields(describeConfig())
+            .setParameterFields(describeArguments())
+            .toActionDescription();
     }
 }

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Query Orders</label>
+    <protected>false</protected>
+    <values>
+        <field>Description__c</field>
+        <value xsi:type="xsd:string">Performs query operations on Order records</value>
+    </values>
+    <values>
+        <field>GuidanceText__c</field>
+        <value xsi:type="xsd:string">&lt;p&gt;This action performs query operations on Order records.&lt;/p&gt;&lt;h3&gt;Features:&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;Search orders by status, order number, or account&lt;/li&gt;&lt;li&gt;Retrieve order details including line items&lt;/li&gt;&lt;li&gt;Filter by date range or effective date&lt;/li&gt;&lt;li&gt;Field-level security checks automatically applied&lt;/li&gt;&lt;/ul&gt;</value>
+    </values>
+    <values>
+        <field>HandlerClassName__c</field>
+        <value xsi:type="xsd:string">ActionOrder</value>
+    </values>
+    <values>
+        <field>IsActive__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>IsStandardAction__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>RequiresSObject__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+</CustomMetadata>
+

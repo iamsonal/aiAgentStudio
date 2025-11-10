@@ -134,17 +134,7 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AgentCapability__c.ExecutionPriority__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
         <field>AgentCapability__c.ExposureLevel__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AgentCapability__c.FollowUpActions__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>

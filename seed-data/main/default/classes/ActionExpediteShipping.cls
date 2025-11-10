@@ -4,12 +4,53 @@
  * @extends BaseAgentAction
  */
 public class ActionExpediteShipping extends BaseAgentAction {
+    private ConfigDTO config;
+
+    /**
+     * DTO for strongly-typed backend configuration
+     */
+    public class ConfigDTO {
+        // No configuration needed - reserved for future use
+    }
+
+    /**
+     * DTO for strongly-typed arguments
+     */
+    public class ArgumentsDTO {
+        public String orderId;
+    }
+
+    /**
+     * Returns field descriptors for ArgumentsDTO
+     */
+    private static List<FieldDescriptor> describeArguments() {
+        return new List<FieldDescriptor>{
+            FieldDescriptor.salesforceId('orderId')
+                .required()
+                .help('The Salesforce ID of the order to expedite shipping for')
+                .setPlaceholder('801000000000000AAA')
+        };
+    }
+
     /**
      * @description The framework automatically extracts and validates the 'orderId' parameter.
      *              This method simulates a delay and returns a mock tracking number.
      */
     public override ActionOutcome executeAction(Map<String, Object> params) {
-        Id orderId = (Id) params.get('orderId');
+        // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
+        ArgumentsDTO args = new ArgumentsDTO();
+        args.orderId = (String) params.get('orderId');
+
+        if (String.isBlank(args.orderId)) {
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'orderId parameter is required');
+        }
+
+        Id orderId;
+        try {
+            orderId = Id.valueOf(args.orderId);
+        } catch (Exception e) {
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Invalid orderId format: ' + args.orderId);
+        }
 
         try {
             // Simulate the API Callout and long-running process
@@ -42,5 +83,20 @@ public class ActionExpediteShipping extends BaseAgentAction {
             this.trackingNumber = trackingNum;
             this.message = msg;
         }
+    }
+
+    /**
+     * @description
+     * Provides self-description with JSON schemas and field descriptors for dynamic UI generation.
+     * Uses AutoDescriptor for simplified schema generation from DTO metadata.
+     *
+     * @return ActionDescription with complete configuration and parameter schemas
+     */
+    public override ActionDescription describe() {
+        return new AutoDescriptor()
+            .loadFromMetadata('ActionExpediteShipping')  // Loads label, description, guidance from metadata
+            .setConfigFields(new List<FieldDescriptor>()) // No config needed
+            .setParameterFields(describeArguments())
+            .toActionDescription();
     }
 }

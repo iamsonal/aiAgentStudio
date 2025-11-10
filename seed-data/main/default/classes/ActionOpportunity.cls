@@ -20,6 +20,9 @@ public class ActionOpportunity extends BaseAgentAction {
     private static final Integer DEFAULT_MAX_RESULTS = 25;
     private static final Integer ABSOLUTE_MAX_RESULTS = 100;
 
+    // Operation constants - SINGLE SOURCE OF TRUTH
+    private static final String OP_SEARCH_BY_ACCOUNT = 'SEARCH_BY_ACCOUNT';
+
     private ConfigDTO config;
 
     /**
@@ -29,6 +32,41 @@ public class ActionOpportunity extends BaseAgentAction {
         public String operation;
         public List<String> defaultFields;
         public Integer maxResults;
+    }
+
+    /**
+     * DTO for strongly-typed arguments
+     */
+    public class ArgumentsDTO {
+        public String accountId;
+    }
+
+    /**
+     * Returns field descriptors for ConfigDTO
+     */
+    private static List<FieldDescriptor> describeConfig() {
+        return new List<FieldDescriptor>{
+            FieldDescriptor.string('operation')
+                .required()
+                .help('The query operation to perform')
+                .options(getAllOperations()),
+            FieldDescriptor.integer('maxResults')
+                .help('Maximum number of records to return (default: 25, max: 100)')
+                .defaultTo(25)
+                .range(1, 100)
+        };
+    }
+
+    /**
+     * Returns field descriptors for ArgumentsDTO
+     */
+    private static List<FieldDescriptor> describeArguments() {
+        return new List<FieldDescriptor>{
+            FieldDescriptor.salesforceId('accountId')
+                .required()
+                .help('The Salesforce ID of the account to retrieve opportunities for')
+                .setPlaceholder('001000000000000AAA')
+        };
     }
 
     @TestVisible
@@ -58,23 +96,33 @@ public class ActionOpportunity extends BaseAgentAction {
     }
 
     public override ActionOutcome executeAction(Map<String, Object> params) {
-        switch on this.config.operation {
-            when 'SEARCH_BY_ACCOUNT' {
-                return searchByAccount(params);
-            }
-            when else {
-                return ActionOutcome.failure(
-                    AIAgentConstants.ERR_CODE_CONFIG_ERROR,
-                    'Unknown operation: ' + this.config.operation + '. Valid operations: SEARCH_BY_ACCOUNT'
-                );
-            }
+        // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
+        ArgumentsDTO args = new ArgumentsDTO();
+        args.accountId = (String) params.get('accountId');
+
+        if (this.config.operation == OP_SEARCH_BY_ACCOUNT) {
+            return searchByAccount(args);
+        } else {
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                'Unknown operation: ' + this.config.operation + '. Valid operations: ' + String.join(getAllOperations(), ', ')
+            );
         }
     }
 
-    private ActionOutcome searchByAccount(Map<String, Object> params) {
-        String accountId = (String) params.get('accountId');
+    /**
+     * @description
+     * Returns all supported operations for this action.
+     * Single source of truth for operation names.
+     */
+    private static List<String> getAllOperations() {
+        return new List<String>{
+            OP_SEARCH_BY_ACCOUNT
+        };
+    }
 
-        if (String.isBlank(accountId)) {
+    private ActionOutcome searchByAccount(ArgumentsDTO args) {
+        if (String.isBlank(args.accountId)) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'accountId is required for SEARCH_BY_ACCOUNT operation');
         }
 
@@ -82,7 +130,7 @@ public class ActionOpportunity extends BaseAgentAction {
             List<Opportunity> results = [
                 SELECT Id, Name, StageName, Amount, CloseDate, Probability, AccountId
                 FROM Opportunity
-                WHERE AccountId = :accountId
+                WHERE AccountId = :args.accountId
                 WITH USER_MODE
                 ORDER BY CloseDate DESC
                 LIMIT :config.maxResults
@@ -102,5 +150,19 @@ public class ActionOpportunity extends BaseAgentAction {
         } catch (System.QueryException qEx) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_SOQL_ERROR, 'Failed to search opportunities: ' + qEx.getMessage());
         }
+    }
+
+    /**
+     * @description
+     * Provides self-description with JSON schemas and field descriptors for dynamic UI generation.
+     *
+     * @return ActionDescription with complete configuration and parameter schemas
+     */
+    public override ActionDescription describe() {
+        return new AutoDescriptor()
+            .loadFromMetadata('ActionOpportunity')  // Loads label, description, guidance from metadata
+            .setConfigFields(describeConfig())
+            .setParameterFields(describeArguments())
+            .toActionDescription();
     }
 }

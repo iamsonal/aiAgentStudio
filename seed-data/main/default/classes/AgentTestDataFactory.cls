@@ -419,7 +419,7 @@ public with sharing class AgentTestDataFactory {
             createCapability(
                 agent.Id,
                 'search_knowledge',
-                'Search the knowledge base for troubleshooting articles',
+                'Searches the Salesforce Knowledge Base for troubleshooting articles and solutions. Returns articles with `title`, `summary`, and `url`. Use this to:\n- Find documented solutions to customer issues\n- Locate troubleshooting guides\n- Search for product documentation',
                 '{"type":"object","properties":{"searchQuery":{"type":"string","description":"The search term or keywords"},"maxResults":{"type":"integer","description":"Maximum number of results to return (default 5, max 20)"}},"required":["searchQuery"]}',
                 'Apex',
                 null,
@@ -427,14 +427,13 @@ public with sharing class AgentTestDataFactory {
                 null,
                 false,
                 false,
-                10,
                 false,
                 'External'
             ),
             createCapability(
                 agent.Id,
                 'get_case_details',
-                'Get details of a specific case by ID',
+                'Retrieves detailed information about a specific case by ID. Returns `CaseNumber`, `Subject`, `Description`, `Status`, `Priority`, and `CreatedDate`. Use this to:\n- View current case status and priority\n- Get case history and description\n- Check case ownership and timestamps',
                 '{"type":"object","properties":{"caseId":{"type":"string","description":"The Salesforce Case ID (18-character ID starting with 500)"}},"required":["caseId"]}',
                 'Apex',
                 null,
@@ -442,14 +441,13 @@ public with sharing class AgentTestDataFactory {
                 '{"operation":"GET_BY_ID","defaultFields":["Id","CaseNumber","Subject","Description","Status","Priority","CreatedDate"],"maxResults":1}',
                 false,
                 false,
-                20,
                 false,
                 'External'
             ),
             createCapability(
                 agent.Id,
                 'create_case',
-                'Create a new support case',
+                'Creates a new support case in Salesforce. Automatically sets `Status` to `"New"` and `Origin` to `"AI Agent"`. Use this to:\n- Log new customer issues\n- Escalate problems to support team\n- Create tickets for tracking\n\nRequires user confirmation before execution.',
                 '{"type":"object","properties":{"recordData":{"type":"object","description":"SObject field values to set on the new record. Property names should be valid field API names.","additionalProperties":true}},"required":[]}',
                 'Standard',
                 'CreateRecord',
@@ -457,29 +455,27 @@ public with sharing class AgentTestDataFactory {
                 '{"objectApiName":"Case","defaultFieldValues":{"Status":"New","Origin":"AI Agent"}}',
                 true,
                 false,
-                30,
                 false,
                 'External'
             ),
             createCapability(
                 agent.Id,
                 'update_case',
-                'Update an existing case',
+                'Updates an existing case with new information. Valid `Priority` values: `"High"`, `"Medium"`, `"Low"`. Use this to:\n- Change case status or priority\n- Update case description or comments\n- Modify case fields based on analysis\n\nRequires user confirmation before execution.',
                 '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"The 18-character Case ID to update."},"recordData":{"type":"object","properties":{"Status":{"type":"string","description":"Case Status"},"Priority":{"type":"string","enum":["High","Medium","Low"]}},"additionalProperties":true}},"required":["recordId","recordData"]}',
                 'Standard',
                 'UpdateRecord',
                 null,
-                '{}',
+                '{"objectApiName":"Case"}',
                 true,
                 false,
-                40,
                 false,
                 'External'
             ),
             createCapability(
                 agent.Id,
                 'get_order_status',
-                'Get order status and details by ID',
+                'Retrieves order information by order ID. Returns `OrderNumber`, `Status`, `TotalAmount`, and `EffectiveDate`. Use this to:\n- Check order fulfillment status\n- View order totals and dates\n- Help customers with order-related inquiries',
                 '{"type":"object","properties":{"orderId":{"type":"string","description":"The Salesforce Order ID (18-character ID starting with 801)"}},"required":["orderId"]}',
                 'Apex',
                 null,
@@ -487,14 +483,13 @@ public with sharing class AgentTestDataFactory {
                 '{"operation":"GET_BY_ID","defaultFields":["Id","OrderNumber","Status","TotalAmount","EffectiveDate"],"maxResults":1}',
                 false,
                 false,
-                50,
                 false,
                 'External'
             ),
             createCapability(
                 agent.Id,
                 'notify_support_team',
-                'Post a message to the Support Team Chatter group',
+                'Posts a message to the Support Team Chatter group. Use this to:\n- Alert team about critical issues\n- Share case updates and resolutions\n- Request team assistance\n\nRuns asynchronously. Requires user confirmation before posting.',
                 '{"type":"object","properties":{"messageText":{"type":"string","description":"Message to post"},"topics":{"type":"array","description":"Optional topics","items":{"type":"string"}}},"required":["messageText"]}',
                 'Standard',
                 'PostChatter',
@@ -502,7 +497,6 @@ public with sharing class AgentTestDataFactory {
                 '{"feedType":"Group","targetId":"' + idMap.get('Support Chatter Group') + '"}',
                 true,
                 false,
-                60,
                 true,
                 'External'
             )
@@ -530,6 +524,9 @@ public with sharing class AgentTestDataFactory {
 
         // 3. ITERATIVE AGENTIC PATTERN: 2+ tools (multi-turn execution)
         createOpportunityAssistantAgent(llmConfigId);
+
+        // 4. COMPOSITE OPERATION PATTERN: 1 tool with complex nested JSON
+        createOpportunityCreatorAgent(llmConfigId);
 
         System.debug('[Agent:Function] ✓ All function agents created');
     }
@@ -587,15 +584,14 @@ public with sharing class AgentTestDataFactory {
         AgentCapability__c updateLeadCap = createCapability(
             agent.Id,
             'update_lead_rating',
-            'Updates the rating field on a lead record',
+            'Updates the lead rating field based on qualification analysis. Valid `Rating` values:\n- `"Hot"` - Enterprise company, senior title, strong engagement\n- `"Warm"` - Mid-market company, manager title, some engagement\n- `"Cold"` - Small company, junior title, passive engagement\n\nUse this after analyzing lead data to prioritize for the sales team.',
             '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"The 18-character Lead ID to update."},"recordData":{"type":"object","properties":{"Rating":{"type":"string","enum":["Hot","Warm","Cold"],"description":"Lead qualification rating"}},"additionalProperties":true}},"required":["recordId","recordData"]}',
             'Standard',
             'UpdateRecord',
             null,
-            '{}',
+            '{"objectApiName":"Lead"}',
             false, // no confirmation needed
             false, // no approval needed
-            10,
             false, // synchronous
             'External'
         );
@@ -634,7 +630,7 @@ public with sharing class AgentTestDataFactory {
             createCapability(
                 agent.Id,
                 'find_opportunities',
-                'Search for opportunities for a specific account',
+                'Searches for opportunities associated with a specific account. Returns up to 10 opportunities with `Name`, `StageName`, `Amount`, `CloseDate`, and `Probability`. Use this to:\n- List opportunities for an account\n- Analyze sales pipeline\n- Review opportunity status and stages',
                 '{"type":"object","properties":{"accountId":{"type":"string","description":"The Salesforce Account ID to search opportunities for"}},"required":["accountId"]}',
                 'Apex',
                 null,
@@ -642,29 +638,27 @@ public with sharing class AgentTestDataFactory {
                 '{"operation":"SEARCH_BY_ACCOUNT","defaultFields":["Id","Name","StageName","Amount","CloseDate","Probability","AccountId"],"maxResults":10}',
                 false,
                 false,
-                10,
                 false,
                 'External'
             ),
             createCapability(
                 agent.Id,
                 'update_opportunity_stage',
-                'Update the stage of an opportunity',
+                'Updates the opportunity stage and win probability. Common `StageName` values: `"Prospecting"`, `"Qualification"`, `"Proposal"`, `"Negotiation"`, `"Closed Won"`. Use this to:\n- Move opportunities through sales pipeline\n- Update win probability percentage\n- Progress deals based on customer engagement\n\nRequires user confirmation before execution.',
                 '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"The 18-character Opportunity ID to update."},"recordData":{"type":"object","properties":{"StageName":{"type":"string","description":"Opportunity stage"},"Probability":{"type":"number","description":"Win probability (0-100)"}},"additionalProperties":true}},"required":["recordId","recordData"]}',
                 'Standard',
                 'UpdateRecord',
                 null,
-                '{}',
+                '{"objectApiName":"Opportunity"}',
                 true,
                 false,
-                20,
                 false,
                 'External'
             ),
             createCapability(
                 agent.Id,
                 'create_followup_task',
-                'Create a follow-up task related to an opportunity',
+                'Creates a new task to track follow-up actions. Automatically sets `Status` to `"Not Started"` and `Priority` to `"Normal"`. Use this to:\n- Schedule follow-up calls or meetings\n- Track action items from customer conversations\n- Assign next steps to team members',
                 '{"type":"object","properties":{"recordData":{"type":"object","description":"SObject field values to set on the new record. Property names should be valid field API names.","additionalProperties":true}},"required":[]}',
                 'Standard',
                 'CreateRecord',
@@ -672,14 +666,13 @@ public with sharing class AgentTestDataFactory {
                 '{"objectApiName":"Task","defaultFieldValues":{"Status":"Not Started","Priority":"Normal"}}',
                 false,
                 false,
-                30,
                 false,
                 'External'
             ),
             createCapability(
                 agent.Id,
                 'get_account_info',
-                'Get account information by ID',
+                'Retrieves account information by account ID. Returns `Name`, `Industry`, `AnnualRevenue`, `BillingCity`, and `BillingState`. Use this to:\n- Understand customer background\n- Check account details and location\n- Assess account value and importance',
                 '{"type":"object","properties":{"accountId":{"type":"string","description":"The Salesforce Account ID (18-character ID starting with 001)"}},"required":["accountId"]}',
                 'Apex',
                 null,
@@ -687,7 +680,6 @@ public with sharing class AgentTestDataFactory {
                 '{"operation":"GET_BY_ID","defaultFields":["Id","Name","Industry","AnnualRevenue","BillingCity","BillingState"],"maxResults":1}',
                 false,
                 false,
-                40,
                 false,
                 'External'
             )
@@ -695,6 +687,50 @@ public with sharing class AgentTestDataFactory {
         insert capabilities;
 
         System.debug('[Agent:Function] ✓ Opportunity Assistant (4 tools - iterative agentic)');
+    }
+
+    /**
+     * @description Opportunity Creator - Composite Operation (1 tool with complex nested JSON)
+     * Creates complete opportunity package (opportunity + products + task) in one tool call
+     */
+    private static void createOpportunityCreatorAgent(Id llmConfigId) {
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(
+            Name = 'Opportunity Creator',
+            DeveloperName__c = 'Opportunity_Creator',
+            AgentType__c = 'Function',
+            IsActive__c = true,
+            LLMConfiguration__c = llmConfigId,
+            AuditLevel__c = 'Standard',
+            ContextFormatStrategy__c = 'Structured Text',
+            IdentityPrompt__c = 'You are a sales automation assistant who creates complete opportunity packages including products and follow-up tasks. You work from account information and product requirements to build comprehensive opportunities.',
+            InstructionsPrompt__c = 'Based on the provided information, create a complete opportunity package:\n\n1. **Opportunity**: Set name, account, amount (sum of products), stage (Prospecting for new, Proposal/Negotiation for existing customers)\n2. **Products**: List all products with quantities and unit prices from the conversation\n3. **Follow-up Task**: Create a task for the next action (demo, call, proposal review)\n\nUse the create_opportunity_package tool with properly structured nested JSON.',
+            PromptFooter__c = 'Always confirm the total amount equals the sum of all products. Stage should reflect customer engagement level.'
+        );
+        insert agent;
+        idMap.put('Opportunity Creator Agent', agent.Id);
+
+        // Context provider for account data
+        AgentContextConfig__c accountContext = createContext(agent.Id, 'Account Context', 'AccountContext', 'Account', true, 10);
+        insert accountContext;
+
+        // Single capability with complex nested JSON structure
+        AgentCapability__c createOpportunityCap = createCapability(
+            agent.Id,
+            'create_opportunity_package',
+            'Creates a complete opportunity with products and follow-up task in one operation. This is a composite action that:\n\n1. Creates the Opportunity record\n2. Adds OpportunityLineItems (products) from the pricebook\n3. Creates a follow-up Task linked to the opportunity\n\nAll operations succeed or fail together (transactional). Products are looked up by Product Code or Product2 ID from the standard pricebook.}',
+            '{"type":"object","properties":{"opportunity":{"type":"object","required":["name","accountId"],"properties":{"name":{"type":"string","description":"Opportunity name"},"accountId":{"type":"string","format":"salesforce-id","description":"Account ID"},"amount":{"type":"number","description":"Total opportunity amount"},"stageName":{"type":"string","description":"Sales stage"},"closeDate":{"type":"string","format":"date","description":"Expected close date"},"description":{"type":"string"},"type":{"type":"string","enum":["New Business","Existing Business"]},"leadSource":{"type":"string"}}},"products":{"type":"array","items":{"type":"object","properties":{"productCode":{"type":"string","description":"Product code for lookup"},"product2Id":{"type":"string","format":"salesforce-id","description":"Direct Product2 ID"},"quantity":{"type":"number","default":1},"unitPrice":{"type":"number","description":"Unit price"},"description":{"type":"string"}}}},"followUpTask":{"type":"object","properties":{"subject":{"type":"string","description":"Task subject"},"description":{"type":"string"},"priority":{"type":"string","enum":["High","Normal","Low"]},"status":{"type":"string","default":"Not Started"},"activityDate":{"type":"string","format":"date"}}}},"required":["opportunity"]}',
+            'Apex',
+            null,
+            'ActionOpportunityWithProducts',
+            '{"allOrNone":true,"defaultStage":"Prospecting","taskPriority":"Normal","taskStatus":"Not Started","taskDueDays":7,"autoSetCloseDate":true,"closeDateDays":30}',
+            false,
+            false,
+            false,
+            'External'
+        );
+        insert createOpportunityCap;
+
+        System.debug('[Agent:Function] ✓ Opportunity Creator (1 tool - composite operation with nested JSON)');
     }
 
     // ===================================================================================
@@ -776,45 +812,42 @@ public with sharing class AgentTestDataFactory {
             createCapability(
                 agent.Id,
                 'get_account',
-                'Get account information by ID',
-                '{"type":"object","properties":{"accountId":{"type":"string","description":"The Salesforce Account ID (18-character ID starting with 001)"}},"required":["accountId"]}',
+                'Retrieves comprehensive account information by account ID. Returns `Name`, `Industry`, `Type`, `AccountNumber`, `Phone`, `BillingCity`, and `AnnualRevenue`. Use this to:\n- Enrich case context with customer data\n- Assess account value and importance\n- Understand customer profile\n\n**Example:** For a case with AccountId "001XX000004ABCD", retrieve account details to determine if this is a high-value customer requiring priority handling.',
+                '{"type":"object","properties":{"accountId":{"type":"string","format":"salesforce-id","description":"The 18-character Salesforce Account ID (starts with 001). Extract this from the case\'s AccountId field.","examples":["001XX000004ABCDEF"]}},"required":["accountId"]}',
                 'Apex',
                 null,
                 'ActionAccount',
                 '{"operation":"GET_BY_ID","defaultFields":["Id","Name","Industry","Type","AccountNumber","Phone","BillingCity","AnnualRevenue"],"maxResults":1}',
                 false,
                 false,
-                10,
                 false,
                 'External'
             ),
             createCapability(
                 agent.Id,
                 'get_orders',
-                'Get orders for a specific account',
-                '{"type":"object","properties":{"accountId":{"type":"string","description":"The Salesforce Account ID to get orders for"}},"required":["accountId"]}',
+                'Retrieves orders for a specific account. Returns up to 10 orders with `OrderNumber`, `Status`, `TotalAmount`, `EffectiveDate`, and `Type`. Use this to:\n- Review customer purchase history\n- Identify recent transactions\n- Understand order volume and patterns\n\n**Example:** After retrieving account information, get recent orders to assess if the case is related to a recent purchase or ongoing customer relationship.',
+                '{"type":"object","properties":{"accountId":{"type":"string","format":"salesforce-id","description":"The 18-character Salesforce Account ID (starts with 001). Use the same AccountId from the case or from the get_account call.","examples":["001XX000004ABCDEF"]}},"required":["accountId"]}',
                 'Apex',
                 null,
                 'ActionOrder',
                 '{"operation":"SEARCH_BY_ACCOUNT","defaultFields":["Id","OrderNumber","Status","TotalAmount","EffectiveDate","Type"],"maxResults":10}',
                 false,
                 false,
-                20,
                 false,
                 'External'
             ),
             createCapability(
                 agent.Id,
                 'update_case_priority',
-                'Update case priority based on analysis',
-                '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"The 18-character Case ID of the record to update."},"recordData":{"type":"object","properties":{"Priority":{"type":"string","enum":["High","Medium","Low"],"description":"Priority"}},"additionalProperties":true}},"required":["recordId","recordData"]}',
+                'Updates the case priority field. Valid `Priority` values:\n- `"High"` - Urgent/critical/blocking issues, system outages, high-value customer escalations\n- `"Medium"` - Standard problems or issues requiring timely resolution\n- `"Low"` - Minor questions or requests, informational inquiries\n\nUse this after analyzing case urgency, customer value (from account revenue), and business impact. Consider:\n- Account annual revenue (High priority for accounts > $1M)\n- Case subject/description urgency keywords\n- Recent order activity and customer relationship value',
+                '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"The 18-character Case ID to update. Extract from the case context provided.","examples":["500XX000004ABCDEF"]},"recordData":{"type":"object","properties":{"Priority":{"type":"string","enum":["High","Medium","Low"],"description":"Case priority level based on urgency and customer value analysis","examples":["High"]}},"additionalProperties":true}},"required":["recordId","recordData"]}',
                 'Standard',
                 'UpdateRecord',
                 null,
-                '{}',
+                '{"objectApiName":"Case"}',
                 false,
                 false,
-                10,
                 false,
                 'External'
             )
@@ -851,45 +884,42 @@ public with sharing class AgentTestDataFactory {
             createCapability(
                 agent.Id,
                 'search_knowledge',
-                'Search knowledge base for relevant solutions',
-                '{"type":"object","properties":{"searchQuery":{"type":"string","description":"Search keywords from case subject/description"},"maxResults":{"type":"integer"}},"required":["searchQuery"]}',
+                'Searches the knowledge base for relevant solution articles. Returns matching articles with `title`, `summary`, and `url`. Use this to:\n- Find documented solutions\n- Locate troubleshooting procedures\n- Access product documentation for case resolution\n\n**Example:** For a case about "Login error after password reset", search for keywords like "login error", "password reset", or "authentication issue" to find relevant KB articles.',
+                '{"type":"object","properties":{"searchQuery":{"type":"string","description":"Search keywords extracted from case subject and description. Use 2-4 key terms that describe the issue.","examples":["login error password reset","system outage troubleshooting","payment processing failed"]},"maxResults":{"type":"integer","description":"Maximum number of articles to return (default: 5, recommended: 3-5)","default":5,"minimum":1,"maximum":10}},"required":["searchQuery"]}',
                 'Apex',
                 null,
                 'ActionSearchKnowledge',
                 null,
                 false,
                 false,
-                10,
                 false,
                 'External'
             ),
             createCapability(
                 agent.Id,
                 'create_follow_up_task',
-                'Create follow-up task for case actions',
-                '{"type":"object","properties":{"recordData":{"type":"object","description":"SObject field values to set on the new record. Property names should be valid field API names.","additionalProperties":true}},"required":[]}',
+                'Creates a task for case-related follow-up actions. Automatically sets `Status` to `"Not Started"` and `Priority` to `"Normal"`. Use this to:\n- Schedule customer callbacks\n- Assign action items to support team\n- Track resolution steps\n\n**Important:** The task must be linked to the related Case using `WhatId` field, and must include a `Subject` describing the follow-up action and an `ActivityDate` (due date).',
+                '{"type":"object","properties":{"recordData":{"type":"object","description":"SObject field values to set on the new Task record. Must include `Subject` (required), `WhatId` (to link to the Case), and `ActivityDate` (due date). May also include `Description`, `OwnerId`, etc.","properties":{"Subject":{"type":"string","description":"Task subject describing the follow-up action (required). Be specific about what needs to be done.","examples":["Follow up with customer on case resolution","Verify system fix is working","Schedule callback for case #00001067"]},"WhatId":{"type":"string","format":"salesforce-id","description":"The Case ID to link this task to (required). Extract from the case context.","examples":["500XX000004ABCDEF"]},"ActivityDate":{"type":"string","format":"date","description":"Due date for the task in YYYY-MM-DD format (required). Set based on case urgency: High priority = today or tomorrow, Medium = 2-3 days, Low = 5-7 days.","examples":["2025-01-15","2025-01-20"]},"Description":{"type":"string","description":"Detailed description of the follow-up task, including context from the case and any relevant notes.","examples":["Customer reported login issues after password reset. Verify that the password reset process is working correctly and follow up with customer to confirm resolution."]},"OwnerId":{"type":"string","format":"salesforce-id","description":"User ID to assign the task to (defaults to current user if not specified). Use if a specific support team member should handle this."}},"required":["Subject","WhatId","ActivityDate"],"additionalProperties":true}},"required":["recordData"]}',
                 'Standard',
                 'CreateRecord',
                 null,
                 '{"objectApiName":"Task","defaultFieldValues":{"Status":"Not Started","Priority":"Normal"}}',
                 false,
                 false,
-                10,
                 false,
                 'External'
             ),
             createCapability(
                 agent.Id,
                 'post_to_chatter',
-                'Post summary notification to support team',
-                '{"type":"object","properties":{"messageText":{"type":"string","description":"The content of the message to post to Chatter."},"topics":{"type":"array","description":"An optional list of topics to associate with the post.","items":{"type":"string"}}},"required":["messageText"]}',
+                'Posts a message to the Support Team Chatter group. Use this to:\n- Notify team of case resolutions\n- Share important case updates\n- Communicate status changes\n\nRuns asynchronously.\n\n**Example:** Post a concise summary including case number, priority, customer name, issue summary, and recommended next steps. Keep under 100 words.',
+                '{"type":"object","properties":{"messageText":{"type":"string","description":"The content of the message to post to Chatter. Include: case number, priority, customer/account name, brief issue summary, and recommended action. Keep concise (under 100 words).","examples":["Case #00001067 (High Priority) - Acme Corp: Login error after password reset. KB search found 2 relevant articles. Follow-up task created for customer callback. Recommended: Verify password reset process and test authentication flow."]},"topics":{"type":"array","description":"Optional list of topics/hashtags to associate with the post (e.g., case type, product, urgency level).","items":{"type":"string"},"examples":[["High Priority","Authentication","Customer Escalation"]]}},"required":["messageText"]}',
                 'Standard',
                 'PostChatter',
                 null,
                 '{"feedType":"Group","targetId":"' + idMap.get('Support Chatter Group') + '"}',
                 false,
                 false,
-                10,
                 true,
                 'External'
             )
@@ -915,7 +945,6 @@ public with sharing class AgentTestDataFactory {
         String backendConfig,
         Boolean requiresConfirmation,
         Boolean requiresApproval,
-        Integer priority,
         Boolean runAsync,
         String exposure
     ) {
@@ -930,7 +959,6 @@ public with sharing class AgentTestDataFactory {
             BackendConfiguration__c = backendConfig,
             RequiresConfirmation__c = requiresConfirmation,
             RequiresApproval__c = requiresApproval,
-            ExecutionPriority__c = priority,
             RunAsynchronously__c = runAsync,
             ExposureLevel__c = exposure
         );

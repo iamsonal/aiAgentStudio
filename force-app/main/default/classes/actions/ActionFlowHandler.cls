@@ -15,11 +15,31 @@ public class ActionFlowHandler extends BaseAgentAction {
     private static final String FAULT_MESSAGE_VAR = 'faultMessage';
     private static final String OUTPUT_RESULT_VAR = 'outputResult';
 
+    private ConfigDTO config;
+
+    /**
+     * DTO for strongly-typed backend configuration
+     */
+    public class ConfigDTO {
+        // No configuration needed - Flow API name comes from implementationDetail field
+        // Reserved for future configuration options
+    }
+
     /**
      * DTO for strongly-typed arguments
      */
     public class ArgumentsDTO {
         public Map<String, Object> inputParameters;
+    }
+
+    /**
+     * Returns field descriptors for ArgumentsDTO
+     */
+    private static List<FieldDescriptor> describeArguments() {
+        return new List<FieldDescriptor>{
+            FieldDescriptor.object('inputParameters')
+                .help('Flow input variables as key-value pairs. Names must match Flow input variable names exactly.')
+        };
     }
 
     /**
@@ -363,5 +383,20 @@ public class ActionFlowHandler extends BaseAgentAction {
                 'resultType' => result != null ? String.valueOf(result).left(50) : 'null'
             };
         }
+    }
+
+    /**
+     * @description
+     * Provides self-description with JSON schemas and field descriptors for dynamic UI generation.
+     * Uses AutoDescriptor for simplified schema generation from DTO metadata.
+     *
+     * @return ActionDescription with complete configuration and parameter schemas
+     */
+    public override ActionDescription describe() {
+        return new AutoDescriptor()
+            .loadFromMetadata('ActionFlowHandler') // Loads label, description, guidance from metadata
+            .setConfigFields(new List<FieldDescriptor>()) // No config needed - Flow API name comes from implementationDetail
+            .setParameterFields(describeArguments())
+            .toActionDescription();
     }
 }

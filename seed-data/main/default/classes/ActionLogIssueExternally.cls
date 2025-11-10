@@ -5,6 +5,34 @@
  * @extends BaseAgentAction
  */
 public class ActionLogIssueExternally extends BaseAgentAction {
+    private ConfigDTO config;
+
+    /**
+     * DTO for strongly-typed backend configuration
+     */
+    public class ConfigDTO {
+        // No configuration needed - reserved for future use
+    }
+
+    /**
+     * DTO for strongly-typed arguments
+     */
+    public class ArgumentsDTO {
+        public String caseId;
+    }
+
+    /**
+     * Returns field descriptors for ArgumentsDTO
+     */
+    private static List<FieldDescriptor> describeArguments() {
+        return new List<FieldDescriptor>{
+            FieldDescriptor.salesforceId('caseId')
+                .required()
+                .help('The Salesforce ID of the case to log in the external system')
+                .setPlaceholder('500000000000000AAA')
+        };
+    }
+
     /**
      * @description THE ONLY METHOD we need to implement!
      *              Framework automatically:
@@ -13,8 +41,20 @@ public class ActionLogIssueExternally extends BaseAgentAction {
      *              - Handles all errors and wraps results in Result format
      */
     public override ActionOutcome executeAction(Map<String, Object> params) {
-        // Framework automatically validates caseId parameter and checks security
-        Id caseId = (Id) params.get('caseId');
+        // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
+        ArgumentsDTO args = new ArgumentsDTO();
+        args.caseId = (String) params.get('caseId');
+
+        if (String.isBlank(args.caseId)) {
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'caseId parameter is required');
+        }
+
+        Id caseId;
+        try {
+            caseId = Id.valueOf(args.caseId);
+        } catch (Exception e) {
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Invalid caseId format: ' + args.caseId);
+        }
 
         try {
             // Get Case details
@@ -54,5 +94,20 @@ public class ActionLogIssueExternally extends BaseAgentAction {
             this.externalTicketId = ticketId;
             this.message = msg;
         }
+    }
+
+    /**
+     * @description
+     * Provides self-description with JSON schemas and field descriptors for dynamic UI generation.
+     * Uses AutoDescriptor for simplified schema generation from DTO metadata.
+     *
+     * @return ActionDescription with complete configuration and parameter schemas
+     */
+    public override ActionDescription describe() {
+        return new AutoDescriptor()
+            .loadFromMetadata('ActionLogIssueExternally')  // Loads label, description, guidance from metadata
+            .setConfigFields(new List<FieldDescriptor>()) // No config needed
+            .setParameterFields(describeArguments())
+            .toActionDescription();
     }
 }

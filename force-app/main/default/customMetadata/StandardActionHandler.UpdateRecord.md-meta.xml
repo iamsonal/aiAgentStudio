@@ -4,7 +4,11 @@
     <protected>false</protected>
     <values>
         <field>Description__c</field>
-        <value xsi:type="xsd:string">Updates an existing record in Salesforce</value>
+        <value xsi:type="xsd:string">Updates an existing Salesforce record with field-level security checks</value>
+    </values>
+    <values>
+        <field>GuidanceText__c</field>
+        <value xsi:type="xsd:string">&lt;div style=&quot;font-family: -apple-system, BlinkMacSystemFont, &apos;Segoe UI&apos;, Roboto, Arial, sans-serif; line-height: 1.6;&quot;&gt;&lt;div style=&quot;background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px; border-radius: 8px 8px 0 0; margin: -8px -8px 16px -8px;&quot;&gt;&lt;h2 style=&quot;margin: 0; font-size: 18px; font-weight: 600;&quot;&gt;📝 Update Record&lt;/h2&gt;&lt;p style=&quot;margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;&quot;&gt;Modify existing Salesforce records with automatic field-level security&lt;/p&gt;&lt;/div&gt;&lt;h3 style=&quot;font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;&quot;&gt;📋 Runtime Parameters&lt;/h3&gt;&lt;p style=&quot;margin: 8px 0; font-size: 13px; color: #6c757d;&quot;&gt;The AI will provide these parameters when calling this action:&lt;/p&gt;&lt;div style=&quot;background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;&quot;&gt;&lt;table style=&quot;width: 100%; font-size: 13px;&quot;&gt;&lt;tr&gt;&lt;td style=&quot;padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;&quot;&gt;&lt;strong style=&quot;color: #495057;&quot;&gt;recordId&lt;/strong&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #dc3545;&quot;&gt;Required&lt;/span&gt;&lt;/td&gt;&lt;td style=&quot;padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;&quot;&gt;The 18-character Salesforce ID of the record to update. 15-character IDs are automatically converted.&lt;br/&gt;&lt;code style=&quot;background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;&quot;&gt;&quot;001xxxxxxxxxxxxxxx&quot;&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;padding: 8px;&quot;&gt;&lt;strong style=&quot;color: #495057;&quot;&gt;recordData&lt;/strong&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #dc3545;&quot;&gt;Required&lt;/span&gt;&lt;/td&gt;&lt;td style=&quot;padding: 8px; color: #6c757d;&quot;&gt;JSON object containing field API names and their new values. Only include fields you want to update.&lt;br/&gt;&lt;code style=&quot;background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;&quot;&gt;{ &quot;Status&quot;: &quot;Closed&quot;, &quot;Priority&quot;: &quot;High&quot; }&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;&lt;h3 style=&quot;font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;&quot;&gt;⚙️ Configuration Options&lt;/h3&gt;&lt;div style=&quot;background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;&quot;&gt;&lt;table style=&quot;width: 100%; font-size: 13px;&quot;&gt;&lt;tr&gt;&lt;td style=&quot;padding: 8px; width: 30%;&quot;&gt;&lt;strong style=&quot;color: #495057;&quot;&gt;objectApiName&lt;/strong&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #6c757d;&quot;&gt;Optional&lt;/span&gt;&lt;/td&gt;&lt;td style=&quot;padding: 8px; color: #6c757d;&quot;&gt;When specified, validates that the recordId matches this object type. Useful for type safety in specific scenarios.&lt;br/&gt;&lt;code style=&quot;background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;&quot;&gt;&quot;Case&quot;, &quot;Account&quot;, &quot;CustomObject__c&quot;&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;&lt;div style=&quot;background: #e7f1ff; border-left: 4px solid #0066cc; padding: 12px; margin: 12px 0; border-radius: 4px;&quot;&gt;&lt;p style=&quot;margin: 0; font-size: 13px; color: #004085;&quot;&gt;&lt;strong&gt;💡 Note:&lt;/strong&gt; Field-level security is automatically enforced. Non-updateable fields are silently skipped. Validation rules fire normally and errors are returned to the AI.&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;</value>
     </values>
     <values>
         <field>HandlerClassName__c</field>
@@ -15,56 +19,11 @@
         <value xsi:type="xsd:boolean">true</value>
     </values>
     <values>
-        <field>RequiresSObject__c</field>
+        <field>IsStandardAction__c</field>
         <value xsi:type="xsd:boolean">true</value>
     </values>
     <values>
-        <field>RequiredBackendProperties__c</field>
-        <value xsi:type="xsd:string"></value>
-    </values>
-    <values>
-        <field>RequiredParameters__c</field>
-        <value xsi:type="xsd:string">recordId,recordData</value>
-    </values>
-    <values>
-        <field>GuidanceText__c</field>
-        <value xsi:type="xsd:string">&lt;h3&gt;✏️ UpdateRecord Action&lt;/h3&gt;
-&lt;p&gt;This action updates an existing record in Salesforce.&lt;/p&gt;
-
-&lt;h4&gt;Backend Configuration&lt;/h4&gt;
-&lt;p&gt;No specific backend configuration required. The object type is automatically detected from the recordId.&lt;/p&gt;
-
-&lt;h4&gt;Parameters (AI will provide)&lt;/h4&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;recordId&lt;/strong&gt; (String): The 18-character Salesforce ID of the record to update (required)&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;recordData&lt;/strong&gt; (Object): SObject field values to update (required)&lt;/li&gt;
-&lt;li&gt;Add field properties inside recordData (e.g., recordData.Status, recordData.Priority)&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h4&gt;Example&lt;/h4&gt;
-&lt;p&gt;To update a Case: &lt;code&gt;{&quot;recordId&quot;: &quot;500...&quot;, &quot;recordData&quot;: {&quot;Priority&quot;: &quot;High&quot;, &quot;Status&quot;: &quot;Closed&quot;}}&lt;/code&gt;&lt;/p&gt;</value>
-    </values>
-    <values>
-        <field>ParametersTemplate__c</field>
-        <value xsi:type="xsd:string">{
-  "type": "object",
-  "properties": {
-    "recordId": {
-      "type": "string",
-      "format": "salesforce-id",
-      "description": "The 18-character ID of the record to update."
-    },
-    "recordData": {
-      "type": "object",
-      "description": "SObject field values to update. Property names should be valid field API names.",
-      "additionalProperties": true
-    }
-  },
-  "required": ["recordId", "recordData"]
-}</value>
-    </values>
-    <values>
-        <field>BackendConfigTemplate__c</field>
-        <value xsi:type="xsd:string">{}</value>
+        <field>RequiresSObject__c</field>
+        <value xsi:type="xsd:boolean">true</value>
     </values>
 </CustomMetadata>

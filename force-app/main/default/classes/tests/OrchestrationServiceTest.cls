@@ -284,7 +284,6 @@ private class OrchestrationServiceTest {
             StandardActionType__c = 'CreateRecord',
             BackendConfiguration__c = '{"objectApiName":"Account"}',
             Parameters__c = '{"type":"object","properties":{"recordData":{"type":"object"}}}',
-            ExecutionPriority__c = 10,
             RunAsynchronously__c = true, // This is the key difference - async execution
             RequiresApproval__c = false,
             FailFastOnError__c = false

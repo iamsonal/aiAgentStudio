@@ -206,7 +206,6 @@ public class ContentResponseHandler implements ILLMResponseHandler {
                     ImplementationDetail__c,
                     StandardActionType__c,
                     BackendConfiguration__c,
-                    ExecutionContext__c,
                     FailFastOnError__c,
                     RunAsynchronously__c,
                     RequiresConfirmation__c,

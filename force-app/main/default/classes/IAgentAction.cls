@@ -10,6 +10,9 @@
  * @description
  * Contract for all executable AI agent actions in the framework.
  * Enforces consistent execution signature and error handling.
+ *
+ * Actions must implement the describe() method to provide self-documentation
+ * for dynamic UI generation and schema validation.
  */
 public interface IAgentAction {
     /**
@@ -21,4 +24,12 @@ public interface IAgentAction {
      * @return                       Action outcome
      */
     ActionOutcome execute(String actionConfigurationJson, String argumentsJson, ActionContext context);
+
+    /**
+     * Provides self-description of this action including JSON schemas and field descriptors.
+     * This enables dynamic UI generation and Monaco editor IntelliSense.
+     *
+     * @return ActionDescription containing schemas and metadata
+     */
+    ActionDescription describe();
 }

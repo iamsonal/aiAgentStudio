@@ -38,6 +38,12 @@ public class ActionAccount extends BaseAgentAction {
     private static final Integer DEFAULT_MAX_RESULTS = 25;
     private static final Integer ABSOLUTE_MAX_RESULTS = 100;
 
+    // Operation constants - SINGLE SOURCE OF TRUTH
+    private static final String OP_GET_BY_ID = 'GET_BY_ID';
+    private static final String OP_SEARCH_BY_NAME = 'SEARCH_BY_NAME';
+    private static final String OP_GET_BY_INDUSTRY = 'GET_BY_INDUSTRY';
+    private static final String OP_SEARCH_BY_REVENUE = 'SEARCH_BY_REVENUE';
+
     private ConfigDTO config;
 
     /**
@@ -47,6 +53,64 @@ public class ActionAccount extends BaseAgentAction {
         public String operation; // Operation identifier (required)
         public List<String> defaultFields; // Fields to select (optional)
         public Integer maxResults; // Maximum results to return (optional)
+    }
+
+    /**
+     * DTO for strongly-typed arguments
+     * Different operations use different fields
+     */
+    public class ArgumentsDTO {
+        // GET_BY_ID
+        public String accountId;
+
+        // SEARCH_BY_NAME
+        public String accountName;
+
+        // GET_BY_INDUSTRY
+        public String industry;
+
+        // SEARCH_BY_REVENUE
+        public Decimal minRevenue;
+        public Decimal maxRevenue;
+    }
+
+    /**
+     * Returns field descriptors for ConfigDTO
+     */
+    private static List<FieldDescriptor> describeConfig() {
+        return new List<FieldDescriptor>{
+            FieldDescriptor.string('operation')
+                .required()
+                .help('The query operation to perform')
+                .options(getAllOperations()),
+            FieldDescriptor.integer('maxResults')
+                .help('Maximum number of records to return (default: 25, max: 100)')
+                .defaultTo(25)
+                .range(1, 100)
+        };
+    }
+
+    /**
+     * Returns field descriptors for ArgumentsDTO
+     */
+    private static List<FieldDescriptor> describeArguments() {
+        return new List<FieldDescriptor>{
+            FieldDescriptor.salesforceId('accountId')
+                .help('Required for GET_BY_ID: 18-character Salesforce Account ID')
+                .setPlaceholder('001000000000000AAA'),
+            FieldDescriptor.string('accountName')
+                .help('Required for SEARCH_BY_NAME: Full or partial account name')
+                .setPlaceholder('Acme'),
+            FieldDescriptor.string('industry')
+                .help('Required for GET_BY_INDUSTRY: Industry value to filter by')
+                .setPlaceholder('Technology'),
+            FieldDescriptor.number('minRevenue')
+                .help('For SEARCH_BY_REVENUE: Minimum annual revenue')
+                .setMinValue(0),
+            FieldDescriptor.number('maxRevenue')
+                .help('For SEARCH_BY_REVENUE: Maximum annual revenue')
+                .setMinValue(0)
+        };
     }
 
     /**
@@ -95,29 +159,45 @@ public class ActionAccount extends BaseAgentAction {
      * @return ActionOutcome with query results or error information
      */
     public override ActionOutcome executeAction(Map<String, Object> params) {
+        // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
+        ArgumentsDTO args = new ArgumentsDTO();
+        args.accountId = (String) params.get('accountId');
+        args.accountName = (String) params.get('accountName');
+        args.industry = (String) params.get('industry');
+        args.minRevenue = params.get('minRevenue') != null ? Decimal.valueOf(String.valueOf(params.get('minRevenue'))) : null;
+        args.maxRevenue = params.get('maxRevenue') != null ? Decimal.valueOf(String.valueOf(params.get('maxRevenue'))) : null;
+
         // Route based on operation from backend configuration
-        switch on this.config.operation {
-            when 'GET_BY_ID' {
-                return getById(params);
-            }
-            when 'SEARCH_BY_NAME' {
-                return searchByName(params);
-            }
-            when 'GET_BY_INDUSTRY' {
-                return getByIndustry(params);
-            }
-            when 'SEARCH_BY_REVENUE' {
-                return searchByRevenue(params);
-            }
-            when else {
-                return ActionOutcome.failure(
-                    AIAgentConstants.ERR_CODE_CONFIG_ERROR,
-                    'Unknown operation: ' +
-                        this.config.operation +
-                        '. Valid operations: GET_BY_ID, SEARCH_BY_NAME, GET_BY_INDUSTRY, SEARCH_BY_REVENUE'
-                );
-            }
+        if (this.config.operation == OP_GET_BY_ID) {
+            return getById(args);
+        } else if (this.config.operation == OP_SEARCH_BY_NAME) {
+            return searchByName(args);
+        } else if (this.config.operation == OP_GET_BY_INDUSTRY) {
+            return getByIndustry(args);
+        } else if (this.config.operation == OP_SEARCH_BY_REVENUE) {
+            return searchByRevenue(args);
+        } else {
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                'Unknown operation: ' +
+                    this.config.operation +
+                    '. Valid operations: ' + String.join(getAllOperations(), ', ')
+            );
         }
+    }
+
+    /**
+     * @description
+     * Returns all supported operations for this action.
+     * Single source of truth for operation names.
+     */
+    private static List<String> getAllOperations() {
+        return new List<String>{
+            OP_GET_BY_ID,
+            OP_SEARCH_BY_NAME,
+            OP_GET_BY_INDUSTRY,
+            OP_SEARCH_BY_REVENUE
+        };
     }
 
     /**
@@ -131,10 +211,8 @@ public class ActionAccount extends BaseAgentAction {
      * @param params LLM-provided parameters
      * @return ActionOutcome with single Account record or error
      */
-    private ActionOutcome getById(Map<String, Object> params) {
-        String accountId = (String) params.get('accountId');
-
-        if (String.isBlank(accountId)) {
+    private ActionOutcome getById(ArgumentsDTO args) {
+        if (String.isBlank(args.accountId)) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'accountId is required for GET_BY_ID operation');
         }
 
@@ -142,13 +220,13 @@ public class ActionAccount extends BaseAgentAction {
             List<Account> results = [
                 SELECT Id, Name, Industry, Type, AnnualRevenue, BillingCity, BillingState, BillingCountry, Phone, Website, Description
                 FROM Account
-                WHERE Id = :accountId
+                WHERE Id = :args.accountId
                 WITH USER_MODE
                 LIMIT 1
             ];
 
             if (results.isEmpty()) {
-                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND, 'Account not found with ID: ' + accountId);
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND, 'Account not found with ID: ' + args.accountId);
             }
 
             return ActionOutcome.success(new Map<String, Object>{ 'record' => results[0], 'message' => 'Found account: ' + results[0].Name });
@@ -168,15 +246,13 @@ public class ActionAccount extends BaseAgentAction {
      * @param params LLM-provided parameters
      * @return ActionOutcome with list of matching Account records
      */
-    private ActionOutcome searchByName(Map<String, Object> params) {
-        String accountName = (String) params.get('accountName');
-
-        if (String.isBlank(accountName)) {
+    private ActionOutcome searchByName(ArgumentsDTO args) {
+        if (String.isBlank(args.accountName)) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'accountName is required for SEARCH_BY_NAME operation');
         }
 
         try {
-            String searchPattern = '%' + String.escapeSingleQuotes(accountName) + '%';
+            String searchPattern = '%' + String.escapeSingleQuotes(args.accountName) + '%';
 
             List<Account> results = [
                 SELECT Id, Name, Industry, Type, Phone, BillingCity, BillingState
@@ -194,7 +270,7 @@ public class ActionAccount extends BaseAgentAction {
                     'message' => 'Found ' +
                     results.size() +
                     ' account(s) matching "' +
-                    accountName +
+                    args.accountName +
                     '"'
                 }
             );
@@ -214,10 +290,8 @@ public class ActionAccount extends BaseAgentAction {
      * @param params LLM-provided parameters
      * @return ActionOutcome with list of Account records in specified industry
      */
-    private ActionOutcome getByIndustry(Map<String, Object> params) {
-        String industry = (String) params.get('industry');
-
-        if (String.isBlank(industry)) {
+    private ActionOutcome getByIndustry(ArgumentsDTO args) {
+        if (String.isBlank(args.industry)) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'industry is required for GET_BY_INDUSTRY operation');
         }
 
@@ -225,7 +299,7 @@ public class ActionAccount extends BaseAgentAction {
             List<Account> results = [
                 SELECT Id, Name, Industry, Type, AnnualRevenue, Phone
                 FROM Account
-                WHERE Industry = :industry
+                WHERE Industry = :args.industry
                 WITH USER_MODE
                 ORDER BY Name ASC
                 LIMIT :config.maxResults
@@ -238,7 +312,7 @@ public class ActionAccount extends BaseAgentAction {
                     'message' => 'Found ' +
                     results.size() +
                     ' account(s) in ' +
-                    industry +
+                    args.industry +
                     ' industry'
                 }
             );
@@ -259,11 +333,8 @@ public class ActionAccount extends BaseAgentAction {
      * @param params LLM-provided parameters
      * @return ActionOutcome with list of Account records matching revenue criteria
      */
-    private ActionOutcome searchByRevenue(Map<String, Object> params) {
-        Decimal minRevenue = params.get('minRevenue') != null ? Decimal.valueOf(String.valueOf(params.get('minRevenue'))) : null;
-        Decimal maxRevenue = params.get('maxRevenue') != null ? Decimal.valueOf(String.valueOf(params.get('maxRevenue'))) : null;
-
-        if (minRevenue == null && maxRevenue == null) {
+    private ActionOutcome searchByRevenue(ArgumentsDTO args) {
+        if (args.minRevenue == null && args.maxRevenue == null) {
             return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'At least one of minRevenue or maxRevenue is required for SEARCH_BY_REVENUE operation'
@@ -274,14 +345,14 @@ public class ActionAccount extends BaseAgentAction {
             List<String> conditions = new List<String>();
             Map<String, Object> binds = new Map<String, Object>();
 
-            if (minRevenue != null) {
+            if (args.minRevenue != null) {
                 conditions.add('AnnualRevenue >= :minRevenue');
-                binds.put('minRevenue', minRevenue);
+                binds.put('minRevenue', args.minRevenue);
             }
 
-            if (maxRevenue != null) {
+            if (args.maxRevenue != null) {
                 conditions.add('AnnualRevenue <= :maxRevenue');
-                binds.put('maxRevenue', maxRevenue);
+                binds.put('maxRevenue', args.maxRevenue);
             }
 
             String query =
@@ -296,7 +367,7 @@ public class ActionAccount extends BaseAgentAction {
 
             List<Account> results = Database.queryWithBinds(query, binds, AccessLevel.USER_MODE);
 
-            String rangeDesc = buildRevenueRangeDescription(minRevenue, maxRevenue);
+            String rangeDesc = buildRevenueRangeDescription(args.minRevenue, args.maxRevenue);
 
             return ActionOutcome.success(
                 new Map<String, Object>{
@@ -329,5 +400,20 @@ public class ActionAccount extends BaseAgentAction {
         } else {
             return 'less than $' + maxRevenue.format();
         }
+    }
+
+    /**
+     * @description
+     * Provides self-description with JSON schemas and field descriptors for dynamic UI generation.
+     * Uses AutoDescriptor for simplified schema generation from DTO metadata.
+     *
+     * @return ActionDescription with complete configuration and parameter schemas
+     */
+    public override ActionDescription describe() {
+        return new AutoDescriptor()
+            .loadFromMetadata('ActionAccount')  // Loads label, description, guidance from metadata
+            .setConfigFields(describeConfig())
+            .setParameterFields(describeArguments())
+            .toActionDescription();
     }
 }

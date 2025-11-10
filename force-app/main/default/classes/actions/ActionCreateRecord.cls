@@ -50,6 +50,26 @@ public class ActionCreateRecord extends BaseAgentAction {
     }
 
     /**
+     * Returns field descriptors for ConfigDTO
+     */
+    private static List<FieldDescriptor> describeConfig() {
+        return new List<FieldDescriptor>{
+            FieldDescriptor.string('objectApiName')
+                .required()
+                .help('The API name of the SObject to create (e.g., Account, Contact, CustomObject__c)')
+                .setPlaceholder('Account'),
+            FieldDescriptor.object('defaultFieldValues').help('Optional default values to set on all created records')
+        };
+    }
+
+    /**
+     * Returns field descriptors for ArgumentsDTO
+     */
+    private static List<FieldDescriptor> describeArguments() {
+        return new List<FieldDescriptor>{ FieldDescriptor.object('recordData').required().help('Field names and values for the record to create') };
+    }
+
+    /**
      * @description
      * Main entry point for record creation using strongly-typed DTOs.
      * Deserializes params into ArgumentsDTO, merges with default values, performs security and type validation,
@@ -395,5 +415,20 @@ public class ActionCreateRecord extends BaseAgentAction {
                 'creationSuccessful' => true
             };
         }
+    }
+
+    /**
+     * @description
+     * Provides self-description with JSON schemas and field descriptors for dynamic UI generation.
+     * Uses AutoDescriptor for simplified schema generation from DTO metadata.
+     *
+     * @return ActionDescription with complete configuration and parameter schemas
+     */
+    public override ActionDescription describe() {
+        return new AutoDescriptor()
+            .loadFromMetadata('ActionCreateRecord') // Loads label, description, guidance from StandardActionHandler__mdt
+            .setConfigFields(describeConfig())
+            .setParameterFields(describeArguments())
+            .toActionDescription();
     }
 }

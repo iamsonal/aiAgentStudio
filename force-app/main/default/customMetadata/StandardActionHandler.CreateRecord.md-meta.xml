@@ -4,7 +4,11 @@
     <protected>false</protected>
     <values>
         <field>Description__c</field>
-        <value xsi:type="xsd:string">Creates a new record in Salesforce</value>
+        <value xsi:type="xsd:string">Creates a new Salesforce record with field-level security checks and validation</value>
+    </values>
+    <values>
+        <field>GuidanceText__c</field>
+        <value xsi:type="xsd:string">&lt;div style=&quot;font-family: -apple-system, BlinkMacSystemFont, &apos;Segoe UI&apos;, Roboto, Arial, sans-serif; line-height: 1.6;&quot;&gt;&lt;div style=&quot;background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 16px; border-radius: 8px 8px 0 0; margin: -8px -8px 16px -8px;&quot;&gt;&lt;h2 style=&quot;margin: 0; font-size: 18px; font-weight: 600;&quot;&gt;✨ Create Record&lt;/h2&gt;&lt;p style=&quot;margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;&quot;&gt;Create new Salesforce records with intelligent defaults and field-level security&lt;/p&gt;&lt;/div&gt;&lt;h3 style=&quot;font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;&quot;&gt;⚙️ Configuration Required&lt;/h3&gt;&lt;div style=&quot;background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;&quot;&gt;&lt;table style=&quot;width: 100%; font-size: 13px;&quot;&gt;&lt;tr&gt;&lt;td style=&quot;padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;&quot;&gt;&lt;strong style=&quot;color: #495057;&quot;&gt;Implementation Detail&lt;/strong&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #dc3545;&quot;&gt;Required&lt;/span&gt;&lt;/td&gt;&lt;td style=&quot;padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;&quot;&gt;Select the target Salesforce object using the picker (e.g., Account, Contact, Case, Opportunity).&lt;br/&gt;&lt;span style=&quot;font-size: 12px; font-style: italic;&quot;&gt;This determines which object type will be created.&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;padding: 8px;&quot;&gt;&lt;strong style=&quot;color: #495057;&quot;&gt;Default Values&lt;/strong&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #6c757d;&quot;&gt;Optional&lt;/span&gt;&lt;/td&gt;&lt;td style=&quot;padding: 8px; color: #6c757d;&quot;&gt;JSON object with field API names and default values applied to every record created. These are merged with AI-provided values.&lt;br/&gt;&lt;code style=&quot;background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;&quot;&gt;{ &quot;RecordTypeId&quot;: &quot;012...&quot;, &quot;OwnerId&quot;: &quot;005...&quot; }&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;&lt;h3 style=&quot;font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;&quot;&gt;📋 Runtime Parameters&lt;/h3&gt;&lt;p style=&quot;margin: 8px 0; font-size: 13px; color: #6c757d;&quot;&gt;The AI will provide these parameters when calling this action:&lt;/p&gt;&lt;div style=&quot;background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;&quot;&gt;&lt;table style=&quot;width: 100%; font-size: 13px;&quot;&gt;&lt;tr&gt;&lt;td style=&quot;padding: 8px; width: 30%;&quot;&gt;&lt;strong style=&quot;color: #495057;&quot;&gt;recordData&lt;/strong&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #dc3545;&quot;&gt;Required&lt;/span&gt;&lt;/td&gt;&lt;td style=&quot;padding: 8px; color: #6c757d;&quot;&gt;JSON object containing field API names and values for the new record. These are merged with your configured default values.&lt;br/&gt;&lt;code style=&quot;background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;&quot;&gt;{ &quot;Name&quot;: &quot;Acme Corp&quot;, &quot;Industry&quot;: &quot;Technology&quot; }&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;&lt;div style=&quot;background: #e7f1ff; border-left: 4px solid #0066cc; padding: 12px; margin: 12px 0; border-radius: 4px;&quot;&gt;&lt;p style=&quot;margin: 0; font-size: 13px; color: #004085;&quot;&gt;&lt;strong&gt;💡 How it works:&lt;/strong&gt; AI-provided values in recordData are merged with your configured default values. If the AI provides a field that exists in defaults, the AI value takes precedence.&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;</value>
     </values>
     <values>
         <field>HandlerClassName__c</field>
@@ -15,55 +19,11 @@
         <value xsi:type="xsd:boolean">true</value>
     </values>
     <values>
-        <field>RequiresSObject__c</field>
+        <field>IsStandardAction__c</field>
         <value xsi:type="xsd:boolean">true</value>
     </values>
     <values>
-        <field>RequiredBackendProperties__c</field>
-        <value xsi:type="xsd:string">objectApiName</value>
-    </values>
-    <values>
-        <field>RequiredParameters__c</field>
-        <value xsi:type="xsd:string"></value>
-    </values>
-    <values>
-        <field>GuidanceText__c</field>
-        <value xsi:type="xsd:string">&lt;h3&gt;➕ CreateRecord Action&lt;/h3&gt;
-&lt;p&gt;This action creates a new record in Salesforce for the selected object.&lt;/p&gt;
-
-&lt;h4&gt;Backend Configuration&lt;/h4&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;objectApiName&lt;/strong&gt; (String): The Salesforce object to create (required, auto-populated from object selection)&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;defaultFieldValues&lt;/strong&gt; (Object): Default values to set on the new record (optional)&lt;/li&gt;
-&lt;/ul&gt;
-
-&lt;h4&gt;Parameters (AI will provide)&lt;/h4&gt;
-&lt;p&gt;Parameters are dynamically generated based on the selected object&apos;s fields. The AI will provide field values when creating the record.&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;Select an object above to see available fields&lt;/li&gt;
-&lt;li&gt;Add parameters for fields the AI should be able to set&lt;/li&gt;
-&lt;li&gt;Required fields should be marked as required&lt;/li&gt;
-&lt;/ul&gt;</value>
-    </values>
-    <values>
-        <field>ParametersTemplate__c</field>
-        <value xsi:type="xsd:string">{
-  "type": "object",
-  "properties": {
-    "recordData": {
-      "type": "object",
-      "description": "SObject field values to set on the new record. Property names should be valid field API names.",
-      "additionalProperties": true
-    }
-  },
-  "required": []
-}</value>
-    </values>
-    <values>
-        <field>BackendConfigTemplate__c</field>
-        <value xsi:type="xsd:string">{
-  "objectApiName": "",
-  "defaultFieldValues": {}
-}</value>
+        <field>RequiresSObject__c</field>
+        <value xsi:type="xsd:boolean">true</value>
     </values>
 </CustomMetadata>

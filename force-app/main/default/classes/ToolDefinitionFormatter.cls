@@ -57,7 +57,7 @@ public inherited sharing class ToolDefinitionFormatter {
                     BackendConfiguration__c
                 FROM AgentCapability__c
                 WHERE AIAgentDefinition__c = :agentDefinitionId AND ExposureLevel__c = 'External'
-                ORDER BY ExecutionPriority__c ASC NULLS LAST, CapabilityName__c ASC
+                ORDER BY CapabilityName__c ASC
             ];
 
             if (capabilities.isEmpty()) {

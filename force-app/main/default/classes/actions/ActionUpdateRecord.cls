@@ -17,6 +17,9 @@
  *   SObject fields are provided in nested recordData object:
  *   {"recordId": "500...", "recordData": {"Priority": "High", "Status": "Closed", "Subject": "Updated"}}
  *
+ * Configuration:
+ *   - objectApiName (optional): When specified, validates that the recordId matches this object type
+ *
  * Security Architecture:
  *   - Proactive FLS checks via TypeCoercionService provide clear, actionable errors for AI agents
  *   - Security.stripInaccessible() serves as final verification and catches edge cases
@@ -24,7 +27,7 @@
  *
  * Architecture:
  *   - ArgumentsDTO: Strongly-typed with recordId and nested recordData Map<String, Object>
- *   - ConfigDTO: Optional configuration for future enhancements
+ *   - ConfigDTO: Optional configuration with objectApiName for type validation
  *   - Uses native JSON.deserialize() for high-performance type conversion
  *   - Leverages TypeCoercionService for FLS checks and SObject field coercion
  *
@@ -42,10 +45,37 @@ public class ActionUpdateRecord extends BaseAgentAction {
     }
 
     /**
-     * DTO for strongly-typed backend configuration (currently no config needed)
+     * Returns field descriptors for ConfigDTO
+     */
+    private static List<FieldDescriptor> describeConfig() {
+        return new List<FieldDescriptor>{
+            FieldDescriptor.string('objectApiName')
+                .required()
+                .help(
+                    'Optional: The API name of the SObject being updated (e.g., Account, Contact). When specified, validates that recordId matches this object type.'
+                )
+                .setPlaceholder('Account')
+        };
+    }
+
+    /**
+     * Returns field descriptors for ArgumentsDTO
+     */
+    private static List<FieldDescriptor> describeArguments() {
+        return new List<FieldDescriptor>{
+            FieldDescriptor.salesforceId('recordId')
+                .required()
+                .help('The 18-character Salesforce ID of the record to update')
+                .setPlaceholder('001000000000000AAA'),
+            FieldDescriptor.object('recordData').required().help('Field names and new values for the fields to update')
+        };
+    }
+
+    /**
+     * DTO for strongly-typed backend configuration
      */
     public class ConfigDTO {
-        // Reserved for future configuration options
+        public String objectApiName;
     }
 
     /**
@@ -123,6 +153,24 @@ public class ActionUpdateRecord extends BaseAgentAction {
             );
         }
         SObjectType targetSObjectType = recordId.getSObjectType();
+
+        // Validate objectApiName if configured
+        if (String.isNotBlank(config.objectApiName)) {
+            String actualObjectApiName = targetSObjectType.getDescribe().getName();
+            if (!actualObjectApiName.equalsIgnoreCase(config.objectApiName)) {
+                return ActionOutcome.failureWithGuidance(
+                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                    'Object API name mismatch: Expected "' +
+                        config.objectApiName +
+                        '" but recordId "' +
+                        recordId +
+                        '" is for "' +
+                        actualObjectApiName +
+                        '"',
+                    'Ensure the recordId matches the configured objectApiName "' + config.objectApiName + '"'
+                );
+            }
+        }
 
         // Explicit object-level update permission check
         try {
@@ -251,15 +299,28 @@ public class ActionUpdateRecord extends BaseAgentAction {
      */
     @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
-        // Initialize empty config (no configuration options currently supported)
+        // Initialize config with defaults
         this.config = new ConfigDTO();
 
-        // Log if any config was provided (currently ignored)
         if (String.isNotBlank(actionConfigurationJson)) {
-            System.debug(
-                LoggingLevel.DEBUG,
-                '[ActionUpdateRecord] Configuration provided but no config options are currently supported for DTO-based implementation.'
-            );
+            try {
+                // Deserialize as untyped map to handle optional fields
+                Map<String, Object> configMap = (Map<String, Object>) JSON.deserializeUntyped(actionConfigurationJson);
+
+                // Extract objectApiName if provided
+                if (configMap.containsKey('objectApiName')) {
+                    this.config.objectApiName = (String) configMap.get('objectApiName');
+                }
+
+                if (String.isNotBlank(this.config.objectApiName)) {
+                    System.debug(
+                        LoggingLevel.DEBUG,
+                        '[ActionUpdateRecord] Configured to validate updates against object type: ' + this.config.objectApiName
+                    );
+                }
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, '[ActionUpdateRecord] Failed to parse configuration JSON: ' + e.getMessage() + '. Using defaults.');
+            }
         }
     }
 
@@ -316,5 +377,20 @@ public class ActionUpdateRecord extends BaseAgentAction {
             this.updatedFields = updatedFields;
             this.metadata = new Map<String, Object>{ 'recordId' => recordId, 'fieldsUpdated' => updatedFields.size(), 'fieldNames' => updatedFields };
         }
+    }
+
+    /**
+     * @description
+     * Provides self-description with JSON schemas and field descriptors for dynamic UI generation.
+     * Uses AutoDescriptor for simplified schema generation from DTO metadata.
+     *
+     * @return ActionDescription with complete configuration and parameter schemas
+     */
+    public override ActionDescription describe() {
+        return new AutoDescriptor()
+            .loadFromMetadata('ActionUpdateRecord') // Loads label, description, guidance from metadata
+            .setConfigFields(describeConfig())
+            .setParameterFields(describeArguments())
+            .toActionDescription();
     }
 }
