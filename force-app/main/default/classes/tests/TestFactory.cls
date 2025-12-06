@@ -438,7 +438,7 @@ public class TestFactory {
         Datetime now = Datetime.now();
 
         for (Integer i = 1; i <= turns; i++) {
-            String turnId = UuidUtils.generateUUID();
+            String turnId = UUID.randomUUID().toString();
 
             // User message
             steps.add(
@@ -451,7 +451,7 @@ public class TestFactory {
                     TurnIdentifier__c = turnId,
                     TurnCount__c = i,
                     Timestamp__c = now.addMinutes(i * 2 - 1),
-                    ExternalId__c = UuidUtils.generateUUID()
+                    ExternalId__c = UUID.randomUUID().toString()
                 )
             );
 
@@ -466,7 +466,7 @@ public class TestFactory {
                     TurnIdentifier__c = turnId,
                     TurnCount__c = i,
                     Timestamp__c = now.addMinutes(i * 2),
-                    ExternalId__c = UuidUtils.generateUUID()
+                    ExternalId__c = UUID.randomUUID().toString()
                 )
             );
         }
@@ -479,7 +479,7 @@ public class TestFactory {
      * @description Creates a tool call sequence
      */
     public static List<ExecutionStep__c> createToolCallSequence(Id executionId, String toolName) {
-        String turnId = UuidUtils.generateUUID();
+        String turnId = UUID.randomUUID().toString();
         String toolCallId = 'call_' + generateRandomString(8);
 
         List<ExecutionStep__c> steps = new List<ExecutionStep__c>{
@@ -492,7 +492,7 @@ public class TestFactory {
                 ToolName__c = toolName,
                 ToolArguments__c = '{"param1":"value1"}',
                 TurnIdentifier__c = turnId,
-                ExternalId__c = UuidUtils.generateUUID()
+                ExternalId__c = UUID.randomUUID().toString()
             ),
             // Tool result
             new ExecutionStep__c(
@@ -504,7 +504,7 @@ public class TestFactory {
                 ToolResult__c = '{"success":true,"data":"result"}',
                 Content__c = 'Tool executed successfully',
                 TurnIdentifier__c = turnId,
-                ExternalId__c = UuidUtils.generateUUID()
+                ExternalId__c = UUID.randomUUID().toString()
             )
         };
 

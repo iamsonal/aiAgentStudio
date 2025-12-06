@@ -13,6 +13,7 @@
  */
 public class AgentExecutionService {
     private static final String LOG_PREFIX = '[AgentExecutionService] ';
+    private static final String NAMED_CREDENTIAL_NAME = 'AgentStudioInternalAPI';
 
     // Orchestrator mapping cache
     @TestVisible
@@ -101,7 +102,7 @@ public class AgentExecutionService {
                 payload.sourceRecordIds = request.recordIds; // Could be 1 or many - orchestrator handles bulk logic
                 payload.userMessage = request.userMessage;
                 payload.triggerSource = 'Flow';
-                payload.turnIdentifier = UuidUtils.generateUUID();
+                payload.turnIdentifier = UUID.randomUUID().toString();
 
                 // Delegate to orchestrator (which may handle bulk execution internally)
                 ExecutionResult result = startExecution(request.agentName, payload);
@@ -139,33 +140,114 @@ public class AgentExecutionService {
      * Routes execution through REST API for service user context switching.
      */
     private static ExecutionResult routeThroughRestApi(AIAgentDefinition__c agentDef, ExecutionPayload payload, String logPrefix) {
+        System.debug(LoggingLevel.INFO, logPrefix + 'Starting REST callout for service user context switch');
+
         try {
-            // Build HTTP request for context switch
-            AIAgentHttpClient.AIAgentMessageRequest httpRequest = new AIAgentHttpClient.AIAgentMessageRequest(
-                payload.existingExecutionId != null ? String.valueOf(payload.existingExecutionId) : null,
-                String.valueOf(payload.userId),
-                String.valueOf(agentDef.Id),
-                payload.turnIdentifier,
-                payload.userMessage,
-                payload.currentRecordId != null ? String.valueOf(payload.currentRecordId) : null
-            );
+            HttpRequest httpReq = buildLoopbackHttpRequest(agentDef, payload, logPrefix);
 
-            // Make REST callout to switch to service user context
-            AIAgentHttpClient.AIAgentHttpResponse httpResponse = AIAgentHttpClient.processMessage(httpRequest);
+            // Configure and execute callout
+            HttpCalloutService.CalloutConfig config = HttpCalloutService.createConfig(logPrefix);
+            HttpCalloutService.CalloutResult result = HttpCalloutService.execute(httpReq, config);
 
-            if (httpResponse.success) {
+            // Parse response
+            LoopbackResponse response = parseLoopbackResponse(result.response, logPrefix);
+
+            if (response.success) {
                 System.debug(LoggingLevel.INFO, logPrefix + 'Successfully routed through REST API for service user context');
                 return new ExecutionResult(
                     null, // Execution ID will be created in service user context
-                    httpResponse.outcome != null ? httpResponse.outcome : AIAgentConstants.STATUS_PROCESSING,
-                    httpResponse.outcome != null ? httpResponse.outcome : 'Processing in service user context'
+                    response.outcome != null ? response.outcome : AIAgentConstants.STATUS_PROCESSING,
+                    response.outcome != null ? response.outcome : 'Processing in service user context'
                 );
             } else {
-                throw new AgentOrchestratorException('REST API routing failed: ' + httpResponse.error);
+                throw new AgentOrchestratorException('REST API routing failed: ' + response.error);
             }
+        } catch (AgentOrchestratorException e) {
+            throw e;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error routing through REST API: ' + e.getMessage());
             throw new AgentOrchestratorException('Failed to switch to service user context: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Builds an authenticated HttpRequest for the internal loopback REST API.
+     */
+    private static HttpRequest buildLoopbackHttpRequest(AIAgentDefinition__c agentDef, ExecutionPayload payload, String logPrefix) {
+        String endpoint = 'callout:' + NAMED_CREDENTIAL_NAME + '/services/apexrest/ai/agent/process/';
+
+        HttpRequest httpReq = new HttpRequest();
+        httpReq.setEndpoint(endpoint);
+        httpReq.setMethod('POST');
+        httpReq.setHeader('Content-Type', 'application/json');
+
+        Map<String, Object> requestBody = new Map<String, Object>{
+            'sessionId' => payload.existingExecutionId != null ? String.valueOf(payload.existingExecutionId) : null,
+            'originalUserId' => String.valueOf(payload.userId),
+            'agentDefinitionId' => String.valueOf(agentDef.Id),
+            'turnIdentifier' => payload.turnIdentifier,
+            'userMessage' => payload.userMessage,
+            'currentRecordId' => payload.currentRecordId != null ? String.valueOf(payload.currentRecordId) : null
+        };
+
+        httpReq.setBody(JSON.serialize(requestBody));
+
+        System.debug(LoggingLevel.INFO, logPrefix + 'HTTP request built for Named Credential: ' + NAMED_CREDENTIAL_NAME);
+        return httpReq;
+    }
+
+    /**
+     * Parses the HTTP response from the loopback API.
+     */
+    private static LoopbackResponse parseLoopbackResponse(HttpResponse httpRes, String logPrefix) {
+        Integer statusCode = httpRes.getStatusCode();
+        String responseBody = httpRes.getBody();
+
+        System.debug(LoggingLevel.INFO, logPrefix + 'HTTP response received. Status=' + statusCode + ', BodyLength=' + (responseBody?.length() ?? 0));
+
+        try {
+            if (statusCode == 200) {
+                AIAgentRestService.AIAgentResponse restResponse = (AIAgentRestService.AIAgentResponse) JSON.deserialize(
+                    responseBody,
+                    AIAgentRestService.AIAgentResponse.class
+                );
+                return new LoopbackResponse(restResponse.success, restResponse.outcome, restResponse.error);
+            } else {
+                String errorMessage = 'HTTP ' + statusCode;
+
+                if (String.isNotBlank(responseBody)) {
+                    try {
+                        AIAgentRestService.AIAgentResponse errorResponse = (AIAgentRestService.AIAgentResponse) JSON.deserialize(
+                            responseBody,
+                            AIAgentRestService.AIAgentResponse.class
+                        );
+                        errorMessage = errorResponse.error ?? errorMessage;
+                    } catch (Exception parseEx) {
+                        errorMessage = responseBody.length() > 200 ? responseBody.substring(0, 200) + '...' : responseBody;
+                    }
+                }
+
+                System.debug(LoggingLevel.ERROR, logPrefix + 'HTTP error response: ' + errorMessage);
+                return new LoopbackResponse(false, null, errorMessage);
+            }
+        } catch (JSONException e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to parse JSON response: ' + e.getMessage());
+            return new LoopbackResponse(false, null, 'Response parsing error: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Internal response wrapper for loopback API responses.
+     */
+    private class LoopbackResponse {
+        public Boolean success;
+        public String outcome;
+        public String error;
+
+        public LoopbackResponse(Boolean success, String outcome, String error) {
+            this.success = success;
+            this.outcome = outcome;
+            this.error = error;
         }
     }
 

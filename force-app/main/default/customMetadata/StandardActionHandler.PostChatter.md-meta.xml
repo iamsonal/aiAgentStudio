@@ -26,4 +26,97 @@
         <field>RequiresSObject__c</field>
         <value xsi:type="xsd:boolean">false</value>
     </values>
+    <values>
+        <field>ConfigSchema__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;feedType&quot;,
+    &quot;type&quot;: &quot;string&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;Type of Chatter feed: User, Group, or Record&quot;,
+    &quot;label&quot;: &quot;Feed Type&quot;,
+    &quot;picklistValues&quot;: [
+      &quot;User&quot;,
+      &quot;Group&quot;,
+      &quot;Record&quot;
+    ]
+  },
+  {
+    &quot;name&quot;: &quot;targetId&quot;,
+    &quot;type&quot;: &quot;salesforce-id&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;Salesforce ID of the User, Group, or Record to post to&quot;,
+    &quot;label&quot;: &quot;Target ID&quot;,
+    &quot;placeholder&quot;: &quot;005000000000000AAA&quot;
+  }
+]</value>
+    </values>
+    <values>
+        <field>ConfigJsonSchema__c</field>
+        <value xsi:type="xsd:string">{
+  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;feedType&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;Type of Chatter feed: User, Group, or Record&quot;,
+      &quot;enum&quot;: [
+        &quot;User&quot;,
+        &quot;Group&quot;,
+        &quot;Record&quot;
+      ]
+    },
+    &quot;targetId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;Salesforce ID of the User, Group, or Record to post to&quot;,
+      &quot;format&quot;: &quot;salesforce-id&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;feedType&quot;,
+    &quot;targetId&quot;
+  ]
+}</value>
+    </values>
+    <values>
+        <field>ParametersSchema__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;messageText&quot;,
+    &quot;type&quot;: &quot;string&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;The text content of the Chatter post (max 10,000 characters). Use {&quot;,
+    &quot;label&quot;: &quot;Message Text&quot;,
+    &quot;maxLength&quot;: 10000
+  },
+  {
+    &quot;name&quot;: &quot;topics&quot;,
+    &quot;type&quot;: &quot;array&quot;,
+    &quot;required&quot;: false,
+    &quot;help&quot;: &quot;Optional list of topics/hashtags to associate with the post&quot;,
+    &quot;label&quot;: &quot;Topics&quot;
+  }
+]</value>
+    </values>
+    <values>
+        <field>ParametersJsonSchema__c</field>
+        <value xsi:type="xsd:string">{
+  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;messageText&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;The text content of the Chatter post (max 10,000 characters). Use {&quot;,
+      &quot;maxLength&quot;: 10000
+    },
+    &quot;topics&quot;: {
+      &quot;type&quot;: &quot;array&quot;,
+      &quot;description&quot;: &quot;Optional list of topics/hashtags to associate with the post&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;messageText&quot;
+  ]
+}</value>
+    </values>
 </CustomMetadata>

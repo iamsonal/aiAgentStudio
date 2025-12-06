@@ -28,6 +28,13 @@
  *   - Uses native JSON.deserialize() for high-performance type conversion
  *   - Leverages TypeCoercionService for FLS checks and SObject field coercion
  *
+ * @ActionLabel Create Record
+ * @ActionDescription Creates a new Salesforce record with field-level security checks and validation
+ * @ActionRequiresSObject true
+ * @ActionIsActive true
+ * @ActionGuidance
+ * <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6;"><div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 16px; border-radius: 8px 8px 0 0; margin: -8px -8px 16px -8px;"><h2 style="margin: 0; font-size: 18px; font-weight: 600;">✨ Create Record</h2><p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">Create new Salesforce records with intelligent defaults and field-level security</p></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">⚙️ Configuration Required</h3><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">Implementation Detail</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">Select the target Salesforce object using the picker (e.g., Account, Contact, Case, Opportunity).<br/><span style="font-size: 12px; font-style: italic;">This determines which object type will be created.</span></td></tr><tr><td style="padding: 8px;"><strong style="color: #495057;">Default Values</strong><br/><span style="font-size: 11px; color: #6c757d;">Optional</span></td><td style="padding: 8px; color: #6c757d;">JSON object with field API names and default values applied to every record created. These are merged with AI-provided values.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{ "RecordTypeId": "012...", "OwnerId": "005..." }</code></td></tr></table></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">📋 Runtime Parameters</h3><p style="margin: 8px 0; font-size: 13px; color: #6c757d;">The AI will provide these parameters when calling this action:</p><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; width: 30%;"><strong style="color: #495057;">recordData</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; color: #6c757d;">JSON object containing field API names and values for the new record. These are merged with your configured default values.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{ "Name": "Acme Corp", "Industry": "Technology" }</code></td></tr></table></div><div style="background: #e7f1ff; border-left: 4px solid #0066cc; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #004085;"><strong>💡 How it works:</strong> AI-provided values in recordData are merged with your configured default values. If the AI provides a field that exists in defaults, the AI value takes precedence.</p></div></div>
+ *
  * @extends BaseAgentAction
  */
 public class ActionCreateRecord extends BaseAgentAction {
@@ -35,39 +42,39 @@ public class ActionCreateRecord extends BaseAgentAction {
     private SObjectType targetSObjectType;
 
     /**
-     * DTO for strongly-typed arguments
+     * DTO for strongly-typed arguments (AI-provided parameters at runtime)
      */
     public class ArgumentsDTO {
+        /**
+         * @FieldLabel Record Data
+         * @FieldType object
+         * @FieldRequired true
+         * @FieldHelp Field names and values for the record to create
+         */
         public Map<String, Object> recordData;
     }
 
     /**
-     * DTO for strongly-typed backend configuration
+     * DTO for strongly-typed backend configuration (admin-configured)
      */
     public class ConfigDTO {
+        /**
+         * @FieldLabel Object API Name
+         * @FieldType string
+         * @FieldRequired true
+         * @FieldPlaceholder Account
+         * @FieldHelp The API name of the SObject to create (e.g., Account, Contact, CustomObject__c)
+         */
         public String objectApiName;
+
+        /**
+         * @FieldLabel Default Field Values
+         * @FieldType object
+         * @FieldHelp Optional default values to set on all created records
+         */
         public Map<String, Object> defaultFieldValues;
     }
 
-    /**
-     * Returns field descriptors for ConfigDTO
-     */
-    private static List<FieldDescriptor> describeConfig() {
-        return new List<FieldDescriptor>{
-            FieldDescriptor.string('objectApiName')
-                .required()
-                .help('The API name of the SObject to create (e.g., Account, Contact, CustomObject__c)')
-                .setPlaceholder('Account'),
-            FieldDescriptor.object('defaultFieldValues').help('Optional default values to set on all created records')
-        };
-    }
-
-    /**
-     * Returns field descriptors for ArgumentsDTO
-     */
-    private static List<FieldDescriptor> describeArguments() {
-        return new List<FieldDescriptor>{ FieldDescriptor.object('recordData').required().help('Field names and values for the record to create') };
-    }
 
     /**
      * @description
@@ -415,20 +422,5 @@ public class ActionCreateRecord extends BaseAgentAction {
                 'creationSuccessful' => true
             };
         }
-    }
-
-    /**
-     * @description
-     * Provides self-description with JSON schemas and field descriptors for dynamic UI generation.
-     * Uses AutoDescriptor for simplified schema generation from DTO metadata.
-     *
-     * @return ActionDescription with complete configuration and parameter schemas
-     */
-    public override ActionDescription describe() {
-        return new AutoDescriptor()
-            .loadFromMetadata('ActionCreateRecord') // Loads label, description, guidance from StandardActionHandler__mdt
-            .setConfigFields(describeConfig())
-            .setParameterFields(describeArguments())
-            .toActionDescription();
     }
 }

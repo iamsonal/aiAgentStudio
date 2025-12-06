@@ -203,7 +203,7 @@ private class ConversationalChatControllerTest {
             StepRole__c = AIAgentConstants.ROLE_TOOL,
             Content__c = 'Tool result',
             Timestamp__c = Datetime.now(),
-            ExternalId__c = UuidUtils.generateUUID(),
+            ExternalId__c = UUID.randomUUID().toString(),
             StepType__c = 'ToolResult'
         );
         insert toolMessage;

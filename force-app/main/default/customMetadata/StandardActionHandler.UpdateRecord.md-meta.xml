@@ -26,4 +26,72 @@
         <field>RequiresSObject__c</field>
         <value xsi:type="xsd:boolean">true</value>
     </values>
+    <values>
+        <field>ConfigSchema__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;objectApiName&quot;,
+    &quot;type&quot;: &quot;string&quot;,
+    &quot;required&quot;: false,
+    &quot;help&quot;: &quot;Optional: The API name of the SObject being updated (e.g., Account, Contact). When specified, validates that recordId matches this object type.&quot;,
+    &quot;label&quot;: &quot;Object API Name&quot;,
+    &quot;placeholder&quot;: &quot;Account&quot;
+  }
+]</value>
+    </values>
+    <values>
+        <field>ConfigJsonSchema__c</field>
+        <value xsi:type="xsd:string">{
+  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;objectApiName&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;Optional: The API name of the SObject being updated (e.g., Account, Contact). When specified, validates that recordId matches this object type.&quot;
+    }
+  }
+}</value>
+    </values>
+    <values>
+        <field>ParametersSchema__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;recordId&quot;,
+    &quot;type&quot;: &quot;salesforce-id&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;The 18-character Salesforce ID of the record to update&quot;,
+    &quot;label&quot;: &quot;Record ID&quot;,
+    &quot;placeholder&quot;: &quot;001000000000000AAA&quot;
+  },
+  {
+    &quot;name&quot;: &quot;recordData&quot;,
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;Field names and new values for the fields to update&quot;,
+    &quot;label&quot;: &quot;Record Data&quot;
+  }
+]</value>
+    </values>
+    <values>
+        <field>ParametersJsonSchema__c</field>
+        <value xsi:type="xsd:string">{
+  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;recordId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;The 18-character Salesforce ID of the record to update&quot;,
+      &quot;format&quot;: &quot;salesforce-id&quot;
+    },
+    &quot;recordData&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;description&quot;: &quot;Field names and new values for the fields to update&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;recordId&quot;,
+    &quot;recordData&quot;
+  ]
+}</value>
+    </values>
 </CustomMetadata>

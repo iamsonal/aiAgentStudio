@@ -31,50 +31,50 @@
  *   - Uses native JSON.deserialize() for high-performance type conversion
  *   - Leverages TypeCoercionService for FLS checks and SObject field coercion
  *
+ * @ActionLabel Update Record
+ * @ActionDescription Updates an existing Salesforce record with field-level security checks
+ * @ActionRequiresSObject true
+ * @ActionIsActive true
+ * @ActionGuidance
+ * <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6;"><div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px; border-radius: 8px 8px 0 0; margin: -8px -8px 16px -8px;"><h2 style="margin: 0; font-size: 18px; font-weight: 600;">📝 Update Record</h2><p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">Modify existing Salesforce records with automatic field-level security</p></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">📋 Runtime Parameters</h3><p style="margin: 8px 0; font-size: 13px; color: #6c757d;">The AI will provide these parameters when calling this action:</p><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">recordId</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">The 18-character Salesforce ID of the record to update. 15-character IDs are automatically converted.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">"001xxxxxxxxxxxxxxx"</code></td></tr><tr><td style="padding: 8px;"><strong style="color: #495057;">recordData</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; color: #6c757d;">JSON object containing field API names and their new values. Only include fields you want to update.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{ "Status": "Closed", "Priority": "High" }</code></td></tr></table></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">⚙️ Configuration Options</h3><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; width: 30%;"><strong style="color: #495057;">objectApiName</strong><br/><span style="font-size: 11px; color: #6c757d;">Optional</span></td><td style="padding: 8px; color: #6c757d;">When specified, validates that the recordId matches this object type. Useful for type safety in specific scenarios.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">"Case", "Account", "CustomObject__c"</code></td></tr></table></div><div style="background: #e7f1ff; border-left: 4px solid #0066cc; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #004085;"><strong>💡 Note:</strong> Field-level security is automatically enforced. Non-updateable fields are silently skipped. Validation rules fire normally and errors are returned to the AI.</p></div></div>
+ *
  * @extends BaseAgentAction
  */
 public class ActionUpdateRecord extends BaseAgentAction {
     private ConfigDTO config;
 
     /**
-     * DTO for strongly-typed arguments
+     * DTO for strongly-typed arguments (AI-provided parameters at runtime)
      */
     public class ArgumentsDTO {
+        /**
+         * @FieldLabel Record ID
+         * @FieldType salesforce-id
+         * @FieldRequired true
+         * @FieldPlaceholder 001000000000000AAA
+         * @FieldHelp The 18-character Salesforce ID of the record to update
+         */
         public String recordId;
+
+        /**
+         * @FieldLabel Record Data
+         * @FieldType object
+         * @FieldRequired true
+         * @FieldHelp Field names and new values for the fields to update
+         */
         public Map<String, Object> recordData;
     }
 
     /**
-     * Returns field descriptors for ConfigDTO
-     */
-    private static List<FieldDescriptor> describeConfig() {
-        return new List<FieldDescriptor>{
-            FieldDescriptor.string('objectApiName')
-                .required()
-                .help(
-                    'Optional: The API name of the SObject being updated (e.g., Account, Contact). When specified, validates that recordId matches this object type.'
-                )
-                .setPlaceholder('Account')
-        };
-    }
-
-    /**
-     * Returns field descriptors for ArgumentsDTO
-     */
-    private static List<FieldDescriptor> describeArguments() {
-        return new List<FieldDescriptor>{
-            FieldDescriptor.salesforceId('recordId')
-                .required()
-                .help('The 18-character Salesforce ID of the record to update')
-                .setPlaceholder('001000000000000AAA'),
-            FieldDescriptor.object('recordData').required().help('Field names and new values for the fields to update')
-        };
-    }
-
-    /**
-     * DTO for strongly-typed backend configuration
+     * DTO for strongly-typed backend configuration (admin-configured)
      */
     public class ConfigDTO {
+        /**
+         * @FieldLabel Object API Name
+         * @FieldType string
+         * @FieldPlaceholder Account
+         * @FieldHelp Optional: The API name of the SObject being updated (e.g., Account, Contact). When specified, validates that recordId matches this object type.
+         */
         public String objectApiName;
     }
 
@@ -377,20 +377,5 @@ public class ActionUpdateRecord extends BaseAgentAction {
             this.updatedFields = updatedFields;
             this.metadata = new Map<String, Object>{ 'recordId' => recordId, 'fieldsUpdated' => updatedFields.size(), 'fieldNames' => updatedFields };
         }
-    }
-
-    /**
-     * @description
-     * Provides self-description with JSON schemas and field descriptors for dynamic UI generation.
-     * Uses AutoDescriptor for simplified schema generation from DTO metadata.
-     *
-     * @return ActionDescription with complete configuration and parameter schemas
-     */
-    public override ActionDescription describe() {
-        return new AutoDescriptor()
-            .loadFromMetadata('ActionUpdateRecord') // Loads label, description, guidance from metadata
-            .setConfigFields(describeConfig())
-            .setParameterFields(describeArguments())
-            .toActionDescription();
     }
 }

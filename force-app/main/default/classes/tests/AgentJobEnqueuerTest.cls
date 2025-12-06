@@ -73,7 +73,7 @@ private class AgentJobEnqueuerTest {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE AsyncDispatchType__c = 'High' LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
 
-        String turnId = UuidUtils.generateUUID();
+        String turnId = UUID.randomUUID().toString();
 
         // IMPORTANT: Set the CurrentTurnIdentifier__c BEFORE publishing Platform Event
         // This mimics what should happen in production code before enqueueFollowUp is called
@@ -106,7 +106,7 @@ private class AgentJobEnqueuerTest {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE AsyncDispatchType__c = 'Low' LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
 
-        String turnId = UuidUtils.generateUUID();
+        String turnId = UUID.randomUUID().toString();
 
         // Set the CurrentTurnIdentifier__c before enqueueing
         execution.CurrentTurnIdentifier__c = turnId;
@@ -135,7 +135,7 @@ private class AgentJobEnqueuerTest {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE AsyncDispatchType__c = 'Low' LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
 
-        String turnId = UuidUtils.generateUUID();
+        String turnId = UUID.randomUUID().toString();
 
         // Set the CurrentTurnIdentifier__c before enqueueing
         execution.CurrentTurnIdentifier__c = turnId;
@@ -170,7 +170,7 @@ private class AgentJobEnqueuerTest {
 
         AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').save();
 
-        String turnId = UuidUtils.generateUUID();
+        String turnId = UUID.randomUUID().toString();
 
         // IMPORTANT: Set the CurrentTurnIdentifier__c BEFORE publishing Platform Event
         execution.CurrentTurnIdentifier__c = turnId;
@@ -210,7 +210,7 @@ private class AgentJobEnqueuerTest {
         AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').save();
 
         AgentJobEnqueuer enqueuer = new AgentJobEnqueuer();
-        String turnId = UuidUtils.generateUUID();
+        String turnId = UUID.randomUUID().toString();
 
         // When: Enqueuing async action
         Test.startTest();
@@ -248,8 +248,8 @@ private class AgentJobEnqueuerTest {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE AsyncDispatchType__c = 'High' LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
 
-        String turnId1 = UuidUtils.generateUUID();
-        String turnId2 = UuidUtils.generateUUID();
+        String turnId1 = UUID.randomUUID().toString();
+        String turnId2 = UUID.randomUUID().toString();
 
         AgentJobEnqueuer enqueuer = new AgentJobEnqueuer();
 
@@ -278,7 +278,7 @@ private class AgentJobEnqueuerTest {
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         AgentJobEnqueuer enqueuer = new AgentJobEnqueuer();
-        String turnId = UuidUtils.generateUUID();
+        String turnId = UUID.randomUUID().toString();
 
         // When: Enqueueing with null agent ID (should default to Low)
         Test.startTest();
@@ -311,7 +311,7 @@ private class AgentJobEnqueuerTest {
         // Given: Invalid execution ID (using agent ID as execution ID)
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
         AgentJobEnqueuer enqueuer = new AgentJobEnqueuer(new TurnLifecycleService());
-        String turnId = UuidUtils.generateUUID();
+        String turnId = UUID.randomUUID().toString();
 
         // When: Enqueueing with invalid execution ID
         Test.startTest();
@@ -344,7 +344,7 @@ private class AgentJobEnqueuerTest {
 
         AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').save();
 
-        String turnId = UuidUtils.generateUUID();
+        String turnId = UUID.randomUUID().toString();
 
         // Set the CurrentTurnIdentifier__c before enqueueing
         execution.CurrentTurnIdentifier__c = turnId;

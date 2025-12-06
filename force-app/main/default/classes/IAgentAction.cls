@@ -11,8 +11,9 @@
  * Contract for all executable AI agent actions in the framework.
  * Enforces consistent execution signature and error handling.
  *
- * Actions must implement the describe() method to provide self-documentation
- * for dynamic UI generation and schema validation.
+ * Action metadata (labels, descriptions, schemas) is defined via doc comment
+ * annotations in the Apex class and generated into StandardActionHandler__mdt
+ * by the build script. See scripts/generate-action-metadata.js for details.
  */
 public interface IAgentAction {
     /**
@@ -24,12 +25,4 @@ public interface IAgentAction {
      * @return                       Action outcome
      */
     ActionOutcome execute(String actionConfigurationJson, String argumentsJson, ActionContext context);
-
-    /**
-     * Provides self-description of this action including JSON schemas and field descriptors.
-     * This enables dynamic UI generation and Monaco editor IntelliSense.
-     *
-     * @return ActionDescription containing schemas and metadata
-     */
-    ActionDescription describe();
 }

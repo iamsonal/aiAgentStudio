@@ -26,4 +26,42 @@
         <field>RequiresSObject__c</field>
         <value xsi:type="xsd:boolean">false</value>
     </values>
+    <values>
+        <field>ConfigSchema__c</field>
+        <value xsi:type="xsd:string">[]</value>
+    </values>
+    <values>
+        <field>ConfigJsonSchema__c</field>
+        <value xsi:type="xsd:string">{
+  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {},
+  &quot;required&quot;: []
+}</value>
+    </values>
+    <values>
+        <field>ParametersSchema__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;inputParameters&quot;,
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;required&quot;: false,
+    &quot;help&quot;: &quot;Flow input variables as key-value pairs. Names must match Flow input variable names exactly.&quot;,
+    &quot;label&quot;: &quot;Input Parameters&quot;
+  }
+]</value>
+    </values>
+    <values>
+        <field>ParametersJsonSchema__c</field>
+        <value xsi:type="xsd:string">{
+  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;inputParameters&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;description&quot;: &quot;Flow input variables as key-value pairs. Names must match Flow input variable names exactly.&quot;
+    }
+  }
+}</value>
+    </values>
 </CustomMetadata>

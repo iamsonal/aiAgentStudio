@@ -29,7 +29,6 @@ import { EventSubscriptionManager } from './services/eventSubscriptionManager';
 import { ScrollManager } from './services/scrollManager';
 import { LoadingStateManager } from './services/loadingStateManager';
 import { ErrorHandler } from './services/errorHandler';
-import { UuidUtils } from './utils/uuid';
 
 import startOverFromMessage from '@salesforce/apex/ConversationalChatController.startOverFromMessage';
 
@@ -330,7 +329,7 @@ export default class AiAssistantChat extends LightningElement {
 
         try {
             const contextRecordId = this._currentRecordId;
-            const turnIdentifier = UuidUtils.generateUUID();
+            const turnIdentifier = crypto.randomUUID();
             await this._sessionManager.sendMessage(messageText, contextRecordId, turnIdentifier);
             this.userMessageInput = '';
         } catch (error) {

@@ -26,4 +26,72 @@
         <field>RequiresSObject__c</field>
         <value xsi:type="xsd:boolean">true</value>
     </values>
+    <values>
+        <field>ConfigSchema__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;objectApiName&quot;,
+    &quot;type&quot;: &quot;string&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;The API name of the SObject to create (e.g., Account, Contact, CustomObject__c)&quot;,
+    &quot;label&quot;: &quot;Object API Name&quot;,
+    &quot;placeholder&quot;: &quot;Account&quot;
+  },
+  {
+    &quot;name&quot;: &quot;defaultFieldValues&quot;,
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;required&quot;: false,
+    &quot;help&quot;: &quot;Optional default values to set on all created records&quot;,
+    &quot;label&quot;: &quot;Default Field Values&quot;
+  }
+]</value>
+    </values>
+    <values>
+        <field>ConfigJsonSchema__c</field>
+        <value xsi:type="xsd:string">{
+  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;objectApiName&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;The API name of the SObject to create (e.g., Account, Contact, CustomObject__c)&quot;
+    },
+    &quot;defaultFieldValues&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;description&quot;: &quot;Optional default values to set on all created records&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;objectApiName&quot;
+  ]
+}</value>
+    </values>
+    <values>
+        <field>ParametersSchema__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;recordData&quot;,
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;Field names and values for the record to create&quot;,
+    &quot;label&quot;: &quot;Record Data&quot;
+  }
+]</value>
+    </values>
+    <values>
+        <field>ParametersJsonSchema__c</field>
+        <value xsi:type="xsd:string">{
+  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;recordData&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;description&quot;: &quot;Field names and values for the record to create&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;recordData&quot;
+  ]
+}</value>
+    </values>
 </CustomMetadata>
