@@ -9,5 +9,9 @@
     <columns>ExecutionStatus__c</columns>
     <columns>ProcessingStatus__c</columns>
     <filterScope>Everything</filterScope>
+    <filters>
+        <field>ParentExecution__c</field>
+        <operation>equals</operation>
+    </filters>
     <label>All</label>
 </ListView>

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>TriggerSource__c</fullName>
-    <description>Identifies the source that initiated this agent execution (Chat UI, REST API, Email, Schedule, Data Change, etc.).</description>
+    <description>Identifies the source that initiated this agent execution.</description>
     <inlineHelpText>The system or source that triggered this agent execution.</inlineHelpText>
     <label>Trigger Source</label>
     <required>false</required>
@@ -28,19 +28,19 @@
                 <label>UI</label>
             </value>
             <value>
-                <fullName>Email</fullName>
+                <fullName>QuickAction</fullName>
                 <default>false</default>
-                <label>Email</label>
+                <label>Quick Action</label>
             </value>
             <value>
-                <fullName>Schedule</fullName>
+                <fullName>Flow</fullName>
                 <default>false</default>
-                <label>Schedule</label>
+                <label>Flow</label>
             </value>
             <value>
-                <fullName>DataChange</fullName>
+                <fullName>Apex</fullName>
                 <default>false</default>
-                <label>Data Change</label>
+                <label>Apex</label>
             </value>
             <value>
                 <fullName>Workflow</fullName>

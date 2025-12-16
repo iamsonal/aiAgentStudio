@@ -10,6 +10,29 @@
  * @description
  * Unified entry point for all agent execution initiations in the AI Agent Framework.
  * Handles service user context switching and delegates to appropriate orchestrators.
+ * 
+ * @usage Simple Function Agent Execution:
+ * ```apex
+ * // Minimal usage - just provide a record ID
+ * AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload('500Dl00000AMoWV');
+ * AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution('Case_Summarizer', payload);
+ * 
+ * // Or even simpler with default constructor
+ * AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
+ * payload.sourceRecordId = caseId;
+ * AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution('Case_Summarizer', payload);
+ * 
+ * // All optional fields have sensible defaults:
+ * // - userId: defaults to UserInfo.getUserId()
+ * // - triggerSource: defaults to 'Apex'
+ * // - userMessage: optional (not required for function agents)
+ * ```
+ * 
+ * @usage Conversational Agent with User Message:
+ * ```apex
+ * AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload(caseId, 'Summarize this case');
+ * AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution('Customer_Support_Copilot', payload);
+ * ```
  */
 public class AgentExecutionService {
     private static final String LOG_PREFIX = '[AgentExecutionService] ';
@@ -43,7 +66,8 @@ public class AgentExecutionService {
             payload.validate();
 
             // Query the agent definition to make context switching decision
-            AIAgentDefinition__c agentDef = getAgentDefinitionForContextCheck(agentDeveloperName);
+            // Use AIAgentConfigService to ensure all fields are queried
+            AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(agentDeveloperName);
 
             if (agentDef.RequiresServiceUserContext__c && payload.isInServiceUserContext != true) {
                 // Service user context required but we're not in it yet - route through REST API
@@ -98,9 +122,9 @@ public class AgentExecutionService {
             try {
                 // Build ExecutionPayload from Flow-friendly request
                 ExecutionPayload payload = new ExecutionPayload();
-                payload.userId = request.userId != null ? request.userId : UserInfo.getUserId();
+                payload.userId = request.userId; // Will default to current user in validate() if null
                 payload.sourceRecordIds = request.recordIds; // Could be 1 or many - orchestrator handles bulk logic
-                payload.userMessage = request.userMessage;
+                payload.userMessage = request.userMessage; // Optional
                 payload.triggerSource = 'Flow';
                 payload.turnIdentifier = UUID.randomUUID().toString();
 
@@ -117,24 +141,6 @@ public class AgentExecutionService {
         return results;
     }
 
-    /**
-     * Retrieves agent definition with minimal fields needed for context switching decision.
-     * This is a separate query to avoid coupling with orchestrator creation logic.
-     */
-    private static AIAgentDefinition__c getAgentDefinitionForContextCheck(String agentDeveloperName) {
-        List<AIAgentDefinition__c> agentDefs = [
-            SELECT Id, DeveloperName__c, RequiresServiceUserContext__c, IsActive__c, AgentType__c, LLMConfiguration__c, AsyncDispatchType__c
-            FROM AIAgentDefinition__c
-            WHERE DeveloperName__c = :agentDeveloperName AND IsActive__c = TRUE
-            LIMIT 1
-        ];
-
-        if (agentDefs.isEmpty()) {
-            throw new AgentOrchestratorException('Agent definition not found or inactive: ' + agentDeveloperName);
-        }
-
-        return agentDefs[0];
-    }
 
     /**
      * Routes execution through REST API for service user context switching.
@@ -313,16 +319,43 @@ public class AgentExecutionService {
         public Id bulkExecutionId { get; set; } // Parent bulk execution ID (set by framework)
 
         /**
-         * Validates that required fields are present based on the payload type.
+         * Default constructor - all fields will use defaults in validate()
+         */
+        public ExecutionPayload() {
+        }
+
+        /**
+         * Convenience constructor for simple function agent executions with just a record ID.
+         * @param recordId The record ID to process
+         */
+        public ExecutionPayload(Id recordId) {
+            this.sourceRecordId = recordId;
+        }
+
+        /**
+         * Convenience constructor for conversational agents with user message.
+         * @param recordId The record ID context
+         * @param message The user's message
+         */
+        public ExecutionPayload(Id recordId, String message) {
+            this.sourceRecordId = recordId;
+            this.currentRecordId = recordId;
+            this.userMessage = message;
+        }
+
+        /**
+         * Validates and applies sensible defaults to required fields.
          * @throws AgentOrchestratorException if validation fails
          */
         public void validate() {
+            // Apply sensible defaults
             if (userId == null) {
-                throw new AgentOrchestratorException('UserId is required in execution payload');
+                userId = UserInfo.getUserId(); // Default to current user
             }
             if (String.isBlank(triggerSource)) {
-                throw new AgentOrchestratorException('TriggerSource is required in execution payload');
+                triggerSource = 'Apex'; // Default to Apex execution
             }
+            // userMessage is optional - no validation needed
         }
     }
 

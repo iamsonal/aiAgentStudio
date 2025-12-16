@@ -57,6 +57,7 @@ public inherited sharing class AIAgentConfigService {
         'PromptFooter__c',
         'EnableParallelToolCalling__c',
         'RequiresServiceUserContext__c',
+        'AsyncDispatchType__c',
         'ErrorHandlingPolicy__c',
         'SummarizerAgent__c',
         'SummarizerAgent__r.DeveloperName__c',

@@ -23,9 +23,9 @@ tasks:
         options:
             path: seed-data
     deploy_addons:
-      class_path: cumulusci.tasks.salesforce.Deploy
-      options:
-        path: aiAgentStudioAddons
+        class_path: cumulusci.tasks.salesforce.Deploy
+        options:
+            path: aiAgentStudioAddons
     enable_knowledge_user:
         class_path: cumulusci.tasks.apex.anon.AnonymousApexTask
         options:
@@ -35,9 +35,9 @@ tasks:
         class_path: cumulusci.tasks.command.Command
         options:
             command: >
-                sf data import bulk 
-                --file data/Knowledge__kav.csv 
-                --sobject Knowledge__kav 
+                sf data import bulk
+                --file data/Knowledge__kav.csv
+                --sobject Knowledge__kav
                 --wait 30
 
 flows:
@@ -64,6 +64,8 @@ flows:
                 description: Set up Salesforce Data
                 options:
                     apex: "AgentTestDataFactory.createComprehensiveShowcase();"
+            7.1:
+              task: deploy_addons
             8:
                 task: execute_anon
                 description: Set up Salesforce Data
