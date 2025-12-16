@@ -52,7 +52,6 @@ The Salesforce AI Agent Framework is a **best-in-class, production-grade platfor
 
 ## 📋 Table of Contents
 
-- [What's New](#-whats-new)
 - [Target Audience](#-target-audience)
 - [Core Features](#-core-features)
 - [Architecture Overview](#-architecture-overview)
@@ -67,36 +66,6 @@ The Salesforce AI Agent Framework is a **best-in-class, production-grade platfor
 
 ---
 
-## 🆕 What's New
-
-**Recent Updates (December 2024 - March 2025):**
-
-### Framework Enhancements
-- ✅ **API Version Update**: Upgraded to Salesforce API v63.0
-- ✅ **Enhanced Data Model**: `AgentCapability__c` object for better tool management
-- ✅ **Context Ledger System**: Improved context tracking and relevance scoring
-- ✅ **Parallel Tool Calling**: Support for executing multiple tools simultaneously
-- ✅ **Enhanced Memory Management**: Improved summarization and buffer window strategies
-- ✅ **Action Transparency Mode**: Show LLM decision-making process to end users
-- ✅ **Better Error Handling**: LLM-friendly error messages with automatic sanitization
-- 🎯 **Function Agent Type**: Single-shot, synchronous operations for tool-terminating use cases
-- 🔄 **Workflow Agent Type**: Multi-agent orchestration with state machine execution
-- 🤖 **Additional LLM Providers**: Claude (Anthropic) and Gemini (Google) adapters
-- 🎨 **Visual Configuration Tools**: Agent Capability Setup Assistant and Unified Configurator
-- 📊 **Agent Storyboard**: Visual workflow builder and testing interface
-- 🎤 **Speech-to-Text Input**: Voice input support for chat interface
-- 📝 **Advanced Editors**: Monaco editor integration, Markdown editor/viewer
-- 🔍 **Additional Actions**: SearchKnowledge, ManageTasks, RunReport, SendNotification
-- 📦 **Bulk Execution**: Process large datasets with workflow agents
-- 📋 **Context Formatters**: JSON and XML formatters for structured data presentation
-
-### Developer Experience
-- ✅ **Comprehensive Test Data Factory**: `AgentTestDataFactory` with realistic business scenarios
-- ✅ **Improved Documentation**: Enhanced code comments and inline documentation
-- ✅ **Better Debugging**: Enhanced decision step logging and execution tracking
-
----
-
 ## 👥 Target Audience
 
 ### **Salesforce Administrators**
@@ -104,9 +73,6 @@ Configure AI agents declaratively using Custom Objects and metadata. No Apex req
 
 ### **Salesforce Developers**
 Extend the framework with custom actions (`IAgentAction`), LLM providers (`ILLMProviderAdapter`), memory strategies (`IMemoryManager`), and context providers (`IAgentContextProvider`).
-
-### **Salesforce Architects**
-Design secure, scalable, observable AI solutions that leverage Salesforce platform capabilities while maintaining enterprise-grade reliability.
 
 ---
 
@@ -526,24 +492,14 @@ AIAgentDefinition__c workflowAgent = new AIAgentDefinition__c(
    ```
 
 2. **Deploy the Framework**
-   
+
    Using Salesforce CLI (v2):
    ```bash
    sf project deploy start -d force-app/main/default -o <your-org-alias>
    ```
-   
-   Or using legacy SFDX CLI:
-   ```bash
-   sfdx force:source:deploy -p force-app/main/default -u <your-org-alias>
-   ```
-   
-   **Optional: Deploy Test Data Factory** (for testing/demos):
-   ```bash
-   sf project deploy start -d seed-data/main/default -o <your-org-alias>
-   ```
 
 3. **Configure LLM Provider Authentication**
-   
+
    **Option A: External Credential (Recommended for new orgs)**
    - Navigate to: Setup → Named Credentials
    - Click "New" → "New Named Credential"
@@ -552,7 +508,7 @@ AIAgentDefinition__c workflowAgent = new AIAgentDefinition__c(
    - **URL**: `https://api.openai.com`
    - Create an External Credential with API Key authentication
    - Add your OpenAI API key as a custom header: `Authorization: Bearer YOUR_API_KEY`
-   
+
    **Option B: Named Credential (Legacy)**
    - Navigate to: Setup → Named Credentials
    - Click "New Legacy"
@@ -583,7 +539,7 @@ AIAgentDefinition__c workflowAgent = new AIAgentDefinition__c(
    - **Max Retry Attempts**: 1
    - **Is Active**: Checked
    - Save
-   
+
    > **Tip**: You can create multiple LLM configurations for different models (GPT-4o, GPT-4o-mini, GPT-4-turbo) and choose which one each agent uses.
 
 6. **Create Your First Agent**
@@ -699,11 +655,11 @@ AIAgentDefinition__c workflowAgent = new AIAgentDefinition__c(
      }
      ```
    - Save
-   
+
    > **Tip**: You can also use the visual Agent Capability Configurator for an enhanced setup experience.
 
 8. **Add Chat Component to Lightning Page**
-   
+
    **For Lightning Experience:**
    - Navigate to any record page (Account, Contact, Case, etc.)
    - Click Setup (gear icon) → Edit Page
@@ -715,7 +671,7 @@ AIAgentDefinition__c workflowAgent = new AIAgentDefinition__c(
      - **Use Community Mode**: false
    - Click Save → Activate
    - Assign the page layout to your desired app and profiles
-   
+
    **Alternative: Add to Utility Bar**
    - Setup → App Manager → Edit your Lightning App
    - Go to "Utility Items" → Add Utility Item
@@ -738,43 +694,6 @@ AIAgentDefinition__c workflowAgent = new AIAgentDefinition__c(
 ---
 
 ## 🔒 Security Model
-
-### **Multi-Layer Security Architecture**
-
-#### **Layer 1: Salesforce Platform Security**
-- All DML respects sharing rules via `inherited sharing` classes
-- Profiles and permission sets control feature access
-- Field-Level Security automatically enforced
-
-#### **Layer 2: Framework Security Validation**
-- `SecurityUtils.checkObjectPermission()` - Validates CRUD before operations
-- `SecurityUtils.checkFieldPermission()` - Validates FLS before field access
-- `TypeCoercionService` - Filters out non-accessible fields automatically
-
-#### **Layer 3: Context Security**
-- User context tracked: `originalUserId` vs `executionUserId`
-- Record access validation before using as context
-- Execution audit trail in `AgentDecisionStep__c`
-
-#### **Layer 4: Data Sanitization**
-- Debug log sanitization (PII/PHI protection)
-- Error message sanitization for user display
-- Input validation via JSON Schema
-
-### **Permission Model**
-
-#### **User Permissions Required**
-- Read access to `AIAgentDefinition__c`
-- Read access to `LLMConfiguration__c`
-- Read/Write access to `AgentExecution__c`
-- Read/Write access to `ExecutionStep__c`
-- Execute permission on `ConversationalChatController` (and other controllers)
-
-#### **System Permissions Required** (Admin/Developer)
-- Full access to all configuration objects
-- Manage Named Credentials
-- Configure Platform Event subscribers
-- Deploy Apex classes
 
 ### **Security Best Practices**
 
@@ -874,7 +793,7 @@ The framework provides two async dispatch strategies optimized for different sce
 #### **Decision Step Analysis**
 Query `AgentDecisionStep__c` for insights:
 ```sql
-SELECT AgentExecution__c, StepType__c, Duration__c, 
+SELECT AgentExecution__c, StepType__c, Duration__c,
        TokensUsed__c, CreatedDate
 FROM AgentDecisionStep__c
 WHERE CreatedDate = LAST_N_DAYS:7
