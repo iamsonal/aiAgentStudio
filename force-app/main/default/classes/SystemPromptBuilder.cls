@@ -18,7 +18,7 @@
  * Responsibilities:
  *   - Compose system prompts from static, dynamic, and temporal sources
  *   - Orchestrate context resolution via ContextResolverService to fetch actual record data from providers
- *   - Format resolved SObject data using IContextFormatter implementations
+ *   - Format resolved SObject data using ContextFormattingService
  *   - Integrate conversation summaries and structured context ledger overview via ContextManagerService
  *   - Provide intelligent context prioritization and truncation within token limits
  *   - Support hierarchical context organization (primary, recent, related, background)
@@ -205,34 +205,26 @@ public inherited sharing class SystemPromptBuilder {
                 // Format the resolved SObject records using the configured formatting strategy
                 if (resolvedContext != null && !resolvedContext.recordsToLoad.isEmpty()) {
                     try {
-                        IContextFormatter formatter = getContextFormatter(formatStrategy, logPrefix);
+                        ContextFormattingService formatter = new ContextFormattingService();
+                        String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix, formatStrategy);
 
-                        if (formatter != null) {
-                            String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix);
-
-                            if (String.isNotBlank(formattedRecords)) {
-                                contextBlocks.add('<RESOLVED_CONTEXT_DATA>\n' + formattedRecords + '\n</RESOLVED_CONTEXT_DATA>');
-                                System.debug(
-                                    LoggingLevel.INFO,
-                                    logPrefix + 'Added ' + resolvedContext.recordsToLoad.size() + ' resolved records to context.'
-                                );
-                            }
-                        } else {
+                        if (String.isNotBlank(formattedRecords)) {
+                            contextBlocks.add('<RESOLVED_CONTEXT_DATA>\n' + formattedRecords + '\n</RESOLVED_CONTEXT_DATA>');
                             System.debug(
-                                LoggingLevel.WARN,
+                                LoggingLevel.INFO,
                                 logPrefix +
-                                    'No formatter available for strategy: ' +
-                                    formatStrategy +
-                                    '. Skipping formatting of ' +
+                                    'Added ' +
                                     resolvedContext.recordsToLoad.size() +
-                                    ' resolved records.'
+                                    ' resolved records to context using ' +
+                                    formatStrategy +
+                                    ' format.'
                             );
                         }
                     } catch (Exception formatterEx) {
-                        // If formatter loading or execution fails, log the error and continue without formatted context
+                        // If formatter execution fails, log the error and continue without formatted context
                         System.debug(
                             LoggingLevel.ERROR,
-                            logPrefix + 'Failed to load or execute formatter for strategy: ' + formatStrategy + '. Error: ' + formatterEx.getMessage()
+                            logPrefix + 'Failed to execute formatter for strategy: ' + formatStrategy + '. Error: ' + formatterEx.getMessage()
                         );
                         System.debug(
                             LoggingLevel.INFO,
@@ -488,57 +480,5 @@ public inherited sharing class SystemPromptBuilder {
             truncated = truncated.substring(0, lastNewline);
         }
         return truncated + '\n*[Context truncated...]*';
-    }
-
-    /**
-     * Retrieves the appropriate context formatter based on the format strategy from custom metadata.
-     * Uses metadata-driven configuration for extensibility and maintainability.
-     *
-     * @param formatStrategy The format strategy identifier (e.g., 'XML', 'JSON', 'StructuredText')
-     * @param logPrefix Logging prefix for debug output
-     * @return IContextFormatter instance for the requested strategy, or null if no mapping found
-     * @throws AIAgentException if the formatter cannot be loaded or instantiated
-     */
-    @TestVisible
-    private static IContextFormatter getContextFormatter(String formatStrategy, String logPrefix) {
-        try {
-            // Query the custom metadata for the formatter mapping
-            List<ContextFormatterMapping__mdt> mappings = [
-                SELECT FormatterClassName__c, FormatStrategy__c, Description__c
-                FROM ContextFormatterMapping__mdt
-                WHERE FormatStrategy__c = :formatStrategy AND IsActive__c = TRUE
-                LIMIT 1
-            ];
-
-            // If no mapping found, return null to skip formatting
-            if (mappings.isEmpty()) {
-                System.debug(
-                    LoggingLevel.WARN,
-                    logPrefix + 'No active formatter found for strategy: ' + formatStrategy + '. Resolved records will not be formatted.'
-                );
-                return null;
-            }
-
-            ContextFormatterMapping__mdt mapping = mappings[0];
-            String className = mapping.FormatterClassName__c;
-
-            System.debug(LoggingLevel.INFO, logPrefix + 'Loading context formatter: ' + className + ' for strategy: ' + formatStrategy);
-
-            // Dynamically instantiate the formatter class
-            Type formatterType = Type.forName(className);
-            if (formatterType == null) {
-                throw new AIAgentException('Context formatter class not found: ' + className);
-            }
-
-            Object formatterInstance = formatterType.newInstance();
-            if (!(formatterInstance instanceof IContextFormatter)) {
-                throw new AIAgentException('Class ' + className + ' does not implement IContextFormatter interface');
-            }
-
-            return (IContextFormatter) formatterInstance;
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Error loading context formatter for strategy ' + formatStrategy + ': ' + e.getMessage());
-            throw new AIAgentException('Failed to load context formatter: ' + e.getMessage(), e);
-        }
     }
 }

@@ -177,15 +177,15 @@ public class ParallelToolCallHandlerTest {
         Test.startTest();
 
         // Test the result gatherer (should not throw exceptions)
-        ParallelResultGatherer.checkAndTriggerFinalFollowUp(execution.Id, turnIdentifier, currentTurnCount, logPrefix);
+        ParallelToolCallHandler.checkAndTriggerFinalFollowUp(execution.Id, turnIdentifier, currentTurnCount, logPrefix);
 
         // Test async tool completion
-        ParallelResultGatherer.onAsyncToolCompleted(execution.Id, turnIdentifier, currentTurnCount, 'test-tool-call-id', logPrefix);
+        ParallelToolCallHandler.onAsyncToolCompleted(execution.Id, turnIdentifier, currentTurnCount, 'test-tool-call-id', logPrefix);
 
         Test.stopTest();
 
         // Verify no exceptions were thrown
-        System.assert(true, 'ParallelResultGatherer methods should execute without exceptions');
+        System.assert(true, 'ParallelToolCallHandler result gathering methods should execute without exceptions');
     }
 
     @IsTest

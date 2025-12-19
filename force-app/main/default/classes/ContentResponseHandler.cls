@@ -9,7 +9,11 @@
 /**
  * @description
  * Processes LLM responses that contain only textual content (no tool calls).
- * Orchestrates message persistence, context ledger updates, and memory management.
+ * Orchestrates message persistence, context ledger updates, memory management,
+ * and completion capability execution with declarative parameter mapping.
+ * 
+ * Includes integrated parameter mapping capabilities for deterministic,
+ * template-based transformation of completion context into capability parameters.
  */
 public class ContentResponseHandler implements ILLMResponseHandler {
     /**
@@ -17,6 +21,24 @@ public class ContentResponseHandler implements ILLMResponseHandler {
      */
     public class CompletionCapabilityException extends Exception {
     }
+
+    /**
+     * Exception thrown when parameter mapping fails.
+     */
+    public class MappingException extends Exception {
+    }
+
+    /**
+     * Default mapping templates by agent type.
+     * These are used when CompletionParameterMapping__c is not configured.
+     */
+    private static final Map<String, String> DEFAULT_MAPPINGS_BY_TYPE = new Map<String, String>{
+        'Email' => '{"toAddresses": ["{{triggerMetadata.fromAddress}}"], "subject": "Re: {{triggerMetadata.emailSubject}}", "plainTextBody": "{{summary}}"}'
+        // Future agent types can be added here:
+        // 'SMS' => '{"phoneNumber": "{{triggerMetadata.fromNumber}}", "messageBody": "{{summary}}"}',
+        // 'Slack' => '{"channelId": "{{triggerMetadata.channelId}}", "message": "{{summary}}"}',
+        // etc.
+    };
     /**
      * Handles an LLM response containing only textual content (no tool calls).
      * Orchestrates message persistence, context ledger update, memory management, and error handling.
@@ -228,7 +250,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
                 System.debug(LoggingLevel.INFO, completionLogPrefix + 'Using custom declarative mapping');
             } else {
                 // Check for hardcoded default mapping by agent type
-                mappingTemplate = CompletionParameterMapper.getDefaultMapping(agentDef.AgentType__c);
+                mappingTemplate = getDefaultMapping(agentDef.AgentType__c);
                 if (String.isNotBlank(mappingTemplate)) {
                     System.debug(
                         LoggingLevel.INFO,
@@ -306,10 +328,10 @@ public class ContentResponseHandler implements ILLMResponseHandler {
             ];
 
             // Build completion context
-            Map<String, Object> completionContext = CompletionParameterMapper.buildCompletionContext(summary, execution);
+            Map<String, Object> completionContext = buildCompletionContext(summary, execution);
 
             // Apply mapping template
-            String mappedJson = CompletionParameterMapper.applyMapping(mappingTemplate, completionContext);
+            String mappedJson = applyMapping(mappingTemplate, completionContext);
 
             System.debug(LoggingLevel.INFO, mapLogPrefix + 'Declarative mapping completed successfully');
             return mappedJson;
@@ -366,5 +388,229 @@ public class ContentResponseHandler implements ILLMResponseHandler {
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, resultLogPrefix + 'Failed to log completion result: ' + e.getMessage());
         }
+    }
+
+    // ===================================================================================
+    // PARAMETER MAPPING - Merged from CompletionParameterMapper
+    // ===================================================================================
+
+    /**
+     * Gets the default mapping template for a given agent type.
+     * Returns null if no default exists for that type.
+     *
+     * @param agentType The agent type (e.g., 'Email', 'SMS', 'Slack')
+     * @return The default JSON mapping template, or null if none exists
+     */
+    @TestVisible
+    private static String getDefaultMapping(String agentType) {
+        if (String.isBlank(agentType)) {
+            return null;
+        }
+        return DEFAULT_MAPPINGS_BY_TYPE.get(agentType);
+    }
+
+    /**
+     * Applies a declarative mapping template to completion context.
+     *
+     * @param mappingTemplate JSON template with {{variable}} placeholders
+     * @param completionContext Map containing available variables (summary, triggerMetadata, etc.)
+     * @return JSON string with variables replaced by actual values
+     * @throws MappingException if template parsing or interpolation fails
+     */
+    @TestVisible
+    private static String applyMapping(String mappingTemplate, Map<String, Object> completionContext) {
+        String logPrefix = '[applyMapping] ';
+
+        if (String.isBlank(mappingTemplate)) {
+            throw new MappingException('Mapping template cannot be blank');
+        }
+
+        if (completionContext == null || completionContext.isEmpty()) {
+            throw new MappingException('Completion context cannot be null or empty');
+        }
+
+        try {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Applying declarative mapping template');
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Template: ' + mappingTemplate.abbreviate(200));
+
+            // Parse template as JSON to validate structure
+            Object templateObj = JSON.deserializeUntyped(mappingTemplate);
+
+            // Perform recursive variable substitution
+            Object result = substituteVariables(templateObj, completionContext, logPrefix);
+
+            // Serialize back to JSON
+            String mappedJson = JSON.serialize(result);
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Mapping completed successfully');
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Result: ' + mappedJson.abbreviate(200));
+
+            return mappedJson;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Mapping failed: ' + e.getMessage());
+            throw new MappingException('Failed to apply mapping template: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Recursively substitutes template variables in the object tree.
+     *
+     * @param obj The object to process (can be String, Map, List, or primitive)
+     * @param context The completion context containing variable values
+     * @param logPrefix Logging prefix
+     * @return Object with variables replaced
+     */
+    @SuppressWarnings('PMD.CyclomaticComplexity')
+    private static Object substituteVariables(Object obj, Map<String, Object> context, String logPrefix) {
+        if (obj == null) {
+            return null;
+        }
+
+        // Handle strings - perform variable substitution
+        if (obj instanceof String) {
+            return interpolateString((String) obj, context, logPrefix);
+        }
+
+        // Handle maps - recurse into values
+        // Note: After JSON deserialization, maps are Map<String, Object>
+        try {
+            Map<String, Object> testMap = (Map<String, Object>) obj;
+            Map<String, Object> result = new Map<String, Object>();
+
+            for (String key : testMap.keySet()) {
+                result.put(key, substituteVariables(testMap.get(key), context, logPrefix));
+            }
+
+            return result;
+        } catch (TypeException e) {
+            // Not a map, continue to next type check
+        }
+
+        // Handle lists - recurse into elements
+        // Note: After JSON deserialization, lists are List<Object>
+        try {
+            List<Object> testList = (List<Object>) obj;
+            List<Object> result = new List<Object>();
+
+            for (Object item : testList) {
+                result.add(substituteVariables(item, context, logPrefix));
+            }
+
+            return result;
+        } catch (TypeException e) {
+            // Not a list, must be a primitive
+        }
+
+        // Return primitives as-is (numbers, booleans, etc.)
+        return obj;
+    }
+
+    /**
+     * Interpolates variables in a string template.
+     * Supports syntax: {{variableName}} or {{path.to.nested.value}}
+     *
+     * @param template The string template with {{variable}} placeholders
+     * @param context The completion context
+     * @param logPrefix Logging prefix
+     * @return String with variables replaced
+     */
+    private static String interpolateString(String template, Map<String, Object> context, String logPrefix) {
+        if (String.isBlank(template)) {
+            return template;
+        }
+
+        // Match pattern: {{variableName}} or {{path.to.value}}
+        Pattern variablePattern = Pattern.compile('\\{\\{([^}]+)\\}\\}');
+        Matcher matcher = variablePattern.matcher(template);
+
+        String result = template;
+
+        while (matcher.find()) {
+            String fullMatch = matcher.group(0); // e.g., "{{triggerMetadata.fromAddress}}"
+            String variablePath = matcher.group(1).trim(); // e.g., "triggerMetadata.fromAddress"
+
+            // Extract value from context using path
+            Object value = extractValueFromPath(variablePath, context, logPrefix);
+
+            // Convert value to string
+            String valueStr = value != null ? String.valueOf(value) : '';
+
+            // Replace placeholder with actual value
+            result = result.replace(fullMatch, valueStr);
+
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Replaced ' + fullMatch + ' with: ' + valueStr);
+        }
+
+        return result;
+    }
+
+    /**
+     * Extracts a value from the context using dot notation path.
+     * Example: "triggerMetadata.fromAddress" extracts context.get('triggerMetadata').get('fromAddress')
+     *
+     * @param path Dot-separated path (e.g., "triggerMetadata.fromAddress")
+     * @param context The completion context
+     * @param logPrefix Logging prefix
+     * @return The extracted value, or null if not found
+     */
+    private static Object extractValueFromPath(String path, Map<String, Object> context, String logPrefix) {
+        if (String.isBlank(path)) {
+            return null;
+        }
+
+        List<String> parts = path.split('\\.');
+        Object current = context;
+
+        for (String part : parts) {
+            if (current == null) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Path traversal stopped at null: ' + path);
+                return null;
+            }
+
+            if (current instanceof Map<String, Object>) {
+                Map<String, Object> currentMap = (Map<String, Object>) current;
+                current = currentMap.get(part);
+            } else {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Cannot traverse non-map object at path: ' + path);
+                return null;
+            }
+        }
+
+        return current;
+    }
+
+    /**
+     * Builds the standard completion context map from execution data.
+     *
+     * @param summary The LLM-generated summary
+     * @param execution The AgentExecution__c record with metadata
+     * @return Map containing all available context variables
+     */
+    @TestVisible
+    private static Map<String, Object> buildCompletionContext(String summary, AgentExecution__c execution) {
+        String logPrefix = '[buildContext] ';
+
+        // Parse trigger payload (contains email metadata, etc.)
+        // Note: TriggerPayload__c is where EmailOrchestrator stores the email metadata
+        Map<String, Object> triggerMetadata = new Map<String, Object>();
+        if (String.isNotBlank(execution.TriggerPayload__c)) {
+            try {
+                triggerMetadata = (Map<String, Object>) JSON.deserializeUntyped(execution.TriggerPayload__c);
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Failed to parse trigger payload: ' + e.getMessage());
+            }
+        }
+
+        // Build standard context
+        Map<String, Object> context = new Map<String, Object>{
+            'summary' => summary,
+            'executionId' => String.valueOf(execution.Id),
+            'executionType' => execution.ExecutionType__c,
+            'triggerSource' => execution.TriggerSource__c,
+            'triggerMetadata' => triggerMetadata
+        };
+
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'Built completion context with ' + context.keySet().size() + ' root keys');
+        return context;
     }
 }

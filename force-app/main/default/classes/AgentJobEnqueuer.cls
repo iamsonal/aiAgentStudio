@@ -192,7 +192,7 @@ public inherited sharing class AgentJobEnqueuer {
         Boolean finalErrorFlag,
         String logPrefix
     ) {
-        FollowUpLLMQueueable queueable = new FollowUpLLMQueueable(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag);
+        FollowUpLLMEngine queueable = new FollowUpLLMEngine(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag);
 
         // Get AsyncOptions if configured (for scratch/developer orgs)
         AsyncOptions asyncOptions = getAsyncOptions(logPrefix);
@@ -360,7 +360,7 @@ public inherited sharing class AgentJobEnqueuer {
         Integer currentTurnCount,
         String logPrefix
     ) {
-        AsyncActionQueueable queueable = new AsyncActionQueueable(
+        AsyncActionEngine queueable = new AsyncActionEngine(
             sessionId,
             originalUserId,
             agentDefId,

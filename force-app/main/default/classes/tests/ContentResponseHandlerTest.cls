@@ -1,5 +1,5 @@
 /**
- * @description Tests for ContentResponseHandler and CompletionParameterMapper
+ * @description Tests for ContentResponseHandler and ContentResponseHandler
  */
 @IsTest
 private class ContentResponseHandlerTest {
@@ -160,10 +160,10 @@ private class ContentResponseHandlerTest {
     // ===================================================================================
 
     @IsTest
-    static void testCompletionParameterMapper_GetDefaultMapping_Email_ReturnsMapping() {
+    static void testContentResponseHandler_GetDefaultMapping_Email_ReturnsMapping() {
         // When: Getting default mapping for Email type
         Test.startTest();
-        String mapping = CompletionParameterMapper.getDefaultMapping('Email');
+        String mapping = ContentResponseHandler.getDefaultMapping('Email');
         Test.stopTest();
 
         // Then: Should return email mapping template
@@ -174,10 +174,10 @@ private class ContentResponseHandlerTest {
     }
 
     @IsTest
-    static void testCompletionParameterMapper_GetDefaultMapping_UnknownType_ReturnsNull() {
+    static void testContentResponseHandler_GetDefaultMapping_UnknownType_ReturnsNull() {
         // When: Getting default mapping for unknown type
         Test.startTest();
-        String mapping = CompletionParameterMapper.getDefaultMapping('UnknownType');
+        String mapping = ContentResponseHandler.getDefaultMapping('UnknownType');
         Test.stopTest();
 
         // Then: Should return null
@@ -185,10 +185,10 @@ private class ContentResponseHandlerTest {
     }
 
     @IsTest
-    static void testCompletionParameterMapper_GetDefaultMapping_BlankType_ReturnsNull() {
+    static void testContentResponseHandler_GetDefaultMapping_BlankType_ReturnsNull() {
         // When: Getting default mapping for blank type
         Test.startTest();
-        String mapping = CompletionParameterMapper.getDefaultMapping('');
+        String mapping = ContentResponseHandler.getDefaultMapping('');
         Test.stopTest();
 
         // Then: Should return null
@@ -196,14 +196,14 @@ private class ContentResponseHandlerTest {
     }
 
     @IsTest
-    static void testCompletionParameterMapper_ApplyMapping_SimpleVariables_Success() {
+    static void testContentResponseHandler_ApplyMapping_SimpleVariables_Success() {
         // Given: Simple mapping template and context
         String template = '{"name": "{{userName}}", "message": "{{messageText}}"}';
         Map<String, Object> context = new Map<String, Object>{ 'userName' => 'John Doe', 'messageText' => 'Hello World' };
 
         // When: Applying mapping
         Test.startTest();
-        String result = CompletionParameterMapper.applyMapping(template, context);
+        String result = ContentResponseHandler.applyMapping(template, context);
         Test.stopTest();
 
         // Then: Should replace variables
@@ -213,7 +213,7 @@ private class ContentResponseHandlerTest {
     }
 
     @IsTest
-    static void testCompletionParameterMapper_ApplyMapping_NestedPaths_Success() {
+    static void testContentResponseHandler_ApplyMapping_NestedPaths_Success() {
         // Given: Template with nested path
         String template = '{"email": "{{user.contact.email}}", "subject": "{{metadata.subject}}"}';
         Map<String, Object> context = new Map<String, Object>{
@@ -223,7 +223,7 @@ private class ContentResponseHandlerTest {
 
         // When: Applying mapping
         Test.startTest();
-        String result = CompletionParameterMapper.applyMapping(template, context);
+        String result = ContentResponseHandler.applyMapping(template, context);
         Test.stopTest();
 
         // Then: Should resolve nested paths
@@ -233,7 +233,7 @@ private class ContentResponseHandlerTest {
     }
 
     @IsTest
-    static void testCompletionParameterMapper_ApplyMapping_ComplexStructure_Success() {
+    static void testContentResponseHandler_ApplyMapping_ComplexStructure_Success() {
         // Given: Complex template with arrays and objects
         String template = '{"toAddresses": ["{{email}}", "{{email2}}"], "body": "{{body}}", "metadata": {"priority": "{{priority}}"}}';
         Map<String, Object> context = new Map<String, Object>{
@@ -245,7 +245,7 @@ private class ContentResponseHandlerTest {
 
         // When: Applying mapping
         Test.startTest();
-        String result = CompletionParameterMapper.applyMapping(template, context);
+        String result = ContentResponseHandler.applyMapping(template, context);
         Test.stopTest();
 
         // Then: Should handle complex structure
@@ -257,7 +257,7 @@ private class ContentResponseHandlerTest {
     }
 
     @IsTest
-    static void testCompletionParameterMapper_ApplyMapping_MissingVariable_UsesEmpty() {
+    static void testContentResponseHandler_ApplyMapping_MissingVariable_UsesEmpty() {
         // Given: Template with missing variable
         String template = '{"name": "{{userName}}", "email": "{{userEmail}}"}';
         Map<String, Object> context = new Map<String, Object>{
@@ -267,7 +267,7 @@ private class ContentResponseHandlerTest {
 
         // When: Applying mapping
         Test.startTest();
-        String result = CompletionParameterMapper.applyMapping(template, context);
+        String result = ContentResponseHandler.applyMapping(template, context);
         Test.stopTest();
 
         // Then: Should use empty string for missing variable
@@ -276,7 +276,7 @@ private class ContentResponseHandlerTest {
     }
 
     @IsTest
-    static void testCompletionParameterMapper_ApplyMapping_BlankTemplate_ThrowsException() {
+    static void testContentResponseHandler_ApplyMapping_BlankTemplate_ThrowsException() {
         // Given: Blank template
         Map<String, Object> context = new Map<String, Object>{ 'key' => 'value' };
         Boolean exceptionThrown = false;
@@ -284,8 +284,8 @@ private class ContentResponseHandlerTest {
         // When: Applying blank template
         Test.startTest();
         try {
-            CompletionParameterMapper.applyMapping('', context);
-        } catch (CompletionParameterMapper.MappingException e) {
+            ContentResponseHandler.applyMapping('', context);
+        } catch (ContentResponseHandler.MappingException e) {
             exceptionThrown = true;
         }
         Test.stopTest();
@@ -295,7 +295,7 @@ private class ContentResponseHandlerTest {
     }
 
     @IsTest
-    static void testCompletionParameterMapper_ApplyMapping_NullContext_ThrowsException() {
+    static void testContentResponseHandler_ApplyMapping_NullContext_ThrowsException() {
         // Given: Null context
         String template = '{"name": "{{userName}}"}';
         Boolean exceptionThrown = false;
@@ -303,8 +303,8 @@ private class ContentResponseHandlerTest {
         // When: Applying with null context
         Test.startTest();
         try {
-            CompletionParameterMapper.applyMapping(template, null);
-        } catch (CompletionParameterMapper.MappingException e) {
+            ContentResponseHandler.applyMapping(template, null);
+        } catch (ContentResponseHandler.MappingException e) {
             exceptionThrown = true;
         }
         Test.stopTest();
@@ -314,7 +314,7 @@ private class ContentResponseHandlerTest {
     }
 
     @IsTest
-    static void testCompletionParameterMapper_ApplyMapping_EmptyContext_ThrowsException() {
+    static void testContentResponseHandler_ApplyMapping_EmptyContext_ThrowsException() {
         // Given: Empty context
         String template = '{"name": "{{userName}}"}';
         Map<String, Object> context = new Map<String, Object>();
@@ -323,8 +323,8 @@ private class ContentResponseHandlerTest {
         // When: Applying with empty context
         Test.startTest();
         try {
-            CompletionParameterMapper.applyMapping(template, context);
-        } catch (CompletionParameterMapper.MappingException e) {
+            ContentResponseHandler.applyMapping(template, context);
+        } catch (ContentResponseHandler.MappingException e) {
             exceptionThrown = true;
         }
         Test.stopTest();
@@ -334,7 +334,7 @@ private class ContentResponseHandlerTest {
     }
 
     @IsTest
-    static void testCompletionParameterMapper_ApplyMapping_InvalidJson_ThrowsException() {
+    static void testContentResponseHandler_ApplyMapping_InvalidJson_ThrowsException() {
         // Given: Invalid JSON template
         String template = '{"invalid": json}';
         Map<String, Object> context = new Map<String, Object>{ 'key' => 'value' };
@@ -343,8 +343,8 @@ private class ContentResponseHandlerTest {
         // When: Applying invalid template
         Test.startTest();
         try {
-            CompletionParameterMapper.applyMapping(template, context);
-        } catch (CompletionParameterMapper.MappingException e) {
+            ContentResponseHandler.applyMapping(template, context);
+        } catch (ContentResponseHandler.MappingException e) {
             exceptionThrown = true;
         }
         Test.stopTest();
@@ -354,7 +354,7 @@ private class ContentResponseHandlerTest {
     }
 
     @IsTest
-    static void testCompletionParameterMapper_BuildCompletionContext_WithoutTriggerPayload_Success() {
+    static void testContentResponseHandler_BuildCompletionContext_WithoutTriggerPayload_Success() {
         // Given: Execution without trigger payload
         TestFactory.AgentSetup setup = getTestSetup();
         AgentExecution__c execution = [
@@ -365,7 +365,7 @@ private class ContentResponseHandlerTest {
 
         // When: Building context
         Test.startTest();
-        Map<String, Object> context = CompletionParameterMapper.buildCompletionContext('Test summary', execution);
+        Map<String, Object> context = ContentResponseHandler.buildCompletionContext('Test summary', execution);
         Test.stopTest();
 
         // Then: Should build context with empty metadata
@@ -375,7 +375,7 @@ private class ContentResponseHandlerTest {
     }
 
     @IsTest
-    static void testCompletionParameterMapper_BuildCompletionContext_WithInvalidPayload_HandlesGracefully() {
+    static void testContentResponseHandler_BuildCompletionContext_WithInvalidPayload_HandlesGracefully() {
         // Given: Execution with invalid JSON payload
         TestFactory.AgentSetup setup = getTestSetup();
         update new AgentExecution__c(Id = setup.agentExecution.Id, TriggerPayload__c = 'invalid json {');
@@ -388,7 +388,7 @@ private class ContentResponseHandlerTest {
 
         // When: Building context
         Test.startTest();
-        Map<String, Object> context = CompletionParameterMapper.buildCompletionContext('Summary', execution);
+        Map<String, Object> context = ContentResponseHandler.buildCompletionContext('Summary', execution);
         Test.stopTest();
 
         // Then: Should handle gracefully with empty metadata
@@ -415,8 +415,8 @@ private class ContentResponseHandlerTest {
     static void testMappingException_CanBeThrown() {
         Test.startTest();
         try {
-            throw new CompletionParameterMapper.MappingException('Test mapping exception');
-        } catch (CompletionParameterMapper.MappingException e) {
+            throw new ContentResponseHandler.MappingException('Test mapping exception');
+        } catch (ContentResponseHandler.MappingException e) {
             System.assertEquals('Test mapping exception', e.getMessage());
         }
         Test.stopTest();

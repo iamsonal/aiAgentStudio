@@ -94,7 +94,7 @@ private class AgentJobEnqueuerTest {
         List<AsyncApexJob> jobs = [
             SELECT Id, ApexClass.Name
             FROM AsyncApexJob
-            WHERE ApexClass.Name = 'FollowUpLLMQueueable' AND Status IN ('Queued', 'Processing', 'Completed')
+            WHERE ApexClass.Name = 'FollowUpLLMEngine' AND Status IN ('Queued', 'Processing', 'Completed')
         ];
         // Platform Events work in test context, so we may not see a Queueable job
         System.assert(true, 'Platform Event should process without error when turn ID is pre-set');
@@ -124,9 +124,9 @@ private class AgentJobEnqueuerTest {
         List<AsyncApexJob> jobs = [
             SELECT Id, ApexClass.Name
             FROM AsyncApexJob
-            WHERE ApexClass.Name = 'FollowUpLLMQueueable'
+            WHERE ApexClass.Name = 'FollowUpLLMEngine'
         ];
-        System.assertEquals(1, jobs.size(), 'Should enqueue FollowUpLLMQueueable');
+        System.assertEquals(1, jobs.size(), 'Should enqueue FollowUpLLMEngine');
     }
 
     @IsTest
@@ -153,7 +153,7 @@ private class AgentJobEnqueuerTest {
         List<AsyncApexJob> jobs = [
             SELECT Id
             FROM AsyncApexJob
-            WHERE ApexClass.Name = 'FollowUpLLMQueueable'
+            WHERE ApexClass.Name = 'FollowUpLLMEngine'
         ];
         System.assertEquals(1, jobs.size(), 'Should enqueue with final error flag');
     }
@@ -233,9 +233,9 @@ private class AgentJobEnqueuerTest {
         List<AsyncApexJob> jobs = [
             SELECT Id
             FROM AsyncApexJob
-            WHERE ApexClass.Name = 'AsyncActionQueueable'
+            WHERE ApexClass.Name = 'AsyncActionEngine'
         ];
-        System.assertEquals(1, jobs.size(), 'Should enqueue AsyncActionQueueable');
+        System.assertEquals(1, jobs.size(), 'Should enqueue AsyncActionEngine');
     }
 
     // ===================================================================================
@@ -297,7 +297,7 @@ private class AgentJobEnqueuerTest {
         List<AsyncApexJob> jobs = [
             SELECT Id
             FROM AsyncApexJob
-            WHERE ApexClass.Name = 'FollowUpLLMQueueable'
+            WHERE ApexClass.Name = 'FollowUpLLMEngine'
         ];
         System.assertEquals(1, jobs.size(), 'Should default to Queueable for null agent ID');
     }

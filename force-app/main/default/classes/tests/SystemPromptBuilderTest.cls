@@ -145,7 +145,8 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = SystemPromptBuilder.getContextFormatter('Structured Text', '[TEST] ').formatContext(accounts, '[TEST] ');
+        ContextFormattingService formatter = new ContextFormattingService();
+        String formatted = formatter.formatContext(accounts, '[TEST] ', 'Structured Text');
         Test.stopTest();
 
         // Then: Should be structured text
@@ -165,7 +166,8 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = SystemPromptBuilder.getContextFormatter('Structured Text', '[TEST] ').formatContext(accounts, '[TEST] ');
+        ContextFormattingService formatter = new ContextFormattingService();
+        String formatted = formatter.formatContext(accounts, '[TEST] ', 'Structured Text');
         Test.stopTest();
 
         // Then: Should include child relationships
@@ -185,7 +187,8 @@ private class SystemPromptBuilderTest {
 
         // When: Formatting
         Test.startTest();
-        String formatted = SystemPromptBuilder.getContextFormatter('Structured Text', '[TEST] ').formatContext(contacts, '[TEST] ');
+        ContextFormattingService formatter = new ContextFormattingService();
+        String formatted = formatter.formatContext(contacts, '[TEST] ', 'Structured Text');
         Test.stopTest();
 
         // Then: Should include relationship data
