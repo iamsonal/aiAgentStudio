@@ -142,9 +142,7 @@ private class UnifiedAgentQueueableTest {
     static void testInvalidJobType_ThrowsException() {
         // Given: Invalid job type
         String invalidJobType = 'InvalidType';
-        Map<String, Object> payload = new Map<String, Object>{
-            'test' => 'data'
-        };
+        Map<String, Object> payload = new Map<String, Object>{ 'test' => 'data' };
 
         // When/Then: Should throw exception
         try {
@@ -199,4 +197,3 @@ private class UnifiedAgentQueueableTest {
         System.assertEquals('Conversational', UnifiedAgentQueueable.JOB_TYPE_CONVERSATIONAL, 'Conversational constant should be correct');
     }
 }
-

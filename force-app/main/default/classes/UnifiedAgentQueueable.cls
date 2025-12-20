@@ -94,7 +94,9 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
         // Validate job type
         Set<String> validJobTypes = new Set<String>{ JOB_TYPE_FUNCTION, JOB_TYPE_WORKFLOW_CHILD, JOB_TYPE_CONVERSATIONAL };
         if (!validJobTypes.contains(jobType)) {
-            throw new UnifiedQueueableException('Invalid job type: ' + jobType + '. Must be one of: ' + String.join(new List<String>(validJobTypes), ', '));
+            throw new UnifiedQueueableException(
+                'Invalid job type: ' + jobType + '. Must be one of: ' + String.join(new List<String>(validJobTypes), ', ')
+            );
         }
 
         this.jobType = jobType;
@@ -128,10 +130,7 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
             System.debug(LoggingLevel.INFO, logPrefix + 'Completed successfully in ' + duration + 'ms');
         } catch (Exception e) {
             Long duration = System.currentTimeMillis() - startTime;
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix + 'Failed after ' + duration + 'ms: ' + e.getMessage() + '\n' + e.getStackTraceString()
-            );
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed after ' + duration + 'ms: ' + e.getMessage() + '\n' + e.getStackTraceString());
             // Error logging is handled by individual strategies
         }
     }
@@ -513,4 +512,3 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
     public class UnifiedQueueableException extends Exception {
     }
 }
-

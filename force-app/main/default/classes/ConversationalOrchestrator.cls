@@ -187,7 +187,10 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
         UnifiedAgentQueueable queueable = new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_CONVERSATIONAL, queueablePayload);
 
         Id jobId = System.enqueueJob(queueable);
-        System.debug(LoggingLevel.INFO, logPrefix + 'Enqueued UnifiedAgentQueueable job (Conversational type): ' + jobId + ' for execution: ' + executionId);
+        System.debug(
+            LoggingLevel.INFO,
+            logPrefix + 'Enqueued UnifiedAgentQueueable job (Conversational type): ' + jobId + ' for execution: ' + executionId
+        );
     }
 
     /**

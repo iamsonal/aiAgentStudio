@@ -190,7 +190,13 @@ public abstract class BaseProviderAdapter implements ILLMProviderAdapter {
 
             System.debug(
                 LoggingLevel.DEBUG,
-                logPrefix + 'Token usage - Prompt: ' + result.promptTokens + ', Completion: ' + result.completionTokens + ', Total: ' + result.totalTokens
+                logPrefix +
+                    'Token usage - Prompt: ' +
+                    result.promptTokens +
+                    ', Completion: ' +
+                    result.completionTokens +
+                    ', Total: ' +
+                    result.totalTokens
             );
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Failed to extract token usage: ' + e.getMessage());
@@ -311,4 +317,3 @@ public abstract class BaseProviderAdapter implements ILLMProviderAdapter {
      */
     protected abstract ProviderResult parseProviderResponse(String responseBody, String modelIdentifier, Long durationMs);
 }
-

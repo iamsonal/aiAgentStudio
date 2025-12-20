@@ -598,4 +598,3 @@ public inherited sharing class LLMFormattingService {
         }
     }
 }
-
