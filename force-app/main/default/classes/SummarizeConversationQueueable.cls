@@ -120,7 +120,7 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
         String prompt = promptTemplateToUse.replace('{current_summary}', currentSummary).replace('{new_lines}', newLines);
 
         try {
-            ILLMProviderAdapter adapter = LLMProviderFactory.getAdapter(llmConfigToUse);
+            ILLMProviderAdapter adapter = LLMInteractionService.getLLMProviderAdapter(llmConfigToUse);
             List<Map<String, Object>> messagesPayload = new List<Map<String, Object>>{
                 new Map<String, Object>{ 'role' => 'user', 'content' => prompt }
             };

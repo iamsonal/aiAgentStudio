@@ -75,7 +75,6 @@ public class ActionCreateRecord extends BaseAgentAction {
         public Map<String, Object> defaultFieldValues;
     }
 
-
     /**
      * @description
      * Main entry point for record creation using strongly-typed DTOs.

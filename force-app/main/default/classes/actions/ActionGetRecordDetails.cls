@@ -98,7 +98,6 @@ public class ActionGetRecordDetails extends BaseAgentAction {
         public String objectApiName;
     }
 
-
     /**
      * @description
      * Main entry point: Retrieves a record by ID using FieldSet-based field selection.
@@ -121,7 +120,7 @@ public class ActionGetRecordDetails extends BaseAgentAction {
         // Deserialize arguments
         ArgumentsDTO args = new ArgumentsDTO();
         Object recordIdObj = params.get('recordId');
-        
+
         if (recordIdObj == null) {
             return ActionOutcome.failureWithGuidance(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
@@ -170,7 +169,9 @@ public class ActionGetRecordDetails extends BaseAgentAction {
                 return ActionOutcome.failureWithGuidance(
                     AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                     'Record ID type mismatch. Expected: ' + config.objectApiName + ', Actual: ' + objectApiName,
-                    'The provided record ID belongs to a different object type than configured. Please provide a valid ' + config.objectApiName + ' record ID.'
+                    'The provided record ID belongs to a different object type than configured. Please provide a valid ' +
+                        config.objectApiName +
+                        ' record ID.'
                 );
             }
         }
@@ -188,7 +189,7 @@ public class ActionGetRecordDetails extends BaseAgentAction {
         // Validate configuration: either fieldSetName OR defaultFields must be provided (XOR)
         Boolean hasFieldSet = String.isNotBlank(config.fieldSetName);
         Boolean hasDefaultFields = config.defaultFields != null && !config.defaultFields.isEmpty();
-        
+
         if (!hasFieldSet && !hasDefaultFields) {
             return ActionOutcome.failureWithGuidance(
                 AIAgentConstants.ERR_CODE_CONFIG_ERROR,
@@ -196,7 +197,7 @@ public class ActionGetRecordDetails extends BaseAgentAction {
                 'Provide a FieldSet name (e.g., {"fieldSetName": "AI_Agent_Details"}) OR an array of field API names (e.g., {"defaultFields": ["Id", "Name", "Status"]}).'
             );
         }
-        
+
         if (hasFieldSet && hasDefaultFields) {
             return ActionOutcome.failureWithGuidance(
                 AIAgentConstants.ERR_CODE_CONFIG_ERROR,
@@ -204,10 +205,10 @@ public class ActionGetRecordDetails extends BaseAgentAction {
                 'Choose either a FieldSet (fieldSetName) OR a field list (defaultFields), not both.'
             );
         }
-        
+
         // Get fields from FieldSet or defaultFields
         Set<String> fieldsToQuery = new Set<String>{ 'Id' }; // Always include Id
-        
+
         if (hasFieldSet) {
             // Use FieldSet
             List<String> fieldSetFields = getFieldsFromFieldSet(sObjectType, config.fieldSetName);
@@ -215,7 +216,9 @@ public class ActionGetRecordDetails extends BaseAgentAction {
                 return ActionOutcome.failureWithGuidance(
                     AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                     'FieldSet "' + config.fieldSetName + '" not found on object ' + objectApiName,
-                    'The configured FieldSet does not exist. Available FieldSets can be found in Setup > Object Manager > ' + objectApiName + ' > Field Sets. Create the FieldSet or update the configuration.'
+                    'The configured FieldSet does not exist. Available FieldSets can be found in Setup > Object Manager > ' +
+                        objectApiName +
+                        ' > Field Sets. Create the FieldSet or update the configuration.'
                 );
             }
             fieldsToQuery.addAll(fieldSetFields);
@@ -270,7 +273,7 @@ public class ActionGetRecordDetails extends BaseAgentAction {
 
         try {
             List<SObject> results = Database.query(soql);
-            
+
             if (results.isEmpty()) {
                 return ActionOutcome.failureWithGuidance(
                     AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND,
@@ -287,7 +290,7 @@ public class ActionGetRecordDetails extends BaseAgentAction {
 
             // Build response
             Map<String, Object> recordData = sanitizedRecord.getPopulatedFieldsAsMap();
-            
+
             Map<String, Object> response = new Map<String, Object>{
                 'record' => recordData,
                 'objectType' => objectApiName,
@@ -301,21 +304,17 @@ public class ActionGetRecordDetails extends BaseAgentAction {
             }
 
             Long duration = System.currentTimeMillis() - startTime;
-            System.debug(LoggingLevel.INFO, '[ActionGetRecordDetails] Success. Record retrieved in ' + duration + 'ms. Fields: ' + accessibleFields.size());
+            System.debug(
+                LoggingLevel.INFO,
+                '[ActionGetRecordDetails] Success. Record retrieved in ' + duration + 'ms. Fields: ' + accessibleFields.size()
+            );
 
             return ActionOutcome.success(response);
-
         } catch (QueryException qe) {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                'Query failed: ' + qe.getMessage()
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Query failed: ' + qe.getMessage());
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[ActionGetRecordDetails] Unexpected error: ' + e.getMessage() + '\n' + e.getStackTraceString());
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                'Failed to retrieve record: ' + e.getMessage()
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Failed to retrieve record: ' + e.getMessage());
         }
     }
 
@@ -329,11 +328,11 @@ public class ActionGetRecordDetails extends BaseAgentAction {
      */
     private List<String> getFieldsFromFieldSet(SObjectType sObjectType, String fieldSetName) {
         List<String> fields = new List<String>();
-        
+
         try {
             DescribeSObjectResult objDescribe = sObjectType.getDescribe();
             Map<String, Schema.FieldSet> fieldSetMap = objDescribe.fieldSets.getMap();
-            
+
             Schema.FieldSet fieldSet = fieldSetMap.get(fieldSetName);
             if (fieldSet == null) {
                 System.debug(LoggingLevel.WARN, '[ActionGetRecordDetails] FieldSet not found: ' + fieldSetName + ' on ' + objDescribe.getName());
@@ -345,7 +344,6 @@ public class ActionGetRecordDetails extends BaseAgentAction {
             }
 
             System.debug(LoggingLevel.INFO, '[ActionGetRecordDetails] FieldSet "' + fieldSetName + '" contains ' + fields.size() + ' fields');
-            
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[ActionGetRecordDetails] Error reading FieldSet: ' + e.getMessage());
         }
@@ -365,17 +363,17 @@ public class ActionGetRecordDetails extends BaseAgentAction {
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         // Initialize config with defaults
         this.config = new ConfigDTO();
-        
+
         if (String.isNotBlank(actionConfigurationJson)) {
             try {
                 // Deserialize as untyped map to handle optional fields
                 Map<String, Object> configMap = (Map<String, Object>) JSON.deserializeUntyped(actionConfigurationJson);
-                
+
                 // Extract fieldSetName if provided
                 if (configMap.containsKey('fieldSetName')) {
                     this.config.fieldSetName = (String) configMap.get('fieldSetName');
                 }
-                
+
                 // Extract defaultFields if provided
                 if (configMap.containsKey('defaultFields')) {
                     Object defaultFieldsObj = configMap.get('defaultFields');
@@ -386,15 +384,20 @@ public class ActionGetRecordDetails extends BaseAgentAction {
                         }
                     }
                 }
-                
+
                 // Extract objectApiName if provided
                 if (configMap.containsKey('objectApiName')) {
                     this.config.objectApiName = (String) configMap.get('objectApiName');
                 }
-                
+
                 System.debug(
                     LoggingLevel.DEBUG,
-                    '[ActionGetRecordDetails] Configuration parsed. FieldSet: ' + config.fieldSetName + ', DefaultFields: ' + config.defaultFields + ', ObjectApiName: ' + config.objectApiName
+                    '[ActionGetRecordDetails] Configuration parsed. FieldSet: ' +
+                        config.fieldSetName +
+                        ', DefaultFields: ' +
+                        config.defaultFields +
+                        ', ObjectApiName: ' +
+                        config.objectApiName
                 );
             } catch (Exception e) {
                 System.debug(

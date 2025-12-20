@@ -7,5 +7,5 @@
  */
 
 trigger HumanApprovalRequestTrigger on HumanApprovalRequest__c(after update) {
-    HumanApprovalRequestTriggerHandler.handleAfterUpdate(Trigger.new, Trigger.oldMap);
+    AgentApprovalService.handleTrigger(Trigger.new, Trigger.oldMap);
 }

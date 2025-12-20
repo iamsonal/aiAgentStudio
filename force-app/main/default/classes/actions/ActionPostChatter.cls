@@ -84,7 +84,6 @@ public class ActionPostChatter extends BaseAgentAction {
         public String targetId;
     }
 
-
     /**
      * @description
      * Main entry point for Chatter posting using strongly-typed DTOs.

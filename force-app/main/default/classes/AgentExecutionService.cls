@@ -10,24 +10,24 @@
  * @description
  * Unified entry point for all agent execution initiations in the AI Agent Framework.
  * Handles service user context switching and delegates to appropriate orchestrators.
- * 
+ *
  * @usage Simple Function Agent Execution:
  * ```apex
  * // Minimal usage - just provide a record ID
  * AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload('500Dl00000AMoWV');
  * AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution('Case_Summarizer', payload);
- * 
+ *
  * // Or even simpler with default constructor
  * AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
  * payload.sourceRecordId = caseId;
  * AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution('Case_Summarizer', payload);
- * 
+ *
  * // All optional fields have sensible defaults:
  * // - userId: defaults to UserInfo.getUserId()
  * // - triggerSource: defaults to 'Apex'
  * // - userMessage: optional (not required for function agents)
  * ```
- * 
+ *
  * @usage Conversational Agent with User Message:
  * ```apex
  * AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload(caseId, 'Summarize this case');
@@ -140,7 +140,6 @@ public class AgentExecutionService {
 
         return results;
     }
-
 
     /**
      * Routes execution through REST API for service user context switching.

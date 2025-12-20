@@ -191,7 +191,7 @@ public abstract class BaseAgentAction implements IAgentAction {
         if (ex.getTypeName().contains('LLMProviderException') || (ex instanceof AIAgentException && ex.getMessage().contains('LLM'))) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_LLM_CALL_FAILED, 'LLM Communication Failed: ' + ex.getMessage());
         }
-        if (ex instanceof ActionRegistry.ActionRegistryException) {
+        if (ex instanceof CapabilityExecutionService.CapabilityExecutionException) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Action Setup Failed: ' + ex.getMessage());
         }
 
@@ -258,5 +258,4 @@ public abstract class BaseAgentAction implements IAgentAction {
 
         return properties;
     }
-
 }

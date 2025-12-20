@@ -11,7 +11,7 @@
  * Processes LLM responses that contain only textual content (no tool calls).
  * Orchestrates message persistence, context ledger updates, memory management,
  * and completion capability execution with declarative parameter mapping.
- * 
+ *
  * Includes integrated parameter mapping capabilities for deterministic,
  * template-based transformation of completion context into capability parameters.
  */
@@ -133,7 +133,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
             AIAgentDefinition__c agentConfig = AIAgentConfigService.getAgentDefinition(context.agentDefinitionId);
             if (String.isNotBlank(agentConfig.MemoryStrategy__c)) {
                 LLMConfiguration__c llmConfig = AIAgentConfigService.getLLMConfiguration(agentConfig.LLMConfiguration__c);
-                IMemoryManager memoryManager = MemoryManagerFactory.getManager(agentConfig.MemoryStrategy__c);
+                IMemoryManager memoryManager = ContextManagerService.getMemoryManager(agentConfig.MemoryStrategy__c);
                 // Note: Memory manager will need to be updated to handle both execution models
                 memoryManager.onTurnCompletion(context.executionId, agentConfig, llmConfig, logPrefix);
             }
@@ -285,7 +285,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
                 'Completion' // executionType
             );
 
-            // 5. Execute capability using existing CapabilityExecutionRouter
+            // 5. Execute capability using CapabilityExecutionService
             ActionOutcome outcome = context.actionExecSvc.executeSingleAction(capability, toolArgs, actionContext);
 
             System.debug(LoggingLevel.INFO, completionLogPrefix + 'Completion capability executed. Success: ' + outcome.isSuccess);

@@ -15,11 +15,16 @@
  *   - Integrates with SystemPromptBuilder for prompt assembly and MemoryManager for execution history
  *   - Supports action transparency mode, injecting summarization or error instructions as needed
  *   - Handles all configuration, error, and result packaging for downstream orchestration
+ *   - Provides LLM provider adapter factory (consolidated from LLMProviderFactory)
  *
  * This service is the central entry point for all LLM calls in the agent framework, ensuring consistency,
  * observability, and extensibility for all execution turns.
  */
 public inherited sharing class LLMInteractionService {
+    // --- STATIC CACHE FOR LLM PROVIDER ADAPTERS (Consolidated from LLMProviderFactory) ---
+    @TestVisible
+    private static Map<String, ILLMProviderAdapter> adapterInstanceCache = new Map<String, ILLMProviderAdapter>();
+
     /**
      * Data Transfer Object containing the complete result of an LLM interaction cycle.
      *
@@ -213,7 +218,7 @@ public inherited sharing class LLMInteractionService {
             }
 
             // b. Get the execution history using the appropriate Memory Manager.
-            IMemoryManager memoryManager = MemoryManagerFactory.getManager(agentConfig.MemoryStrategy__c);
+            IMemoryManager memoryManager = ContextManagerService.getMemoryManager(agentConfig.MemoryStrategy__c);
             List<Map<String, Object>> historyPayload = memoryManager.getHistoryPayload(this.executionId, agentConfig, llmConfig, logPrefix);
             if (historyPayload != null) {
                 finalMessagesPayload.addAll(historyPayload);
@@ -272,7 +277,7 @@ public inherited sharing class LLMInteractionService {
             // --- 6. Call LLM ---
             Long callStartTime = System.currentTimeMillis();
             try {
-                ILLMProviderAdapter adapter = LLMProviderFactory.getAdapter(llmConfig);
+                ILLMProviderAdapter adapter = LLMInteractionService.getLLMProviderAdapter(llmConfig);
                 ProviderResult llmApiResult = adapter.sendMessage(finalMessagesPayload, toolsPayload, llmConfig, agentConfig);
 
                 if (llmApiResult == null) {
@@ -397,5 +402,89 @@ public inherited sharing class LLMInteractionService {
         }
 
         return providerName;
+    }
+
+    // =========================================================================
+    // LLM PROVIDER ADAPTER FACTORY (Consolidated from LLMProviderFactory)
+    // =========================================================================
+
+    /**
+     * @description
+     * Retrieves a cached or newly instantiated LLM provider adapter based on configuration.
+     * Consolidated from LLMProviderFactory to reduce file overhead.
+     *
+     * - Checks the cache for an existing adapter instance by class name
+     * - Dynamically instantiates the adapter if not cached, validates interface implementation
+     * - Caches the instance for future use
+     *
+     * @param llmConfig  The LLMConfiguration__c record containing the adapter class name
+     * @return ILLMProviderAdapter  Configured adapter instance ready for use
+     * @throws ConfigurationException if the adapter class is missing, invalid, or does not implement the required interface
+     */
+    public static ILLMProviderAdapter getLLMProviderAdapter(LLMConfiguration__c llmConfig) {
+        if (llmConfig == null) {
+            throw new LLMInteractionException('LLM Configuration cannot be null for getting adapter.');
+        }
+        String adapterClassName = llmConfig.ProviderAdapterClass__c;
+        if (String.isBlank(adapterClassName)) {
+            throw new LLMInteractionException('ProviderAdapterClass__c is not defined for LLM Configuration: ' + llmConfig.DeveloperName__c);
+        }
+
+        if (adapterInstanceCache.containsKey(adapterClassName)) {
+            System.debug(LoggingLevel.DEBUG, '[LLMInteractionService] Cache hit for adapter: ' + adapterClassName);
+            return adapterInstanceCache.get(adapterClassName);
+        }
+
+        try {
+            Type adapterType = Type.forName(adapterClassName);
+            if (adapterType == null) {
+                System.debug(
+                    LoggingLevel.ERROR,
+                    '[LLMInteractionService] Adapter class not found: ' + adapterClassName + ' for LLM Config ' + llmConfig.DeveloperName__c
+                );
+                throw new LLMInteractionException('Adapter class not found: ' + adapterClassName + ' for LLM Config ' + llmConfig.DeveloperName__c);
+            }
+            Object adapterObject = adapterType.newInstance();
+            if (!(adapterObject instanceof ILLMProviderAdapter)) {
+                System.debug(
+                    LoggingLevel.ERROR,
+                    '[LLMInteractionService] Class ' +
+                        adapterClassName +
+                        ' does not implement ILLMProviderAdapter for LLM Config ' +
+                        llmConfig.DeveloperName__c
+                );
+                throw new LLMInteractionException(
+                    'Class ' + adapterClassName + ' does not implement ILLMProviderAdapter for LLM Config ' + llmConfig.DeveloperName__c
+                );
+            }
+            ILLMProviderAdapter adapterInstance = (ILLMProviderAdapter) adapterObject;
+            adapterInstanceCache.put(adapterClassName, adapterInstance);
+            System.debug(LoggingLevel.INFO, '[LLMInteractionService] Instantiated and cached adapter: ' + adapterClassName);
+            return adapterInstance;
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.ERROR,
+                '[LLMInteractionService] Error instantiating adapter ' +
+                    adapterClassName +
+                    ' for LLM ' +
+                    llmConfig.DeveloperName__c +
+                    ': ' +
+                    e.getMessage()
+            );
+            throw new LLMInteractionException(
+                'Error instantiating adapter ' + adapterClassName + ' for LLM ' + llmConfig.DeveloperName__c + ': ' + e.getMessage(),
+                e
+            );
+        }
+    }
+
+    /**
+     * @description
+     * Clears the adapter instance cache. Used for testing or to force re-instantiation.
+     */
+    @TestVisible
+    private static void clearAdapterCache() {
+        adapterInstanceCache = new Map<String, ILLMProviderAdapter>();
+        System.debug(LoggingLevel.DEBUG, '[LLMInteractionService] Adapter cache cleared.');
     }
 }

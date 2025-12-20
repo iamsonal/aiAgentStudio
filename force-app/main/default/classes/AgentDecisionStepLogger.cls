@@ -402,7 +402,8 @@ public inherited sharing class AgentDecisionStepLogger {
     }
 
     /**
-     * Log a resume approved framework action step
+     * Log a resume approved framework action step.
+     * Called by AgentApprovalService when processing approved requests.
      *
      * @param title Descriptive title for the step
      * @param description Description of the action
@@ -414,7 +415,8 @@ public inherited sharing class AgentDecisionStepLogger {
     }
 
     /**
-     * Log a handle rejected framework action step
+     * Log a handle rejected framework action step.
+     * Called by AgentApprovalService when processing rejected requests.
      *
      * @param title Descriptive title for the step
      * @param description Description of the action

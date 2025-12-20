@@ -26,7 +26,7 @@ public inherited sharing class OrchestrationService {
 
     // Injected service dependencies
     private final TurnLifecycleService turnLifecycleSvc;
-    private final CapabilityExecutionRouter actionExecSvc;
+    private final CapabilityExecutionService actionExecSvc;
     private final AgentJobEnqueuer orchestrationDispatchSvc;
     private final ContextManagerService contextManagerSvc;
 
@@ -35,20 +35,20 @@ public inherited sharing class OrchestrationService {
      */
     public OrchestrationService() {
         // Initialize with default service implementations
-        this(new TurnLifecycleService(), new CapabilityExecutionRouter(), new AgentJobEnqueuer(), new ContextManagerService());
+        this(new TurnLifecycleService(), new CapabilityExecutionService(), new AgentJobEnqueuer(), new ContextManagerService());
     }
 
     /**
      * Constructor with dependency injection for testing and customization.
      *
      * @param turnSvc    TurnLifecycleService instance
-     * @param actionSvc  CapabilityExecutionRouter instance
+     * @param actionSvc  CapabilityExecutionService instance
      * @param dispatchSvc AgentJobEnqueuer instance
      * @param contextSvc ContextManagerService instance
      */
     public OrchestrationService(
         TurnLifecycleService turnSvc,
-        CapabilityExecutionRouter actionSvc,
+        CapabilityExecutionService actionSvc,
         AgentJobEnqueuer dispatchSvc,
         ContextManagerService contextSvc
     ) {
@@ -408,5 +408,221 @@ public inherited sharing class OrchestrationService {
                 (agentDefinition.ErrorHandlingPolicy__c != null ? agentDefinition.ErrorHandlingPolicy__c : 'Not Set (Default)')
         );
         return false;
+    }
+
+    // ===================================================================================
+    // PARALLEL TOOL COMPLETION TRACKING (Consolidated from ParallelToolCallHandler)
+    // ===================================================================================
+
+    /**
+     * @description
+     * Called by AsyncActionEngine after an async tool completes to check if all parallel tools
+     * have finished and trigger the final follow-up LLM call if needed.
+     *
+     * @param executionId The execution ID
+     * @param turnIdentifier The turn identifier
+     * @currentTurnCount The current turn count
+     * @param completedToolCallId The tool call ID that just completed
+     * @param logPrefix Logging prefix
+     */
+    public static void onAsyncToolCompleted(
+        Id executionId,
+        String turnIdentifier,
+        Integer currentTurnCount,
+        String completedToolCallId,
+        String logPrefix
+    ) {
+        try {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Async tool completed: ' + completedToolCallId + '. Checking if all async tools are done.');
+
+            // Query for all async tool results in this turn
+            List<ExecutionStep__c> asyncToolResults = [
+                SELECT Id, ToolCallId__c, ToolName__c
+                FROM ExecutionStep__c
+                WHERE
+                    AgentExecution__c = :executionId
+                    AND TurnIdentifier__c = :turnIdentifier
+                    AND TurnCount__c = :currentTurnCount
+                    AND StepType__c = 'ToolResult'
+                    AND IsAsyncToolExecution__c = TRUE
+                ORDER BY CreatedDate
+            ];
+
+            // Query for all tool calls in this turn to count total async tools
+            List<ExecutionStep__c> allToolCalls = [
+                SELECT Id, ToolCallId__c, ToolName__c
+                FROM ExecutionStep__c
+                WHERE
+                    AgentExecution__c = :executionId
+                    AND TurnIdentifier__c = :turnIdentifier
+                    AND TurnCount__c = :currentTurnCount
+                    AND StepType__c = 'ToolCall'
+                ORDER BY CreatedDate
+            ];
+
+            // Query for sync tool results to determine how many tools were async
+            List<ExecutionStep__c> syncToolResults = [
+                SELECT Id, ToolCallId__c, ToolName__c
+                FROM ExecutionStep__c
+                WHERE
+                    AgentExecution__c = :executionId
+                    AND TurnIdentifier__c = :turnIdentifier
+                    AND TurnCount__c = :currentTurnCount
+                    AND StepType__c = 'ToolResult'
+                    AND IsAsyncToolExecution__c = FALSE
+                ORDER BY CreatedDate
+            ];
+
+            Integer totalAsyncTools = allToolCalls.size() - syncToolResults.size();
+            Integer completedAsyncTools = asyncToolResults.size();
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Async tool completion status - Total async tools: ' + totalAsyncTools + ', Completed: ' + completedAsyncTools
+            );
+
+            if (totalAsyncTools > 0 && completedAsyncTools >= totalAsyncTools) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'All async tools have completed. Triggering final follow-up LLM call.');
+                triggerFinalFollowUpLLMCall(executionId, turnIdentifier, currentTurnCount, logPrefix);
+            } else {
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix + 'Still waiting for ' + (totalAsyncTools - completedAsyncTools) + ' more async tools to complete.'
+                );
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error in async tool completion check: ' + e.getMessage() + '\n' + e.getStackTraceString());
+        }
+    }
+
+    /**
+     * @description
+     * Alternative method that checks completion status without needing the specific tool call ID.
+     * This method can be used as a fallback or when you just want to check the current status.
+     *
+     * @param executionId The execution ID to check
+     * @param turnIdentifier The turn identifier
+     * @param currentTurnCount The current turn count
+     * @param logPrefix Logging prefix for debug output
+     */
+    public static void checkAndTriggerFinalFollowUp(Id executionId, String turnIdentifier, Integer currentTurnCount, String logPrefix) {
+        try {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Checking if all async tools have completed for parallel execution');
+
+            // Query for all tool call steps in this turn
+            List<ExecutionStep__c> toolCallSteps = [
+                SELECT Id, ToolCallId__c, ToolName__c, StepType__c
+                FROM ExecutionStep__c
+                WHERE
+                    AgentExecution__c = :executionId
+                    AND TurnIdentifier__c = :turnIdentifier
+                    AND TurnCount__c = :currentTurnCount
+                    AND StepType__c = 'ToolCall'
+                ORDER BY CreatedDate
+            ];
+
+            // Query for all tool result steps in this turn
+            List<ExecutionStep__c> toolResultSteps = [
+                SELECT Id, ToolCallId__c, ToolName__c, StepType__c, IsAsyncToolExecution__c
+                FROM ExecutionStep__c
+                WHERE
+                    AgentExecution__c = :executionId
+                    AND TurnIdentifier__c = :turnIdentifier
+                    AND TurnCount__c = :currentTurnCount
+                    AND StepType__c = 'ToolResult'
+                ORDER BY CreatedDate
+            ];
+
+            // Count async tool results
+            Integer asyncToolResults = 0;
+            for (ExecutionStep__c step : toolResultSteps) {
+                if (step.IsAsyncToolExecution__c == true) {
+                    asyncToolResults++;
+                }
+            }
+
+            // Determine how many of the tool calls were async
+            Integer syncToolResults = toolResultSteps.size() - asyncToolResults;
+            Integer asyncToolCalls = toolCallSteps.size() - syncToolResults;
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix +
+                    'Tool execution status - Total calls: ' +
+                    toolCallSteps.size() +
+                    ', Sync results: ' +
+                    syncToolResults +
+                    ', Async results: ' +
+                    asyncToolResults +
+                    ', Expected async calls: ' +
+                    asyncToolCalls
+            );
+
+            // Check if all async tools have completed
+            if (asyncToolCalls > 0 && asyncToolResults >= asyncToolCalls) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'All async tools have completed. Triggering final follow-up LLM call.');
+                triggerFinalFollowUpLLMCall(executionId, turnIdentifier, currentTurnCount, logPrefix);
+            } else {
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix + 'Still waiting for async tools to complete. ' + (asyncToolCalls - asyncToolResults) + ' remaining.'
+                );
+            }
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Error checking parallel execution completion: ' + e.getMessage() + '\n' + e.getStackTraceString()
+            );
+        }
+    }
+
+    /**
+     * @description
+     * Triggers the final follow-up LLM call to process all tool results after parallel execution completes.
+     * This is called internally after determining all async tools have finished.
+     *
+     * @param executionId The execution ID
+     * @param turnIdentifier The turn identifier
+     * @param currentTurnCount The current turn count
+     * @param logPrefix Logging prefix
+     */
+    private static void triggerFinalFollowUpLLMCall(Id executionId, String turnIdentifier, Integer currentTurnCount, String logPrefix) {
+        try {
+            // Get the execution record to find the agent definition
+            AgentExecution__c execution = [
+                SELECT Id, AIAgentDefinition__c, User__c
+                FROM AgentExecution__c
+                WHERE Id = :executionId
+                LIMIT 1
+            ];
+
+            if (execution == null) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Execution record not found: ' + executionId);
+                return;
+            }
+
+            // Update execution status to indicate we're ready for final follow-up
+            TurnLifecycleService turnLifecycleSvc = new TurnLifecycleService();
+            turnLifecycleSvc.resumeForFollowUpLlmCall(executionId, turnIdentifier, null, logPrefix);
+
+            // Enqueue the final follow-up LLM call
+            AgentJobEnqueuer orchestrationDispatchSvc = new AgentJobEnqueuer(turnLifecycleSvc);
+            orchestrationDispatchSvc.enqueueFollowUp(
+                executionId,
+                execution.User__c,
+                execution.AIAgentDefinition__c,
+                turnIdentifier,
+                currentTurnCount + 1,
+                logPrefix,
+                false // isFinalErrorTurn
+            );
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Final follow-up LLM call queued for parallel execution completion');
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix + 'Error triggering final follow-up LLM call: ' + e.getMessage() + '\n' + e.getStackTraceString()
+            );
+        }
     }
 }

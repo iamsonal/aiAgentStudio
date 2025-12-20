@@ -10,7 +10,7 @@
  * @description
  * Core asynchronous action execution engine for the AI Agent Framework.
  * Handles action processing lifecycle: validation, execution, result processing, and orchestration.
- * 
+ *
  * Implements Queueable for direct async execution without unnecessary wrapper classes.
  * Can be invoked via System.enqueueJob (low dispatch) or Platform Events (high dispatch).
  */
@@ -97,7 +97,7 @@ public class AsyncActionEngine implements Queueable {
         AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(this.executionId, this.turnIdentifier, this.originalUserId);
 
         TurnLifecycleService turnLifecycleSvc = new TurnLifecycleService();
-        CapabilityExecutionRouter actionService = new CapabilityExecutionRouter();
+        CapabilityExecutionService actionService = new CapabilityExecutionService();
         AgentJobEnqueuer orchestrationDispatchSvc = new AgentJobEnqueuer(turnLifecycleSvc);
 
         try {
@@ -208,7 +208,7 @@ public class AsyncActionEngine implements Queueable {
                 );
             } else {
                 // Check if this is part of a parallel execution and if all async tools are complete
-                ParallelToolCallHandler.onAsyncToolCompleted(this.executionId, this.turnIdentifier, this.currentTurnCount, this.toolCallId, logPrefix);
+                OrchestrationService.onAsyncToolCompleted(this.executionId, this.turnIdentifier, this.currentTurnCount, this.toolCallId, logPrefix);
             }
         } catch (Exception ex) {
             System.debug(

@@ -457,7 +457,7 @@ private class ContentResponseHandlerTest {
 
         // Create services
         TurnLifecycleService turnSvc = new TurnLifecycleService();
-        CapabilityExecutionRouter actionSvc = new CapabilityExecutionRouter();
+        CapabilityExecutionService actionSvc = new CapabilityExecutionService();
         AgentJobEnqueuer dispatchSvc = new AgentJobEnqueuer();
         ContextManagerService contextSvc = new ContextManagerService();
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(setup.agentExecution.Id, 'turn-001');
@@ -504,7 +504,7 @@ private class ContentResponseHandlerTest {
 
         // Create services
         TurnLifecycleService turnSvc = new TurnLifecycleService();
-        CapabilityExecutionRouter actionSvc = new CapabilityExecutionRouter();
+        CapabilityExecutionService actionSvc = new CapabilityExecutionService();
         AgentJobEnqueuer dispatchSvc = new AgentJobEnqueuer();
         ContextManagerService contextSvc = new ContextManagerService();
         AgentDecisionStepLogger logger = new AgentDecisionStepLogger(setup.agentExecution.Id, 'turn-002');

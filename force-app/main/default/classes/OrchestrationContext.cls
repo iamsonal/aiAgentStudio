@@ -33,7 +33,7 @@ public class OrchestrationContext {
 
     // Injected service dependencies
     public TurnLifecycleService turnLifecycleSvc { get; private set; }
-    public CapabilityExecutionRouter actionExecSvc { get; private set; }
+    public CapabilityExecutionService actionExecSvc { get; private set; }
     public AgentJobEnqueuer dispatchSvc { get; private set; }
     public ContextManagerService contextManagerSvc { get; private set; }
 
@@ -71,7 +71,7 @@ public class OrchestrationContext {
         Integer turnCount,
         LLMInteractionService.MessageData userMsgData,
         TurnLifecycleService turnSvc,
-        CapabilityExecutionRouter actionSvc,
+        CapabilityExecutionService actionSvc,
         AgentJobEnqueuer dispatchSvc,
         ContextManagerService contextMgrSvc,
         Id pageRecordId,

@@ -10,23 +10,73 @@
  * ToolCallResponseHandler orchestrates the full lifecycle of tool call requests originating from LLM responses within the agent framework.
  *
  * Responsibilities:
- *   - Validates and interprets tool call requests from LLM output.
- *   - Determines whether tool execution requires human approval or can proceed autonomously.
- *   - Manages both synchronous and asynchronous execution paths for tool actions, including queuing and follow-up.
- *   - Integrates with chat history, approval processes, and orchestration services to maintain robust conversation and action state.
- *   - Ensures traceability and error handling throughout the tool call process, providing clear runtime diagnostics and developer insight.
+ *   - Validates and interprets tool call requests from LLM output (single or multiple)
+ *   - Determines whether tool execution requires human approval or can proceed autonomously
+ *   - Manages both synchronous and asynchronous execution paths for tool actions, including queuing and follow-up
+ *   - Handles parallel tool execution by grouping tools into Sync/Async/Approval buckets
+ *   - Integrates with chat history, approval processes, and orchestration services to maintain robust conversation and action state
+ *   - Ensures traceability and error handling throughout the tool call process, providing clear runtime diagnostics and developer insight
  *
- * This class is central to bridging LLM-driven intent with secure, auditable, and extensible tool execution in the agent orchestration framework.
+ * Consolidated from ParallelToolCallHandler to eliminate code duplication and normalize list-based processing.
  */
 public class ToolCallResponseHandler implements ILLMResponseHandler {
     public class ToolProcessingException extends AIAgentException {
     }
 
     /**
-     * Entry point for handling a tool call request from an LLM response.
-     *
-     * Examines the requested action, validates agent capability, and determines whether to route
-     * the request through a human approval workflow or execute it directly (synchronously or asynchronously).
+     * Data structure to hold information about a parsed tool call request
+     */
+    public class ToolCallRequest {
+        public String toolCallId;
+        public String toolName;
+        public String toolArguments;
+        public AgentCapability__c capability;
+        public Boolean isAsync;
+        public Boolean requiresApproval;
+        public Integer executionOrder;
+
+        public ToolCallRequest(String toolCallId, String toolName, String toolArguments, AgentCapability__c capability, Integer executionOrder) {
+            this.toolCallId = toolCallId;
+            this.toolName = toolName;
+            this.toolArguments = toolArguments;
+            this.capability = capability;
+            this.isAsync = capability.RunAsynchronously__c == true;
+            this.requiresApproval = capability.RequiresApproval__c == true;
+            this.executionOrder = executionOrder;
+        }
+    }
+
+    /**
+     * Data structure to hold the result of a tool execution
+     */
+    public class ToolExecutionResult {
+        public String toolCallId;
+        public String toolName;
+        public ActionOutcome outcome;
+        public Long processingTime;
+        public Boolean isAsync;
+        public Integer executionOrder;
+
+        public ToolExecutionResult(
+            String toolCallId,
+            String toolName,
+            ActionOutcome outcome,
+            Long processingTime,
+            Boolean isAsync,
+            Integer executionOrder
+        ) {
+            this.toolCallId = toolCallId;
+            this.toolName = toolName;
+            this.outcome = outcome;
+            this.processingTime = processingTime;
+            this.isAsync = isAsync;
+            this.executionOrder = executionOrder;
+        }
+    }
+
+    /**
+     * Entry point for handling tool call requests from an LLM response.
+     * Now always treats requests as a list, even for single tool calls.
      *
      * @param context OrchestrationContext containing session state, LLM result, and service references.
      * @return String outcome constant indicating the next orchestration step (e.g., queued, failed, follow-up).
@@ -34,89 +84,61 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
      */
     public String handle(OrchestrationContext context) {
         String logPrefix = context.logPrefix + '[ToolCallHandler] ';
-        System.debug(LoggingLevel.INFO, logPrefix + 'Starting tool call handling for LLM response.');
-
-        // Use the shared decision step logger from the context
-        AgentDecisionStepLogger decisionLogger = context.decisionLogger;
-
-        LLMInteractionService.MessageData assistantData = context.llmResult.assistantMessageData;
-
-        // Check if multiple tool calls are requested for parallel execution
         List<Map<String, String>> requestedActions = context.llmResult.providerResult.requestedActions;
 
-        if (requestedActions.size() > 1) {
-            // Handle multiple tool calls in parallel
+        System.debug(LoggingLevel.INFO, logPrefix + 'Starting unified tool call handling for ' + requestedActions.size() + ' tool(s).');
+
+        AgentDecisionStepLogger decisionLogger = context.decisionLogger;
+
+        try {
+            // Step 1: Parse and validate all tool calls
+            List<ToolCallRequest> toolRequests = parseAndValidateToolCalls(context, requestedActions, decisionLogger, logPrefix);
+
+            if (toolRequests.isEmpty()) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'No valid tool calls found after parsing');
+                context.turnLifecycleSvc.failTurn(
+                    context.executionId,
+                    context.turnIdentifier,
+                    'No valid tool calls found in LLM response',
+                    AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
+                    logPrefix
+                );
+                return OrchestrationService.OUTCOME_FAILED;
+            }
+
+            // Step 2: Group tools into execution buckets (Sync, Async, Approval)
+            List<ToolCallRequest> approvalTools = getApprovalRequiredTools(toolRequests);
+            List<ToolCallRequest> syncTools = getSyncTools(toolRequests);
+            List<ToolCallRequest> asyncTools = getAsyncTools(toolRequests);
+
             System.debug(
                 LoggingLevel.INFO,
-                logPrefix + 'Multiple tool calls detected (' + requestedActions.size() + '). Using parallel execution handler.'
+                logPrefix +
+                    'Tool execution plan - Approval: ' +
+                    approvalTools.size() +
+                    ', Sync: ' +
+                    syncTools.size() +
+                    ', Async: ' +
+                    asyncTools.size()
             );
-            return ParallelToolCallHandler.handleParallelToolCalls(context, requestedActions, decisionLogger);
-        }
 
-        // Single tool call - use existing logic
-        Map<String, String> firstActionRequestMap = requestedActions[0];
-        ConversationalChatController.ActionRequest toolRequest = this.parseToolRequestMap(firstActionRequestMap);
-
-        System.debug(LoggingLevel.DEBUG, logPrefix + 'Parsed tool request: Capability=' + toolRequest.name + ', ToolCallID=' + toolRequest.id);
-
-        // Retrieve capability configuration for the requested tool
-        AgentCapability__c capability = AIAgentConfigService.getCapability(context.agentDefinitionId, toolRequest.name);
-        this.validateCapability(capability, toolRequest.name, logPrefix);
-
-        // Log the tool execution preparation step with enhanced details
-        decisionLogger.logToolExecution(
-            'Tool Execution Plan',
-            'Preparing to execute tool: ' + toolRequest.name,
-            JSON.serialize(
-                new Map<String, Object>{
-                    'toolName' => toolRequest.name,
-                    'toolId' => toolRequest.id,
-                    'arguments' => toolRequest.arguments,
-                    'capability' => capability != null
-                        ? new Map<String, Object>{
-                              'name' => capability.CapabilityName__c,
-                              'requiresApproval' => capability.RequiresApproval__c,
-                              'runAsynchronously' => capability.RunAsynchronously__c
-                          }
-                        : null
-                }
-            ),
-            null,
-            true, // isSuccess
-            null, // errorCode
-            null // errorMessage
-        );
-
-        // Register tool call ID for causality tracking
-        if (String.isNotBlank(toolRequest.id)) {
-            Id toolExecutionStepId = decisionLogger.getLastLoggedStepId();
-            if (toolExecutionStepId != null) {
-                decisionLogger.registerToolCall(toolRequest.id, toolExecutionStepId);
+            // Step 3: Persist user message for traceability
+            Id savedUserMessageId = null;
+            if (context.userMessageData != null && String.isNotBlank(context.userMessageData.content)) {
+                ExecutionStepService executionStepService = new ExecutionStepService();
+                savedUserMessageId = executionStepService.createUserInputStep(
+                    context.executionId,
+                    context.userMessageData.content,
+                    context.turnIdentifier,
+                    context.currentTurnCount
+                );
             }
-        }
 
-        // Persist user message for traceability using ExecutionStep__c
-        Id savedUserMessageId = null;
-        if (context.userMessageData != null && String.isNotBlank(context.userMessageData.content)) {
-            ExecutionStepService executionStepService = new ExecutionStepService();
-            savedUserMessageId = executionStepService.createUserInputStep(
-                context.executionId,
-                context.userMessageData.content,
-                context.turnIdentifier,
-                context.currentTurnCount
-            );
-        }
-
-        // Route to approval workflow or direct execution based on capability settings
-        if (capability.RequiresApproval__c) {
-            return this.handleApprovalRequiredAction(context, savedUserMessageId, assistantData, toolRequest, capability, logPrefix, decisionLogger);
-        } else {
-            // Save assistant message containing the tool call request for audit and context
+            // Step 4: Save assistant message containing the tool call request
             Id savedAssistantMessageId = null;
-            ExecutionStepService executionStepService = new ExecutionStepService();
-
-            // Create agent response step for the content with token usage data
+            LLMInteractionService.MessageData assistantData = context.llmResult.assistantMessageData;
             if (String.isNotBlank(assistantData.content)) {
+                ExecutionStepService executionStepService = new ExecutionStepService();
                 savedAssistantMessageId = executionStepService.createAgentResponseStepWithTokens(
                     context.executionId,
                     assistantData.content,
@@ -128,15 +150,214 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     context.llmResult.providerResult.modelIdentifier,
                     context.llmResult.providerResult.llmCalloutDurationMs
                 );
+
+                // Publish assistant message for UI update
+                try {
+                    TransientMessage__e event = new TransientMessage__e(
+                        AgentExecutionId__c = context.executionId,
+                        MessageId__c = savedAssistantMessageId,
+                        MessageContent__c = assistantData.content
+                    );
+                    EventBus.publish(event);
+                } catch (Exception e) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to publish TransientMessage__e for UI.');
+                }
             }
 
-            // Create tool call step with token usage data
-            if (String.isNotBlank(toolRequest.arguments)) {
+            // Step 5: Create execution step records for all tool calls
+            createToolCallExecutionSteps(context, toolRequests, decisionLogger, logPrefix);
+
+            // Step 6: Handle approval-required tools (if any exist, pause execution)
+            if (!approvalTools.isEmpty()) {
+                return handleApprovalRequiredTools(
+                    context,
+                    savedUserMessageId,
+                    savedAssistantMessageId,
+                    assistantData,
+                    approvalTools,
+                    logPrefix,
+                    decisionLogger
+                );
+            }
+
+            // Step 7: Execute synchronous tools immediately
+            List<ToolExecutionResult> syncResults = new List<ToolExecutionResult>();
+            if (!syncTools.isEmpty()) {
+                syncResults = executeSynchronousTools(context, syncTools, decisionLogger, logPrefix);
+                createToolResultExecutionSteps(context, syncResults, decisionLogger, logPrefix);
+            }
+
+            // Step 8: Queue asynchronous tools
+            if (!asyncTools.isEmpty()) {
+                queueAsyncTools(context, asyncTools, decisionLogger, logPrefix);
+            }
+
+            // Step 9: Determine next orchestration step
+            return determineNextOrchestrationStep(context, syncResults, asyncTools, logPrefix);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error in tool call handling: ' + e.getMessage() + '\n' + e.getStackTraceString());
+            context.turnLifecycleSvc.failTurn(
+                context.executionId,
+                context.turnIdentifier,
+                'Tool call handling failed: ' + e.getMessage(),
+                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+                logPrefix
+            );
+            return OrchestrationService.OUTCOME_FAILED;
+        }
+    }
+
+    // ===================================================================================
+    // PARSING AND VALIDATION
+    // ===================================================================================
+
+    /**
+     * Parses and validates all tool call requests from the LLM response
+     */
+    private List<ToolCallRequest> parseAndValidateToolCalls(
+        OrchestrationContext context,
+        List<Map<String, String>> requestedActions,
+        AgentDecisionStepLogger decisionLogger,
+        String logPrefix
+    ) {
+        List<ToolCallRequest> toolRequests = new List<ToolCallRequest>();
+
+        for (Integer i = 0; i < requestedActions.size(); i++) {
+            Map<String, String> actionMap = requestedActions[i];
+
+            try {
+                // Parse tool call details
+                String toolCallId = actionMap.get('id');
+                String toolName = actionMap.get('name');
+                String toolArguments = actionMap.get('arguments');
+
+                if (String.isBlank(toolCallId) || String.isBlank(toolName)) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Skipping malformed tool call at index ' + i + ': missing id or name');
+                    continue;
+                }
+
+                // Lookup and validate capability
+                AgentCapability__c capability = AIAgentConfigService.getCapability(context.agentDefinitionId, toolName);
+                if (capability == null) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Skipping tool call ' + toolName + ': capability not found');
+                    continue;
+                }
+
+                ToolCallRequest toolRequest = new ToolCallRequest(toolCallId, toolName, toolArguments, capability, i + 1);
+                toolRequests.add(toolRequest);
+
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix +
+                        'Parsed tool ' +
+                        (i + 1) +
+                        ': ' +
+                        toolName +
+                        ' (async=' +
+                        toolRequest.isAsync +
+                        ', approval=' +
+                        toolRequest.requiresApproval +
+                        ')'
+                );
+            } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Error parsing tool call at index ' + i + ': ' + e.getMessage());
+                continue;
+            }
+        }
+
+        // Log the tool execution plan
+        if (decisionLogger != null && !toolRequests.isEmpty()) {
+            Map<String, Object> planData = new Map<String, Object>{
+                'totalTools' => toolRequests.size(),
+                'syncTools' => getSyncTools(toolRequests).size(),
+                'asyncTools' => getAsyncTools(toolRequests).size(),
+                'approvalTools' => getApprovalRequiredTools(toolRequests).size(),
+                'tools' => new List<Map<String, Object>>()
+            };
+
+            for (ToolCallRequest req : toolRequests) {
+                ((List<Map<String, Object>>) planData.get('tools'))
+                    .add(
+                        new Map<String, Object>{
+                            'name' => req.toolName,
+                            'id' => req.toolCallId,
+                            'isAsync' => req.isAsync,
+                            'requiresApproval' => req.requiresApproval,
+                            'order' => req.executionOrder
+                        }
+                    );
+            }
+
+            decisionLogger.logToolExecution(
+                'Tool Execution Plan',
+                'LLM requested ' + toolRequests.size() + ' tool(s) for execution',
+                JSON.serialize(planData),
+                null,
+                true,
+                null,
+                null
+            );
+        }
+
+        return toolRequests;
+    }
+
+    // ===================================================================================
+    // TOOL GROUPING
+    // ===================================================================================
+
+    private List<ToolCallRequest> getApprovalRequiredTools(List<ToolCallRequest> toolRequests) {
+        List<ToolCallRequest> approvalTools = new List<ToolCallRequest>();
+        for (ToolCallRequest tool : toolRequests) {
+            if (tool.requiresApproval) {
+                approvalTools.add(tool);
+            }
+        }
+        return approvalTools;
+    }
+
+    private List<ToolCallRequest> getSyncTools(List<ToolCallRequest> toolRequests) {
+        List<ToolCallRequest> syncTools = new List<ToolCallRequest>();
+        for (ToolCallRequest tool : toolRequests) {
+            if (!tool.isAsync && !tool.requiresApproval) {
+                syncTools.add(tool);
+            }
+        }
+        return syncTools;
+    }
+
+    private List<ToolCallRequest> getAsyncTools(List<ToolCallRequest> toolRequests) {
+        List<ToolCallRequest> asyncTools = new List<ToolCallRequest>();
+        for (ToolCallRequest tool : toolRequests) {
+            if (tool.isAsync && !tool.requiresApproval) {
+                asyncTools.add(tool);
+            }
+        }
+        return asyncTools;
+    }
+
+    // ===================================================================================
+    // EXECUTION STEP CREATION
+    // ===================================================================================
+
+    /**
+     * Creates execution step records for all tool calls
+     */
+    private void createToolCallExecutionSteps(
+        OrchestrationContext context,
+        List<ToolCallRequest> toolRequests,
+        AgentDecisionStepLogger decisionLogger,
+        String logPrefix
+    ) {
+        ExecutionStepService executionStepService = new ExecutionStepService();
+
+        for (ToolCallRequest toolRequest : toolRequests) {
+            try {
                 executionStepService.createToolCallStep(
                     context.executionId,
-                    toolRequest.id,
-                    toolRequest.name,
-                    toolRequest.arguments,
+                    toolRequest.toolCallId,
+                    toolRequest.toolName,
+                    toolRequest.toolArguments,
                     context.turnIdentifier,
                     context.currentTurnCount,
                     context.llmResult.providerResult.promptTokens,
@@ -145,120 +366,66 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     context.llmResult.providerResult.modelIdentifier,
                     context.llmResult.providerResult.llmCalloutDurationMs
                 );
-            }
 
-            if (String.isNotBlank(assistantData.content)) {
-                try {
-                    TransientMessage__e event = new TransientMessage__e(
-                        AgentExecutionId__c = context.executionId,
-                        MessageId__c = savedAssistantMessageId,
-                        MessageContent__c = assistantData.content
-                    );
-                    EventBus.publish(event);
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Published TransientMessage__e for UI update (assistant content).');
-                } catch (Exception e) {
-                    System.debug(
-                        LoggingLevel.WARN,
-                        logPrefix + 'Non-critical: Failed to publish TransientMessage__e for UI. Error: ' + e.getMessage()
-                    );
+                // Register tool call ID for causality tracking
+                if (String.isNotBlank(toolRequest.toolCallId)) {
+                    Id toolExecutionStepId = decisionLogger.getLastLoggedStepId();
+                    if (toolExecutionStepId != null) {
+                        decisionLogger.registerToolCall(toolRequest.toolCallId, toolExecutionStepId);
+                    }
                 }
+
+                System.debug(LoggingLevel.DEBUG, logPrefix + 'Created execution step for tool call: ' + toolRequest.toolName);
+            } catch (Exception e) {
+                System.debug(
+                    LoggingLevel.ERROR,
+                    logPrefix + 'Failed to create execution step for tool ' + toolRequest.toolName + ': ' + e.getMessage()
+                );
             }
-
-            return this.executeActionDirectly(context, savedAssistantMessageId, toolRequest, capability, logPrefix, decisionLogger);
         }
     }
 
-    /**
-     * Determines whether to execute the tool action synchronously or asynchronously based on capability configuration.
-     *
-     * If asynchronous, queues the action and pauses the turn; if synchronous, executes immediately and continues the conversation.
-     *
-     * @param context OrchestrationContext for the current turn.
-     * @param savedAssistantMessageId Id of the assistant message containing the tool call.
-     * @param toolRequest Parsed ActionRequest from the LLM.
-     * @param capability AgentCapability__c record for the tool.
-     * @param logPrefix String prefix for log output.
-     * @param decisionLogger AgentDecisionStepLogger instance for logging decision steps.
-     * @return String outcome constant for orchestration flow.
-     */
-    private String executeActionDirectly(
-        OrchestrationContext context,
-        Id savedAssistantMessageId,
-        ConversationalChatController.ActionRequest toolRequest,
-        AgentCapability__c capability,
-        String logPrefix,
-        AgentDecisionStepLogger decisionLogger
-    ) {
-        Boolean runAsync = capability.RunAsynchronously__c;
-        System.debug(LoggingLevel.INFO, logPrefix + 'Executing tool action "' + toolRequest.name + '". Async=' + runAsync);
-
-        if (!runAsync) {
-            // Synchronous execution: continue conversation in same transaction
-            return this.executeSyncActionAndContinue(context, savedAssistantMessageId, toolRequest, capability, logPrefix, decisionLogger);
-        } else {
-            // Asynchronous execution: queue and pause turn for later resumption
-            context.turnLifecycleSvc.pauseForAsyncAction(context.executionId, context.turnIdentifier, null, capability.CapabilityName__c, logPrefix);
-            context.dispatchSvc.enqueueAsyncAction(
-                context.executionId,
-                context.originalUserId,
-                context.agentDefinitionId,
-                savedAssistantMessageId,
-                toolRequest.id,
-                toolRequest.arguments,
-                capability,
-                context.currentPageRecordId,
-                context.turnIdentifier,
-                context.currentTurnCount,
-                logPrefix
-            );
-            System.debug(LoggingLevel.INFO, logPrefix + 'Tool action queued for asynchronous execution.');
-            return OrchestrationService.OUTCOME_QUEUED_ACTION;
-        }
-    }
+    // ===================================================================================
+    // APPROVAL HANDLING
+    // ===================================================================================
 
     /**
-     * Handles tool actions that require human approval via Salesforce approval process.
-     *
-     * Persists the approval request, submits it to the approval workflow, and manages error handling and cleanup.
-     * Also saves the pending status to chat history and queues a follow-up LLM call to inform the user.
-     *
-     * @param context OrchestrationContext for the current turn.
-     * @param savedUserMessageId Id of the user message for this turn.
-     * @param assistantData LLMInteractionService.MessageData for the assistant's response.
-     * @param toolRequest Parsed ActionRequest from the LLM.
-     * @param capability AgentCapability__c record for the tool.
-     * @param logPrefix String prefix for log output.
-     * @param decisionLogger AgentDecisionStepLogger instance for logging decision steps.
-     * @return String outcome constant for orchestration flow.
+     * Handles tools that require human approval.
+     * For simplicity in Phase 1: If ANY tool requires approval, treat first approval tool and pause execution.
+     * Future enhancement: Could batch multiple approval requests or handle mixed scenarios.
      */
-    private String handleApprovalRequiredAction(
+    private String handleApprovalRequiredTools(
         OrchestrationContext context,
         Id savedUserMessageId,
+        Id savedAssistantMessageId,
         LLMInteractionService.MessageData assistantData,
-        ConversationalChatController.ActionRequest toolRequest,
-        AgentCapability__c capability,
+        List<ToolCallRequest> approvalTools,
         String logPrefix,
         AgentDecisionStepLogger decisionLogger
     ) {
+        // For now, handle first approval tool (could be enhanced to handle multiple)
+        ToolCallRequest approvalTool = approvalTools[0];
+
         System.debug(
             LoggingLevel.INFO,
-            logPrefix + 'Tool action "' + toolRequest.name + '" requires Salesforce Approval. Submitting approval request and finalizing turn.'
+            logPrefix + 'Tool "' + approvalTool.toolName + '" requires approval. Submitting approval request and pausing turn.'
         );
 
-        // Log the approval requirement step with enhanced details
+        // Log the approval requirement
         decisionLogger.logToolExecution(
             'Approval Required',
             'Tool execution requires human approval',
-            JSON.serialize(new Map<String, Object>{ 'toolName' => toolRequest.name, 'reason' => 'RequiresApproval__c is true for this capability' }),
+            JSON.serialize(new Map<String, Object>{ 'toolName' => approvalTool.toolName, 'reason' => 'RequiresApproval__c is true' }),
             null,
-            true, // isSuccess
-            null, // errorCode
-            null // errorMessage
+            true,
+            null,
+            null
         );
 
-        String submissionComment = this.extractSubmissionComment(toolRequest.arguments, toolRequest.name, logPrefix);
+        // Extract confirmation message from tool arguments
+        String submissionComment = this.extractSubmissionComment(approvalTool.toolArguments, approvalTool.toolName, logPrefix);
         if (String.isBlank(submissionComment)) {
-            String errMsg = 'Agent did not provide a required confirmation prompt for approval-required action "' + toolRequest.name + '".';
+            String errMsg = 'Agent did not provide a required confirmation prompt for approval-required action "' + approvalTool.toolName + '".';
             context.turnLifecycleSvc.failTurn(
                 context.executionId,
                 context.turnIdentifier,
@@ -266,83 +433,30 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
                 logPrefix
             );
-
-            // Log the error step
             decisionLogger.logError(
                 'Missing Confirmation Prompt',
-                'Agent did not provide a required confirmation prompt for approval',
+                'Agent did not provide required confirmation prompt',
                 AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
                 errMsg,
                 null,
                 null
             );
-
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Missing confirmation prompt for approval-required action. Failing turn.');
             return OrchestrationService.OUTCOME_FAILED;
         }
 
-        // Save assistant message with pending action status for audit and context
-        Id assistantMessageId = null;
-        ExecutionStepService executionStepService = new ExecutionStepService();
-
-        // Create agent response step with token usage data
-        if (String.isNotBlank(assistantData.content)) {
-            assistantMessageId = executionStepService.createAgentResponseStepWithTokens(
-                context.executionId,
-                assistantData.content,
-                context.turnIdentifier,
-                context.currentTurnCount,
-                context.llmResult.providerResult.promptTokens,
-                context.llmResult.providerResult.completionTokens,
-                context.llmResult.providerResult.totalTokens,
-                context.llmResult.providerResult.modelIdentifier,
-                context.llmResult.providerResult.llmCalloutDurationMs
-            );
-        }
-
-        // Create tool call step with approval pending metadata and token usage data
-        if (String.isNotBlank(toolRequest.arguments)) {
-            executionStepService.createStep(
-                context.executionId,
-                'ToolCall',
-                'Assistant',
-                'Tool call pending approval: ' + toolRequest.name,
-                'JSON',
-                context.turnIdentifier,
-                context.currentTurnCount,
-                toolRequest.id,
-                toolRequest.name,
-                toolRequest.arguments,
-                null, // toolResult
-                JSON.serialize(
-                    new Map<String, Object>{
-                        'requiresApproval' => true,
-                        'approvalStatus' => 'Pending',
-                        'pendingToolCallsJson' => assistantData.assistantToolCallsJson
-                    }
-                ),
-                context.llmResult.providerResult.promptTokens,
-                context.llmResult.providerResult.completionTokens,
-                context.llmResult.providerResult.totalTokens,
-                context.llmResult.providerResult.modelIdentifier,
-                context.llmResult.providerResult.llmCalloutDurationMs,
-                false, // isInternal
-                null // isAsyncToolExecution - not applicable to ToolCall steps
-            );
-        }
-
-        // Create approval request record for Salesforce approval process
+        // Create approval request record
         HumanApprovalRequest__c har = new HumanApprovalRequest__c(
             AgentExecution__c = context.executionId,
-            OriginalAssistantStep__c = assistantMessageId,
+            OriginalAssistantStep__c = savedAssistantMessageId,
             LLMConfirmationMessage__c = submissionComment,
-            LLMToolCallId__c = toolRequest.id,
-            LLMToolName__c = toolRequest.name,
-            LLMToolArgumentsJSON__c = toolRequest.arguments,
+            LLMToolCallId__c = approvalTool.toolCallId,
+            LLMToolName__c = approvalTool.toolName,
+            LLMToolArgumentsJSON__c = approvalTool.toolArguments,
             OriginalTurnIdentifier__c = context.turnIdentifier,
             OriginalTurnCount__c = context.currentTurnCount,
             ApprovalStatus__c = 'Pending'
         );
+
         try {
             insert har;
         } catch (Exception e) {
@@ -353,8 +467,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 AIAgentConstants.ERR_CODE_DML_ERROR,
                 logPrefix
             );
-            // Note: Pending details cleanup would be handled by the ExecutionStepService if needed
-            System.debug(LoggingLevel.ERROR, logPrefix + 'DML error inserting HumanApprovalRequest__c: ' + e.getMessage());
             return OrchestrationService.OUTCOME_FAILED;
         }
 
@@ -362,19 +474,10 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             // Submit approval request to Salesforce approval process
             Approval.ProcessSubmitRequest req = new Approval.ProcessSubmitRequest();
             req.setObjectId(har.Id);
-            req.setComments('Submitted by AI Agent on behalf of user. Justification: ' + submissionComment);
+            req.setComments('Submitted by AI Agent. Justification: ' + submissionComment);
             Approval.ProcessResult result = Approval.process(req);
-            if (result.isSuccess()) {
-                System.debug(
-                    LoggingLevel.INFO,
-                    logPrefix +
-                        'HumanApprovalRequest__c ' +
-                        har.Id +
-                        ' successfully submitted to approval process. Instance ID: ' +
-                        result.getInstanceId()
-                );
 
-                // Store process instance ID for tracking approval status
+            if (result.isSuccess()) {
                 update new HumanApprovalRequest__c(Id = har.Id, RelatedApprovalProcessInstanceId__c = result.getInstanceId());
             } else {
                 String submissionErrors = '';
@@ -391,36 +494,33 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
                 logPrefix
             );
-            delete har; // Clean up orphaned approval request
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix + 'Approval process submission failed. Orphaned request deleted. Error: ' + approvalEx.getMessage()
-            );
+            delete har;
             return OrchestrationService.OUTCOME_FAILED;
         }
 
-        // Save pending status as tool result for LLM context in next turn
+        // Save pending status as tool result
         String toolResultContent = JSON.serialize(
             new Map<String, String>{
                 'status' => 'pending_approval',
                 'message' => 'The action ' +
-                toolRequest.name +
+                approvalTool.toolName +
                 ' has been submitted for Salesforce Approval.'
             }
         );
-        // Save tool result message using ExecutionStep__c
+
+        ExecutionStepService executionStepService = new ExecutionStepService();
         executionStepService.createToolResultStep(
             context.executionId,
-            toolRequest.id,
-            capability.CapabilityName__c,
+            approvalTool.toolCallId,
+            approvalTool.capability.CapabilityName__c,
             toolResultContent,
             context.turnIdentifier,
             context.currentTurnCount,
-            0L, // processingDuration
-            false // isAsyncToolExecution - approval workflow is not async execution
+            0L,
+            false
         );
 
-        // Queue follow-up LLM call to inform user about pending approval
+        // Queue follow-up LLM call to inform user
         context.turnLifecycleSvc.resumeForFollowUpLlmCall(context.executionId, context.turnIdentifier, null, logPrefix);
         context.dispatchSvc.enqueueFollowUp(
             context.executionId,
@@ -435,116 +535,194 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         return OrchestrationService.OUTCOME_QUEUED_FOLLOWUP;
     }
 
+    // ===================================================================================
+    // SYNCHRONOUS EXECUTION
+    // ===================================================================================
+
     /**
-     * Executes a tool action synchronously and processes the result to determine the next conversation step.
-     *
-     * Handles both successful and failed outcomes, updating chat history and context as needed.
-     * May queue a follow-up LLM call or halt the conversation based on capability configuration and result.
-     *
-     * @param context OrchestrationContext for the current turn.
-     * @param savedAssistantMessageId Id of the assistant message containing the tool call.
-     * @param toolRequest Parsed ActionRequest from the LLM.
-     * @param capability AgentCapability__c record for the tool.
-     * @param logPrefix String prefix for log output.
-     * @param decisionLogger AgentDecisionStepLogger instance for logging decision steps.
-     * @return String outcome constant for orchestration flow.
+     * Executes all synchronous tools immediately in the same transaction
      */
-    private String executeSyncActionAndContinue(
+    private List<ToolExecutionResult> executeSynchronousTools(
         OrchestrationContext context,
-        Id savedAssistantMessageId,
-        ConversationalChatController.ActionRequest toolRequest,
-        AgentCapability__c capability,
-        String logPrefix,
-        AgentDecisionStepLogger decisionLogger
+        List<ToolCallRequest> syncTools,
+        AgentDecisionStepLogger decisionLogger,
+        String logPrefix
     ) {
-        // Use current page record as action context for tool execution
-        Id actionRecordContextId = context.currentPageRecordId;
-        System.debug(LoggingLevel.DEBUG, logPrefix + 'Resolved action context record ID: ' + actionRecordContextId);
+        List<ToolExecutionResult> syncResults = new List<ToolExecutionResult>();
 
-        // Build action execution context
-        ActionContext actionContext = new ActionContext(
-            context.executionId,
-            context.originalUserId,
-            context.executionUserId,
-            actionRecordContextId,
-            context.agentDefinitionId,
-            capability.Id,
-            capability.ImplementationDetail__c,
-            context.turnIdentifier,
-            context.currentTurnCount,
-            'API'
-        );
+        System.debug(LoggingLevel.INFO, logPrefix + 'Executing ' + syncTools.size() + ' synchronous tool(s)');
 
-        ActionOutcome outcome = null;
-        Long actionDuration = 0L;
-        Long syncActionStart = System.currentTimeMillis();
-
-        try {
-            outcome = context.actionExecSvc.executeSingleAction(capability, toolRequest.arguments, actionContext);
-        } catch (Exception execEx) {
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix + 'Unhandled exception during synchronous tool execution: ' + execEx.getMessage() + '\n' + execEx.getStackTraceString()
-            );
-            outcome = ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
-                'Action failed internally: ' + execEx.getMessage() + '\n' + execEx.getStackTraceString()
-            );
-        } finally {
-            actionDuration = System.currentTimeMillis() - syncActionStart;
-        }
-
-        // Save tool result to chat history before any follow-up processing
-        String resultJsonForStorage = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
-        Id newRecordContextId = OrchestrationService.extractRecordIdFromOutcome(outcome);
-
-        // Log the tool result step with full ActionOutcome details and causality tracking
-        Id toolExecutionStepId = decisionLogger.getLastLoggedStepId();
-        decisionLogger.logStepWithParent(
-            AgentDecisionStepLogger.StepType.TOOL_RESULT,
-            'Tool Execution Completed',
-            'Tool execution has completed',
-            resultJsonForStorage,
-            actionDuration,
-            outcome.isSuccess, // isSuccess
-            toolExecutionStepId, // parentStepId - link to tool execution
-            toolRequest.id // triggeringToolCallId
-        );
-
-        // Save tool result message using ExecutionStep__c
-        ExecutionStepService executionStepService = new ExecutionStepService();
-        executionStepService.createToolResultStep(
-            context.executionId,
-            toolRequest.id,
-            capability.CapabilityName__c,
-            resultJsonForStorage,
-            context.turnIdentifier,
-            context.currentTurnCount,
-            actionDuration,
-            false // isAsyncToolExecution - synchronous execution
-        );
-
-        // Update the context ledger for future turns
-        // Always commit page context if present; also commit newly created records
-        if (context.currentPageRecordId != null || newRecordContextId != null) {
+        for (ToolCallRequest toolRequest : syncTools) {
             try {
-                context.contextManagerSvc.commitExecutionTurnContext(
+                Long startTime = System.currentTimeMillis();
+
+                // Build action execution context
+                ActionContext actionContext = new ActionContext(
                     context.executionId,
-                    context.currentTurnCount,
+                    context.originalUserId,
+                    context.executionUserId,
                     context.currentPageRecordId,
-                    newRecordContextId
+                    context.agentDefinitionId,
+                    toolRequest.capability.Id,
+                    toolRequest.capability.ImplementationDetail__c,
+                    context.turnIdentifier,
+                    context.currentTurnCount,
+                    'SyncTool'
                 );
+
+                // Execute the tool
+                ActionOutcome outcome = context.actionExecSvc.executeSingleAction(toolRequest.capability, toolRequest.toolArguments, actionContext);
+
+                Long processingTime = System.currentTimeMillis() - startTime;
+
+                ToolExecutionResult result = new ToolExecutionResult(
+                    toolRequest.toolCallId,
+                    toolRequest.toolName,
+                    outcome,
+                    processingTime,
+                    false,
+                    toolRequest.executionOrder
+                );
+
+                syncResults.add(result);
+
                 System.debug(
                     LoggingLevel.INFO,
-                    logPrefix + 'Committed context to ledger: pageContext=' + context.currentPageRecordId + ', newRecord=' + newRecordContextId
+                    logPrefix + 'Executed sync tool ' + toolRequest.toolName + ' in ' + processingTime + 'ms (success=' + outcome.isSuccess + ')'
                 );
+
+                // Log the tool execution result
+                if (decisionLogger != null) {
+                    decisionLogger.logToolResult(
+                        'Synchronous Tool Executed',
+                        'Tool ' + toolRequest.toolName + ' executed synchronously',
+                        JSON.serialize(outcome),
+                        processingTime,
+                        outcome.isSuccess,
+                        outcome.errorCode,
+                        outcome.errorMessage
+                    );
+                }
             } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Non-fatal: Failed to commit context to ledger: ' + e.getMessage());
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Error executing sync tool ' + toolRequest.toolName + ': ' + e.getMessage());
+
+                ActionOutcome failureOutcome = ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                    'Synchronous tool execution failed: ' + e.getMessage()
+                );
+
+                ToolExecutionResult failureResult = new ToolExecutionResult(
+                    toolRequest.toolCallId,
+                    toolRequest.toolName,
+                    failureOutcome,
+                    0L,
+                    false,
+                    toolRequest.executionOrder
+                );
+
+                syncResults.add(failureResult);
             }
         }
 
-        // Check if execution is in tool-terminating mode (Function agent with ≤1 capabilities)
-        // In this mode, tool result is the final response - no follow-up LLM processing
+        return syncResults;
+    }
+
+    /**
+     * Creates execution step records for synchronous tool results
+     */
+    private void createToolResultExecutionSteps(
+        OrchestrationContext context,
+        List<ToolExecutionResult> syncResults,
+        AgentDecisionStepLogger decisionLogger,
+        String logPrefix
+    ) {
+        ExecutionStepService executionStepService = new ExecutionStepService();
+
+        for (ToolExecutionResult result : syncResults) {
+            try {
+                String resultJsonForStorage = OrchestrationService.serializeActionOutcome(result.outcome, logPrefix);
+
+                executionStepService.createToolResultStep(
+                    context.executionId,
+                    result.toolCallId,
+                    result.toolName,
+                    resultJsonForStorage,
+                    context.turnIdentifier,
+                    context.currentTurnCount,
+                    result.processingTime,
+                    false
+                );
+            } catch (Exception e) {
+                System.debug(
+                    LoggingLevel.ERROR,
+                    logPrefix + 'Failed to create execution step for sync tool result ' + result.toolName + ': ' + e.getMessage()
+                );
+            }
+        }
+    }
+
+    // ===================================================================================
+    // ASYNCHRONOUS EXECUTION
+    // ===================================================================================
+
+    /**
+     * Queues asynchronous tools for separate transaction execution
+     */
+    private void queueAsyncTools(
+        OrchestrationContext context,
+        List<ToolCallRequest> asyncTools,
+        AgentDecisionStepLogger decisionLogger,
+        String logPrefix
+    ) {
+        System.debug(LoggingLevel.INFO, logPrefix + 'Queuing ' + asyncTools.size() + ' asynchronous tool(s)');
+
+        // Pause the turn for async action processing
+        context.turnLifecycleSvc.pauseForAsyncAction(context.executionId, context.turnIdentifier, null, 'Async Tools', logPrefix);
+
+        // Queue each async tool individually
+        for (ToolCallRequest toolRequest : asyncTools) {
+            try {
+                context.dispatchSvc.enqueueAsyncAction(
+                    context.executionId,
+                    context.originalUserId,
+                    context.agentDefinitionId,
+                    null, // savedAssistantMessageId - not needed
+                    toolRequest.toolCallId,
+                    toolRequest.toolArguments,
+                    toolRequest.capability,
+                    context.currentPageRecordId,
+                    context.turnIdentifier,
+                    context.currentTurnCount,
+                    logPrefix
+                );
+
+                System.debug(LoggingLevel.INFO, logPrefix + 'Queued async tool: ' + toolRequest.toolName);
+            } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to queue async tool ' + toolRequest.toolName + ': ' + e.getMessage());
+            }
+        }
+    }
+
+    // ===================================================================================
+    // ORCHESTRATION FLOW
+    // ===================================================================================
+
+    /**
+     * Determines the next orchestration step based on execution results
+     */
+    private String determineNextOrchestrationStep(
+        OrchestrationContext context,
+        List<ToolExecutionResult> syncResults,
+        List<ToolCallRequest> asyncTools,
+        String logPrefix
+    ) {
+        // If there are async tools, wait for them to complete
+        if (!asyncTools.isEmpty()) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Async tools queued, returning QUEUED_ACTION outcome');
+            return OrchestrationService.OUTCOME_QUEUED_ACTION;
+        }
+
+        // All tools were synchronous - check for tool-terminating mode
         AgentExecution__c execution = [
             SELECT IsToolTerminatingMode__c, ExecutionStatus__c
             FROM AgentExecution__c
@@ -553,123 +731,101 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         ];
 
         if (execution.IsToolTerminatingMode__c == true) {
-            System.debug(LoggingLevel.INFO, logPrefix + 'Tool-terminating mode detected. Tool result is final - no follow-up LLM.');
+            System.debug(LoggingLevel.INFO, logPrefix + 'Tool-terminating mode detected. Tool result is final.');
 
-            // Mark execution as completed with tool result as final response
-            // Note: The actual response is stored in ExecutionStep__c records
+            Boolean hasFailures = false;
+            for (ToolExecutionResult result : syncResults) {
+                if (!result.outcome.isSuccess) {
+                    hasFailures = true;
+                    break;
+                }
+            }
+
             AgentExecution__c completedExecution = new AgentExecution__c(
                 Id = context.executionId,
-                ExecutionStatus__c = outcome.isSuccess ? 'Completed' : 'Failed',
+                ExecutionStatus__c = hasFailures ? 'Failed' : 'Completed',
                 ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
                 EndTime__c = Datetime.now()
             );
             update completedExecution;
 
-            System.debug(
-                LoggingLevel.INFO,
-                logPrefix + 'Execution marked as ' + (outcome.isSuccess ? 'Completed' : 'Failed') + ' in tool-terminating mode.'
-            );
-
-            return outcome.isSuccess ? OrchestrationService.OUTCOME_COMPLETED : OrchestrationService.OUTCOME_FAILED;
+            return hasFailures ? OrchestrationService.OUTCOME_FAILED : OrchestrationService.OUTCOME_COMPLETED;
         }
 
-        // Check fail-fast policy using three-tier hierarchy
+        // Check fail-fast policy
         AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinition(context.agentDefinitionId);
-        Boolean shouldHalt = OrchestrationService.shouldFailFast(capability, agentDef, outcome, logPrefix);
-
-        if (outcome.isSuccess || !shouldHalt) {
-            System.debug(LoggingLevel.INFO, logPrefix + 'Tool action succeeded or is configured for autonomous recovery. Continuing agent loop.');
-
-            // Enforce maximum turn limit to prevent infinite loops
-            Integer maxTurns = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
-            if ((context.currentTurnCount + 1) > maxTurns) {
-                String limitErrorMsg = 'Maximum processing cycles (' + maxTurns + ') would be exceeded. The turn cannot continue.';
-                System.debug(LoggingLevel.WARN, logPrefix + limitErrorMsg + ' Failing turn.');
-                context.turnLifecycleSvc.failTurn(
-                    context.executionId,
-                    context.turnIdentifier,
-                    limitErrorMsg,
-                    AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED,
-                    logPrefix
-                );
-                return OrchestrationService.OUTCOME_FAILED;
+        Boolean shouldHalt = false;
+        for (ToolExecutionResult result : syncResults) {
+            if (!result.outcome.isSuccess) {
+                // Get capability for fail-fast check
+                AgentCapability__c capability = AIAgentConfigService.getCapability(context.agentDefinitionId, result.toolName);
+                if (OrchestrationService.shouldFailFast(capability, agentDef, result.outcome, logPrefix)) {
+                    shouldHalt = true;
+                    context.turnLifecycleSvc.failTurn(
+                        context.executionId,
+                        context.turnIdentifier,
+                        'Tool execution failed (fail-fast policy): ' + result.outcome.errorMessage,
+                        result.outcome.errorCode != null ? result.outcome.errorCode : AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                        logPrefix
+                    );
+                    break;
+                }
             }
+        }
 
-            // Queue follow-up LLM call with updated tool result in conversation history
-            context.turnLifecycleSvc.resumeForFollowUpLlmCall(context.executionId, context.turnIdentifier, null, logPrefix);
-            context.dispatchSvc.enqueueFollowUp(
-                context.executionId,
-                context.originalUserId,
-                context.agentDefinitionId,
-                context.turnIdentifier,
-                context.currentTurnCount + 1,
-                logPrefix,
-                false
-            );
-            return OrchestrationService.OUTCOME_QUEUED_FOLLOWUP;
-        } else {
-            // Action failed and fail-fast policy is enabled - immediately fail execution
-            // DO NOT call LLM for error formulation - fail fast means fail FAST
-            System.debug(
-                LoggingLevel.WARN,
-                logPrefix + 'Tool action failed with fail-fast policy enabled. Halting execution immediately (no LLM call).'
-            );
+        if (shouldHalt) {
+            return OrchestrationService.OUTCOME_FAILED;
+        }
 
-            context.decisionLogger.logToolResult(
-                'Fail-Fast Policy Triggered',
-                'Tool execution failed and fail-fast policy is enabled - execution halted without LLM error recovery',
-                '{"reason":"fail_fast_policy","capability":"' + capability.CapabilityName__c + '","error":"' + outcome.errorMessage + '"}',
-                0,
-                false,
-                outcome.errorCode,
-                outcome.errorMessage
-            );
+        // Commit page context to ledger
+        if (context.currentPageRecordId != null) {
+            try {
+                context.contextManagerSvc.commitExecutionTurnContext(
+                    context.executionId,
+                    context.currentTurnCount,
+                    context.currentPageRecordId,
+                    null
+                );
+            } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Non-fatal: Failed to commit context: ' + e.getMessage());
+            }
+        }
 
+        // Enforce max turn limit
+        Integer maxTurns = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
+        if ((context.currentTurnCount + 1) > maxTurns) {
+            String limitErrorMsg = 'Maximum processing cycles (' + maxTurns + ') exceeded.';
             context.turnLifecycleSvc.failTurn(
                 context.executionId,
                 context.turnIdentifier,
-                'Tool execution failed (fail-fast policy): ' + outcome.errorMessage,
-                outcome.errorCode != null ? outcome.errorCode : AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                limitErrorMsg,
+                AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED,
                 logPrefix
             );
             return OrchestrationService.OUTCOME_FAILED;
         }
+
+        // Queue follow-up LLM call
+        context.turnLifecycleSvc.resumeForFollowUpLlmCall(context.executionId, context.turnIdentifier, null, logPrefix);
+        context.dispatchSvc.enqueueFollowUp(
+            context.executionId,
+            context.originalUserId,
+            context.agentDefinitionId,
+            context.turnIdentifier,
+            context.currentTurnCount + 1,
+            logPrefix,
+            false
+        );
+
+        return OrchestrationService.OUTCOME_QUEUED_FOLLOWUP;
     }
 
-    // -------------------------------------------------------------------------
-    // Helper methods for tool request processing
-    // -------------------------------------------------------------------------
-
-    /**
-     * Parses a tool request map from the LLM into a strongly-typed ActionRequest.
-     * Throws ToolProcessingException if required fields are missing.
-     */
-    private ConversationalChatController.ActionRequest parseToolRequestMap(Map<String, String> requestMap) {
-        ConversationalChatController.ActionRequest req = new ConversationalChatController.ActionRequest();
-        req.id = requestMap?.get('id');
-        req.name = requestMap?.get('name');
-        req.arguments = requestMap?.get('arguments');
-        if (String.isBlank(req.id) || String.isBlank(req.name) || req.arguments == null) {
-            throw new ToolProcessingException(
-                'Malformed LLM tool request: missing id, name, or arguments. RequestMap: ' + JSON.serialize(requestMap)
-            );
-        }
-        return req;
-    }
-
-    /**
-     * Validates that the given AgentCapability__c is present. Throws ConfigurationException if not found.
-     */
-    private void validateCapability(AgentCapability__c capability, String capabilityName, String logPrefix) {
-        if (capability == null) {
-            throw new OrchestrationService.ConfigurationException('Active AgentCapability not found for name: "' + capabilityName + '"');
-        }
-        System.debug(LoggingLevel.DEBUG, logPrefix + 'Capability validated: ' + capabilityName);
-    }
+    // ===================================================================================
+    // HELPER METHODS
+    // ===================================================================================
 
     /**
      * Extracts the submission comment (confirmation prompt) from the tool arguments JSON.
-     * Returns null if not present or if parsing fails.
      */
     private String extractSubmissionComment(String argumentsJson, String capabilityName, String logPrefix) {
         if (String.isBlank(argumentsJson))

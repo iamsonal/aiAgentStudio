@@ -10,6 +10,9 @@
  * @description
  * Orchestrates lifecycle of conversational context for AI-driven chat sessions.
  * Uses ContextLedgerItem__c child records for scalability and performance.
+ *
+ * Also provides factory method for memory manager selection (consolidated from MemoryManagerFactory).
+ * Includes all data access methods for context ledger management.
  */
 public inherited sharing class ContextManagerService {
     // --- CONSTANTS ---
@@ -28,8 +31,9 @@ public inherited sharing class ContextManagerService {
     private static final Decimal MIN_RELEVANCE_SCORE = 1.0; // Floor to prevent zero/negative
     private static final Decimal PINNED_RELEVANCE_SCORE = 9999.0; // PINNED items never decay
 
-    // --- DEPENDENCIES ---
-    private final ContextLedgerRepository repository;
+    // Repository constants
+    private static final String DEFAULT_ORDER_BY = 'RelevanceScore__c DESC, LastAccessedTurn__c DESC';
+    private static final Integer DEFAULT_QUERY_LIMIT = 100;
 
     // --- EXCEPTIONS ---
     public class ContextManagementException extends AIAgentException {
@@ -51,6 +55,133 @@ public inherited sharing class ContextManagerService {
         ACTIVE,
         ARCHIVED,
         PRUNED
+    }
+
+    // --- DATA ACCESS STRUCTURES ---
+
+    /**
+     * Query result wrapper for repository operations
+     */
+    public class QueryResult {
+        public List<ContextLedgerItem__c> items { get; private set; }
+        public Integer totalCount { get; private set; }
+        public Boolean hasMore { get; private set; }
+
+        public QueryResult(List<ContextLedgerItem__c> items, Integer totalCount, Boolean hasMore) {
+            this.items = items != null ? items : new List<ContextLedgerItem__c>();
+            this.totalCount = totalCount;
+            this.hasMore = hasMore;
+        }
+    }
+
+    /**
+     * Fluent query builder for ledger queries
+     */
+    public class LedgerQueryBuilder {
+        private Id executionId;
+        private Set<String> statuses;
+        private Set<String> contextTypes;
+        private Decimal minRelevanceScore;
+        private Integer maxTurnsSinceAccess;
+        private Integer currentTurn;
+        private String orderBy;
+        private Integer queryLimit;
+
+        public LedgerQueryBuilder() {
+            this.statuses = new Set<String>();
+            this.contextTypes = new Set<String>();
+            this.orderBy = DEFAULT_ORDER_BY;
+            this.queryLimit = DEFAULT_QUERY_LIMIT;
+        }
+
+        public LedgerQueryBuilder forExecution(Id execId) {
+            this.executionId = execId;
+            return this;
+        }
+
+        public LedgerQueryBuilder withStatus(String status) {
+            this.statuses.add(status);
+            return this;
+        }
+
+        public LedgerQueryBuilder withStatuses(Set<String> statusSet) {
+            this.statuses.addAll(statusSet);
+            return this;
+        }
+
+        public LedgerQueryBuilder withContextType(String contextType) {
+            this.contextTypes.add(contextType);
+            return this;
+        }
+
+        public LedgerQueryBuilder withContextTypes(Set<String> types) {
+            this.contextTypes.addAll(types);
+            return this;
+        }
+
+        public LedgerQueryBuilder withMinRelevance(Decimal minScore) {
+            this.minRelevanceScore = minScore;
+            return this;
+        }
+
+        public LedgerQueryBuilder withMaxTurnsSinceAccess(Integer maxTurns, Integer currentTurnNum) {
+            this.maxTurnsSinceAccess = maxTurns;
+            this.currentTurn = currentTurnNum;
+            return this;
+        }
+
+        public LedgerQueryBuilder orderBy(String orderByClause) {
+            this.orderBy = orderByClause;
+            return this;
+        }
+
+        public LedgerQueryBuilder limitTo(Integer recordLimit) {
+            this.queryLimit = recordLimit;
+            return this;
+        }
+
+        public String buildQuery() {
+            List<String> conditions = new List<String>();
+
+            if (executionId != null) {
+                conditions.add('AgentExecution__c = :executionId');
+            }
+
+            if (!statuses.isEmpty()) {
+                conditions.add('Status__c IN :statuses');
+            }
+
+            if (!contextTypes.isEmpty()) {
+                conditions.add('ContextType__c IN :contextTypes');
+            }
+
+            if (minRelevanceScore != null) {
+                conditions.add('RelevanceScore__c >= :minRelevanceScore');
+            }
+
+            if (maxTurnsSinceAccess != null && currentTurn != null) {
+                Integer minLastAccessedTurn = currentTurn - maxTurnsSinceAccess;
+                conditions.add('LastAccessedTurn__c >= ' + minLastAccessedTurn);
+            }
+
+            String whereClause = conditions.isEmpty() ? '' : ' WHERE ' + String.join(conditions, ' AND ');
+            String orderByClause = String.isNotBlank(orderBy) ? ' ORDER BY ' + orderBy : '';
+            String limitClause = queryLimit != null ? ' LIMIT ' + queryLimit : '';
+
+            return 'SELECT Id, RecordId__c, RecordType__c, ContextType__c, Status__c, ' +
+                'TurnAdded__c, LastAccessedTurn__c, AccessCount__c, RelevanceScore__c, ' +
+                'SourceRecordId__c, ChildRecordIds__c, Metadata__c, OriginalContextType__c, ' +
+                'LastDataRefreshTime__c, PrunedAt__c, PrunedReason__c, LastModifiedDate ' +
+                'FROM ContextLedgerItem__c' +
+                whereClause +
+                orderByClause +
+                limitClause;
+        }
+
+        public List<ContextLedgerItem__c> execute() {
+            String query = buildQuery();
+            return Database.query(query);
+        }
     }
 
     // --- CORE DATA STRUCTURE ---
@@ -333,12 +464,7 @@ public inherited sharing class ContextManagerService {
     // --- CONSTRUCTORS ---
 
     public ContextManagerService() {
-        this(new ContextLedgerRepository());
-    }
-
-    @TestVisible
-    public ContextManagerService(ContextLedgerRepository repo) {
-        this.repository = repo;
+        // No dependencies needed anymore
     }
 
     // --- CORE PUBLIC METHODS ---
@@ -359,7 +485,7 @@ public inherited sharing class ContextManagerService {
 
         try {
             // Query active items from repository
-            List<ContextLedgerItem__c> records = repository.getActiveItemsForExecution(executionId);
+            List<ContextLedgerItem__c> records = getActiveItemsForExecution(executionId);
 
             // Convert to ContextItem objects
             List<ContextItem> ledger = new List<ContextItem>();
@@ -441,7 +567,7 @@ public inherited sharing class ContextManagerService {
 
         try {
             // FIX: Query all items and build FRESH map
-            List<ContextLedgerItem__c> existingRecords = repository.getAllItemsForExecution(executionId);
+            List<ContextLedgerItem__c> existingRecords = getAllItemsForExecution(executionId);
             List<ContextItem> ledger = new List<ContextItem>();
             Map<String, ContextItem> ledgerMapByRecordId = new Map<String, ContextItem>();
 
@@ -472,7 +598,7 @@ public inherited sharing class ContextManagerService {
                 recordsToUpsert.add(item.toRecord(executionId));
             }
 
-            repository.upsertItems(recordsToUpsert);
+            upsertItems(recordsToUpsert);
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Context ledger updated. Item count: ' + ledger.size());
         } catch (Exception e) {
@@ -664,5 +790,286 @@ public inherited sharing class ContextManagerService {
         }
 
         return 'background';
+    }
+
+    // =========================================================================
+    // DATA ACCESS METHODS
+    // =========================================================================
+
+    /**
+     * Gets a query builder for fluent query construction.
+     */
+    private LedgerQueryBuilder queryBuilder() {
+        return new LedgerQueryBuilder();
+    }
+
+    /**
+     * Retrieves all active context items for an execution, ordered by relevance.
+     */
+    private List<ContextLedgerItem__c> getActiveItemsForExecution(Id executionId) {
+        return queryBuilder().forExecution(executionId).withStatus('ACTIVE').execute();
+    }
+
+    /**
+     * Retrieves all context items for an execution (any status).
+     */
+    private List<ContextLedgerItem__c> getAllItemsForExecution(Id executionId) {
+        return queryBuilder().forExecution(executionId).execute();
+    }
+
+    /**
+     * Gets a single context item by composite key (execution + record ID).
+     */
+    private ContextLedgerItem__c getItemByRecordId(Id executionId, String recordId) {
+        List<ContextLedgerItem__c> items = [
+            SELECT
+                Id,
+                RecordId__c,
+                RecordType__c,
+                ContextType__c,
+                Status__c,
+                TurnAdded__c,
+                LastAccessedTurn__c,
+                AccessCount__c,
+                RelevanceScore__c,
+                SourceRecordId__c,
+                ChildRecordIds__c,
+                Metadata__c,
+                OriginalContextType__c,
+                LastDataRefreshTime__c,
+                PrunedAt__c,
+                PrunedReason__c,
+                LastModifiedDate
+            FROM ContextLedgerItem__c
+            WHERE AgentExecution__c = :executionId AND RecordId__c = :recordId
+            LIMIT 1
+        ];
+        return items.isEmpty() ? null : items[0];
+    }
+
+    /**
+     * Counts the number of items for an execution by status.
+     */
+    private Map<String, Integer> getCountsByStatus(Id executionId) {
+        Map<String, Integer> counts = new Map<String, Integer>();
+
+        for (AggregateResult ar : [
+            SELECT Status__c, COUNT(Id) cnt
+            FROM ContextLedgerItem__c
+            WHERE AgentExecution__c = :executionId
+            GROUP BY Status__c
+        ]) {
+            String status = (String) ar.get('Status__c');
+            Integer count = (Integer) ar.get('cnt');
+            counts.put(status, count);
+        }
+
+        return counts;
+    }
+
+    /**
+     * Inserts a single context ledger item.
+     */
+    private ContextLedgerItem__c insertItem(ContextLedgerItem__c item) {
+        insert item;
+        return item;
+    }
+
+    /**
+     * Inserts multiple context ledger items in bulk.
+     */
+    private List<ContextLedgerItem__c> insertItems(List<ContextLedgerItem__c> items) {
+        if (items == null || items.isEmpty()) {
+            return new List<ContextLedgerItem__c>();
+        }
+        insert items;
+        return items;
+    }
+
+    /**
+     * Upserts context ledger items based on composite key (ExecutionId + RecordId).
+     */
+    private List<ContextLedgerItem__c> upsertItems(List<ContextLedgerItem__c> items) {
+        if (items == null || items.isEmpty()) {
+            return new List<ContextLedgerItem__c>();
+        }
+
+        // Build map of execution + record ID to item
+        Map<String, ContextLedgerItem__c> newItemsMap = new Map<String, ContextLedgerItem__c>();
+        Set<Id> executionIds = new Set<Id>();
+        Set<String> recordIds = new Set<String>();
+
+        for (ContextLedgerItem__c item : items) {
+            String compositeKey = item.AgentExecution__c + '_' + item.RecordId__c;
+            newItemsMap.put(compositeKey, item);
+            executionIds.add(item.AgentExecution__c);
+            recordIds.add(item.RecordId__c);
+        }
+
+        // Query existing items
+        List<ContextLedgerItem__c> existingItems = [
+            SELECT Id, AgentExecution__c, RecordId__c
+            FROM ContextLedgerItem__c
+            WHERE AgentExecution__c IN :executionIds AND RecordId__c IN :recordIds
+        ];
+
+        // Update existing items
+        List<ContextLedgerItem__c> toUpdate = new List<ContextLedgerItem__c>();
+        for (ContextLedgerItem__c existing : existingItems) {
+            String compositeKey = existing.AgentExecution__c + '_' + existing.RecordId__c;
+            if (newItemsMap.containsKey(compositeKey)) {
+                ContextLedgerItem__c newItem = newItemsMap.get(compositeKey);
+                newItem.Id = existing.Id;
+                toUpdate.add(newItem);
+                newItemsMap.remove(compositeKey);
+            }
+        }
+
+        // Insert new items (remaining in map)
+        List<ContextLedgerItem__c> toInsert = newItemsMap.values();
+
+        if (!toUpdate.isEmpty()) {
+            update toUpdate;
+        }
+        if (!toInsert.isEmpty()) {
+            insert toInsert;
+        }
+
+        List<ContextLedgerItem__c> result = new List<ContextLedgerItem__c>();
+        result.addAll(toUpdate);
+        result.addAll(toInsert);
+        return result;
+    }
+
+    /**
+     * Updates a single context ledger item.
+     */
+    private void updateItem(ContextLedgerItem__c item) {
+        update item;
+    }
+
+    /**
+     * Updates multiple context ledger items in bulk.
+     */
+    private void updateItems(List<ContextLedgerItem__c> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        update items;
+    }
+
+    /**
+     * Updates an item with optimistic locking check.
+     */
+    private Boolean updateItemWithVersionCheck(ContextLedgerItem__c item, Datetime expectedLastModified) {
+        // Verify the item hasn't been modified since it was read
+        List<ContextLedgerItem__c> current = [
+            SELECT LastModifiedDate
+            FROM ContextLedgerItem__c
+            WHERE Id = :item.Id
+            LIMIT 1
+        ];
+
+        if (current.isEmpty()) {
+            return false; // Item was deleted
+        }
+
+        if (expectedLastModified != null && current[0].LastModifiedDate != expectedLastModified) {
+            return false; // Version conflict
+        }
+
+        update item;
+        return true;
+    }
+
+    /**
+     * Hard deletes context ledger items (use with caution).
+     */
+    private void deleteItems(List<ContextLedgerItem__c> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        delete items;
+    }
+
+    /**
+     * Soft deletes items by marking them as PRUNED.
+     */
+    private void softDeleteItems(List<ContextLedgerItem__c> items, String reason) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+
+        Datetime now = Datetime.now();
+        for (ContextLedgerItem__c item : items) {
+            item.Status__c = 'PRUNED';
+            item.PrunedAt__c = now;
+            item.PrunedReason__c = reason;
+        }
+
+        update items;
+    }
+
+    /**
+     * Archives items by marking them as ARCHIVED.
+     */
+    private void archiveItems(List<ContextLedgerItem__c> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+
+        for (ContextLedgerItem__c item : items) {
+            item.Status__c = 'ARCHIVED';
+        }
+
+        update items;
+    }
+
+    /**
+     * Deletes all pruned items older than specified days (cleanup utility).
+     */
+    private Integer deletePrunedItemsOlderThan(Integer daysOld) {
+        Datetime cutoffDate = Datetime.now().addDays(-daysOld);
+
+        List<ContextLedgerItem__c> toDelete = [
+            SELECT Id
+            FROM ContextLedgerItem__c
+            WHERE Status__c = 'PRUNED' AND PrunedAt__c < :cutoffDate
+            LIMIT 10000
+        ];
+
+        if (!toDelete.isEmpty()) {
+            delete toDelete;
+        }
+
+        return toDelete.size();
+    }
+
+    // =========================================================================
+    // MEMORY MANAGER FACTORY (Consolidated from MemoryManagerFactory)
+    // =========================================================================
+
+    /**
+     * @description
+     * Selects and instantiates the appropriate memory manager implementation for the given strategy.
+     * Consolidated from MemoryManagerFactory to reduce file overhead.
+     *
+     * - Returns a SummaryBufferMemoryManager for 'Summary Buffer' strategy
+     * - Defaults to BufferWindowMemoryManager for all other or unknown strategies
+     * - Logs the selected strategy and implementation for traceability
+     *
+     * @param strategyName  The API name of the memory strategy from the picklist (e.g., 'Buffer Window', 'Summary Buffer').
+     * @return IMemoryManager  The selected memory manager implementation.
+     */
+    public static IMemoryManager getMemoryManager(String strategyName) {
+        if ('Summary Buffer'.equalsIgnoreCase(strategyName)) {
+            System.debug(LoggingLevel.INFO, '[ContextManagerService] Selected strategy: Summary Buffer. Instantiating SummaryBufferMemoryManager.');
+            return new SummaryBufferMemoryManager();
+        }
+        System.debug(
+            LoggingLevel.INFO,
+            '[ContextManagerService] Selected strategy: ' + (strategyName ?? 'default') + '. Instantiating BufferWindowMemoryManager.'
+        );
+        return new BufferWindowMemoryManager();
     }
 }

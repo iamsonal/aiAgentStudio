@@ -1,8 +1,9 @@
 /**
- * @description Tests for HumanApprovalRequestTriggerHandler using TestFactory utilities
+ * @description Tests for AgentApprovalService using TestFactory utilities
+ * Consolidated from HumanApprovalRequestTriggerHandlerTest
  */
 @IsTest
-private class HumanApprovalRequestTriggerHandlerTest {
+private class AgentApprovalServiceTest {
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -260,7 +261,7 @@ private class HumanApprovalRequestTriggerHandlerTest {
     static void testHandleAfterUpdate_EmptyList_NoProcessing() {
         // When: Calling with empty list
         Test.startTest();
-        HumanApprovalRequestTriggerHandler.handleAfterUpdate(new List<HumanApprovalRequest__c>(), new Map<Id, HumanApprovalRequest__c>());
+        AgentApprovalService.handleTrigger(new List<HumanApprovalRequest__c>(), new Map<Id, HumanApprovalRequest__c>());
         Test.stopTest();
 
         // Then: Should handle gracefully

@@ -1,45 +1,45 @@
 /**
- * @description Tests for MemoryManagerFactory using TestFactory utilities
+ * @description Tests for memory manager selection (now part of ContextManagerService)
  */
 @IsTest
 private class MemoryManagerFactoryTest {
     // ===================================================================================
-    // FACTORY TESTS
+    // MEMORY MANAGER SELECTION TESTS (Consolidated into ContextManagerService)
     // ===================================================================================
 
     @IsTest
     static void testGetManager_SummaryBuffer_ReturnsCorrectManager() {
-        IMemoryManager manager = MemoryManagerFactory.getManager('Summary Buffer');
+        IMemoryManager manager = ContextManagerService.getMemoryManager('Summary Buffer');
         System.assert(manager instanceof SummaryBufferMemoryManager);
     }
 
     @IsTest
     static void testGetManager_BufferWindow_ReturnsCorrectManager() {
-        IMemoryManager manager = MemoryManagerFactory.getManager('Buffer Window');
+        IMemoryManager manager = ContextManagerService.getMemoryManager('Buffer Window');
         System.assert(manager instanceof BufferWindowMemoryManager);
     }
 
     @IsTest
     static void testGetManager_Null_ReturnsDefault() {
-        IMemoryManager manager = MemoryManagerFactory.getManager(null);
+        IMemoryManager manager = ContextManagerService.getMemoryManager(null);
         System.assert(manager instanceof BufferWindowMemoryManager);
     }
 
     @IsTest
     static void testGetManager_Empty_ReturnsDefault() {
-        IMemoryManager manager = MemoryManagerFactory.getManager('');
+        IMemoryManager manager = ContextManagerService.getMemoryManager('');
         System.assert(manager instanceof BufferWindowMemoryManager);
     }
 
     @IsTest
     static void testGetManager_Unknown_ReturnsDefault() {
-        IMemoryManager manager = MemoryManagerFactory.getManager('Unknown Strategy');
+        IMemoryManager manager = ContextManagerService.getMemoryManager('Unknown Strategy');
         System.assert(manager instanceof BufferWindowMemoryManager);
     }
 
     @IsTest
     static void testGetManager_CaseInsensitive_Works() {
-        IMemoryManager manager = MemoryManagerFactory.getManager('summary buffer');
+        IMemoryManager manager = ContextManagerService.getMemoryManager('summary buffer');
         System.assert(manager instanceof SummaryBufferMemoryManager);
     }
 

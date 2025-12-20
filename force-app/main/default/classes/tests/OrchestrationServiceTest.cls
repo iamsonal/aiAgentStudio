@@ -31,7 +31,7 @@ private class OrchestrationServiceTest {
     static void testConstructor_WithDependencies_Success() {
         // Given: Mock dependencies
         TurnLifecycleService turnSvc = new TurnLifecycleService();
-        CapabilityExecutionRouter actionSvc = new CapabilityExecutionRouter();
+        CapabilityExecutionService actionSvc = new CapabilityExecutionService();
         AgentJobEnqueuer dispatchSvc = new AgentJobEnqueuer();
         ContextManagerService contextSvc = new ContextManagerService();
 

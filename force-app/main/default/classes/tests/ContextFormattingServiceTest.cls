@@ -4,7 +4,6 @@
  */
 @IsTest
 private class ContextFormattingServiceTest {
-
     // ===================================================================================
     // TEST SETUP
     // ===================================================================================
@@ -12,16 +11,9 @@ private class ContextFormattingServiceTest {
     @TestSetup
     static void setupTestData() {
         // Create test data
-        Account account = TestFactory.newAccount()
-            .withName('Test Account')
-            .withDescription('Test account for formatting')
-            .save();
+        Account account = TestFactory.newAccount().withName('Test Account').withDescription('Test account for formatting').save();
 
-        TestFactory.newContact()
-            .withName('John', 'Doe')
-            .withEmail('john.doe@test.com')
-            .withAccount(account.Id)
-            .save();
+        TestFactory.newContact().withName('John', 'Doe').withEmail('john.doe@test.com').withAccount(account.Id).save();
     }
 
     // ===================================================================================
@@ -78,7 +70,7 @@ private class ContextFormattingServiceTest {
         Map<String, Object> parsedJson = (Map<String, Object>) JSON.deserializeUntyped(formatted);
         List<Object> records = (List<Object>) parsedJson.get('records');
         System.assertNotEquals(null, records, 'Should have records');
-        
+
         Map<String, Object> firstRecord = (Map<String, Object>) records[0];
         Map<String, Object> childRels = (Map<String, Object>) firstRecord.get('childRelationships');
         System.assertNotEquals(null, childRels, 'Should have childRelationships');
@@ -405,15 +397,11 @@ private class ContextFormattingServiceTest {
     static void testJsonFormatting_MultipleObjectTypes() {
         // Given: Multiple record types
         Account acc = [SELECT Id FROM Account LIMIT 1];
-        TestFactory.newContact()
-            .withName('Jane', 'Smith')
-            .withEmail('jane.smith@test.com')
-            .withAccount(acc.Id)
-            .save();
+        TestFactory.newContact().withName('Jane', 'Smith').withEmail('jane.smith@test.com').withAccount(acc.Id).save();
 
         List<Account> accounts = [SELECT Id, Name FROM Account WHERE Id = :acc.Id];
         List<Contact> contacts = [SELECT Id, FirstName, LastName FROM Contact WHERE AccountId = :acc.Id];
-        
+
         List<SObject> mixedRecords = new List<SObject>();
         mixedRecords.addAll(accounts);
         mixedRecords.addAll(contacts);
@@ -435,4 +423,3 @@ private class ContextFormattingServiceTest {
         System.assertEquals(2, parsedArray.size(), 'Should have 2 object groups');
     }
 }
-
