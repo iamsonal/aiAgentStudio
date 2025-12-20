@@ -96,7 +96,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
             if (toolRequests.isEmpty()) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'No valid tool calls found after parsing');
-                context.turnLifecycleSvc.failTurn(
+                context.agentStateSvc.failTurn(
                     context.executionId,
                     context.turnIdentifier,
                     'No valid tool calls found in LLM response',
@@ -196,7 +196,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             return determineNextOrchestrationStep(context, syncResults, asyncTools, logPrefix);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error in tool call handling: ' + e.getMessage() + '\n' + e.getStackTraceString());
-            context.turnLifecycleSvc.failTurn(
+            context.agentStateSvc.failTurn(
                 context.executionId,
                 context.turnIdentifier,
                 'Tool call handling failed: ' + e.getMessage(),
@@ -426,13 +426,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         String submissionComment = this.extractSubmissionComment(approvalTool.toolArguments, approvalTool.toolName, logPrefix);
         if (String.isBlank(submissionComment)) {
             String errMsg = 'Agent did not provide a required confirmation prompt for approval-required action "' + approvalTool.toolName + '".';
-            context.turnLifecycleSvc.failTurn(
-                context.executionId,
-                context.turnIdentifier,
-                errMsg,
-                AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
-                logPrefix
-            );
+            context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, errMsg, AIAgentConstants.ERR_CODE_LLM_CALL_FAILED, logPrefix);
             decisionLogger.logError(
                 'Missing Confirmation Prompt',
                 'Agent did not provide required confirmation prompt',
@@ -460,7 +454,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         try {
             insert har;
         } catch (Exception e) {
-            context.turnLifecycleSvc.failTurn(
+            context.agentStateSvc.failTurn(
                 context.executionId,
                 context.turnIdentifier,
                 'Failed to create approval request record: ' + e.getMessage(),
@@ -487,7 +481,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 throw new ToolProcessingException('Failed to submit request to approval process: ' + submissionErrors);
             }
         } catch (Exception approvalEx) {
-            context.turnLifecycleSvc.failTurn(
+            context.agentStateSvc.failTurn(
                 context.executionId,
                 context.turnIdentifier,
                 'Failed to start approval process: ' + approvalEx.getMessage(),
@@ -521,7 +515,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         );
 
         // Queue follow-up LLM call to inform user
-        context.turnLifecycleSvc.resumeForFollowUpLlmCall(context.executionId, context.turnIdentifier, null, logPrefix);
+        context.agentStateSvc.resumeForFollowUpLlmCall(context.executionId, context.turnIdentifier, null, logPrefix);
         context.dispatchSvc.enqueueFollowUp(
             context.executionId,
             context.originalUserId,
@@ -677,7 +671,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         System.debug(LoggingLevel.INFO, logPrefix + 'Queuing ' + asyncTools.size() + ' asynchronous tool(s)');
 
         // Pause the turn for async action processing
-        context.turnLifecycleSvc.pauseForAsyncAction(context.executionId, context.turnIdentifier, null, 'Async Tools', logPrefix);
+        context.agentStateSvc.pauseForAsyncAction(context.executionId, context.turnIdentifier, null, 'Async Tools', logPrefix);
 
         // Queue each async tool individually
         for (ToolCallRequest toolRequest : asyncTools) {
@@ -761,7 +755,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 AgentCapability__c capability = AIAgentConfigService.getCapability(context.agentDefinitionId, result.toolName);
                 if (OrchestrationService.shouldFailFast(capability, agentDef, result.outcome, logPrefix)) {
                     shouldHalt = true;
-                    context.turnLifecycleSvc.failTurn(
+                    context.agentStateSvc.failTurn(
                         context.executionId,
                         context.turnIdentifier,
                         'Tool execution failed (fail-fast policy): ' + result.outcome.errorMessage,
@@ -795,7 +789,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         Integer maxTurns = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
         if ((context.currentTurnCount + 1) > maxTurns) {
             String limitErrorMsg = 'Maximum processing cycles (' + maxTurns + ') exceeded.';
-            context.turnLifecycleSvc.failTurn(
+            context.agentStateSvc.failTurn(
                 context.executionId,
                 context.turnIdentifier,
                 limitErrorMsg,
@@ -806,7 +800,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
 
         // Queue follow-up LLM call
-        context.turnLifecycleSvc.resumeForFollowUpLlmCall(context.executionId, context.turnIdentifier, null, logPrefix);
+        context.agentStateSvc.resumeForFollowUpLlmCall(context.executionId, context.turnIdentifier, null, logPrefix);
         context.dispatchSvc.enqueueFollowUp(
             context.executionId,
             context.originalUserId,

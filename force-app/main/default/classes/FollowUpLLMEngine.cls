@@ -81,12 +81,12 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
         System.debug(LoggingLevel.INFO, logPrefix + 'Begin follow-up LLM processing for turn.');
 
         OrchestrationService orchestrationSvc = new OrchestrationService();
-        TurnLifecycleService turnLifecycleSvcForFailure = new TurnLifecycleService();
+        AgentStateService agentStateSvcForFailure = new AgentStateService();
 
         try {
             // Validate execution and turn state before proceeding
-            ExecutionContextService executionContextService = new ExecutionContextService();
-            AgentExecution__c execution = executionContextService.validateAndGetExecution(this.executionId, this.turnIdentifier);
+            AgentStateService agentStateService = new AgentStateService();
+            AgentExecution__c execution = agentStateService.validateAndGetExecution(this.executionId, this.turnIdentifier);
             if (execution == null || execution.ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_FOLLOWUP) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Execution state mismatch or stale job detected. Aborting follow-up processing.');
                 return;
@@ -147,7 +147,7 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
                     ex.getStackTraceString()
             );
             try {
-                turnLifecycleSvcForFailure.failTurn(
+                agentStateSvcForFailure.failTurn(
                     this.executionId,
                     this.turnIdentifier,
                     'Processor Exception: ' + ex.getMessage(),

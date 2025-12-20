@@ -96,21 +96,21 @@ public class AsyncActionEngine implements Queueable {
 
         AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(this.executionId, this.turnIdentifier, this.originalUserId);
 
-        TurnLifecycleService turnLifecycleSvc = new TurnLifecycleService();
+        AgentStateService agentStateSvc = new AgentStateService();
         CapabilityExecutionService actionService = new CapabilityExecutionService();
-        AgentJobEnqueuer orchestrationDispatchSvc = new AgentJobEnqueuer(turnLifecycleSvc);
+        AgentJobEnqueuer orchestrationDispatchSvc = new AgentJobEnqueuer(agentStateSvc);
 
         try {
             // Validate execution state to prevent stale executions
-            ExecutionContextService executionContextService = new ExecutionContextService();
-            AgentExecution__c execution = executionContextService.validateAndGetExecution(this.executionId, this.turnIdentifier);
+            AgentStateService agentStateService = new AgentStateService();
+            AgentExecution__c execution = agentStateService.validateAndGetExecution(this.executionId, this.turnIdentifier);
             if (execution == null || execution.ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_ACTION) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Stale execution detected or execution in unexpected state - aborting action execution');
                 return;
             }
 
             // Update execution status to indicate active action processing
-            turnLifecycleSvc.startTurnProcessing(this.executionId, this.turnIdentifier, null, logPrefix);
+            agentStateSvc.startTurnProcessing(this.executionId, this.turnIdentifier, null, logPrefix);
 
             // Execute the action with performance tracking
             Long actionDuration = 0L;
@@ -185,7 +185,7 @@ public class AsyncActionEngine implements Queueable {
                     outcome.errorMessage
                 );
 
-                turnLifecycleSvc.failTurn(
+                agentStateSvc.failTurn(
                     this.executionId,
                     this.turnIdentifier,
                     'Async tool execution failed (fail-fast policy): ' + outcome.errorMessage,
@@ -199,7 +199,7 @@ public class AsyncActionEngine implements Queueable {
             Integer maxTurns = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
             if ((this.currentTurnCount + 1) > maxTurns) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Maximum conversation turns exceeded (' + maxTurns + ') - terminating processing');
-                turnLifecycleSvc.failTurn(
+                agentStateSvc.failTurn(
                     this.executionId,
                     this.turnIdentifier,
                     'Maximum processing cycles reached.',
@@ -220,7 +220,7 @@ public class AsyncActionEngine implements Queueable {
                     ex.getStackTraceString()
             );
             try {
-                turnLifecycleSvc.failTurn(
+                agentStateSvc.failTurn(
                     this.executionId,
                     this.turnIdentifier,
                     'Action processor internal error: ' + ex.getMessage(),

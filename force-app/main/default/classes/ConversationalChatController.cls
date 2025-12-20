@@ -125,8 +125,8 @@ public with sharing class ConversationalChatController {
 
             // Attempt to mark turn as failed
             try {
-                TurnLifecycleService tls = new TurnLifecycleService();
-                tls.failTurn(sessionId, turnIdentifier, 'Controller Error: ' + errorMsg, errorCode, logPrefix);
+                AgentStateService ass = new AgentStateService();
+                ass.failTurn(sessionId, turnIdentifier, 'Controller Error: ' + errorMsg, errorCode, logPrefix);
             } catch (Exception failEx) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'CRITICAL: Failed to update session state: ' + failEx.getMessage());
             }
@@ -171,18 +171,10 @@ public with sharing class ConversationalChatController {
             // 3. CREATE EXECUTION using unified AgentExecutionService
             // Note: For session creation, we just create the execution record but don't initiate processing yet
             // Processing will begin when the first user message is sent
-            ExecutionContextService executionContextService = new ExecutionContextService();
+            AgentStateService agentStateService = new AgentStateService();
             String executionLabel = 'Chat - ' + Datetime.now().format('MM/dd HH:mm:ss');
 
-            Id newExecutionId = executionContextService.createExecution(
-                'Conversational',
-                agentDef.Id,
-                'Chat',
-                executionLabel,
-                recordId,
-                userId,
-                null
-            );
+            Id newExecutionId = agentStateService.createExecution('Conversational', agentDef.Id, 'Chat', executionLabel, recordId, userId, null);
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Successfully created new agent execution: ' + newExecutionId);
 

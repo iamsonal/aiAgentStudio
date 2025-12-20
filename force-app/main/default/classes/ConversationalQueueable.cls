@@ -102,8 +102,8 @@ public class ConversationalQueueable implements Queueable, Database.AllowsCallou
 
             // Mark turn as failed
             try {
-                TurnLifecycleService tls = new TurnLifecycleService();
-                tls.failTurn(
+                AgentStateService ass = new AgentStateService();
+                ass.failTurn(
                     executionId,
                     turnIdentifier,
                     'LLM processing failed: ' + e.getMessage(),

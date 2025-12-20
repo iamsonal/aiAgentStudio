@@ -182,8 +182,8 @@ global with sharing class AIAgentRestService {
         } catch (Exception e) {
             // Mark the turn as failed before re-throwing
             try {
-                TurnLifecycleService tls = new TurnLifecycleService();
-                tls.failTurn(
+                AgentStateService ass = new AgentStateService();
+                ass.failTurn(
                     sessionId,
                     requestData.turnIdentifier,
                     'REST processing failed: ' + e.getMessage(),

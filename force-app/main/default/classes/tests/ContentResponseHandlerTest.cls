@@ -456,7 +456,7 @@ private class ContentResponseHandlerTest {
         LLMInteractionService.LLMInteractionResult llmResult = new LLMInteractionService.LLMInteractionResult(providerResult, assistantData);
 
         // Create services
-        TurnLifecycleService turnSvc = new TurnLifecycleService();
+        AgentStateService stateSvc = new AgentStateService();
         CapabilityExecutionService actionSvc = new CapabilityExecutionService();
         AgentJobEnqueuer dispatchSvc = new AgentJobEnqueuer();
         ContextManagerService contextSvc = new ContextManagerService();
@@ -472,7 +472,7 @@ private class ContentResponseHandlerTest {
             'turn-001',
             1,
             null, // no user message
-            turnSvc,
+            stateSvc,
             actionSvc,
             dispatchSvc,
             contextSvc,
@@ -503,7 +503,7 @@ private class ContentResponseHandlerTest {
         userData.content = userContent;
 
         // Create services
-        TurnLifecycleService turnSvc = new TurnLifecycleService();
+        AgentStateService stateSvc = new AgentStateService();
         CapabilityExecutionService actionSvc = new CapabilityExecutionService();
         AgentJobEnqueuer dispatchSvc = new AgentJobEnqueuer();
         ContextManagerService contextSvc = new ContextManagerService();
@@ -519,7 +519,7 @@ private class ContentResponseHandlerTest {
             'turn-002',
             1,
             userData, // with user message
-            turnSvc,
+            stateSvc,
             actionSvc,
             dispatchSvc,
             contextSvc,

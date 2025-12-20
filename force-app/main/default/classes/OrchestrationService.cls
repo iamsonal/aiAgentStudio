@@ -25,7 +25,7 @@ public inherited sharing class OrchestrationService {
     public static final String OUTCOME_AWAITING_CONFIRMATION = 'AWAITING_CONFIRMATION';
 
     // Injected service dependencies
-    private final TurnLifecycleService turnLifecycleSvc;
+    private final AgentStateService agentStateSvc;
     private final CapabilityExecutionService actionExecSvc;
     private final AgentJobEnqueuer orchestrationDispatchSvc;
     private final ContextManagerService contextManagerSvc;
@@ -35,27 +35,27 @@ public inherited sharing class OrchestrationService {
      */
     public OrchestrationService() {
         // Initialize with default service implementations
-        this(new TurnLifecycleService(), new CapabilityExecutionService(), new AgentJobEnqueuer(), new ContextManagerService());
+        this(new AgentStateService(), new CapabilityExecutionService(), new AgentJobEnqueuer(), new ContextManagerService());
     }
 
     /**
      * Constructor with dependency injection for testing and customization.
      *
-     * @param turnSvc    TurnLifecycleService instance
+     * @param stateSvc   AgentStateService instance
      * @param actionSvc  CapabilityExecutionService instance
      * @param dispatchSvc AgentJobEnqueuer instance
      * @param contextSvc ContextManagerService instance
      */
     public OrchestrationService(
-        TurnLifecycleService turnSvc,
+        AgentStateService stateSvc,
         CapabilityExecutionService actionSvc,
         AgentJobEnqueuer dispatchSvc,
         ContextManagerService contextSvc
     ) {
-        if (turnSvc == null || actionSvc == null || dispatchSvc == null || contextSvc == null) {
+        if (stateSvc == null || actionSvc == null || dispatchSvc == null || contextSvc == null) {
             throw new IllegalArgumentException('All service dependencies for OrchestrationService are required.');
         }
-        this.turnLifecycleSvc = turnSvc;
+        this.agentStateSvc = stateSvc;
         this.actionExecSvc = actionSvc;
         this.orchestrationDispatchSvc = dispatchSvc;
         this.contextManagerSvc = contextSvc;
@@ -111,7 +111,7 @@ public inherited sharing class OrchestrationService {
                     null
                 );
 
-                this.turnLifecycleSvc.failTurn(executionId, turnIdentifier, failureReason, failureCode, logPrefix);
+                this.agentStateSvc.failTurn(executionId, turnIdentifier, failureReason, failureCode, logPrefix);
                 return OUTCOME_FAILED;
             }
 
@@ -125,7 +125,7 @@ public inherited sharing class OrchestrationService {
                 turnIdentifier,
                 currentTurnCount,
                 userMessageDataForTurn,
-                this.turnLifecycleSvc,
+                this.agentStateSvc,
                 this.actionExecSvc,
                 this.orchestrationDispatchSvc,
                 this.contextManagerSvc,
@@ -160,7 +160,7 @@ public inherited sharing class OrchestrationService {
             );
 
             try {
-                this.turnLifecycleSvc.failTurn(executionId, turnIdentifier, errorMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
+                this.agentStateSvc.failTurn(executionId, turnIdentifier, errorMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
             } catch (Exception finalFailEx) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'FATAL: Could not mark turn as failed. Reason: ' + finalFailEx.getMessage());
             }
@@ -602,11 +602,11 @@ public inherited sharing class OrchestrationService {
             }
 
             // Update execution status to indicate we're ready for final follow-up
-            TurnLifecycleService turnLifecycleSvc = new TurnLifecycleService();
-            turnLifecycleSvc.resumeForFollowUpLlmCall(executionId, turnIdentifier, null, logPrefix);
+            AgentStateService agentStateSvcLocal = new AgentStateService();
+            agentStateSvcLocal.resumeForFollowUpLlmCall(executionId, turnIdentifier, null, logPrefix);
 
             // Enqueue the final follow-up LLM call
-            AgentJobEnqueuer orchestrationDispatchSvc = new AgentJobEnqueuer(turnLifecycleSvc);
+            AgentJobEnqueuer orchestrationDispatchSvc = new AgentJobEnqueuer(agentStateSvcLocal);
             orchestrationDispatchSvc.enqueueFollowUp(
                 executionId,
                 execution.User__c,

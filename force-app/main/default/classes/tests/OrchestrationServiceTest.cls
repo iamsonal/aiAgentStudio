@@ -30,14 +30,14 @@ private class OrchestrationServiceTest {
     @IsTest
     static void testConstructor_WithDependencies_Success() {
         // Given: Mock dependencies
-        TurnLifecycleService turnSvc = new TurnLifecycleService();
+        AgentStateService stateSvc = new AgentStateService();
         CapabilityExecutionService actionSvc = new CapabilityExecutionService();
         AgentJobEnqueuer dispatchSvc = new AgentJobEnqueuer();
         ContextManagerService contextSvc = new ContextManagerService();
 
         // When: Creating service with dependencies
         Test.startTest();
-        OrchestrationService service = new OrchestrationService(turnSvc, actionSvc, dispatchSvc, contextSvc);
+        OrchestrationService service = new OrchestrationService(stateSvc, actionSvc, dispatchSvc, contextSvc);
         Test.stopTest();
 
         // Then: Service should be created

@@ -76,8 +76,8 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
                 }
 
                 // Update execution status to processing for async path
-                ExecutionContextService execContextSvc = new ExecutionContextService();
-                execContextSvc.updateStatus(
+                AgentStateService agentStateSvc = new AgentStateService();
+                agentStateSvc.updateStatus(
                     executionId,
                     'Processing',
                     AIAgentConstants.STATUS_PROCESSING,
@@ -86,10 +86,10 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
                 );
             } else {
                 // Create new AgentExecution__c record
-                ExecutionContextService executionContextService = new ExecutionContextService();
+                AgentStateService agentStateService = new AgentStateService();
                 String executionLabel = 'Chat - ' + Datetime.now().format('MM/dd HH:mm:ss');
 
-                executionId = executionContextService.createExecution(
+                executionId = agentStateService.createExecution(
                     'Conversational',
                     agentDef.Id,
                     payload.triggerSource,
@@ -273,8 +273,8 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
 
             // Mark turn as failed
             try {
-                TurnLifecycleService tls = new TurnLifecycleService();
-                tls.failTurn(
+                AgentStateService ass = new AgentStateService();
+                ass.failTurn(
                     executionId,
                     payload.turnIdentifier,
                     'Synchronous execution failed: ' + e.getMessage(),

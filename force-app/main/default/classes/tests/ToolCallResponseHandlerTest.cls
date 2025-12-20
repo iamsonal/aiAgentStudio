@@ -252,7 +252,7 @@ private class ToolCallResponseHandlerTest {
         LLMInteractionService.LLMInteractionResult llmResult = new LLMInteractionService.LLMInteractionResult(providerResult, assistantData);
 
         // Create services
-        TurnLifecycleService turnSvc = new TurnLifecycleService();
+        AgentStateService stateSvc = new AgentStateService();
         CapabilityExecutionService actionSvc = new CapabilityExecutionService();
         AgentJobEnqueuer dispatchSvc = new AgentJobEnqueuer();
         ContextManagerService contextSvc = new ContextManagerService();
@@ -267,7 +267,7 @@ private class ToolCallResponseHandlerTest {
             'turn-001',
             1,
             null,
-            turnSvc,
+            stateSvc,
             actionSvc,
             dispatchSvc,
             contextSvc,
@@ -312,7 +312,7 @@ private class ToolCallResponseHandlerTest {
         userData.content = userMessage;
 
         // Create services
-        TurnLifecycleService turnSvc = new TurnLifecycleService();
+        AgentStateService stateSvc = new AgentStateService();
         CapabilityExecutionService actionSvc = new CapabilityExecutionService();
         AgentJobEnqueuer dispatchSvc = new AgentJobEnqueuer();
         ContextManagerService contextSvc = new ContextManagerService();
@@ -327,7 +327,7 @@ private class ToolCallResponseHandlerTest {
             'turn-002',
             1,
             userData,
-            turnSvc,
+            stateSvc,
             actionSvc,
             dispatchSvc,
             contextSvc,

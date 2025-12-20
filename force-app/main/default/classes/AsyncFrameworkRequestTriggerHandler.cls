@@ -202,8 +202,8 @@ public class AsyncFrameworkRequestTriggerHandler {
 
             // Attempt to mark the turn as failed to maintain session state consistency
             try {
-                TurnLifecycleService tls = new TurnLifecycleService();
-                tls.failTurn(
+                AgentStateService ass = new AgentStateService();
+                ass.failTurn(
                     sessionId,
                     turnIdentifier,
                     'Initial LLM processing failed: ' + e.getMessage(),

@@ -32,7 +32,7 @@ public class OrchestrationContext {
     public Id currentPageRecordId { get; private set; }
 
     // Injected service dependencies
-    public TurnLifecycleService turnLifecycleSvc { get; private set; }
+    public AgentStateService agentStateSvc { get; private set; }
     public CapabilityExecutionService actionExecSvc { get; private set; }
     public AgentJobEnqueuer dispatchSvc { get; private set; }
     public ContextManagerService contextManagerSvc { get; private set; }
@@ -52,7 +52,7 @@ public class OrchestrationContext {
      * @param turnId            Unique identifier for this turn (required)
      * @param turnCount         The current turn count in the execution (required)
      * @param userMsgData       The user message data for this turn (optional for non-conversational)
-     * @param turnSvc           Service for managing turn lifecycle events (required)
+     * @param stateSvc          Service for managing agent state and lifecycle events (required)
      * @param actionSvc         Service for executing agent actions (required)
      * @param dispatchSvc       Service for enqueuing agent jobs (required)
      * @param contextMgrSvc     Service for managing context and memory (required)
@@ -70,7 +70,7 @@ public class OrchestrationContext {
         String turnId,
         Integer turnCount,
         LLMInteractionService.MessageData userMsgData,
-        TurnLifecycleService turnSvc,
+        AgentStateService stateSvc,
         CapabilityExecutionService actionSvc,
         AgentJobEnqueuer dispatchSvc,
         ContextManagerService contextMgrSvc,
@@ -85,7 +85,7 @@ public class OrchestrationContext {
         this.turnIdentifier = turnId;
         this.currentTurnCount = turnCount;
         this.userMessageData = userMsgData;
-        this.turnLifecycleSvc = turnSvc;
+        this.agentStateSvc = stateSvc;
         this.actionExecSvc = actionSvc;
         this.dispatchSvc = dispatchSvc;
         this.contextManagerSvc = contextMgrSvc;

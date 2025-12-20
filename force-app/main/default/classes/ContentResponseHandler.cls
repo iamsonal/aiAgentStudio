@@ -72,7 +72,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
                 null
             );
 
-            context.turnLifecycleSvc.failTurn(
+            context.agentStateSvc.failTurn(
                 context.executionId,
                 context.turnIdentifier,
                 'LLM returned empty successful response.',
@@ -150,7 +150,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
         );
 
         // Complete the turn successfully
-        context.turnLifecycleSvc.completeTurnSuccessfully(context.executionId, context.turnIdentifier, savedAssistantMessageId, logPrefix);
+        context.agentStateSvc.completeTurnSuccessfully(context.executionId, context.turnIdentifier, savedAssistantMessageId, logPrefix);
         return OrchestrationService.OUTCOME_COMPLETED;
     }
 

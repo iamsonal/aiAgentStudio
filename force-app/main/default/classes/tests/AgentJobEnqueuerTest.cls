@@ -44,7 +44,7 @@ private class AgentJobEnqueuerTest {
             AgentJobEnqueuer enqueuer = new AgentJobEnqueuer(null);
         } catch (IllegalArgumentException e) {
             exceptionThrown = true;
-            System.assert(e.getMessage().contains('TurnLifecycleService cannot be null'));
+            System.assert(e.getMessage().contains('AgentStateService cannot be null'));
         }
 
         // Then: Should throw exception
@@ -310,7 +310,7 @@ private class AgentJobEnqueuerTest {
     static void testEnqueueFollowUp_WithInvalidExecution_HandlesGracefully() {
         // Given: Invalid execution ID (using agent ID as execution ID)
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
-        AgentJobEnqueuer enqueuer = new AgentJobEnqueuer(new TurnLifecycleService());
+        AgentJobEnqueuer enqueuer = new AgentJobEnqueuer(new AgentStateService());
         String turnId = UUID.randomUUID().toString();
 
         // When: Enqueueing with invalid execution ID

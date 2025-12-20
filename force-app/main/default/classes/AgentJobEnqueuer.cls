@@ -26,30 +26,30 @@ public inherited sharing class AgentJobEnqueuer {
     public class DispatchException extends AIAgentException {
     }
 
-    private final TurnLifecycleService turnLifecycleSvc;
+    private final AgentStateService agentStateSvc;
 
     // Cache for agent async dispatch type settings to minimize SOQL queries
     private static Map<Id, String> agentAsyncDispatchTypeCache = new Map<Id, String>();
 
     /**
-     * Default constructor. Instantiates its own TurnLifecycleService dependency.
+     * Default constructor. Instantiates its own AgentStateService dependency.
      * Use this in production code where dependency injection is not required.
      */
     public AgentJobEnqueuer() {
-        this(new TurnLifecycleService());
+        this(new AgentStateService());
     }
 
     /**
      * Main constructor for dependency injection (primarily for testing).
      *
-     * @param turnLifecycleService The TurnLifecycleService instance to use for session state management.
-     * @throws IllegalArgumentException if turnLifecycleService is null.
+     * @param agentStateService The AgentStateService instance to use for session state management.
+     * @throws IllegalArgumentException if agentStateService is null.
      */
-    public AgentJobEnqueuer(TurnLifecycleService turnLifecycleService) {
-        if (turnLifecycleService == null) {
-            throw new IllegalArgumentException('TurnLifecycleService cannot be null.');
+    public AgentJobEnqueuer(AgentStateService agentStateService) {
+        if (agentStateService == null) {
+            throw new IllegalArgumentException('AgentStateService cannot be null.');
         }
-        this.turnLifecycleSvc = turnLifecycleService;
+        this.agentStateSvc = agentStateService;
     }
 
     /**
@@ -464,7 +464,7 @@ public inherited sharing class AgentJobEnqueuer {
 
         // Attempt to mark the turn as failed to prevent orphaned processing states
         try {
-            this.turnLifecycleSvc.failTurn(sessionId, turnId, errorDetailForState, AIAgentConstants.ERR_CODE_SYSTEM_LIMIT, logPrefix);
+            this.agentStateSvc.failTurn(sessionId, turnId, errorDetailForState, AIAgentConstants.ERR_CODE_SYSTEM_LIMIT, logPrefix);
         } catch (Exception finalStateEx) {
             System.debug(
                 LoggingLevel.ERROR,
