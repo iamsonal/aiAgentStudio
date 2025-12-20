@@ -30,7 +30,7 @@ public class TestCaseProcessingWorkflow {
         
         try {
             // Step 1: Verify the workflow agent exists
-            verifyWorkflowAgentExists();
+            verifyWorkflowOrchestratorExists();
             
             // Step 2: Create test cases
             List<Case> testCases = createTestCases();
@@ -52,7 +52,7 @@ public class TestCaseProcessingWorkflow {
     /**
      * Verifies that the Case Processing Workflow agent exists
      */
-    private static void verifyWorkflowAgentExists() {
+    private static void verifyWorkflowOrchestratorExists() {
         List<AIAgentDefinition__c> agents = [
             SELECT Id, Name, DeveloperName__c, AgentType__c, IsActive__c
             FROM AIAgentDefinition__c

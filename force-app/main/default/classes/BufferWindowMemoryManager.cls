@@ -94,7 +94,7 @@ public class BufferWindowMemoryManager implements IMemoryManager {
     private List<Map<String, Object>> getUnlimitedHistory(Id executionId, AIAgentDefinition__c agentConfig, String debugPrefix) {
         ExecutionStepService executionStepService = new ExecutionStepService();
         List<ExecutionStep__c> allSteps = executionStepService.getHistory(executionId, null, 'ASC', null, false);
-        return ExecutionStepHistoryFormatter.formatStepsForApi(allSteps, agentConfig, debugPrefix);
+        return LLMFormattingService.formatStepsForApi(allSteps, agentConfig, debugPrefix);
     }
 
     /**
@@ -109,6 +109,6 @@ public class BufferWindowMemoryManager implements IMemoryManager {
     private List<Map<String, Object>> getLimitedHistory(Id executionId, Integer turnLimit, AIAgentDefinition__c agentConfig, String debugPrefix) {
         ExecutionStepService executionStepService = new ExecutionStepService();
         List<ExecutionStep__c> limitedSteps = executionStepService.getHistoryWithCompleteTurns(executionId, turnLimit, 'DESC', false);
-        return ExecutionStepHistoryFormatter.formatStepsForApi(limitedSteps, agentConfig, debugPrefix);
+        return LLMFormattingService.formatStepsForApi(limitedSteps, agentConfig, debugPrefix);
     }
 }

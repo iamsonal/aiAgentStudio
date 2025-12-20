@@ -49,7 +49,7 @@ public with sharing class AgentTestDataFactory {
         // 3. Create agents for different use cases
         createConversationalAgent(llmConfig.Id);
         createFunctionAgents(llmConfig.Id);
-        createWorkflowAgent(llmConfig.Id);
+        createWorkflowOrchestrator(llmConfig.Id);
 
         System.debug('========================================');
         System.debug('SHOWCASE COMPLETE! Key Record IDs:');
@@ -741,7 +741,7 @@ public with sharing class AgentTestDataFactory {
      * @description Creates a workflow agent that orchestrates 2 function agents with multiple capabilities
      * Demonstrates: Analyze & Triage → Resolve & Notify workflow for case processing
      */
-    private static void createWorkflowAgent(Id llmConfigId) {
+    private static void createWorkflowOrchestrator(Id llmConfigId) {
         System.debug('[Agent:Workflow] Creating Case Processing Workflow...');
 
         // Create the workflow orchestrator

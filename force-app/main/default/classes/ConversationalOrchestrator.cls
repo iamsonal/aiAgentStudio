@@ -173,19 +173,21 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
      * Enqueues a Queueable job for low dispatch type scenarios.
      */
     private void enqueueQueueable(Id executionId, AgentExecutionService.ExecutionPayload payload, String logPrefix) {
-        ConversationalQueueable queueable = new ConversationalQueueable(
-            executionId,
-            payload.userId,
-            payload.userId, // execution user is same as original user for low concurrency
-            agentDef.Id,
-            agentDef.LLMConfiguration__c,
-            payload.turnIdentifier,
-            payload.currentRecordId,
-            payload.userMessage
-        );
+        Map<String, Object> queueablePayload = new Map<String, Object>{
+            'executionId' => executionId,
+            'originalUserId' => payload.userId,
+            'executionUserId' => payload.userId, // execution user is same as original user for low concurrency
+            'agentDefinitionId' => agentDef.Id,
+            'llmConfigurationId' => agentDef.LLMConfiguration__c,
+            'turnIdentifier' => payload.turnIdentifier,
+            'currentRecordId' => payload.currentRecordId,
+            'userMessage' => payload.userMessage
+        };
+
+        UnifiedAgentQueueable queueable = new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_CONVERSATIONAL, queueablePayload);
 
         Id jobId = System.enqueueJob(queueable);
-        System.debug(LoggingLevel.INFO, logPrefix + 'Enqueued ConversationalQueueable job: ' + jobId + ' for execution: ' + executionId);
+        System.debug(LoggingLevel.INFO, logPrefix + 'Enqueued UnifiedAgentQueueable job (Conversational type): ' + jobId + ' for execution: ' + executionId);
     }
 
     /**

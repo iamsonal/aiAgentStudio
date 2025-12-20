@@ -226,7 +226,7 @@ public inherited sharing class LLMInteractionService {
 
             // c. Append the current user's message for this turn.
             if (currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
-                LlmPayloadUtils.addMessageToPayload(
+                LLMFormattingService.addMessageToPayload(
                     finalMessagesPayload,
                     currentTurnUserMessage.role,
                     currentTurnUserMessage.content,
@@ -238,7 +238,7 @@ public inherited sharing class LLMInteractionService {
             }
 
             // --- 5. Format Tool Definitions ---
-            List<Map<String, Object>> toolsPayload = ToolDefinitionFormatter.formatToolsForApi(agentConfig.Id, logPrefix);
+            List<Map<String, Object>> toolsPayload = LLMFormattingService.formatToolsForApi(agentConfig.Id, logPrefix);
 
             // Log LLM request if decision logger is available
             if (this.decisionLogger != null) {

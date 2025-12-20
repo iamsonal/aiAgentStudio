@@ -154,17 +154,17 @@ public with sharing class ConversationalChatController {
         String logPrefix = '[AIController.createNewChatSession] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting session creation. User: ' + userId);
 
-        String selectedAgentDevName = null;
         try {
-            // 1. DELEGATE AGENT SELECTION: Use the routing service to determine the correct agent.
-            // This service handles the logic for explicit requests vs. fallback routing.
-            selectedAgentDevName = AgentRoutingService.selectAgent(userId, recordId, requestedAgentDevName);
+            // 1. VALIDATE AGENT NAME IS PROVIDED
+            if (String.isBlank(requestedAgentDevName)) {
+                throw new ConfigurationException('Agent developer name is required.');
+            }
 
             // 2. GET AGENT CONFIGURATION for welcome message
-            AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(selectedAgentDevName);
+            AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(requestedAgentDevName);
             if (agentDef == null) {
                 throw new ConfigurationException(
-                    'Internal Error: The selected agent (' + selectedAgentDevName + ') could not be found or is inactive.'
+                    'Internal Error: The selected agent (' + requestedAgentDevName + ') could not be found or is inactive.'
                 );
             }
 
@@ -196,20 +196,17 @@ public with sharing class ConversationalChatController {
             response.transientMessagesEnabled = true;
 
             return response;
-        } catch (AgentRoutingService.RoutingException rce) {
-            System.debug(LoggingLevel.ERROR, '[AIController.createNewChatSession] Routing Configuration Error: ' + rce.getMessage());
-            throw new AuraHandledException(rce.getMessage());
         } catch (AIAgentConfigService.ConfigurationException ce) {
             System.debug(
                 LoggingLevel.ERROR,
-                '[AIController.createNewChatSession] Post-Routing Agent Config Error for Agent "' + selectedAgentDevName + '": ' + ce.getMessage()
+                '[AIController.createNewChatSession] Post-Routing Agent Config Error for Agent "' + requestedAgentDevName + '": ' + ce.getMessage()
             );
             throw new AuraHandledException('Error retrieving selected agent details: ' + ce.getMessage());
         } catch (Exception e) {
             System.debug(
                 LoggingLevel.ERROR,
                 '[AIController.createNewChatSession] Error creating session. Routed Agent was: "' +
-                    selectedAgentDevName +
+                    requestedAgentDevName +
                     '". Error: ' +
                     e.getMessage()
             );

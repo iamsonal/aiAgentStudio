@@ -47,7 +47,7 @@ public class SummaryBufferMemoryManager implements IMemoryManager {
             // Use ExecutionStep__c retrieval via ExecutionStepService with summarization support
             ExecutionStepService executionStepService = new ExecutionStepService();
             List<ExecutionStep__c> unsummarizedSteps = executionStepService.getUnsummarizedSteps(executionId, false);
-            return ExecutionStepHistoryFormatter.formatStepsForApi(unsummarizedSteps, agentConfig, debugPrefix);
+            return LLMFormattingService.formatStepsForApi(unsummarizedSteps, agentConfig, debugPrefix);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, debugPrefix + 'Failed to retrieve unsummarized execution history: ' + e.getMessage());
             return payload;

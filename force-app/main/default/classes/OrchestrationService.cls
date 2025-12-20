@@ -198,7 +198,7 @@ public inherited sharing class OrchestrationService {
 
             if (actionOutcome.isSuccess) {
                 // ✅ CRITICAL FIX: ALWAYS include isSuccess flag for standardized resume logic
-                // This enables WorkflowAgent.buildResumeContext() to reliably identify successful tools
+                // This enables WorkflowOrchestrator.buildResumeContext() to reliably identify successful tools
                 Map<String, Object> successOutput = new Map<String, Object>{ 'isSuccess' => true };
 
                 // Include the actual data payload if present

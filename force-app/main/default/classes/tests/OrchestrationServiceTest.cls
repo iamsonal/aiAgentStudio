@@ -925,7 +925,7 @@ private class OrchestrationServiceTest {
 
     @IsTest
     static void testSerializeActionOutcome_ResumeLogicCompatibility() {
-        // Given: Successful tool execution (simulating what WorkflowAgent.buildResumeContext expects)
+        // Given: Successful tool execution (simulating what WorkflowOrchestrator.buildResumeContext expects)
         Map<String, Object> toolResult = new Map<String, Object>{ 'status' => 'SUCCESS', 'recordId' => '001000000000001' };
         ActionOutcome outcome = ActionOutcome.success(toolResult);
 
@@ -935,11 +935,11 @@ private class OrchestrationServiceTest {
         Map<String, Object> deserialized = (Map<String, Object>) JSON.deserializeUntyped(serialized);
         Test.stopTest();
 
-        // Then: WorkflowAgent.buildResumeContext can reliably check isSuccess
+        // Then: WorkflowOrchestrator.buildResumeContext can reliably check isSuccess
         System.assert(deserialized.containsKey('isSuccess'), 'MUST include isSuccess key for resume logic');
         System.assertEquals(true, deserialized.get('isSuccess'), 'isSuccess MUST be true for successful tools');
 
-        // Simulate WorkflowAgent's fail-closed logic
+        // Simulate WorkflowOrchestrator's fail-closed logic
         Boolean isSuccessForResume = false;
         if (deserialized.containsKey('isSuccess')) {
             isSuccessForResume = (Boolean) deserialized.get('isSuccess');

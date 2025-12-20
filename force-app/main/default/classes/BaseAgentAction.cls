@@ -185,7 +185,7 @@ public abstract class BaseAgentAction implements IAgentAction {
         if (ex instanceof ActionHandlerNullException) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT, ex.getMessage());
         }
-        if (ex instanceof LlmPayloadUtils.LlmPayloadException) {
+        if (ex instanceof LLMFormattingService.LlmPayloadException) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'LLM Data Error: ' + ex.getMessage());
         }
         if (ex.getTypeName().contains('LLMProviderException') || (ex instanceof AIAgentException && ex.getMessage().contains('LLM'))) {

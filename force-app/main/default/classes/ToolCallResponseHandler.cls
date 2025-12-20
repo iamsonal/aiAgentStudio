@@ -826,7 +826,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             return null;
         try {
             Map<String, Object> argsMap = (Map<String, Object>) JSON.deserializeUntyped(argumentsJson);
-            Object commentValue = argsMap.get(ToolDefinitionFormatter.SUBMISSION_COMMENT_PARAM_NAME);
+            Object commentValue = argsMap.get(LLMFormattingService.SUBMISSION_COMMENT_PARAM_NAME);
             return (commentValue != null && commentValue instanceof String) ? (String) commentValue : null;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to parse confirmation message for ' + capabilityName + ': ' + e.getMessage());

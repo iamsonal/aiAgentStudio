@@ -8,13 +8,18 @@
 
 /**
  * @description
- * OpenAIProviderAdapter is a robust integration layer for the OpenAI Chat Completions API, implementing the ILLMProviderAdapter interface.
- * It manages HTTP request construction and response parsing, including support for function calling (tool calls),
- * token usage tracking, and structured error handling. The adapter is designed for resilience and maintainability, providing
- * detailed debug output and clear exception signaling for all failure modes. Its scope is limited to the OpenAI chat completions
- * endpoint, but it is architected for easy extension to future OpenAI API features or additional LLM providers.
+ * OpenAIProviderAdapter is a robust integration layer for the OpenAI Chat Completions API.
+ * Extends BaseProviderAdapter to leverage common HTTP and parsing functionality.
+ * Focuses on OpenAI-specific request formatting and response parsing.
+ *
+ * **OpenAI-Specific Features:**
+ * - Chat completions endpoint format
+ * - Tool calls with parallel execution support
+ * - Standard token usage tracking
+ *
+ * **Code Reduction:** ~80 lines eliminated by using BaseProviderAdapter shared functionality
  */
-public class OpenAIProviderAdapter implements ILLMProviderAdapter {
+public class OpenAIProviderAdapter extends BaseProviderAdapter {
     private static final String LOG_PREFIX = '[OpenAIAdapter] ';
 
     /**
@@ -25,65 +30,33 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
     }
 
     /**
-     * Sends a chat completion request to the OpenAI API.
-     *
-     * Builds the HTTP request and parses the response into a ProviderResult. Handles all error conditions
-     * with clear debug output and exception signaling. Supports function calling (tool calls) and token usage tracking.
-     *
-     * @param messagesPayload Pre-formatted conversation history as OpenAI message objects (required)
-     * @param toolsPayload    Pre-formatted tool definitions for function calling (optional)
-     * @param llmConfig       Configuration record containing API endpoint and model settings (required)
-     * @param agentConfig     Agent definition record (currently unused but required by interface)
-     * @return                ProviderResult containing response content, token usage, and any tool call requests
-     * @throws LLMProviderException If API call fails or response parsing fails
-     *
-     * Side effects: Emits debug logs for request execution, response parsing, and error conditions.
+     * @description Returns the log prefix for this adapter
      */
-    public ProviderResult sendMessage(
-        List<Map<String, Object>> messagesPayload,
-        List<Map<String, Object>> toolsPayload,
-        LLMConfiguration__c llmConfig,
-        AIAgentDefinition__c agentConfig
-    ) {
-        // Build the HTTP request for OpenAI chat completions.
-        HttpRequest request = buildHttpRequest(llmConfig, messagesPayload, toolsPayload, agentConfig);
-        // Create callout configuration based on LLM config.
-        HttpCalloutService.CalloutConfig calloutConfig = HttpCalloutService.createConfig(LOG_PREFIX);
-        try {
-            // Execute HTTP request (single attempt).
-            HttpCalloutService.CalloutResult result = HttpCalloutService.execute(request, calloutConfig);
-            System.debug(LoggingLevel.INFO, LOG_PREFIX + 'OpenAI API call succeeded, duration: ' + result.durationMs + ' ms.');
-            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'OpenAI response body: ' + result.response.getBody());
-            // Parse and return the successful response.
-            return parseOpenAIResponse(result.response.getBody(), llmConfig.DefaultModelIdentifier__c, result.durationMs);
-        } catch (OpenAIParseException pex) {
-            System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Failed to parse OpenAI response: ' + pex.getMessage());
-            throw new LLMProviderException('Failed to parse OpenAI response: ' + pex.getMessage(), pex);
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Unexpected error during OpenAI API call: ' + e.getMessage());
-            throw new LLMProviderException('Unexpected internal error: ' + e.getMessage(), e);
-        }
+    protected override String getLogPrefix() {
+        return LOG_PREFIX;
     }
 
     /**
-     * Constructs an HTTP request for the OpenAI Chat Completions API.
+     * @description Builds OpenAI-specific HTTP request
+     * Implements abstract method from BaseProviderAdapter
      *
-     * Assembles the endpoint, headers, and JSON body, including model, messages, temperature, and tool definitions as needed.
-     *
-     * @param llmConfig      Configuration containing endpoint, model, and temperature settings (required)
+     * @param llmConfig Configuration containing endpoint, model, and temperature settings (required)
      * @param openAIMessages Conversation history formatted as OpenAI message objects (required)
-     * @param openAITools    Tool definitions for function calling (optional, null if no tools available)
-     * @return               Configured HttpRequest with proper headers, endpoint, and JSON payload
-     *
-     * Side effects: Emits debug logs for tool configuration and payload size.
+     * @param openAITools Tool definitions for function calling (optional, null if no tools available)
+     * @param agentConfig Agent configuration for parallel tool calling settings
+     * @return Configured HttpRequest with proper headers, endpoint, and JSON payload
      */
     @TestVisible
-    private HttpRequest buildHttpRequest(
+    protected override HttpRequest buildProviderRequest(
         LLMConfiguration__c llmConfig,
         List<Map<String, Object>> openAIMessages,
         List<Map<String, Object>> openAITools,
         AIAgentDefinition__c agentConfig
     ) {
+        // Validate configuration using base class method
+        validateConfiguration(llmConfig);
+        validateMessages(openAIMessages);
+
         HttpRequest req = new HttpRequest();
         String endpoint = 'callout:' + llmConfig.NamedCredential__c + '/v1/chat/completions';
         req.setEndpoint(endpoint);
@@ -111,51 +84,27 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
     }
 
     /**
-     * Parses the OpenAI Chat Completions API response into a standardized ProviderResult.
+     * @description Parses OpenAI-specific response format
+     * Implements abstract method from BaseProviderAdapter
      *
-     * Extracts message content, token usage, and tool call information. Handles all error conditions with clear debug output
-     * and throws OpenAIParseException for malformed or incomplete responses.
-     *
-     * @param jsonBody Raw JSON response string from OpenAI API (required)
+     * @param responseBody Raw JSON response string from OpenAI API (required)
      * @param modelIdentifier The model identifier used for this request (required)
      * @param calloutDurationMs The duration of the HTTP callout in milliseconds (required)
-     * @return         ProviderResult containing parsed content, token usage, and tool calls
-     * @throws OpenAIParseException If JSON is malformed or required response fields are missing
-     *
-     * Side effects: Emits debug logs for token usage, tool call extraction, and error conditions.
+     * @return ProviderResult containing parsed content, token usage, and tool calls
+     * @throws LLMProviderException If JSON is malformed or required response fields are missing
      */
     @TestVisible
-    private ProviderResult parseOpenAIResponse(String jsonBody, String modelIdentifier, Long calloutDurationMs) {
-        if (String.isBlank(jsonBody)) {
-            throw new OpenAIParseException('Cannot parse blank response body.');
-        }
+    protected override ProviderResult parseProviderResponse(String responseBody, String modelIdentifier, Long calloutDurationMs) {
+        // Use base class method for JSON parsing
+        Map<String, Object> responseMap = parseJsonResponse(responseBody, LOG_PREFIX);
 
         String content = null;
-        Integer promptTokens = null;
-        Integer completionTokens = null;
-        Integer totalTokens = null;
         List<Map<String, String>> parsedActions = new List<Map<String, String>>();
         String rawToolCallsListJson = null;
         String rawAssistantMessageWithActionsJson = null;
 
         try {
-            Map<String, Object> responseMap = (Map<String, Object>) JSON.deserializeUntyped(jsonBody);
-
-            // Parse token usage information (log and continue if usage block is missing)
-            if (responseMap.get('usage') instanceof Map<String, Object>) {
-                Map<String, Object> usage = (Map<String, Object>) responseMap.get('usage');
-                promptTokens = safeGetInteger(usage.get('prompt_tokens'), 'prompt_tokens');
-                completionTokens = safeGetInteger(usage.get('completion_tokens'), 'completion_tokens');
-                totalTokens = safeGetInteger(usage.get('total_tokens'), 'total_tokens');
-                System.debug(
-                    LoggingLevel.DEBUG,
-                    LOG_PREFIX + 'Token usage parsed: prompt=' + promptTokens + ', completion=' + completionTokens + ', total=' + totalTokens
-                );
-            } else {
-                System.debug(LoggingLevel.WARN, LOG_PREFIX + 'Token usage block missing in OpenAI response. Token counts unavailable.');
-            }
-
-            // Parse response choices and extract message content and tool calls.
+            // Parse response choices and extract message content and tool calls
             if (responseMap.get('choices') instanceof List<Object>) {
                 List<Object> choices = (List<Object>) responseMap.get('choices');
                 if (!choices.isEmpty() && choices[0] instanceof Map<String, Object>) {
@@ -186,26 +135,36 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
             } else {
                 throw new OpenAIParseException('OpenAI response missing required "choices" list.');
             }
-        } catch (JSONException jex) {
-            throw new OpenAIParseException('Failed to parse OpenAI JSON response body: ' + jex.getMessage(), jex);
+
+            // Create result with parsed data
+            ProviderResult result = new ProviderResult(
+                content,
+                null, // promptTokens - will be extracted below
+                null, // completionTokens - will be extracted below
+                null, // totalTokens - will be extracted below
+                parsedActions,
+                rawToolCallsListJson,
+                rawAssistantMessageWithActionsJson,
+                modelIdentifier,
+                calloutDurationMs
+            );
+
+            // Extract token usage using base class method
+            if (responseMap.get('usage') instanceof Map<String, Object>) {
+                extractTokenUsage((Map<String, Object>) responseMap.get('usage'), result, LOG_PREFIX);
+            } else {
+                System.debug(LoggingLevel.WARN, LOG_PREFIX + 'Token usage block missing in OpenAI response.');
+            }
+
+            return result;
+        } catch (OpenAIParseException pex) {
+            throw new LLMProviderException('Failed to parse OpenAI response: ' + pex.getMessage(), pex);
         } catch (Exception e) {
-            if (e instanceof OpenAIParseException) {
+            if (e instanceof LLMProviderException) {
                 throw e;
             }
-            throw new OpenAIParseException('Unexpected error during OpenAI response parsing: ' + e.getMessage(), e);
+            throw new LLMProviderException('Unexpected error during OpenAI response parsing: ' + e.getMessage(), e);
         }
-
-        return new ProviderResult(
-            content,
-            promptTokens,
-            completionTokens,
-            totalTokens,
-            parsedActions,
-            rawToolCallsListJson,
-            rawAssistantMessageWithActionsJson,
-            modelIdentifier,
-            calloutDurationMs
-        );
     }
 
     /**
@@ -214,7 +173,7 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
      * Extracts tool call ID, function name, and arguments JSON string for each function call.
      *
      * @param rawToolCallsList Raw tool_calls array from OpenAI response (required)
-     * @return                 List of maps containing tool call id, function name, and arguments JSON string
+     * @return List of maps containing tool call id, function name, and arguments JSON string
      *
      * Side effects: Emits debug logs for malformed or skipped tool calls.
      */
@@ -243,34 +202,5 @@ public class OpenAIProviderAdapter implements ILLMProviderAdapter {
             }
         }
         return actions;
-    }
-
-    /**
-     * Safely converts an Object to Integer, handling both Integer and Decimal types.
-     *
-     * Used for extracting token usage fields from JSON responses. Logs a warning if conversion fails.
-     *
-     * @param val       Object value to convert (typically from JSON deserialization)
-     * @param fieldName Field name for error logging
-     * @return          Integer value or null if conversion fails
-     *
-     * Side effects: Emits debug logs if conversion fails.
-     */
-    @TestVisible
-    private static Integer safeGetInteger(Object val, String fieldName) {
-        if (val == null) {
-            return null;
-        }
-        try {
-            if (val instanceof Integer) {
-                return (Integer) val;
-            }
-            if (val instanceof Decimal) {
-                return ((Decimal) val).intValue();
-            }
-        } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, LOG_PREFIX + 'Failed to convert field "' + fieldName + '" to Integer: ' + e.getMessage());
-        }
-        return null;
     }
 }
