@@ -244,7 +244,7 @@ Every agent interaction captured:
 #### **Factory Pattern**
 - `LLMProviderFactory` → Creates provider adapters (OpenAI, Claude, Gemini)
 - `MemoryManagerFactory` → Creates memory strategies (BufferWindow, SummaryBuffer)
-- `ActionRegistry` → Creates action handlers from capability definitions
+- `CapabilityExecutionService` → Creates and executes action handlers from capability definitions
 - `OrchestratorFactory` → Creates execution orchestrators based on agent type (Conversational, Function, Workflow)
 
 #### **Template Method Pattern**
@@ -293,7 +293,7 @@ AsyncFrameworkRequest__e  ConversationalQueueable
       [Content]         [Tool Call]
             │                │
             ↓                ↓
-    AgentResponse__e   CapabilityExecutionRouter
+    AgentResponse__e   CapabilityExecutionService
          (Done)              ↓
                     ┌────────┴─────────┐
                     │                  │
@@ -331,7 +331,7 @@ sequenceDiagram
     participant LLM as LLMInteractionService
     participant Provider as OpenAIProviderAdapter
     participant OrchSvc as OrchestrationService
-    participant Router as CapabilityExecutionRouter
+    participant Router as CapabilityExecutionService
 
     User->>UI: Send message
     UI->>Controller: sendMessage()
