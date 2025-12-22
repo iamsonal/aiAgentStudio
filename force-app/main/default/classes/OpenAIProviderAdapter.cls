@@ -26,7 +26,8 @@ public class OpenAIProviderAdapter extends BaseProviderAdapter {
      * Exception thrown when OpenAI response parsing fails due to malformed JSON or missing required fields.
      * Used to distinguish parsing errors from transport or configuration failures.
      */
-    public class OpenAIParseException extends LLMProviderException {
+    public class OpenAIParseException extends AIAgentException.ProviderException {
+        // Note: This nested exception provides provider-specific error details
     }
 
     /**
@@ -91,7 +92,7 @@ public class OpenAIProviderAdapter extends BaseProviderAdapter {
      * @param modelIdentifier The model identifier used for this request (required)
      * @param calloutDurationMs The duration of the HTTP callout in milliseconds (required)
      * @return ProviderResult containing parsed content, token usage, and tool calls
-     * @throws LLMProviderException If JSON is malformed or required response fields are missing
+     * @throws AIAgentException.ProviderException If JSON is malformed or required response fields are missing
      */
     @TestVisible
     protected override ProviderResult parseProviderResponse(String responseBody, String modelIdentifier, Long calloutDurationMs) {
@@ -158,12 +159,12 @@ public class OpenAIProviderAdapter extends BaseProviderAdapter {
 
             return result;
         } catch (OpenAIParseException pex) {
-            throw new LLMProviderException('Failed to parse OpenAI response: ' + pex.getMessage(), pex);
+            throw new AIAgentException.ProviderException('Failed to parse OpenAI response: ' + pex.getMessage(), pex);
         } catch (Exception e) {
-            if (e instanceof LLMProviderException) {
+            if (e instanceof AIAgentException.ProviderException) {
                 throw e;
             }
-            throw new LLMProviderException('Unexpected error during OpenAI response parsing: ' + e.getMessage(), e);
+            throw new AIAgentException.ProviderException('Unexpected error during OpenAI response parsing: ' + e.getMessage(), e);
         }
     }
 

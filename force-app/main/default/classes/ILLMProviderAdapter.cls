@@ -32,7 +32,7 @@ public interface ILLMProviderAdapter {
      * @param llmConfig        The LLMConfiguration__c record for provider-specific settings.
      * @param agentConfig      The AIAgentDefinition__c record for agent-specific context.
      * @return ProviderResult  Contains content, token usage, and any requested actions.
-     * @throws LLMProviderException for callout errors, HTTP errors, or provider-specific failures.
+     * @throws AIAgentException.ProviderException for callout errors, HTTP errors, or provider-specific failures.
      *
      * Implementations must:
      *   - Map the framework payloads to the provider's API format

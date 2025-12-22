@@ -1,7 +1,7 @@
 /**
  * @description Context provider for User details. Used by AgentTestDataFactory for showcasing agents.
  * Returns User details for AI agent context.
- * 
+ *
  * @implements IAgentContextProvider
  */
 public class UserDetailsProvider implements IAgentContextProvider {
@@ -22,8 +22,8 @@ public class UserDetailsProvider implements IAgentContextProvider {
         try {
             // Query User records with key fields
             List<User> users = [
-                SELECT 
-                    Id, 
+                SELECT
+                    Id,
                     Name,
                     Username,
                     Email,
@@ -38,8 +38,8 @@ public class UserDetailsProvider implements IAgentContextProvider {
                     LocaleSidKey,
                     LanguageLocaleKey,
                     IsActive
-                FROM User 
-                WHERE Id IN :anchorIds 
+                FROM User
+                WHERE Id IN :anchorIds
                 WITH USER_MODE
                 LIMIT 50
             ];
@@ -56,5 +56,3 @@ public class UserDetailsProvider implements IAgentContextProvider {
         return result;
     }
 }
-
-

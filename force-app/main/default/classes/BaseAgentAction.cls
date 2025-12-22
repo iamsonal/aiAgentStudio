@@ -188,7 +188,7 @@ public abstract class BaseAgentAction implements IAgentAction {
         if (ex instanceof LLMFormattingService.LlmPayloadException) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'LLM Data Error: ' + ex.getMessage());
         }
-        if (ex.getTypeName().contains('LLMProviderException') || (ex instanceof AIAgentException && ex.getMessage().contains('LLM'))) {
+        if (ex.getTypeName().contains('ProviderException') || (ex instanceof AIAgentException && ex.getMessage().contains('LLM'))) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_LLM_CALL_FAILED, 'LLM Communication Failed: ' + ex.getMessage());
         }
         if (ex instanceof CapabilityExecutionService.CapabilityExecutionException) {

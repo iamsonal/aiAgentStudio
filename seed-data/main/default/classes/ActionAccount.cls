@@ -1,13 +1,13 @@
 /**
  * @description Demo action for retrieving Account records. Used by AgentTestDataFactory for showcasing agents.
  * Supports GET_BY_ID and SEARCH operations with configurable fields.
- * 
+ *
  * @ActionLabel Get Account Details
  * @ActionDescription Demo action for retrieving Account records by ID or search term
  * @ActionRequiresSObject false
  * @ActionIsActive true
  * @ActionIsStandard false
- * 
+ *
  * @extends BaseAgentAction
  */
 public class ActionAccount extends BaseAgentAction {
@@ -81,10 +81,7 @@ public class ActionAccount extends BaseAgentAction {
         } else if (config.operation == 'SEARCH_BY_ACCOUNT') {
             return searchAccounts(args.searchTerm);
         } else {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
-                'Unsupported operation: ' + config.operation
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Unsupported operation: ' + config.operation);
         }
     }
 
@@ -93,10 +90,7 @@ public class ActionAccount extends BaseAgentAction {
      */
     private ActionOutcome getAccountById(String accountId) {
         if (String.isBlank(accountId)) {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'accountId is required for GET_BY_ID operation'
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'accountId is required for GET_BY_ID operation');
         }
 
         List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty()
@@ -104,22 +98,16 @@ public class ActionAccount extends BaseAgentAction {
             : new List<String>{ 'Id', 'Name' };
 
         String soql = 'SELECT ' + String.join(fields, ', ') + ' FROM Account WHERE Id = :accountId LIMIT 1';
-        
+
         try {
             List<Account> accounts = Database.query(soql);
             if (accounts.isEmpty()) {
-                return ActionOutcome.failure(
-                    AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND,
-                    'Account not found: ' + accountId
-                );
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND, 'Account not found: ' + accountId);
             }
 
             return ActionOutcome.success(accounts[0]);
         } catch (Exception e) {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                'Error retrieving account: ' + e.getMessage()
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Error retrieving account: ' + e.getMessage());
         }
     }
 
@@ -133,25 +121,19 @@ public class ActionAccount extends BaseAgentAction {
 
         Integer maxResults = config.maxResults != null ? config.maxResults : 10;
         String soql = 'SELECT ' + String.join(fields, ', ') + ' FROM Account';
-        
+
         if (String.isNotBlank(searchTerm)) {
             soql += ' WHERE Name LIKE :searchTerm';
             searchTerm = '%' + searchTerm + '%';
         }
-        
+
         soql += ' LIMIT :maxResults';
 
         try {
             List<Account> accounts = Database.query(soql);
-            return ActionOutcome.success(new Map<String, Object>{
-                'accounts' => accounts,
-                'count' => accounts.size()
-            });
+            return ActionOutcome.success(new Map<String, Object>{ 'accounts' => accounts, 'count' => accounts.size() });
         } catch (Exception e) {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                'Error searching accounts: ' + e.getMessage()
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Error searching accounts: ' + e.getMessage());
         }
     }
 
@@ -163,7 +145,7 @@ public class ActionAccount extends BaseAgentAction {
     @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         this.config = new ConfigDTO();
-        
+
         if (String.isBlank(actionConfigurationJson)) {
             this.config.operation = 'GET_BY_ID';
             this.config.defaultFields = new List<String>{ 'Id', 'Name' };
@@ -173,9 +155,9 @@ public class ActionAccount extends BaseAgentAction {
 
         try {
             Map<String, Object> configMap = (Map<String, Object>) JSON.deserializeUntyped(actionConfigurationJson);
-            
+
             this.config.operation = (String) configMap.get('operation');
-            
+
             if (configMap.containsKey('defaultFields')) {
                 Object fieldsObj = configMap.get('defaultFields');
                 if (fieldsObj instanceof List<Object>) {
@@ -185,7 +167,7 @@ public class ActionAccount extends BaseAgentAction {
                     }
                 }
             }
-            
+
             if (configMap.containsKey('maxResults')) {
                 Object maxResultsObj = configMap.get('maxResults');
                 if (maxResultsObj instanceof Integer) {
@@ -208,7 +190,4 @@ public class ActionAccount extends BaseAgentAction {
             config.maxResults = 10;
         }
     }
-
 }
-
-

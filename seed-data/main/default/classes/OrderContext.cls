@@ -1,7 +1,7 @@
 /**
  * @description Context provider for Order records. Used by AgentTestDataFactory for showcasing agents.
  * Returns Order details including key fields for AI agent context.
- * 
+ *
  * @implements IAgentContextProvider
  */
 public class OrderContext implements IAgentContextProvider {
@@ -22,8 +22,8 @@ public class OrderContext implements IAgentContextProvider {
         try {
             // Query Order records with key fields
             List<Order> orders = [
-                SELECT 
-                    Id, 
+                SELECT
+                    Id,
                     OrderNumber,
                     Status,
                     TotalAmount,
@@ -44,8 +44,8 @@ public class OrderContext implements IAgentContextProvider {
                     OwnerId,
                     CreatedDate,
                     ActivatedDate
-                FROM Order 
-                WHERE Id IN :anchorIds 
+                FROM Order
+                WHERE Id IN :anchorIds
                 WITH USER_MODE
                 LIMIT 200
             ];
@@ -62,5 +62,3 @@ public class OrderContext implements IAgentContextProvider {
         return result;
     }
 }
-
-

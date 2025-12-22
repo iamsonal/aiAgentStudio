@@ -1,13 +1,13 @@
 /**
  * @description Demo action for retrieving Order records. Used by AgentTestDataFactory for showcasing agents.
  * Supports GET_BY_ID and SEARCH_BY_ACCOUNT operations with configurable fields.
- * 
+ *
  * @ActionLabel Get Order Details
  * @ActionDescription Demo action for retrieving Order records by ID or Account
  * @ActionRequiresSObject false
  * @ActionIsActive true
  * @ActionIsStandard false
- * 
+ *
  * @extends BaseAgentAction
  */
 public class ActionOrder extends BaseAgentAction {
@@ -81,10 +81,7 @@ public class ActionOrder extends BaseAgentAction {
         } else if (config.operation == 'SEARCH_BY_ACCOUNT') {
             return searchOrdersByAccount(args.accountId);
         } else {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
-                'Unsupported operation: ' + config.operation
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Unsupported operation: ' + config.operation);
         }
     }
 
@@ -93,10 +90,7 @@ public class ActionOrder extends BaseAgentAction {
      */
     private ActionOutcome getOrderById(String orderId) {
         if (String.isBlank(orderId)) {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'orderId is required for GET_BY_ID operation'
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'orderId is required for GET_BY_ID operation');
         }
 
         List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty()
@@ -104,22 +98,16 @@ public class ActionOrder extends BaseAgentAction {
             : new List<String>{ 'Id', 'OrderNumber' };
 
         String soql = 'SELECT ' + String.join(fields, ', ') + ' FROM Order WHERE Id = :orderId LIMIT 1';
-        
+
         try {
             List<Order> orders = Database.query(soql);
             if (orders.isEmpty()) {
-                return ActionOutcome.failure(
-                    AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND,
-                    'Order not found: ' + orderId
-                );
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND, 'Order not found: ' + orderId);
             }
 
             return ActionOutcome.success(orders[0]);
         } catch (Exception e) {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                'Error retrieving order: ' + e.getMessage()
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Error retrieving order: ' + e.getMessage());
         }
     }
 
@@ -128,10 +116,7 @@ public class ActionOrder extends BaseAgentAction {
      */
     private ActionOutcome searchOrdersByAccount(String accountId) {
         if (String.isBlank(accountId)) {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'accountId is required for SEARCH_BY_ACCOUNT operation'
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'accountId is required for SEARCH_BY_ACCOUNT operation');
         }
 
         List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty()
@@ -143,16 +128,9 @@ public class ActionOrder extends BaseAgentAction {
 
         try {
             List<Order> orders = Database.query(soql);
-            return ActionOutcome.success(new Map<String, Object>{
-                'orders' => orders,
-                'count' => orders.size(),
-                'accountId' => accountId
-            });
+            return ActionOutcome.success(new Map<String, Object>{ 'orders' => orders, 'count' => orders.size(), 'accountId' => accountId });
         } catch (Exception e) {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                'Error searching orders: ' + e.getMessage()
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Error searching orders: ' + e.getMessage());
         }
     }
 
@@ -164,7 +142,7 @@ public class ActionOrder extends BaseAgentAction {
     @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         this.config = new ConfigDTO();
-        
+
         if (String.isBlank(actionConfigurationJson)) {
             this.config.operation = 'GET_BY_ID';
             this.config.defaultFields = new List<String>{ 'Id', 'OrderNumber' };
@@ -174,9 +152,9 @@ public class ActionOrder extends BaseAgentAction {
 
         try {
             Map<String, Object> configMap = (Map<String, Object>) JSON.deserializeUntyped(actionConfigurationJson);
-            
+
             this.config.operation = (String) configMap.get('operation');
-            
+
             if (configMap.containsKey('defaultFields')) {
                 Object fieldsObj = configMap.get('defaultFields');
                 if (fieldsObj instanceof List<Object>) {
@@ -186,7 +164,7 @@ public class ActionOrder extends BaseAgentAction {
                     }
                 }
             }
-            
+
             if (configMap.containsKey('maxResults')) {
                 Object maxResultsObj = configMap.get('maxResults');
                 if (maxResultsObj instanceof Integer) {
@@ -209,7 +187,4 @@ public class ActionOrder extends BaseAgentAction {
             config.maxResults = 10;
         }
     }
-
 }
-
-

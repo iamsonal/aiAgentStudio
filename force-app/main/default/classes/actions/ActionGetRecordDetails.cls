@@ -8,33 +8,34 @@
 
 /**
  * @description
- * ActionGetRecordDetails: Generic record retrieval action with flexible field selection.
+ * ActionGetRecordDetails: Generic record retrieval action with flexible field selection and identifier lookups.
  *
  * This action provides two ways to configure field selection:
  * 1. **FieldSets** (Declarative) - Admin-friendly, reusable across capabilities
  * 2. **defaultFields** (JSON Array) - Quick configuration without creating FieldSets
  *
- * Field Selection Options (Mutually Exclusive):
- *   Option 1: FieldSet-based (declarative, reusable)
- *     - Create FieldSet in Setup > Object Manager > [Object] > Field Sets
- *     - Config: {"fieldSetName": "AI_Agent_Details"}
- *     - Best for: Production orgs, multiple capabilities, admin control
- *
- *   Option 2: Array-based (quick, inline)
- *     - Specify field API names directly in configuration
- *     - Config: {"defaultFields": ["Id", "Name", "Status", "Priority"]}
- *     - Best for: Prototyping, testing, simple use cases
+ * Identifier Lookup:
+ *   AI can provide ANY field defined in the Parameters schema:
+ *   - Id: Direct record lookup (fastest, most reliable)
+ *   - CaseNumber: Find case by case number
+ *   - ContactEmail: Find contact by email
+ *   - Any field you define in ArgumentsDTO
  *
  * Parameter Format:
- *   Simple: {"recordId": "001XXXXXXXXXXXX"}
- *   AI only needs to provide the record ID - field selection is handled in configuration.
+ *   {"Id": "001XXXXXXXXXXXX"}           // Direct ID lookup
+ *   {"CaseNumber": "00001234"}          // Case number lookup
+ *   {"ContactEmail": "john@example.com"} // Email lookup
  *
  * Configuration Schema:
  *   {
- *     "fieldSetName": "AI_Agent_Details",     // Option 1: FieldSet name (XOR with defaultFields)
- *     "defaultFields": ["Id", "Name"],        // Option 2: Field array (XOR with fieldSetName)
- *     "objectApiName": "Case",                // Optional: Validates record type
+ *     "objectApiName": "Case",                              // Required: Object type
+ *     "defaultFields": ["Id", "CaseNumber", "Subject"]      // Fields to return
  *   }
+ *
+ * Adding New Identifier Fields:
+ *   1. Add field to ArgumentsDTO with proper annotations
+ *   2. Run generate-action-metadata.js script
+ *   3. Deploy metadata - AI will see the new parameter option
  *
  * Security Architecture:
  *   - Respects object-level read permissions
@@ -43,11 +44,11 @@
  *   - Returns clear error messages for permission issues
  *
  * @ActionLabel Get Record Details
- * @ActionDescription Retrieves any Salesforce record by ID using FieldSets for declarative field selection
+ * @ActionDescription Retrieves any Salesforce record by ID or unique identifier field
  * @ActionRequiresSObject true
  * @ActionIsActive true
  * @ActionGuidance
- * <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6;"><div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px; border-radius: 8px 8px 0 0; margin: -8px -8px 16px -8px;"><h2 style="margin: 0; font-size: 18px; font-weight: 600;">🔍 Get Record Details</h2><p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">Generic record retrieval with flexible field selection (FieldSets or JSON array)</p></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">⚙️ Configuration</h3><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">fieldSetName</strong><br/><span style="font-size: 11px; color: #28a745;">Option 1</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">Name of the FieldSet to use (e.g., "AI_Agent_Details"). <strong>Mutually exclusive with defaultFields.</strong><br/><span style="font-size: 12px; font-style: italic;">Best for: Production, reusable configs. Create in Setup &gt; Object Manager &gt; [Object] &gt; Field Sets</span></td></tr><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef;"><strong style="color: #495057;">defaultFields</strong><br/><span style="font-size: 11px; color: #28a745;">Option 2</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">Array of field API names (e.g., ["Id", "Name", "Status"]). <strong>Mutually exclusive with fieldSetName.</strong><br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">["Id", "CaseNumber", "Subject", "Status"]</code><br/><span style="font-size: 12px; font-style: italic;">Best for: Prototyping, testing, simple use cases</span></td></tr><tr><td style="padding: 8px;"><strong style="color: #495057;">objectApiName</strong><br/><span style="font-size: 11px; color: #6c757d;">Optional</span></td><td style="padding: 8px; color: #6c757d;">Expected object type (e.g., "Case"). Validates record ID matches this type for better error messages.</td></tr></table></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">📋 Runtime Parameters</h3><p style="margin: 8px 0; font-size: 13px; color: #6c757d;">The AI will provide this parameter when calling this action:</p><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; width: 30%;"><strong style="color: #495057;">recordId</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; color: #6c757d;">The 18-character (or 15-character) Salesforce ID. Works with any standard or custom object.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">001XXXXXXXXXXXX</code></td></tr></table></div><div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #0c5460;"><strong>⚡ Choose Your Approach:</strong><br/>• <strong>FieldSets</strong> = Declarative, admin-friendly, reusable across capabilities<br/>• <strong>defaultFields</strong> = Quick setup, inline config, no FieldSet creation needed<br/><em>You must provide exactly one (not both).</em></p></div><div style="background: #e7f1ff; border-left: 4px solid #0066cc; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #004085;"><strong>🔒 Security:</strong> Respects object-level and field-level security. Fields the running user cannot access will be automatically filtered out. The AI receives only data the user has permission to view.</p></div></div>
+ * <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6;"><div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px; border-radius: 8px 8px 0 0; margin: -8px -8px 16px -8px;"><h2 style="margin: 0; font-size: 18px; font-weight: 600;">🔍 Get Record Details</h2><p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">Generic record retrieval with flexible field selection and smart identifier lookups</p></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">⚙️ Configuration</h3><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">objectApiName</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">The API name of the object type (e.g., "Case", "Account"). This is required for identifier field lookups.</td></tr><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef;"><strong style="color: #495057;">defaultFields</strong></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">Array of field API names to retrieve (e.g., ["Id", "Name", "Status"]).<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">["Id", "CaseNumber", "Subject", "Status"]</code></td></tr></table></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">📋 Runtime Parameters</h3><p style="margin: 8px 0; font-size: 13px; color: #6c757d;">AI provides ONE parameter from the Parameters schema:</p><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><code style="background: #f1f3f5; padding: 8px; display: block; border-radius: 3px; font-size: 12px;">{"Id": "001XXXXXXXXXXXX"}</code><code style="background: #f1f3f5; padding: 8px; display: block; border-radius: 3px; font-size: 12px; margin-top: 8px;">{"CaseNumber": "00001234"}</code></div><div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #0c5460;"><strong>💡 Adding Identifier Fields:</strong> Add fields to ArgumentsDTO with annotations, run generate-action-metadata.js, and deploy. The AI will automatically see new lookup options!</p></div><div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #856404;"><strong>💡 Best Practice:</strong> Use <strong>Id</strong> when available (fastest). Use other identifiers when the user provides human-readable values like case numbers or email addresses.</p></div><div style="background: #e7f1ff; border-left: 4px solid #0066cc; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #004085;"><strong>🔒 Security:</strong> Respects object-level and field-level security. Fields the running user cannot access will be automatically filtered out. The AI receives only data the user has permission to view.</p></div></div>
  *
  * @extends BaseAgentAction
  */
@@ -55,17 +56,18 @@ public class ActionGetRecordDetails extends BaseAgentAction {
     private ConfigDTO config;
 
     /**
-     * DTO for strongly-typed arguments (AI-provided parameters at runtime)
+     * DTO for base parameters (used for metadata generation only)
+     * Actual parameters are dynamically generated based on identifierFields configuration
      */
     public class ArgumentsDTO {
         /**
          * @FieldLabel Record ID
          * @FieldType salesforce-id
-         * @FieldRequired true
+         * @FieldRequired false
          * @FieldPlaceholder 001000000000000AAA
-         * @FieldHelp The 18-character Salesforce ID of the record to retrieve
+         * @FieldHelp The 18-character Salesforce ID (most reliable, always unique).
          */
-        public String recordId;
+        public String Id;
     }
 
     /**
@@ -92,92 +94,51 @@ public class ActionGetRecordDetails extends BaseAgentAction {
         /**
          * @FieldLabel Object API Name
          * @FieldType string
-         * @FieldPlaceholder Account
-         * @FieldHelp Optional: The API name of the expected SObject type (e.g., Account, Case). When specified, validates that recordId matches this object type.
+         * @FieldRequired true
+         * @FieldPlaceholder Case
+         * @FieldHelp Required: The API name of the SObject type (e.g., Account, Case). Used for identifier field lookups and validation.
          */
         public String objectApiName;
     }
 
     /**
      * @description
-     * Main entry point: Retrieves a record by ID using FieldSet-based field selection.
+     * Main entry point: Retrieves a record by any configured identifier field.
      *
      * Steps:
-     *   1. Validate and parse recordId
-     *   2. Determine SObjectType from recordId
-     *   3. Validate object type if configured
+     *   1. Parse parameters to find which identifier was provided
+     *   2. Validate object API name is configured
+     *   3. Build WHERE clause based on identifier field
      *   4. Get fields from FieldSet (or use defaults)
      *   5. Verify read permission on object
      *   6. Build and execute dynamic SOQL with FLS enforcement
      *   7. Return record data with metadata
      *
-     * @param params Map<String, Object> - Raw parameters with recordId
+     * @param params Map<String, Object> - Contains ONE identifier field (Id, CaseNumber, etc.)
      * @return ActionOutcome with record data, object type, and optional URL
      */
     public override ActionOutcome executeAction(Map<String, Object> params) {
         Long startTime = System.currentTimeMillis();
 
-        // Deserialize arguments
-        ArgumentsDTO args = new ArgumentsDTO();
-        Object recordIdObj = params.get('recordId');
-
-        if (recordIdObj == null) {
+        // Validate object API name is configured (required for identifier lookups)
+        if (String.isBlank(config.objectApiName)) {
             return ActionOutcome.failureWithGuidance(
-                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'Missing required parameter: "recordId"',
-                'Expected: 18-character Salesforce ID (e.g., 001000000000001AAA) or 15-character ID (e.g., 001000000000001)'
+                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                'Configuration error: "objectApiName" is required',
+                'Provide the object API name in configuration (e.g., {"objectApiName": "Case"})'
             );
         }
 
-        try {
-            args.recordId = String.valueOf(recordIdObj);
-        } catch (Exception e) {
-            return ActionOutcome.failureWithGuidance(
-                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'Invalid recordId format: ' + recordIdObj,
-                'Expected: 18-character Salesforce ID (e.g., 001000000000001AAA) or 15-character ID (e.g., 001000000000001)'
-            );
-        }
-
-        // Convert to Id and get SObjectType
-        Id recordId;
-        SObjectType sObjectType;
-        try {
-            recordId = Id.valueOf(args.recordId);
-            sObjectType = recordId.getSObjectType();
-        } catch (Exception e) {
-            return ActionOutcome.failureWithGuidance(
-                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'Invalid Salesforce ID: ' + args.recordId,
-                'The provided ID is not a valid Salesforce record identifier. Ensure it is a 15 or 18 character ID.'
-            );
-        }
-
+        // Get SObjectType from configured object name
+        SObjectType sObjectType = Schema.getGlobalDescribe().get(config.objectApiName);
         if (sObjectType == null) {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'Unable to determine object type from record ID: ' + args.recordId
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Invalid object API name: ' + config.objectApiName);
         }
 
-        String objectApiName = sObjectType.getDescribe().getName();
-        System.debug(LoggingLevel.INFO, '[ActionGetRecordDetails] Record ID: ' + recordId + ', Object Type: ' + objectApiName);
-
-        // Validate object type if configured
-        if (String.isNotBlank(config.objectApiName)) {
-            if (!objectApiName.equalsIgnoreCase(config.objectApiName)) {
-                return ActionOutcome.failureWithGuidance(
-                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                    'Record ID type mismatch. Expected: ' + config.objectApiName + ', Actual: ' + objectApiName,
-                    'The provided record ID belongs to a different object type than configured. Please provide a valid ' +
-                        config.objectApiName +
-                        ' record ID.'
-                );
-            }
-        }
+        DescribeSObjectResult objDescribe = sObjectType.getDescribe();
+        String objectApiName = objDescribe.getName();
 
         // Check object-level read permission
-        DescribeSObjectResult objDescribe = sObjectType.getDescribe();
         if (!objDescribe.isAccessible()) {
             return ActionOutcome.failureWithGuidance(
                 AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
@@ -186,7 +147,49 @@ public class ActionGetRecordDetails extends BaseAgentAction {
             );
         }
 
-        // Validate configuration: either fieldSetName OR defaultFields must be provided (XOR)
+        // Determine which identifier field was provided by looping through all parameters
+        String identifierField = null;
+        Object identifierValue = null;
+
+        for (String paramKey : params.keySet()) {
+            Object paramValue = params.get(paramKey);
+            if (paramValue != null) {
+                identifierField = paramKey;
+                identifierValue = paramValue;
+                break; // Use first non-null parameter
+            }
+        }
+
+        if (identifierField == null) {
+            return ActionOutcome.failureWithGuidance(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'Missing identifier parameter. No valid parameter provided.',
+                'Provide one identifier field (e.g., {"Id": "001..."} or {"CaseNumber": "00001234"}). Check the Parameters schema for available options.'
+            );
+        }
+
+        // Validate only one parameter was provided
+        Integer paramCount = 0;
+        for (Object paramValue : params.values()) {
+            if (paramValue != null) {
+                paramCount++;
+            }
+        }
+
+        if (paramCount > 1) {
+            return ActionOutcome.failureWithGuidance(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'Multiple identifier parameters provided. Expected exactly one.',
+                'Provide only ONE identifier field. You provided ' + paramCount + ' fields.'
+            );
+        }
+
+        System.debug(LoggingLevel.INFO, '[ActionGetRecordDetails] Using identifier: ' + identifierField + ' = ' + identifierValue);
+
+        // Convert identifier value to string for SOQL binding
+        String identifierValueStr = String.valueOf(identifierValue);
+
+        // Validate configuration: either fieldSetName OR defaultFields must be provided
         Boolean hasFieldSet = String.isNotBlank(config.fieldSetName);
         Boolean hasDefaultFields = config.defaultFields != null && !config.defaultFields.isEmpty();
 
@@ -209,7 +212,7 @@ public class ActionGetRecordDetails extends BaseAgentAction {
         // Get fields from FieldSet or defaultFields
         Set<String> fieldsToQuery = new Set<String>{ 'Id' }; // Always include Id
 
-        if (hasFieldSet) {
+        if (!String.isBlank(config.fieldSetName)) {
             // Use FieldSet
             List<String> fieldSetFields = getFieldsFromFieldSet(sObjectType, config.fieldSetName);
             if (fieldSetFields.isEmpty()) {
@@ -268,7 +271,16 @@ public class ActionGetRecordDetails extends BaseAgentAction {
         }
 
         // Build and execute dynamic SOQL
-        String soql = 'SELECT ' + String.join(accessibleFields, ', ') + ' FROM ' + objectApiName + ' WHERE Id = :recordId LIMIT 1';
+        String soql =
+            'SELECT ' +
+            String.join(accessibleFields, ', ') +
+            ' FROM ' +
+            objectApiName +
+            ' WHERE ' +
+            identifierField +
+            ' = :identifierValueStr' +
+            ' LIMIT 10'; // Get up to 10 in case of non-unique fields
+
         System.debug(LoggingLevel.INFO, '[ActionGetRecordDetails] Executing SOQL: ' + soql);
 
         try {
@@ -277,8 +289,22 @@ public class ActionGetRecordDetails extends BaseAgentAction {
             if (results.isEmpty()) {
                 return ActionOutcome.failureWithGuidance(
                     AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND,
-                    'Record not found: ' + recordId,
-                    'The record with ID ' + recordId + ' does not exist or has been deleted. Verify the ID is correct.'
+                    'Record not found with ' + identifierField + ' = ' + identifierValueStr,
+                    'No record exists with the provided identifier. Verify the value is correct.'
+                );
+            }
+
+            // Warn if multiple matches found
+            if (results.size() > 1) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    '[ActionGetRecordDetails] Multiple records found (' +
+                        results.size() +
+                        ') for ' +
+                        identifierField +
+                        ' = ' +
+                        identifierValueStr +
+                        '. Returning first match.'
                 );
             }
 
@@ -294,10 +320,15 @@ public class ActionGetRecordDetails extends BaseAgentAction {
             Map<String, Object> response = new Map<String, Object>{
                 'record' => recordData,
                 'objectType' => objectApiName,
-                'recordId' => String.valueOf(recordId)
+                'recordId' => String.valueOf(record.Id),
+                'matchedBy' => identifierField
             };
 
-            // Include metadata about removed fields if any
+            // Include warnings
+            if (results.size() > 1) {
+                response.put('multipleMatchesWarning', 'Multiple records matched. Returned first of ' + results.size() + ' matches.');
+            }
+
             if (!decision.getRemovedFields().isEmpty()) {
                 System.debug(LoggingLevel.WARN, '[ActionGetRecordDetails] Security.stripInaccessible removed fields: ' + decision.getRemovedFields());
                 response.put('fieldAccessWarning', 'Some fields were removed due to field-level security. Fields: ' + decision.getRemovedFields());
@@ -306,7 +337,12 @@ public class ActionGetRecordDetails extends BaseAgentAction {
             Long duration = System.currentTimeMillis() - startTime;
             System.debug(
                 LoggingLevel.INFO,
-                '[ActionGetRecordDetails] Success. Record retrieved in ' + duration + 'ms. Fields: ' + accessibleFields.size()
+                '[ActionGetRecordDetails] Success. Record retrieved in ' +
+                    duration +
+                    'ms via ' +
+                    identifierField +
+                    '. Fields: ' +
+                    accessibleFields.size()
             );
 
             return ActionOutcome.success(response);

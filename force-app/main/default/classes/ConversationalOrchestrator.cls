@@ -38,7 +38,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
      */
     public void initialize(AIAgentDefinition__c agentDefinition) {
         if (agentDefinition == null) {
-            throw new AgentOrchestratorException('Agent definition is required for ConversationalOrchestrator');
+            throw new AIAgentException.OrchestrationException('Agent definition is required for ConversationalOrchestrator');
         }
         this.agentDef = agentDefinition;
     }
@@ -54,10 +54,10 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
         try {
             // Validate conversational-specific fields
             if (String.isBlank(payload.userMessage)) {
-                throw new AgentOrchestratorException('User message is required for conversational execution');
+                throw new AIAgentException.OrchestrationException('User message is required for conversational execution');
             }
             if (String.isBlank(payload.turnIdentifier)) {
-                throw new AgentOrchestratorException('Turn identifier is required for conversational execution');
+                throw new AIAgentException.OrchestrationException('Turn identifier is required for conversational execution');
             }
 
             Id executionId;
@@ -120,7 +120,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error initiating conversational execution: ' + e.getMessage());
-            throw new AgentOrchestratorException('Failed to initiate conversational execution: ' + e.getMessage());
+            throw new AIAgentException.OrchestrationException('Failed to initiate conversational execution: ' + e.getMessage());
         }
     }
 
@@ -163,7 +163,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
         if (!sr.isSuccess()) {
             String errMsg = logPrefix + 'EventBus.publish failed for ProcessLLMMessage: ' + JSON.serialize(sr.getErrors());
             System.debug(LoggingLevel.ERROR, errMsg);
-            throw new AgentOrchestratorException('Failed to publish ProcessLLMMessage event: ' + errMsg);
+            throw new AIAgentException.OrchestrationException('Failed to publish ProcessLLMMessage event: ' + errMsg);
         }
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Published ProcessLLMMessage platform event for execution: ' + executionId);
@@ -237,7 +237,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
             LLMInteractionService.LLMInteractionResult llmResult = interactionService.prepareAndCallLLM(currentUserMessageData);
 
             if (llmResult == null) {
-                throw new AgentOrchestratorException('LLMInteractionService returned a null result');
+                throw new AIAgentException.OrchestrationException('LLMInteractionService returned a null result');
             }
 
             // Process LLM result using orchestration service (DML happens here, after callout)
@@ -306,12 +306,12 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
         ];
 
         if (executions.isEmpty()) {
-            throw new AgentOrchestratorException('Execution not found or access denied: ' + executionId);
+            throw new AIAgentException.OrchestrationException('Execution not found or access denied: ' + executionId);
         }
 
         AgentExecution__c execution = executions[0];
         if (execution.ProcessingStatus__c != AIAgentConstants.STATUS_IDLE && execution.ProcessingStatus__c != AIAgentConstants.STATUS_FAILED) {
-            throw new AgentOrchestratorException('Execution is currently busy (Status: ' + execution.ProcessingStatus__c + ')');
+            throw new AIAgentException.OrchestrationException('Execution is currently busy (Status: ' + execution.ProcessingStatus__c + ')');
         }
     }
 }

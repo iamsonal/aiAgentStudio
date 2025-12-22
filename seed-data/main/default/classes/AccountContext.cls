@@ -1,7 +1,7 @@
 /**
  * @description Context provider for Account records. Used by AgentTestDataFactory for showcasing agents.
  * Returns Account details including key fields for AI agent context.
- * 
+ *
  * @implements IAgentContextProvider
  */
 public class AccountContext implements IAgentContextProvider {
@@ -22,16 +22,16 @@ public class AccountContext implements IAgentContextProvider {
         try {
             // Query Account records with key fields
             List<Account> accounts = [
-                SELECT 
-                    Id, 
-                    Name, 
+                SELECT
+                    Id,
+                    Name,
                     AccountNumber,
                     Type,
-                    Industry, 
+                    Industry,
                     AnnualRevenue,
                     NumberOfEmployees,
                     BillingStreet,
-                    BillingCity, 
+                    BillingCity,
                     BillingState,
                     BillingPostalCode,
                     BillingCountry,
@@ -40,8 +40,8 @@ public class AccountContext implements IAgentContextProvider {
                     Description,
                     OwnerId,
                     CreatedDate
-                FROM Account 
-                WHERE Id IN :anchorIds 
+                FROM Account
+                WHERE Id IN :anchorIds
                 WITH USER_MODE
                 LIMIT 200
             ];
@@ -58,5 +58,3 @@ public class AccountContext implements IAgentContextProvider {
         return result;
     }
 }
-
-

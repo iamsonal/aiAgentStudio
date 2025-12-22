@@ -58,7 +58,7 @@ public abstract class BaseProviderAdapter implements ILLMProviderAdapter {
      * @param llmConfig Configuration record containing API endpoint and model settings
      * @param agentConfig Agent definition record
      * @return ProviderResult containing response content, token usage, and any tool calls
-     * @throws LLMProviderException If API call fails or response parsing fails
+     * @throws AIAgentException.ProviderException If API call fails or response parsing fails
      */
     public ProviderResult sendMessage(
         List<Map<String, Object>> messagesPayload,
@@ -83,12 +83,12 @@ public abstract class BaseProviderAdapter implements ILLMProviderAdapter {
 
             // Parse provider-specific response
             return parseProviderResponse(result.response.getBody(), llmConfig.DefaultModelIdentifier__c, result.durationMs);
-        } catch (LLMProviderException providerEx) {
+        } catch (AIAgentException.ProviderException providerEx) {
             // Re-throw provider exceptions (already logged by subclass)
             throw providerEx;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Unexpected error during API call: ' + e.getMessage());
-            throw new LLMProviderException('Unexpected internal error: ' + e.getMessage(), e);
+            throw new AIAgentException.ProviderException('Unexpected internal error: ' + e.getMessage(), e);
         }
     }
 
@@ -100,7 +100,7 @@ public abstract class BaseProviderAdapter implements ILLMProviderAdapter {
      * @param calloutConfig Callout configuration with retry/timeout settings
      * @param logPrefix Logging prefix for debug output
      * @return CalloutResult containing response and duration
-     * @throws LLMProviderException If HTTP call fails
+     * @throws AIAgentException.ProviderException If HTTP call fails
      */
     protected HttpCalloutService.CalloutResult executeHttpRequest(
         HttpRequest request,
@@ -110,12 +110,12 @@ public abstract class BaseProviderAdapter implements ILLMProviderAdapter {
         try {
             HttpCalloutService.CalloutResult result = HttpCalloutService.execute(request, calloutConfig);
             return result;
-        } catch (LLMProviderException.NonRetriableHttpException httpEx) {
+        } catch (AIAgentException.NonRetriableHttpException httpEx) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'HTTP callout failed: ' + httpEx.getMessage());
-            throw new LLMProviderException('HTTP callout failed: ' + httpEx.getMessage(), httpEx);
+            throw new AIAgentException.ProviderException('HTTP callout failed: ' + httpEx.getMessage(), httpEx);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error executing HTTP request: ' + e.getMessage());
-            throw new LLMProviderException('Error executing HTTP request: ' + e.getMessage(), e);
+            throw new AIAgentException.ProviderException('Error executing HTTP request: ' + e.getMessage(), e);
         }
     }
 
@@ -126,27 +126,27 @@ public abstract class BaseProviderAdapter implements ILLMProviderAdapter {
      * @param responseBody JSON response body as string
      * @param logPrefix Logging prefix for debug output
      * @return Parsed Map of response data
-     * @throws LLMProviderException If JSON parsing fails
+     * @throws AIAgentException.ProviderException If JSON parsing fails
      */
     protected Map<String, Object> parseJsonResponse(String responseBody, String logPrefix) {
         if (String.isBlank(responseBody)) {
-            throw new LLMProviderException('Response body is empty');
+            throw new AIAgentException.ProviderException('Response body is empty');
         }
 
         try {
             Object parsed = JSON.deserializeUntyped(responseBody);
 
             if (!(parsed instanceof Map<String, Object>)) {
-                throw new LLMProviderException('Response is not a JSON object');
+                throw new AIAgentException.ProviderException('Response is not a JSON object');
             }
 
             return (Map<String, Object>) parsed;
         } catch (JSONException jsonEx) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'JSON parsing failed: ' + jsonEx.getMessage());
-            throw new LLMProviderException('Failed to parse JSON response: ' + jsonEx.getMessage(), jsonEx);
+            throw new AIAgentException.ProviderException('Failed to parse JSON response: ' + jsonEx.getMessage(), jsonEx);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Unexpected error parsing response: ' + e.getMessage());
-            throw new LLMProviderException('Unexpected error parsing response: ' + e.getMessage(), e);
+            throw new AIAgentException.ProviderException('Unexpected error parsing response: ' + e.getMessage(), e);
         }
     }
 
@@ -209,23 +209,23 @@ public abstract class BaseProviderAdapter implements ILLMProviderAdapter {
      * Common validation logic to reduce duplication
      *
      * @param llmConfig LLM configuration to validate
-     * @throws LLMProviderException If required fields are missing
+     * @throws AIAgentException.ProviderException If required fields are missing
      */
     protected void validateConfiguration(LLMConfiguration__c llmConfig) {
         String logPrefix = getLogPrefix();
 
         if (llmConfig == null) {
-            throw new LLMProviderException('LLM configuration is required');
+            throw new AIAgentException.ProviderException('LLM configuration is required');
         }
 
         if (String.isBlank(llmConfig.NamedCredential__c)) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'NamedCredential is missing from LLM configuration');
-            throw new LLMProviderException('NamedCredential is required in LLM configuration');
+            throw new AIAgentException.ProviderException('NamedCredential is required in LLM configuration');
         }
 
         if (String.isBlank(llmConfig.DefaultModelIdentifier__c)) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'DefaultModelIdentifier is missing from LLM configuration');
-            throw new LLMProviderException('DefaultModelIdentifier is required in LLM configuration');
+            throw new AIAgentException.ProviderException('DefaultModelIdentifier is required in LLM configuration');
         }
     }
 
@@ -234,14 +234,14 @@ public abstract class BaseProviderAdapter implements ILLMProviderAdapter {
      * Common validation logic for message arrays
      *
      * @param messagesPayload Messages to validate
-     * @throws LLMProviderException If messages are invalid
+     * @throws AIAgentException.ProviderException If messages are invalid
      */
     protected void validateMessages(List<Map<String, Object>> messagesPayload) {
         String logPrefix = getLogPrefix();
 
         if (messagesPayload == null || messagesPayload.isEmpty()) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Messages payload is empty');
-            throw new LLMProviderException('Messages payload cannot be empty');
+            throw new AIAgentException.ProviderException('Messages payload cannot be empty');
         }
     }
 

@@ -5,9 +5,9 @@
  * - Case Comments: Internal notes and customer communications
  * - Email Messages: Email thread history (incoming/outgoing)
  * - Case History: Field changes and audit trail
- * 
+ *
  * Used by AgentTestDataFactory for showcasing agents with realistic case data.
- * 
+ *
  * @implements IAgentContextProvider
  */
 public class CaseContext implements IAgentContextProvider {
@@ -28,13 +28,13 @@ public class CaseContext implements IAgentContextProvider {
         try {
             // Query Case records with key fields
             List<Case> cases = [
-                SELECT 
-                    Id, 
-                    CaseNumber, 
-                    Subject, 
-                    Description, 
-                    Status, 
-                    Priority, 
+                SELECT
+                    Id,
+                    CaseNumber,
+                    Subject,
+                    Description,
+                    Status,
+                    Priority,
                     Origin,
                     Type,
                     Reason,
@@ -47,78 +47,53 @@ public class CaseContext implements IAgentContextProvider {
                     Contact.Name,
                     Contact.Email,
                     Owner.Name
-                FROM Case 
-                WHERE Id IN :anchorIds 
+                FROM Case
+                WHERE Id IN :anchorIds
                 WITH USER_MODE
                 LIMIT 200
             ];
 
             if (!cases.isEmpty()) {
                 result.put('Case Details', cases);
-                
+
                 // Query Case Comments (internal notes and customer communications)
                 List<CaseComment> caseComments = [
-                    SELECT 
-                        Id,
-                        ParentId,
-                        CommentBody,
-                        IsPublished,
-                        CreatedDate,
-                        CreatedBy.Name
+                    SELECT Id, ParentId, CommentBody, IsPublished, CreatedDate, CreatedBy.Name
                     FROM CaseComment
                     WHERE ParentId IN :anchorIds
                     WITH USER_MODE
                     ORDER BY CreatedDate ASC
                     LIMIT 100
                 ];
-                
+
                 if (!caseComments.isEmpty()) {
                     result.put('Case Comments', caseComments);
                 }
-                
+
                 // Query Email Messages (email threads related to the case)
                 List<EmailMessage> emailMessages = [
-                    SELECT 
-                        Id,
-                        ParentId,
-                        Subject,
-                        TextBody,
-                        HtmlBody,
-                        FromAddress,
-                        FromName,
-                        ToAddress,
-                        CcAddress,
-                        Incoming,
-                        MessageDate,
-                        Status
+                    SELECT Id, ParentId, Subject, TextBody, HtmlBody, FromAddress, FromName, ToAddress, CcAddress, Incoming, MessageDate, Status
                     FROM EmailMessage
                     WHERE ParentId IN :anchorIds
                     WITH USER_MODE
                     ORDER BY MessageDate ASC
                     LIMIT 50
                 ];
-                
+
                 if (!emailMessages.isEmpty()) {
                     result.put('Email Messages', emailMessages);
                 }
-                
+
                 // Query Case History (field changes and updates)
                 List<CaseHistory> caseHistory = [
-                    SELECT 
-                        Id,
-                        CaseId,
-                        Field,
-                        OldValue,
-                        NewValue,
-                        CreatedDate,
-                        CreatedBy.Name
+                    SELECT Id, CaseId, Field, OldValue, NewValue, CreatedDate, CreatedBy.Name
                     FROM CaseHistory
                     WHERE CaseId IN :anchorIds
                     WITH USER_MODE
                     ORDER BY CreatedDate ASC
                     LIMIT 100
                 ];
-                
+
                 if (!caseHistory.isEmpty()) {
                     result.put('Case History', caseHistory);
                 }
@@ -132,5 +107,3 @@ public class CaseContext implements IAgentContextProvider {
         return result;
     }
 }
-
-

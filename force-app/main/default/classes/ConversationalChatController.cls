@@ -108,7 +108,7 @@ public with sharing class ConversationalChatController {
                 lwcResponse.put('success', false);
                 lwcResponse.put('error', result.errorMessage != null ? result.errorMessage : 'Agent processing failed.');
             }
-        } catch (AgentOrchestratorException e) {
+        } catch (AIAgentException.OrchestrationException e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Orchestration error: ' + e.getMessage());
             lwcResponse.put('error', 'Processing error: ' + e.getMessage());
         } catch (Exception ex) {

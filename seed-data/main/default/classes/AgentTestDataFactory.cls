@@ -62,7 +62,7 @@ public with sharing class AgentTestDataFactory {
     // DATA CLEANUP
     // ===================================================================================
 
-    private static void deleteExistingData() {
+    public static void deleteExistingData() {
         System.debug('[Cleanup] Removing existing data...');
         try {
             // Deactivate orders first (required before deletion)
@@ -79,6 +79,7 @@ public with sharing class AgentTestDataFactory {
             }
 
             // Delete framework data (must respect dependencies)
+            // delete [SELECT Id FROM BulkExecution__c];
             delete [SELECT Id FROM AgentDecisionStep__c];
             delete [SELECT Id FROM ExecutionStep__c];
             delete [SELECT Id FROM AgentExecution__c];
@@ -89,17 +90,16 @@ public with sharing class AgentTestDataFactory {
             delete [SELECT Id FROM LLMConfiguration__c];
 
             // Delete business data
-            delete [SELECT Id FROM Task WHERE Subject LIKE '%AI Generated%'];
+            delete [SELECT Id FROM Task];
             delete [
                 SELECT Id
                 FROM Case
-                WHERE Subject LIKE '%Test%' OR Account.Name IN ('Acme Corporation', 'Global Logistics Ltd', 'TechStart Innovations')
             ];
-            delete [SELECT Id FROM Opportunity WHERE Account.Name IN ('Acme Corporation', 'Global Logistics Ltd', 'TechStart Innovations')];
-            delete [SELECT Id FROM Lead WHERE Company IN ('Beta Industries', 'Startup Co')];
+            delete [SELECT Id FROM Opportunity];
+            delete [SELECT Id FROM Lead];
             delete [SELECT Id FROM OrderItem];
-            delete [SELECT Id FROM Order WHERE Account.Name IN ('Acme Corporation', 'Global Logistics Ltd', 'TechStart Innovations')];
-            delete [SELECT Id FROM Contact WHERE Account.Name IN ('Acme Corporation', 'Global Logistics Ltd', 'TechStart Innovations')];
+            delete [SELECT Id FROM Order];
+            delete [SELECT Id FROM Contact];
             delete [SELECT Id FROM Account WHERE Name IN ('Acme Corporation', 'Global Logistics Ltd', 'TechStart Innovations')];
             delete [SELECT Id FROM CollaborationGroup WHERE Name = 'Support Team'];
 
@@ -433,12 +433,12 @@ public with sharing class AgentTestDataFactory {
             createCapability(
                 agent.Id,
                 'get_case_details',
-                'Retrieves detailed information about a specific case by ID. Returns `CaseNumber`, `Subject`, `Description`, `Status`, `Priority`, and `CreatedDate`. Use this to:\n- View current case status and priority\n- Get case history and description\n- Check case ownership and timestamps',
-                '{"type":"object","properties":{"caseId":{"type":"string","description":"The Salesforce Case ID (18-character ID starting with 500)"}},"required":["caseId"]}',
-                'Apex',
+                'Retrieves detailed information about a specific case by case number. Returns `CaseNumber`, `Subject`, `Description`, `Status`, `Priority`, and `CreatedDate`. Use this to:\n- View current case status and priority\n- Get case history and description\n- Check case ownership and timestamps',
+                '{"type":"object","properties":{"CaseNumber":{"type":"string","description":"The case number (e.g., 00001234)"}},"required":["CaseNumber"]}',
+                'Standard',
+                'GetRecordDetails',
                 null,
-                'ActionCase',
-                '{"operation":"GET_BY_ID","defaultFields":["Id","CaseNumber","Subject","Description","Status","Priority","CreatedDate"],"maxResults":1}',
+                '{"objectApiName":"Case","defaultFields":["Id","CaseNumber","Subject","Description","Status","Priority","CreatedDate"]}',
                 false,
                 false,
                 false,
@@ -476,11 +476,11 @@ public with sharing class AgentTestDataFactory {
                 agent.Id,
                 'get_order_status',
                 'Retrieves order information by order ID. Returns `OrderNumber`, `Status`, `TotalAmount`, and `EffectiveDate`. Use this to:\n- Check order fulfillment status\n- View order totals and dates\n- Help customers with order-related inquiries',
-                '{"type":"object","properties":{"orderId":{"type":"string","description":"The Salesforce Order ID (18-character ID starting with 801)"}},"required":["orderId"]}',
-                'Apex',
+                '{"type":"object","properties":{"Id":{"type":"string","description":"The Salesforce Order ID (18-character ID starting with 801)"}},"required":["Id"]}',
+                'Standard',
+                'GetRecordDetails',
                 null,
-                'ActionOrder',
-                '{"operation":"GET_BY_ID","defaultFields":["Id","OrderNumber","Status","TotalAmount","EffectiveDate"],"maxResults":1}',
+                '{"objectApiName":"Order","defaultFields":["Id","OrderNumber","Status","TotalAmount","EffectiveDate"]}',
                 false,
                 false,
                 false,
@@ -673,11 +673,11 @@ public with sharing class AgentTestDataFactory {
                 agent.Id,
                 'get_account_info',
                 'Retrieves account information by account ID. Returns `Name`, `Industry`, `AnnualRevenue`, `BillingCity`, and `BillingState`. Use this to:\n- Understand customer background\n- Check account details and location\n- Assess account value and importance',
-                '{"type":"object","properties":{"accountId":{"type":"string","description":"The Salesforce Account ID (18-character ID starting with 001)"}},"required":["accountId"]}',
-                'Apex',
+                '{"type":"object","properties":{"Id":{"type":"string","description":"The Salesforce Account ID (18-character ID starting with 001)"}},"required":["Id"]}',
+                'Standard',
+                'GetRecordDetails',
                 null,
-                'ActionAccount',
-                '{"operation":"GET_BY_ID","defaultFields":["Id","Name","Industry","AnnualRevenue","BillingCity","BillingState"],"maxResults":1}',
+                '{"objectApiName":"Account","defaultFields":["Id","Name","Industry","AnnualRevenue","BillingCity","BillingState"]}',
                 false,
                 false,
                 false,
@@ -796,7 +796,7 @@ public with sharing class AgentTestDataFactory {
             AgentType__c = 'Function',
             IsActive__c = true,
             LLMConfiguration__c = llmConfigId,
-            AuditLevel__c = 'Minimal',
+            AuditLevel__c = 'Full',
             EnableParallelToolCalling__c = true,
             ContextFormatStrategy__c = 'Structured Text',
             IdentityPrompt__c = 'You are an expert case analyst who enriches cases with customer data and sets appropriate priorities.',
@@ -813,11 +813,11 @@ public with sharing class AgentTestDataFactory {
                 agent.Id,
                 'get_account',
                 'Retrieves comprehensive account information by account ID. Returns `Name`, `Industry`, `Type`, `AccountNumber`, `Phone`, `BillingCity`, and `AnnualRevenue`. Use this to:\n- Enrich case context with customer data\n- Assess account value and importance\n- Understand customer profile\n\n**Example:** For a case with AccountId "001XX000004ABCD", retrieve account details to determine if this is a high-value customer requiring priority handling.',
-                '{"type":"object","properties":{"accountId":{"type":"string","format":"salesforce-id","description":"The 18-character Salesforce Account ID (starts with 001). Extract this from the case\'s AccountId field.","examples":["001XX000004ABCDEF"]}},"required":["accountId"]}',
-                'Apex',
+                '{"type":"object","properties":{"Id":{"type":"string","format":"salesforce-id","description":"The 18-character Salesforce Account ID (starts with 001). Extract this from the case\'s AccountId field.","examples":["001XX000004ABCDEF"]}},"required":["Id"]}',
+                'Standard',
+                'GetRecordDetails',
                 null,
-                'ActionAccount',
-                '{"operation":"GET_BY_ID","defaultFields":["Id","Name","Industry","Type","AccountNumber","Phone","BillingCity","AnnualRevenue"],"maxResults":1}',
+                '{"objectApiName":"Account","defaultFields":["Id","Name","Industry","Type","AccountNumber","Phone","BillingCity","AnnualRevenue"]}',
                 false,
                 false,
                 false,
@@ -869,7 +869,7 @@ public with sharing class AgentTestDataFactory {
             AgentType__c = 'Function',
             IsActive__c = true,
             LLMConfiguration__c = llmConfigId,
-            AuditLevel__c = 'Minimal',
+            AuditLevel__c = 'Full',
             ContextFormatStrategy__c = 'Structured Text',
             IdentityPrompt__c = 'You finalize case processing by finding solutions, creating follow-up tasks, and notifying the support team.',
             InstructionsPrompt__c = 'Based on the case analysis: 1) Search knowledge base for relevant solutions and troubleshooting steps. 2) Create a follow-up task for the support team with key actions. 3) Post a concise summary to the support team Chatter with case number, priority, and recommended solution. Keep notification under 100 words.'

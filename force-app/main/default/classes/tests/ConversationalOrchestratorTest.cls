@@ -177,7 +177,7 @@ private class ConversationalOrchestratorTest {
         Test.startTest();
         try {
             orchestrator.initiate('Test_Agent', payload);
-        } catch (AgentOrchestratorException e) {
+        } catch (AIAgentException.OrchestrationException e) {
             exceptionThrown = true;
             System.assert(e.getMessage().contains('User message is required'));
         }
@@ -205,7 +205,7 @@ private class ConversationalOrchestratorTest {
         Test.startTest();
         try {
             orchestrator.initiate('Test_Agent', payload);
-        } catch (AgentOrchestratorException e) {
+        } catch (AIAgentException.OrchestrationException e) {
             exceptionThrown = true;
             System.assert(e.getMessage().contains('Turn identifier is required'));
         }
@@ -227,7 +227,7 @@ private class ConversationalOrchestratorTest {
         Test.startTest();
         try {
             ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(null);
-        } catch (AgentOrchestratorException e) {
+        } catch (AIAgentException.OrchestrationException e) {
             exceptionThrown = true;
             System.assert(e.getMessage().contains('Agent definition is required'));
         }

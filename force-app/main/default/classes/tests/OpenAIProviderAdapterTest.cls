@@ -105,13 +105,13 @@ private class OpenAIProviderAdapterTest {
         Test.startTest();
         try {
             adapter.sendMessage(messages, null, setup.llmConfig, setup.agentDefinition);
-        } catch (LLMProviderException e) {
+        } catch (AIAgentException.ProviderException e) {
             exceptionThrown = true;
         }
         Test.stopTest();
 
         // Then: Should throw exception
-        System.assert(exceptionThrown, 'Should throw LLMProviderException');
+        System.assert(exceptionThrown, 'Should throw AIAgentException.ProviderException');
     }
 
     @IsTest
@@ -129,13 +129,13 @@ private class OpenAIProviderAdapterTest {
         Test.startTest();
         try {
             adapter.sendMessage(messages, null, setup.llmConfig, setup.agentDefinition);
-        } catch (LLMProviderException e) {
+        } catch (AIAgentException.ProviderException e) {
             exceptionThrown = true;
         }
         Test.stopTest();
 
         // Then: Should throw exception
-        System.assert(exceptionThrown, 'Should throw LLMProviderException');
+        System.assert(exceptionThrown, 'Should throw AIAgentException.ProviderException');
     }
 
     @IsTest
@@ -153,13 +153,13 @@ private class OpenAIProviderAdapterTest {
         Test.startTest();
         try {
             adapter.sendMessage(messages, null, setup.llmConfig, setup.agentDefinition);
-        } catch (LLMProviderException e) {
+        } catch (AIAgentException.ProviderException e) {
             exceptionThrown = true;
         }
         Test.stopTest();
 
         // Then: Should throw exception
-        System.assert(exceptionThrown, 'Should throw LLMProviderException');
+        System.assert(exceptionThrown, 'Should throw AIAgentException.ProviderException');
     }
 
     // ===================================================================================

@@ -165,24 +165,20 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
         }
 
         try {
-            // Load agent definition
-            AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(agentDeveloperName);
+            System.debug(LoggingLevel.INFO, logPrefix + 'Executing agent: ' + agentDeveloperName + ' via AgentExecutionService');
 
-            if (agentDef == null) {
-                throw new UnifiedQueueableException('Agent not found: ' + agentDeveloperName);
-            }
+            // Use AgentExecutionService to execute the agent
+            // This leverages the metadata-driven orchestrator loading without compile-time dependencies
+            AgentExecutionService.ExecutionPayload execPayload = new AgentExecutionService.ExecutionPayload();
+            execPayload.userId = userId;
+            execPayload.userMessage = input;
+            execPayload.sourceRecordId = recordId;
+            execPayload.currentRecordId = recordId;
+            execPayload.turnIdentifier = turnIdentifier;
+            execPayload.triggerSource = 'Apex'; // Valid picklist value (deferred execution from queueable)
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Loaded agent: ' + agentDef.DeveloperName__c);
-
-            // Execute function orchestrator in clean transaction (no prior DML)
-            FunctionOrchestrator orchestrator = new FunctionOrchestrator(agentDef);
-            FunctionOrchestrator.FunctionExecutionResult result = orchestrator.execute(
-                input,
-                recordId,
-                userId,
-                turnIdentifier,
-                null // existingExecutionId - not applicable for deferred execution
-            );
+            // Execute through service (which handles dynamic orchestrator loading)
+            AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution(agentDeveloperName, execPayload);
 
             System.debug(
                 LoggingLevel.INFO,
@@ -251,36 +247,39 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Loaded agent: ' + agentDef.DeveloperName__c);
 
-            // Execute child agent via FunctionOrchestrator
-            // Pass childExecutionId to prevent duplicate execution records
-            FunctionOrchestrator orchestrator = new FunctionOrchestrator(agentDef);
-            FunctionOrchestrator.FunctionExecutionResult result = orchestrator.execute(
-                userMessage,
-                sourceRecordId,
-                userId,
-                turnIdentifier,
-                childExecutionId // Reuse existing execution record created by WorkflowOrchestrator
-            );
+            // Execute child agent via AgentExecutionService
+            // This uses metadata-driven orchestrator loading without compile-time dependencies
+            AgentExecutionService.ExecutionPayload execPayload = new AgentExecutionService.ExecutionPayload();
+            execPayload.userId = userId;
+            execPayload.userMessage = userMessage;
+            execPayload.sourceRecordId = sourceRecordId;
+            execPayload.currentRecordId = sourceRecordId;
+            execPayload.turnIdentifier = turnIdentifier;
+            execPayload.existingExecutionId = childExecutionId; // Reuse existing execution record created by WorkflowOrchestrator
+            execPayload.triggerSource = 'Workflow';
 
+            // Execute through service
+            AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution(agentDef.DeveloperName__c, execPayload);
+
+            // Map result fields
             success = result.success;
-            response = result.response;
-            errorCode = result.errorCode;
-            errorMessage = result.errorMessage;
+            response = result.message != null ? result.message : '';
+
+            // For error scenarios
+            if (!result.success) {
+                errorCode = AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
+                errorMessage = result.errorMessage;
+            }
 
             Long executionTime = System.currentTimeMillis() - startTime;
             System.debug(
                 LoggingLevel.INFO,
-                logPrefix +
-                    'Child agent execution completed in ' +
-                    executionTime +
-                    'ms. Success: ' +
-                    success +
-                    ', RequiresPolling: ' +
-                    result.requiresPolling
+                logPrefix + 'Child agent execution completed in ' + executionTime + 'ms. Success: ' + success + ', Status: ' + result.status
             );
 
             // Check if execution requires async polling (multi-tool iterative pattern)
-            if (result.requiresPolling) {
+            // Status 'Processing' indicates async execution
+            if (result.status == 'Processing') {
                 System.debug(
                     LoggingLevel.INFO,
                     logPrefix +
@@ -294,13 +293,13 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
 
             // Update child execution record with result (for synchronous/completed execution)
             // The AgentExecutionTrigger will detect this status change and notify the parent workflow
-            updateChildExecution(childExecutionId, result, logPrefix);
+            updateChildExecution(childExecutionId, success, logPrefix);
 
             System.debug(
                 LoggingLevel.INFO,
                 logPrefix +
                     'Child execution updated to ' +
-                    (result.success ? 'Completed' : 'Failed') +
+                    (success ? 'Completed' : 'Failed') +
                     '. AgentExecutionTrigger will notify parent workflow: ' +
                     parentExecutionId
             );
@@ -449,16 +448,16 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
     }
 
     /**
-     * @description Updates the child execution record with the result from FunctionOrchestrator
+     * @description Updates the child execution record with the result
      * @param childExecutionId The ID of the child execution to update
-     * @param result The result from FunctionOrchestrator
+     * @param success Whether the execution was successful
      * @param logPrefix Logging prefix for debug output
      */
-    private void updateChildExecution(Id childExecutionId, FunctionOrchestrator.FunctionExecutionResult result, String logPrefix) {
+    private void updateChildExecution(Id childExecutionId, Boolean success, String logPrefix) {
         try {
             AgentExecution__c childExec = new AgentExecution__c(
                 Id = childExecutionId,
-                ExecutionStatus__c = result.success ? 'Completed' : 'Failed',
+                ExecutionStatus__c = success ? 'Completed' : 'Failed',
                 ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
                 EndTime__c = Datetime.now()
             );

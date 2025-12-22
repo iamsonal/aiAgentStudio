@@ -56,7 +56,7 @@ public class HttpCalloutService {
      * @param request  The HttpRequest to execute.
      * @param config   The callout configuration (must not be null).
      * @return CalloutResult  The response and execution metadata.
-     * @throws LLMProviderException.NonRetriableHttpException for any HTTP error
+     * @throws AIAgentException.NonRetriableHttpException for any HTTP error
      */
     public static CalloutResult execute(HttpRequest request, CalloutConfig config) {
         if (config == null) {
@@ -89,19 +89,17 @@ public class HttpCalloutService {
 
             System.debug(LoggingLevel.ERROR, config.logPrefix + errorMsg + ' - Response body: ' + responseBody);
             System.debug(LoggingLevel.ERROR, config.logPrefix + errorMsg + ' - throwing NonRetriableHttpException');
-            throw new LLMProviderException.NonRetriableHttpException(
-                errorMsg + (String.isNotBlank(responseBody) ? ' - Response: ' + responseBody : '')
-            );
+            throw new AIAgentException.NonRetriableHttpException(errorMsg + (String.isNotBlank(responseBody) ? ' - Response: ' + responseBody : ''));
         } catch (System.CalloutException ce) {
             System.debug(LoggingLevel.ERROR, config.logPrefix + 'Callout exception: ' + ce.getMessage());
-            throw new LLMProviderException.NonRetriableHttpException('Callout failed: ' + ce.getMessage(), ce);
-        } catch (LLMProviderException llmEx) {
-            // Re-throw LLMProviderException subtypes
+            throw new AIAgentException.NonRetriableHttpException('Callout failed: ' + ce.getMessage(), ce);
+        } catch (AIAgentException.ProviderException llmEx) {
+            // Re-throw AIAgentException.ProviderException subtypes
             throw llmEx;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, config.logPrefix + 'Unexpected exception during HTTP execution: ' + e.getMessage());
             // Unexpected exceptions are non-retryable
-            throw new LLMProviderException.NonRetriableHttpException('Unexpected HTTP error: ' + e.getMessage(), e);
+            throw new AIAgentException.NonRetriableHttpException('Unexpected HTTP error: ' + e.getMessage(), e);
         }
     }
 

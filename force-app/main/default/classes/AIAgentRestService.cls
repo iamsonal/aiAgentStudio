@@ -177,7 +177,7 @@ global with sharing class AIAgentRestService {
             }
         } catch (AIAgentConfigService.ConfigurationException e) {
             throw new AIAgentRestException('Configuration error: ' + e.getMessage());
-        } catch (AgentOrchestratorException e) {
+        } catch (AIAgentException.OrchestrationException e) {
             throw new AIAgentRestException('Orchestration error: ' + e.getMessage());
         } catch (Exception e) {
             // Mark the turn as failed before re-throwing

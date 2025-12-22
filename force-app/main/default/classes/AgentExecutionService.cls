@@ -58,10 +58,10 @@ public class AgentExecutionService {
         try {
             // Validate inputs
             if (String.isBlank(agentDeveloperName)) {
-                throw new AgentOrchestratorException('Agent developer name is required');
+                throw new AIAgentException.OrchestrationException('Agent developer name is required');
             }
             if (payload == null) {
-                throw new AgentOrchestratorException('Execution payload is required');
+                throw new AIAgentException.OrchestrationException('Execution payload is required');
             }
             payload.validate();
 
@@ -97,12 +97,12 @@ public class AgentExecutionService {
                 logPrefix + 'Execution initiated successfully. ExecutionId=' + result.executionId + ', Status=' + result.status
             );
             return result;
-        } catch (AgentOrchestratorException e) {
+        } catch (AIAgentException.OrchestrationException e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Orchestration error: ' + e.getMessage());
             throw e;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Unexpected error: ' + e.getMessage() + '\nStack: ' + e.getStackTraceString());
-            throw new AgentOrchestratorException('Failed to start execution: ' + e.getMessage());
+            throw new AIAgentException.OrchestrationException('Failed to start execution: ' + e.getMessage());
         }
     }
 
@@ -165,13 +165,13 @@ public class AgentExecutionService {
                     response.outcome != null ? response.outcome : 'Processing in service user context'
                 );
             } else {
-                throw new AgentOrchestratorException('REST API routing failed: ' + response.error);
+                throw new AIAgentException.OrchestrationException('REST API routing failed: ' + response.error);
             }
-        } catch (AgentOrchestratorException e) {
+        } catch (AIAgentException.OrchestrationException e) {
             throw e;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error routing through REST API: ' + e.getMessage());
-            throw new AgentOrchestratorException('Failed to switch to service user context: ' + e.getMessage());
+            throw new AIAgentException.OrchestrationException('Failed to switch to service user context: ' + e.getMessage());
         }
     }
 
@@ -344,7 +344,7 @@ public class AgentExecutionService {
 
         /**
          * Validates and applies sensible defaults to required fields.
-         * @throws AgentOrchestratorException if validation fails
+         * @throws AIAgentException.OrchestrationException if validation fails
          */
         public void validate() {
             // Apply sensible defaults
@@ -441,7 +441,7 @@ public class AgentExecutionService {
                 LoggingLevel.ERROR,
                 LOG_PREFIX + 'CRITICAL: Unable to load Orchestrator Mappings from Custom Metadata. Exception: ' + e.getMessage()
             );
-            throw new AgentOrchestratorException(
+            throw new AIAgentException.OrchestrationException(
                 'Failed to load Orchestrator Mappings from Custom Metadata. Check AgentOrchestratorMapping__mdt configuration.',
                 e
             );
@@ -456,7 +456,7 @@ public class AgentExecutionService {
      *
      * @param agentDef The agent definition containing the AgentType__c
      * @return         IAgentOrchestrator implementation for the agent's type
-     * @throws         AgentOrchestratorException if agent type is invalid or orchestrator cannot be created
+     * @throws         AIAgentException.OrchestrationException if agent type is invalid or orchestrator cannot be created
      */
     private static IAgentOrchestrator getOrchestrator(AIAgentDefinition__c agentDef) {
         // Ensure orchestrator mappings are loaded
@@ -464,7 +464,7 @@ public class AgentExecutionService {
 
         // Validate agent type
         if (String.isBlank(agentDef.AgentType__c)) {
-            throw new AgentOrchestratorException('AgentType__c is required on agent definition: ' + agentDef.DeveloperName__c);
+            throw new AIAgentException.OrchestrationException('AgentType__c is required on agent definition: ' + agentDef.DeveloperName__c);
         }
 
         // Look up orchestrator mapping for this agent type
@@ -473,7 +473,7 @@ public class AgentExecutionService {
 
         if (mapping == null) {
             System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'No orchestrator mapping found for agent type: "' + agentType + '"');
-            throw new AgentOrchestratorException(
+            throw new AIAgentException.OrchestrationException(
                 'No active orchestrator mapping found for agent type: "' + agentType + '". ' + 'Check AgentOrchestratorMapping__mdt configuration.'
             );
         }
@@ -487,7 +487,7 @@ public class AgentExecutionService {
 
             Type orchestratorType = Type.forName(mapping.OrchestratorClassName__c);
             if (orchestratorType == null) {
-                throw new AgentOrchestratorException(
+                throw new AIAgentException.OrchestrationException(
                     'Orchestrator class not found: "' + mapping.OrchestratorClassName__c + '". ' + 'Verify the class exists and is accessible.'
                 );
             }
@@ -501,7 +501,7 @@ public class AgentExecutionService {
                     LoggingLevel.ERROR,
                     LOG_PREFIX + 'Class "' + mapping.OrchestratorClassName__c + '" does not implement IAgentOrchestrator.'
                 );
-                throw new AgentOrchestratorException(
+                throw new AIAgentException.OrchestrationException(
                     'Class "' + mapping.OrchestratorClassName__c + '" must implement the IAgentOrchestrator interface.'
                 );
             }
@@ -516,14 +516,14 @@ public class AgentExecutionService {
             );
 
             return orchestrator;
-        } catch (AgentOrchestratorException e) {
+        } catch (AIAgentException.OrchestrationException e) {
             throw e; // Re-throw our custom exceptions
         } catch (Exception e) {
             System.debug(
                 LoggingLevel.ERROR,
                 LOG_PREFIX + 'Failed to instantiate orchestrator "' + mapping.OrchestratorClassName__c + '": ' + e.getMessage()
             );
-            throw new AgentOrchestratorException(
+            throw new AIAgentException.OrchestrationException(
                 'Failed to instantiate orchestrator "' + mapping.OrchestratorClassName__c + '": ' + e.getMessage(),
                 e
             );
