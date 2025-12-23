@@ -179,12 +179,7 @@ public with sharing class ActionConfigUtils {
         } catch (TypeCoercionService.TypeCoercionException e) {
             System.debug(
                 LoggingLevel.WARN,
-                '[ActionConfigUtils.getOptionalBoolean] Invalid value for key "' +
-                    key +
-                    '". Using default: ' +
-                    defaultValue +
-                    '. Error: ' +
-                    e.getMessage()
+                '[ActionConfigUtils.getOptionalBoolean] Invalid value for key "' + key + '". Using default: ' + defaultValue + '. Error: ' + e.getMessage()
             );
             return defaultValue;
         }
@@ -262,20 +257,14 @@ public with sharing class ActionConfigUtils {
             } else if (value instanceof String) {
                 stringList.add((String) value);
             } else {
-                System.debug(
-                    LoggingLevel.WARN,
-                    '[ActionConfigUtils.getOptionalStringList] Unexpected type for key "' + key + '". Returning empty list.'
-                );
+                System.debug(LoggingLevel.WARN, '[ActionConfigUtils.getOptionalStringList] Unexpected type for key "' + key + '". Returning empty list.');
             }
 
             return stringList;
         } catch (Exception e) {
             System.debug(
                 LoggingLevel.WARN,
-                '[ActionConfigUtils.getOptionalStringList] Error processing list for key "' +
-                    key +
-                    '". Returning empty list. Error: ' +
-                    e.getMessage()
+                '[ActionConfigUtils.getOptionalStringList] Error processing list for key "' + key + '". Returning empty list. Error: ' + e.getMessage()
             );
             return new List<String>(); // Return empty on error
         }
@@ -356,12 +345,7 @@ public with sharing class ActionConfigUtils {
         } catch (TypeCoercionService.TypeCoercionException e) {
             System.debug(
                 LoggingLevel.WARN,
-                '[ActionConfigUtils.getOptionalInteger] Invalid value for key "' +
-                    key +
-                    '". Using default: ' +
-                    defaultValue +
-                    '. Error: ' +
-                    e.getMessage()
+                '[ActionConfigUtils.getOptionalInteger] Invalid value for key "' + key + '". Using default: ' + defaultValue + '. Error: ' + e.getMessage()
             );
             return defaultValue;
         }

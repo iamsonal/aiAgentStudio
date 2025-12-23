@@ -151,26 +151,10 @@ public inherited sharing class AgentDecisionStepLogger {
      * @param formattedContext The formatted context as presented to the LLM
      * @param durationMs Duration of processing this step
      */
-    public void logContextGatheringWithFormatting(
-        String title,
-        String contextDescription,
-        String rawContextJson,
-        String formattedContext,
-        Long durationMs
-    ) {
+    public void logContextGatheringWithFormatting(String title, String contextDescription, String rawContextJson, String formattedContext, Long durationMs) {
         // For backward compatibility, we'll store the raw context in ContentJson__c
         // and the formatted context in the new FormattedContext__c field
-        logStepWithContextFormatting(
-            StepType.CONTEXT_GATHERING,
-            title,
-            contextDescription,
-            rawContextJson,
-            formattedContext,
-            durationMs,
-            true,
-            null,
-            null
-        );
+        logStepWithContextFormatting(StepType.CONTEXT_GATHERING, title, contextDescription, rawContextJson, formattedContext, durationMs, true, null, null);
     }
 
     /**

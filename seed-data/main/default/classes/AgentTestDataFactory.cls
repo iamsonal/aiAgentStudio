@@ -79,7 +79,7 @@ public with sharing class AgentTestDataFactory {
             }
 
             // Delete framework data (must respect dependencies)
-            // delete [SELECT Id FROM BulkExecution__c];
+            //            delete [SELECT Id FROM BulkExecution__c];
             delete [SELECT Id FROM AgentDecisionStep__c];
             delete [SELECT Id FROM ExecutionStep__c];
             delete [SELECT Id FROM AgentExecution__c];
@@ -91,10 +91,7 @@ public with sharing class AgentTestDataFactory {
 
             // Delete business data
             delete [SELECT Id FROM Task];
-            delete [
-                SELECT Id
-                FROM Case
-            ];
+            delete [SELECT Id FROM Case];
             delete [SELECT Id FROM Opportunity];
             delete [SELECT Id FROM Lead];
             delete [SELECT Id FROM OrderItem];
@@ -128,20 +125,8 @@ public with sharing class AgentTestDataFactory {
         idMap.put('TechStart Account', accounts[2].Id);
 
         List<Contact> contacts = new List<Contact>{
-            new Contact(
-                FirstName = 'Sarah',
-                LastName = 'Johnson',
-                AccountId = accounts[0].Id,
-                Email = 'sarah.johnson@acme.com',
-                Title = 'IT Director'
-            ),
-            new Contact(
-                FirstName = 'Michael',
-                LastName = 'Chen',
-                AccountId = accounts[0].Id,
-                Email = 'michael.chen@acme.com',
-                Title = 'Support Manager'
-            ),
+            new Contact(FirstName = 'Sarah', LastName = 'Johnson', AccountId = accounts[0].Id, Email = 'sarah.johnson@acme.com', Title = 'IT Director'),
+            new Contact(FirstName = 'Michael', LastName = 'Chen', AccountId = accounts[0].Id, Email = 'michael.chen@acme.com', Title = 'Support Manager'),
             new Contact(
                 FirstName = 'Emma',
                 LastName = 'Williams',
@@ -543,6 +528,7 @@ public with sharing class AgentTestDataFactory {
             IsActive__c = true,
             LLMConfiguration__c = llmConfigId,
             AuditLevel__c = 'Standard',
+            ContextFormatStrategy__c = 'Structured Text',
             IdentityPrompt__c = 'You are an expert at summarizing technical support cases into concise, actionable summaries.',
             InstructionsPrompt__c = 'Analyze the case description and create a 2-3 sentence summary that captures: 1) The core issue, 2) Business impact, 3) Urgency level. Be clear and concise.',
             PromptFooter__c = 'Format: Start with issue type, then impact, then recommended action.'
@@ -550,10 +536,14 @@ public with sharing class AgentTestDataFactory {
         insert agent;
         idMap.put('Case Summarizer Agent', agent.Id);
 
+        // Context provider to retrieve Case details
+        AgentContextConfig__c caseContext = createContext(agent.Id, 'Case Context', 'CaseContext', 'Case', true, 10);
+        insert caseContext;
+
         // NO capabilities - pure LLM text generation
         // This demonstrates the tool-terminating pattern with 0 tools
 
-        System.debug('[Agent:Function] ✓ Case Summarizer (0 tools - pure LLM)');
+        System.debug('[Agent:Function] ✓ Case Summarizer (0 tools - pure LLM with case context)');
     }
 
     /**
@@ -780,9 +770,7 @@ public with sharing class AgentTestDataFactory {
         };
         insert steps;
 
-        System.debug(
-            '[Agent:Workflow] ✓ Case Processing Workflow created with ' + steps.size() + ' steps (2 function agents with multiple capabilities)'
-        );
+        System.debug('[Agent:Workflow] ✓ Case Processing Workflow created with ' + steps.size() + ' steps (2 function agents with multiple capabilities)');
     }
 
     /**

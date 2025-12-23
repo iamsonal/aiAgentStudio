@@ -135,10 +135,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
 
         // Validate DTO
         if (args.recordData.isEmpty()) {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                'No field data provided in recordData for record ID: ' + args.recordId
-            );
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'No field data provided in recordData for record ID: ' + args.recordId);
         }
 
         // Convert to Id and get SObjectType
@@ -160,13 +157,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
             if (!actualObjectApiName.equalsIgnoreCase(config.objectApiName)) {
                 return ActionOutcome.failureWithGuidance(
                     AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                    'Object API name mismatch: Expected "' +
-                        config.objectApiName +
-                        '" but recordId "' +
-                        recordId +
-                        '" is for "' +
-                        actualObjectApiName +
-                        '"',
+                    'Object API name mismatch: Expected "' + config.objectApiName + '" but recordId "' + recordId + '" is for "' + actualObjectApiName + '"',
                     'Ensure the recordId matches the configured objectApiName "' + config.objectApiName + '"'
                 );
             }
@@ -313,10 +304,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
                 }
 
                 if (String.isNotBlank(this.config.objectApiName)) {
-                    System.debug(
-                        LoggingLevel.DEBUG,
-                        '[ActionUpdateRecord] Configured to validate updates against object type: ' + this.config.objectApiName
-                    );
+                    System.debug(LoggingLevel.DEBUG, '[ActionUpdateRecord] Configured to validate updates against object type: ' + this.config.objectApiName);
                 }
             } catch (Exception e) {
                 System.debug(LoggingLevel.WARN, '[ActionUpdateRecord] Failed to parse configuration JSON: ' + e.getMessage() + '. Using defaults.');

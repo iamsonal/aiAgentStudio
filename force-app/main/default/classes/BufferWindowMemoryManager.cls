@@ -40,12 +40,7 @@ public class BufferWindowMemoryManager implements IMemoryManager {
      *   - If turn limit is 0 or negative, returns an empty list (no history)
      *   - If turn limit is positive, returns exactly N most recent complete turns using optimized query
      */
-    public List<Map<String, Object>> getHistoryPayload(
-        Id executionId,
-        AIAgentDefinition__c agentConfig,
-        LLMConfiguration__c llmConfig,
-        String loggingContext
-    ) {
+    public List<Map<String, Object>> getHistoryPayload(Id executionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String loggingContext) {
         String debugPrefix = String.isNotBlank(loggingContext) ? loggingContext : '[BufferWindowMemory] ';
         System.debug(LoggingLevel.INFO, debugPrefix + 'BufferWindowMemoryManager: Starting history retrieval for execution: ' + executionId);
 

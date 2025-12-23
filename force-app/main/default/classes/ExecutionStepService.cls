@@ -41,15 +41,7 @@ public inherited sharing class ExecutionStepService {
      * @param turnCount The turn number within the execution
      * @return Id of the created ExecutionStep__c record
      */
-    public Id createStep(
-        Id executionId,
-        String stepType,
-        String stepRole,
-        String content,
-        String contentType,
-        String turnIdentifier,
-        Integer turnCount
-    ) {
+    public Id createStep(Id executionId, String stepType, String stepRole, String content, String contentType, String turnIdentifier, Integer turnCount) {
         return createStep(
             executionId,
             stepType,
@@ -307,6 +299,7 @@ public inherited sharing class ExecutionStepService {
      * @param processingDuration Optional processing duration in milliseconds
      * @param isAsyncToolExecution Whether this tool was executed asynchronously
      * @return Id of the created step
+     * @throws ExecutionStepException if step creation fails
      */
     public Id createToolResultStep(
         Id executionId,
@@ -318,73 +311,52 @@ public inherited sharing class ExecutionStepService {
         Long processingDuration,
         Boolean isAsyncToolExecution
     ) {
-        Map<String, Object> metadata = new Map<String, Object>();
-        if (processingDuration != null) {
-            metadata.put('processingDuration', processingDuration);
+        String logPrefix = LOG_PREFIX + '[createToolResultStep] ';
+
+        try {
+            Map<String, Object> metadata = new Map<String, Object>();
+            if (processingDuration != null) {
+                metadata.put('processingDuration', processingDuration);
+            }
+            if (isAsyncToolExecution != null) {
+                metadata.put('isAsyncToolExecution', isAsyncToolExecution);
+            }
+
+            ExecutionStep__c step = new ExecutionStep__c(
+                AgentExecution__c = executionId,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                Content__c = null,
+                ContentType__c = 'JSON',
+                Timestamp__c = Datetime.now(),
+                TurnIdentifier__c = turnIdentifier,
+                TurnCount__c = turnCount,
+                ToolCallId__c = toolCallId,
+                ToolName__c = toolName,
+                ToolResult__c = toolResult,
+                HasResult__c = String.isNotBlank(toolResult),
+                ProcessingDuration__c = processingDuration,
+                IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false,
+                StepMetadata__c = !metadata.isEmpty() ? JSON.serialize(metadata) : null,
+                PromptTokens__c = null,
+                CompletionTokens__c = null,
+                TotalTokens__c = null,
+                ModelIdentifier__c = null,
+                LLMCalloutDurationMs__c = null
+            );
+
+            insert step;
+
+            System.debug(
+                LoggingLevel.DEBUG,
+                logPrefix + 'Created tool result step: ' + step.Id + ' for tool: ' + toolName + ' (async=' + isAsyncToolExecution + ')'
+            );
+
+            return step.Id;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create tool result step: ' + e.getMessage());
+            throw new ExecutionStepException('Failed to create tool result step: ' + e.getMessage());
         }
-        if (isAsyncToolExecution != null) {
-            metadata.put('isAsyncToolExecution', isAsyncToolExecution);
-        }
-
-        ExecutionStep__c step = new ExecutionStep__c(
-            AgentExecution__c = executionId,
-            StepType__c = 'ToolResult',
-            StepRole__c = 'Tool',
-            Content__c = null,
-            ContentType__c = 'JSON',
-            Timestamp__c = Datetime.now(),
-            TurnIdentifier__c = turnIdentifier,
-            TurnCount__c = turnCount,
-            ToolCallId__c = toolCallId,
-            ToolName__c = toolName,
-            ToolResult__c = toolResult,
-            HasResult__c = String.isNotBlank(toolResult),
-            ProcessingDuration__c = processingDuration,
-            IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false,
-            StepMetadata__c = !metadata.isEmpty() ? JSON.serialize(metadata) : null,
-            PromptTokens__c = null,
-            CompletionTokens__c = null,
-            TotalTokens__c = null,
-            ModelIdentifier__c = null,
-            LLMCalloutDurationMs__c = null
-        );
-
-        insert step;
-        return step.Id;
-    }
-
-    /**
-     * Creates a system event step.
-     *
-     * @param executionId The execution ID
-     * @param eventMessage The system event message
-     * @param turnIdentifier The turn identifier
-     * @param turnCount The turn number
-     * @param isInternal Whether this is an internal system step
-     * @return Id of the created step
-     */
-    public Id createSystemEventStep(Id executionId, String eventMessage, String turnIdentifier, Integer turnCount, Boolean isInternal) {
-        return createStep(
-            executionId,
-            'SystemEvent',
-            'System',
-            eventMessage,
-            'Text',
-            turnIdentifier,
-            turnCount,
-            null, // toolCallId
-            null, // toolName
-            null, // toolArguments
-            null, // toolResult
-            null, // stepMetadata
-            null, // promptTokens
-            null, // completionTokens
-            null, // totalTokens
-            null, // modelIdentifier
-            null, // llmCalloutDurationMs
-            isInternal,
-            null // isAsyncToolExecution
-        );
     }
 
     /**
@@ -421,110 +393,6 @@ public inherited sharing class ExecutionStepService {
             false, // isInternal
             null // isAsyncToolExecution
         );
-    }
-
-    /**
-     * Retrieves execution steps for an execution with optional filtering.
-     *
-     * @param executionId The execution ID
-     * @param includeInternal Whether to include internal system steps
-     * @param stepTypes Optional list of step types to filter by
-     * @param limitCount Optional limit on number of steps to return
-     * @return List of ExecutionStep__c records
-     */
-    public List<ExecutionStep__c> getExecutionSteps(Id executionId, Boolean includeInternal, List<String> stepTypes, Integer limitCount) {
-        String logPrefix = LOG_PREFIX + '[getExecutionSteps] ';
-
-        try {
-            String query =
-                'SELECT Id, StepType__c, StepRole__c, Content__c, ContentType__c, ' +
-                'Timestamp__c, TurnIdentifier__c, TurnCount__c, ToolCallId__c, ' +
-                'ToolName__c, ToolArguments__c, ToolResult__c, ProcessingDuration__c, ' +
-                'StepMetadata__c, IsInternal__c ' +
-                'FROM ExecutionStep__c ' +
-                'WHERE AgentExecution__c = :executionId ';
-
-            if (!includeInternal) {
-                query += 'AND IsInternal__c = false ';
-            }
-
-            if (stepTypes != null && !stepTypes.isEmpty()) {
-                query += 'AND StepType__c IN :stepTypes ';
-            }
-
-            query += 'ORDER BY Timestamp__c ASC ';
-
-            if (limitCount != null && limitCount > 0) {
-                query += 'LIMIT :limitCount';
-            }
-
-            return Database.query(query);
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to retrieve steps: ' + e.getMessage());
-            throw new ExecutionStepException('Failed to retrieve execution steps: ' + e.getMessage());
-        }
-    }
-
-    /**
-     * Retrieves the most recent steps for an execution.
-     *
-     * @param executionId The execution ID
-     * @param stepCount Number of recent steps to retrieve
-     * @param includeInternal Whether to include internal steps
-     * @return List of ExecutionStep__c records in chronological order
-     */
-    public List<ExecutionStep__c> getRecentSteps(Id executionId, Integer stepCount, Boolean includeInternal) {
-        String logPrefix = LOG_PREFIX + '[getRecentSteps] ';
-
-        try {
-            String query =
-                'SELECT Id, StepType__c, StepRole__c, Content__c, ContentType__c, ' +
-                'Timestamp__c, TurnIdentifier__c, TurnCount__c, ToolCallId__c, ' +
-                'ToolName__c, ToolArguments__c, ToolResult__c, ProcessingDuration__c, ' +
-                'StepMetadata__c, IsInternal__c ' +
-                'FROM ExecutionStep__c ' +
-                'WHERE AgentExecution__c = :executionId ';
-
-            if (!includeInternal) {
-                query += 'AND IsInternal__c = false ';
-            }
-
-            query += 'ORDER BY Timestamp__c DESC LIMIT :stepCount';
-
-            List<ExecutionStep__c> steps = Database.query(query);
-
-            // Reverse to get chronological order
-            List<ExecutionStep__c> chronologicalSteps = new List<ExecutionStep__c>();
-            for (Integer i = steps.size() - 1; i >= 0; i--) {
-                chronologicalSteps.add(steps[i]);
-            }
-
-            return chronologicalSteps;
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to retrieve recent steps: ' + e.getMessage());
-            throw new ExecutionStepException('Failed to retrieve recent steps: ' + e.getMessage());
-        }
-    }
-
-    /**
-     * Updates the processing duration for a step.
-     *
-     * @param stepId The step ID to update
-     * @param processingDuration The processing duration in milliseconds
-     */
-    public void updateProcessingDuration(Id stepId, Long processingDuration) {
-        String logPrefix = LOG_PREFIX + '[updateProcessingDuration] ';
-
-        try {
-            ExecutionStep__c step = new ExecutionStep__c(Id = stepId, ProcessingDuration__c = processingDuration);
-
-            update step;
-
-            System.debug(LoggingLevel.DEBUG, logPrefix + 'Updated processing duration for step: ' + stepId);
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update processing duration: ' + e.getMessage());
-            throw new ExecutionStepException('Failed to update processing duration: ' + e.getMessage());
-        }
     }
 
     /**
@@ -734,41 +602,6 @@ public inherited sharing class ExecutionStepService {
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to retrieve unsummarized steps: ' + e.getMessage());
             throw new ExecutionStepException('Failed to retrieve unsummarized steps: ' + e.getMessage());
-        }
-    }
-
-    /**
-     * Retrieves steps by turn identifier.
-     * Useful for getting all steps within a specific conversation turn.
-     *
-     * @param executionId The execution ID
-     * @param turnIdentifier The specific turn identifier
-     * @param includeInternal Whether to include internal system steps
-     * @return List of ExecutionStep__c records for the specified turn
-     */
-    public List<ExecutionStep__c> getStepsByTurn(Id executionId, String turnIdentifier, Boolean includeInternal) {
-        String logPrefix = LOG_PREFIX + '[getStepsByTurn] ';
-
-        try {
-            String query =
-                'SELECT Id, StepType__c, StepRole__c, Content__c, ContentType__c, ' +
-                'Timestamp__c, TurnIdentifier__c, TurnCount__c, ToolCallId__c, ' +
-                'ToolName__c, ToolArguments__c, ToolResult__c, ProcessingDuration__c, ' +
-                'StepMetadata__c, IsInternal__c ' +
-                'FROM ExecutionStep__c ' +
-                'WHERE AgentExecution__c = :executionId ' +
-                'AND TurnIdentifier__c = :turnIdentifier ';
-
-            if (!includeInternal) {
-                query += 'AND IsInternal__c = false ';
-            }
-
-            query += 'ORDER BY Timestamp__c ASC, Id ASC';
-
-            return Database.query(query);
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to retrieve steps by turn: ' + e.getMessage());
-            throw new ExecutionStepException('Failed to retrieve steps by turn: ' + e.getMessage());
         }
     }
 }

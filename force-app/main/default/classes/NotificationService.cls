@@ -49,10 +49,7 @@ public class NotificationService {
                 LIMIT 1
             ];
             if (notificationTypes.isEmpty()) {
-                System.debug(
-                    LoggingLevel.ERROR,
-                    logPrefix + 'Notification not sent: Custom notification type not found (' + NOTIFICATION_TYPE_API_NAME + ').'
-                );
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Notification not sent: Custom notification type not found (' + NOTIFICATION_TYPE_API_NAME + ').');
                 return;
             }
 

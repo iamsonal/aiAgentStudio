@@ -185,10 +185,7 @@ public inherited sharing class AgentStateService {
     public void resumeForFollowUpLlmCall(Id executionId, String turnIdentifier, Id nextJobId, String logPrefix) {
         System.debug(
             LoggingLevel.INFO,
-            logPrefix +
-                'AgentStateService: AWAITING_FOLLOWUP state for Turn=' +
-                turnIdentifier +
-                (nextJobId != null ? (', NextJob=' + nextJobId) : '')
+            logPrefix + 'AgentStateService: AWAITING_FOLLOWUP state for Turn=' + turnIdentifier + (nextJobId != null ? (', NextJob=' + nextJobId) : '')
         );
         String stepDesc = generateStepDescription(AIAgentConstants.STATUS_AWAITING_FOLLOWUP, null);
 
@@ -260,11 +257,7 @@ public inherited sharing class AgentStateService {
         String logPrefix = LOG_PREFIX + '[updateStatus] ';
 
         try {
-            AgentExecution__c execution = new AgentExecution__c(
-                Id = executionId,
-                ExecutionStatus__c = executionStatus,
-                LastActivityTime__c = Datetime.now()
-            );
+            AgentExecution__c execution = new AgentExecution__c(Id = executionId, ExecutionStatus__c = executionStatus, LastActivityTime__c = Datetime.now());
 
             if (String.isNotBlank(processingStatus)) {
                 execution.ProcessingStatus__c = processingStatus;
@@ -318,10 +311,7 @@ public inherited sharing class AgentStateService {
             return;
         }
 
-        System.debug(
-            LoggingLevel.INFO,
-            logPrefix + 'Publishing AgentResponse__e event: success=' + isSuccess + ', stepId=' + finalAssistantMessageId
-        );
+        System.debug(LoggingLevel.INFO, logPrefix + 'Publishing AgentResponse__e event: success=' + isSuccess + ', stepId=' + finalAssistantMessageId);
 
         String finalMessageContent = null;
         if (isSuccess && finalAssistantMessageId != null) {
@@ -384,10 +374,7 @@ public inherited sharing class AgentStateService {
             String executionType = executions[0].ExecutionType__c;
             Boolean shouldPublish = (executionType == 'Conversational');
 
-            System.debug(
-                LoggingLevel.INFO,
-                logPrefix + 'Event publishing decision: ExecutionType=' + executionType + ', ShouldPublish=' + shouldPublish
-            );
+            System.debug(LoggingLevel.INFO, logPrefix + 'Event publishing decision: ExecutionType=' + executionType + ', ShouldPublish=' + shouldPublish);
 
             return shouldPublish;
         } catch (Exception e) {

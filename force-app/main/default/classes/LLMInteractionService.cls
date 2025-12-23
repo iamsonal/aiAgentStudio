@@ -150,13 +150,7 @@ public inherited sharing class LLMInteractionService {
             llmConfig = AIAgentConfigService.getLLMConfiguration(this.llmConfigurationId);
             System.debug(
                 LoggingLevel.DEBUG,
-                logPrefix +
-                    'Loaded configuration: Agent=' +
-                    agentConfig.DeveloperName__c +
-                    ', LLM=' +
-                    llmConfig.DeveloperName__c +
-                    ', User=' +
-                    this.userId
+                logPrefix + 'Loaded configuration: Agent=' + agentConfig.DeveloperName__c + ', LLM=' + llmConfig.DeveloperName__c + ', User=' + this.userId
             );
 
             // --- 2. DELEGATE Prompt Composition ---
@@ -257,9 +251,7 @@ public inherited sharing class LLMInteractionService {
                     this.decisionLogger.logAvailableTools(
                         'Available Tools for LLM',
                         'List of tools made available to the LLM for this turn',
-                        JSON.serialize(
-                            new Map<String, Object>{ 'toolCount' => toolsPayload.size(), 'toolNames' => toolNames, 'tools' => toolsPayload }
-                        ),
+                        JSON.serialize(new Map<String, Object>{ 'toolCount' => toolsPayload.size(), 'toolNames' => toolNames, 'tools' => toolsPayload }),
                         null
                     );
                 }
@@ -286,13 +278,7 @@ public inherited sharing class LLMInteractionService {
                 Long callDuration = System.currentTimeMillis() - callStartTime;
                 System.debug(
                     LoggingLevel.INFO,
-                    logPrefix +
-                        'LLM call succeeded in ' +
-                        callDuration +
-                        'ms. Tokens used: ' +
-                        llmApiResult.totalTokens +
-                        ', executionId=' +
-                        this.executionId
+                    logPrefix + 'LLM call succeeded in ' + callDuration + 'ms. Tokens used: ' + llmApiResult.totalTokens + ', executionId=' + this.executionId
                 );
 
                 // Log LLM response if decision logger is available
@@ -448,10 +434,7 @@ public inherited sharing class LLMInteractionService {
             if (!(adapterObject instanceof ILLMProviderAdapter)) {
                 System.debug(
                     LoggingLevel.ERROR,
-                    '[LLMInteractionService] Class ' +
-                        adapterClassName +
-                        ' does not implement ILLMProviderAdapter for LLM Config ' +
-                        llmConfig.DeveloperName__c
+                    '[LLMInteractionService] Class ' + adapterClassName + ' does not implement ILLMProviderAdapter for LLM Config ' + llmConfig.DeveloperName__c
                 );
                 throw new LLMInteractionException(
                     'Class ' + adapterClassName + ' does not implement ILLMProviderAdapter for LLM Config ' + llmConfig.DeveloperName__c
@@ -464,12 +447,7 @@ public inherited sharing class LLMInteractionService {
         } catch (Exception e) {
             System.debug(
                 LoggingLevel.ERROR,
-                '[LLMInteractionService] Error instantiating adapter ' +
-                    adapterClassName +
-                    ' for LLM ' +
-                    llmConfig.DeveloperName__c +
-                    ': ' +
-                    e.getMessage()
+                '[LLMInteractionService] Error instantiating adapter ' + adapterClassName + ' for LLM ' + llmConfig.DeveloperName__c + ': ' + e.getMessage()
             );
             throw new LLMInteractionException(
                 'Error instantiating adapter ' + adapterClassName + ' for LLM ' + llmConfig.DeveloperName__c + ': ' + e.getMessage(),

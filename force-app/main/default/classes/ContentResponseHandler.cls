@@ -252,10 +252,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
                 // Check for hardcoded default mapping by agent type
                 mappingTemplate = getDefaultMapping(agentDef.AgentType__c);
                 if (String.isNotBlank(mappingTemplate)) {
-                    System.debug(
-                        LoggingLevel.INFO,
-                        completionLogPrefix + 'Using default declarative mapping for agent type: ' + agentDef.AgentType__c
-                    );
+                    System.debug(LoggingLevel.INFO, completionLogPrefix + 'Using default declarative mapping for agent type: ' + agentDef.AgentType__c);
                 } else {
                     // No mapping available - this is a configuration error
                     String errorMsg =
@@ -291,10 +288,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
             System.debug(LoggingLevel.INFO, completionLogPrefix + 'Completion capability executed. Success: ' + outcome.isSuccess);
             return outcome;
         } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                completionLogPrefix + 'Completion capability failed: ' + e.getMessage() + '\n' + e.getStackTraceString()
-            );
+            System.debug(LoggingLevel.ERROR, completionLogPrefix + 'Completion capability failed: ' + e.getMessage() + '\n' + e.getStackTraceString());
 
             // Don't let completion failure crash the main flow
             ActionOutcome errorOutcome = ActionOutcome.failure(
@@ -355,9 +349,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
         try {
             ExecutionStepService executionStepService = new ExecutionStepService();
 
-            String resultContent = outcome.isSuccess
-                ? 'Completion capability executed successfully'
-                : 'Completion capability failed: ' + outcome.errorMessage;
+            String resultContent = outcome.isSuccess ? 'Completion capability executed successfully' : 'Completion capability failed: ' + outcome.errorMessage;
 
             // Build metadata for the completion step
             Map<String, Object> stepMetadata = new Map<String, Object>{ 'success' => outcome.isSuccess, 'errorCode' => outcome.errorCode };

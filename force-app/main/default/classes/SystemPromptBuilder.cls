@@ -51,11 +51,7 @@ public inherited sharing class SystemPromptBuilder {
     }
 
     @TestVisible
-    private SystemPromptBuilder(
-        ContextManagerService contextService,
-        ContextResolverService contextResolverSvc,
-        AgentDecisionStepLogger decisionLogger
-    ) {
+    private SystemPromptBuilder(ContextManagerService contextService, ContextResolverService contextResolverSvc, AgentDecisionStepLogger decisionLogger) {
         this.contextManager = contextService;
         this.contextResolver = contextResolverSvc;
         this.decisionLogger = decisionLogger;
@@ -105,14 +101,7 @@ public inherited sharing class SystemPromptBuilder {
         }
 
         // Add dynamic context data using enhanced context management
-        String formattedContextData = buildEnhancedContextData(
-            executionId,
-            agentConfig,
-            llmConfig,
-            currentPageRecordId,
-            currentTurn,
-            conversationalUserId
-        );
+        String formattedContextData = buildEnhancedContextData(executionId, agentConfig, llmConfig, currentPageRecordId, currentTurn, conversationalUserId);
         String contextSection = '';
         if (String.isNotBlank(formattedContextData)) {
             // Wrap formatted context data in XML block for clear delineation
@@ -221,14 +210,18 @@ public inherited sharing class SystemPromptBuilder {
                             );
                         }
                     } catch (Exception formatterEx) {
-                        // If formatter execution fails, log the error and continue without formatted context
+                        // If formatter execution fails, log the error and add warning to context
                         System.debug(
                             LoggingLevel.ERROR,
                             logPrefix + 'Failed to execute formatter for strategy: ' + formatStrategy + '. Error: ' + formatterEx.getMessage()
                         );
-                        System.debug(
-                            LoggingLevel.INFO,
-                            logPrefix + 'Skipping formatting of ' + resolvedContext.recordsToLoad.size() + ' resolved records due to formatter error.'
+                        // Add warning to context so LLM is aware of partial context
+                        contextBlocks.add(
+                            '<CONTEXT_WARNING>Context formatting failed for ' +
+                                resolvedContext.recordsToLoad.size() +
+                                ' records. Responses may lack full record details. Error: ' +
+                                formatterEx.getMessage() +
+                                '</CONTEXT_WARNING>'
                         );
                     }
                 } else {
@@ -241,7 +234,14 @@ public inherited sharing class SystemPromptBuilder {
                 }
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to resolve context via ContextResolverService: ' + e.getMessage());
-                // Continue building prompt without resolved context data
+                // Add warning to context so LLM is aware that context resolution failed
+                // This prevents silent failures where LLM responds without knowing context is missing
+                contextBlocks.add(
+                    '<CONTEXT_WARNING>Context resolution failed. Responses may lack full context about related records. ' +
+                        'Error: ' +
+                        e.getMessage() +
+                        '</CONTEXT_WARNING>'
+                );
             }
         }
 
@@ -358,12 +358,7 @@ public inherited sharing class SystemPromptBuilder {
      * @return                A string representing the formatted section.
      */
     @TestVisible
-    private String buildContextPromptSection(
-        String sectionKey,
-        List<ContextManagerService.ContextItem> items,
-        Integer currentTurn,
-        Boolean includeMetadata
-    ) {
+    private String buildContextPromptSection(String sectionKey, List<ContextManagerService.ContextItem> items, Integer currentTurn, Boolean includeMetadata) {
         List<String> sectionLines = new List<String>();
         sectionLines.add(SECTION_HEADERS.get(sectionKey));
 

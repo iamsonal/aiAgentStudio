@@ -94,9 +94,7 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
         // Validate job type
         Set<String> validJobTypes = new Set<String>{ JOB_TYPE_FUNCTION, JOB_TYPE_WORKFLOW_CHILD, JOB_TYPE_CONVERSATIONAL };
         if (!validJobTypes.contains(jobType)) {
-            throw new UnifiedQueueableException(
-                'Invalid job type: ' + jobType + '. Must be one of: ' + String.join(new List<String>(validJobTypes), ', ')
-            );
+            throw new UnifiedQueueableException('Invalid job type: ' + jobType + '. Must be one of: ' + String.join(new List<String>(validJobTypes), ', '));
         }
 
         this.jobType = jobType;
@@ -180,10 +178,7 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
             // Execute through service (which handles dynamic orchestrator loading)
             AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution(agentDeveloperName, execPayload);
 
-            System.debug(
-                LoggingLevel.INFO,
-                logPrefix + 'Function agent execution completed. Success: ' + result.success + ', Status: ' + result.status
-            );
+            System.debug(LoggingLevel.INFO, logPrefix + 'Function agent execution completed. Success: ' + result.success + ', Status: ' + result.status);
 
             // For async executions (iterative pattern), the execution continues via queueables
             // For sync executions (tool-terminating pattern), we're done
@@ -282,9 +277,7 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
             if (result.status == 'Processing') {
                 System.debug(
                     LoggingLevel.INFO,
-                    logPrefix +
-                        'Child agent execution is async (Processing status). ' +
-                        'Will wait for completion via WorkflowAsyncCompletionCallback.'
+                    logPrefix + 'Child agent execution is async (Processing status). ' + 'Will wait for completion via WorkflowAsyncCompletionCallback.'
                 );
                 // Don't notify parent yet - the child execution is still running
                 // The completion will be handled by a platform event or callback mechanism
@@ -309,10 +302,7 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
             errorMessage = e.getMessage();
             response = 'Child agent execution failed: ' + e.getMessage();
 
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix + 'Exception during child agent execution: ' + e.getMessage() + '\n' + e.getStackTraceString()
-            );
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Exception during child agent execution: ' + e.getMessage() + '\n' + e.getStackTraceString());
 
             // Update child execution as failed
             // The AgentExecutionTrigger will detect this and notify the parent workflow
@@ -423,26 +413,14 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
 
             System.debug(LoggingLevel.INFO, logPrefix + 'LLM processing completed successfully. Outcome: ' + outcome);
         } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix + 'ERROR: LLM processing failed. Exception: ' + e.getMessage() + '\nStack: ' + e.getStackTraceString()
-            );
+            System.debug(LoggingLevel.ERROR, logPrefix + 'ERROR: LLM processing failed. Exception: ' + e.getMessage() + '\nStack: ' + e.getStackTraceString());
 
             // Mark turn as failed
             try {
                 AgentStateService ass = new AgentStateService();
-                ass.failTurn(
-                    executionId,
-                    turnIdentifier,
-                    'LLM processing failed: ' + e.getMessage(),
-                    AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                    logPrefix
-                );
+                ass.failTurn(executionId, turnIdentifier, 'LLM processing failed: ' + e.getMessage(), AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
             } catch (Exception failEx) {
-                System.debug(
-                    LoggingLevel.ERROR,
-                    logPrefix + 'CRITICAL: Failed to update execution state after processing failure: ' + failEx.getMessage()
-                );
+                System.debug(LoggingLevel.ERROR, logPrefix + 'CRITICAL: Failed to update execution state after processing failure: ' + failEx.getMessage());
             }
         }
     }
@@ -464,10 +442,7 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
 
             update childExec;
 
-            System.debug(
-                LoggingLevel.DEBUG,
-                logPrefix + 'Updated child execution: ' + childExecutionId + ', Status: ' + childExec.ExecutionStatus__c
-            );
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Updated child execution: ' + childExecutionId + ', Status: ' + childExec.ExecutionStatus__c);
         } catch (DMLException de) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update child execution: ' + de.getMessage());
         }

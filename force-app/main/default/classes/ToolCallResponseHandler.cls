@@ -35,6 +35,16 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         public Boolean requiresApproval;
         public Integer executionOrder;
 
+        /**
+         * Constructs a ToolCallRequest with validation for mutually exclusive execution modes.
+         *
+         * @param toolCallId The unique identifier for this tool call from the LLM
+         * @param toolName The name of the tool/capability
+         * @param toolArguments JSON string of arguments from the LLM
+         * @param capability The AgentCapability__c record defining the tool
+         * @param executionOrder The order in which this tool was requested (1-based)
+         * @throws ToolProcessingException if capability has invalid execution mode configuration
+         */
         public ToolCallRequest(String toolCallId, String toolName, String toolArguments, AgentCapability__c capability, Integer executionOrder) {
             this.toolCallId = toolCallId;
             this.toolName = toolName;
@@ -43,6 +53,19 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             this.isAsync = capability.RunAsynchronously__c == true;
             this.requiresApproval = capability.RequiresApproval__c == true;
             this.executionOrder = executionOrder;
+
+            // Defensive validation: RequiresApproval and RunAsynchronously are mutually exclusive
+            // This should be caught by the trigger, but we validate here as a safeguard
+            // to prevent silent failures in tool grouping logic
+            if (this.isAsync && this.requiresApproval) {
+                throw new ToolProcessingException(
+                    'Configuration error: Capability "' +
+                        capability.CapabilityName__c +
+                        '" has both ' +
+                        'RequiresApproval__c and RunAsynchronously__c set to true. These execution modes ' +
+                        'are mutually exclusive. Please update the capability configuration.'
+                );
+            }
         }
     }
 
@@ -57,14 +80,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         public Boolean isAsync;
         public Integer executionOrder;
 
-        public ToolExecutionResult(
-            String toolCallId,
-            String toolName,
-            ActionOutcome outcome,
-            Long processingTime,
-            Boolean isAsync,
-            Integer executionOrder
-        ) {
+        public ToolExecutionResult(String toolCallId, String toolName, ActionOutcome outcome, Long processingTime, Boolean isAsync, Integer executionOrder) {
             this.toolCallId = toolCallId;
             this.toolName = toolName;
             this.outcome = outcome;
@@ -106,20 +122,15 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 return OrchestrationService.OUTCOME_FAILED;
             }
 
-            // Step 2: Group tools into execution buckets (Sync, Async, Approval)
-            List<ToolCallRequest> approvalTools = getApprovalRequiredTools(toolRequests);
-            List<ToolCallRequest> syncTools = getSyncTools(toolRequests);
-            List<ToolCallRequest> asyncTools = getAsyncTools(toolRequests);
+            // Step 2: Group tools into execution buckets (Sync, Async, Approval) in single pass
+            Map<String, List<ToolCallRequest>> toolGroups = groupToolsByExecutionMode(toolRequests);
+            List<ToolCallRequest> approvalTools = toolGroups.get('approval');
+            List<ToolCallRequest> syncTools = toolGroups.get('sync');
+            List<ToolCallRequest> asyncTools = toolGroups.get('async');
 
             System.debug(
                 LoggingLevel.INFO,
-                logPrefix +
-                    'Tool execution plan - Approval: ' +
-                    approvalTools.size() +
-                    ', Sync: ' +
-                    syncTools.size() +
-                    ', Async: ' +
-                    asyncTools.size()
+                logPrefix + 'Tool execution plan - Approval: ' + approvalTools.size() + ', Sync: ' + syncTools.size() + ', Async: ' + asyncTools.size()
             );
 
             // Step 3: Persist user message for traceability
@@ -306,6 +317,31 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     // TOOL GROUPING
     // ===================================================================================
 
+    /**
+     * Groups tool requests by execution mode in a single pass for efficiency.
+     * Returns a map with keys: 'approval', 'sync', 'async'
+     */
+    private Map<String, List<ToolCallRequest>> groupToolsByExecutionMode(List<ToolCallRequest> toolRequests) {
+        Map<String, List<ToolCallRequest>> groups = new Map<String, List<ToolCallRequest>>{
+            'approval' => new List<ToolCallRequest>(),
+            'sync' => new List<ToolCallRequest>(),
+            'async' => new List<ToolCallRequest>()
+        };
+
+        for (ToolCallRequest tool : toolRequests) {
+            if (tool.requiresApproval) {
+                groups.get('approval').add(tool);
+            } else if (tool.isAsync) {
+                groups.get('async').add(tool);
+            } else {
+                groups.get('sync').add(tool);
+            }
+        }
+
+        return groups;
+    }
+
+    // Legacy methods maintained for backward compatibility with any external callers
     private List<ToolCallRequest> getApprovalRequiredTools(List<ToolCallRequest> toolRequests) {
         List<ToolCallRequest> approvalTools = new List<ToolCallRequest>();
         for (ToolCallRequest tool : toolRequests) {
@@ -377,10 +413,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
                 System.debug(LoggingLevel.DEBUG, logPrefix + 'Created execution step for tool call: ' + toolRequest.toolName);
             } catch (Exception e) {
-                System.debug(
-                    LoggingLevel.ERROR,
-                    logPrefix + 'Failed to create execution step for tool ' + toolRequest.toolName + ': ' + e.getMessage()
-                );
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create execution step for tool ' + toolRequest.toolName + ': ' + e.getMessage());
             }
         }
     }
@@ -406,10 +439,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         // For now, handle first approval tool (could be enhanced to handle multiple)
         ToolCallRequest approvalTool = approvalTools[0];
 
-        System.debug(
-            LoggingLevel.INFO,
-            logPrefix + 'Tool "' + approvalTool.toolName + '" requires approval. Submitting approval request and pausing turn.'
-        );
+        System.debug(LoggingLevel.INFO, logPrefix + 'Tool "' + approvalTool.toolName + '" requires approval. Submitting approval request and pausing turn.');
 
         // Log the approval requirement
         decisionLogger.logToolExecution(
@@ -647,10 +677,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     false
                 );
             } catch (Exception e) {
-                System.debug(
-                    LoggingLevel.ERROR,
-                    logPrefix + 'Failed to create execution step for sync tool result ' + result.toolName + ': ' + e.getMessage()
-                );
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create execution step for sync tool result ' + result.toolName + ': ' + e.getMessage());
             }
         }
     }
@@ -660,15 +687,20 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     // ===================================================================================
 
     /**
-     * Queues asynchronous tools for separate transaction execution
+     * Queues asynchronous tools for separate transaction execution.
+     * Initializes atomic tracking counter before queuing to enable race-condition-free completion detection.
+     * Handles queue failures by decrementing the counter to prevent execution hangs.
      */
-    private void queueAsyncTools(
-        OrchestrationContext context,
-        List<ToolCallRequest> asyncTools,
-        AgentDecisionStepLogger decisionLogger,
-        String logPrefix
-    ) {
+    private void queueAsyncTools(OrchestrationContext context, List<ToolCallRequest> asyncTools, AgentDecisionStepLogger decisionLogger, String logPrefix) {
         System.debug(LoggingLevel.INFO, logPrefix + 'Queuing ' + asyncTools.size() + ' asynchronous tool(s)');
+
+        // Track successfully queued tools to handle partial failures
+        Integer successfullyQueued = 0;
+        List<String> failedTools = new List<String>();
+
+        // Initialize the atomic async tool tracking counter BEFORE queuing any tools
+        // This ensures the counter is set before any async tool can complete
+        OrchestrationService.initializeAsyncToolTracking(context.executionId, context.turnIdentifier, asyncTools.size(), logPrefix);
 
         // Pause the turn for async action processing
         context.agentStateSvc.pauseForAsyncAction(context.executionId, context.turnIdentifier, null, 'Async Tools', logPrefix);
@@ -690,9 +722,74 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     logPrefix
                 );
 
+                successfullyQueued++;
                 System.debug(LoggingLevel.INFO, logPrefix + 'Queued async tool: ' + toolRequest.toolName);
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to queue async tool ' + toolRequest.toolName + ': ' + e.getMessage());
+                failedTools.add(toolRequest.toolName);
+
+                // Decrement the counter for this failed queue to prevent execution hang
+                // This ensures the counter accurately reflects only successfully queued tools
+                try {
+                    OrchestrationService.decrementAsyncToolCounter(
+                        context.executionId,
+                        context.turnIdentifier,
+                        context.currentTurnCount,
+                        toolRequest.toolCallId,
+                        logPrefix + '[QueueFailureRecovery] '
+                    );
+                } catch (Exception decrementEx) {
+                    System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to decrement counter after queue failure: ' + decrementEx.getMessage());
+                }
+
+                // Create a failure tool result so LLM knows this tool failed to execute
+                try {
+                    ExecutionStepService executionStepService = new ExecutionStepService();
+                    String failureResult = JSON.serialize(
+                        new Map<String, Object>{
+                            'isSuccess' => false,
+                            'errorCode' => AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                            'messageForUser' => 'Failed to queue async tool for execution: ' + e.getMessage()
+                        }
+                    );
+                    executionStepService.createToolResultStep(
+                        context.executionId,
+                        toolRequest.toolCallId,
+                        toolRequest.toolName,
+                        failureResult,
+                        context.turnIdentifier,
+                        context.currentTurnCount,
+                        0L,
+                        true // isError
+                    );
+                } catch (Exception stepEx) {
+                    System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create error step for failed queue: ' + stepEx.getMessage());
+                }
+            }
+        }
+
+        // Log summary of queue operation
+        if (!failedTools.isEmpty()) {
+            System.debug(
+                LoggingLevel.WARN,
+                logPrefix +
+                    'Async tool queuing completed with failures. Queued: ' +
+                    successfullyQueued +
+                    '/' +
+                    asyncTools.size() +
+                    '. Failed tools: ' +
+                    String.join(failedTools, ', ')
+            );
+
+            if (decisionLogger != null) {
+                decisionLogger.logError(
+                    'Async Tool Queue Partial Failure',
+                    'Some async tools failed to queue',
+                    AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                    'Failed to queue: ' + String.join(failedTools, ', '),
+                    null,
+                    null
+                );
             }
         }
     }
@@ -746,14 +843,29 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             return hasFailures ? OrchestrationService.OUTCOME_FAILED : OrchestrationService.OUTCOME_COMPLETED;
         }
 
-        // Check fail-fast policy
+        // Check fail-fast policy using bulk capability lookup to prevent N+1 SOQL queries
         AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinition(context.agentDefinitionId);
+
+        // Collect all failed tool names for bulk lookup
+        Set<String> failedToolNames = new Set<String>();
+        for (ToolExecutionResult result : syncResults) {
+            if (!result.outcome.isSuccess) {
+                failedToolNames.add(result.toolName);
+            }
+        }
+
+        // Bulk fetch capabilities for all failed tools in a single SOQL query
+        Map<String, AgentCapability__c> failedCapabilities = new Map<String, AgentCapability__c>();
+        if (!failedToolNames.isEmpty()) {
+            failedCapabilities = AIAgentConfigService.getCapabilitiesByNames(context.agentDefinitionId, failedToolNames);
+        }
+
+        // Now check fail-fast policy without additional SOQL queries
         Boolean shouldHalt = false;
         for (ToolExecutionResult result : syncResults) {
             if (!result.outcome.isSuccess) {
-                // Get capability for fail-fast check
-                AgentCapability__c capability = AIAgentConfigService.getCapability(context.agentDefinitionId, result.toolName);
-                if (OrchestrationService.shouldFailFast(capability, agentDef, result.outcome, logPrefix)) {
+                AgentCapability__c capability = failedCapabilities.get(result.toolName);
+                if (capability != null && OrchestrationService.shouldFailFast(capability, agentDef, result.outcome, logPrefix)) {
                     shouldHalt = true;
                     context.agentStateSvc.failTurn(
                         context.executionId,
@@ -774,12 +886,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         // Commit page context to ledger
         if (context.currentPageRecordId != null) {
             try {
-                context.contextManagerSvc.commitExecutionTurnContext(
-                    context.executionId,
-                    context.currentTurnCount,
-                    context.currentPageRecordId,
-                    null
-                );
+                context.contextManagerSvc.commitExecutionTurnContext(context.executionId, context.currentTurnCount, context.currentPageRecordId, null);
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Non-fatal: Failed to commit context: ' + e.getMessage());
             }
@@ -789,13 +896,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         Integer maxTurns = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
         if ((context.currentTurnCount + 1) > maxTurns) {
             String limitErrorMsg = 'Maximum processing cycles (' + maxTurns + ') exceeded.';
-            context.agentStateSvc.failTurn(
-                context.executionId,
-                context.turnIdentifier,
-                limitErrorMsg,
-                AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED,
-                logPrefix
-            );
+            context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, limitErrorMsg, AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED, logPrefix);
             return OrchestrationService.OUTCOME_FAILED;
         }
 

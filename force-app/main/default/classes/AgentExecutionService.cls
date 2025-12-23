@@ -92,10 +92,7 @@ public class AgentExecutionService {
             // Delegate to orchestrator for type-specific execution logic
             ExecutionResult result = orchestrator.initiate(agentDeveloperName, payload);
 
-            System.debug(
-                LoggingLevel.INFO,
-                logPrefix + 'Execution initiated successfully. ExecutionId=' + result.executionId + ', Status=' + result.status
-            );
+            System.debug(LoggingLevel.INFO, logPrefix + 'Execution initiated successfully. ExecutionId=' + result.executionId + ', Status=' + result.status);
             return result;
         } catch (AIAgentException.OrchestrationException e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Orchestration error: ' + e.getMessage());
@@ -267,11 +264,7 @@ public class AgentExecutionService {
         @InvocableVariable(label='Agent Name' description='Developer name of the agent to execute' required=true)
         public String agentName;
 
-        @InvocableVariable(
-            label='Record IDs'
-            description='One or more record IDs to process (1 = single execution, 2+ = bulk execution)'
-            required=true
-        )
+        @InvocableVariable(label='Record IDs' description='One or more record IDs to process (1 = single execution, 2+ = bulk execution)' required=true)
         public List<Id> recordIds;
 
         @InvocableVariable(label='User Message' description='Optional message for the agent (for conversational agents)')
@@ -437,10 +430,7 @@ public class AgentExecutionService {
                 LOG_PREFIX + 'Orchestrator mapping cache initialized: ' + orchestratorMappingCache.size() + ' active mappings loaded.'
             );
         } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                LOG_PREFIX + 'CRITICAL: Unable to load Orchestrator Mappings from Custom Metadata. Exception: ' + e.getMessage()
-            );
+            System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'CRITICAL: Unable to load Orchestrator Mappings from Custom Metadata. Exception: ' + e.getMessage());
             throw new AIAgentException.OrchestrationException(
                 'Failed to load Orchestrator Mappings from Custom Metadata. Check AgentOrchestratorMapping__mdt configuration.',
                 e
@@ -480,10 +470,7 @@ public class AgentExecutionService {
 
         // Instantiate orchestrator using reflection
         try {
-            System.debug(
-                LoggingLevel.INFO,
-                LOG_PREFIX + 'Instantiating orchestrator: ' + mapping.OrchestratorClassName__c + ' for agent type: ' + agentType
-            );
+            System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Instantiating orchestrator: ' + mapping.OrchestratorClassName__c + ' for agent type: ' + agentType);
 
             Type orchestratorType = Type.forName(mapping.OrchestratorClassName__c);
             if (orchestratorType == null) {
@@ -497,10 +484,7 @@ public class AgentExecutionService {
 
             // Validate interface implementation
             if (!(instanceObj instanceof IAgentOrchestrator)) {
-                System.debug(
-                    LoggingLevel.ERROR,
-                    LOG_PREFIX + 'Class "' + mapping.OrchestratorClassName__c + '" does not implement IAgentOrchestrator.'
-                );
+                System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Class "' + mapping.OrchestratorClassName__c + '" does not implement IAgentOrchestrator.');
                 throw new AIAgentException.OrchestrationException(
                     'Class "' + mapping.OrchestratorClassName__c + '" must implement the IAgentOrchestrator interface.'
                 );
@@ -510,19 +494,13 @@ public class AgentExecutionService {
             IAgentOrchestrator orchestrator = (IAgentOrchestrator) instanceObj;
             orchestrator.initialize(agentDef);
 
-            System.debug(
-                LoggingLevel.INFO,
-                LOG_PREFIX + 'Successfully instantiated and initialized orchestrator: ' + mapping.OrchestratorClassName__c
-            );
+            System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Successfully instantiated and initialized orchestrator: ' + mapping.OrchestratorClassName__c);
 
             return orchestrator;
         } catch (AIAgentException.OrchestrationException e) {
             throw e; // Re-throw our custom exceptions
         } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                LOG_PREFIX + 'Failed to instantiate orchestrator "' + mapping.OrchestratorClassName__c + '": ' + e.getMessage()
-            );
+            System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Failed to instantiate orchestrator "' + mapping.OrchestratorClassName__c + '": ' + e.getMessage());
             throw new AIAgentException.OrchestrationException(
                 'Failed to instantiate orchestrator "' + mapping.OrchestratorClassName__c + '": ' + e.getMessage(),
                 e

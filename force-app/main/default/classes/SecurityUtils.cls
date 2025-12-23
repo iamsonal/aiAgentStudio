@@ -70,10 +70,7 @@ public with sharing class SecurityUtils {
             System.debug(LoggingLevel.WARN, '[SecurityUtils.checkObjectPermission] ' + errorMessage);
             throw new ActionSecurityException(errorMessage);
         }
-        System.debug(
-            LoggingLevel.DEBUG,
-            '[SecurityUtils.checkObjectPermission] PASSED: User has ' + permissionType + ' on ' + describeResult.getName()
-        );
+        System.debug(LoggingLevel.DEBUG, '[SecurityUtils.checkObjectPermission] PASSED: User has ' + permissionType + ' on ' + describeResult.getName());
     }
 
     /**
@@ -95,9 +92,7 @@ public with sharing class SecurityUtils {
             accessType != System.AccessType.CREATABLE &&
             accessType != System.AccessType.UPDATABLE)
         ) {
-            throw new ActionSecurityException(
-                'Invalid AccessType for field permission check: ' + accessType + '. Expected READABLE, CREATABLE, or UPDATABLE.'
-            );
+            throw new ActionSecurityException('Invalid AccessType for field permission check: ' + accessType + '. Expected READABLE, CREATABLE, or UPDATABLE.');
         }
 
         Boolean hasPermission = hasFieldPermission(dfr, accessType);

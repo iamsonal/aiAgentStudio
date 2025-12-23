@@ -70,10 +70,7 @@ public inherited sharing class LLMFormattingService {
         String logContext
     ) {
         if (String.isBlank(role)) {
-            System.debug(
-                LoggingLevel.ERROR,
-                (debugPrefix ?? '[LLMFormattingService]') + 'Message role is blank. Skipping message. Context: ' + logContext
-            );
+            System.debug(LoggingLevel.ERROR, (debugPrefix ?? '[LLMFormattingService]') + 'Message role is blank. Skipping message. Context: ' + logContext);
             return;
         }
         String lowerCaseRole = role.toLowerCase().trim();
@@ -186,10 +183,7 @@ public inherited sharing class LLMFormattingService {
                     continue;
                 }
                 if (String.isBlank(capabilityInputSchemaJson)) {
-                    System.debug(
-                        LoggingLevel.WARN,
-                        debugPrefix + 'Capability "' + capabilityName + '" missing Parameters__c. Using default empty schema.'
-                    );
+                    System.debug(LoggingLevel.WARN, debugPrefix + 'Capability "' + capabilityName + '" missing Parameters__c. Using default empty schema.');
                     capabilityInputSchemaJson = '{"type":"object", "properties":{}}';
                 }
 
@@ -235,11 +229,7 @@ public inherited sharing class LLMFormattingService {
                     if (sObjType != null) {
                         System.debug(
                             LoggingLevel.DEBUG,
-                            debugPrefix +
-                                'Enriching tool schema for capability "' +
-                                cap.CapabilityName__c +
-                                '" with SObject field metadata: ' +
-                                sObjectApiName
+                            debugPrefix + 'Enriching tool schema for capability "' + cap.CapabilityName__c + '" with SObject field metadata: ' + sObjectApiName
                         );
                         enrichSchemaWithFieldDetails(paramSchema, sObjType, debugPrefix);
                     } else {
@@ -284,10 +274,7 @@ public inherited sharing class LLMFormattingService {
                 Object objectApiNameValue = backendConfig.get('objectApiName');
                 return (objectApiNameValue != null && objectApiNameValue instanceof String) ? (String) objectApiNameValue : null;
             } catch (Exception e) {
-                System.debug(
-                    LoggingLevel.WARN,
-                    '[LLMFormattingService] Failed to parse objectApiName from BackendConfiguration for capability ID ' + cap.Id
-                );
+                System.debug(LoggingLevel.WARN, '[LLMFormattingService] Failed to parse objectApiName from BackendConfiguration for capability ID ' + cap.Id);
             }
         }
         return null;
@@ -327,10 +314,7 @@ public inherited sharing class LLMFormattingService {
                     }
                     if (!picklistApiNames.isEmpty()) {
                         paramDefinition.put('enum', picklistApiNames);
-                        System.debug(
-                            LoggingLevel.DEBUG,
-                            debugPrefix + 'Added enum values (' + picklistApiNames.size() + ') for parameter: ' + paramName
-                        );
+                        System.debug(LoggingLevel.DEBUG, debugPrefix + 'Added enum values (' + picklistApiNames.size() + ') for parameter: ' + paramName);
                     }
                 }
             }
@@ -354,10 +338,7 @@ public inherited sharing class LLMFormattingService {
             }
             Map<String, Object> paramSchema = (Map<String, Object>) parsedSchemaObj;
             if (!paramSchema.containsKey('type') || !'object'.equalsIgnoreCase(String.valueOf(paramSchema.get('type')))) {
-                System.debug(
-                    LoggingLevel.WARN,
-                    debugPrefix + 'InputSchema for ' + capabilityDevName + ' missing or invalid root type. Setting type="object".'
-                );
+                System.debug(LoggingLevel.WARN, debugPrefix + 'InputSchema for ' + capabilityDevName + ' missing or invalid root type. Setting type="object".');
                 paramSchema.put('type', 'object');
             }
             if (!paramSchema.containsKey('properties') || !(paramSchema.get('properties') instanceof Map<String, Object>)) {
@@ -369,10 +350,7 @@ public inherited sharing class LLMFormattingService {
             }
             return paramSchema;
         } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                debugPrefix + 'Failed to parse or validate InputSchema JSON for ' + capabilityDevName + ': ' + e.getMessage()
-            );
+            System.debug(LoggingLevel.ERROR, debugPrefix + 'Failed to parse or validate InputSchema JSON for ' + capabilityDevName + ': ' + e.getMessage());
             return null;
         }
     }
@@ -413,11 +391,7 @@ public inherited sharing class LLMFormattingService {
                 // Collect all consecutive ToolCall steps with the same TurnIdentifier
                 while (i < steps.size()) {
                     ExecutionStep__c nextStep = steps[i];
-                    if (
-                        'ToolCall'.equals(nextStep.StepType__c) &&
-                        'Assistant'.equals(nextStep.StepRole__c) &&
-                        nextStep.TurnIdentifier__c == currentTurnId
-                    ) {
+                    if ('ToolCall'.equals(nextStep.StepType__c) && 'Assistant'.equals(nextStep.StepRole__c) && nextStep.TurnIdentifier__c == currentTurnId) {
                         toolCallGroup.add(nextStep);
                         i++;
                     } else {

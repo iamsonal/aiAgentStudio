@@ -156,10 +156,7 @@ public with sharing class AgentApprovalService {
 
                 executeApprovedAction(har, capability, logPrefix);
             } catch (Exception e) {
-                System.debug(
-                    LoggingLevel.ERROR,
-                    logPrefix + 'Exception during approval processing: ' + e.getMessage() + '\n' + e.getStackTraceString()
-                );
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Exception during approval processing: ' + e.getMessage() + '\n' + e.getStackTraceString());
                 if (userId != null) {
                     NotificationService.sendUserNotification(
                         userId,
@@ -325,10 +322,7 @@ public with sharing class AgentApprovalService {
                 updateStatus(har, 'Rejected', 'Rejection processed and user notified.', logPrefix);
                 System.debug(LoggingLevel.INFO, logPrefix + 'Rejection processed successfully. User notified and history updated.');
             } catch (Exception e) {
-                System.debug(
-                    LoggingLevel.ERROR,
-                    logPrefix + 'Exception during rejection processing: ' + e.getMessage() + '\n' + e.getStackTraceString()
-                );
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Exception during rejection processing: ' + e.getMessage() + '\n' + e.getStackTraceString());
                 if (har != null) {
                     updateStatus(har, 'Error', 'Exception during rejection processing: ' + e.getMessage(), logPrefix);
                 }

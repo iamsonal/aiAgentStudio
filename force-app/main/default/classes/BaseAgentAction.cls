@@ -142,10 +142,7 @@ public abstract class BaseAgentAction implements IAgentAction {
      * @return         ActionOutcome representing error
      */
     private ActionOutcome mapExceptionToOutcome(Exception ex, String logPrefix) {
-        System.debug(
-            LoggingLevel.ERROR,
-            logPrefix + 'Exception during action execution - Type: ' + ex.getTypeName() + ', Message: ' + ex.getMessage()
-        );
+        System.debug(LoggingLevel.ERROR, logPrefix + 'Exception during action execution - Type: ' + ex.getTypeName() + ', Message: ' + ex.getMessage());
         if (ex instanceof DmlException) {
             DmlException dmlEx = (DmlException) ex;
             String initialCode = dmlEx.getNumDml() > 0 ? dmlEx.getDmlStatusCode(0) : null;
@@ -217,11 +214,7 @@ public abstract class BaseAgentAction implements IAgentAction {
             return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
         if (statusCodeStr == 'INSUFFICIENT_ACCESS_OR_READONLY' || statusCodeStr == 'CANNOT_INSERT_UPDATE_ACTIVATE_ENTITY')
             return AIAgentConstants.ERR_CODE_PERMISSION_DENIED;
-        if (
-            statusCodeStr == 'INVALID_CROSS_REFERENCE_KEY' ||
-            statusCodeStr == 'INVALID_FIELD_FOR_INSERT_UPDATE' ||
-            statusCodeStr == 'INVALID_ID_FIELD'
-        )
+        if (statusCodeStr == 'INVALID_CROSS_REFERENCE_KEY' || statusCodeStr == 'INVALID_FIELD_FOR_INSERT_UPDATE' || statusCodeStr == 'INVALID_ID_FIELD')
             return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
         if (statusCodeStr == 'STRING_TOO_LONG')
             return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
@@ -233,29 +226,5 @@ public abstract class BaseAgentAction implements IAgentAction {
             return AIAgentConstants.ERR_CODE_DML_ERROR;
 
         return defaultCode;
-    }
-
-    private String mapStatusCodeToErrorCode(System.StatusCode statusCode, String defaultCode) {
-        return statusCode != null ? mapStatusCodeToErrorCode(statusCode.name(), defaultCode) : defaultCode;
-    }
-
-    /**
-     * Extracts object properties using JSON serialization.
-     *
-     * @param obj Object to extract properties from
-     * @return    Map of properties or fallback
-     */
-    private Map<String, Object> extractObjectProperties(Object obj) {
-        Map<String, Object> properties = new Map<String, Object>();
-
-        try {
-            String jsonStr = JSON.serialize(obj);
-            Map<String, Object> deserialized = (Map<String, Object>) JSON.deserializeUntyped(jsonStr);
-            properties.putAll(deserialized);
-        } catch (Exception e) {
-            properties.put('result', obj);
-        }
-
-        return properties;
     }
 }

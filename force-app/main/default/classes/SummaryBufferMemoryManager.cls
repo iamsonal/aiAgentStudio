@@ -33,12 +33,7 @@ public class SummaryBufferMemoryManager implements IMemoryManager {
      * @return                List of formatted message maps ready for LLM API consumption.
      * @sideeffect            Logs errors if retrieval fails.
      */
-    public List<Map<String, Object>> getHistoryPayload(
-        Id executionId,
-        AIAgentDefinition__c agentConfig,
-        LLMConfiguration__c llmConfig,
-        String loggingContext
-    ) {
+    public List<Map<String, Object>> getHistoryPayload(Id executionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String loggingContext) {
         String debugPrefix = String.isNotBlank(loggingContext) ? loggingContext : '[SummaryBufferMemory] ';
         System.debug(LoggingLevel.DEBUG, debugPrefix + 'Loading unsummarized execution history (SummaryBuffer strategy).');
 

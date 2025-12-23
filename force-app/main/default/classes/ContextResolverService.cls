@@ -173,11 +173,7 @@ public inherited sharing class ContextResolverService {
      * @param requiresRecordContext Whether the provider requires a record context.
      * @return                      List of configs applicable to the given type and context requirement.
      */
-    private List<AgentContextConfig__c> filterConfigsForType(
-        List<AgentContextConfig__c> allConfigs,
-        SObjectType sObjType,
-        Boolean requiresRecordContext
-    ) {
+    private List<AgentContextConfig__c> filterConfigsForType(List<AgentContextConfig__c> allConfigs, SObjectType sObjType, Boolean requiresRecordContext) {
         List<AgentContextConfig__c> filtered = new List<AgentContextConfig__c>();
         String sObjTypeName = (sObjType != null) ? sObjType.getDescribe().getName().toLowerCase() : null;
         for (AgentContextConfig__c config : allConfigs) {
@@ -209,10 +205,7 @@ public inherited sharing class ContextResolverService {
      */
     private Map<String, List<SObject>> invokeProvider(AgentContextConfig__c config, Set<Id> anchorIds, Id userId, String logPrefix) {
         try {
-            System.debug(
-                LoggingLevel.INFO,
-                logPrefix + 'Invoking provider: ' + config.ImplementationName__c + ' | Anchor count: ' + anchorIds.size()
-            );
+            System.debug(LoggingLevel.INFO, logPrefix + 'Invoking provider: ' + config.ImplementationName__c + ' | Anchor count: ' + anchorIds.size());
             IAgentContextProvider provider = getProviderInstance(config.ImplementationName__c);
             Map<String, List<SObject>> result = provider.getContext(anchorIds, userId, config.ImplementationConfigJson__c);
             System.debug(

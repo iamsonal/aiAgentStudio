@@ -198,6 +198,98 @@ public inherited sharing class AIAgentConfigService {
     }
 
     /**
+     * Bulk retrieves multiple AgentCapability__c records by their names for a given agent definition.
+     * Optimized for scenarios where multiple capabilities need to be looked up in a single transaction,
+     * such as fail-fast policy checks after parallel tool execution.
+     *
+     * This method performs a single SOQL query for all requested capabilities, preventing N+1 query patterns
+     * and governor limit issues when processing multiple tool results.
+     *
+     * @param agentDefId      The ID of the AIAgentDefinition__c.
+     * @param capabilityNames Set of CapabilityName__c values to retrieve.
+     * @return                Map of capability name (case-preserved) to AgentCapability__c record.
+     *                        Missing capabilities are not included in the map (no null values).
+     * @throws ConfigurationException if agentDefId is null or on query errors.
+     */
+    public static Map<String, AgentCapability__c> getCapabilitiesByNames(Id agentDefId, Set<String> capabilityNames) {
+        String logPrefix = '[AIAgentCfgSvc] ';
+
+        if (agentDefId == null) {
+            throw new ConfigurationException('Agent Definition ID cannot be null.');
+        }
+
+        Map<String, AgentCapability__c> result = new Map<String, AgentCapability__c>();
+
+        if (capabilityNames == null || capabilityNames.isEmpty()) {
+            return result;
+        }
+
+        // Separate cached vs uncached capabilities
+        Set<String> uncachedNames = new Set<String>();
+        for (String capName : capabilityNames) {
+            if (String.isBlank(capName)) {
+                continue;
+            }
+
+            String cacheKey = String.valueOf(agentDefId) + '::' + capName.toLowerCase();
+            if (agentCapabilityNameCache.containsKey(cacheKey)) {
+                AgentCapability__c cached = agentCapabilityNameCache.get(cacheKey);
+                if (cached != null) {
+                    result.put(capName, cached);
+                    System.debug(LoggingLevel.DEBUG, logPrefix + 'Bulk cache HIT for capability: ' + capName);
+                }
+                // If cached as null, capability doesn't exist - skip it
+            } else {
+                uncachedNames.add(capName);
+            }
+        }
+
+        // Query for uncached capabilities in a single SOQL
+        if (!uncachedNames.isEmpty()) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Bulk querying ' + uncachedNames.size() + ' uncached capabilities for Agent: ' + agentDefId);
+
+            try {
+                String fieldList = String.join(AGENT_CAPABILITY_FIELDS, ', ');
+                List<AgentCapability__c> capabilities = Database.query(
+                    'SELECT ' +
+                        fieldList +
+                        ' FROM AgentCapability__c ' +
+                        'WHERE AIAgentDefinition__c = :agentDefId ' +
+                        'AND CapabilityName__c IN :uncachedNames ' +
+                        'AND ExposureLevel__c != \'Disabled\''
+                );
+
+                // Cache and add to result
+                Set<String> foundNames = new Set<String>();
+                for (AgentCapability__c cap : capabilities) {
+                    String cacheKey = String.valueOf(agentDefId) + '::' + cap.CapabilityName__c.toLowerCase();
+                    agentCapabilityIdCache.put(cap.Id, cap);
+                    agentCapabilityNameCache.put(cacheKey, cap);
+                    result.put(cap.CapabilityName__c, cap);
+                    foundNames.add(cap.CapabilityName__c.toLowerCase());
+                }
+
+                // Cache null for capabilities that weren't found to prevent future queries
+                for (String capName : uncachedNames) {
+                    if (!foundNames.contains(capName.toLowerCase())) {
+                        String cacheKey = String.valueOf(agentDefId) + '::' + capName.toLowerCase();
+                        agentCapabilityNameCache.put(cacheKey, null);
+                        System.debug(LoggingLevel.DEBUG, logPrefix + 'Capability not found, cached as null: ' + capName);
+                    }
+                }
+
+                System.debug(LoggingLevel.INFO, logPrefix + 'Bulk query returned ' + capabilities.size() + ' capabilities');
+            } catch (Exception e) {
+                String errorMsg = 'System error bulk querying AgentCapabilities on Agent ' + agentDefId;
+                System.debug(LoggingLevel.ERROR, logPrefix + errorMsg + ': ' + e.getMessage());
+                throw new ConfigurationException(errorMsg, e);
+            }
+        }
+
+        return result;
+    }
+
+    /**
      * Retrieves an active AIAgentDefinition__c by its Salesforce Record ID.
      * Ensures required related fields are queried and caches the result for future lookups.
      *
@@ -229,10 +321,7 @@ public inherited sharing class AIAgentConfigService {
                 try {
                     getLLMConfiguration(agentDef.LLMConfiguration__c);
                 } catch (ConfigurationException e) {
-                    System.debug(
-                        LoggingLevel.WARN,
-                        'Could not pre-warm LLM cache for linked LLM ID ' + agentDef.LLMConfiguration__c + ': ' + e.getMessage()
-                    );
+                    System.debug(LoggingLevel.WARN, 'Could not pre-warm LLM cache for linked LLM ID ' + agentDef.LLMConfiguration__c + ': ' + e.getMessage());
                 }
             }
         } else {
@@ -259,11 +348,7 @@ public inherited sharing class AIAgentConfigService {
             System.debug(LoggingLevel.INFO, '[AIAgentConfigService] Cache MISS for Agent Name: ' + developerName + ' - querying database');
 
             // Ensure DeveloperName field exists and is filterable/indexed for performance
-            String queryString = buildQuery(
-                'AIAgentDefinition__c',
-                AGENT_DEFINITION_FIELDS,
-                'DeveloperName__c = :developerName AND IsActive__c = TRUE'
-            );
+            String queryString = buildQuery('AIAgentDefinition__c', AGENT_DEFINITION_FIELDS, 'DeveloperName__c = :developerName AND IsActive__c = TRUE');
 
             List<AIAgentDefinition__c> results = Database.query(queryString);
 
@@ -286,10 +371,7 @@ public inherited sharing class AIAgentConfigService {
                 try {
                     getLLMConfiguration(agentDef.LLMConfiguration__c);
                 } catch (ConfigurationException e) {
-                    System.debug(
-                        LoggingLevel.WARN,
-                        'Could not pre-warm LLM cache for linked LLM ID ' + agentDef.LLMConfiguration__c + ': ' + e.getMessage()
-                    );
+                    System.debug(LoggingLevel.WARN, 'Could not pre-warm LLM cache for linked LLM ID ' + agentDef.LLMConfiguration__c + ': ' + e.getMessage());
                 }
             }
         } else {
@@ -325,48 +407,6 @@ public inherited sharing class AIAgentConfigService {
             System.debug(LoggingLevel.DEBUG, '[AIAgentConfigService] Cache HIT for LLM ID: ' + llmConfigId);
         }
         return llmConfigIdCache.get(llmConfigId);
-    }
-
-    /**
-     * Retrieves an active LLMConfiguration__c by its unique Developer Name (case-insensitive).
-     * Queries consistent fields and caches the result for future lookups.
-     *
-     * @param developerName The DeveloperName__c of the LLMConfiguration__c record.
-     * @return              The corresponding LLMConfiguration__c record.
-     * @throws ConfigurationException if the name is blank, record not found, or record is not active.
-     */
-    public static LLMConfiguration__c getLLMConfigurationByDeveloperName(String developerName) {
-        if (String.isBlank(developerName)) {
-            throw new ConfigurationException('LLM Configuration Developer Name cannot be blank.');
-        }
-        String cacheKey = developerName.toLowerCase();
-
-        if (!llmConfigNameCache.containsKey(cacheKey)) {
-            System.debug(LoggingLevel.INFO, '[AIAgentConfigService] Cache MISS for LLM Name: ' + developerName + ' - querying database');
-
-            String queryString = buildQuery(
-                'LLMConfiguration__c',
-                LLM_CONFIGURATION_FIELDS,
-                'DeveloperName__c = :developerName AND IsActive__c = TRUE'
-            );
-            List<LLMConfiguration__c> results = Database.query(queryString);
-
-            if (results.isEmpty()) {
-                throw new ConfigurationException('Active LLM Configuration not found for Developer Name: "' + developerName + '"');
-            }
-            if (results.size() > 1) {
-                System.debug(
-                    LoggingLevel.ERROR,
-                    'CRITICAL CONFIG WARNING: Multiple active LLM Configurations found for Developer Name: "' +
-                        developerName +
-                        '". Using the first one found.'
-                );
-            }
-            cacheLLMConfiguration(results[0]); // Use helper
-        } else {
-            System.debug(LoggingLevel.DEBUG, '[AIAgentConfigService] Cache HIT for LLM Name: ' + developerName);
-        }
-        return llmConfigNameCache.get(cacheKey);
     }
 
     /**

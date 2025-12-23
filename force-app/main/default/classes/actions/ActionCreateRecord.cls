@@ -92,9 +92,12 @@ public class ActionCreateRecord extends BaseAgentAction {
         // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
         ArgumentsDTO args = new ArgumentsDTO();
         if (params.containsKey('recordData') && params.get('recordData') instanceof Map<String, Object>) {
+            // Standard case: fields are wrapped in recordData object
             args.recordData = (Map<String, Object>) params.get('recordData');
         } else {
-            args.recordData = new Map<String, Object>();
+            // Fallback: LLM passed fields directly without recordData wrapper
+            // Use entire params map as recordData for backward compatibility
+            args.recordData = params;
         }
 
         // Merge default and user-supplied field values
@@ -122,10 +125,7 @@ public class ActionCreateRecord extends BaseAgentAction {
         try {
             SecurityUtils.checkObjectPermission(this.targetSObjectType, AccessType.CREATABLE);
         } catch (SecurityUtils.ActionSecurityException ase) {
-            System.debug(
-                LoggingLevel.ERROR,
-                '[ActionCreateRecord] Security check failed for object ' + config.objectApiName + ': ' + ase.getMessage()
-            );
+            System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Security check failed for object ' + config.objectApiName + ': ' + ase.getMessage());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ase.getMessage());
         }
 
@@ -149,8 +149,7 @@ public class ActionCreateRecord extends BaseAgentAction {
             Set<String> originalFields = finalData.keySet();
             System.debug(
                 LoggingLevel.WARN,
-                '[ActionCreateRecord] All provided fields were filtered out by FLS. Original fields: ' +
-                String.join(new List<String>(originalFields), ', ')
+                '[ActionCreateRecord] All provided fields were filtered out by FLS. Original fields: ' + String.join(new List<String>(originalFields), ', ')
             );
             return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
@@ -198,10 +197,7 @@ public class ActionCreateRecord extends BaseAgentAction {
         Database.SaveResult saveResult = Database.insert(decision.getRecords()[0], false);
 
         Long executionTime = System.currentTimeMillis() - startTime;
-        System.debug(
-            LoggingLevel.INFO,
-            '[ActionCreateRecord] Record creation for ' + config.objectApiName + ' completed in ' + executionTime + ' ms.'
-        );
+        System.debug(LoggingLevel.INFO, '[ActionCreateRecord] Record creation for ' + config.objectApiName + ' completed in ' + executionTime + ' ms.');
 
         if (saveResult.isSuccess()) {
             System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] Successfully created record with ID: ' + saveResult.getId());
@@ -271,10 +267,7 @@ public class ActionCreateRecord extends BaseAgentAction {
         }
 
         if (!config.defaultFieldValues.isEmpty()) {
-            System.debug(
-                LoggingLevel.DEBUG,
-                '[ActionCreateRecord] Loaded ' + config.defaultFieldValues.size() + ' default field values from configuration.'
-            );
+            System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] Loaded ' + config.defaultFieldValues.size() + ' default field values from configuration.');
         }
     }
 
@@ -365,10 +358,7 @@ public class ActionCreateRecord extends BaseAgentAction {
             RecordType rt = recordTypes[0];
 
             if (!rt.IsActive) {
-                System.debug(
-                    LoggingLevel.WARN,
-                    '[ActionCreateRecord] Attempting to use inactive RecordType: ' + rt.DeveloperName + ' (' + recordTypeId + ')'
-                );
+                System.debug(LoggingLevel.WARN, '[ActionCreateRecord] Attempting to use inactive RecordType: ' + rt.DeveloperName + ' (' + recordTypeId + ')');
                 return ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                     'RecordType "' + rt.Name + '" (' + rt.DeveloperName + ') is not active and cannot be used for record creation'

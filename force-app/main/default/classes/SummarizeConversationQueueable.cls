@@ -114,16 +114,12 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
         String newLines = String.join(newLinesList, '\n');
 
         AgentExecution__c execution = [SELECT ConversationSummary__c FROM AgentExecution__c WHERE Id = :this.executionId];
-        String currentSummary = String.isNotBlank(execution.ConversationSummary__c)
-            ? execution.ConversationSummary__c
-            : 'The execution has just begun.';
+        String currentSummary = String.isNotBlank(execution.ConversationSummary__c) ? execution.ConversationSummary__c : 'The execution has just begun.';
         String prompt = promptTemplateToUse.replace('{current_summary}', currentSummary).replace('{new_lines}', newLines);
 
         try {
             ILLMProviderAdapter adapter = LLMInteractionService.getLLMProviderAdapter(llmConfigToUse);
-            List<Map<String, Object>> messagesPayload = new List<Map<String, Object>>{
-                new Map<String, Object>{ 'role' => 'user', 'content' => prompt }
-            };
+            List<Map<String, Object>> messagesPayload = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => prompt } };
             ProviderResult result = adapter.sendMessage(messagesPayload, null, llmConfigToUse, null);
 
             if (result != null && String.isNotBlank(result.content)) {
@@ -221,12 +217,7 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
 
             System.debug(
                 LoggingLevel.INFO,
-                logPrefix +
-                    'Retrieved ' +
-                    stepsForTurns.size() +
-                    ' steps from ' +
-                    turnIdentifiersToProcess.size() +
-                    ' turns for atomic summarization.'
+                logPrefix + 'Retrieved ' + stepsForTurns.size() + ' steps from ' + turnIdentifiersToProcess.size() + ' turns for atomic summarization.'
             );
 
             return (List<Object>) stepsForTurns;

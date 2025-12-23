@@ -213,11 +213,7 @@ public class AsyncActionEngine implements Queueable {
         } catch (Exception ex) {
             System.debug(
                 LoggingLevel.ERROR,
-                logPrefix +
-                    'CRITICAL: Unhandled exception during action processing: ' +
-                    ex.getMessage() +
-                    '\nStack Trace: ' +
-                    ex.getStackTraceString()
+                logPrefix + 'CRITICAL: Unhandled exception during action processing: ' + ex.getMessage() + '\nStack Trace: ' + ex.getStackTraceString()
             );
             try {
                 agentStateSvc.failTurn(

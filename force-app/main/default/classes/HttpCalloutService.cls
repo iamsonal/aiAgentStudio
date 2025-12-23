@@ -73,10 +73,7 @@ public class HttpCalloutService {
             HttpResponse response = http.send(request);
             Long duration = System.currentTimeMillis() - startTime;
 
-            System.debug(
-                LoggingLevel.DEBUG,
-                config.logPrefix + 'HTTP response: status=' + response.getStatusCode() + ', duration=' + duration + 'ms'
-            );
+            System.debug(LoggingLevel.DEBUG, config.logPrefix + 'HTTP response: status=' + response.getStatusCode() + ', duration=' + duration + 'ms');
 
             // Success response (2xx)
             if (response.getStatusCode() >= 200 && response.getStatusCode() < 300) {

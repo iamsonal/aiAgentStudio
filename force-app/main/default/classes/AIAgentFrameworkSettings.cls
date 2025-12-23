@@ -33,10 +33,7 @@ public inherited sharing class AIAgentFrameworkSettings {
                 // Explicitly set all values from FINAL defaults if no record exists
                 settings.DefaultMaxConversationTurns__c = FINAL_DEFAULT_MaxConversationTurns;
                 settings.MaxQueueableStackDepth__c = FINAL_DEFAULT_MaxQueueableStackDepth;
-                System.debug(
-                    LoggingLevel.WARN,
-                    '[AIAgentFrameworkSettings] No Custom Setting record found - using hardcoded default values for all settings'
-                );
+                System.debug(LoggingLevel.WARN, '[AIAgentFrameworkSettings] No Custom Setting record found - using hardcoded default values for all settings');
             } else {
                 // Record exists, fill in missing individual fields with FINAL defaults
                 if (settings.DefaultMaxConversationTurns__c == null || settings.DefaultMaxConversationTurns__c < 0) {

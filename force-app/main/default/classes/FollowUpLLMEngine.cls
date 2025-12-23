@@ -138,13 +138,7 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
         } catch (Exception ex) {
             System.debug(
                 LoggingLevel.ERROR,
-                logPrefix +
-                    'Exception during follow-up LLM processing: ' +
-                    ex.getTypeName() +
-                    ': ' +
-                    ex.getMessage() +
-                    '\n' +
-                    ex.getStackTraceString()
+                logPrefix + 'Exception during follow-up LLM processing: ' + ex.getTypeName() + ': ' + ex.getMessage() + '\n' + ex.getStackTraceString()
             );
             try {
                 agentStateSvcForFailure.failTurn(

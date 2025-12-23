@@ -337,12 +337,7 @@ public class ActionGetRecordDetails extends BaseAgentAction {
             Long duration = System.currentTimeMillis() - startTime;
             System.debug(
                 LoggingLevel.INFO,
-                '[ActionGetRecordDetails] Success. Record retrieved in ' +
-                    duration +
-                    'ms via ' +
-                    identifierField +
-                    '. Fields: ' +
-                    accessibleFields.size()
+                '[ActionGetRecordDetails] Success. Record retrieved in ' + duration + 'ms via ' + identifierField + '. Fields: ' + accessibleFields.size()
             );
 
             return ActionOutcome.success(response);
@@ -436,10 +431,7 @@ public class ActionGetRecordDetails extends BaseAgentAction {
                         config.objectApiName
                 );
             } catch (Exception e) {
-                System.debug(
-                    LoggingLevel.WARN,
-                    '[ActionGetRecordDetails] Failed to parse configuration JSON: ' + e.getMessage() + '. Using defaults.'
-                );
+                System.debug(LoggingLevel.WARN, '[ActionGetRecordDetails] Failed to parse configuration JSON: ' + e.getMessage() + '. Using defaults.');
             }
         }
     }

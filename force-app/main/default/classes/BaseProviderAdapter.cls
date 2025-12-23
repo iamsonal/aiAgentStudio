@@ -102,11 +102,7 @@ public abstract class BaseProviderAdapter implements ILLMProviderAdapter {
      * @return CalloutResult containing response and duration
      * @throws AIAgentException.ProviderException If HTTP call fails
      */
-    protected HttpCalloutService.CalloutResult executeHttpRequest(
-        HttpRequest request,
-        HttpCalloutService.CalloutConfig calloutConfig,
-        String logPrefix
-    ) {
+    protected HttpCalloutService.CalloutResult executeHttpRequest(HttpRequest request, HttpCalloutService.CalloutConfig calloutConfig, String logPrefix) {
         try {
             HttpCalloutService.CalloutResult result = HttpCalloutService.execute(request, calloutConfig);
             return result;
@@ -190,13 +186,7 @@ public abstract class BaseProviderAdapter implements ILLMProviderAdapter {
 
             System.debug(
                 LoggingLevel.DEBUG,
-                logPrefix +
-                    'Token usage - Prompt: ' +
-                    result.promptTokens +
-                    ', Completion: ' +
-                    result.completionTokens +
-                    ', Total: ' +
-                    result.totalTokens
+                logPrefix + 'Token usage - Prompt: ' + result.promptTokens + ', Completion: ' + result.completionTokens + ', Total: ' + result.totalTokens
             );
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Failed to extract token usage: ' + e.getMessage());

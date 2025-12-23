@@ -113,9 +113,7 @@ public with sharing class ConversationalChatController {
             lwcResponse.put('error', 'Processing error: ' + e.getMessage());
         } catch (Exception ex) {
             String errorMsg = ex.getMessage();
-            String errorCode = (ex instanceof ConfigurationException)
-                ? AIAgentConstants.ERR_CODE_CONFIG_ERROR
-                : AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
+            String errorCode = (ex instanceof ConfigurationException) ? AIAgentConstants.ERR_CODE_CONFIG_ERROR : AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
             System.debug(
                 LoggingLevel.ERROR,
                 logPrefix + 'UNHANDLED CONTROLLER EXCEPTION: (' + ex.getTypeName() + ') ' + errorMsg + '\nStack Trace: ' + ex.getStackTraceString()
@@ -163,9 +161,7 @@ public with sharing class ConversationalChatController {
             // 2. GET AGENT CONFIGURATION for welcome message
             AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(requestedAgentDevName);
             if (agentDef == null) {
-                throw new ConfigurationException(
-                    'Internal Error: The selected agent (' + requestedAgentDevName + ') could not be found or is inactive.'
-                );
+                throw new ConfigurationException('Internal Error: The selected agent (' + requestedAgentDevName + ') could not be found or is inactive.');
             }
 
             // 3. CREATE EXECUTION using unified AgentExecutionService
@@ -205,10 +201,7 @@ public with sharing class ConversationalChatController {
         } catch (Exception e) {
             System.debug(
                 LoggingLevel.ERROR,
-                '[AIController.createNewChatSession] Error creating session. Routed Agent was: "' +
-                    requestedAgentDevName +
-                    '". Error: ' +
-                    e.getMessage()
+                '[AIController.createNewChatSession] Error creating session. Routed Agent was: "' + requestedAgentDevName + '". Error: ' + e.getMessage()
             );
             if (e instanceof AuraHandledException) {
                 throw e;
@@ -493,10 +486,7 @@ public with sharing class ConversationalChatController {
                 delete as user stepsToDelete;
             }
         } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix + 'Error starting over from step with turnIdentifier ' + turnIdentifier + ': ' + e.getMessage()
-            );
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error starting over from step with turnIdentifier ' + turnIdentifier + ': ' + e.getMessage());
             throw new AuraHandledException('An error occurred while deleting steps: ' + e.getMessage());
         }
     }

@@ -87,10 +87,7 @@ public inherited sharing class AgentJobEnqueuer {
             agentAsyncDispatchTypeCache.put(agentDefId, asyncDispatchType);
             return asyncDispatchType;
         } catch (Exception e) {
-            System.debug(
-                LoggingLevel.WARN,
-                '[AgentJobEnqueuer] Failed to query agent async dispatch type setting: ' + e.getMessage() + '. Defaulting to Low.'
-            );
+            System.debug(LoggingLevel.WARN, '[AgentJobEnqueuer] Failed to query agent async dispatch type setting: ' + e.getMessage() + '. Defaulting to Low.');
             return 'Low';
         }
     }
@@ -109,15 +106,7 @@ public inherited sharing class AgentJobEnqueuer {
      * @param isFinalErrorTurn Whether this is the final error turn for the session.
      * @throws DispatchException if event publication fails.
      */
-    public void enqueueFollowUp(
-        Id executionId,
-        Id userId,
-        Id agentDefId,
-        String turnId,
-        Integer nextTurnCount,
-        String logPrefix,
-        Boolean isFinalErrorTurn
-    ) {
+    public void enqueueFollowUp(Id executionId, Id userId, Id agentDefId, String turnId, Integer nextTurnCount, String logPrefix, Boolean isFinalErrorTurn) {
         try {
             Boolean finalErrorFlag = (isFinalErrorTurn == true);
             String asyncDispatchType = this.getAgentAsyncDispatchType(agentDefId);

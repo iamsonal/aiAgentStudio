@@ -191,10 +191,7 @@ global with sharing class AIAgentRestService {
                     logPrefix
                 );
             } catch (Exception failEx) {
-                System.debug(
-                    LoggingLevel.ERROR,
-                    logPrefix + 'CRITICAL: Failed to update session state after processing failure: ' + failEx.getMessage()
-                );
+                System.debug(LoggingLevel.ERROR, logPrefix + 'CRITICAL: Failed to update session state after processing failure: ' + failEx.getMessage());
             }
 
             throw e; // Re-throw the original exception

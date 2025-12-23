@@ -108,11 +108,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
             if ('High'.equalsIgnoreCase(asyncDispatchType)) {
                 // High dispatch type: Use Platform Event for high-throughput, fire-and-forget processing
                 publishPlatformEvent(executionId, payload, logPrefix);
-                return new AgentExecutionService.ExecutionResult(
-                    executionId,
-                    AIAgentConstants.STATUS_PROCESSING,
-                    'Processing message asynchronously'
-                );
+                return new AgentExecutionService.ExecutionResult(executionId, AIAgentConstants.STATUS_PROCESSING, 'Processing message asynchronously');
             } else {
                 // Low dispatch type: Use Queueable for guaranteed sequential processing
                 enqueueQueueable(executionId, payload, logPrefix);
@@ -187,10 +183,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
         UnifiedAgentQueueable queueable = new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_CONVERSATIONAL, queueablePayload);
 
         Id jobId = System.enqueueJob(queueable);
-        System.debug(
-            LoggingLevel.INFO,
-            logPrefix + 'Enqueued UnifiedAgentQueueable job (Conversational type): ' + jobId + ' for execution: ' + executionId
-        );
+        System.debug(LoggingLevel.INFO, logPrefix + 'Enqueued UnifiedAgentQueueable job (Conversational type): ' + jobId + ' for execution: ' + executionId);
     }
 
     /**
@@ -203,11 +196,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
      * @param logPrefix Logging prefix for debug output
      * @return ExecutionResult with the outcome of the synchronous execution
      */
-    private AgentExecutionService.ExecutionResult executeSynchronously(
-        Id executionId,
-        AgentExecutionService.ExecutionPayload payload,
-        String logPrefix
-    ) {
+    private AgentExecutionService.ExecutionResult executeSynchronously(Id executionId, AgentExecutionService.ExecutionPayload payload, String logPrefix) {
         try {
             // Initialize decision logger
             AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(executionId, payload.turnIdentifier, payload.userId);

@@ -57,23 +57,6 @@ public inherited sharing class ContextManagerService {
         PRUNED
     }
 
-    // --- DATA ACCESS STRUCTURES ---
-
-    /**
-     * Query result wrapper for repository operations
-     */
-    public class QueryResult {
-        public List<ContextLedgerItem__c> items { get; private set; }
-        public Integer totalCount { get; private set; }
-        public Boolean hasMore { get; private set; }
-
-        public QueryResult(List<ContextLedgerItem__c> items, Integer totalCount, Boolean hasMore) {
-            this.items = items != null ? items : new List<ContextLedgerItem__c>();
-            this.totalCount = totalCount;
-            this.hasMore = hasMore;
-        }
-    }
-
     /**
      * Fluent query builder for ledger queries
      */
@@ -101,42 +84,6 @@ public inherited sharing class ContextManagerService {
 
         public LedgerQueryBuilder withStatus(String status) {
             this.statuses.add(status);
-            return this;
-        }
-
-        public LedgerQueryBuilder withStatuses(Set<String> statusSet) {
-            this.statuses.addAll(statusSet);
-            return this;
-        }
-
-        public LedgerQueryBuilder withContextType(String contextType) {
-            this.contextTypes.add(contextType);
-            return this;
-        }
-
-        public LedgerQueryBuilder withContextTypes(Set<String> types) {
-            this.contextTypes.addAll(types);
-            return this;
-        }
-
-        public LedgerQueryBuilder withMinRelevance(Decimal minScore) {
-            this.minRelevanceScore = minScore;
-            return this;
-        }
-
-        public LedgerQueryBuilder withMaxTurnsSinceAccess(Integer maxTurns, Integer currentTurnNum) {
-            this.maxTurnsSinceAccess = maxTurns;
-            this.currentTurn = currentTurnNum;
-            return this;
-        }
-
-        public LedgerQueryBuilder orderBy(String orderByClause) {
-            this.orderBy = orderByClause;
-            return this;
-        }
-
-        public LedgerQueryBuilder limitTo(Integer recordLimit) {
-            this.queryLimit = recordLimit;
             return this;
         }
 
@@ -448,17 +395,6 @@ public inherited sharing class ContextManagerService {
                 return 'Recently';
             return 'Earlier in conversation';
         }
-
-        /**
-         * Checks if context data needs refreshing (stale detection).
-         */
-        public Boolean needsRefresh() {
-            if (this.lastDataRefreshTime == null)
-                return true;
-            // Refresh if older than 5 minutes
-            Long ageMillis = Datetime.now().getTime() - this.lastDataRefreshTime.getTime();
-            return ageMillis > 300000;
-        }
     }
 
     // --- CONSTRUCTORS ---
@@ -612,12 +548,7 @@ public inherited sharing class ContextManagerService {
     /**
      * FIX: Process page context with deduplication.
      */
-    private void processPageContextWithDeduplication(
-        Map<String, ContextItem> ledgerMap,
-        List<ContextItem> ledger,
-        String pageContextId,
-        Integer currentTurn
-    ) {
+    private void processPageContextWithDeduplication(Map<String, ContextItem> ledgerMap, List<ContextItem> ledger, String pageContextId, Integer currentTurn) {
         if (ledgerMap.containsKey(pageContextId)) {
             // Update existing
             ContextItem existing = ledgerMap.get(pageContextId);
@@ -818,76 +749,8 @@ public inherited sharing class ContextManagerService {
     }
 
     /**
-     * Gets a single context item by composite key (execution + record ID).
-     */
-    private ContextLedgerItem__c getItemByRecordId(Id executionId, String recordId) {
-        List<ContextLedgerItem__c> items = [
-            SELECT
-                Id,
-                RecordId__c,
-                RecordType__c,
-                ContextType__c,
-                Status__c,
-                TurnAdded__c,
-                LastAccessedTurn__c,
-                AccessCount__c,
-                RelevanceScore__c,
-                SourceRecordId__c,
-                ChildRecordIds__c,
-                Metadata__c,
-                OriginalContextType__c,
-                LastDataRefreshTime__c,
-                PrunedAt__c,
-                PrunedReason__c,
-                LastModifiedDate
-            FROM ContextLedgerItem__c
-            WHERE AgentExecution__c = :executionId AND RecordId__c = :recordId
-            LIMIT 1
-        ];
-        return items.isEmpty() ? null : items[0];
-    }
-
-    /**
-     * Counts the number of items for an execution by status.
-     */
-    private Map<String, Integer> getCountsByStatus(Id executionId) {
-        Map<String, Integer> counts = new Map<String, Integer>();
-
-        for (AggregateResult ar : [
-            SELECT Status__c, COUNT(Id) cnt
-            FROM ContextLedgerItem__c
-            WHERE AgentExecution__c = :executionId
-            GROUP BY Status__c
-        ]) {
-            String status = (String) ar.get('Status__c');
-            Integer count = (Integer) ar.get('cnt');
-            counts.put(status, count);
-        }
-
-        return counts;
-    }
-
-    /**
-     * Inserts a single context ledger item.
-     */
-    private ContextLedgerItem__c insertItem(ContextLedgerItem__c item) {
-        insert item;
-        return item;
-    }
-
-    /**
-     * Inserts multiple context ledger items in bulk.
-     */
-    private List<ContextLedgerItem__c> insertItems(List<ContextLedgerItem__c> items) {
-        if (items == null || items.isEmpty()) {
-            return new List<ContextLedgerItem__c>();
-        }
-        insert items;
-        return items;
-    }
-
-    /**
      * Upserts context ledger items based on composite key (ExecutionId + RecordId).
+     * Uses partial DML (allOrNone=false) to handle individual record failures gracefully.
      */
     private List<ContextLedgerItem__c> upsertItems(List<ContextLedgerItem__c> items) {
         if (items == null || items.isEmpty()) {
@@ -928,121 +791,59 @@ public inherited sharing class ContextManagerService {
         // Insert new items (remaining in map)
         List<ContextLedgerItem__c> toInsert = newItemsMap.values();
 
+        List<ContextLedgerItem__c> result = new List<ContextLedgerItem__c>();
+
+        // Perform partial update with error logging
         if (!toUpdate.isEmpty()) {
-            update toUpdate;
-        }
-        if (!toInsert.isEmpty()) {
-            insert toInsert;
+            Database.SaveResult[] updateResults = Database.update(toUpdate, false);
+            for (Integer i = 0; i < updateResults.size(); i++) {
+                if (updateResults[i].isSuccess()) {
+                    result.add(toUpdate[i]);
+                } else {
+                    logDmlErrors(updateResults[i], toUpdate[i], 'update');
+                }
+            }
         }
 
-        List<ContextLedgerItem__c> result = new List<ContextLedgerItem__c>();
-        result.addAll(toUpdate);
-        result.addAll(toInsert);
+        // Perform partial insert with error logging
+        if (!toInsert.isEmpty()) {
+            Database.SaveResult[] insertResults = Database.insert(toInsert, false);
+            for (Integer i = 0; i < insertResults.size(); i++) {
+                if (insertResults[i].isSuccess()) {
+                    result.add(toInsert[i]);
+                } else {
+                    logDmlErrors(insertResults[i], toInsert[i], 'insert');
+                }
+            }
+        }
+
         return result;
     }
 
     /**
-     * Updates a single context ledger item.
+     * Logs DML errors for failed context ledger item operations.
+     * Provides detailed error information for troubleshooting without failing the entire operation.
      */
-    private void updateItem(ContextLedgerItem__c item) {
-        update item;
-    }
-
-    /**
-     * Updates multiple context ledger items in bulk.
-     */
-    private void updateItems(List<ContextLedgerItem__c> items) {
-        if (items == null || items.isEmpty()) {
-            return;
+    private void logDmlErrors(Database.SaveResult saveResult, ContextLedgerItem__c item, String operation) {
+        List<String> errorMessages = new List<String>();
+        for (Database.Error err : saveResult.getErrors()) {
+            errorMessages.add(err.getStatusCode() + ': ' + err.getMessage());
+            if (err.getFields() != null && !err.getFields().isEmpty()) {
+                errorMessages.add('  Fields: ' + String.join(err.getFields(), ', '));
+            }
         }
-        update items;
-    }
-
-    /**
-     * Updates an item with optimistic locking check.
-     */
-    private Boolean updateItemWithVersionCheck(ContextLedgerItem__c item, Datetime expectedLastModified) {
-        // Verify the item hasn't been modified since it was read
-        List<ContextLedgerItem__c> current = [
-            SELECT LastModifiedDate
-            FROM ContextLedgerItem__c
-            WHERE Id = :item.Id
-            LIMIT 1
-        ];
-
-        if (current.isEmpty()) {
-            return false; // Item was deleted
-        }
-
-        if (expectedLastModified != null && current[0].LastModifiedDate != expectedLastModified) {
-            return false; // Version conflict
-        }
-
-        update item;
-        return true;
-    }
-
-    /**
-     * Hard deletes context ledger items (use with caution).
-     */
-    private void deleteItems(List<ContextLedgerItem__c> items) {
-        if (items == null || items.isEmpty()) {
-            return;
-        }
-        delete items;
-    }
-
-    /**
-     * Soft deletes items by marking them as PRUNED.
-     */
-    private void softDeleteItems(List<ContextLedgerItem__c> items, String reason) {
-        if (items == null || items.isEmpty()) {
-            return;
-        }
-
-        Datetime now = Datetime.now();
-        for (ContextLedgerItem__c item : items) {
-            item.Status__c = 'PRUNED';
-            item.PrunedAt__c = now;
-            item.PrunedReason__c = reason;
-        }
-
-        update items;
-    }
-
-    /**
-     * Archives items by marking them as ARCHIVED.
-     */
-    private void archiveItems(List<ContextLedgerItem__c> items) {
-        if (items == null || items.isEmpty()) {
-            return;
-        }
-
-        for (ContextLedgerItem__c item : items) {
-            item.Status__c = 'ARCHIVED';
-        }
-
-        update items;
-    }
-
-    /**
-     * Deletes all pruned items older than specified days (cleanup utility).
-     */
-    private Integer deletePrunedItemsOlderThan(Integer daysOld) {
-        Datetime cutoffDate = Datetime.now().addDays(-daysOld);
-
-        List<ContextLedgerItem__c> toDelete = [
-            SELECT Id
-            FROM ContextLedgerItem__c
-            WHERE Status__c = 'PRUNED' AND PrunedAt__c < :cutoffDate
-            LIMIT 10000
-        ];
-
-        if (!toDelete.isEmpty()) {
-            delete toDelete;
-        }
-
-        return toDelete.size();
+        System.debug(
+            LoggingLevel.ERROR,
+            '[ContextManagerService] Failed to ' +
+                operation +
+                ' ContextLedgerItem for ' +
+                'Execution=' +
+                item.AgentExecution__c +
+                ', RecordId=' +
+                item.RecordId__c +
+                '. Errors: ' +
+                String.join(errorMessages, '; ')
+        );
     }
 
     // =========================================================================

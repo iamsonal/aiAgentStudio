@@ -113,10 +113,7 @@ public class ActionPostChatter extends BaseAgentAction {
         }
 
         System.debug(LoggingLevel.INFO, '[ActionPostChatter] Posting to ' + config.feedType + ' feed. Target ID: ' + targetSObjectId);
-        System.debug(
-            LoggingLevel.DEBUG,
-            '[ActionPostChatter] Message length: ' + args.messageText.length() + ' characters. Topics: ' + args.topics.size()
-        );
+        System.debug(LoggingLevel.DEBUG, '[ActionPostChatter] Message length: ' + args.messageText.length() + ' characters. Topics: ' + args.topics.size());
 
         ActionOutcome chatterResult = createChatterPost(args.messageText, args.topics);
         if (!chatterResult.isSuccess) {
@@ -218,11 +215,7 @@ public class ActionPostChatter extends BaseAgentAction {
     private ActionOutcome validateChatterTargetAccess() {
         try {
             String query = 'SELECT Id FROM ' + targetSObjectName + ' WHERE Id = :targetId LIMIT 1';
-            List<SObject> targetCheck = Database.queryWithBinds(
-                query,
-                new Map<String, Object>{ 'targetId' => targetSObjectId },
-                AccessLevel.USER_MODE
-            );
+            List<SObject> targetCheck = Database.queryWithBinds(query, new Map<String, Object>{ 'targetId' => targetSObjectId }, AccessLevel.USER_MODE);
             if (targetCheck.isEmpty()) {
                 System.debug(
                     LoggingLevel.ERROR,

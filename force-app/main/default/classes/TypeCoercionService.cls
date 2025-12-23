@@ -95,11 +95,7 @@ public with sharing class TypeCoercionService {
      * @return Map of validated field names to properly typed values
      * @throws TypeCoercionException For type conversion failures, constraint violations, or security violations
      */
-    public static Map<String, Object> coerceArgumentTypesForSObject(
-        Map<String, Object> rawArguments,
-        SObjectType targetSObjectType,
-        AccessType accessType
-    ) {
+    public static Map<String, Object> coerceArgumentTypesForSObject(Map<String, Object> rawArguments, SObjectType targetSObjectType, AccessType accessType) {
         if (rawArguments == null || rawArguments.isEmpty()) {
             System.debug(LoggingLevel.DEBUG, '[TypeCoercionService] No arguments provided for coercion. Returning empty map.');
             return new Map<String, Object>();
@@ -120,11 +116,7 @@ public with sharing class TypeCoercionService {
             if (fieldToken == null) {
                 System.debug(
                     LoggingLevel.WARN,
-                    '[TypeCoercionService] Field "' +
-                        fieldName +
-                        '" not found on ' +
-                        targetSObjectType.getDescribe().getName() +
-                        '. Skipping coercion.'
+                    '[TypeCoercionService] Field "' + fieldName + '" not found on ' + targetSObjectType.getDescribe().getName() + '. Skipping coercion.'
                 );
                 continue;
             }
@@ -142,12 +134,7 @@ public with sharing class TypeCoercionService {
                 Schema.DisplayType fieldType = dfr.getType();
                 System.debug(
                     LoggingLevel.FINEST,
-                    '[TypeCoercionService] Coercing Field: ' +
-                        fieldName +
-                        ', Type: ' +
-                        fieldType +
-                        ', Input Value: ' +
-                        String.valueOf(rawValue).abbreviate(50)
+                    '[TypeCoercionService] Coercing Field: ' + fieldName + ', Type: ' + fieldType + ', Input Value: ' + String.valueOf(rawValue).abbreviate(50)
                 );
 
                 Object coercedValue = coerce(rawValue, fieldType, fieldName, dfr);
@@ -174,6 +161,11 @@ public with sharing class TypeCoercionService {
     public static Object coerce(Object value, Schema.DisplayType targetType, String fieldName, Schema.DescribeFieldResult fieldDescribe) {
         if (value == null) {
             return null;
+        }
+
+        // Null safety: targetType must be provided for coercion
+        if (targetType == null) {
+            throw new TypeCoercionException('Target type cannot be null for field coercion', fieldName, 'null', getInputTypeString(value));
         }
 
         try {
@@ -441,13 +433,7 @@ public with sharing class TypeCoercionService {
             try {
                 return Date.valueOf(dateStr);
             } catch (Exception e) {
-                throw new TypeCoercionException(
-                    'Invalid Date format. Expected YYYY-MM-DD: ' + value,
-                    fieldName,
-                    'Date',
-                    getInputTypeString(value),
-                    e
-                );
+                throw new TypeCoercionException('Invalid Date format. Expected YYYY-MM-DD: ' + value, fieldName, 'Date', getInputTypeString(value), e);
             }
         }
 
@@ -639,12 +625,7 @@ public with sharing class TypeCoercionService {
             }
         }
 
-        throw new TypeCoercionException(
-            'Invalid email format. Expected format: user@domain.com',
-            fieldName,
-            'Email String',
-            getInputTypeString(value)
-        );
+        throw new TypeCoercionException('Invalid email format. Expected format: user@domain.com', fieldName, 'Email String', getInputTypeString(value));
     }
 
     /**
@@ -667,12 +648,7 @@ public with sharing class TypeCoercionService {
             return urlStr;
         }
 
-        throw new TypeCoercionException(
-            'Invalid URL format. Expected format: http://... or https://...',
-            fieldName,
-            'URL String',
-            getInputTypeString(value)
-        );
+        throw new TypeCoercionException('Invalid URL format. Expected format: http://... or https://...', fieldName, 'URL String', getInputTypeString(value));
     }
 
     // ============================================================================

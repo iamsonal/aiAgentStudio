@@ -121,10 +121,7 @@ public class OpenAIProviderAdapter extends BaseProviderAdapter {
                             if (!rawToolCallsList.isEmpty()) {
                                 rawToolCallsListJson = JSON.serialize(rawToolCallsList);
                                 parsedActions = parseStructuredToolCalls(rawToolCallsList);
-                                System.debug(
-                                    LoggingLevel.DEBUG,
-                                    LOG_PREFIX + 'Parsed ' + parsedActions.size() + ' function call(s) from OpenAI response.'
-                                );
+                                System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Parsed ' + parsedActions.size() + ' function call(s) from OpenAI response.');
                             }
                         }
                     } else {

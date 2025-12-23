@@ -22,7 +22,54 @@ public class ActionFlowHandler extends BaseAgentAction {
     private static final String FAULT_MESSAGE_VAR = 'faultMessage';
     private static final String OUTPUT_RESULT_VAR = 'outputResult';
 
+    // Test support: allows tests to inject mock flow results
+    @TestVisible
+    private static FlowExecutionMock mockFlowExecution;
+
     private ConfigDTO config;
+
+    /**
+     * @description Interface for mocking Flow execution in tests
+     */
+    @TestVisible
+    public interface FlowExecutionMock {
+        MockFlowResult execute(String flowApiName, Map<String, Object> flowParams);
+    }
+
+    /**
+     * @description Mock result container for test injection
+     */
+    @TestVisible
+    public class MockFlowResult {
+        public Boolean success;
+        public Object outputResult;
+        public String faultMessage;
+        public String errorCode;
+        public String errorMessage;
+
+        public MockFlowResult() {
+            this.success = true;
+        }
+
+        public MockFlowResult setSuccess(Object outputResult) {
+            this.success = true;
+            this.outputResult = outputResult;
+            return this;
+        }
+
+        public MockFlowResult setFault(String faultMessage) {
+            this.success = true;
+            this.faultMessage = faultMessage;
+            return this;
+        }
+
+        public MockFlowResult setFailure(String errorCode, String errorMessage) {
+            this.success = false;
+            this.errorCode = errorCode;
+            this.errorMessage = errorMessage;
+            return this;
+        }
+    }
 
     /**
      * DTO for strongly-typed backend configuration (admin-configured)
@@ -80,9 +127,9 @@ public class ActionFlowHandler extends BaseAgentAction {
         if (!flowExecutionResult.isSuccess) {
             return flowExecutionResult;
         }
-        Flow.Interview flowInterview = (Flow.Interview) flowExecutionResult.data;
+        Object flowInterviewOrMock = flowExecutionResult.data;
 
-        ActionOutcome flowResultsResult = processFlowResults(flowInterview, flowApiName);
+        ActionOutcome flowResultsResult = processFlowResults(flowInterviewOrMock, flowApiName);
         if (!flowResultsResult.isSuccess) {
             return flowResultsResult;
         }
@@ -144,10 +191,7 @@ public class ActionFlowHandler extends BaseAgentAction {
                     String testSerialization = JSON.serialize(value);
                     validatedParams.put(key, value);
                 } catch (Exception e) {
-                    System.debug(
-                        LoggingLevel.WARN,
-                        '[ActionFlowHandler] Parameter "' + key + '" could not be serialized for Flow: ' + e.getMessage()
-                    );
+                    System.debug(LoggingLevel.WARN, '[ActionFlowHandler] Parameter "' + key + '" could not be serialized for Flow: ' + e.getMessage());
                     validatedParams.put(key, String.valueOf(value));
                 }
             } else {
@@ -261,9 +305,7 @@ public class ActionFlowHandler extends BaseAgentAction {
             // If we can't query Flow metadata, log warning but allow execution to proceed
             System.debug(
                 LoggingLevel.WARN,
-                '[ActionFlowHandler] Unable to validate Flow parameters (metadata query failed): ' +
-                    qe.getMessage() +
-                    '. Proceeding with Flow execution.'
+                '[ActionFlowHandler] Unable to validate Flow parameters (metadata query failed): ' + qe.getMessage() + '. Proceeding with Flow execution.'
             );
             return ActionOutcome.success();
         }
@@ -278,6 +320,16 @@ public class ActionFlowHandler extends BaseAgentAction {
      * @return ActionOutcome<Flow.Interview> - The Flow.Interview instance after execution or error information.
      */
     private ActionOutcome executeFlow(String flowApiName, Map<String, Object> flowParams) {
+        // Test support: use mock if available
+        if (Test.isRunningTest() && mockFlowExecution != null) {
+            MockFlowResult mockResult = mockFlowExecution.execute(flowApiName, flowParams);
+            if (!mockResult.success) {
+                return ActionOutcome.failure(mockResult.errorCode, mockResult.errorMessage);
+            }
+            // Return a wrapper that processFlowResults can handle
+            return ActionOutcome.success(new MockFlowInterviewWrapper(mockResult));
+        }
+
         // Validate Flow parameters against Flow metadata
         ActionOutcome validationResult = validateFlowParameters(flowApiName, flowParams);
         if (!validationResult.isSuccess) {
@@ -316,23 +368,55 @@ public class ActionFlowHandler extends BaseAgentAction {
     }
 
     /**
+     * @description Wrapper class to simulate Flow.Interview for testing
+     */
+    @TestVisible
+    private class MockFlowInterviewWrapper {
+        private MockFlowResult mockResult;
+
+        public MockFlowInterviewWrapper(MockFlowResult mockResult) {
+            this.mockResult = mockResult;
+        }
+
+        public Object getVariableValue(String variableName) {
+            if (variableName == FAULT_MESSAGE_VAR) {
+                return mockResult.faultMessage;
+            } else if (variableName == OUTPUT_RESULT_VAR) {
+                return mockResult.outputResult;
+            }
+            return null;
+        }
+    }
+
+    /**
      * @description
      * Processes Flow results and handles both success and fault scenarios.
      *
-     * @param flowInterview Flow.Interview - Executed Flow interview instance.
+     * @param flowInterview Flow.Interview - Executed Flow interview instance (or MockFlowInterviewWrapper in tests).
      * @param flowApiName String - Flow name for error context.
      * @return ActionOutcome<Object> - Flow output result or error information.
      */
-    private ActionOutcome processFlowResults(Flow.Interview flowInterview, String flowApiName) {
-        Object faultMessageValue = flowInterview.getVariableValue(FAULT_MESSAGE_VAR);
+    private ActionOutcome processFlowResults(Object flowInterviewOrMock, String flowApiName) {
+        Object faultMessageValue;
+        Object flowDataPayload;
+
+        // Handle both real Flow.Interview and mock wrapper
+        if (flowInterviewOrMock instanceof MockFlowInterviewWrapper) {
+            MockFlowInterviewWrapper mockWrapper = (MockFlowInterviewWrapper) flowInterviewOrMock;
+            faultMessageValue = mockWrapper.getVariableValue(FAULT_MESSAGE_VAR);
+            flowDataPayload = mockWrapper.getVariableValue(OUTPUT_RESULT_VAR);
+        } else {
+            Flow.Interview flowInterview = (Flow.Interview) flowInterviewOrMock;
+            faultMessageValue = flowInterview.getVariableValue(FAULT_MESSAGE_VAR);
+            flowDataPayload = flowInterview.getVariableValue(OUTPUT_RESULT_VAR);
+        }
+
         if (faultMessageValue instanceof String && String.isNotBlank((String) faultMessageValue)) {
             String faultMessage = (String) faultMessageValue;
             String enhancedError = 'Flow "' + flowApiName + '" reported failure via "' + FAULT_MESSAGE_VAR + '": ' + faultMessage;
             System.debug(LoggingLevel.ERROR, '[ActionFlowHandler] Flow reported failure: ' + enhancedError);
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, enhancedError);
         }
-
-        Object flowDataPayload = flowInterview.getVariableValue(OUTPUT_RESULT_VAR);
 
         if (flowDataPayload == null) {
             System.debug(LoggingLevel.INFO, '[ActionFlowHandler] Flow completed with no output result. Returning default payload.');

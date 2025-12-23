@@ -38,12 +38,7 @@ public interface IMemoryManager {
      *   - Respect LLM token limits and performance constraints
      *   - Return a list of messages in the expected LLM API format
      */
-    List<Map<String, Object>> getHistoryPayload(
-        Id executionId,
-        AIAgentDefinition__c agentConfig,
-        LLMConfiguration__c llmConfig,
-        String loggingContext
-    );
+    List<Map<String, Object>> getHistoryPayload(Id executionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String loggingContext);
 
     /**
      * Hook called by the framework after a turn successfully completes.

@@ -74,10 +74,7 @@ public inherited sharing class CapabilityExecutionService {
 
                     if (outcome == null) {
                         // Defensive: handler should never return null; treat as implementation bug
-                        System.debug(
-                            LoggingLevel.ERROR,
-                            logPrefix + 'Action handler returned null outcome. This indicates a handler implementation bug.'
-                        );
+                        System.debug(LoggingLevel.ERROR, logPrefix + 'Action handler returned null outcome. This indicates a handler implementation bug.');
                         outcome = ActionOutcome.failure(
                             AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT,
                             'Action handler failed to return an outcome. Handler returned null. Check handler implementation for capability: ' +
@@ -140,9 +137,7 @@ public inherited sharing class CapabilityExecutionService {
         if ('Standard'.equalsIgnoreCase(implType) && String.isBlank(stdActionType))
             throw new CapabilityExecutionException('Capability (' + capability.Id + ' Type=Standard) missing required Standard Action Type.');
         if (('Apex'.equalsIgnoreCase(implType) || 'Flow'.equalsIgnoreCase(implType)) && String.isBlank(implDetail))
-            throw new CapabilityExecutionException(
-                'Capability (' + capability.Id + ' Type=' + implType + ') missing required Implementation Detail.'
-            );
+            throw new CapabilityExecutionException('Capability (' + capability.Id + ' Type=' + implType + ') missing required Implementation Detail.');
 
         System.debug(
             LoggingLevel.INFO,
@@ -160,10 +155,7 @@ public inherited sharing class CapabilityExecutionService {
                 when 'Standard' {
                     StandardActionHandler__mdt handlerMdt = standardHandlerCache.get(stdActionType.toLowerCase());
                     if (handlerMdt == null) {
-                        System.debug(
-                            LoggingLevel.ERROR,
-                            '[CapabilityExecutionService] No StandardActionHandler__mdt found for key: "' + stdActionType + '".'
-                        );
+                        System.debug(LoggingLevel.ERROR, '[CapabilityExecutionService] No StandardActionHandler__mdt found for key: "' + stdActionType + '".');
                         throw new CapabilityExecutionException('No active StandardActionHandler registered for key: "' + stdActionType + '".');
                     }
                     return instantiateAndCheckInterface(Type.forName(handlerMdt.HandlerClassName__c), handlerMdt.HandlerClassName__c);
@@ -226,9 +218,7 @@ public inherited sharing class CapabilityExecutionService {
                 } else {
                     System.debug(
                         LoggingLevel.ERROR,
-                        '[CapabilityExecutionService] Skipped StandardActionHandler__mdt record (Id=' +
-                            h.Id +
-                            '): missing DeveloperName or HandlerClassName.'
+                        '[CapabilityExecutionService] Skipped StandardActionHandler__mdt record (Id=' + h.Id + '): missing DeveloperName or HandlerClassName.'
                     );
                 }
             }
