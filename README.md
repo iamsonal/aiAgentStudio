@@ -9,6 +9,21 @@ Build intelligent AI agents powered by Large Language Models that seamlessly int
 
 ---
 
+## ⚠️ Repository Notice
+
+**This repository contains the core AI Agent Framework only.** The `aiAgentStudioAddons` folder visible in the codebase contains proprietary extensions and enhanced UI components that are **NOT part of the open-source repository**. These addons include:
+
+- Function and Workflow orchestrators
+- Additional LLM provider adapters (Claude, Gemini)
+- Extended action handlers (ManageTasks, RunReport, SearchKnowledge, SendNotification)
+- Advanced UI components (Agent Storyboard, Capability Configurator)
+- Bulk execution capabilities
+- Trigger handlers and validation logic
+
+If you're cloning this repository, you will have access to the core framework in the `force-app` directory, which provides all fundamental capabilities for building conversational AI agents with OpenAI.
+
+---
+
 ## 🎯 What is This?
 
 The Salesforce AI Agent Framework lets you create AI-powered assistants that can:
