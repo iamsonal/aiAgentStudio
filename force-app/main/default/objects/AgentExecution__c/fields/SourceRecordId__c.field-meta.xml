@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SourceRecordId__c</fullName>
+    <description>Flexible reference to any Salesforce record that is the primary context or trigger for this execution (Case, Account, Opportunity, etc.).</description>
+    <externalId>false</externalId>
+    <inlineHelpText>The primary record this execution relates to.</inlineHelpText>
+    <label>Source Record ID</label>
+    <length>18</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

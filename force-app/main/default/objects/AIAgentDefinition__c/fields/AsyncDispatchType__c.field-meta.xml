@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AsyncDispatchType__c</fullName>
+    <description>Async dispatch strategy for conversational agents: Low (Queueable for guaranteed processing), High (Platform Events for high throughput, fire-and-forget). Ignored for Batch/Email agents which always use Queueables. Note: Platform Events don't guarantee processing.</description>
+    <inlineHelpText>For Conversational agents: choose Low for guaranteed sequential processing, High for high-throughput concurrent chats (fire-and-forget). Batch and Email agents ignore this setting.</inlineHelpText>
+    <label>Async Dispatch Type</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Low</fullName>
+                <default>true</default>
+                <label>Low</label>
+            </value>
+            <value>
+                <fullName>High</fullName>
+                <default>false</default>
+                <label>High</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>
+

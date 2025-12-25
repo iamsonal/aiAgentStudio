@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>TriggerPayload__c</fullName>
+    <description>JSON payload containing context data from the trigger source (email content, API parameters, scheduled job data, etc.).</description>
+    <inlineHelpText>Structured data from the trigger source that initiated this execution.</inlineHelpText>
+    <label>Trigger Payload</label>
+    <length>131072</length>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>5</visibleLines>
+</CustomField>

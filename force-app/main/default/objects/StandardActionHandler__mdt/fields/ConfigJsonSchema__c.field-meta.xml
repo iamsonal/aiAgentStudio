@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ConfigJsonSchema__c</fullName>
+    <description>JSON Schema (Draft 7) for backend configuration. Used for Monaco editor IntelliSense and validation. Generated from ConfigSchema__c by the build script.</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>JSON Schema Draft 7 format for backend configuration. Auto-generated from ConfigSchema__c for Monaco editor support.</inlineHelpText>
+    <label>Config JSON Schema</label>
+    <length>131072</length>
+    <type>LongTextArea</type>
+    <visibleLines>10</visibleLines>
+</CustomField>
+
+
+
+

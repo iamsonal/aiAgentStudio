@@ -1,0 +1,541 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2025 Sonal
+ */
+
+/* Main Chat Container */
+.chat-container {
+    height: 60vh;
+    min-height: 300px;
+    max-height: 70vh;
+    overflow-y: auto;
+    background-color: var(--lwc-colorBackground, #f3f2f2);
+    border: 1px solid var(--lwc-colorBorder, #dddbda);
+    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+    position: relative;
+    scrollbar-width: thin;
+}
+
+/* SLDS Chat List Improvements */
+.slds-chat-list {
+    padding: var(--lwc-spacingMedium, 1rem);
+}
+
+/* Message Bubbles - Enhanced with SLDS variables */
+.slds-chat-message__text {
+    max-width: 85%;
+    padding: var(--lwc-spacingSmall, 0.75rem);
+    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+    line-height: 1.5;
+    box-shadow: var(--lwc-shadowDrag, 0 2px 4px 0 rgba(0, 0, 0, 0.16));
+}
+
+.slds-chat-message__text_outbound {
+    background-color: var(--lwc-brandAccessible, #0176d3);
+    color: var(--lwc-colorTextInverse, #ffffff);
+    border-bottom-right-radius: 0;
+    margin-left: auto;
+}
+
+.slds-chat-message__text_inbound {
+    background-color: var(--lwc-colorBackground, #ffffff);
+    color: var(--lwc-colorTextDefault, #3e3e3c);
+    border-bottom-left-radius: 0;
+}
+
+/* Message Content Formatting */
+.slds-chat-message__text-content {
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+/* Message Prefixes Styling */
+.message-prefix {
+    font-weight: bold;
+    display: block;
+    margin-bottom: var(--lwc-spacingXxSmall, 0.25rem);
+}
+
+.message-prefix-error {
+    color: var(--lwc-colorTextError, #c23934);
+}
+
+.message-prefix-system {
+    color: #ffb75d;
+}
+
+/* Meta Information Styling */
+.slds-chat-message__meta {
+    margin-top: var(--lwc-spacingXxSmall, 0.25rem);
+    font-size: 0.75rem;
+}
+
+.slds-chat-meta-text {
+    color: var(--lwc-colorTextLabel, #706e6b);
+}
+
+.slds-chat-listitem_outbound .slds-chat-message__meta {
+    text-align: right;
+}
+
+/* Accordion within Chat */
+.slds-chat-accordion {
+    font-size: 0.75rem;
+}
+
+/* Code Block Styling */
+pre.slds-code {
+    font-family: Consolas, Monaco, 'Courier New', Courier, monospace;
+    font-size: 0.75rem;
+    background-color: var(--lwc-colorBackgroundAlt, #fafaf9);
+    padding: var(--lwc-spacingXSmall, 0.5rem);
+    border: 1px solid var(--lwc-colorBorder, #dddbda);
+    border-radius: var(--lwc-borderRadiusSmall, 0.125rem);
+    max-height: 200px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+}
+
+/* Enhanced Input Area Styling */
+.slds-chat-input-container {
+    background-color: var(--lwc-colorBackground, #ffffff);
+    border-top: 1px solid var(--lwc-colorBorder, #dddbda);
+    padding: var(--lwc-spacingMedium, 1rem);
+    margin-top: 0;
+}
+
+/* Unified Input Wrapper - Modern Chat Interface */
+.chat-input-wrapper {
+    position: relative;
+    background-color: var(--lwc-colorBackground, #ffffff);
+    border: 2px solid var(--lwc-colorBorder, #dddbda);
+    border-radius: 24px;
+    padding: 8px 12px;
+    transition: all 0.2s ease-in-out;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    min-height: 48px;
+}
+
+.chat-input-wrapper:focus-within {
+    border-color: var(--lwc-brandAccessible, #0176d3);
+    box-shadow: 0 0 0 1px var(--lwc-brandAccessible, #0176d3);
+}
+
+/* Input Field Container */
+.chat-input-field {
+    flex: 1;
+    min-width: 0;
+}
+
+.chat-input-field lightning-textarea {
+    --slds-c-textarea-color-border: transparent;
+    --slds-c-textarea-color-border-focus: transparent;
+    --slds-c-textarea-shadow-focus: none;
+}
+
+.chat-input-field textarea {
+    border: none !important;
+    padding: 4px 0 !important;
+    background: transparent !important;
+    resize: none !important;
+    min-height: 20px !important;
+    max-height: 120px !important;
+    line-height: 1.4 !important;
+    font-size: 14px !important;
+    box-shadow: none !important;
+}
+
+.chat-input-field textarea:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Action Buttons Container */
+.chat-input-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* Send Button Styling */
+.send-button {
+    --sds-c-button-brand-color-background: var(--lwc-brandAccessible, #0176d3);
+    --sds-c-button-brand-color-background-hover: var(--lwc-brandAccessibleActive, #014486);
+}
+
+.send-button:disabled {
+    --sds-c-button-brand-color-background: var(--lwc-colorBackgroundButtonDefaultDisabled, #dddbda);
+    opacity: 0.6;
+}
+
+.slds-chat-input textarea {
+    border: 1px solid var(--lwc-colorBorder, #dddbda);
+    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+    padding: var(--lwc-spacingSmall, 0.75rem);
+    resize: vertical;
+    min-height: 40px;
+    max-height: 120px;
+    transition: border 0.1s linear;
+}
+
+.slds-chat-input textarea:focus {
+    border-color: var(--lwc-brandAccessible, #0176d3);
+    box-shadow: var(--lwc-shadowFocus, 0 0 3px #0176d3);
+}
+
+.slds-chat-button {
+    --sds-c-button-brand-background-color: var(--lwc-brandAccessible, #0176d3);
+    --sds-c-button-brand-text-color: var(--lwc-colorTextButtonBrand, #ffffff);
+}
+
+/* Typing Indicator Animation */
+.slds-chat-typing {
+    padding: var(--lwc-spacingXSmall, 0.5rem) var(--lwc-spacingSmall, 0.75rem);
+    min-height: 2rem;
+}
+
+.slds-assistant-typing {
+    display: inline-flex;
+    align-items: center;
+}
+
+.slds-ball {
+    background-color: var(--lwc-colorTextLabel, #706e6b);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin: 0 2px;
+    animation: bounce 1.5s infinite ease-in-out both;
+}
+
+.slds-ball:nth-child(1) {
+    animation-delay: -0.32s;
+}
+.slds-ball:nth-child(2) {
+    animation-delay: -0.16s;
+}
+.slds-ball:nth-child(3) {
+    animation-delay: 0s;
+}
+
+@keyframes bounce {
+    0%,
+    80%,
+    100% {
+        transform: scale(0.6);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Loading Area Styling */
+.slds-is-relative {
+    position: relative;
+}
+
+/* Custom Scrollbar for Webkit browsers */
+.chat-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-container::-webkit-scrollbar-track {
+    background: var(--lwc-colorBackgroundAlt, #f3f2f2);
+}
+
+.chat-container::-webkit-scrollbar-thumb {
+    background: var(--lwc-colorBorderSeparator, #dddbda);
+    border-radius: 3px;
+}
+
+.chat-container::-webkit-scrollbar-thumb:hover {
+    background: var(--lwc-colorBorderSeparatorAlt, #c9c7c5);
+}
+
+.confirmation-prompt {
+    border: 1px solid var(--lwc-colorBorderWarning, #ffb75d); /* Example border */
+    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+    background-color: #fffbee; /* Example background */
+}
+
+.confirmation-prompt p {
+    white-space: pre-wrap; /* Respect newlines in the confirmation message */
+}
+
+.welcome-message {
+    border-bottom: 1px solid var(--lwc-colorBorder, #dddbda);
+    background-color: var(--lwc-colorBackgroundAlt, #fafaf9);
+    color: var(--lwc-colorTextLabel, #706e6b);
+    font-style: italic;
+}
+
+.slds-chat-message {
+    position: relative; /* Anchor for the absolute positioned button */
+}
+
+/* Container for message actions */
+.message-actions {
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    opacity: 0;
+    transform: scale(0.85);
+    transition:
+        opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 10;
+    pointer-events: none;
+}
+
+/* Show actions when hovering over the message */
+.slds-chat-listitem:hover .message-actions {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+}
+
+/* Polished icon button styling */
+.start-over-icon {
+    --sds-c-button-neutral-color-background: rgba(255, 255, 255, 0.98);
+    --sds-c-button-neutral-color-border: var(--lwc-colorBorder, #dddbda);
+
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(8px);
+    border-radius: 50%;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.start-over-icon:hover {
+    --sds-c-button-neutral-color-background: var(--lwc-colorBackground, #ffffff);
+    --sds-c-button-neutral-color-border: var(--lwc-brandAccessible, #0176d3);
+    --sds-c-icon-color-foreground-default: var(--lwc-brandAccessible, #0176d3);
+
+    box-shadow: 0 4px 12px rgba(1, 118, 211, 0.25);
+    transform: translateY(-1px) rotate(90deg);
+}
+
+.start-over-icon:active {
+    transform: translateY(0) rotate(90deg);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+/* Improve message bubble spacing and interaction */
+.slds-chat-message {
+    position: relative;
+    margin: var(--lwc-spacingXSmall, 0.5rem) 0;
+}
+
+/* Enhanced message bubbles with better visual hierarchy */
+.slds-chat-message__text {
+    position: relative;
+    transition: box-shadow 0.2s ease-in-out;
+}
+
+.slds-chat-listitem:hover .slds-chat-message__text {
+    box-shadow:
+        var(--lwc-shadowDrag, 0 2px 4px 0 rgba(0, 0, 0, 0.16)),
+        0 0 0 1px var(--lwc-colorBorder, #dddbda);
+}
+
+/* Remove duplicate - already defined above */
+
+/* Better loading states */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+/* Improved error states */
+.slds-notify_alert {
+    margin-bottom: var(--lwc-spacingMedium, 1rem);
+    border-radius: var(--lwc-borderRadiusMedium, 0.25rem);
+}
+
+/* Professional Action Transparency Styling - Enterprise Look */
+.slds-chat-listitem_transient {
+    animation: fadeInTransient 0.2s ease-in-out;
+}
+
+.slds-chat-message__text_transient {
+    background-color: var(--lwc-colorBackgroundAlt, #fafaf9);
+    border: 1px solid var(--lwc-colorBorderSeparator, #dddbda);
+    border-left: 3px solid var(--lwc-brandAccessible, #0176d3);
+    color: var(--lwc-colorTextDefault, #3e3e3c);
+    font-style: normal;
+    position: relative;
+    box-shadow: var(--lwc-shadowCard, 0 2px 2px 0 rgba(0, 0, 0, 0.1));
+}
+
+.slds-chat-message__text_transient .slds-chat-message__text-content {
+    position: relative;
+    z-index: 1;
+    font-weight: 400;
+    font-style: italic;
+    font-size: 0.75rem;
+}
+
+/* Professional reasoning message meta styling */
+.slds-chat-listitem_transient .slds-chat-meta-text {
+    color: var(--lwc-colorTextLabel, #706e6b);
+    font-style: normal;
+    font-weight: 500;
+}
+
+/* Professional reasoning message prefix */
+.transient-prefix {
+    display: inline-block;
+    background-color: var(--lwc-brandAccessible, #0176d3);
+    color: var(--lwc-colorTextInverse, #ffffff);
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--lwc-borderRadiusSmall, 0.125rem);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025rem;
+    margin-right: var(--lwc-spacingXSmall, 0.5rem);
+    margin-bottom: var(--lwc-spacingXxSmall, 0.25rem);
+}
+
+/* Professional reasoning message avatar - subtle indicator */
+.slds-chat-listitem_transient .slds-chat-avatar .slds-avatar {
+    position: relative;
+    border: 2px solid var(--lwc-brandAccessible, #0176d3);
+}
+
+.slds-chat-listitem_transient .slds-chat-avatar .slds-avatar::after {
+    content: '';
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    width: 6px;
+    height: 6px;
+    background-color: #4bca81;
+    border: 1px solid var(--lwc-colorBackground, #ffffff);
+    border-radius: 50%;
+}
+
+/* Professional Animations - Subtle and Enterprise-friendly */
+@keyframes fadeInTransient {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Better responsive design */
+@media (max-width: 768px) {
+    .chat-container {
+        height: 50vh;
+        min-height: 250px;
+    }
+
+    /* On mobile, show actions with higher opacity since hover isn't reliable */
+    .message-actions {
+        opacity: 0.7;
+        transform: scale(1);
+        pointer-events: auto;
+    }
+
+    .slds-chat-listitem:hover .message-actions,
+    .message-actions:focus-within {
+        opacity: 1;
+    }
+
+    /* Make icon button more touch-friendly on mobile */
+    .start-over-icon {
+        width: 32px;
+        height: 32px; /* Larger touch target */
+    }
+
+    /* Maintain professional styling on mobile */
+    .slds-chat-message__text_transient {
+        border-left-width: 2px;
+    }
+}
+
+/* Enhanced Responsive Design */
+@media (max-width: 480px) {
+    .chat-input-wrapper {
+        border-radius: 20px;
+        padding: 6px 10px;
+        min-height: 44px;
+    }
+
+    .chat-input-field textarea {
+        font-size: 16px !important; /* Prevents zoom on iOS */
+    }
+}
+
+/* Enhanced Input States */
+.chat-input-wrapper.has-content {
+    border-color: var(--lwc-colorBorderInput, #706e6b);
+}
+
+.chat-input-wrapper.is-disabled {
+    background-color: var(--lwc-colorBackgroundInputDisabled, #f3f2f2);
+    border-color: var(--lwc-colorBorderInputDisabled, #c9c7c5);
+    opacity: 0.6;
+}
+
+/* Placeholder Enhancement */
+.chat-input-field textarea::placeholder {
+    color: var(--lwc-colorTextPlaceholder, #706e6b);
+    font-style: italic;
+}
+
+/* Character Count Indicator (if needed) */
+.chat-input-counter {
+    position: absolute;
+    bottom: -20px;
+    right: 0;
+    font-size: 11px;
+    color: var(--lwc-colorTextLabel, #706e6b);
+}
+
+/* Loading State for Input */
+.chat-input-wrapper.is-sending {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.chat-input-wrapper.is-sending::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 50px;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--lwc-colorBorder, #dddbda);
+    border-top: 2px solid var(--lwc-brandAccessible, #0176d3);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: translateY(-50%) rotate(0deg);
+    }
+    100% {
+        transform: translateY(-50%) rotate(360deg);
+    }
+}

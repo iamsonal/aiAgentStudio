@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ContextSizeBytes__c</fullName>
+    <description>Actual size of the context/content in bytes. Used to detect truncation and optimize context windows.</description>
+    <externalId>false</externalId>
+    <label>Context Size (Bytes)</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>
+

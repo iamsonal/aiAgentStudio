@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PendingAsyncToolCount__c</fullName>
+    <defaultValue>0</defaultValue>
+    <description>Tracks the number of pending asynchronous tool executions for the current turn. Used for atomic coordination of parallel tool completion to prevent race conditions. Decremented atomically when each async tool completes; when reaching zero, the follow-up LLM call is triggered.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Number of async tools still pending completion for the current turn.</inlineHelpText>
+    <label>Pending Async Tool Count</label>
+    <precision>4</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

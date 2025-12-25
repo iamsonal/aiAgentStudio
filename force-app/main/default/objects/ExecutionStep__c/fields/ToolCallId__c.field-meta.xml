@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ToolCallId__c</fullName>
+    <description>Unique identifier for tool calls to correlate tool call requests with their results.</description>
+    <inlineHelpText>ID linking tool calls to their results.</inlineHelpText>
+    <label>Tool Call ID</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

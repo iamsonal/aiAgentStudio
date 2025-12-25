@@ -1,0 +1,20 @@
+{
+  "packageDirectories": [
+    {
+      "path": "force-app",
+      "default": true
+    },
+    {
+      "path": "seed-data",
+      "default": false
+    },
+    {
+      "path": "aiAgentStudioAddons",
+      "default": false
+    }
+  ],
+  "name": "aiAgent",
+  "namespace": "",
+  "sfdcLoginUrl": "https://login.salesforce.com",
+  "sourceApiVersion": "63.0"
+}

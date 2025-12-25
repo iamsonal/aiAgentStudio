@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RequiresServiceUserContext__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>If checked, all operations for this agent will be processed asynchronously in the context of the single, designated AI Agent Service User configured in PlatformEventSubscriberConfig. Use for agents needing elevated or specific permissions.</description>
+    <inlineHelpText>Enable this to make the agent run with the permissions of the dedicated AI Service User. This is required for agents that need to perform actions the end-user cannot, or for consistency.</inlineHelpText>
+    <label>Requires Service User Context</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

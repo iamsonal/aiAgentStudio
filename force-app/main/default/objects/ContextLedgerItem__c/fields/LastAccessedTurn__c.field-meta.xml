@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>LastAccessedTurn__c</fullName>
+    <description>The most recent conversation turn when this context item was accessed or referenced.</description>
+    <inlineHelpText>The last turn when this context was accessed.</inlineHelpText>
+    <label>Last Accessed Turn</label>
+    <precision>8</precision>
+    <required>true</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>
+

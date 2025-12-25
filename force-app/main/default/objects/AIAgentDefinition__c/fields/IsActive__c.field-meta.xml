@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsActive__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>Controls whether this agent definition can be used to start new Chat Sessions. Inactive agents will cause errors if used.</description>
+    <inlineHelpText>Uncheck to temporarily disable this agent. Inactive agents cannot be used to create new chat sessions and will return errors if referenced in code.</inlineHelpText>
+    <label>Active</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

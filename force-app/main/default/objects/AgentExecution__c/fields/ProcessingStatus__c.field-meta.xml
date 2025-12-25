@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProcessingStatus__c</fullName>
+    <description>Granular turn-level status for internal framework coordination and async job management. Tracks micro-states within a single turn (Processing, Awaiting Action, Awaiting Followup, Idle). Works with CurrentTurnIdentifier__c to prevent race conditions and ensure async jobs don't process stale turns. Changes frequently during turn execution. Not tracked in field history.</description>
+    <inlineHelpText>Internal turn-level status used by the framework to coordinate async processing and prevent race conditions. Shows the current micro-state within an active turn. Used primarily for framework orchestration rather than user visibility.</inlineHelpText>
+    <label>Processing Status</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Idle</fullName>
+                <default>true</default>
+                <label>Idle</label>
+            </value>
+            <value>
+                <fullName>Processing</fullName>
+                <default>false</default>
+                <label>Processing</label>
+            </value>
+            <value>
+                <fullName>Awaiting Action</fullName>
+                <default>false</default>
+                <label>Awaiting Action</label>
+            </value>
+            <value>
+                <fullName>Awaiting Followup</fullName>
+                <default>false</default>
+                <label>Awaiting Followup</label>
+            </value>
+            <value>
+                <fullName>Failed</fullName>
+                <default>false</default>
+                <label>Failed</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>
+

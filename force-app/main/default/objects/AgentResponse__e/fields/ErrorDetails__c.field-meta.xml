@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ErrorDetails__c</fullName>
+    <description>A brief description of any error that occurred during processing, if the operation was unsuccessful.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>If the operation failed, this field contains a short summary of the problem encountered. Blank if successful.</inlineHelpText>
+    <isFilteringDisabled>false</isFilteringDisabled>
+    <isNameField>false</isNameField>
+    <isSortingDisabled>false</isSortingDisabled>
+    <label>Error Summary</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

@@ -1,0 +1,79 @@
+minimum_cumulusci_version: '4.3.0'
+project:
+    name: aiAgent
+    package:
+        name: aiAgent
+        api_version: '63.0'
+    git:
+        default_branch: 'main'
+    source_format: sfdx
+
+tasks:
+    robot:
+        options:
+            suites: robot/aiAgent/tests
+            options:
+                outputdir: robot/aiAgent/results
+    robot_testdoc:
+        options:
+            path: robot/aiAgent/tests
+            output: robot/aiAgent/doc/aiAgent_tests.html
+    deploy_seed_data:
+        class_path: cumulusci.tasks.salesforce.Deploy
+        options:
+            path: seed-data
+    deploy_addons:
+        class_path: cumulusci.tasks.salesforce.Deploy
+        options:
+            path: aiAgentStudioAddons
+    enable_knowledge_user:
+        class_path: cumulusci.tasks.apex.anon.AnonymousApexTask
+        options:
+            path: scripts/apex/ConfigureAppDev.cls
+            apex: enableKnowledgeUser();
+    load_knowledge_data:
+        class_path: cumulusci.tasks.command.Command
+        options:
+            command: >
+                sf data import bulk
+                --file data/Knowledge__kav.csv
+                --sobject Knowledge__kav
+                --wait 30
+
+flows:
+    dev_org:
+        steps:
+            5.1:
+                task: deploy_seed_data
+            5.2:
+                task: assign_permission_sets
+                options:
+                    api_names: AIAgentStudioConfigurator
+            6.1:
+                task: enable_knowledge_user
+            6.2:
+                task: assign_permission_sets
+                options:
+                    api_names: KnowledgeDemo
+            6.3:
+                task: assign_permission_sets
+                options:
+                    api_names: AIAgentStudioUser
+            7:
+                task: execute_anon
+                description: Set up Salesforce Data
+                options:
+                    apex: "AgentTestDataFactory.createComprehensiveShowcase();"
+            7.1:
+              task: deploy_addons
+            8:
+                task: execute_anon
+                description: Set up Salesforce Data
+                options:
+                    apex: "CreateAgentStudioConnectedApp.setup();"
+
+orgs:
+    scratch:
+        dev:
+            config_file: orgs/dev.json
+            days: 30

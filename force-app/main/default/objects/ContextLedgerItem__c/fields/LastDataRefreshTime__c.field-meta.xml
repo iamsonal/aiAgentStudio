@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>LastDataRefreshTime__c</fullName>
+    <description>Timestamp of when the record data was last refreshed from the source. Used to determine if context data needs to be re-queried.</description>
+    <inlineHelpText>When the actual record data was last refreshed. Used for stale data detection.</inlineHelpText>
+    <label>Last Data Refresh Time</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>
+

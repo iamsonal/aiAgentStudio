@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>A lightweight event to send an agent&apos;s intermediate text content to the UI within an AgentExecution__c context before a tool action completes. This provides a more responsive, streaming-like user experience.</description>
+    <eventType>HighVolume</eventType>
+    <label>Transient Message</label>
+    <pluralLabel>Transient Messages</pluralLabel>
+    <publishBehavior>PublishImmediately</publishBehavior>
+</CustomObject>

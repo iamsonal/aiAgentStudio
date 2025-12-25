@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AIAgentDefinition__c</fullName>
+    <description>Master-detail relationship to the AI Agent Definition that will use this context configuration. Each agent can have multiple context configurations to retrieve different types of data.</description>
+    <inlineHelpText>Select the AI Agent Definition that will use this context configuration to retrieve Salesforce record data during conversations.</inlineHelpText>
+    <label>AI Agent Definition</label>
+    <referenceTo>AIAgentDefinition__c</referenceTo>
+    <relationshipLabel>Agent Context Configs</relationshipLabel>
+    <relationshipName>AgentContextConfigs</relationshipName>
+    <relationshipOrder>0</relationshipOrder>
+    <reparentableMasterDetail>false</reparentableMasterDetail>
+    <trackTrending>false</trackTrending>
+    <type>MasterDetail</type>
+    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+</CustomField>

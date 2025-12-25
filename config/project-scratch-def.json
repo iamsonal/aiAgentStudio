@@ -1,0 +1,33 @@
+{
+    "orgName": "aiAgent",
+    "edition": "Developer",
+    "features": [
+        "Knowledge",
+        "LightningServiceConsole",
+        "Communities",
+        "LiveAgent",
+        "ServiceCloud",
+        "EnableSetPasswordInApi"
+    ],
+    "settings": {
+        "communitiesSettings": {
+            "enableNetworksEnabled": true
+        },
+        "liveAgentSettings": {
+            "enableLiveAgent": true
+        },
+        "knowledgeSettings": {
+            "enableKnowledge": true,
+            "enableLightningKnowledge": true
+        },
+        "lightningExperienceSettings": {
+            "enableS1DesktopEnabled": true
+        },
+        "pathAssistantSettings": {
+            "pathAssistantEnabled": true
+        },
+        "languageSettings": {
+            "enableTranslationWorkbench": true
+        }
+    }
+}

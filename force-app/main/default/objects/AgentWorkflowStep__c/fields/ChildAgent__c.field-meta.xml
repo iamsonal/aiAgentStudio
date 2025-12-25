@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ChildAgent__c</fullName>
+    <deleteConstraint>Restrict</deleteConstraint>
+    <description>The child agent (typically AgentType__c = 'Function') that executes for this workflow step</description>
+    <inlineHelpText>Select the child agent that will execute for this workflow step</inlineHelpText>
+    <label>Child Agent</label>
+    <referenceTo>AIAgentDefinition__c</referenceTo>
+    <relationshipLabel>Workflow Step Assignments</relationshipLabel>
+    <relationshipName>WorkflowStepAssignments</relationshipName>
+    <required>true</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>
+
