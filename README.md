@@ -6,6 +6,15 @@ Build intelligent AI agents powered by Large Language Models that seamlessly int
 
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
 [![Salesforce](https://img.shields.io/badge/Salesforce-API%20v63.0-blue.svg)](https://developer.salesforce.com/)
+[![Sponsor](https://img.shields.io/badge/Sponsor-❤-ea4aaa?style=for-the-badge&logo=github-sponsors)](https://github.com/sponsors/iamsonal)
+
+---
+
+## 💖 Support This Project
+
+AI Agent Studio is **free and open-source** and will always remain so. If you find it useful, consider [buying me a coffee](https://github.com/sponsors/iamsonal) to support ongoing development and maintenance.
+
+☕ **[Sponsor this project](https://github.com/sponsors/iamsonal)** - Every contribution helps keep this project active and maintained!
 
 ---
 
@@ -494,6 +503,7 @@ We welcome contributions! Here's how you can help:
 - Suggest features and improvements
 - Submit pull requests with code or documentation
 - Share your use cases and examples
+- ☕ [Buy me a coffee](https://github.com/sponsors/iamsonal) to support ongoing development
 
 **Development Guidelines**
 - Follow existing code patterns

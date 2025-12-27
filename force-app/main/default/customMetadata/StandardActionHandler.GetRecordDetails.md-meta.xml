@@ -87,7 +87,7 @@
     &quot;name&quot;: &quot;Id&quot;,
     &quot;type&quot;: &quot;salesforce-id&quot;,
     &quot;required&quot;: false,
-    &quot;help&quot;: &quot;The 18-character Salesforce ID (most reliable, always unique). Other identifier fields can be configured via identifierFields.&quot;,
+    &quot;help&quot;: &quot;The 18-character Salesforce ID (most reliable, always unique).&quot;,
     &quot;label&quot;: &quot;Record ID&quot;,
     &quot;placeholder&quot;: &quot;001000000000000AAA&quot;
   }
@@ -101,7 +101,7 @@
   &quot;properties&quot;: {
     &quot;Id&quot;: {
       &quot;type&quot;: &quot;string&quot;,
-      &quot;description&quot;: &quot;The 18-character Salesforce ID (most reliable, always unique). Other identifier fields can be configured via identifierFields.&quot;,
+      &quot;description&quot;: &quot;The 18-character Salesforce ID (most reliable, always unique).&quot;,
       &quot;format&quot;: &quot;salesforce-id&quot;
     }
   }
