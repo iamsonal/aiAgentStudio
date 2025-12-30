@@ -252,7 +252,8 @@ public with sharing class AgentApprovalService {
                 LLMToolCallId__c,
                 OriginalTurnCount__c,
                 OriginalTurnIdentifier__c,
-                AgentExecution__r.User__c
+                AgentExecution__r.User__c,
+                AgentExecution__r.AIAgentDefinition__c
             FROM HumanApprovalRequest__c
             WHERE Id IN :humanApprovalRequestIds
         ];
@@ -297,6 +298,10 @@ public with sharing class AgentApprovalService {
 
                 String rejectionContentJson = JSON.serialize(new Map<String, String>{ 'status' => 'rejected', 'reason' => rejectionReason });
 
+                // Get the capability ID for the tool
+                AgentCapability__c capability = AIAgentConfigService.getCapability(har.AgentExecution__r.AIAgentDefinition__c, har.LLMToolName__c);
+                Id capabilityId = capability != null ? capability.Id : null;
+
                 // Write rejection message to execution history
                 ExecutionStepService executionStepService = new ExecutionStepService();
                 executionStepService.createToolResultStep(
@@ -307,7 +312,8 @@ public with sharing class AgentApprovalService {
                     har.OriginalTurnIdentifier__c,
                     har.OriginalTurnCount__c.intValue(),
                     0L,
-                    false
+                    false,
+                    capabilityId
                 );
 
                 // Notify the user

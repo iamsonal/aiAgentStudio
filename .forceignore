@@ -19,3 +19,5 @@ package.xml
 **/eslint.config.mjs
 
 scripts/**
+
+**/graphql.config.yml

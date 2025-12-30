@@ -232,7 +232,8 @@ public inherited sharing class LLMInteractionService {
             }
 
             // --- 5. Format Tool Definitions ---
-            List<Map<String, Object>> toolsPayload = LLMFormattingService.formatToolsForApi(agentConfig.Id, logPrefix);
+            // Pass agent config to enable tool reasoning if configured
+            List<Map<String, Object>> toolsPayload = LLMFormattingService.formatToolsForApi(agentConfig.Id, agentConfig, logPrefix);
 
             // Log LLM request if decision logger is available
             if (this.decisionLogger != null) {

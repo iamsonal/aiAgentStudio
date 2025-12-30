@@ -51,6 +51,9 @@ public with sharing class AgentTestDataFactory {
         createFunctionAgents(llmConfig.Id);
         createWorkflowOrchestrator(llmConfig.Id);
 
+        // 4. Financial Client Onboarding Workflow (Function + Workflow agents)
+        createFinancialOnboardingWorkflow(llmConfig.Id);
+
         System.debug('========================================');
         System.debug('SHOWCASE COMPLETE! Key Record IDs:');
         System.debug(JSON.serializePretty(idMap));
@@ -560,7 +563,7 @@ public with sharing class AgentTestDataFactory {
             AuditLevel__c = 'Standard',
             ContextFormatStrategy__c = 'Structured Text',
             IdentityPrompt__c = 'You are a lead qualification specialist. You analyze lead information and assign appropriate ratings (Hot, Warm, Cold) based on company size, title seniority, and engagement signals.',
-            InstructionsPrompt__c = 'Analyze the lead data provided in context. Consider: company size (larger is better), title seniority (C-level/VP = higher quality), industry fit (Technology/Manufacturing = good fit), engagement (downloads/referrals = positive). Use the update_lead_rating tool to set the rating, then explain your reasoning.',
+            InstructionsPrompt__c = 'Analyze the lead data provided in context. Do not provide a text analysis or explanation. If you have enough information to determine a rating, call the update_lead_rating tool immediately. Your ONLY output should be the tool call.',
             PromptFooter__c = 'Hot = Enterprise, senior title, strong engagement. Warm = Mid-market, manager title, some engagement. Cold = Small company, junior title, passive.'
         );
         insert agent;
@@ -915,6 +918,359 @@ public with sharing class AgentTestDataFactory {
         insert capabilities;
 
         System.debug('[Agent:Function] ✓ Case Resolution & Notification Agent created with ' + capabilities.size() + ' capabilities (max 3)');
+        return agent.Id;
+    }
+
+    // ===================================================================================
+    // FINANCIAL CLIENT ONBOARDING WORKFLOW
+    // ===================================================================================
+
+    /**
+     * @description Creates a complete Financial Client Onboarding workflow demonstrating
+     * intelligent KYC assessment and account setup that cannot be achieved with standard
+     * Salesforce automation.
+     *
+     * **Business Problem:**
+     * Financial services companies must onboard clients with KYC compliance, risk assessment,
+     * and suitability matching. Standard automation cannot:
+     * - Interpret unstructured client goals and assess risk signals
+     * - Make nuanced suitability decisions across multiple weighted factors
+     * - Generate personalized onboarding communications
+     * - Dynamically adjust approach based on client profile complexity
+     *
+     * **Workflow Structure:**
+     * Step 1: KYC & Risk Assessment Agent - Analyzes client data, calculates risk tier, creates compliance tasks
+     * Step 2: Account Setup & Assignment Agent - Finds suitable products, creates onboarding tasks, notifies RM team
+     */
+    private static void createFinancialOnboardingWorkflow(Id llmConfigId) {
+        System.debug('[Financial Onboarding] Creating workflow and test data...');
+
+        // Create test data for financial onboarding scenario
+        seedFinancialOnboardingData();
+
+        // Create the workflow orchestrator
+        AIAgentDefinition__c workflow = new AIAgentDefinition__c(
+            Name = 'Client Onboarding Orchestrator',
+            DeveloperName__c = 'Client_Onboarding_Orchestrator',
+            AgentType__c = 'Workflow',
+            IsActive__c = true,
+            LLMConfiguration__c = llmConfigId,
+            Description__c = 'Intelligent financial client onboarding: KYC assessment → Account setup & RM assignment',
+            AuditLevel__c = 'Full'
+        );
+        insert workflow;
+        idMap.put('Financial Onboarding Workflow', workflow.Id);
+
+        // Create child function agents
+        Id kycAgent = createKYCRiskAssessmentAgent(llmConfigId);
+        Id setupAgent = createAccountSetupAssignmentAgent(llmConfigId);
+
+        // Define workflow steps
+        List<AgentWorkflowStep__c> steps = new List<AgentWorkflowStep__c>{
+            new AgentWorkflowStep__c(
+                WorkflowAgent__c = workflow.Id,
+                ChildAgent__c = kycAgent,
+                ExecutionOrder__c = 1,
+                IsActive__c = true,
+                Description__c = 'Step 1: KYC & Risk Assessment - Analyze client application, assess risk profile, update compliance status'
+            ),
+            new AgentWorkflowStep__c(
+                WorkflowAgent__c = workflow.Id,
+                ChildAgent__c = setupAgent,
+                ExecutionOrder__c = 2,
+                IsActive__c = true,
+                Description__c = 'Step 2: Account Setup & Assignment - Find suitable products, create onboarding tasks, notify relationship team'
+            )
+        };
+        insert steps;
+
+        System.debug('[Financial Onboarding] ✓ Workflow created with ' + steps.size() + ' steps');
+    }
+
+    /**
+     * @description Seeds test data specific to financial client onboarding scenario
+     */
+    private static void seedFinancialOnboardingData() {
+        System.debug('[Financial Onboarding] Creating test data...');
+
+        // Chatter Group for Relationship Management team
+        CollaborationGroup rmGroup = new CollaborationGroup(
+            Name = 'Relationship Management Team',
+            CollaborationType = 'Public',
+            Description = 'Team responsible for high-value client relationships and onboarding'
+        );
+        insert rmGroup;
+        idMap.put('RM Chatter Group', rmGroup.Id);
+
+        // Create diverse client application leads representing different risk profiles
+        List<Lead> clientApplications = new List<Lead>{
+            // High-net-worth conservative investor - should be Hot, low risk
+            new Lead(
+                FirstName = 'Margaret',
+                LastName = 'Wellington',
+                Company = 'Wellington Family Trust',
+                Title = 'Trustee',
+                Email = 'margaret.wellington@wellingtontrust.com',
+                Phone = '555-0201',
+                Status = 'Open - Not Contacted',
+                LeadSource = 'Referral',
+                Industry = 'Banking',
+                AnnualRevenue = 15000000,
+                NumberOfEmployees = 5,
+                Description = 'Referred by existing client. Managing family trust assets of approximately $15M. Primary goal is capital preservation and steady income generation for beneficiaries. Very conservative risk tolerance - cannot afford significant drawdowns. Interested in fixed income, municipal bonds, and dividend-paying blue chips. Has 30+ years investment experience. Requires quarterly reporting and annual in-person reviews.'
+            ),
+            // Young aggressive growth investor - should be Warm, higher risk tolerance
+            new Lead(
+                FirstName = 'Marcus',
+                LastName = 'Chen',
+                Company = 'TechVenture Capital LLC',
+                Title = 'Managing Partner',
+                Email = 'marcus.chen@techventure.com',
+                Phone = '555-0202',
+                Status = 'Open - Not Contacted',
+                LeadSource = 'Web',
+                Industry = 'Technology',
+                AnnualRevenue = 2500000,
+                NumberOfEmployees = 8,
+                Description = 'Tech entrepreneur who recently had successful exit. Looking to invest $2M in aggressive growth portfolio. Very high risk tolerance - comfortable with 30-40% drawdowns for potential high returns. Interested in emerging markets, tech sector, crypto exposure, and venture-style investments. 10 years investment experience but mostly in private markets. Wants digital-first experience with mobile app access. Time horizon 15+ years.'
+            ),
+            // Retiree seeking income - should be Hot, moderate-low risk
+            new Lead(
+                FirstName = 'Robert',
+                LastName = 'Anderson',
+                Company = 'Self - Retired',
+                Title = 'Retired Executive',
+                Email = 'robert.anderson@email.com',
+                Phone = '555-0203',
+                Status = 'Open - Not Contacted',
+                LeadSource = 'Seminar',
+                Industry = 'Other',
+                AnnualRevenue = 500000,
+                NumberOfEmployees = 1,
+                Description = 'Recently retired Fortune 500 CFO with $3M in rollover IRA and $500K in taxable accounts. Primary need is reliable income to supplement Social Security and pension. Moderate risk tolerance but emphasizes income stability over growth. Concerned about sequence of returns risk in early retirement. Interested in bond ladders, dividend strategies, and possibly annuities for guaranteed income floor. Needs tax-efficient withdrawal strategy. Prefers in-person meetings and phone calls over digital communication.'
+            ),
+            // Small business owner - should be Warm, moderate risk, complex needs
+            new Lead(
+                FirstName = 'Sofia',
+                LastName = 'Rodriguez',
+                Company = 'Rodriguez Medical Group',
+                Title = 'Owner/Physician',
+                Email = 'sofia.rodriguez@rodriguezmedical.com',
+                Phone = '555-0204',
+                Status = 'Open - Not Contacted',
+                LeadSource = 'Partner Referral',
+                Industry = 'Healthcare',
+                AnnualRevenue = 4000000,
+                NumberOfEmployees = 25,
+                Description = 'Physician and practice owner seeking comprehensive wealth management. Needs include: personal investment portfolio ($1.5M), practice 401k plan setup for 25 employees, buy-sell agreement funding, and disability/life insurance review. Moderate risk tolerance for personal assets, more conservative for retirement plan. Complex tax situation with practice income, real estate holdings, and deferred compensation. Looking for advisor who understands medical practice finances. Bilingual Spanish/English preferred.'
+            )
+        };
+        insert clientApplications;
+        idMap.put('HNW Conservative Lead', clientApplications[0].Id);
+        idMap.put('Aggressive Growth Lead', clientApplications[1].Id);
+        idMap.put('Retiree Income Lead', clientApplications[2].Id);
+        idMap.put('Business Owner Lead', clientApplications[3].Id);
+
+        // Create Knowledge Articles for product suitability guidelines
+        seedFinancialKnowledgeArticles();
+
+        System.debug('[Financial Onboarding] ✓ Test data created: 4 client applications, knowledge articles');
+    }
+
+    /**
+     * @description Creates Knowledge articles for financial product suitability
+     */
+    private static void seedFinancialKnowledgeArticles() {
+        try {
+            List<Knowledge__kav> articles = new List<Knowledge__kav>{
+                new Knowledge__kav(
+                    Title = 'Conservative Income Portfolio Suitability Guidelines',
+                    UrlName = 'Conservative-Income-Portfolio-Guidelines',
+                    Summary = 'Suitable for clients with: Low risk tolerance, income-focused objectives, capital preservation priority, shorter time horizons (under 10 years), or retirees. Recommended allocation: 70-80% fixed income (investment grade bonds, treasuries, municipal bonds), 15-25% dividend equities (blue chips, utilities, REITs), 5% cash equivalents. Key considerations: Sequence of returns risk for retirees, tax efficiency (municipal bonds for high tax brackets), inflation protection through TIPS. Minimum investment: $250,000. Annual fee: 0.75%.'
+                ),
+                new Knowledge__kav(
+                    Title = 'Aggressive Growth Portfolio Suitability Guidelines',
+                    UrlName = 'Aggressive-Growth-Portfolio-Guidelines',
+                    Summary = 'Suitable for clients with: High risk tolerance (comfortable with 30%+ drawdowns), growth-focused objectives, long time horizon (15+ years), stable income from other sources, and investment experience. Recommended allocation: 80-90% equities (growth stocks, emerging markets, sector funds), 5-15% alternatives (private equity, venture, crypto), 0-5% fixed income. Key considerations: Volatility tolerance verification required, quarterly rebalancing, tax-loss harvesting opportunities. Minimum investment: $500,000. Annual fee: 1.0%.'
+                ),
+                new Knowledge__kav(
+                    Title = 'Balanced Moderate Portfolio Suitability Guidelines',
+                    UrlName = 'Balanced-Moderate-Portfolio-Guidelines',
+                    Summary = 'Suitable for clients with: Moderate risk tolerance, balanced growth and income objectives, medium time horizon (7-15 years), some investment experience. Recommended allocation: 50-60% equities (diversified domestic and international), 35-45% fixed income (investment grade corporate and government), 5% alternatives. Key considerations: Regular rebalancing to maintain target allocation, tax-efficient fund placement, gradual de-risking as time horizon shortens. Minimum investment: $100,000. Annual fee: 0.85%.'
+                ),
+                new Knowledge__kav(
+                    Title = 'Business Owner Comprehensive Wealth Management',
+                    UrlName = 'Business-Owner-Wealth-Management',
+                    Summary = 'For business owners requiring integrated personal and business financial planning. Services include: Personal investment management, retirement plan design and administration (401k, SEP, defined benefit), business succession and buy-sell funding, key person and business insurance, tax coordination with business CPA, entity structure optimization. Key considerations: Separation of personal and business assets, liability protection, exit planning timeline, employee benefit competitiveness. Minimum relationship: $1M combined personal and business assets. Comprehensive fee: 1.0-1.25% based on complexity.'
+                ),
+                new Knowledge__kav(
+                    Title = 'Client Risk Assessment Methodology',
+                    UrlName = 'Client-Risk-Assessment-Methodology',
+                    Summary = 'Risk assessment factors and scoring: 1) Time Horizon - Under 5 years (low), 5-15 years (moderate), 15+ years (high capacity). 2) Income Stability - Fixed pension/SS (low need), variable business income (higher need for liquidity). 3) Investment Experience - Novice (lower tolerance), experienced (can handle volatility). 4) Stated Goals - Capital preservation (conservative), balanced (moderate), aggressive growth (high). 5) Loss Tolerance - Cannot afford losses (conservative), can tolerate 20% (moderate), comfortable with 30%+ (aggressive). Red flags requiring additional review: Inconsistent answers (high risk tolerance but preservation goals), unrealistic return expectations, concentrated positions, recent major life changes.'
+                )
+            };
+            insert articles;
+
+            for (Knowledge__kav article : articles) {
+                KbManagement.PublishingService.publishArticle(article.Id, true);
+            }
+            System.debug('[Financial Onboarding] ✓ Knowledge articles published');
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, '[Financial Onboarding] Could not create Knowledge articles: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * @description Step 1: KYC & Risk Assessment Agent
+     * Analyzes client application, assesses risk profile, creates compliance tasks
+     * Capabilities: get_lead_application, assess_and_update_lead, create_compliance_task
+     */
+    private static Id createKYCRiskAssessmentAgent(Id llmConfigId) {
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(
+            Name = 'KYC Risk Assessment Agent',
+            DeveloperName__c = 'KYC_Risk_Assessment_Agent',
+            AgentType__c = 'Function',
+            IsActive__c = true,
+            LLMConfiguration__c = llmConfigId,
+            AuditLevel__c = 'Full',
+            EnableParallelToolCalling__c = false,
+            ContextFormatStrategy__c = 'Structured Text',
+            IdentityPrompt__c = 'You are a compliance and risk assessment specialist at a financial services firm. You analyze new client applications to determine their risk profile, investment suitability, and compliance requirements. You have expertise in KYC (Know Your Customer) regulations and investment suitability standards.',
+            InstructionsPrompt__c = 'Analyze the client application provided in context. Your tasks:\n\n1. **Risk Profile Assessment:** Based on the client description, determine their risk tier:\n   - `Hot` = High-value client (>$1M AUM potential), clear objectives, straightforward needs\n   - `Warm` = Good prospect, moderate complexity, may need additional discovery\n   - `Cold` = Complex situation requiring senior review, inconsistent information, or red flags\n\n2. **Key Factors to Analyze:**\n   - Stated risk tolerance vs. investment goals (check for inconsistencies)\n   - Time horizon appropriateness\n   - Investment experience level\n   - Income/asset level and source\n   - Special requirements or complexity factors\n\n3. **Update the Lead** with your assessment using the Rating field for risk tier.\n\n4. **Create a Compliance Task** for the KYC verification team with specific items to verify based on the client profile.\n\nProvide clear reasoning for your risk assessment.',
+            PromptFooter__c = 'Flag any inconsistencies between stated risk tolerance and investment goals. High-net-worth clients (>$5M) should always be marked Hot regardless of complexity.'
+        );
+        insert agent;
+        idMap.put('KYC Risk Assessment Agent', agent.Id);
+
+        // Context provider for lead data
+        AgentContextConfig__c leadContext = createContext(agent.Id, 'Client Application', 'LeadContext', 'Lead', true, 10);
+        insert leadContext;
+
+        // Capabilities (max 3 to avoid queueable depth issues)
+        List<AgentCapability__c> capabilities = new List<AgentCapability__c>{
+            createCapability(
+                agent.Id,
+                'get_lead_application',
+                'Retrieves the full client application details from the Lead record. Returns comprehensive information including `Name`, `Company`, `Title`, `Industry`, `AnnualRevenue`, `NumberOfEmployees`, `Description` (contains investment goals and risk tolerance), `LeadSource`, and `Status`. Use this to gather all client information before making your assessment.',
+                '{"type":"object","properties":{"Id":{"type":"string","format":"salesforce-id","description":"The 18-character Lead ID from the context. This represents the client application to analyze.","examples":["00QXX000001ABCDEF"]}},"required":["Id"]}',
+                'Standard',
+                'GetRecordDetails',
+                null,
+                '{"objectApiName":"Lead","defaultFields":["Id","FirstName","LastName","Name","Company","Title","Email","Phone","Industry","AnnualRevenue","NumberOfEmployees","Description","LeadSource","Status","Rating","CreatedDate"]}',
+                false,
+                false,
+                false,
+                'External'
+            ),
+            createCapability(
+                agent.Id,
+                'assess_and_update_lead',
+                'Updates the Lead record with your risk assessment. Use the `Rating` field to set the risk tier:\n- `Hot` = High-value, straightforward client ready for onboarding\n- `Warm` = Good prospect requiring standard onboarding process\n- `Cold` = Complex case requiring senior advisor review\n\nAlso update `Status` to `Working - Contacted` to indicate assessment is complete.',
+                '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"The 18-character Lead ID to update with assessment results.","examples":["00QXX000001ABCDEF"]},"recordData":{"type":"object","properties":{"Rating":{"type":"string","enum":["Hot","Warm","Cold"],"description":"Risk tier based on your assessment: Hot (high-value/straightforward), Warm (standard process), Cold (complex/needs review)"},"Status":{"type":"string","description":"Update to Working - Contacted after assessment"}},"required":["Rating"],"additionalProperties":true}},"required":["recordId","recordData"]}',
+                'Standard',
+                'UpdateRecord',
+                null,
+                '{"objectApiName":"Lead"}',
+                false,
+                false,
+                false,
+                'External'
+            ),
+            createCapability(
+                agent.Id,
+                'create_compliance_task',
+                'Creates a KYC compliance verification task for the compliance team. Include specific verification items based on the client profile:\n- Identity verification requirements\n- Source of funds documentation needed\n- Any enhanced due diligence requirements\n- Accredited investor verification if applicable\n\nSet `Subject` to describe the task, `Description` with detailed verification checklist, `WhoId` to link to the Lead, and `ActivityDate` for the due date.',
+                '{"type":"object","properties":{"recordData":{"type":"object","properties":{"Subject":{"type":"string","description":"Task subject, e.g., KYC Verification - [Client Name]","examples":["KYC Verification - Margaret Wellington"]},"Description":{"type":"string","description":"Detailed checklist of verification items specific to this client profile"},"WhoId":{"type":"string","format":"salesforce-id","description":"Lead ID to associate this task with"},"ActivityDate":{"type":"string","format":"date","description":"Due date in YYYY-MM-DD format. Standard KYC should be 3-5 business days.","examples":["2025-01-03"]},"Priority":{"type":"string","enum":["High","Normal","Low"],"description":"High for high-value clients, Normal for standard"}},"required":["Subject","Description","WhoId","ActivityDate"],"additionalProperties":true}},"required":["recordData"]}',
+                'Standard',
+                'CreateRecord',
+                null,
+                '{"objectApiName":"Task","defaultFieldValues":{"Status":"Not Started","Type":"Compliance"}}',
+                false,
+                false,
+                false,
+                'External'
+            )
+        };
+        insert capabilities;
+
+        System.debug('[Financial Onboarding] ✓ KYC Risk Assessment Agent created with ' + capabilities.size() + ' capabilities');
+        return agent.Id;
+    }
+
+    /**
+     * @description Step 2: Account Setup & Assignment Agent
+     * Finds suitable products, creates onboarding tasks, notifies RM team
+     * Capabilities: search_product_suitability, create_onboarding_tasks, notify_rm_team
+     */
+    private static Id createAccountSetupAssignmentAgent(Id llmConfigId) {
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(
+            Name = 'Account Setup Assignment Agent',
+            DeveloperName__c = 'Account_Setup_Assignment_Agent',
+            AgentType__c = 'Function',
+            IsActive__c = true,
+            LLMConfiguration__c = llmConfigId,
+            AuditLevel__c = 'Full',
+            EnableParallelToolCalling__c = false,
+            ContextFormatStrategy__c = 'Structured Text',
+            IdentityPrompt__c = 'You are a client onboarding specialist at a financial services firm. You match new clients with appropriate investment products and relationship managers based on their profile, then coordinate the onboarding process.',
+            InstructionsPrompt__c = 'Based on the client application and KYC assessment from Step 1, complete the onboarding setup:\n\n1. **Search Product Suitability:** Find appropriate investment products/portfolios based on:\n   - Client risk tolerance and goals from their description\n   - Asset level (AnnualRevenue field indicates investable assets)\n   - Time horizon and income needs\n\n2. **Create Onboarding Tasks:** Create a task for the assigned relationship manager with:\n   - Recommended portfolio/product based on suitability search\n   - Key talking points for initial client meeting\n   - Any special requirements or considerations\n   - Timeline for account opening steps\n\n3. **Notify RM Team:** Post to the Relationship Management team Chatter group with:\n   - Client summary (name, asset level, profile type)\n   - Risk tier from assessment\n   - Recommended approach and products\n   - Any flags or special considerations\n\nKeep notifications concise but informative.',
+            PromptFooter__c = 'Match product recommendations to the specific client needs identified in their description. High-net-worth clients (Hot rating) should be flagged for senior RM assignment.'
+        );
+        insert agent;
+        idMap.put('Account Setup Assignment Agent', agent.Id);
+
+        // Context provider for lead data
+        AgentContextConfig__c leadContext = createContext(agent.Id, 'Client Application', 'LeadContext', 'Lead', true, 10);
+        insert leadContext;
+
+        // Capabilities (max 3)
+        List<AgentCapability__c> capabilities = new List<AgentCapability__c>{
+            createCapability(
+                agent.Id,
+                'search_product_suitability',
+                'Searches the knowledge base for product suitability guidelines matching the client profile. Search for terms like:\n- "conservative income" for low-risk, income-focused clients\n- "aggressive growth" for high-risk-tolerance growth investors\n- "balanced moderate" for middle-ground clients\n- "business owner" for clients with business planning needs\n- "risk assessment" for methodology guidance\n\nReturns articles with suitability criteria, recommended allocations, and minimum requirements.',
+                '{"type":"object","properties":{"searchQuery":{"type":"string","description":"Search terms based on client profile. Use risk tolerance + objective keywords.","examples":["conservative income portfolio","aggressive growth high risk","business owner comprehensive","balanced moderate portfolio"]},"maxResults":{"type":"integer","description":"Number of articles to return (recommend 3-5)","default":5,"minimum":1,"maximum":10}},"required":["searchQuery"]}',
+                'Apex',
+                null,
+                'ActionSearchKnowledge',
+                null,
+                false,
+                false,
+                false,
+                'External'
+            ),
+            createCapability(
+                agent.Id,
+                'create_onboarding_tasks',
+                'Creates an onboarding task for the relationship manager with client-specific action items. Include:\n- Recommended products based on suitability search results\n- Key discussion points for initial meeting\n- Required documentation to collect\n- Timeline milestones\n\nLink to the Lead using `WhoId`.',
+                '{"type":"object","properties":{"recordData":{"type":"object","properties":{"Subject":{"type":"string","description":"Task subject, e.g., Client Onboarding - [Name] - [Profile Type]","examples":["Client Onboarding - Margaret Wellington - Conservative HNW"]},"Description":{"type":"string","description":"Detailed onboarding checklist with recommended products, talking points, and timeline"},"WhoId":{"type":"string","format":"salesforce-id","description":"Lead ID to associate this task with"},"ActivityDate":{"type":"string","format":"date","description":"Target date for initial client meeting, typically 5-7 days out","examples":["2025-01-06"]},"Priority":{"type":"string","enum":["High","Normal","Low"],"description":"High for Hot leads, Normal for Warm, Low for Cold"}},"required":["Subject","Description","WhoId","ActivityDate"],"additionalProperties":true}},"required":["recordData"]}',
+                'Standard',
+                'CreateRecord',
+                null,
+                '{"objectApiName":"Task","defaultFieldValues":{"Status":"Not Started","Type":"Onboarding"}}',
+                false,
+                false,
+                false,
+                'External'
+            ),
+            createCapability(
+                agent.Id,
+                'notify_rm_team',
+                'Posts a summary to the Relationship Management team Chatter group. Include:\n- Client name and company\n- Asset level and risk tier (Hot/Warm/Cold)\n- Profile summary (investor type, key needs)\n- Recommended products/approach\n- Any special considerations or flags\n\nKeep under 150 words. Use this to alert the team about new client assignments.',
+                '{"type":"object","properties":{"messageText":{"type":"string","description":"Concise client summary for the RM team. Include: name, assets, risk tier, profile type, recommended approach, and any flags.","examples":["New Client Assignment: Margaret Wellington (Wellington Family Trust)\\n\\nAsset Level: $15M | Risk Tier: Hot\\nProfile: Conservative HNW - Capital preservation focus\\n\\nRecommended: Conservative Income Portfolio (70% fixed income, 25% dividend equities)\\n\\nKey Notes: Referred client, requires quarterly reporting and annual in-person reviews. 30+ years experience - sophisticated investor.\\n\\nAssigned for senior RM handling."]},"topics":{"type":"array","description":"Optional hashtags for categorization","items":{"type":"string"},"examples":[["NewClient","HNW","Conservative"]]}},"required":["messageText"]}',
+                'Standard',
+                'PostChatter',
+                null,
+                '{"feedType":"Group","targetId":"' + idMap.get('RM Chatter Group') + '"}',
+                false,
+                false,
+                true,
+                'External'
+            )
+        };
+        insert capabilities;
+
+        System.debug('[Financial Onboarding] ✓ Account Setup Assignment Agent created with ' + capabilities.size() + ' capabilities');
         return agent.Id;
     }
 

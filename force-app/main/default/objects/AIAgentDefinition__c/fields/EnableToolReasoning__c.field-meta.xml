@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EnableToolReasoning__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When enabled, the LLM is required to provide reasoning for each tool selection. This adds a _rationale parameter to all tool definitions and captures the reasoning in decision logs and execution steps for explainability and debugging.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Enable to require LLM to explain why it selected each tool</inlineHelpText>
+    <label>Enable Tool Reasoning</label>
+    <type>Checkbox</type>
+</CustomField>

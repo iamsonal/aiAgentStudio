@@ -344,9 +344,6 @@ public class AgentExecutionService {
             if (userId == null) {
                 userId = UserInfo.getUserId(); // Default to current user
             }
-            if (String.isBlank(triggerSource)) {
-                triggerSource = 'Apex'; // Default to Apex execution
-            }
             // userMessage is optional - no validation needed
         }
     }

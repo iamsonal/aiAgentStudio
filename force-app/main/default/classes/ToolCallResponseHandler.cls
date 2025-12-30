@@ -34,6 +34,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         public Boolean isAsync;
         public Boolean requiresApproval;
         public Integer executionOrder;
+        public String rationale;
 
         /**
          * Constructs a ToolCallRequest with validation for mutually exclusive execution modes.
@@ -46,6 +47,28 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
          * @throws ToolProcessingException if capability has invalid execution mode configuration
          */
         public ToolCallRequest(String toolCallId, String toolName, String toolArguments, AgentCapability__c capability, Integer executionOrder) {
+            this(toolCallId, toolName, toolArguments, capability, executionOrder, null);
+        }
+
+        /**
+         * Constructs a ToolCallRequest with rationale support.
+         *
+         * @param toolCallId The unique identifier for this tool call from the LLM
+         * @param toolName The name of the tool/capability
+         * @param toolArguments JSON string of arguments from the LLM (cleaned, without _rationale)
+         * @param capability The AgentCapability__c record defining the tool
+         * @param executionOrder The order in which this tool was requested (1-based)
+         * @param rationale The LLM's reasoning for selecting this tool (may be null)
+         * @throws ToolProcessingException if capability has invalid execution mode configuration
+         */
+        public ToolCallRequest(
+            String toolCallId,
+            String toolName,
+            String toolArguments,
+            AgentCapability__c capability,
+            Integer executionOrder,
+            String rationale
+        ) {
             this.toolCallId = toolCallId;
             this.toolName = toolName;
             this.toolArguments = toolArguments;
@@ -53,6 +76,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             this.isAsync = capability.RunAsynchronously__c == true;
             this.requiresApproval = capability.RequiresApproval__c == true;
             this.executionOrder = executionOrder;
+            this.rationale = rationale;
 
             // Defensive validation: RequiresApproval and RunAsynchronously are mutually exclusive
             // This should be caught by the trigger, but we validate here as a safeguard
@@ -79,14 +103,24 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         public Long processingTime;
         public Boolean isAsync;
         public Integer executionOrder;
+        public Id capabilityId;
 
-        public ToolExecutionResult(String toolCallId, String toolName, ActionOutcome outcome, Long processingTime, Boolean isAsync, Integer executionOrder) {
+        public ToolExecutionResult(
+            String toolCallId,
+            String toolName,
+            ActionOutcome outcome,
+            Long processingTime,
+            Boolean isAsync,
+            Integer executionOrder,
+            Id capabilityId
+        ) {
             this.toolCallId = toolCallId;
             this.toolName = toolName;
             this.outcome = outcome;
             this.processingTime = processingTime;
             this.isAsync = isAsync;
             this.executionOrder = executionOrder;
+            this.capabilityId = capabilityId;
         }
     }
 
@@ -254,7 +288,27 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     continue;
                 }
 
-                ToolCallRequest toolRequest = new ToolCallRequest(toolCallId, toolName, toolArguments, capability, i + 1);
+                // Extract and strip _rationale from arguments if present
+                String extractedRationale = null;
+                String cleanedArguments = toolArguments;
+
+                Map<String, String> rationaleResult = LLMFormattingService.extractAndStripRationale(toolArguments, logPrefix);
+                extractedRationale = rationaleResult.get('rationale');
+                cleanedArguments = rationaleResult.get('cleanedArguments');
+
+                if (String.isNotBlank(extractedRationale)) {
+                    System.debug(
+                        LoggingLevel.INFO,
+                        logPrefix +
+                            'Extracted rationale for tool ' +
+                            toolName +
+                            ': ' +
+                            extractedRationale.left(100) +
+                            (extractedRationale.length() > 100 ? '...' : '')
+                    );
+                }
+
+                ToolCallRequest toolRequest = new ToolCallRequest(toolCallId, toolName, cleanedArguments, capability, i + 1, extractedRationale);
                 toolRequests.add(toolRequest);
 
                 System.debug(
@@ -268,6 +322,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                         toolRequest.isAsync +
                         ', approval=' +
                         toolRequest.requiresApproval +
+                        ', hasRationale=' +
+                        String.isNotBlank(extractedRationale) +
                         ')'
                 );
             } catch (Exception e) {
@@ -294,20 +350,22 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                             'id' => req.toolCallId,
                             'isAsync' => req.isAsync,
                             'requiresApproval' => req.requiresApproval,
-                            'order' => req.executionOrder
+                            'order' => req.executionOrder,
+                            'hasRationale' => String.isNotBlank(req.rationale)
                         }
                     );
             }
 
-            decisionLogger.logToolExecution(
-                'Tool Execution Plan',
-                'LLM requested ' + toolRequests.size() + ' tool(s) for execution',
-                JSON.serialize(planData),
-                null,
-                true,
-                null,
-                null
-            );
+            // Note: Tool Execution Plan step removed - not needed in storyboard
+            // decisionLogger.logToolExecution(
+            //     'Tool Execution Plan',
+            //     'LLM requested ' + toolRequests.size() + ' tool(s) for execution',
+            //     JSON.serialize(planData),
+            //     null,
+            //     true,
+            //     null,
+            //     null
+            // );
         }
 
         return toolRequests;
@@ -400,7 +458,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     context.llmResult.providerResult.completionTokens,
                     context.llmResult.providerResult.totalTokens,
                     context.llmResult.providerResult.modelIdentifier,
-                    context.llmResult.providerResult.llmCalloutDurationMs
+                    context.llmResult.providerResult.llmCalloutDurationMs,
+                    toolRequest.capability.Id,
+                    toolRequest.rationale
                 );
 
                 // Register tool call ID for causality tracking
@@ -411,7 +471,15 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     }
                 }
 
-                System.debug(LoggingLevel.DEBUG, logPrefix + 'Created execution step for tool call: ' + toolRequest.toolName);
+                System.debug(
+                    LoggingLevel.DEBUG,
+                    logPrefix +
+                        'Created execution step for tool call: ' +
+                        toolRequest.toolName +
+                        ' (hasRationale=' +
+                        String.isNotBlank(toolRequest.rationale) +
+                        ')'
+                );
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create execution step for tool ' + toolRequest.toolName + ': ' + e.getMessage());
             }
@@ -449,7 +517,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             null,
             true,
             null,
-            null
+            null,
+            approvalTool.capability.Id
         );
 
         // Extract confirmation message from tool arguments
@@ -541,7 +610,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             context.turnIdentifier,
             context.currentTurnCount,
             0L,
-            false
+            false,
+            approvalTool.capability.Id
         );
 
         // Queue follow-up LLM call to inform user
@@ -605,7 +675,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     outcome,
                     processingTime,
                     false,
-                    toolRequest.executionOrder
+                    toolRequest.executionOrder,
+                    toolRequest.capability.Id
                 );
 
                 syncResults.add(result);
@@ -624,7 +695,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                         processingTime,
                         outcome.isSuccess,
                         outcome.errorCode,
-                        outcome.errorMessage
+                        outcome.errorMessage,
+                        toolRequest.capability.Id
                     );
                 }
             } catch (Exception e) {
@@ -641,7 +713,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     failureOutcome,
                     0L,
                     false,
-                    toolRequest.executionOrder
+                    toolRequest.executionOrder,
+                    toolRequest.capability.Id
                 );
 
                 syncResults.add(failureResult);
@@ -674,7 +747,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     context.turnIdentifier,
                     context.currentTurnCount,
                     result.processingTime,
-                    false
+                    false,
+                    result.capabilityId
                 );
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create execution step for sync tool result ' + result.toolName + ': ' + e.getMessage());
@@ -760,7 +834,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                         context.turnIdentifier,
                         context.currentTurnCount,
                         0L,
-                        true // isError
+                        true, // isError
+                        toolRequest.capability.Id
                     );
                 } catch (Exception stepEx) {
                     System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create error step for failed queue: ' + stepEx.getMessage());

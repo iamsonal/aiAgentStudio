@@ -111,7 +111,7 @@ public inherited sharing class SystemPromptBuilder {
 
         // Add optional prompt footer
         if (String.isNotBlank(agentConfig.PromptFooter__c)) {
-            promptParts.add(agentConfig.PromptFooter__c);
+            promptParts.add('# Additional Instructions\n\n' + agentConfig.PromptFooter__c);
         }
 
         // Log system prompt construction if decision logger is available
@@ -196,6 +196,17 @@ public inherited sharing class SystemPromptBuilder {
                     try {
                         ContextFormattingService formatter = new ContextFormattingService();
                         String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix, formatStrategy);
+
+                        // Log context gathering with formatting if decision logger is available
+                        if (this.decisionLogger != null) {
+                            this.decisionLogger.logContextGatheringWithFormatting(
+                                'Context Data Gathered',
+                                'Context data resolved and formatted for LLM',
+                                JSON.serialize(resolvedContext.recordsToLoad),
+                                formattedRecords,
+                                null
+                            );
+                        }
 
                         if (String.isNotBlank(formattedRecords)) {
                             contextBlocks.add('<RESOLVED_CONTEXT_DATA>\n' + formattedRecords + '\n</RESOLVED_CONTEXT_DATA>');

@@ -141,14 +141,6 @@ public class ContentResponseHandler implements ILLMResponseHandler {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Memory management completion hook failed: ' + e.getMessage());
         }
 
-        // Log the final response
-        decisionLogger.logFinalResponse(
-            'Final Response Generated',
-            'The final response from the LLM has been generated and stored',
-            assistantData.content,
-            assistantData.processingTimeMs
-        );
-
         // Complete the turn successfully
         context.agentStateSvc.completeTurnSuccessfully(context.executionId, context.turnIdentifier, savedAssistantMessageId, logPrefix);
         return OrchestrationService.OUTCOME_COMPLETED;
@@ -373,7 +365,8 @@ public class ContentResponseHandler implements ILLMResponseHandler {
                 null, // modelIdentifier
                 null, // llmCalloutDurationMs
                 false, // isInternal
-                null // isAsyncToolExecution
+                null, // isAsyncToolExecution
+                null // capabilityId
             );
 
             System.debug(LoggingLevel.INFO, resultLogPrefix + 'Logged completion capability result');

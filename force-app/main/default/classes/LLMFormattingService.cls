@@ -40,6 +40,7 @@ public inherited sharing class LLMFormattingService {
     // =============================================================================
 
     public static final String SUBMISSION_COMMENT_PARAM_NAME = 'submission_comment';
+    public static final String TOOL_RATIONALE_PARAM_NAME = '_rationale';
 
     // =============================================================================
     // MESSAGE PAYLOAD UTILITIES
@@ -131,6 +132,7 @@ public inherited sharing class LLMFormattingService {
 
     /**
      * Converts all AgentCapability__c records for a given agent definition into a list of LLM-compatible tool definitions.
+     * This overload does not inject rationale parameters. Use the overload with agentConfig for tool reasoning support.
      *
      * Each tool definition includes parameter schemas, approval/confirmation requirements, and SObject field enrichment as needed.
      *
@@ -140,8 +142,31 @@ public inherited sharing class LLMFormattingService {
      * @throws ToolFormattingException if schema validation or formatting fails critically.
      */
     public static List<Map<String, Object>> formatToolsForApi(Id agentDefinitionId, String loggingContext) {
+        return formatToolsForApi(agentDefinitionId, null, loggingContext);
+    }
+
+    /**
+     * Converts all AgentCapability__c records for a given agent definition into a list of LLM-compatible tool definitions.
+     * When agentConfig.EnableToolReasoning__c is true, injects a required _rationale parameter into each tool schema.
+     *
+     * Each tool definition includes parameter schemas, approval/confirmation requirements, and SObject field enrichment as needed.
+     *
+     * @param agentDefinitionId The Id of the agent definition whose capabilities should be exposed as tools.
+     * @param agentConfig The agent configuration record (optional). When provided and EnableToolReasoning__c is true,
+     *                    injects _rationale parameter into all tool schemas.
+     * @param loggingContext Optional string prefix for log output.
+     * @return List<Map<String, Object>> of tool definitions ready for LLM API consumption.
+     * @throws ToolFormattingException if schema validation or formatting fails critically.
+     */
+    public static List<Map<String, Object>> formatToolsForApi(Id agentDefinitionId, AIAgentDefinition__c agentConfig, String loggingContext) {
         String debugPrefix = String.isNotBlank(loggingContext) ? loggingContext : '[LLMFormattingService] ';
         List<Map<String, Object>> toolsPayload = new List<Map<String, Object>>();
+
+        // Determine if tool reasoning is enabled
+        Boolean enableToolReasoning = agentConfig?.EnableToolReasoning__c == true;
+        if (enableToolReasoning) {
+            System.debug(LoggingLevel.INFO, debugPrefix + 'Tool reasoning enabled - will inject _rationale parameter into all tools.');
+        }
 
         try {
             List<AgentCapability__c> capabilities = [
@@ -237,6 +262,11 @@ public inherited sharing class LLMFormattingService {
                     }
                 }
 
+                // Inject _rationale parameter if tool reasoning is enabled
+                if (enableToolReasoning) {
+                    injectRationaleParameter(paramSchema, debugPrefix);
+                }
+
                 Map<String, Object> functionDef = new Map<String, Object>{
                     'name' => capabilityName,
                     'description' => capabilityDesc,
@@ -278,6 +308,93 @@ public inherited sharing class LLMFormattingService {
             }
         }
         return null;
+    }
+
+    /**
+     * Injects a required _rationale parameter into a tool's parameter schema.
+     * This forces the LLM to provide reasoning for why it selected this tool.
+     *
+     * @param paramSchema The parameter schema map to modify.
+     * @param debugPrefix String prefix for log output.
+     */
+    private static void injectRationaleParameter(Map<String, Object> paramSchema, String debugPrefix) {
+        if (paramSchema == null) {
+            return;
+        }
+
+        Map<String, Object> properties = (Map<String, Object>) paramSchema.get('properties');
+        if (properties == null) {
+            properties = new Map<String, Object>();
+            paramSchema.put('properties', properties);
+        }
+
+        // Define the rationale meta-parameter with clear instructions
+        Map<String, Object> rationaleDef = new Map<String, Object>{
+            'type' => 'string',
+            'description' => 'REQUIRED: Explain step-by-step WHY you are selecting this specific tool and how it directly addresses the user\'s request. Be specific about what user need this tool fulfills.'
+        };
+
+        properties.put(TOOL_RATIONALE_PARAM_NAME, rationaleDef);
+
+        // Make it required to force the LLM to provide reasoning
+        List<Object> requiredFields = (List<Object>) paramSchema.get('required');
+        if (requiredFields == null) {
+            requiredFields = new List<Object>();
+            paramSchema.put('required', requiredFields);
+        }
+
+        // Add _rationale to required list if not already present
+        // Insert at beginning to prioritize it (if list has items), otherwise just add
+        if (!requiredFields.contains(TOOL_RATIONALE_PARAM_NAME)) {
+            if (requiredFields.isEmpty()) {
+                requiredFields.add(TOOL_RATIONALE_PARAM_NAME);
+            } else {
+                // Create new list with _rationale first, then existing items
+                List<Object> newRequiredFields = new List<Object>{ TOOL_RATIONALE_PARAM_NAME };
+                newRequiredFields.addAll(requiredFields);
+                paramSchema.put('required', newRequiredFields);
+            }
+        }
+
+        System.debug(LoggingLevel.DEBUG, debugPrefix + 'Injected _rationale parameter into tool schema.');
+    }
+
+    /**
+     * Extracts and removes the _rationale parameter from tool arguments JSON.
+     * Returns the rationale string and modifies the arguments map in place.
+     *
+     * @param toolArguments The JSON string of tool arguments.
+     * @param debugPrefix String prefix for log output.
+     * @return A map containing 'rationale' (String, may be null) and 'cleanedArguments' (String).
+     */
+    public static Map<String, String> extractAndStripRationale(String toolArguments, String debugPrefix) {
+        Map<String, String> result = new Map<String, String>{ 'rationale' => null, 'cleanedArguments' => toolArguments };
+
+        if (String.isBlank(toolArguments)) {
+            return result;
+        }
+
+        try {
+            Map<String, Object> argsMap = (Map<String, Object>) JSON.deserializeUntyped(toolArguments);
+
+            if (argsMap.containsKey(TOOL_RATIONALE_PARAM_NAME)) {
+                Object rationaleValue = argsMap.get(TOOL_RATIONALE_PARAM_NAME);
+                if (rationaleValue != null) {
+                    result.put('rationale', String.valueOf(rationaleValue));
+                }
+                argsMap.remove(TOOL_RATIONALE_PARAM_NAME);
+                result.put('cleanedArguments', JSON.serialize(argsMap));
+
+                System.debug(LoggingLevel.DEBUG, (debugPrefix ?? '[LLMFormattingService] ') + 'Extracted and stripped _rationale from tool arguments.');
+            }
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.WARN,
+                (debugPrefix ?? '[LLMFormattingService] ') + 'Could not parse arguments for rationale extraction: ' + e.getMessage()
+            );
+        }
+
+        return result;
     }
 
     /**

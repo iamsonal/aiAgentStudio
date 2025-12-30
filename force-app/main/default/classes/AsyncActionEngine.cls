@@ -150,7 +150,8 @@ public class AsyncActionEngine implements Queueable {
                 actionDuration,
                 outcome.isSuccess,
                 outcome.errorCode,
-                outcome.errorMessage
+                outcome.errorMessage,
+                this.capability.Id
             );
 
             // Save the tool result using ExecutionStep__c
@@ -163,7 +164,8 @@ public class AsyncActionEngine implements Queueable {
                 this.turnIdentifier,
                 this.currentTurnCount,
                 actionDuration,
-                true // isAsyncToolExecution - asynchronous execution
+                true, // isAsyncToolExecution - asynchronous execution
+                this.capability.Id
             );
 
             // FAIL-FAST CHECK: Apply three-tier error handling policy
@@ -182,7 +184,8 @@ public class AsyncActionEngine implements Queueable {
                     0,
                     false,
                     outcome.errorCode,
-                    outcome.errorMessage
+                    outcome.errorMessage,
+                    this.capability.Id
                 );
 
                 agentStateSvc.failTurn(

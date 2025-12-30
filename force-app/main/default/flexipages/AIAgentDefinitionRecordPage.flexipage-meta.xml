@@ -192,6 +192,16 @@
                 <identifier>RecordEnableParallelToolCalling_cField</identifier>
             </fieldInstance>
         </itemInstances>
+        <itemInstances>
+            <fieldInstance>
+                <fieldInstanceProperties>
+                    <name>uiBehavior</name>
+                    <value>none</value>
+                </fieldInstanceProperties>
+                <fieldItem>Record.EnableToolReasoning__c</fieldItem>
+                <identifier>RecordEnableToolReasoning_cField</identifier>
+            </fieldInstance>
+        </itemInstances>
         <name>Facet-6a58fca1-77b9-4b14-84ab-b265601238cd</name>
         <type>Facet</type>
     </flexiPageRegions>

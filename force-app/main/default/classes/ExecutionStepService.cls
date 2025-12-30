@@ -61,7 +61,8 @@ public inherited sharing class ExecutionStepService {
             null,
             null,
             false,
-            null
+            null,
+            null // capabilityId
         );
     }
 
@@ -108,7 +109,8 @@ public inherited sharing class ExecutionStepService {
         String modelIdentifier,
         Long llmCalloutDurationMs,
         Boolean isInternal,
-        Boolean isAsyncToolExecution
+        Boolean isAsyncToolExecution,
+        Id capabilityId
     ) {
         String logPrefix = LOG_PREFIX + '[createStep] ';
 
@@ -133,7 +135,8 @@ public inherited sharing class ExecutionStepService {
                 ModelIdentifier__c = modelIdentifier,
                 LLMCalloutDurationMs__c = llmCalloutDurationMs,
                 IsInternal__c = isInternal != null ? isInternal : false,
-                IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false
+                IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false,
+                AIAgentCapability__c = capabilityId
             );
 
             insert step;
@@ -231,7 +234,8 @@ public inherited sharing class ExecutionStepService {
             modelIdentifier,
             llmCalloutDurationMs,
             false, // isInternal
-            null // isAsyncToolExecution
+            null, // isAsyncToolExecution
+            null // capabilityId
         );
     }
 
@@ -262,29 +266,99 @@ public inherited sharing class ExecutionStepService {
         Integer completionTokens,
         Integer totalTokens,
         String modelIdentifier,
-        Long llmCalloutDurationMs
+        Long llmCalloutDurationMs,
+        Id capabilityId
     ) {
-        return createStep(
+        return createToolCallStep(
             executionId,
-            'ToolCall',
-            'Assistant',
-            null,
-            'JSON',
-            turnIdentifier,
-            turnCount,
             toolCallId,
             toolName,
             toolArguments,
-            null, // toolResult
-            null, // stepMetadata
+            turnIdentifier,
+            turnCount,
             promptTokens,
             completionTokens,
             totalTokens,
             modelIdentifier,
             llmCalloutDurationMs,
-            false, // isInternal
-            null // isAsyncToolExecution - not applicable to ToolCall steps
+            capabilityId,
+            null // toolRationale
         );
+    }
+
+    /**
+     * Creates a tool call step with rationale support.
+     *
+     * @param executionId The execution ID
+     * @param toolCallId The tool call identifier
+     * @param toolName The name of the tool being called
+     * @param toolArguments The arguments passed to the tool
+     * @param turnIdentifier The turn identifier
+     * @param turnCount The turn number
+     * @param promptTokens Optional prompt tokens count for the LLM call that generated this tool call
+     * @param completionTokens Optional completion tokens count for the LLM call that generated this tool call
+     * @param totalTokens Optional total tokens count for the LLM call that generated this tool call
+     * @param modelIdentifier Optional LLM model identifier (e.g., gpt-4o-mini)
+     * @param llmCalloutDurationMs Optional LLM API callout duration in milliseconds
+     * @param capabilityId The capability ID
+     * @param toolRationale Optional LLM-provided reasoning for selecting this tool
+     * @return Id of the created step
+     */
+    public Id createToolCallStep(
+        Id executionId,
+        String toolCallId,
+        String toolName,
+        String toolArguments,
+        String turnIdentifier,
+        Integer turnCount,
+        Integer promptTokens,
+        Integer completionTokens,
+        Integer totalTokens,
+        String modelIdentifier,
+        Long llmCalloutDurationMs,
+        Id capabilityId,
+        String toolRationale
+    ) {
+        String logPrefix = LOG_PREFIX + '[createToolCallStep] ';
+
+        try {
+            ExecutionStep__c step = new ExecutionStep__c(
+                AgentExecution__c = executionId,
+                StepType__c = 'ToolCall',
+                StepRole__c = 'Assistant',
+                Content__c = null,
+                ContentType__c = 'JSON',
+                Timestamp__c = Datetime.now(),
+                TurnIdentifier__c = turnIdentifier,
+                TurnCount__c = turnCount,
+                ToolCallId__c = toolCallId,
+                ToolName__c = toolName,
+                ToolArguments__c = toolArguments,
+                ToolResult__c = null,
+                StepMetadata__c = null,
+                PromptTokens__c = promptTokens,
+                CompletionTokens__c = completionTokens,
+                TotalTokens__c = totalTokens,
+                ModelIdentifier__c = modelIdentifier,
+                LLMCalloutDurationMs__c = llmCalloutDurationMs,
+                IsInternal__c = false,
+                IsAsyncToolExecution__c = false,
+                AIAgentCapability__c = capabilityId,
+                ToolRationale__c = toolRationale
+            );
+
+            insert step;
+
+            System.debug(
+                LoggingLevel.DEBUG,
+                logPrefix + 'Created ToolCall ExecutionStep__c: ' + step.Id + ' Tool: ' + toolName + ' HasRationale: ' + String.isNotBlank(toolRationale)
+            );
+
+            return step.Id;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create tool call step: ' + e.getMessage());
+            throw new ExecutionStepException('Failed to create tool call step: ' + e.getMessage());
+        }
     }
 
     /**
@@ -309,7 +383,8 @@ public inherited sharing class ExecutionStepService {
         String turnIdentifier,
         Integer turnCount,
         Long processingDuration,
-        Boolean isAsyncToolExecution
+        Boolean isAsyncToolExecution,
+        Id capabilityId
     ) {
         String logPrefix = LOG_PREFIX + '[createToolResultStep] ';
 
@@ -342,7 +417,8 @@ public inherited sharing class ExecutionStepService {
                 CompletionTokens__c = null,
                 TotalTokens__c = null,
                 ModelIdentifier__c = null,
-                LLMCalloutDurationMs__c = null
+                LLMCalloutDurationMs__c = null,
+                AIAgentCapability__c = capabilityId
             );
 
             insert step;
@@ -391,7 +467,8 @@ public inherited sharing class ExecutionStepService {
             null, // modelIdentifier
             null, // llmCalloutDurationMs
             false, // isInternal
-            null // isAsyncToolExecution
+            null, // isAsyncToolExecution
+            null // capabilityId
         );
     }
 

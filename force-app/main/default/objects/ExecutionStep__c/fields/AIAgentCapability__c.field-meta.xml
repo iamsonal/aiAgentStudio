@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AIAgentCapability__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>The capability/tool that was called or resulted in this step. Used for navigation from storyboard to capability configuration.</description>
+    <externalId>false</externalId>
+    <label>Agent Capability</label>
+    <referenceTo>AgentCapability__c</referenceTo>
+    <relationshipLabel>Execution Steps</relationshipLabel>
+    <relationshipName>ExecutionSteps</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>
+

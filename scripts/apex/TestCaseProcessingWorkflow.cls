@@ -201,8 +201,6 @@ public class TestCaseProcessingWorkflow {
                 AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
                 payload.sourceRecordIds = caseIds; // Pass list of IDs for bulk processing
                 payload.userId = UserInfo.getUserId();
-                payload.userMessage = 'Process these cases through the automated workflow';
-                payload.triggerSource = 'Test'; // Valid values: Chat, API, UI, Email, Schedule, DataChange, Workflow, Test
                 payload.turnIdentifier = 'bulk-workflow-test-' + String.valueOf(System.now().getTime());
             
             // Invoke the workflow agent (it will detect multiple IDs and use bulk handler)
@@ -266,8 +264,6 @@ public class TestCaseProcessingWorkflow {
                 AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
                 payload.sourceRecordId = c.Id; // Single case ID
                 payload.userId = UserInfo.getUserId();
-                payload.userMessage = 'Process this case through the automated workflow';
-                payload.triggerSource = 'Test'; // Valid values: Chat, API, UI, Email, Schedule, DataChange, Workflow, Test
                 payload.turnIdentifier = 'individual-workflow-' + c.Id;
                 
                 // Invoke the workflow agent

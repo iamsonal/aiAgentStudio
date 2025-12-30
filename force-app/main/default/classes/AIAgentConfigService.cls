@@ -56,6 +56,7 @@ public inherited sharing class AIAgentConfigService {
         'ExamplesPrompt__c',
         'PromptFooter__c',
         'EnableParallelToolCalling__c',
+        'EnableToolReasoning__c',
         'RequiresServiceUserContext__c',
         'AsyncDispatchType__c',
         'ErrorHandlingPolicy__c',

@@ -333,7 +333,61 @@ public inherited sharing class AgentDecisionStepLogger {
         String errorCode,
         String errorMessage
     ) {
-        logStep(StepType.TOOL_EXECUTION, title, executionDescription, executionJson, durationMs, isSuccess, errorCode, errorMessage);
+        logToolExecution(title, executionDescription, executionJson, durationMs, isSuccess, errorCode, errorMessage, null);
+    }
+
+    /**
+     * Log a tool execution step with capability ID
+     */
+    public void logToolExecution(
+        String title,
+        String executionDescription,
+        String executionJson,
+        Long durationMs,
+        Boolean isSuccess,
+        String errorCode,
+        String errorMessage,
+        Id capabilityId
+    ) {
+        logToolExecution(title, executionDescription, executionJson, durationMs, isSuccess, errorCode, errorMessage, capabilityId, null);
+    }
+
+    /**
+     * Log a tool execution step with capability ID and rationale
+     *
+     * @param title Descriptive title for the step
+     * @param executionDescription Description of tool execution
+     * @param executionJson JSON representation of execution details
+     * @param durationMs Duration of processing this step
+     * @param isSuccess Whether the tool execution was successful
+     * @param errorCode Error code if execution failed
+     * @param errorMessage Error message if execution failed
+     * @param capabilityId The capability ID
+     * @param rationale LLM-provided reasoning for selecting this tool
+     */
+    public void logToolExecution(
+        String title,
+        String executionDescription,
+        String executionJson,
+        Long durationMs,
+        Boolean isSuccess,
+        String errorCode,
+        String errorMessage,
+        Id capabilityId,
+        String rationale
+    ) {
+        logStepWithRationale(
+            StepType.TOOL_EXECUTION,
+            title,
+            executionDescription,
+            executionJson,
+            durationMs,
+            isSuccess,
+            errorCode,
+            errorMessage,
+            capabilityId,
+            rationale
+        );
     }
 
     /**
@@ -356,7 +410,23 @@ public inherited sharing class AgentDecisionStepLogger {
         String errorCode,
         String errorMessage
     ) {
-        logStep(StepType.TOOL_RESULT, title, resultDescription, resultJson, durationMs, isSuccess, errorCode, errorMessage);
+        logToolResult(title, resultDescription, resultJson, durationMs, isSuccess, errorCode, errorMessage, null);
+    }
+
+    /**
+     * Log a tool result step with capability ID
+     */
+    public void logToolResult(
+        String title,
+        String resultDescription,
+        String resultJson,
+        Long durationMs,
+        Boolean isSuccess,
+        String errorCode,
+        String errorMessage,
+        Id capabilityId
+    ) {
+        logStep(StepType.TOOL_RESULT, title, resultDescription, resultJson, durationMs, isSuccess, errorCode, errorMessage, capabilityId);
     }
 
     /**
@@ -588,6 +658,41 @@ public inherited sharing class AgentDecisionStepLogger {
         String errorCode,
         String errorMessage
     ) {
+        logStep(stepType, title, description, contentJson, durationMs, isSuccess, errorCode, errorMessage, null);
+    }
+
+    /**
+     * Internal helper to log a decision step with capability ID
+     */
+    private void logStep(
+        StepType stepType,
+        String title,
+        String description,
+        String contentJson,
+        Long durationMs,
+        Boolean isSuccess,
+        String errorCode,
+        String errorMessage,
+        Id capabilityId
+    ) {
+        logStepWithRationale(stepType, title, description, contentJson, durationMs, isSuccess, errorCode, errorMessage, capabilityId, null);
+    }
+
+    /**
+     * Internal helper to log a decision step with capability ID and rationale
+     */
+    private void logStepWithRationale(
+        StepType stepType,
+        String title,
+        String description,
+        String contentJson,
+        Long durationMs,
+        Boolean isSuccess,
+        String errorCode,
+        String errorMessage,
+        Id capabilityId,
+        String rationale
+    ) {
         try {
             // Get next global step sequence using in-memory counter
             Integer globalStepSequence = getNextGlobalStepSequence();
@@ -606,7 +711,9 @@ public inherited sharing class AgentDecisionStepLogger {
                 DurationMs__c = durationMs,
                 IsSuccess__c = isSuccess,
                 ErrorCode__c = errorCode,
-                ErrorMessage__c = errorMessage
+                ErrorMessage__c = errorMessage,
+                AIAgentCapability__c = capabilityId,
+                ToolRationale__c = rationale
             );
 
             // Set the AgentExecution lookup field
@@ -625,7 +732,13 @@ public inherited sharing class AgentDecisionStepLogger {
 
             System.debug(
                 LoggingLevel.INFO,
-                '[AgentDecisionStepLogger] Collected step: ' + stepTypeValue + ' - ' + title + ' with global sequence: ' + globalStepSequence
+                '[AgentDecisionStepLogger] Collected step: ' +
+                    stepTypeValue +
+                    ' - ' +
+                    title +
+                    ' with global sequence: ' +
+                    globalStepSequence +
+                    (String.isNotBlank(rationale) ? ' (with rationale)' : '')
             );
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[AgentDecisionStepLogger] Failed to collect step: ' + e.getMessage());
