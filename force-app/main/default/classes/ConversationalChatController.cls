@@ -114,19 +114,16 @@ public with sharing class ConversationalChatController {
         } catch (Exception ex) {
             String errorMsg = ex.getMessage();
             String errorCode = (ex instanceof ConfigurationException) ? AIAgentConstants.ERR_CODE_CONFIG_ERROR : AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix + 'UNHANDLED CONTROLLER EXCEPTION: (' + ex.getTypeName() + ') ' + errorMsg + '\nStack Trace: ' + ex.getStackTraceString()
-            );
+            System.debug(LoggingLevel.ERROR, logPrefix + ex.getTypeName() + ': ' + errorMsg + '\n' + ex.getStackTraceString());
             lwcResponse.put('error', 'An internal error occurred: ' + errorMsg);
             lwcResponse.put('errorCode', errorCode);
 
-            // Attempt to mark turn as failed
+            // Attempt to mark turn as failed - may fail if execution is invalid
             try {
                 AgentStateService ass = new AgentStateService();
                 ass.failTurn(sessionId, turnIdentifier, 'Controller Error: ' + errorMsg, errorCode, logPrefix);
             } catch (Exception failEx) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'CRITICAL: Failed to update session state: ' + failEx.getMessage());
+                System.debug(LoggingLevel.WARN, logPrefix + 'Could not update turn state: ' + failEx.getMessage());
             }
         }
 

@@ -136,10 +136,7 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up LLM orchestration outcome: ' + outcome);
         } catch (Exception ex) {
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix + 'Exception during follow-up LLM processing: ' + ex.getTypeName() + ': ' + ex.getMessage() + '\n' + ex.getStackTraceString()
-            );
+            System.debug(LoggingLevel.ERROR, logPrefix + ex.getTypeName() + ': ' + ex.getMessage() + '\n' + ex.getStackTraceString());
             try {
                 agentStateSvcForFailure.failTurn(
                     this.executionId,
@@ -148,11 +145,8 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
                     AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
                     logPrefix
                 );
-            } catch (Exception finalFailEx) {
-                System.debug(
-                    LoggingLevel.ERROR,
-                    logPrefix + 'Failed to mark turn as failed after exception: ' + finalFailEx.getTypeName() + ': ' + finalFailEx.getMessage()
-                );
+            } catch (Exception failEx) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Could not update turn state: ' + failEx.getMessage());
             }
         } finally {
             System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up LLM processing finished.');

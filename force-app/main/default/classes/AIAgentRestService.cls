@@ -47,18 +47,15 @@ global with sharing class AIAgentRestService {
             res.statusCode = 200;
             return new AIAgentResponse(true, outcome, null, requestId);
         } catch (AIAgentRestException e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Request validation or business logic error: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage());
             res.statusCode = 400;
             return new AIAgentResponse(false, null, e.getMessage(), requestId);
         } catch (System.SecurityException e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Security violation detected: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage());
             res.statusCode = 403;
             return new AIAgentResponse(false, null, 'Access denied: ' + e.getMessage(), requestId);
         } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix + 'Unexpected system error during request processing: ' + e.getMessage() + '\nStack Trace: ' + e.getStackTraceString()
-            );
+            System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage() + '\n' + e.getStackTraceString());
             res.statusCode = 500;
             return new AIAgentResponse(false, null, 'Internal server error: ' + e.getMessage(), requestId);
         }

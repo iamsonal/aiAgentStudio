@@ -214,10 +214,7 @@ public class AsyncActionEngine implements Queueable {
                 OrchestrationService.onAsyncToolCompleted(this.executionId, this.turnIdentifier, this.currentTurnCount, this.toolCallId, logPrefix);
             }
         } catch (Exception ex) {
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix + 'CRITICAL: Unhandled exception during action processing: ' + ex.getMessage() + '\nStack Trace: ' + ex.getStackTraceString()
-            );
+            System.debug(LoggingLevel.ERROR, logPrefix + ex.getTypeName() + ': ' + ex.getMessage() + '\n' + ex.getStackTraceString());
             try {
                 agentStateSvc.failTurn(
                     this.executionId,
@@ -226,8 +223,8 @@ public class AsyncActionEngine implements Queueable {
                     AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
                     logPrefix
                 );
-            } catch (Exception finalFailEx) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update execution state during error handling: ' + finalFailEx.getMessage());
+            } catch (Exception failEx) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Could not update turn state: ' + failEx.getMessage());
             }
         } finally {
             decisionLogger.commitSteps();

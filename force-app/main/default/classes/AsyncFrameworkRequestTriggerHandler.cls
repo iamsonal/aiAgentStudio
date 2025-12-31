@@ -191,16 +191,9 @@ public class AsyncFrameworkRequestTriggerHandler {
                 logPrefix + '[AsyncFrameworkRequestTriggerHandler] Initial LLM message processing completed successfully. Outcome: ' + outcome
             );
         } catch (Exception e) {
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix +
-                    '[AsyncFrameworkRequestTriggerHandler] ERROR: Initial LLM processing failed. Exception: ' +
-                    e.getMessage() +
-                    '\nStack Trace: ' +
-                    e.getStackTraceString()
-            );
+            System.debug(LoggingLevel.ERROR, logPrefix + e.getTypeName() + ': ' + e.getMessage() + '\n' + e.getStackTraceString());
 
-            // Attempt to mark the turn as failed to maintain session state consistency
+            // Attempt to mark turn as failed - may fail if execution is invalid
             try {
                 AgentStateService ass = new AgentStateService();
                 ass.failTurn(
@@ -211,12 +204,7 @@ public class AsyncFrameworkRequestTriggerHandler {
                     logPrefix
                 );
             } catch (Exception failEx) {
-                System.debug(
-                    LoggingLevel.ERROR,
-                    logPrefix +
-                        '[AsyncFrameworkRequestTriggerHandler] CRITICAL: Failed to update session state after processing failure: ' +
-                        failEx.getMessage()
-                );
+                System.debug(LoggingLevel.WARN, logPrefix + 'Could not update turn state: ' + failEx.getMessage());
             }
         }
     }

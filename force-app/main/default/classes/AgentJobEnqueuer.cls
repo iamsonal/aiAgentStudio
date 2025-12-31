@@ -451,19 +451,8 @@ public inherited sharing class AgentJobEnqueuer {
         String errorDetailForState = errorMsg + ': ' + enqueueException.getMessage();
         System.debug(LoggingLevel.ERROR, logPrefix + '[AgentJobEnqueuer] ' + errorDetailForState);
 
-        // Attempt to mark the turn as failed to prevent orphaned processing states
-        try {
-            this.agentStateSvc.failTurn(sessionId, turnId, errorDetailForState, AIAgentConstants.ERR_CODE_SYSTEM_LIMIT, logPrefix);
-        } catch (Exception finalStateEx) {
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix +
-                    '[AgentJobEnqueuer] CRITICAL: Failed to update session status after dispatch failure for "' +
-                    jobDescription +
-                    '". Session may be left in an inconsistent state. Error: ' +
-                    finalStateEx.getMessage()
-            );
-        }
+        this.agentStateSvc.failTurn(sessionId, turnId, errorDetailForState, AIAgentConstants.ERR_CODE_SYSTEM_LIMIT, logPrefix);
+        
         // Always re-throw to notify the calling orchestrator of the dispatch failure
         throw new DispatchException('Failed to dispatch ' + jobDescription, enqueueException);
     }

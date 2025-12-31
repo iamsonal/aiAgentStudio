@@ -232,7 +232,7 @@ public inherited sharing class AgentStateService {
      */
     public void failTurn(Id executionId, String turnIdentifier, String errorMessage, String errorCode, String logPrefix) {
         String errorDetailForState = String.isNotBlank(errorCode) ? '[' + errorCode + '] ' + errorMessage : errorMessage;
-        System.debug(LoggingLevel.ERROR, logPrefix + 'AgentStateService: FAILED state for Turn=' + turnIdentifier + '. Error=' + errorDetailForState);
+        System.debug(LoggingLevel.ERROR, logPrefix + 'Turn=' + turnIdentifier + '. Error=' + errorDetailForState);
 
         updateStatus(executionId, 'Failed', AIAgentConstants.STATUS_FAILED, turnIdentifier, errorDetailForState?.abbreviate(255));
 
