@@ -21,28 +21,15 @@ Understanding how the framework processes requests and executes actions.
 
 ## Request Flow
 
-```
-┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
-│   User      │────▶│  Controller  │────▶│  Orchestrator   │
-│   Input     │     │              │     │                 │
-└─────────────┘     └──────────────┘     └────────┬────────┘
-                                                  │
-                    ┌─────────────────────────────┘
-                    ▼
-┌─────────────────────────────────────────────────────────┐
-│                    Async Processing                      │
-│  ┌─────────────┐     ┌─────────────┐     ┌───────────┐  │
-│  │    LLM      │────▶│    Tool     │────▶│  Follow   │  │
-│  │  Provider   │     │  Execution  │     │  Up LLM   │  │
-│  └─────────────┘     └─────────────┘     └───────────┘  │
-└─────────────────────────────────────────────────────────┘
-                                                  │
-                    ┌─────────────────────────────┘
-                    ▼
-              ┌───────────┐
-              │  Response │
-              │  to User  │
-              └───────────┘
+```mermaid
+flowchart LR
+    A[User] --> B[Controller]
+    B --> C[Orchestrator]
+    C --> D[LLM Provider]
+    D --> E{Tool Call?}
+    E -->|Yes| F[Execute Action]
+    F --> D
+    E -->|No| G[Response]
 ```
 
 ---
@@ -64,8 +51,8 @@ Orchestrators manage the execution flow for different agent types.
 | Orchestrator | Agent Type | Behavior |
 |:-------------|:-----------|:---------|
 | `ConversationalOrchestrator` | Conversational | Multi-turn with memory |
-| `FunctionOrchestrator` | Function | Single-shot execution |
-| `WorkflowOrchestrator` | Workflow | Multi-step sequences |
+
+Additional orchestrators for Function and Workflow agents are available in the addon package.
 
 ### Core Services
 
@@ -85,32 +72,21 @@ Orchestrators manage the execution flow for different agent types.
 
 The framework uses adapters to support multiple AI providers with a consistent interface.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                  LLMInteractionService                   │
-└─────────────────────────┬───────────────────────────────┘
-                          │
-          ┌───────────────┼───────────────┐
-          ▼               ▼               ▼
-┌─────────────────┐ ┌─────────────┐ ┌─────────────────┐
-│ OpenAIProvider  │ │ ClaudeProvider│ │ GeminiProvider  │
-│    Adapter      │ │    Adapter    │ │    Adapter      │
-└─────────────────┘ └─────────────┘ └─────────────────┘
-          │               │               │
-          ▼               ▼               ▼
-┌─────────────────┐ ┌─────────────┐ ┌─────────────────┐
-│   OpenAI API    │ │ Anthropic   │ │   Google AI     │
-│                 │ │    API      │ │                 │
-└─────────────────┘ └─────────────┘ └─────────────────┘
+```mermaid
+flowchart TB
+    A[LLMInteractionService] --> B[OpenAI Adapter]
+    A --> C[Custom Adapters]
+    B --> D[OpenAI API]
+    C --> E[Other AI APIs]
 ```
 
 ### Available Adapters
 
 | Adapter | Provider | Models |
 |:--------|:---------|:-------|
-| `OpenAIProviderAdapter` | OpenAI | GPT-4o, GPT-4o-mini, GPT-4-turbo |
-| `ClaudeProviderAdapter` | Anthropic | Claude 3 Sonnet, Claude 3.5 Sonnet |
-| `GeminiProviderAdapter` | Google | Gemini 1.5 Pro, Gemini 1.5 Flash |
+| `OpenAIProviderAdapter` | OpenAI | GPT-4o, GPT-4o-mini |
+
+Additional provider adapters are available in the addon package. You can also add your own by extending `BaseProviderAdapter`.
 
 ---
 
@@ -174,18 +150,17 @@ Every interaction is logged to `AgentDecisionStep__c`:
 
 | Field | Content |
 |:------|:--------|
-| `UserInput__c` | What the user said |
-| `LLMRequest__c` | Full request to AI provider |
-| `LLMResponse__c` | Full response from AI |
-| `ToolCalls__c` | Tools the AI decided to use |
-| `ToolResults__c` | Results from tool execution |
-| `TokensUsed__c` | Token consumption |
-| `ExecutionTime__c` | Processing duration |
+| `StepType__c` | Type of step (LLMCall, ToolCall, ToolResult, Error) |
+| `ContentJson__c` | Full payload/content for the step |
+| `Title__c` | Brief description of the step |
+| `TotalTokens__c` | Token consumption |
+| `DurationMs__c` | Processing duration |
+| `IsSuccess__c` | Whether the step succeeded |
 
 ### Querying Decision Steps
 
 ```sql
-SELECT Id, UserInput__c, LLMResponse__c, TokensUsed__c
+SELECT Id, StepType__c, Title__c, TotalTokens__c
 FROM AgentDecisionStep__c
 WHERE AgentExecution__c = :executionId
 ORDER BY CreatedDate ASC
@@ -201,9 +176,9 @@ Implement `IAgentOrchestrator`:
 
 ```apex
 public interface IAgentOrchestrator {
-    void initialize(AIAgentDefinition__c agent);
-    AgentResponse process(AgentRequest request);
-    void cleanup();
+    void initialize(AIAgentDefinition__c agentDefinition);
+    AgentExecutionService.ExecutionResult initiate(String agentDeveloperName, AgentExecutionService.ExecutionPayload payload);
+    void processAsyncResult(Id executionId, Map<String, Object> asyncPayload);
 }
 ```
 
@@ -213,20 +188,42 @@ Extend `BaseProviderAdapter`:
 
 ```apex
 public class MyProviderAdapter extends BaseProviderAdapter {
-    public override LLMResponse sendRequest(LLMRequest request) {
-        // Implementation
+    protected override HttpRequest buildProviderRequest(
+        LLMConfiguration__c llmConfig,
+        List<Map<String, Object>> messagesPayload,
+        List<Map<String, Object>> toolsPayload,
+        AIAgentDefinition__c agentConfig
+    ) {
+        // Build provider-specific HTTP request
+    }
+
+    protected override ProviderResult parseProviderResponse(
+        HttpResponse response,
+        String logPrefix
+    ) {
+        // Parse provider-specific response format
     }
 }
 ```
 
 ### Adding Custom Actions
 
-Implement `IAgentAction`:
+Extend `BaseAgentAction` (which implements `IAgentAction`):
+
+```apex
+public class MyCustomAction extends BaseAgentAction {
+    public override ActionOutcome executeAction(Map<String, Object> params) {
+        // Your action logic here
+        return ActionOutcome.success(resultData);
+    }
+}
+```
+
+The `IAgentAction` interface defines:
 
 ```apex
 public interface IAgentAction {
-    ActionResult execute(ActionContext context);
-    Boolean validatePermissions(ActionContext context);
+    ActionOutcome execute(String actionConfigurationJson, String argumentsJson, ActionContext context);
 }
 ```
 
@@ -236,9 +233,8 @@ Implement `IMemoryManager`:
 
 ```apex
 public interface IMemoryManager {
-    List<Message> getContextMessages(String executionId);
-    void saveMessage(String executionId, Message msg);
-    void summarize(String executionId);
+    List<Map<String, Object>> getHistoryPayload(Id executionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String loggingContext);
+    void onTurnCompletion(Id executionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String loggingContext);
 }
 ```
 

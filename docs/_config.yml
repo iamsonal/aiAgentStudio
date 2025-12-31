@@ -4,10 +4,15 @@ baseurl: "/aiAgentStudio"
 url: "https://iamsonal.github.io"
 
 theme: just-the-docs
-remote_theme: just-the-docs/just-the-docs
+# remote_theme: just-the-docs/just-the-docs  # Uncomment for GitHub Pages if needed
 
 # Salesforce-inspired color scheme
 color_scheme: salesforce
+
+# Dark mode toggle (requires both schemes to exist in _sass/color_schemes/)
+color_scheme_toggle:
+  - salesforce
+  - dark
 
 # Logo
 logo: "/assets/images/logo.png"
@@ -20,6 +25,14 @@ aux_links:
     - "https://github.com/sponsors/iamsonal"
 
 aux_links_new_tab: true
+
+# Edit on GitHub link
+gh_edit_link: true
+gh_edit_link_text: "Edit this page on GitHub"
+gh_edit_repository: "https://github.com/iamsonal/aiAgentStudio"
+gh_edit_branch: "main"
+gh_edit_source: docs
+gh_edit_view_mode: "edit"
 
 # Footer
 footer_content: "Copyright &copy; 2025 Sonal. Licensed under <a href=\"https://opensource.org/licenses/MPL-2.0\">MPL-2.0</a>. <a href=\"https://github.com/sponsors/iamsonal\">Support this project</a>"
@@ -45,6 +58,10 @@ heading_anchors: true
 # Enable copy code button
 enable_copy_code_button: true
 
+# Enable Mermaid diagrams
+mermaid:
+  version: "10.6.0"
+
 # Default front matter
 defaults:
   - scope:
@@ -56,7 +73,16 @@ defaults:
 # Plugins
 plugins:
   - jekyll-seo-tag
-  - jekyll-remote-theme
+
+# Syntax highlighting with Rouge
+highlighter: rouge
+kramdown:
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    block:
+      line_numbers: false
+    span:
+      line_numbers: false
 
 # Callouts configuration
 callouts_level: quiet

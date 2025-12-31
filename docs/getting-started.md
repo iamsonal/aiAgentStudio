@@ -135,9 +135,9 @@ LLM Configurations define how to connect to your AI provider.
 
 | Provider | Adapter Class | Models |
 |:---------|:--------------|:-------|
-| OpenAI | `OpenAIProviderAdapter` | gpt-4o, gpt-4o-mini, gpt-4-turbo |
-| Claude | `ClaudeProviderAdapter` | claude-3-sonnet, claude-3.5-sonnet |
-| Gemini | `GeminiProviderAdapter` | gemini-1.5-pro, gemini-1.5-flash |
+| OpenAI | `OpenAIProviderAdapter` | gpt-4o, gpt-4o-mini |
+
+Additional provider adapters are available in the addon package. You can also create your own by extending `BaseProviderAdapter`.
 
 ---
 
@@ -202,7 +202,7 @@ Capabilities define what actions your agent can perform.
 | Capability Name | `search_contacts` |
 | Description | `Search for contacts by name, email, or account. Use this when users ask to find contact information.` |
 | Implementation Type | `Standard` |
-| Standard Action Type | `GetRecords` |
+| Standard Action Type | `GetRecordDetails` |
 | AI Agent Definition | `Sales Assistant` |
 
 4. Add Backend Configuration:

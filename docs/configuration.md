@@ -130,6 +130,7 @@ Best for development, testing, and debugging.
 | Field | Type | Description |
 |:------|:-----|:------------|
 | `RequiresApproval__c` | Checkbox | Require human approval before execution |
+| `RequiresConfirmation__c` | Checkbox | AI asks user for yes/no confirmation in chat before executing |
 | `RunAsynchronously__c` | Checkbox | Execute in separate transaction |
 | `FailFastOnError__c` | Checkbox | Stop immediately on error |
 
@@ -283,12 +284,12 @@ Parameters use [JSON Schema](https://json-schema.org/) format.
 
 ### Flow Action
 
+For Flow implementation, set `ImplementationType__c` to `Flow` and put the Flow API name in `ImplementationDetail__c`.
+
 ```json
 {
-  "flowApiName": "Lead_Qualification_Flow",
-  "inputMappings": {
-    "leadId": "recordId",
-    "source": "channel"
+  "defaultInputValues": {
+    "source": "AI_Agent"
   }
 }
 ```

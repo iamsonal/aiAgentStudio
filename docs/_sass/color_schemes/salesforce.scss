@@ -1,5 +1,8 @@
 // Salesforce-inspired color scheme for Just the Docs
 
+// Disable the gradient hover effect
+$logo-hover-background-color: transparent;
+
 $link-color: #0176d3;
 $btn-primary-color: #0176d3;
 $body-heading-color: #032d60;
@@ -46,4 +49,31 @@ $base-button-color: #0176d3;
 .search-button:hover {
   background-color: #e8f4fd !important;
   background-image: none !important;
+}
+
+// Logo/site title hover - remove blue gradient but KEEP logo background-image
+.site-title:hover,
+a.site-title:hover {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+// The logo IS a background-image, so don't remove it - just add subtle hover effect
+.site-logo:hover {
+  opacity: 0.85;
+  transition: opacity 0.2s ease;
+}
+
+// Site header link hover - exclude the logo link
+.site-header .site-button:hover {
+  // Don't set background to transparent here - it removes the logo
+}
+
+// Keep logo visible on hover - override the theme's gradient overlay
+.site-button {
+  &::before,
+  &::after {
+    display: none !important;
+    content: none !important;
+  }
 }

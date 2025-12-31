@@ -24,7 +24,7 @@ permalink: /
 
 <div class="repo-notice">
   <div class="notice-title">📦 Repository Notice</div>
-  <p>This repository contains the <strong>core AI Agent Framework only</strong>. The <code>aiAgentStudioAddons</code> folder visible in the codebase contains proprietary extensions that are <strong>not part of the open-source repository</strong>. When you clone this repo, you'll have access to all core framework capabilities in the <code>force-app</code> directory.</p>
+  <p>This repository contains the <strong>core AI Agent Framework only</strong>. The <code>aiAgentStudioAddons</code> folder contains proprietary extensions including additional orchestrators, LLM providers, actions, and UI components that are <strong>not part of the open-source repository</strong>.</p>
 </div>
 
 ---
@@ -34,7 +34,7 @@ permalink: /
   <ul>
     <li><strong>No Code Required</strong> — Configure AI agents with point-and-click tools</li>
     <li><strong>Enterprise Security</strong> — Automatic CRUD, FLS, and sharing rule enforcement</li>
-    <li><strong>Multiple AI Providers</strong> — OpenAI, Claude, and Gemini out of the box</li>
+    <li><strong>Multiple AI Providers</strong> — OpenAI included, extensible for Claude, Gemini, and more</li>
     <li><strong>Full Observability</strong> — Every interaction logged for transparency and debugging</li>
     <li><strong>Open Source</strong> — Free forever under MPL-2.0 license</li>
   </ul>
@@ -67,7 +67,7 @@ permalink: /
 <div class="feature-grid">
   <div class="feature-card">
     <h3>💬 Conversational Agents</h3>
-    <p>Interactive chat assistants with multi-turn conversations and memory. Perfect for customer support, sales assistance, and help desks.</p>
+    <p>Interactive chat assistants with multi-turn conversations and memory. Perfect for customer support, sales assistance, and help desks. <strong>Included in core framework.</strong></p>
   </div>
   <div class="feature-card">
     <h3>⚡ Function Agents</h3>
@@ -94,11 +94,11 @@ permalink: /
   </div>
   <div class="feature-card">
     <h3>🤖 Multiple AI Providers</h3>
-    <p>OpenAI, Claude, Gemini with easy adapter pattern</p>
+    <p>OpenAI included, more in addons, extensible adapter pattern</p>
   </div>
   <div class="feature-card">
     <h3>🛠️ Standard Actions</h3>
-    <p>Create/update records, Chatter, email, flows, reports</p>
+    <p>Create/update records, Chatter, flows, and more</p>
   </div>
   <div class="feature-card">
     <h3>⚙️ Async Processing</h3>
@@ -227,11 +227,9 @@ Navigate to **Setup → Named Credentials → New**
 | `ActionCreateRecord` | Create any Salesforce record |
 | `ActionUpdateRecord` | Update existing records |
 | `ActionPostChatter` | Post to Chatter feeds |
-| `ActionSendEmail` | Send emails |
 | `ActionFlowHandler` | Execute Salesforce Flows |
-| `ActionManageTasks` | Create and manage tasks |
-| `ActionRunReport` | Execute reports and retrieve results |
-| `ActionSearchKnowledge` | Search knowledge articles |
+
+Additional actions are available in the addon package.
 
 [View all actions →](actions.html)
 
