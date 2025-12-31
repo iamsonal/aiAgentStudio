@@ -58,7 +58,7 @@ flows:
             6.3:
                 task: assign_permission_sets
                 options:
-                    api_names: AIAgentStudioUser
+                    api_names: AIAgentStudioEndUser
             7:
                 task: execute_anon
                 description: Set up Salesforce Data
