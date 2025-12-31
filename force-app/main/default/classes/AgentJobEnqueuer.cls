@@ -452,7 +452,7 @@ public inherited sharing class AgentJobEnqueuer {
         System.debug(LoggingLevel.ERROR, logPrefix + '[AgentJobEnqueuer] ' + errorDetailForState);
 
         this.agentStateSvc.failTurn(sessionId, turnId, errorDetailForState, AIAgentConstants.ERR_CODE_SYSTEM_LIMIT, logPrefix);
-        
+
         // Always re-throw to notify the calling orchestrator of the dispatch failure
         throw new DispatchException('Failed to dispatch ' + jobDescription, enqueueException);
     }

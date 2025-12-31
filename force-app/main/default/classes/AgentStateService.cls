@@ -252,8 +252,9 @@ public inherited sharing class AgentStateService {
      * @param processingStatus The new processing status (optional)
      * @param turnIdentifier The current turn identifier (optional)
      * @param statusMessage Additional status message (optional)
+     * @param serviceUserId The service user ID to set if not already set (optional)
      */
-    public void updateStatus(Id executionId, String executionStatus, String processingStatus, String turnIdentifier, String statusMessage) {
+    public void updateStatus(Id executionId, String executionStatus, String processingStatus, String turnIdentifier, String statusMessage, Id serviceUserId) {
         String logPrefix = LOG_PREFIX + '[updateStatus] ';
 
         try {
@@ -272,6 +273,12 @@ public inherited sharing class AgentStateService {
                 execution.EndTime__c = Datetime.now();
             }
 
+            // Set ServiceUser__c if provided and not already set
+            if (serviceUserId != null) {
+                execution.ServiceUser__c = serviceUserId;
+                System.debug(LoggingLevel.INFO, logPrefix + 'Setting ServiceUser__c to: ' + serviceUserId);
+            }
+
             update execution;
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Updated execution ' + executionId + ' to status: ' + executionStatus);
@@ -279,6 +286,19 @@ public inherited sharing class AgentStateService {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update execution status: ' + e.getMessage());
             throw new AgentStateException('Failed to update execution status: ' + e.getMessage());
         }
+    }
+
+    /**
+     * Updates the status of an AgentExecution__c record (overload without serviceUserId for backward compatibility).
+     *
+     * @param executionId The execution to update
+     * @param executionStatus The new execution status
+     * @param processingStatus The new processing status (optional)
+     * @param turnIdentifier The current turn identifier (optional)
+     * @param statusMessage Additional status message (optional)
+     */
+    public void updateStatus(Id executionId, String executionStatus, String processingStatus, String turnIdentifier, String statusMessage) {
+        updateStatus(executionId, executionStatus, processingStatus, turnIdentifier, statusMessage, null);
     }
 
     // ===================================================================================

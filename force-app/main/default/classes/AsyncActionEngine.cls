@@ -141,12 +141,18 @@ public class AsyncActionEngine implements Queueable {
 
             // Process and store the action execution outcome
             String resultJsonForStorage = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
+
+            // Add async execution flag to the result for decision step logging
+            Map<String, Object> resultWithAsyncFlag = (Map<String, Object>) JSON.deserializeUntyped(resultJsonForStorage);
+            resultWithAsyncFlag.put('isAsyncToolExecution', true);
+            String enhancedResultJson = JSON.serialize(resultWithAsyncFlag);
+
             Id newRecordContextId = OrchestrationService.extractRecordIdFromOutcome(outcome);
 
             decisionLogger.logToolResult(
-                'Tool Execution Completed (Async)',
-                'Asynchronous tool execution has completed',
-                resultJsonForStorage,
+                'Tool Execution Completed',
+                'Tool execution has completed',
+                enhancedResultJson,
                 actionDuration,
                 outcome.isSuccess,
                 outcome.errorCode,

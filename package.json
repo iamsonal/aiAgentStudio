@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "description": "Salesforce App",
   "scripts": {
+    "docs": "cd docs && bundle exec jekyll serve",
+    "docs:install": "cd docs && bundle install",
     "generate:action-metadata": "node scripts/generate-action-metadata.js",
     "generate:action-metadata:dry": "node scripts/generate-action-metadata.js --dry-run --verbose",
     "lint": "eslint **/{aura,lwc}/**/*.js",

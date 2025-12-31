@@ -1,0 +1,725 @@
+// Salesforce-inspired color scheme
+$link-color: #0176d3;
+$btn-primary-color: #0176d3;
+
+// Custom colors
+:root {
+  --sf-blue: #0176d3;
+  --sf-blue-dark: #014486;
+  --sf-navy: #032d60;
+  --sf-cloud: #1b96ff;
+  --sf-success: #2e844a;
+  --sf-warning: #fe9339;
+  --sf-error: #ea001e;
+}
+
+// Hero section styling
+.hero-section {
+  text-align: center;
+  padding: 2rem 0 3rem;
+
+  .hero-logo {
+    max-width: 120px;
+    margin-bottom: 1.5rem;
+  }
+
+  .hero-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--sf-navy);
+    margin-bottom: 0.5rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1.25rem;
+    color: #666;
+    max-width: 600px;
+    margin: 0 auto 1.5rem;
+  }
+
+  .hero-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+// Feature cards
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.feature-card {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  border-left: 4px solid var(--sf-blue);
+
+  h3 {
+    margin-top: 0;
+    color: var(--sf-navy);
+    font-size: 1.1rem;
+  }
+
+  p {
+    margin-bottom: 0;
+    color: #666;
+    font-size: 0.95rem;
+  }
+}
+
+// Callout boxes
+.callout {
+  padding: 1rem 1.25rem;
+  border-radius: 6px;
+  margin: 1.5rem 0;
+  border-left: 4px solid;
+
+  .callout-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  p:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.callout-note {
+  background: #e8f4fd;
+  border-color: var(--sf-blue);
+
+  .callout-title {
+    color: var(--sf-blue-dark);
+  }
+}
+
+.callout-warning {
+  background: #fff8e6;
+  border-color: var(--sf-warning);
+
+  .callout-title {
+    color: #b86e00;
+  }
+}
+
+.callout-tip {
+  background: #e8f5e9;
+  border-color: var(--sf-success);
+
+  .callout-title {
+    color: var(--sf-success);
+  }
+}
+
+.callout-important {
+  background: #fce8e8;
+  border-color: var(--sf-error);
+
+  .callout-title {
+    color: var(--sf-error);
+  }
+}
+
+// Better code blocks
+.highlight {
+  position: relative;
+
+  pre {
+    border-radius: 6px;
+  }
+}
+
+// Copy button for code
+.code-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+
+  &:hover {
+    background: #f0f0f0;
+  }
+}
+
+.highlight:hover .code-copy-btn {
+  opacity: 1;
+}
+
+// Value proposition section - lighter version
+.value-prop {
+  background: linear-gradient(135deg, #e8f4fd 0%, #d4e9f7 100%);
+  color: #032d60;
+  padding: 2rem;
+  border-radius: 12px;
+  margin: 2rem 0;
+  border: 1px solid #b8d4e8;
+
+  h2 {
+    color: #032d60;
+    margin-top: 0;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+
+    li {
+      padding: 0.5rem 0;
+      padding-left: 1.5rem;
+      position: relative;
+
+      &:before {
+        content: "✓";
+        position: absolute;
+        left: 0;
+        color: #0176d3;
+        font-weight: bold;
+      }
+    }
+  }
+}
+
+// Repository notice
+.repo-notice {
+  background: #fff8e6;
+  border: 1px solid #fe9339;
+  border-left: 4px solid #fe9339;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+
+  .notice-title {
+    font-weight: 600;
+    color: #b86e00;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  p {
+    margin: 0;
+    color: #666;
+  }
+}
+
+// Audience cards
+.audience-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.audience-card {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+
+  .audience-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  h4 {
+    margin: 0 0 0.5rem;
+    color: var(--sf-navy);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #666;
+  }
+}
+
+// Button styling
+.btn-sf {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--sf-blue);
+  color: white !important;
+
+  &:hover {
+    background: var(--sf-blue-dark);
+  }
+}
+
+.btn-secondary {
+  background: white;
+  color: var(--sf-navy) !important;
+  border: 2px solid var(--sf-navy);
+
+  &:hover {
+    background: var(--sf-navy);
+    color: white !important;
+  }
+}
+
+// Sponsor section
+.sponsor-section {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+  margin: 2rem 0;
+
+  h3 {
+    margin-top: 0;
+  }
+}
+
+// Edit page link
+.edit-page-link {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+  font-size: 0.9rem;
+
+  a {
+    color: #666;
+
+    &:hover {
+      color: var(--sf-blue);
+    }
+  }
+}
+
+// ============================================
+// UI/UX IMPROVEMENTS
+// ============================================
+
+// Smooth scrolling
+html {
+  scroll-behavior: smooth;
+}
+
+// Card hover effects
+.feature-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.audience-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  }
+}
+
+// Numbered step badges
+.step-section {
+  position: relative;
+  padding-left: 3.5rem;
+  margin-bottom: 2.5rem;
+
+  .step-number {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    background: linear-gradient(135deg, #0176d3 0%, #014486 100%);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+    box-shadow: 0 3px 10px rgba(1, 118, 211, 0.3);
+  }
+
+  h3 {
+    margin-top: 0;
+    padding-top: 0.25rem;
+  }
+
+  // Style the step title (bold text at start)
+  > p:first-of-type strong:first-child {
+    font-size: 1.15rem;
+    color: #032d60;
+  }
+}
+
+// Connecting line between steps
+.steps-container {
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 1.2rem;
+    top: 2.5rem;
+    bottom: 2.5rem;
+    width: 2px;
+    background: linear-gradient(to bottom, #0176d3, #e8f4fd);
+  }
+
+  .step-section:last-child {
+    margin-bottom: 0;
+  }
+}
+
+// GitHub stars badge styling
+.github-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+
+  img {
+    height: 20px;
+  }
+}
+
+// Hero badges row
+.hero-badges {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
+
+  img {
+    height: 22px;
+  }
+}
+
+// Responsive tables
+.table-wrapper {
+  overflow-x: auto;
+  margin: 1rem 0;
+  border-radius: 8px;
+  border: 1px solid #e8e8e8;
+
+  table {
+    margin: 0;
+    border: none;
+    min-width: 500px;
+  }
+}
+
+@media (max-width: 768px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .audience-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .hero-title {
+    font-size: 2rem !important;
+  }
+
+  .hero-subtitle {
+    font-size: 1.1rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .audience-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .btn-sf {
+    width: 100%;
+    max-width: 250px;
+    text-align: center;
+  }
+}
+
+// TL;DR summary box
+.tldr-box {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e8f4fd 100%);
+  border: 1px solid #9ec5e8;
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 2rem;
+
+  .tldr-title {
+    font-weight: 700;
+    color: #0176d3;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+
+    &::before {
+      content: '⚡ ';
+    }
+  }
+
+  p {
+    margin: 0;
+    color: #333;
+  }
+}
+
+// Reading time indicator
+.reading-time {
+  color: #888;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  &::before {
+    content: '⏱️';
+  }
+}
+
+// Related pages section
+.related-pages {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-top: 3rem;
+
+  h3 {
+    margin-top: 0;
+    color: var(--sf-navy);
+    font-size: 1.1rem;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 1.25rem;
+
+    li {
+      margin-bottom: 0.5rem;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+}
+
+// Better focus states for accessibility
+a:focus,
+button:focus,
+.btn-sf:focus {
+  outline: 2px solid #0176d3;
+  outline-offset: 2px;
+}
+
+// Improved link styling
+.main-content a:not(.btn-sf):not(.nav-list-link) {
+  text-decoration: underline;
+  text-decoration-color: rgba(1, 118, 211, 0.3);
+  text-underline-offset: 2px;
+  transition: text-decoration-color 0.2s;
+
+  &:hover {
+    text-decoration-color: #0176d3;
+  }
+}
+
+// Animated checkmarks in value prop
+.value-prop li {
+  opacity: 0;
+  animation: fadeInLeft 0.4s ease forwards;
+
+  @for $i from 1 through 6 {
+    &:nth-child(#{$i}) {
+      animation-delay: #{$i * 0.1}s;
+    }
+  }
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+// Version badge
+.version-badge {
+  display: inline-block;
+  background: #e8f4fd;
+  color: #0176d3;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-left: 0.5rem;
+}
+
+// Last updated indicator
+.last-updated {
+  color: #888;
+  font-size: 0.85rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+
+  &::before {
+    content: '📅 ';
+  }
+}
+
+// Print styles
+@media print {
+  .site-nav,
+  .site-header,
+  .site-footer,
+  .edit-page-link,
+  .hero-buttons,
+  .github-badge,
+  .hero-badges {
+    display: none !important;
+  }
+
+  .main-content {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .value-prop {
+    background: #f5f5f5 !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+  }
+
+  a {
+    text-decoration: none !important;
+    color: #000 !important;
+  }
+
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666;
+  }
+}
+
+// ============================================
+// CODE BLOCK VARIANTS (Wrong/Correct)
+// ============================================
+
+// Wrong code example - red accent
+.code-wrong {
+  position: relative;
+  margin-bottom: 1rem;
+
+  &::before {
+    content: '✗ Wrong';
+    display: block;
+    background: #fce8e8;
+    color: #c41e3a;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 6px 6px 0 0;
+    border: 1px solid #f5c6cb;
+    border-bottom: none;
+  }
+
+  .highlight, pre {
+    border-radius: 0 0 6px 6px !important;
+    margin-top: 0 !important;
+    border: 1px solid #f5c6cb !important;
+    border-top: none !important;
+    background: #fff8f8 !important;
+  }
+}
+
+// Correct code example - green accent
+.code-correct {
+  position: relative;
+  margin-bottom: 1rem;
+
+  &::before {
+    content: '✓ Correct';
+    display: block;
+    background: #e8f5e9;
+    color: #2e7d32;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 6px 6px 0 0;
+    border: 1px solid #c3e6cb;
+    border-bottom: none;
+  }
+
+  .highlight, pre {
+    border-radius: 0 0 6px 6px !important;
+    margin-top: 0 !important;
+    border: 1px solid #c3e6cb !important;
+    border-top: none !important;
+    background: #f8fff8 !important;
+  }
+}
+
+// Better copy button visibility
+.code-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s, background 0.2s;
+  z-index: 10;
+
+  &:hover {
+    opacity: 1;
+    background: #f0f0f0;
+  }
+}
+
+.highlight:hover .code-copy-btn {
+  opacity: 1;
+}
