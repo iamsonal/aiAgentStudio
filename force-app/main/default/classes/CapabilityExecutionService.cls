@@ -98,13 +98,11 @@ public inherited sharing class CapabilityExecutionService {
                 }
             }
         } catch (CapabilityExecutionException cee) {
-            // Configuration error: log and propagate
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Capability execution configuration error: ' + cee.getMessage());
+            System.debug(LoggingLevel.ERROR, logPrefix + cee.getMessage());
             throw cee;
         } catch (Exception ex) {
-            // Catch-all for unexpected errors: log with stack trace and return error outcome
             String errMsg = 'Unexpected error during action execution for capability: ' + capability.CapabilityName__c;
-            System.debug(LoggingLevel.ERROR, logPrefix + errMsg + '. Exception: ' + ex.getMessage() + '\nStack Trace: ' + ex.getStackTraceString());
+            System.debug(LoggingLevel.ERROR, logPrefix + errMsg + ': ' + ex.getMessage() + '\n' + ex.getStackTraceString());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_ACTION_EXECUTION, errMsg + ': ' + ex.getMessage());
         }
     }

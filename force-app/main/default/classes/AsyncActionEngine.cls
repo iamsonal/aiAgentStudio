@@ -141,12 +141,18 @@ public class AsyncActionEngine implements Queueable {
 
             // Process and store the action execution outcome
             String resultJsonForStorage = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
+
+            // Add async execution flag to the result for decision step logging
+            Map<String, Object> resultWithAsyncFlag = (Map<String, Object>) JSON.deserializeUntyped(resultJsonForStorage);
+            resultWithAsyncFlag.put('isAsyncToolExecution', true);
+            String enhancedResultJson = JSON.serialize(resultWithAsyncFlag);
+
             Id newRecordContextId = OrchestrationService.extractRecordIdFromOutcome(outcome);
 
             decisionLogger.logToolResult(
-                'Tool Execution Completed (Async)',
-                'Asynchronous tool execution has completed',
-                resultJsonForStorage,
+                'Tool Execution Completed',
+                'Tool execution has completed',
+                enhancedResultJson,
                 actionDuration,
                 outcome.isSuccess,
                 outcome.errorCode,
@@ -214,10 +220,7 @@ public class AsyncActionEngine implements Queueable {
                 OrchestrationService.onAsyncToolCompleted(this.executionId, this.turnIdentifier, this.currentTurnCount, this.toolCallId, logPrefix);
             }
         } catch (Exception ex) {
-            System.debug(
-                LoggingLevel.ERROR,
-                logPrefix + 'CRITICAL: Unhandled exception during action processing: ' + ex.getMessage() + '\nStack Trace: ' + ex.getStackTraceString()
-            );
+            System.debug(LoggingLevel.ERROR, logPrefix + ex.getTypeName() + ': ' + ex.getMessage() + '\n' + ex.getStackTraceString());
             try {
                 agentStateSvc.failTurn(
                     this.executionId,
@@ -226,8 +229,8 @@ public class AsyncActionEngine implements Queueable {
                     AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
                     logPrefix
                 );
-            } catch (Exception finalFailEx) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update execution state during error handling: ' + finalFailEx.getMessage());
+            } catch (Exception failEx) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Could not update turn state: ' + failEx.getMessage());
             }
         } finally {
             decisionLogger.commitSteps();

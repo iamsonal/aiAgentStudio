@@ -229,11 +229,11 @@ public class AgentExecutionService {
                     }
                 }
 
-                System.debug(LoggingLevel.ERROR, logPrefix + 'HTTP error response: ' + errorMessage);
+                System.debug(LoggingLevel.ERROR, logPrefix + errorMessage);
                 return new LoopbackResponse(false, null, errorMessage);
             }
         } catch (JSONException e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to parse JSON response: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage());
             return new LoopbackResponse(false, null, 'Response parsing error: ' + e.getMessage());
         }
     }

@@ -12,7 +12,7 @@
         <apexClass>ConversationalChatController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
-    <description>Grants access to the &apos;AI Agent Studio&apos; Lightning app and provides necessary permissions to create, read, update, and delete AI Agent Definitions, LLM Configurations, Tool Definitions, and Agent Capability Bindings.</description>
+    <description>Full configuration access for admins to manage agent definitions, capabilities, and LLM configs. Combine with End User permission set for full access.</description>
     <externalCredentialPrincipalAccesses>
         <enabled>true</enabled>
         <externalCredentialPrincipal>OpenAIEC-OpenAI</externalCredentialPrincipal>

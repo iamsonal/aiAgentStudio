@@ -82,7 +82,8 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
                     'Processing',
                     AIAgentConstants.STATUS_PROCESSING,
                     payload.turnIdentifier,
-                    'Processing conversational turn'
+                    'Processing conversational turn',
+                    payload.serviceUserId
                 );
             } else {
                 // Create new AgentExecution__c record
@@ -263,9 +264,9 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
 
             return new AgentExecutionService.ExecutionResult(executionId, status, message);
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Synchronous execution failed: ' + e.getMessage() + '\nStack: ' + e.getStackTraceString());
+            System.debug(LoggingLevel.ERROR, logPrefix + e.getTypeName() + ': ' + e.getMessage() + '\n' + e.getStackTraceString());
 
-            // Mark turn as failed
+            // Attempt to mark turn as failed - may fail if execution is invalid
             try {
                 AgentStateService ass = new AgentStateService();
                 ass.failTurn(
@@ -276,7 +277,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
                     logPrefix
                 );
             } catch (Exception failEx) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update execution state after error: ' + failEx.getMessage());
+                System.debug(LoggingLevel.WARN, logPrefix + 'Could not update turn state: ' + failEx.getMessage());
             }
 
             return new AgentExecutionService.ExecutionResult(executionId, AIAgentConstants.STATUS_FAILED, 'Execution failed: ' + e.getMessage());

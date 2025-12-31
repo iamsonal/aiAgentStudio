@@ -97,9 +97,9 @@ public inherited sharing class OrchestrationService {
 
         try {
             if (llmInteractionResult == null || !llmInteractionResult.isSuccess) {
-                String failureReason = llmInteractionResult?.failureReason ?? 'Unknown LLM interaction error';
-                String failureCode = llmInteractionResult?.failureCode ?? AIAgentConstants.ERR_CODE_LLM_CALL_FAILED;
-                System.debug(LoggingLevel.ERROR, logPrefix + 'LLM interaction failed. Reason: ' + failureReason + ' (Code: ' + failureCode + ')');
+                String failureReason = llmInteractionResult == null ? 'Unknown LLM interaction error' : llmInteractionResult.failureReason;
+                String failureCode = llmInteractionResult == null ? AIAgentConstants.ERR_CODE_LLM_CALL_FAILED : llmInteractionResult.failureCode;
+                System.debug(LoggingLevel.ERROR, logPrefix + failureReason + ' (Code: ' + failureCode + ')');
 
                 // Log the error step using the safe serialization method
                 decisionLogger.logError(
@@ -146,8 +146,8 @@ public inherited sharing class OrchestrationService {
 
             return outcome;
         } catch (Exception ex) {
-            String errorMsg = 'Critical orchestration error: (' + ex.getTypeName() + ') ' + ex.getMessage();
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Orchestration failed with exception. ' + errorMsg + '\nStack: ' + ex.getStackTraceString());
+            String errorMsg = ex.getTypeName() + ': ' + ex.getMessage();
+            System.debug(LoggingLevel.ERROR, logPrefix + errorMsg + '\n' + ex.getStackTraceString());
 
             // Log the error step
             decisionLogger.logError(
@@ -159,10 +159,12 @@ public inherited sharing class OrchestrationService {
                 null
             );
 
+            // Attempt to mark turn as failed - this may also fail if execution is deleted/invalid
             try {
                 this.agentStateSvc.failTurn(executionId, turnIdentifier, errorMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
-            } catch (Exception finalFailEx) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'FATAL: Could not mark turn as failed. Reason: ' + finalFailEx.getMessage());
+            } catch (Exception failTurnEx) {
+                // If we can't update state (e.g., execution deleted), log and continue with failure outcome
+                System.debug(LoggingLevel.WARN, logPrefix + 'Could not update turn state during error handling: ' + failTurnEx.getMessage());
             }
             return OUTCOME_FAILED;
         } finally {

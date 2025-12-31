@@ -37,26 +37,25 @@ public with sharing class AgentTestDataFactory {
         System.debug('AI AGENT STUDIO - COMPREHENSIVE SHOWCASE');
         System.debug('========================================');
 
-        // Clean slate
+        // 0. Create Service User asynchronously (setup object - handled via @future to avoid mixed DML)
+        createServiceUserAsync();
+
         deleteExistingData();
 
-        // 1. Core foundational data
         seedFoundationalData();
 
-        // 2. LLM Configuration (shared by all agents)
         LLMConfiguration__c llmConfig = createLLMConfiguration();
 
-        // 3. Create agents for different use cases
         createConversationalAgent(llmConfig.Id);
         createFunctionAgents(llmConfig.Id);
         createWorkflowOrchestrator(llmConfig.Id);
 
-        // 4. Financial Client Onboarding Workflow (Function + Workflow agents)
         createFinancialOnboardingWorkflow(llmConfig.Id);
 
         System.debug('========================================');
         System.debug('SHOWCASE COMPLETE! Key Record IDs:');
         System.debug(JSON.serializePretty(idMap));
+        System.debug('Note: Service User creation is running asynchronously');
         System.debug('========================================');
         return idMap;
     }
@@ -67,45 +66,166 @@ public with sharing class AgentTestDataFactory {
 
     public static void deleteExistingData() {
         System.debug('[Cleanup] Removing existing data...');
-        try {
-            // Deactivate orders first (required before deletion)
-            List<Order> ordersToDeactivate = [
-                SELECT Id
-                FROM Order
-                WHERE Account.Name IN ('Acme Corporation', 'Global Logistics Ltd', 'TechStart Innovations') AND Status = 'Activated'
+        
+        List<Order> ordersToDeactivate = [
+            SELECT Id
+            FROM Order
+            WHERE Account.Name IN ('Acme Corporation', 'Global Logistics Ltd', 'TechStart Innovations') AND Status = 'Activated'
+        ];
+        for (Order o : ordersToDeactivate) {
+            o.Status = 'Draft';
+        }
+        if (!ordersToDeactivate.isEmpty()) {
+            update ordersToDeactivate;
+        }
+
+        delete [SELECT Id FROM AgentDecisionStep__c];
+        delete [SELECT Id FROM ExecutionStep__c];
+        delete [SELECT Id FROM AgentExecution__c];
+        delete [SELECT Id FROM AgentWorkflowStep__c];
+        delete [SELECT Id FROM AgentCapability__c];
+        delete [SELECT Id FROM AgentContextConfig__c];
+        delete [SELECT Id FROM AIAgentDefinition__c];
+        delete [SELECT Id FROM LLMConfiguration__c];
+
+        delete [SELECT Id FROM Task];
+        delete [SELECT Id FROM Case];
+        delete [SELECT Id FROM Opportunity];
+        delete [SELECT Id FROM Lead];
+        delete [SELECT Id FROM OrderItem];
+        delete [SELECT Id FROM Order];
+        delete [SELECT Id FROM Contact];
+        delete [SELECT Id FROM Account WHERE Name IN ('Acme Corporation', 'Global Logistics Ltd', 'TechStart Innovations')];
+        delete [SELECT Id FROM CollaborationGroup WHERE Name IN ('Support Team', 'Relationship Management Team')];
+
+        List<String> knowledgeUrlNames = new List<String>{
+            'Troubleshooting-Platform-Performance',
+            'Reports-Module-Access',
+            'Legacy-Integration-Best-Practices',
+            'Adding-User-Licenses',
+            'Conservative-Income-Portfolio-Guidelines',
+            'Aggressive-Growth-Portfolio-Guidelines',
+            'Balanced-Moderate-Portfolio-Guidelines',
+            'Business-Owner-Wealth-Management',
+            'Client-Risk-Assessment-Methodology'
+        };
+        
+        List<Knowledge__kav> articles = [
+            SELECT Id, KnowledgeArticleId, PublishStatus
+            FROM Knowledge__kav 
+            WHERE UrlName IN :knowledgeUrlNames
+        ];
+        
+        if (!articles.isEmpty()) {
+            Set<Id> masterArticleIds = new Set<Id>();
+            for (Knowledge__kav article : articles) {
+                masterArticleIds.add(article.KnowledgeArticleId);
+            }
+            
+            List<Knowledge__ka> masterArticles = [
+                SELECT Id 
+                FROM Knowledge__ka 
+                WHERE Id IN :masterArticleIds
             ];
-            for (Order o : ordersToDeactivate) {
-                o.Status = 'Draft';
+            
+            if (!masterArticles.isEmpty()) {
+                delete masterArticles;
+                System.debug('[Cleanup] ✓ Deleted ' + masterArticles.size() + ' Knowledge articles');
             }
-            if (!ordersToDeactivate.isEmpty()) {
-                update ordersToDeactivate;
+        }
+
+        List<User> serviceUsers = [SELECT Id FROM User WHERE Name = 'Service User' AND IsActive = true];
+        if (!serviceUsers.isEmpty()) {
+            for (User u : serviceUsers) {
+                u.IsActive = false;
             }
+            update serviceUsers;
+        }
 
-            // Delete framework data (must respect dependencies)
-            //            delete [SELECT Id FROM BulkExecution__c];
-            delete [SELECT Id FROM AgentDecisionStep__c];
-            delete [SELECT Id FROM ExecutionStep__c];
-            delete [SELECT Id FROM AgentExecution__c];
-            delete [SELECT Id FROM AgentWorkflowStep__c];
-            delete [SELECT Id FROM AgentCapability__c];
-            delete [SELECT Id FROM AgentContextConfig__c];
-            delete [SELECT Id FROM AIAgentDefinition__c];
-            delete [SELECT Id FROM LLMConfiguration__c];
+        System.debug('[Cleanup] ✓ Existing data removed');
+    }
 
-            // Delete business data
-            delete [SELECT Id FROM Task];
-            delete [SELECT Id FROM Case];
-            delete [SELECT Id FROM Opportunity];
-            delete [SELECT Id FROM Lead];
-            delete [SELECT Id FROM OrderItem];
-            delete [SELECT Id FROM Order];
-            delete [SELECT Id FROM Contact];
-            delete [SELECT Id FROM Account WHERE Name IN ('Acme Corporation', 'Global Logistics Ltd', 'TechStart Innovations')];
-            delete [SELECT Id FROM CollaborationGroup WHERE Name = 'Support Team'];
+    // ===================================================================================
+    // SERVICE USER CREATION
+    // ===================================================================================
 
-            System.debug('[Cleanup] ✓ Existing data removed');
-        } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, '[Cleanup] Could not fully clean (may be first run): ' + e.getMessage());
+    /**
+     * @description Async wrapper to create Service User (avoids MIXED_DML_OPERATION)
+     * Call this method to create the Service User asynchronously
+     */
+    @future
+    public static void createServiceUserAsync() {
+        createServiceUser();
+    }
+
+    /**
+     * @description Creates the Service User required by CreateAgentStudioConnectedApp
+     * This user is used for JWT authentication and agent context switching
+     */
+    private static void createServiceUser() {
+        System.debug('[Service User] Creating Service User for connected app...');
+
+        // Check if Service User already exists
+        List<User> existingUsers = [
+            SELECT Id, Username, IsActive 
+            FROM User 
+            WHERE Name = 'Service User' 
+            LIMIT 1
+        ];
+
+        if (!existingUsers.isEmpty() && existingUsers[0].IsActive) {
+            System.debug('[Service User] ✓ Service User already exists and is active: ' + existingUsers[0].Username);
+            return;
+        }
+
+        if (!existingUsers.isEmpty() && !existingUsers[0].IsActive) {
+            // Reactivate existing user
+            existingUsers[0].IsActive = true;
+            update existingUsers[0];
+            System.debug('[Service User] ✓ Service User reactivated: ' + existingUsers[0].Username);
+            return;
+        }
+
+        // Get Standard User profile
+        Profile standardUserProfile = [SELECT Id FROM Profile WHERE Name = 'Standard User' LIMIT 1];
+
+        // Create new Service User
+        String orgId = UserInfo.getOrganizationId();
+        String uniqueUsername = 'aiagentservice@' + orgId + '.sfdcinternal';
+
+        User serviceUser = new User(
+            Username = uniqueUsername,
+            LastName = 'Service User',
+            FirstName = 'AI Agent',
+            Email = 'aiagent.service@example.com',
+            Alias = 'aiagent',
+            TimeZoneSidKey = 'America/Los_Angeles',
+            LocaleSidKey = 'en_US',
+            EmailEncodingKey = 'UTF-8',
+            ProfileId = standardUserProfile.Id,
+            LanguageLocaleKey = 'en_US',
+            IsActive = true
+        );
+
+        insert serviceUser;
+
+        // Assign "AI Agent Studio Service User" permission set if it exists
+        List<PermissionSet> permSets = [
+            SELECT Id, Label
+            FROM PermissionSet
+            WHERE Label = 'AI Agent Studio Service User'
+            LIMIT 1
+        ];
+
+        if (!permSets.isEmpty()) {
+            PermissionSetAssignment psa = new PermissionSetAssignment(
+                AssigneeId = serviceUser.Id,
+                PermissionSetId = permSets[0].Id
+            );
+            insert psa;
+            System.debug('[Service User] ✓ Service User created and permission set assigned: ' + serviceUser.Username);
+        } else {
+            System.debug(LoggingLevel.WARN, '[Service User] ⚠ Service User created but permission set "AI Agent Studio Service User" not found. Assign it manually: ' + serviceUser.Username);
         }
     }
 
@@ -116,7 +236,6 @@ public with sharing class AgentTestDataFactory {
     private static void seedFoundationalData() {
         System.debug('[Foundation] Creating core business data...');
 
-        // Accounts & Contacts
         List<Account> accounts = new List<Account>{
             new Account(Name = 'Acme Corporation', Industry = 'Technology', BillingCountry = 'USA', AnnualRevenue = 5000000),
             new Account(Name = 'Global Logistics Ltd', Industry = 'Transportation', BillingCountry = 'UK', AnnualRevenue = 2000000),
@@ -143,7 +262,6 @@ public with sharing class AgentTestDataFactory {
         idMap.put('Sarah Contact', contacts[0].Id);
         idMap.put('Michael Contact', contacts[1].Id);
 
-        // Products & Pricebook
         Pricebook2 stdPb = [SELECT Id FROM Pricebook2 WHERE IsStandard = TRUE LIMIT 1];
         idMap.put('Standard Pricebook', stdPb.Id);
 
@@ -193,7 +311,6 @@ public with sharing class AgentTestDataFactory {
         update orders;
         idMap.put('Acme Order', orders[0].Id);
 
-        // Cases (various statuses for testing)
         List<Case> cases = new List<Case>{
             new Case(
                 AccountId = accounts[0].Id,
@@ -237,7 +354,6 @@ public with sharing class AgentTestDataFactory {
         idMap.put('Reports Case', cases[1].Id);
         idMap.put('Integration Case', cases[2].Id);
 
-        // Opportunities (for opportunity assistant testing)
         List<Opportunity> opportunities = new List<Opportunity>{
             new Opportunity(
                 AccountId = accounts[0].Id,
@@ -261,7 +377,6 @@ public with sharing class AgentTestDataFactory {
         insert opportunities;
         idMap.put('Acme Opportunity', opportunities[0].Id);
 
-        // Leads (for lead qualifier testing)
         List<Lead> leads = new List<Lead>{
             new Lead(
                 FirstName = 'Jennifer',
@@ -294,51 +409,52 @@ public with sharing class AgentTestDataFactory {
         idMap.put('Beta Lead', leads[0].Id);
         idMap.put('Startup Lead', leads[1].Id);
 
-        // Chatter Group for notifications
         CollaborationGroup supportGroup = new CollaborationGroup(Name = 'Support Team', CollaborationType = 'Public');
         insert supportGroup;
         idMap.put('Support Chatter Group', supportGroup.Id);
 
-        // Knowledge Articles
         seedKnowledgeArticles();
 
         System.debug('[Foundation] ✓ Core business data created');
     }
 
     private static void seedKnowledgeArticles() {
-        try {
-            List<Knowledge__kav> articles = new List<Knowledge__kav>{
-                new Knowledge__kav(
-                    Title = 'Troubleshooting Platform Performance Issues',
-                    UrlName = 'Troubleshooting-Platform-Performance',
-                    Summary = 'If experiencing slow performance: 1) Check browser cache and clear if needed. 2) Verify network connection stability. 3) Disable browser extensions temporarily. 4) Check the Status Page for any ongoing incidents. 5) Review concurrent user limits on your license. Common causes include browser cache buildup (clear cache), network latency (test connection speed), or hitting concurrent user limits (upgrade license tier if needed).'
-                ),
-                new Knowledge__kav(
-                    Title = 'Reports Module Access Requirements',
-                    UrlName = 'Reports-Module-Access',
-                    Summary = 'The Reports module requires: 1) User must have "Reports Viewer" permission enabled. 2) Valid Premium Support Package subscription. 3) Browser must allow third-party cookies. To resolve access issues: Have admin verify user permissions, confirm active support subscription, check browser cookie settings, or try accessing from incognito mode to rule out extension conflicts.'
-                ),
-                new Knowledge__kav(
-                    Title = 'Legacy System Integration Best Practices',
-                    UrlName = 'Legacy-Integration-Best-Practices',
-                    Summary = 'When integrating with legacy systems: 1) Ensure API credentials are current and have correct permissions. 2) Verify firewall rules allow outbound connections to legacy system. 3) Check data mapping configuration in Integration Settings. 4) Review sync logs in Setup > Integrations > Sync History. Common issues: expired credentials, firewall blocking, incorrect field mappings, or data format mismatches.'
-                ),
-                new Knowledge__kav(
-                    Title = 'Adding Additional User Licenses',
-                    UrlName = 'Adding-User-Licenses',
-                    Summary = 'To add user licenses: Contact your Account Executive or submit a request through the Customer Portal. License additions typically process within 1-2 business days. Pricing is prorated based on your subscription anniversary date. Bulk discounts available for 20+ licenses.'
-                )
-            };
-            insert articles;
+        List<Knowledge__kav> articles = new List<Knowledge__kav>{
+            new Knowledge__kav(
+                Title = 'Troubleshooting Platform Performance Issues',
+                UrlName = 'Troubleshooting-Platform-Performance',
+                Summary = 'If experiencing slow performance: 1) Check browser cache and clear if needed. 2) Verify network connection stability. 3) Disable browser extensions temporarily. 4) Check the Status Page for any ongoing incidents. 5) Review concurrent user limits on your license. Common causes include browser cache buildup (clear cache), network latency (test connection speed), or hitting concurrent user limits (upgrade license tier if needed).'
+            ),
+            new Knowledge__kav(
+                Title = 'Reports Module Access Requirements',
+                UrlName = 'Reports-Module-Access',
+                Summary = 'The Reports module requires: 1) User must have "Reports Viewer" permission enabled. 2) Valid Premium Support Package subscription. 3) Browser must allow third-party cookies. To resolve access issues: Have admin verify user permissions, confirm active support subscription, check browser cookie settings, or try accessing from incognito mode to rule out extension conflicts.'
+            ),
+            new Knowledge__kav(
+                Title = 'Legacy System Integration Best Practices',
+                UrlName = 'Legacy-Integration-Best-Practices',
+                Summary = 'When integrating with legacy systems: 1) Ensure API credentials are current and have correct permissions. 2) Verify firewall rules allow outbound connections to legacy system. 3) Check data mapping configuration in Integration Settings. 4) Review sync logs in Setup > Integrations > Sync History. Common issues: expired credentials, firewall blocking, incorrect field mappings, or data format mismatches.'
+            ),
+            new Knowledge__kav(
+                Title = 'Adding Additional User Licenses',
+                UrlName = 'Adding-User-Licenses',
+                Summary = 'To add user licenses: Contact your Account Executive or submit a request through the Customer Portal. License additions typically process within 1-2 business days. Pricing is prorated based on your subscription anniversary date. Bulk discounts available for 20+ licenses.'
+            )
+        };
+        insert articles;
 
-            // Publish articles
-            for (Knowledge__kav article : articles) {
-                KbManagement.PublishingService.publishArticle(article.Id, true);
-            }
-            System.debug('[Foundation] ✓ Knowledge articles published');
-        } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, '[Foundation] Could not create Knowledge (ensure Knowledge is enabled): ' + e.getMessage());
+        // Query to get the KnowledgeArticleId (master article ID) for publishing
+        List<Knowledge__kav> insertedArticles = [
+            SELECT Id, KnowledgeArticleId 
+            FROM Knowledge__kav 
+            WHERE Id IN :articles
+        ];
+
+        // Publish articles using the master article ID
+        for (Knowledge__kav article : insertedArticles) {
+            KbManagement.PublishingService.publishArticle(article.KnowledgeArticleId, true);
         }
+        System.debug('[Foundation] ✓ Knowledge articles created and published');
     }
 
     // ===================================================================================
@@ -1081,43 +1197,47 @@ public with sharing class AgentTestDataFactory {
      * @description Creates Knowledge articles for financial product suitability
      */
     private static void seedFinancialKnowledgeArticles() {
-        try {
-            List<Knowledge__kav> articles = new List<Knowledge__kav>{
-                new Knowledge__kav(
-                    Title = 'Conservative Income Portfolio Suitability Guidelines',
-                    UrlName = 'Conservative-Income-Portfolio-Guidelines',
-                    Summary = 'Suitable for clients with: Low risk tolerance, income-focused objectives, capital preservation priority, shorter time horizons (under 10 years), or retirees. Recommended allocation: 70-80% fixed income (investment grade bonds, treasuries, municipal bonds), 15-25% dividend equities (blue chips, utilities, REITs), 5% cash equivalents. Key considerations: Sequence of returns risk for retirees, tax efficiency (municipal bonds for high tax brackets), inflation protection through TIPS. Minimum investment: $250,000. Annual fee: 0.75%.'
-                ),
-                new Knowledge__kav(
-                    Title = 'Aggressive Growth Portfolio Suitability Guidelines',
-                    UrlName = 'Aggressive-Growth-Portfolio-Guidelines',
-                    Summary = 'Suitable for clients with: High risk tolerance (comfortable with 30%+ drawdowns), growth-focused objectives, long time horizon (15+ years), stable income from other sources, and investment experience. Recommended allocation: 80-90% equities (growth stocks, emerging markets, sector funds), 5-15% alternatives (private equity, venture, crypto), 0-5% fixed income. Key considerations: Volatility tolerance verification required, quarterly rebalancing, tax-loss harvesting opportunities. Minimum investment: $500,000. Annual fee: 1.0%.'
-                ),
-                new Knowledge__kav(
-                    Title = 'Balanced Moderate Portfolio Suitability Guidelines',
-                    UrlName = 'Balanced-Moderate-Portfolio-Guidelines',
-                    Summary = 'Suitable for clients with: Moderate risk tolerance, balanced growth and income objectives, medium time horizon (7-15 years), some investment experience. Recommended allocation: 50-60% equities (diversified domestic and international), 35-45% fixed income (investment grade corporate and government), 5% alternatives. Key considerations: Regular rebalancing to maintain target allocation, tax-efficient fund placement, gradual de-risking as time horizon shortens. Minimum investment: $100,000. Annual fee: 0.85%.'
-                ),
-                new Knowledge__kav(
-                    Title = 'Business Owner Comprehensive Wealth Management',
-                    UrlName = 'Business-Owner-Wealth-Management',
-                    Summary = 'For business owners requiring integrated personal and business financial planning. Services include: Personal investment management, retirement plan design and administration (401k, SEP, defined benefit), business succession and buy-sell funding, key person and business insurance, tax coordination with business CPA, entity structure optimization. Key considerations: Separation of personal and business assets, liability protection, exit planning timeline, employee benefit competitiveness. Minimum relationship: $1M combined personal and business assets. Comprehensive fee: 1.0-1.25% based on complexity.'
-                ),
-                new Knowledge__kav(
-                    Title = 'Client Risk Assessment Methodology',
-                    UrlName = 'Client-Risk-Assessment-Methodology',
-                    Summary = 'Risk assessment factors and scoring: 1) Time Horizon - Under 5 years (low), 5-15 years (moderate), 15+ years (high capacity). 2) Income Stability - Fixed pension/SS (low need), variable business income (higher need for liquidity). 3) Investment Experience - Novice (lower tolerance), experienced (can handle volatility). 4) Stated Goals - Capital preservation (conservative), balanced (moderate), aggressive growth (high). 5) Loss Tolerance - Cannot afford losses (conservative), can tolerate 20% (moderate), comfortable with 30%+ (aggressive). Red flags requiring additional review: Inconsistent answers (high risk tolerance but preservation goals), unrealistic return expectations, concentrated positions, recent major life changes.'
-                )
-            };
-            insert articles;
+        List<Knowledge__kav> articles = new List<Knowledge__kav>{
+            new Knowledge__kav(
+                Title = 'Conservative Income Portfolio Suitability Guidelines',
+                UrlName = 'Conservative-Income-Portfolio-Guidelines',
+                Summary = 'Suitable for clients with: Low risk tolerance, income-focused objectives, capital preservation priority, shorter time horizons (under 10 years), or retirees. Recommended allocation: 70-80% fixed income (investment grade bonds, treasuries, municipal bonds), 15-25% dividend equities (blue chips, utilities, REITs), 5% cash equivalents. Key considerations: Sequence of returns risk for retirees, tax efficiency (municipal bonds for high tax brackets), inflation protection through TIPS. Minimum investment: $250,000. Annual fee: 0.75%.'
+            ),
+            new Knowledge__kav(
+                Title = 'Aggressive Growth Portfolio Suitability Guidelines',
+                UrlName = 'Aggressive-Growth-Portfolio-Guidelines',
+                Summary = 'Suitable for clients with: High risk tolerance (comfortable with 30%+ drawdowns), growth-focused objectives, long time horizon (15+ years), stable income from other sources, and investment experience. Recommended allocation: 80-90% equities (growth stocks, emerging markets, sector funds), 5-15% alternatives (private equity, venture, crypto), 0-5% fixed income. Key considerations: Volatility tolerance verification required, quarterly rebalancing, tax-loss harvesting opportunities. Minimum investment: $500,000. Annual fee: 1.0%.'
+            ),
+            new Knowledge__kav(
+                Title = 'Balanced Moderate Portfolio Suitability Guidelines',
+                UrlName = 'Balanced-Moderate-Portfolio-Guidelines',
+                Summary = 'Suitable for clients with: Moderate risk tolerance, balanced growth and income objectives, medium time horizon (7-15 years), some investment experience. Recommended allocation: 50-60% equities (diversified domestic and international), 35-45% fixed income (investment grade corporate and government), 5% alternatives. Key considerations: Regular rebalancing to maintain target allocation, tax-efficient fund placement, gradual de-risking as time horizon shortens. Minimum investment: $100,000. Annual fee: 0.85%.'
+            ),
+            new Knowledge__kav(
+                Title = 'Business Owner Comprehensive Wealth Management',
+                UrlName = 'Business-Owner-Wealth-Management',
+                Summary = 'For business owners requiring integrated personal and business financial planning. Services include: Personal investment management, retirement plan design and administration (401k, SEP, defined benefit), business succession and buy-sell funding, key person and business insurance, tax coordination with business CPA, entity structure optimization. Key considerations: Separation of personal and business assets, liability protection, exit planning timeline, employee benefit competitiveness. Minimum relationship: $1M combined personal and business assets. Comprehensive fee: 1.0-1.25% based on complexity.'
+            ),
+            new Knowledge__kav(
+                Title = 'Client Risk Assessment Methodology',
+                UrlName = 'Client-Risk-Assessment-Methodology',
+                Summary = 'Risk assessment factors and scoring: 1) Time Horizon - Under 5 years (low), 5-15 years (moderate), 15+ years (high capacity). 2) Income Stability - Fixed pension/SS (low need), variable business income (higher need for liquidity). 3) Investment Experience - Novice (lower tolerance), experienced (can handle volatility). 4) Stated Goals - Capital preservation (conservative), balanced (moderate), aggressive growth (high). 5) Loss Tolerance - Cannot afford losses (conservative), can tolerate 20% (moderate), comfortable with 30%+ (aggressive). Red flags requiring additional review: Inconsistent answers (high risk tolerance but preservation goals), unrealistic return expectations, concentrated positions, recent major life changes.'
+            )
+        };
+        insert articles;
 
-            for (Knowledge__kav article : articles) {
-                KbManagement.PublishingService.publishArticle(article.Id, true);
-            }
-            System.debug('[Financial Onboarding] ✓ Knowledge articles published');
-        } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, '[Financial Onboarding] Could not create Knowledge articles: ' + e.getMessage());
+        // Query to get the KnowledgeArticleId (master article ID) for publishing
+        List<Knowledge__kav> insertedArticles = [
+            SELECT Id, KnowledgeArticleId 
+            FROM Knowledge__kav 
+            WHERE Id IN :articles
+        ];
+
+        // Publish articles using the master article ID
+        for (Knowledge__kav article : insertedArticles) {
+            KbManagement.PublishingService.publishArticle(article.KnowledgeArticleId, true);
         }
+        System.debug('[Financial Onboarding] ✓ Knowledge articles created and published');
     }
 
     /**

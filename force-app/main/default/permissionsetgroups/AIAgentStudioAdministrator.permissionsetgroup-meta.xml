@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSetGroup xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Full administrative access for AI Agent Studio. Includes configuration and end user permissions. Assign to admins and developers who need complete access.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>AI Agent Studio Administrator</label>
+    <permissionSets>AIAgentStudioEndUser</permissionSets>
+    <permissionSets>AIAgentStudioConfigurator</permissionSets>
+    <status>Updated</status>
+</PermissionSetGroup>
+

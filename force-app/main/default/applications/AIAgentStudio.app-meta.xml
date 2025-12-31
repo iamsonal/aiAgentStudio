@@ -29,6 +29,8 @@
     </actionOverrides>
     <brand>
         <headerColor>#0070D2</headerColor>
+        <logo>logo</logo>
+        <logoVersion>1</logoVersion>
         <shouldOverrideOrgTheme>false</shouldOverrideOrgTheme>
     </brand>
     <description>Your central workspace for designing, configuring, and managing conversational AI agents built on the custom AI Agent Framework.</description>

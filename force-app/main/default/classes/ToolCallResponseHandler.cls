@@ -686,12 +686,18 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     logPrefix + 'Executed sync tool ' + toolRequest.toolName + ' in ' + processingTime + 'ms (success=' + outcome.isSuccess + ')'
                 );
 
-                // Log the tool execution result
+                // Log the tool execution result with async flag
                 if (decisionLogger != null) {
+                    // Add sync execution flag to the result for decision step logging
+                    String resultJsonForStorage = JSON.serialize(outcome);
+                    Map<String, Object> resultWithSyncFlag = (Map<String, Object>) JSON.deserializeUntyped(resultJsonForStorage);
+                    resultWithSyncFlag.put('isAsyncToolExecution', false);
+                    String enhancedResultJson = JSON.serialize(resultWithSyncFlag);
+
                     decisionLogger.logToolResult(
-                        'Synchronous Tool Executed',
-                        'Tool ' + toolRequest.toolName + ' executed synchronously',
-                        JSON.serialize(outcome),
+                        'Tool Execution Completed',
+                        'Tool ' + toolRequest.toolName + ' executed successfully',
+                        enhancedResultJson,
                         processingTime,
                         outcome.isSuccess,
                         outcome.errorCode,

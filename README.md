@@ -1,6 +1,12 @@
-# Salesforce AI Agent Framework
+<p align="center">
+  <img src="logo.png" alt="AI Agent Studio Logo" width="150">
+</p>
 
-> **Enterprise-Grade AI Platform for Salesforce**
+<h1 align="center">Salesforce AI Agent Framework</h1>
+
+<p align="center">
+  <strong>Enterprise-Grade AI Platform for Salesforce</strong>
+</p>
 
 Build intelligent AI agents powered by Large Language Models that seamlessly integrate with your Salesforce environment. Designed for security, scalability, and ease of use.
 

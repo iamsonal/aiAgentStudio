@@ -351,7 +351,6 @@ public class ActionFlowHandler extends BaseAgentAction {
         } catch (Exception ex) {
             String enhancedMessage = 'Flow execution failed for "' + flowApiName + '": ' + ex.getMessage();
 
-            // Provide more specific error context based on exception message
             if (ex.getMessage().containsIgnoreCase('variable')) {
                 enhancedMessage +=
                     ' | This may indicate a parameter mismatch. ' +
@@ -361,8 +360,8 @@ public class ActionFlowHandler extends BaseAgentAction {
                 enhancedMessage += ' | Please verify the Flow API name is correct and the Flow is active.';
             }
 
-            System.debug(LoggingLevel.ERROR, '[ActionFlowHandler] Flow execution error: ' + enhancedMessage);
-            System.debug(LoggingLevel.DEBUG, '[ActionFlowHandler] Exception stack trace: ' + ex.getStackTraceString());
+            System.debug(LoggingLevel.ERROR, '[ActionFlowHandler] ' + enhancedMessage);
+            System.debug(LoggingLevel.DEBUG, '[ActionFlowHandler] ' + ex.getStackTraceString());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, enhancedMessage);
         }
     }
