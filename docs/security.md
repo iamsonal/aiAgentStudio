@@ -23,35 +23,13 @@ Understanding and configuring security for AI agents.
 
 The framework enforces security at multiple levels:
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    User Request                          │
-└─────────────────────────┬───────────────────────────────┘
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│              1. User Context Validation                  │
-│         (Agent runs as the requesting user)              │
-└─────────────────────────┬───────────────────────────────┘
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│              2. Object-Level Security                    │
-│              (CRUD permission checks)                    │
-└─────────────────────────┬───────────────────────────────┘
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│              3. Field-Level Security                     │
-│              (FLS enforcement)                           │
-└─────────────────────────┬───────────────────────────────┘
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│              4. Record-Level Security                    │
-│              (Sharing rules)                             │
-└─────────────────────────┬───────────────────────────────┘
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│              5. Audit Trail                              │
-│              (All actions logged)                        │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    A[User Request] --> B[1. User Context Validation]
+    B --> C[2. Object-Level Security<br/>CRUD permission checks]
+    C --> D[3. Field-Level Security<br/>FLS enforcement]
+    D --> E[4. Record-Level Security<br/>Sharing rules]
+    E --> F[5. Audit Trail<br/>All actions logged]
 ```
 
 ---
@@ -172,29 +150,30 @@ Every agent interaction creates records in `AgentDecisionStep__c`:
 
 | Field | Description |
 |:------|:------------|
-| `UserInput__c` | Original user message |
-| `LLMRequest__c` | Full request sent to AI |
-| `LLMResponse__c` | Full response from AI |
-| `ToolCalls__c` | Tools the AI decided to use |
-| `ToolResults__c` | Results from tool execution |
-| `ExecutingUser__c` | User who made the request |
-| `Timestamp__c` | When the action occurred |
+| `StepType__c` | Type of step (LLMCall, ToolCall, ToolResult, etc.) |
+| `ContentJson__c` | Full content/payload for the step |
+| `Title__c` | Brief description of the step |
+| `Description__c` | Detailed description |
+| `ExecutionUser__c` | User under which execution ran |
+| `OriginalUser__c` | User who initiated the request |
+| `TotalTokens__c` | Token consumption |
+| `DurationMs__c` | Processing duration in milliseconds |
+| `IsSuccess__c` | Whether the step succeeded |
 
 ### Querying Audit Data
 
 ```sql
--- Find all actions by a specific user
-SELECT Id, UserInput__c, ToolCalls__c, CreatedDate
+-- Find all steps for an execution
+SELECT Id, StepType__c, Title__c, ContentJson__c, CreatedDate
 FROM AgentDecisionStep__c
-WHERE ExecutingUser__c = :userId
-ORDER BY CreatedDate DESC
+WHERE AgentExecution__c = :executionId
+ORDER BY CreatedDate ASC
 
--- Find all data modifications
-SELECT Id, UserInput__c, ToolCalls__c, ToolResults__c
+-- Find all tool calls
+SELECT Id, Title__c, ContentJson__c, IsSuccess__c
 FROM AgentDecisionStep__c
-WHERE ToolCalls__c LIKE '%CreateRecord%'
-   OR ToolCalls__c LIKE '%UpdateRecord%'
-   OR ToolCalls__c LIKE '%DeleteRecord%'
+WHERE StepType__c = 'ToolCall'
+ORDER BY CreatedDate DESC
 ```
 
 ### Retention

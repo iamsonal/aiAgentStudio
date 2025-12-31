@@ -12,6 +12,11 @@ Build intelligent AI agents powered by Large Language Models that seamlessly int
 
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
 [![Salesforce](https://img.shields.io/badge/Salesforce-API%20v63.0-blue.svg)](https://developer.salesforce.com/)
+[![GitHub Pages](https://img.shields.io/badge/docs-GitHub%20Pages-blue?logo=github)](https://iamsonal.github.io/aiAgentStudio/)
+[![GitHub stars](https://img.shields.io/github/stars/iamsonal/aiAgentStudio?style=social)](https://github.com/iamsonal/aiAgentStudio/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/iamsonal/aiAgentStudio?style=social)](https://github.com/iamsonal/aiAgentStudio/network/members)
+[![GitHub last commit](https://img.shields.io/github/last-commit/iamsonal/aiAgentStudio)](https://github.com/iamsonal/aiAgentStudio/commits/main)
+[![GitHub issues](https://img.shields.io/github/issues/iamsonal/aiAgentStudio)](https://github.com/iamsonal/aiAgentStudio/issues)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0077B5?style=flat&logo=linkedin)](https://www.linkedin.com/in/thesonal/)
 [![Sponsor](https://img.shields.io/badge/Sponsor-❤-ea4aaa?style=for-the-badge&logo=github-sponsors)](https://github.com/sponsors/iamsonal)
 
@@ -29,16 +34,9 @@ Every contribution helps keep this project active and maintained!
 
 ## ⚠️ Repository Notice
 
-**This repository contains the core AI Agent Framework only.** The `aiAgentStudioAddons` folder visible in the codebase contains proprietary extensions and enhanced UI components that are **NOT part of the open-source repository**. These addons include:
+**This repository contains the core AI Agent Framework only.** The `aiAgentStudioAddons` folder visible in the codebase contains proprietary extensions that are **not part of the open-source repository**. These addons provide additional orchestrators, LLM provider adapters, action handlers, and UI components.
 
-- Function and Workflow orchestrators
-- Additional LLM provider adapters (Claude, Gemini)
-- Extended action handlers (ManageTasks, RunReport, SearchKnowledge, SendNotification)
-- Advanced UI components (Agent Storyboard, Capability Configurator)
-- Bulk execution capabilities
-- Trigger handlers and validation logic
-
-If you're cloning this repository, you will have access to the core framework in the `force-app` directory, which provides all fundamental capabilities for building conversational AI agents with OpenAI.
+When cloning this repository, you will have access to the core framework in the `force-app` directory, which provides all fundamental capabilities for building conversational AI agents with OpenAI.
 
 ---
 
@@ -51,7 +49,7 @@ The Salesforce AI Agent Framework lets you create AI-powered assistants that can
 - ✏️ **Create and update** records based on user requests
 - 🔄 **Execute workflows** with multiple steps automatically
 - 🔒 **Respect permissions** - agents only access what users can access
-- 🎯 **Work with multiple AI providers** - OpenAI, Claude, Gemini
+- 🎯 **Work with multiple AI providers** - OpenAI included, extensible for others
 
 **Who is this for?**
 - **Admins**: Configure AI agents without code using point-and-click tools
@@ -64,7 +62,7 @@ The Salesforce AI Agent Framework lets you create AI-powered assistants that can
 
 ### Three Types of AI Agents
 
-**Conversational Agents** - Interactive chat assistants
+**Conversational Agents** - Interactive chat assistants (included in core)
 - Multi-turn conversations with memory
 - Perfect for customer support, sales assistance, help desks
 - Example: "Find all open cases for Acme Corp" → "Update the priority to High"
@@ -94,32 +92,21 @@ The Salesforce AI Agent Framework lets you create AI-powered assistants that can
 
 ### Multiple AI Providers
 
-- **OpenAI**: GPT-4o, GPT-4o-mini, GPT-4-turbo
-- **Claude**: Claude 3 Sonnet, Claude 3.5 Sonnet
-- **Gemini**: Gemini 1.5 Pro, Gemini 1.5 Flash
-- Easy to add more providers through adapter pattern
+- **OpenAI**: GPT-4o, GPT-4o-mini (included in core)
+- Additional providers available through the addon package
+- Easy to add more providers through the adapter pattern
 
 ### Standard Actions (Tools)
 
 The framework includes ready-to-use actions that agents can perform:
 
-**Data Operations**
 - `ActionCreateRecord` - Create any Salesforce record
 - `ActionUpdateRecord` - Update existing records
 - `ActionGetRecordDetails` - Retrieve and search records
-
-**Communication**
 - `ActionPostChatter` - Post to Chatter feeds
-- `ActionSendEmail` - Send emails
-- `ActionSendNotification` - Send custom notifications
-
-**Automation**
 - `ActionFlowHandler` - Execute Salesforce Flows
-- `ActionManageTasks` - Create and manage tasks
-- `ActionRunReport` - Execute reports and retrieve results
 
-**Knowledge & Search**
-- `ActionSearchKnowledge` - Search knowledge articles
+Additional actions for notifications, reports, and knowledge search are available in the addon package.
 
 ### Async Processing Options
 
@@ -171,9 +158,8 @@ Query `AgentDecisionStep__c` to see exactly what your agent is thinking and doin
 
 **AI Provider Adapters**
 - `OpenAIProviderAdapter` - OpenAI/Azure OpenAI integration
-- `ClaudeProviderAdapter` - Anthropic Claude integration
-- `GeminiProviderAdapter` - Google Gemini integration
 - `BaseProviderAdapter` - Base class for custom providers
+- Additional adapters available in addon package
 
 **Memory Managers**
 - `BufferWindowMemoryManager` - Fixed-window conversation history
@@ -267,7 +253,7 @@ App Launcher → Agent Capabilities → New
 - **Capability Name**: get_contact_info
 - **Description**: "Retrieves contact information by name or email"
 - **Implementation Type**: Standard
-- **Standard Action Type**: GetRecords
+- **Standard Action Type**: GetRecordDetails
 - **AI Agent Definition**: Sales Assistant
 - **Backend Configuration**:
   ```json
@@ -561,8 +547,6 @@ See the [LICENSE](LICENSE) file for details.
 Built with:
 - **Salesforce Platform** - Enterprise CRM
 - **OpenAI GPT Models** - GPT-4o, GPT-4o-mini
-- **Anthropic Claude** - Claude 3 Sonnet, Claude 3.5 Sonnet
-- **Google Gemini** - Gemini 1.5 Pro, Gemini 1.5 Flash
 - **Lightning Web Components** - Modern UI framework
 - **Community Feedback** - Thank you to all contributors!
 

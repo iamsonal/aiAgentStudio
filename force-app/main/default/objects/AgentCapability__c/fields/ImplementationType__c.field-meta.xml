@@ -26,31 +26,6 @@
                 <default>false</default>
                 <label>Flow</label>
             </value>
-            <value>
-                <fullName>Graph</fullName>
-                <default>false</default>
-                <label>Graph</label>
-            </value>
-            <value>
-                <fullName>Batch</fullName>
-                <default>false</default>
-                <label>Batch</label>
-            </value>
-            <value>
-                <fullName>Scheduled</fullName>
-                <default>false</default>
-                <label>Scheduled</label>
-            </value>
-            <value>
-                <fullName>External</fullName>
-                <default>false</default>
-                <label>External</label>
-            </value>
-            <value>
-                <fullName>Composite</fullName>
-                <default>false</default>
-                <label>Composite</label>
-            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

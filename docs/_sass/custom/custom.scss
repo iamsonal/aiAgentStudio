@@ -451,6 +451,150 @@ html {
   .hero-subtitle {
     font-size: 1.1rem !important;
   }
+
+  // Mobile navigation improvements
+  .site-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 85%;
+    max-width: 300px;
+    height: 100vh;
+    background: #fff;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    overflow-y: auto;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+    padding-top: 60px;
+
+    &.nav-open {
+      transform: translateX(0);
+    }
+  }
+
+  // Mobile nav overlay
+  .nav-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+
+    &.active {
+      opacity: 1;
+      visibility: visible;
+    }
+  }
+
+  // Hamburger menu button
+  .mobile-menu-btn {
+    display: flex !important;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 1001;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    background: var(--sf-blue, #0176d3);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+
+    span {
+      display: block;
+      width: 22px;
+      height: 2px;
+      background: #fff;
+      position: relative;
+      transition: background 0.2s;
+
+      &::before,
+      &::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        width: 22px;
+        height: 2px;
+        background: #fff;
+        transition: transform 0.3s ease;
+      }
+
+      &::before {
+        top: -7px;
+      }
+
+      &::after {
+        top: 7px;
+      }
+    }
+
+    &.active span {
+      background: transparent;
+
+      &::before {
+        transform: rotate(45deg);
+        top: 0;
+      }
+
+      &::after {
+        transform: rotate(-45deg);
+        top: 0;
+      }
+    }
+  }
+
+  // Close button in nav
+  .mobile-nav-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f0f0;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 20px;
+    color: #666;
+
+    &:hover {
+      background: #e0e0e0;
+    }
+  }
+
+  // Adjust main content for mobile
+  .main {
+    padding-top: 70px;
+  }
+
+  .main-content {
+    padding: 1rem;
+  }
+
+  // Better touch targets for nav links
+  .nav-list-link {
+    padding: 12px 16px !important;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  // Site header adjustments
+  .site-header {
+    padding-left: 60px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -606,6 +750,29 @@ button:focus,
   }
 }
 
+// ============================================
+// FIX: Logo disappearing on hover
+// ============================================
+// Override just-the-docs gradient hover effect on logo
+.site-header .site-button,
+.site-header .site-button:hover,
+.site-header .site-button:focus {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+// The theme uses a pseudo-element with gradient - hide it
+.site-header .site-button::before {
+  display: none !important;
+}
+
+// Ensure the logo image is always visible
+.site-header .site-logo {
+  position: relative;
+  z-index: 10;
+}
+
 // Print styles
 @media print {
   .site-nav,
@@ -722,4 +889,159 @@ button:focus,
 
 .highlight:hover .code-copy-btn {
   opacity: 1;
+}
+
+
+// ============================================
+// APEX SYNTAX HIGHLIGHTING
+// ============================================
+// Rouge uses Java highlighting for Apex which works well
+// These styles enhance the default highlighting
+
+// Apex-specific keywords styling
+.highlight .k,  // keyword
+.highlight .kd, // keyword declaration
+.highlight .kn, // keyword namespace
+.highlight .kp, // keyword pseudo
+.highlight .kr, // keyword reserved
+.highlight .kt  // keyword type
+{
+  color: #0176d3;
+  font-weight: 600;
+}
+
+// Apex class/type names
+.highlight .nc, // name class
+.highlight .nn  // name namespace
+{
+  color: #032d60;
+}
+
+// Apex strings
+.highlight .s,
+.highlight .s1,
+.highlight .s2 {
+  color: #2e844a;
+}
+
+// Apex comments
+.highlight .c,
+.highlight .c1,
+.highlight .cm,
+.highlight .cs {
+  color: #706e6b;
+  font-style: italic;
+}
+
+// Apex numbers
+.highlight .m,
+.highlight .mi,
+.highlight .mf {
+  color: #b86e00;
+}
+
+// Apex annotations (@)
+.highlight .nd {
+  color: #9050e9;
+  font-weight: 500;
+}
+
+// Apex method names
+.highlight .nf {
+  color: #014486;
+}
+
+// Apex operators
+.highlight .o,
+.highlight .ow {
+  color: #c41e3a;
+}
+
+// Better code block styling
+.highlight {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 0;
+  margin: 1rem 0;
+  overflow: hidden;
+
+  pre {
+    margin: 0;
+    padding: 1rem;
+    overflow-x: auto;
+    background: transparent;
+
+    code {
+      background: transparent;
+      padding: 0;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+  }
+}
+
+// Inline code styling
+code:not(.highlight code) {
+  background: #f0f2f5;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+  color: #c41e3a;
+}
+
+// Language label for code blocks
+.highlight[data-lang]::before {
+  content: attr(data-lang);
+  display: block;
+  background: #e8e8e8;
+  padding: 0.25rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #666;
+  border-bottom: 1px solid #ddd;
+}
+
+// Dark mode syntax highlighting
+@media (prefers-color-scheme: dark) {
+  .highlight {
+    background: #1e1e32;
+
+    .k, .kd, .kn, .kp, .kr, .kt {
+      color: #4da6ff;
+    }
+
+    .nc, .nn {
+      color: #7dd3fc;
+    }
+
+    .s, .s1, .s2 {
+      color: #86efac;
+    }
+
+    .c, .c1, .cm, .cs {
+      color: #9ca3af;
+    }
+
+    .m, .mi, .mf {
+      color: #fbbf24;
+    }
+
+    .nd {
+      color: #c084fc;
+    }
+
+    .nf {
+      color: #60a5fa;
+    }
+
+    .o, .ow {
+      color: #f87171;
+    }
+  }
+
+  code:not(.highlight code) {
+    background: #2a2a4a;
+    color: #f87171;
+  }
 }

@@ -19,13 +19,11 @@ Built-in actions that agents can perform out of the box.
 
 ---
 
-## Data Operations
-
-### ActionGetRecordDetails
+## ActionGetRecordDetails
 
 Retrieve and search Salesforce records.
 
-**Standard Action Type**: `GetRecords`
+**Standard Action Type**: `GetRecordDetails`
 
 **Backend Configuration**:
 ```json
@@ -132,8 +130,6 @@ Update existing Salesforce records.
 
 ---
 
-## Communication
-
 ### ActionPostChatter
 
 Post messages to Chatter feeds.
@@ -165,94 +161,20 @@ Post messages to Chatter feeds.
 
 ---
 
-### ActionSendEmail
-
-Send emails from Salesforce.
-
-**Standard Action Type**: `SendEmail`
-
-**Parameters Schema**:
-```json
-{
-  "type": "object",
-  "required": ["toAddress", "subject", "body"],
-  "properties": {
-    "toAddress": {
-      "type": "string",
-      "description": "Recipient email address"
-    },
-    "subject": {
-      "type": "string",
-      "description": "Email subject"
-    },
-    "body": {
-      "type": "string",
-      "description": "Email body (plain text or HTML)"
-    },
-    "isHtml": {
-      "type": "boolean",
-      "description": "Whether body is HTML"
-    }
-  }
-}
-```
-
----
-
-### ActionSendNotification
-
-Send custom notifications to users.
-
-**Standard Action Type**: `SendNotification`
-
-**Backend Configuration**:
-```json
-{
-  "notificationTypeApiName": "Custom_Alert"
-}
-```
-
-**Parameters Schema**:
-```json
-{
-  "type": "object",
-  "required": ["title", "body", "targetId"],
-  "properties": {
-    "title": {
-      "type": "string",
-      "description": "Notification title"
-    },
-    "body": {
-      "type": "string",
-      "description": "Notification message"
-    },
-    "targetId": {
-      "type": "string",
-      "description": "Record ID to link to"
-    },
-    "recipientIds": {
-      "type": "array",
-      "items": {"type": "string"},
-      "description": "User IDs to notify"
-    }
-  }
-}
-```
-
----
-
-## Automation
-
 ### ActionFlowHandler
 
 Execute Salesforce Flows.
 
-**Standard Action Type**: `RunFlow`
+**Standard Action Type**: `FlowHandler`
 
-**Backend Configuration**:
+**Configuration**: Set `ImplementationDetail__c` to the Flow API name.
+
+**Backend Configuration** (optional default input values):
 ```json
 {
-  "flowApiName": "Lead_Assignment_Flow"
+  "defaultInputValues": {
+    "source": "AI_Agent"
+  }
 }
 ```
 
@@ -275,112 +197,6 @@ Execute Salesforce Flows.
 
 ---
 
-### ActionManageTasks
-
-Create and manage tasks with advanced options.
-
-**Standard Action Type**: `ManageTasks`
-
-**Parameters Schema**:
-```json
-{
-  "type": "object",
-  "required": ["action"],
-  "properties": {
-    "action": {
-      "type": "string",
-      "enum": ["create", "update", "complete", "reassign"],
-      "description": "Task action to perform"
-    },
-    "taskId": {
-      "type": "string",
-      "description": "Task ID (for update/complete/reassign)"
-    },
-    "subject": {
-      "type": "string",
-      "description": "Task subject (for create)"
-    },
-    "assigneeId": {
-      "type": "string",
-      "description": "User ID to assign task to"
-    }
-  }
-}
-```
-
----
-
-### ActionRunReport
-
-Execute Salesforce reports and retrieve results.
-
-**Standard Action Type**: `RunReport`
-
-**Parameters Schema**:
-```json
-{
-  "type": "object",
-  "required": ["reportId"],
-  "properties": {
-    "reportId": {
-      "type": "string",
-      "description": "Report ID to execute"
-    },
-    "filters": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "column": {"type": "string"},
-          "operator": {"type": "string"},
-          "value": {"type": "string"}
-        }
-      },
-      "description": "Runtime filter overrides"
-    }
-  }
-}
-```
-
----
-
-## Knowledge & Search
-
-### ActionSearchKnowledge
-
-Search knowledge articles.
-
-**Standard Action Type**: `SearchKnowledge`
-
-**Parameters Schema**:
-```json
-{
-  "type": "object",
-  "required": ["searchTerm"],
-  "properties": {
-    "searchTerm": {
-      "type": "string",
-      "description": "Text to search for in articles"
-    },
-    "articleTypes": {
-      "type": "array",
-      "items": {"type": "string"},
-      "description": "Article types to search"
-    },
-    "language": {
-      "type": "string",
-      "description": "Article language (e.g., 'en_US')"
-    },
-    "limit": {
-      "type": "integer",
-      "description": "Maximum articles to return"
-    }
-  }
-}
-```
-
----
-
 ## Best Practices
 
 ### Choosing the Right Action
@@ -391,9 +207,9 @@ Search knowledge articles.
 | Create a record | `ActionCreateRecord` |
 | Update a record | `ActionUpdateRecord` |
 | Post to Chatter | `ActionPostChatter` |
-| Send email | `ActionSendEmail` |
 | Run automation | `ActionFlowHandler` |
-| Search articles | `ActionSearchKnowledge` |
+
+Additional actions for notifications, reports, and knowledge search are available in the addon package.
 
 ### Security Recommendations
 
