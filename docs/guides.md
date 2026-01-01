@@ -21,6 +21,11 @@ Step-by-step tutorials and how-to guides for working with AI Agent Studio.
     <p><a href="configuration.html">Read guide →</a></p>
   </div>
   <div class="feature-card">
+    <h3>👨‍💻 Developer Guide</h3>
+    <p>Build custom actions and context providers with best practices and code examples.</p>
+    <p><a href="developer-guide.html">Read guide →</a></p>
+  </div>
+  <div class="feature-card">
     <h3>💡 Examples</h3>
     <p>Real-world use cases and implementation patterns.</p>
     <p><a href="examples.html">View examples →</a></p>

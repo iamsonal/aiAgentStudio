@@ -22,27 +22,38 @@ Build intelligent AI agents powered by Large Language Models that seamlessly int
 
 ---
 
+## �  Documentation
+
+**[View Full Documentation →](https://iamsonal.github.io/aiAgentStudio/)**
+
+- [Getting Started Guide](https://iamsonal.github.io/aiAgentStudio/getting-started)
+- [Configuration Reference](https://iamsonal.github.io/aiAgentStudio/configuration)
+- [Standard Actions](https://iamsonal.github.io/aiAgentStudio/actions)
+- [Developer Guide](https://iamsonal.github.io/aiAgentStudio/developer-guide) - Custom actions & context providers
+- [Security Guide](https://iamsonal.github.io/aiAgentStudio/security)
+- [Troubleshooting](https://iamsonal.github.io/aiAgentStudio/troubleshooting)
+
+---
+
 ## 💖 Support This Project
 
-AI Agent Studio is **free and open-source** and will always remain so. If you find it useful, consider buying me a coffee to support ongoing development and maintenance.
+AI Agent Studio is **free and open-source**. If you find it useful, consider supporting ongoing development.
 
 ☕ **[GitHub Sponsors](https://github.com/sponsors/iamsonal)** | **[Buy Me a Coffee](https://buymeacoffee.com/iamsonal)**
-
-Every contribution helps keep this project active and maintained!
 
 ---
 
 ## ⚠️ Repository Notice
 
-**This repository contains the core AI Agent Framework only.** The `aiAgentStudioAddons` folder visible in the codebase contains proprietary extensions that are **not part of the open-source repository**. These addons provide additional orchestrators, LLM provider adapters, action handlers, and UI components.
+This repository contains the **core AI Agent Framework only**. The `aiAgentStudioAddons` folder contains proprietary extensions not included in the open-source release.
 
-When cloning this repository, you will have access to the core framework in the `force-app` directory, which provides all fundamental capabilities for building conversational AI agents with OpenAI.
+The core framework in `force-app` provides all fundamental capabilities for building conversational AI agents with OpenAI.
 
 ---
 
 ## 🎯 What is This?
 
-The Salesforce AI Agent Framework lets you create AI-powered assistants that can:
+Create AI-powered assistants that can:
 
 - 💬 **Chat naturally** with users and remember conversation context
 - 🔍 **Search and retrieve** Salesforce data intelligently
@@ -51,143 +62,87 @@ The Salesforce AI Agent Framework lets you create AI-powered assistants that can
 - 🔒 **Respect permissions** - agents only access what users can access
 - 🎯 **Work with multiple AI providers** - OpenAI included, extensible for others
 
-**Who is this for?**
-- **Admins**: Configure AI agents without code using point-and-click tools
-- **Managers**: Understand what AI agents can do for your team
-- **Developers**: Extend the framework with custom actions and integrations
+---
+
+## 💼 Use Cases
+
+### Customer Support
+Deploy AI copilots that help support agents resolve cases faster by automatically searching knowledge bases, pulling customer history, and suggesting solutions - all while respecting your existing security model.
+
+### Sales Enablement
+Give sales reps an intelligent assistant that can find accounts, surface open opportunities, create follow-up tasks, and provide real-time insights during customer conversations.
+
+### Operations Automation
+Build workflow agents that handle multi-step processes like lead qualification, case routing, or approval workflows - combining multiple AI-powered decisions into automated pipelines.
+
+### Self-Service Portals
+Embed conversational agents in Experience Cloud to let customers check order status, create support cases, or find answers from your knowledge base without waiting for human agents.
+
+---
+
+## 🔄 How It Works
+
+```mermaid
+flowchart LR
+    subgraph Input
+        A[👤 User Message]
+    end
+
+    subgraph Framework
+        B[🎭 Orchestrator]
+        C[🧠 LLM]
+        D[🔧 Tools]
+    end
+
+    subgraph Salesforce
+        E[📊 Data]
+        F[📝 Context]
+        G[💾 Memory]
+    end
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    F --> B
+    G --> C
+    D --> H[✅ Response]
+```
+
+1. **User sends a message** through the chat component or API
+2. **Context is gathered** from the current record, user profile, and related data
+3. **LLM analyzes** the request with full conversation history
+4. **Tools execute** Salesforce operations (query, create, update, post)
+5. **Response is delivered** back to the user with full audit trail
+
+All operations run asynchronously using Platform Events or Queueables, ensuring scalability for enterprise workloads.
 
 ---
 
 ## ✨ Key Features
 
-### Three Types of AI Agents
-
-**Conversational Agents** - Interactive chat assistants (included in core)
-- Multi-turn conversations with memory
-- Perfect for customer support, sales assistance, help desks
-- Example: "Find all open cases for Acme Corp" → "Update the priority to High"
-
-**Function Agents** - Single-task specialists
-- One-shot operations like summarization or classification
-- Fast, stateless execution
-- Example: "Summarize this case" → Instant summary
-
-**Workflow Agents** - Multi-step automation
-- Orchestrate complex processes with multiple agents
-- Sequential execution with checkpoints
-- Example: New case → Classify → Route → Notify → Follow-up
-
-### Smart Memory Management
-
-- **Buffer Window**: Remembers the last N conversation turns
-- **Summary Buffer**: Automatically summarizes old conversations to save context
-- Prevents token overload while maintaining conversation flow
-
-### Built-in Security
-
-- Automatic CRUD and Field-Level Security (FLS) enforcement
-- Respects Salesforce sharing rules
-- User context tracking for audit trails
-- No privilege escalation - agents work within user permissions
-
-### Multiple AI Providers
-
-- **OpenAI**: GPT-4o, GPT-4o-mini (included in core)
-- Additional providers available through the addon package
-- Easy to add more providers through the adapter pattern
-
-### Standard Actions (Tools)
-
-The framework includes ready-to-use actions that agents can perform:
-
-- `ActionCreateRecord` - Create any Salesforce record
-- `ActionUpdateRecord` - Update existing records
-- `ActionGetRecordDetails` - Retrieve and search records
-- `ActionPostChatter` - Post to Chatter feeds
-- `ActionFlowHandler` - Execute Salesforce Flows
-
-Additional actions for notifications, reports, and knowledge search are available in the addon package.
-
-### Async Processing Options
-
-Choose the right processing mode for your needs:
-
-**High Concurrency Mode** (Platform Events)
-- Best for: Many concurrent users, chat applications
-- Handles thousands of simultaneous conversations
-- Event-driven architecture
-
-**Low Concurrency Mode** (Queueables)
-- Best for: Sequential processing, debugging, testing
-- Easier to troubleshoot with debug logs
-- Guaranteed execution order
-
-### Deep Observability
-
-Every agent interaction is logged for transparency:
-- User inputs and agent responses
-- LLM requests and responses
-- Tool executions and results
-- Token usage and performance metrics
-- Error tracking with full context
-
-Query `AgentDecisionStep__c` to see exactly what your agent is thinking and doing.
+| Feature | Description |
+|:--------|:------------|
+| **Three Agent Types** | Conversational (chat), Function (single-task), Workflow (multi-step) |
+| **Smart Memory** | Buffer window and summary-based conversation history |
+| **Built-in Security** | Automatic CRUD, FLS, and sharing rule enforcement |
+| **Standard Actions** | Create, update, query records, post to Chatter, execute Flows |
+| **Extensible** | Custom actions, context providers, LLM adapters, memory managers |
+| **Observability** | Full logging of LLM interactions, tool executions, and token usage |
+| **Async Processing** | Platform Events (high concurrency) or Queueables (debugging) |
 
 ---
 
-## 🏗️ Architecture Overview
+## 🏆 Why This Framework?
 
-### Core Components
-
-**Entry Points**
-- `AgentExecutionService` - Main entry for starting agent executions
-- `ConversationalChatController` - Lightning Web Component controller
-- `AIAgentRestService` - REST API endpoint
-
-**Orchestrators** (Agent Type Handlers)
-- `ConversationalOrchestrator` - Handles chat-based agents
-- `FunctionOrchestrator` - Handles single-task agents
-- `WorkflowOrchestrator` - Handles multi-step workflows
-
-**Core Services**
-- `LLMInteractionService` - Manages communication with AI providers
-- `OrchestrationService` - Coordinates LLM responses and tool execution
-- `CapabilityExecutionService` - Executes agent actions/tools
-- `AgentStateService` - Manages execution lifecycle
-- `ContextManagerService` - Handles memory and context
-
-**AI Provider Adapters**
-- `OpenAIProviderAdapter` - OpenAI/Azure OpenAI integration
-- `BaseProviderAdapter` - Base class for custom providers
-- Additional adapters available in addon package
-
-**Memory Managers**
-- `BufferWindowMemoryManager` - Fixed-window conversation history
-- `SummaryBufferMemoryManager` - Summarized conversation history
-
-**Action Handlers**
-- `BaseAgentAction` - Base class for all actions
-- Standard actions (see list above)
-- Custom actions via `IAgentAction` interface
-
-### How It Works
-
-1. **User sends message** → Controller receives input
-2. **Orchestrator dispatches** → Async processing begins
-3. **LLM processes request** → AI provider analyzes message
-4. **Tools execute** → Actions perform Salesforce operations
-5. **Follow-up LLM call** → AI formats results for user
-6. **Response delivered** → User sees final answer
-
-### Extension Points
-
-Want to customize? Implement these interfaces:
-
-- `IAgentOrchestrator` - Add new agent types
-- `ILLMProviderAdapter` - Add new AI providers
-- `IAgentAction` - Add custom actions/tools
-- `IMemoryManager` - Add custom memory strategies
-- `IAgentContextProvider` - Add custom context sources
+| Challenge | How We Solve It |
+|:----------|:----------------|
+| **Security concerns with AI** | Runs in user context with automatic CRUD/FLS enforcement. No privilege escalation. Full audit trail. |
+| **Integration complexity** | Native Salesforce - no external servers, middleware, or data sync. Works with your existing org. |
+| **Vendor lock-in** | Bring your own LLM. OpenAI included, easily add Claude, Gemini, or others via adapter pattern. |
+| **Scalability** | Async processing handles thousands of concurrent conversations. Choose Platform Events or Queueables. |
+| **Customization needs** | Extensible architecture with interfaces for custom actions, context providers, and memory strategies. |
+| **Governance & compliance** | Every interaction logged to `AgentDecisionStep__c`. See exactly what the AI decided and why. |
 
 ---
 
@@ -197,332 +152,69 @@ Want to customize? Implement these interfaces:
 
 - Salesforce org (Sandbox recommended)
 - System Administrator access
-- API key from an AI provider (OpenAI, Claude, or Gemini)
+- OpenAI API key
 
-### Installation Steps
+### Installation
 
-**1. Deploy the Framework**
+**Option 1: CumulusCI (Recommended for Scratch Orgs)**
 
-Using Salesforce CLI:
+If you have [CumulusCI](https://cumulusci.readthedocs.io/en/stable/get-started.html) set up:
+
+```bash
+cci flow run dev_org --org dev
+```
+
+This single command:
+- Creates a scratch org with the framework deployed
+- Deploys seed data and sample configurations
+- Assigns required permission sets (`AIAgentStudioConfigurator`, `AIAgentStudioEndUser`)
+- Enables Knowledge user and assigns `KnowledgeDemo` permission set
+- Creates comprehensive sample data (agents, capabilities, test records)
+- Sets up a Connected App for API access
+
+**Option 2: Salesforce CLI**
+
 ```bash
 sf project deploy start -d force-app/main/default -o your-org-alias
 ```
 
-**2. Set Up AI Provider Authentication**
+### Setup
 
-Navigate to Setup → Named Credentials → New
+1. **Create Named Credential** for OpenAI API (`https://api.openai.com`)
+2. **Create LLM Configuration** with your Named Credential and model settings
+3. **Create AI Agent Definition** with identity/instruction prompts
+4. **Add Capabilities** (tools) the agent can use
+5. **Add Chat Component** to a Lightning page
 
-- **Label**: OpenAI API (or your provider name)
-- **Name**: OpenAI_API
-- **URL**: `https://api.openai.com`
-- Add your API key as authentication
-
-**3. Create LLM Configuration**
-
-App Launcher → LLM Configurations → New
-
-- **Developer Name**: OpenAI_GPT4o
-- **Named Credential**: OpenAI_API
-- **Provider Adapter Class**: OpenAIProviderAdapter
-- **Default Model**: gpt-4o-mini (cost-effective) or gpt-4o (more powerful)
-- **Temperature**: 0.7
-- **Is Active**: ✓
-
-**4. Create Your First Agent**
-
-App Launcher → AI Agent Definitions → New
-
-- **Name**: Sales Assistant
-- **Developer Name**: Sales_Assistant
-- **Agent Type**: Conversational
-- **LLM Configuration**: OpenAI_GPT4o
-- **Memory Strategy**: BufferWindow
-- **History Turn Limit**: 10
-- **Is Active**: ✓
-- **Identity Prompt**: "You are a helpful Salesforce assistant. You help users find and manage their Salesforce data."
-- **Instructions Prompt**: "Always confirm before making changes. Be clear and concise."
-
-**5. Add Capabilities (Tools)**
-
-Create capabilities to define what your agent can do:
-
-**Example: Get Contact Information**
-
-App Launcher → Agent Capabilities → New
-
-- **Capability Name**: get_contact_info
-- **Description**: "Retrieves contact information by name or email"
-- **Implementation Type**: Standard
-- **Standard Action Type**: GetRecordDetails
-- **AI Agent Definition**: Sales Assistant
-- **Backend Configuration**:
-  ```json
-  {
-    "objectApiName": "Contact"
-  }
-  ```
-- **Parameters** (JSON Schema):
-  ```json
-  {
-    "type": "object",
-    "properties": {
-      "firstName": {"type": "string", "description": "First name"},
-      "lastName": {"type": "string", "description": "Last name"},
-      "email": {"type": "string", "description": "Email address"}
-    }
-  }
-  ```
-
-**6. Add Chat to Your Page**
-
-- Edit any Lightning page
-- Drag **aiAssistantChat** component to the page
-- Configure:
-  - **Agent Developer Name**: Sales_Assistant
-- Save and activate
-
-**7. Test It!**
-
-Start chatting with your agent:
-- "Find contacts named John Smith"
-- "Show me all accounts in California"
-- "Create a task to follow up with Acme Corp"
+👉 **[Full Getting Started Guide →](https://iamsonal.github.io/aiAgentStudio/getting-started)**
 
 ---
 
-## 📊 Configuration Guide
+## 🏗️ Architecture
 
-### Agent Configuration Fields
+**Core Components:**
+- `AgentExecutionService` - Main entry point for starting agent executions
+- `ConversationalOrchestrator` - Manages multi-turn chat conversations
+- `LLMInteractionService` - Handles communication with AI providers
+- `CapabilityExecutionService` - Executes tools/actions securely
+- `OpenAIProviderAdapter` - OpenAI/Azure OpenAI integration
 
-**Basic Settings**
-- `Name` - Display name for the agent
-- `DeveloperName__c` - Unique API identifier
-- `AgentType__c` - Conversational, Function, or Workflow
-- `IsActive__c` - Enable/disable the agent
+**Extension Points:**
+- `IAgentAction` - Build custom actions for any business logic
+- `IAgentContextProvider` - Supply dynamic context to agents
+- `ILLMProviderAdapter` - Add support for additional AI providers
+- `IMemoryManager` - Implement custom conversation memory strategies
 
-**AI Provider Settings**
-- `LLMConfiguration__c` - Which AI provider to use
-- `MemoryStrategy__c` - How to manage conversation history
-- `HistoryTurnLimit__c` - Number of turns to remember
-
-**Behavior Settings**
-- `IdentityPrompt__c` - Who the agent is (persona)
-- `InstructionsPrompt__c` - How the agent should behave
-- `EnableActionTransparency__c` - Show tool execution to users
-- `ErrorHandlingPolicy__c` - Fail-Fast or Autonomous Recovery
-
-**Performance Settings**
-- `AsyncDispatchType__c` - High (Platform Events) or Low (Queueables)
-- `EnableParallelToolCalling__c` - Execute multiple tools simultaneously
-
-### Capability Configuration
-
-**Basic Info**
-- `CapabilityName__c` - Tool name (shown to AI)
-- `Description__c` - When and how to use this tool
-- `ImplementationType__c` - Standard, Apex, or Flow
-
-**Execution Settings**
-- `RequiresApproval__c` - Require human approval before execution
-- `RunAsynchronously__c` - Execute in separate transaction
-- `FailFastOnError__c` - Stop immediately on error
-
-**Configuration**
-- `BackendConfiguration__c` - Admin settings (JSON)
-- `Parameters__c` - Tool parameters (JSON Schema)
+👉 **[Architecture Details →](https://iamsonal.github.io/aiAgentStudio/architecture)** | **[Developer Guide →](https://iamsonal.github.io/aiAgentStudio/developer-guide)**
 
 ---
-
-## 🔒 Security & Permissions
-
-### How Security Works
-
-1. **User Context**: Agents run in the user's context
-2. **CRUD Checks**: Validates object-level permissions
-3. **FLS Enforcement**: Validates field-level permissions
-4. **Sharing Rules**: Respects record-level access
-5. **Audit Trail**: All actions logged in `AgentDecisionStep__c`
-
-### Required Permissions
-
-**For Admins Setting Up Agents:**
-- Read/Write on `AIAgentDefinition__c`
-- Read/Write on `AgentCapability__c`
-- Read/Write on `LLMConfiguration__c`
-- Modify All Data (for initial setup)
-
-**For Users Using Agents:**
-- Read on `AIAgentDefinition__c`
-- Read/Write on `AgentExecution__c`
-- Read/Write on `ExecutionStep__c`
-- Permissions for objects the agent will access
-
-### Best Practices
-
-✓ Start with read-only capabilities
-✓ Use approval workflows for data modifications
-✓ Test in sandbox with realistic user profiles
-✓ Review `AgentDecisionStep__c` regularly for anomalies
-✓ Set appropriate `HistoryTurnLimit__c` to control costs
-✓ Monitor API usage and token consumption
-
----
-
-## 🛠️ Troubleshooting
-
-### Common Issues
-
-**Agent Not Responding**
-- Check Named Credential is configured correctly
-- Verify API key is valid and has credits
-- Ensure agent `IsActive__c` is checked
-- Check debug logs for errors
-
-**Permission Denied Errors**
-- Verify user has CRUD permissions on target objects
-- Check Field-Level Security settings
-- Review sharing rules
-- Ensure user can access the agent definition
-
-**High CPU Time / Timeouts**
-- Reduce `HistoryTurnLimit__c`
-- Use Function agents for one-shot operations
-- Enable async dispatch for long-running operations
-- Simplify tool descriptions
-
-**Unexpected Tool Calls**
-- Improve capability descriptions - be specific
-- Add examples in the description
-- Lower LLM temperature for more predictable behavior
-- Review parameters JSON Schema for clarity
-
-**Context Lost Between Turns**
-- Check `MemoryStrategy__c` is set correctly
-- Increase `HistoryTurnLimit__c` if needed
-- Verify `ExecutionStep__c` records are being created
-
-### Debug Tips
-
-1. **Check Decision Steps**: Query `AgentDecisionStep__c` to see LLM interactions
-2. **Review Debug Logs**: Look for errors in Apex debug logs
-3. **Test Capabilities Individually**: Use Agent Storyboard to test tools
-4. **Monitor Token Usage**: Check `ExecutionStep__c` for token consumption
-5. **Verify Configuration**: Ensure JSON in capabilities is valid
-
----
-
-## 💡 Use Cases & Examples
-
-### Customer Support
-
-**Scenario**: Help desk agent that can search cases, update status, and create tasks
-
-**Agent Type**: Conversational
-**Capabilities**:
-- Search cases by number, contact, or subject
-- Update case status and priority
-- Create follow-up tasks
-- Search knowledge articles
-
-### Sales Assistance
-
-**Scenario**: Sales copilot that helps reps find leads and opportunities
-
-**Agent Type**: Conversational
-**Capabilities**:
-- Search accounts and contacts
-- Find open opportunities
-- Create tasks and events
-- Update opportunity stages
-
-### Case Summarization
-
-**Scenario**: One-click case summary for quick review
-
-**Agent Type**: Function
-**Capabilities**:
-- Get case details with comments
-- Generate concise summary
-
-### Lead Qualification Workflow
-
-**Scenario**: Multi-step process to qualify and route leads
-
-**Agent Type**: Workflow
-**Steps**:
-1. Classify lead (Function agent)
-2. Enrich data (Function agent)
-3. Score lead (Function agent)
-4. Route to owner (Function agent)
-
---- conversations
 
 ## ⚠️ Important Notes
 
-### Use at Your Own Risk
-
-This framework is provided "as is" without warranties. Always test thoroughly in a sandbox environment before deploying to production.
-
-### AI-Generated Content
-
-⚠️ **All AI-generated responses should be verified before being relied upon.**
-
-- LLMs can produce inaccurate or inappropriate content
-- Hallucinations (false information) can occur
-- Always review automated actions before execution
-- Use approval workflows for critical operations
-
-### Data & Privacy
-
-- User inputs are sent to external AI providers
-- Conversation history is stored in Salesforce
-- Ensure compliance with your organization's data policies
-- Review AI provider data handling policies
-- Consider data residency requirements
-
-### Cost Considerations
-
-- AI API calls have per-token pricing
-- Long conversations = higher costs
-- Monitor token consumption via `ExecutionStep__c`
-- Set appropriate `HistoryTurnLimit__c` to control costs
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Here's how you can help:
-
-**Ways to Contribute**
-- Report bugs with detailed reproduction steps
-- Suggest features and improvements
-- Submit pull requests with code or documentation
-- Share your use cases and examples
-- ☕ Buy me a coffee: [GitHub Sponsors](https://github.com/sponsors/iamsonal) | [Buy Me a Coffee](https://buymeacoffee.com/iamsonal)
-
-**Development Guidelines**
-- Follow existing code patterns
-- Add test coverage for new features
-- Update documentation for changes
-- Test in a scratch org before submitting
-
----
-
-## 📞 Support & Resources
-
-### Getting Help
-
-- 📖 **Documentation**: This README and inline code docs
-- 🐛 **Bug Reports**: Open an issue on GitHub
-- 💡 **Feature Requests**: Open an issue with [Feature Request] prefix
-- 💬 **Questions**: Use GitHub Discussions
-
-### Useful Resources
-
-- [Salesforce Developer Documentation](https://developer.salesforce.com/docs)
-- [OpenAI API Documentation](https://platform.openai.com/docs)
-- [Anthropic Claude Documentation](https://docs.anthropic.com)
-- [Google Gemini Documentation](https://ai.google.dev/docs)
+- **Use at your own risk** - Test thoroughly in sandbox before production
+- **AI content verification** - LLMs can hallucinate; review automated actions
+- **Data privacy** - User inputs are sent to external AI providers
+- **Cost awareness** - Monitor token consumption; set appropriate history limits
 
 ---
 
@@ -530,25 +222,9 @@ We welcome contributions! Here's how you can help:
 
 Copyright © 2025 Sonal
 
-Licensed under the **Mozilla Public License 2.0** (MPL-2.0).
+Licensed under **[Mozilla Public License 2.0](LICENSE)** (MPL-2.0)
 
-**Key Points:**
-- ✅ Commercial use allowed
-- ✅ Modification allowed
-- ✅ Distribution allowed
-- ⚠️ Must disclose source if distributing modifications
-
-See the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-Built with:
-- **Salesforce Platform** - Enterprise CRM
-- **OpenAI GPT Models** - GPT-4o, GPT-4o-mini
-- **Lightning Web Components** - Modern UI framework
-- **Community Feedback** - Thank you to all contributors!
+✅ Commercial use | ✅ Modification | ✅ Distribution | ⚠️ Disclose source for modifications
 
 ---
 

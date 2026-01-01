@@ -15,7 +15,8 @@ Complete guide to deploying and configuring your first AI agent.
 
 <div class="tldr-box">
   <div class="tldr-title">TL;DR</div>
-  <p>Clone repo → Deploy with SF CLI → Create Named Credential for your AI provider → Create LLM Configuration → Create Agent Definition → Add Capabilities → Add chat component to Lightning page → Test!</p>
+  <p><strong>Fastest way:</strong> Run <code>cci flow run dev_org --org dev</code> with <a href="https://cumulusci.readthedocs.io/en/stable/get-started.html">CumulusCI</a></p>
+  <p><strong>Manual setup:</strong> Clone repo, deploy with SF CLI, create Named Credential, create LLM Config, create Agent, add Capabilities, add chat component, test!</p>
 </div>
 
 ## Table of contents
@@ -47,7 +48,41 @@ Before you begin, ensure you have:
 
 ## Step 1: Deploy the Framework
 
-### Using Salesforce CLI
+### Option 1: CumulusCI (Recommended for Scratch Orgs)
+
+[CumulusCI](https://cumulusci.readthedocs.io/en/stable/get-started.html) provides the fastest way to get started with a fully configured scratch org.
+
+```bash
+# Clone the repository
+git clone https://github.com/iamsonal/aiAgentStudio.git
+cd aiAgentStudio
+
+# Run the dev_org flow
+cci flow run dev_org --org dev
+```
+
+This single command performs all of the following:
+
+| Step | What it does |
+|:-----|:-------------|
+| Deploy Framework | Deploys all Apex classes, LWCs, objects, and metadata from `force-app` |
+| Deploy Seed Data | Deploys utility classes from `seed-data` folder |
+| Assign Permission Sets | Assigns `AIAgentStudioConfigurator` and `AIAgentStudioEndUser` |
+| Enable Knowledge | Enables Knowledge user and assigns `KnowledgeDemo` permission set |
+| Create Sample Data | Runs `AgentTestDataFactory.createComprehensiveShowcase()` to create sample agents and test data |
+| Setup Connected App | Configures a Connected App for API access |
+
+After the flow completes, open your scratch org:
+
+```bash
+cci org browser dev
+```
+
+You'll have working sample agents ready to test. Explore the `seed-data` folder and `AgentTestDataFactory` class to see what gets created.
+
+### Option 2: Salesforce CLI (Manual Setup)
+
+For existing orgs or when you need more control over the deployment:
 
 ```bash
 # Clone the repository
@@ -60,12 +95,6 @@ sf org login web -a your-org-alias
 # Deploy the framework
 sf project deploy start -d force-app/main/default -o your-org-alias
 ```
-
-### Using Change Sets
-
-1. Create an outbound change set in a sandbox with the framework
-2. Include all components from the `force-app/main/default` directory
-3. Upload and deploy to your target org
 
 ---
 
