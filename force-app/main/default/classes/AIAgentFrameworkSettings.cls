@@ -17,6 +17,7 @@ public inherited sharing class AIAgentFrameworkSettings {
     // Define hardcoded final defaults directly here. Names reflect settings field names.
     private static final Integer FINAL_DEFAULT_MaxConversationTurns = 5;
     private static final Integer FINAL_DEFAULT_MaxQueueableStackDepth = 0; // 0 means use Salesforce defaults
+    private static final String FINAL_DEFAULT_HITLApprovalNamedCredential = 'AgentStudioInternalAPI';
 
     /**
      * Gets the singleton instance of the framework settings, applying hardcoded defaults for any missing or invalid values.
@@ -33,6 +34,7 @@ public inherited sharing class AIAgentFrameworkSettings {
                 // Explicitly set all values from FINAL defaults if no record exists
                 settings.DefaultMaxConversationTurns__c = FINAL_DEFAULT_MaxConversationTurns;
                 settings.MaxQueueableStackDepth__c = FINAL_DEFAULT_MaxQueueableStackDepth;
+                settings.HITLApprovalNamedCredential__c = FINAL_DEFAULT_HITLApprovalNamedCredential;
                 System.debug(LoggingLevel.WARN, '[AIAgentFrameworkSettings] No Custom Setting record found - using hardcoded default values for all settings');
             } else {
                 // Record exists, fill in missing individual fields with FINAL defaults
@@ -41,6 +43,9 @@ public inherited sharing class AIAgentFrameworkSettings {
                 }
                 if (settings.MaxQueueableStackDepth__c == null || settings.MaxQueueableStackDepth__c < 0) {
                     settings.MaxQueueableStackDepth__c = FINAL_DEFAULT_MaxQueueableStackDepth;
+                }
+                if (String.isBlank(settings.HITLApprovalNamedCredential__c)) {
+                    settings.HITLApprovalNamedCredential__c = FINAL_DEFAULT_HITLApprovalNamedCredential;
                 }
             }
             System.debug(LoggingLevel.INFO, '[AIAgentFrameworkSettings] Framework settings successfully initialized and cached');
@@ -66,6 +71,16 @@ public inherited sharing class AIAgentFrameworkSettings {
      */
     public static Integer getMaxQueueableStackDepth() {
         return Integer.valueOf(getInstance().MaxQueueableStackDepth__c);
+    }
+
+    /**
+     * Gets the Named Credential API name to use for HITL-approved tool execution.
+     * The Named Credential's authentication determines the execution context.
+     *
+     * @return The Named Credential API name for HITL approval executions.
+     */
+    public static String getHITLApprovalNamedCredential() {
+        return getInstance().HITLApprovalNamedCredential__c;
     }
 
     /**

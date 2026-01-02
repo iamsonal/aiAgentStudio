@@ -46,7 +46,6 @@ public with sharing class HITLGatewayService {
     // CONSTANTS
     // =============================================================================
 
-    public static final String HITL_MODE_NONE = 'None';
     public static final String HITL_MODE_CONFIRMATION = 'Confirmation';
     public static final String HITL_MODE_APPROVAL = 'Approval';
     public static final String HITL_MODE_CONFIRMATION_THEN_APPROVAL = 'ConfirmationThenApproval';
@@ -151,7 +150,6 @@ public with sharing class HITLGatewayService {
     public static HITLDecision createProceedDecision() {
         HITLDecision decision = new HITLDecision();
         decision.requiresIntervention = false;
-        decision.hitlMode = HITL_MODE_NONE;
         decision.isValidConfiguration = true;
         decision.configurationError = null;
         return decision;
@@ -287,7 +285,7 @@ public with sharing class HITLGatewayService {
         // Get HITL mode from capability (default to None if not set)
         String hitlMode = context.capability.HITLMode__c;
         if (String.isBlank(hitlMode)) {
-            hitlMode = HITL_MODE_NONE;
+            hitlMode = null;
         }
 
         System.debug(LoggingLevel.DEBUG, debugPrefix + 'Evaluating HITL for capability: ' +
@@ -295,7 +293,7 @@ public with sharing class HITLGatewayService {
             ', AgentType: ' + context.agentDefinition.AgentType__c);
 
         // No HITL required
-        if (hitlMode == HITL_MODE_NONE) {
+        if (hitlMode == null) {
             System.debug(LoggingLevel.DEBUG, debugPrefix + 'No HITL required (mode=None)');
             return createProceedDecision();
         }
@@ -447,11 +445,20 @@ public with sharing class HITLGatewayService {
 
             if (approvalResult.isSuccess()) {
                 // Update with approval process instance ID
+                // Use Database.update with allOrNone=false to handle record locking gracefully
                 pendingAction.ApprovalProcessInstanceId__c = approvalResult.getInstanceId();
-                update pendingAction;
-
-                System.debug(LoggingLevel.INFO, debugPrefix + 'Submitted to approval process. Instance ID: ' +
-                    approvalResult.getInstanceId());
+                Database.SaveResult saveResult = Database.update(pendingAction, false);
+                
+                if (!saveResult.isSuccess()) {
+                    // Log the update failure but don't fail the entire approval process
+                    System.debug(LoggingLevel.WARN, debugPrefix + 'Could not update ApprovalProcessInstanceId due to record lock (this is expected): ' + 
+                        saveResult.getErrors()[0].getMessage());
+                    System.debug(LoggingLevel.INFO, debugPrefix + 'Approval process submitted successfully despite update failure. Instance ID: ' +
+                        approvalResult.getInstanceId());
+                } else {
+                    System.debug(LoggingLevel.INFO, debugPrefix + 'Submitted to approval process. Instance ID: ' +
+                        approvalResult.getInstanceId());
+                }
 
                 return createSuccessResult(pendingAction.Id, approvalPrompt, HITL_MODE_CONFIRMATION_THEN_APPROVAL, null);
             } else {
@@ -462,15 +469,29 @@ public with sharing class HITLGatewayService {
                 }
                 System.debug(LoggingLevel.ERROR, debugPrefix + 'Approval submission failed: ' + errors);
 
-                // Delete the pending action since approval couldn't be started
-                delete pendingAction;
+                // Try to delete the pending action since approval couldn't be started
+                // Use Database.delete with allOrNone=false to handle potential locks
+                Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
+                if (!deleteResult.isSuccess()) {
+                    System.debug(LoggingLevel.WARN, debugPrefix + 'Could not delete PendingHITLAction after approval failure: ' + 
+                        deleteResult.getErrors()[0].getMessage());
+                }
 
                 return createFailureResult('Failed to submit to approval process: ' + errors);
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, debugPrefix + 'Exception submitting approval: ' + e.getMessage());
-            // Delete the pending action since approval couldn't be started
-            delete pendingAction;
+            // Try to delete the pending action since approval couldn't be started
+            // Use try-catch to handle potential record locking
+            try {
+                Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
+                if (!deleteResult.isSuccess()) {
+                    System.debug(LoggingLevel.WARN, debugPrefix + 'Could not delete PendingHITLAction after exception: ' + 
+                        deleteResult.getErrors()[0].getMessage());
+                }
+            } catch (Exception deleteEx) {
+                System.debug(LoggingLevel.WARN, debugPrefix + 'Exception during cleanup delete: ' + deleteEx.getMessage());
+            }
             return createFailureResult('Exception submitting to approval process: ' + e.getMessage());
         }
     }
@@ -515,11 +536,20 @@ public with sharing class HITLGatewayService {
 
             if (approvalResult.isSuccess()) {
                 // Update with approval process instance ID
+                // Use Database.update with allOrNone=false to handle record locking gracefully
                 pendingAction.ApprovalProcessInstanceId__c = approvalResult.getInstanceId();
-                update pendingAction;
-
-                System.debug(LoggingLevel.INFO, debugPrefix + 'Submitted to approval process. Instance ID: ' +
-                    approvalResult.getInstanceId());
+                Database.SaveResult saveResult = Database.update(pendingAction, false);
+                
+                if (!saveResult.isSuccess()) {
+                    // Log the update failure but don't fail the entire approval process
+                    System.debug(LoggingLevel.WARN, debugPrefix + 'Could not update ApprovalProcessInstanceId due to record lock (this is expected): ' + 
+                        saveResult.getErrors()[0].getMessage());
+                    System.debug(LoggingLevel.INFO, debugPrefix + 'Approval process submitted successfully despite update failure. Instance ID: ' +
+                        approvalResult.getInstanceId());
+                } else {
+                    System.debug(LoggingLevel.INFO, debugPrefix + 'Submitted to approval process. Instance ID: ' +
+                        approvalResult.getInstanceId());
+                }
 
                 return createSuccessResult(pendingAction.Id, approvalPrompt, HITL_MODE_APPROVAL, null);
             } else {
@@ -530,15 +560,29 @@ public with sharing class HITLGatewayService {
                 }
                 System.debug(LoggingLevel.ERROR, debugPrefix + 'Approval submission failed: ' + errors);
 
-                // Delete the pending action since approval couldn't be started
-                delete pendingAction;
+                // Try to delete the pending action since approval couldn't be started
+                // Use Database.delete with allOrNone=false to handle potential locks
+                Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
+                if (!deleteResult.isSuccess()) {
+                    System.debug(LoggingLevel.WARN, debugPrefix + 'Could not delete PendingHITLAction after approval failure: ' + 
+                        deleteResult.getErrors()[0].getMessage());
+                }
 
                 return createFailureResult('Failed to submit to approval process: ' + errors);
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, debugPrefix + 'Exception submitting approval: ' + e.getMessage());
-            // Delete the pending action since approval couldn't be started
-            delete pendingAction;
+            // Try to delete the pending action since approval couldn't be started
+            // Use try-catch to handle potential record locking
+            try {
+                Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
+                if (!deleteResult.isSuccess()) {
+                    System.debug(LoggingLevel.WARN, debugPrefix + 'Could not delete PendingHITLAction after exception: ' + 
+                        deleteResult.getErrors()[0].getMessage());
+                }
+            } catch (Exception deleteEx) {
+                System.debug(LoggingLevel.WARN, debugPrefix + 'Exception during cleanup delete: ' + deleteEx.getMessage());
+            }
             return createFailureResult('Exception submitting to approval process: ' + e.getMessage());
         }
     }

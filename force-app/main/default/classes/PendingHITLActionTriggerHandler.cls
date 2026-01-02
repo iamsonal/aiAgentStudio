@@ -170,17 +170,9 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         for (PendingHITLAction__c action : actions) {
             try {
+                // Execute tool via REST API (async via Queueable)
+                // Note: User notification will be sent by the REST API after actual execution
                 executeAndResumeFlow(action, logPrefix);
-
-                // Notify requesting user
-                if (action.RequestingUser__c != null) {
-                    NotificationService.sendUserNotification(
-                        action.RequestingUser__c,
-                        'Action Approved: ' + action.ToolName__c,
-                        'Your requested action "' + action.ToolName__c + '" has been approved and executed.',
-                        action.AgentExecution__c
-                    );
-                }
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing approved action ' +
                     action.Id + ': ' + e.getMessage() + '\n' + e.getStackTraceString());
@@ -259,68 +251,54 @@ public with sharing class PendingHITLActionTriggerHandler {
             throw new HITLGatewayService.HITLProcessingException('Capability not found: ' + fullAction.AIAgentCapability__c);
         }
 
-        // Load execution to get user context
+        // Load execution to get user context and agent definition
         AgentExecution__c execution = [
-            SELECT Id, User__c, AIAgentDefinition__c, CurrentTurnIdentifier__c
+            SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c, CurrentTurnIdentifier__c,
+                   AIAgentDefinition__r.RequiresServiceUserContext__c,
+                   AIAgentDefinition__r.DeveloperName__c,
+                   AIAgentDefinition__r.AgentType__c
             FROM AgentExecution__c
             WHERE Id = :fullAction.AgentExecution__c
             LIMIT 1
         ];
 
-        // Build action context
-        ActionContext actionContext = new ActionContext(
-            fullAction.AgentExecution__c,
-            execution.User__c,
-            UserInfo.getUserId(),
-            String.isNotBlank(fullAction.SourceRecordId__c) ? Id.valueOf(fullAction.SourceRecordId__c) : null,
-            execution.AIAgentDefinition__c,
-            capability.Id,
-            capability.ImplementationDetail__c,
-            fullAction.TurnIdentifier__c,
-            fullAction.TurnCount__c != null ? fullAction.TurnCount__c.intValue() : 1,
-            'HITLResume'
-        );
-
-        // Execute the tool
-        CapabilityExecutionService capabilityService = new CapabilityExecutionService();
-        ActionOutcome outcome = capabilityService.executeSingleAction(
-            capability,
-            fullAction.ToolArgumentsJSON__c,
-            actionContext
-        );
-
-        // Update the existing placeholder tool result step with actual execution result
-        ExecutionStepService stepService = new ExecutionStepService();
-        String resultJson = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
-
-        // Update the existing tool result step (which had pending_approval placeholder)
-        Id updatedStepId = stepService.updateToolResultStep(
-            fullAction.AgentExecution__c,
-            fullAction.ToolCallId__c,
-            resultJson,
-            0L // processingTime - not tracked for HITL resume
-        );
-
-        // Fallback: create new step if update failed (shouldn't happen in normal flow)
-        if (updatedStepId == null) {
-            System.debug(LoggingLevel.WARN, logPrefix + 'Could not find existing tool result step to update, creating new one');
-            stepService.createToolResultStep(
-                fullAction.AgentExecution__c,
-                fullAction.ToolCallId__c,
-                fullAction.ToolName__c,
-                resultJson,
-                fullAction.TurnIdentifier__c,
-                fullAction.TurnCount__c != null ? fullAction.TurnCount__c.intValue() : 1,
-                0L,
-                false,
-                capability.Id
-            );
+        // IMPORTANT: After HITL approval, we ALWAYS route through REST API to execute in the correct user context
+        // This ensures the tool never executes in the approver's context
+        // - If RequiresServiceUserContext__c = true: Execute as service user
+        // - If RequiresServiceUserContext__c = false: Execute as original requesting user
+        
+        Boolean requiresServiceUserContext = execution.AIAgentDefinition__r.RequiresServiceUserContext__c == true;
+        Id targetUserId = requiresServiceUserContext ? execution.ServiceUser__c : execution.User__c;
+        
+        if (targetUserId == null) {
+            // No target user available - this shouldn't happen, but handle gracefully
+            String userType = requiresServiceUserContext ? 'service user' : 'original user';
+            System.debug(LoggingLevel.ERROR, logPrefix + 'ERROR: No ' + userType + ' available for tool execution. Cannot proceed.');
+            
+            // Notify requesting user of the failure
+            if (execution.User__c != null) {
+                NotificationService.sendUserNotification(
+                    execution.User__c,
+                    'Action Failed: ' + fullAction.ToolName__c,
+                    'Tool execution failed because no ' + userType + ' context is available.',
+                    fullAction.AgentExecution__c
+                );
+            }
+            return;
         }
-
-        System.debug(LoggingLevel.INFO, logPrefix + 'Tool executed. Success: ' + outcome.isSuccess);
-
-        // Queue follow-up LLM call to continue the conversation
-        queueFollowUpLLMCall(fullAction, execution, logPrefix);
+        
+        // Check if follow-up LLM call will be needed (to optimize REST API execution)
+        Boolean needsFollowUp = (execution.AIAgentDefinition__r.AgentType__c != 'Conversational');
+        
+        // Enqueue Queueable to execute tool via REST API in the correct user context
+        String contextType = requiresServiceUserContext ? 'service user' : 'original user';
+        System.debug(LoggingLevel.INFO, logPrefix + 'Enqueueing tool execution via REST API as ' + contextType + ': ' + targetUserId);
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'Follow-up LLM call needed: ' + needsFollowUp + ' (AgentType: ' + execution.AIAgentDefinition__r.AgentType__c + ')');
+        
+        System.enqueueJob(new HITLToolExecutionQueueable(fullAction.Id, needsFollowUp));
+        
+        System.debug(LoggingLevel.INFO, logPrefix + 'Tool execution queued. Queueable will route through REST API to execute as ' + contextType + '.');
+        // Exit - Queueable will handle execution, step updates, and follow-up LLM calls (if needed)
     }
 
     /**

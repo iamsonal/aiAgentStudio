@@ -122,16 +122,6 @@
                     <name>uiBehavior</name>
                     <value>none</value>
                 </fieldInstanceProperties>
-                <fieldItem>Record.RequiresConfirmation__c</fieldItem>
-                <identifier>RecordRequiresConfirmation_cField</identifier>
-            </fieldInstance>
-        </itemInstances>
-        <itemInstances>
-            <fieldInstance>
-                <fieldInstanceProperties>
-                    <name>uiBehavior</name>
-                    <value>none</value>
-                </fieldInstanceProperties>
                 <fieldItem>Record.HITLMode__c</fieldItem>
                 <identifier>RecordHITLMode_cField</identifier>
             </fieldInstance>

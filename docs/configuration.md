@@ -129,8 +129,7 @@ Best for development, testing, and debugging.
 
 | Field | Type | Description |
 |:------|:-----|:------------|
-| `RequiresApproval__c` | Checkbox | Require human approval before execution |
-| `RequiresConfirmation__c` | Checkbox | AI asks user for yes/no confirmation in chat before executing |
+| `HITLMode__c` | Picklist | Human-in-the-Loop mode: blank (no HITL), Confirmation (LLM asks in chat), Approval (formal approval process), or ConfirmationThenApproval (both) |
 | `RunAsynchronously__c` | Checkbox | Execute in separate transaction |
 | `FailFastOnError__c` | Checkbox | Stop immediately on error |
 

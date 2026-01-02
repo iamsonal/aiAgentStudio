@@ -77,10 +77,10 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             this.executionOrder = executionOrder;
             this.rationale = rationale;
 
-            // Get HITL mode from capability (default to None)
+            // Get HITL mode from capability
             this.hitlMode = String.isNotBlank(capability.HITLMode__c)
                 ? capability.HITLMode__c
-                : HITLGatewayService.HITL_MODE_NONE;
+                : null;
 
             // Defensive validation: Async tools cannot use Confirmation mode
             if (this.isAsync && this.hitlMode == HITLGatewayService.HITL_MODE_CONFIRMATION) {
