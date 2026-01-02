@@ -32,12 +32,12 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         public String toolArguments;
         public AgentCapability__c capability;
         public Boolean isAsync;
-        public Boolean requiresApproval;
+        public String hitlMode; // None, Confirmation, Approval
         public Integer executionOrder;
         public String rationale;
 
         /**
-         * Constructs a ToolCallRequest with validation for mutually exclusive execution modes.
+         * Constructs a ToolCallRequest with validation for execution mode constraints.
          *
          * @param toolCallId The unique identifier for this tool call from the LLM
          * @param toolName The name of the tool/capability
@@ -74,20 +74,33 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             this.toolArguments = toolArguments;
             this.capability = capability;
             this.isAsync = capability.RunAsynchronously__c == true;
-            this.requiresApproval = capability.RequiresApproval__c == true;
             this.executionOrder = executionOrder;
             this.rationale = rationale;
 
-            // Defensive validation: RequiresApproval and RunAsynchronously are mutually exclusive
-            // This should be caught by the trigger, but we validate here as a safeguard
-            // to prevent silent failures in tool grouping logic
-            if (this.isAsync && this.requiresApproval) {
+            // Get HITL mode from capability (default to None)
+            this.hitlMode = String.isNotBlank(capability.HITLMode__c)
+                ? capability.HITLMode__c
+                : HITLGatewayService.HITL_MODE_NONE;
+
+            // Defensive validation: Async tools cannot use Confirmation mode
+            if (this.isAsync && this.hitlMode == HITLGatewayService.HITL_MODE_CONFIRMATION) {
                 throw new ToolProcessingException(
                     'Configuration error: Capability "' +
                         capability.CapabilityName__c +
-                        '" has both ' +
-                        'RequiresApproval__c and RunAsynchronously__c set to true. These execution modes ' +
-                        'are mutually exclusive. Please update the capability configuration.'
+                        '" has HITLMode=Confirmation with RunAsynchronously=true. ' +
+                        'Confirmation mode requires synchronous user interaction. ' +
+                        'Use HITLMode=Approval for async tools requiring human oversight.'
+                );
+            }
+
+            // Defensive validation: Async tools cannot use Approval mode
+            if (this.isAsync && this.hitlMode == HITLGatewayService.HITL_MODE_APPROVAL) {
+                throw new ToolProcessingException(
+                    'Configuration error: Capability "' +
+                        capability.CapabilityName__c +
+                        '" has HITLMode=Approval with RunAsynchronously=true. ' +
+                        'Approval mode requires synchronous processing. ' +
+                        'Async tools cannot require human approval.'
                 );
             }
         }
@@ -156,15 +169,19 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 return OrchestrationService.OUTCOME_FAILED;
             }
 
-            // Step 2: Group tools into execution buckets (Sync, Async, Approval) in single pass
+            // Step 2: Group tools into execution buckets (Sync, Async, Approval, Confirmation) in single pass
             Map<String, List<ToolCallRequest>> toolGroups = groupToolsByExecutionMode(toolRequests);
             List<ToolCallRequest> approvalTools = toolGroups.get('approval');
+            List<ToolCallRequest> confirmationTools = toolGroups.get('confirmation');
             List<ToolCallRequest> syncTools = toolGroups.get('sync');
             List<ToolCallRequest> asyncTools = toolGroups.get('async');
 
             System.debug(
                 LoggingLevel.INFO,
-                logPrefix + 'Tool execution plan - Approval: ' + approvalTools.size() + ', Sync: ' + syncTools.size() + ', Async: ' + asyncTools.size()
+                logPrefix + 'Tool execution plan - Approval: ' + approvalTools.size() +
+                ', Confirmation: ' + confirmationTools.size() +
+                ', Sync: ' + syncTools.size() +
+                ', Async: ' + asyncTools.size()
             );
 
             // Step 3: Persist user message for traceability
@@ -212,7 +229,11 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             // Step 5: Create execution step records for all tool calls
             createToolCallExecutionSteps(context, toolRequests, decisionLogger, logPrefix);
 
-            // Step 6: Handle approval-required tools (if any exist, pause execution)
+            // Step 6: Handle HITL tools (Approval or ConfirmationThenApproval) - these pause execution
+            // Note: Confirmation mode does NOT require system intervention - it's handled via prompt injection
+            // The LLM asks the user conversationally before executing
+
+            // Handle approval-required tools (if any exist, pause execution)
             if (!approvalTools.isEmpty()) {
                 return handleApprovalRequiredTools(
                     context,
@@ -320,8 +341,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                         toolName +
                         ' (async=' +
                         toolRequest.isAsync +
-                        ', approval=' +
-                        toolRequest.requiresApproval +
+                        ', hitlMode=' +
+                        toolRequest.hitlMode +
                         ', hasRationale=' +
                         String.isNotBlank(extractedRationale) +
                         ')'
@@ -334,11 +355,15 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
         // Log the tool execution plan
         if (decisionLogger != null && !toolRequests.isEmpty()) {
+            // Count tools by type using the already-grouped data
+            Map<String, List<ToolCallRequest>> groups = groupToolsByExecutionMode(toolRequests);
+
             Map<String, Object> planData = new Map<String, Object>{
                 'totalTools' => toolRequests.size(),
-                'syncTools' => getSyncTools(toolRequests).size(),
-                'asyncTools' => getAsyncTools(toolRequests).size(),
-                'approvalTools' => getApprovalRequiredTools(toolRequests).size(),
+                'syncTools' => groups.get('sync').size(),
+                'asyncTools' => groups.get('async').size(),
+                'approvalTools' => groups.get('approval').size(),
+                'confirmationTools' => groups.get('confirmation').size(),
                 'tools' => new List<Map<String, Object>>()
             };
 
@@ -349,7 +374,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                             'name' => req.toolName,
                             'id' => req.toolCallId,
                             'isAsync' => req.isAsync,
-                            'requiresApproval' => req.requiresApproval,
+                            'hitlMode' => req.hitlMode,
                             'order' => req.executionOrder,
                             'hasRationale' => String.isNotBlank(req.rationale)
                         }
@@ -377,19 +402,46 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
     /**
      * Groups tool requests by execution mode in a single pass for efficiency.
-     * Returns a map with keys: 'approval', 'sync', 'async'
+     * Returns a map with keys: 'approval', 'confirmation', 'sync', 'async'
+     *
+     * HITL modes are prioritized:
+     * - Approval: Formal Salesforce approval process (all agent types)
+     * - Confirmation: In-chat yes/no confirmation (conversational only)
+     * - Sync: Synchronous execution (no HITL)
+     * - Async: Asynchronous execution (no HITL)
+     *
+     * Note: Confirmation mode (LLM-based conversational confirmation) does NOT require system intervention.
+     * The LLM handles confirmation via prompt injection. Only Approval and ConfirmationThenApproval
+     * require system intervention.
      */
     private Map<String, List<ToolCallRequest>> groupToolsByExecutionMode(List<ToolCallRequest> toolRequests) {
         Map<String, List<ToolCallRequest>> groups = new Map<String, List<ToolCallRequest>>{
             'approval' => new List<ToolCallRequest>(),
+            'confirmation' => new List<ToolCallRequest>(),
             'sync' => new List<ToolCallRequest>(),
             'async' => new List<ToolCallRequest>()
         };
 
         for (ToolCallRequest tool : toolRequests) {
-            if (tool.requiresApproval) {
+            // Approval mode requires formal Salesforce approval process
+            if (tool.hitlMode == HITLGatewayService.HITL_MODE_APPROVAL) {
                 groups.get('approval').add(tool);
-            } else if (tool.isAsync) {
+            }
+            // ConfirmationThenApproval mode - LLM already confirmed, now needs approval
+            else if (tool.hitlMode == HITLGatewayService.HITL_MODE_CONFIRMATION_THEN_APPROVAL) {
+                groups.get('approval').add(tool);
+            }
+            // Confirmation mode - NO system intervention needed, LLM handles via prompt injection
+            // These tools execute normally (sync or async based on their config)
+            else if (tool.hitlMode == HITLGatewayService.HITL_MODE_CONFIRMATION) {
+                // Confirmation mode tools go to sync/async based on their RunAsynchronously setting
+                if (tool.isAsync) {
+                    groups.get('async').add(tool);
+                } else {
+                    groups.get('sync').add(tool);
+                }
+            }
+            else if (tool.isAsync) {
                 groups.get('async').add(tool);
             } else {
                 groups.get('sync').add(tool);
@@ -397,37 +449,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
 
         return groups;
-    }
-
-    // Legacy methods maintained for backward compatibility with any external callers
-    private List<ToolCallRequest> getApprovalRequiredTools(List<ToolCallRequest> toolRequests) {
-        List<ToolCallRequest> approvalTools = new List<ToolCallRequest>();
-        for (ToolCallRequest tool : toolRequests) {
-            if (tool.requiresApproval) {
-                approvalTools.add(tool);
-            }
-        }
-        return approvalTools;
-    }
-
-    private List<ToolCallRequest> getSyncTools(List<ToolCallRequest> toolRequests) {
-        List<ToolCallRequest> syncTools = new List<ToolCallRequest>();
-        for (ToolCallRequest tool : toolRequests) {
-            if (!tool.isAsync && !tool.requiresApproval) {
-                syncTools.add(tool);
-            }
-        }
-        return syncTools;
-    }
-
-    private List<ToolCallRequest> getAsyncTools(List<ToolCallRequest> toolRequests) {
-        List<ToolCallRequest> asyncTools = new List<ToolCallRequest>();
-        for (ToolCallRequest tool : toolRequests) {
-            if (tool.isAsync && !tool.requiresApproval) {
-                asyncTools.add(tool);
-            }
-        }
-        return asyncTools;
     }
 
     // ===================================================================================
@@ -491,9 +512,18 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     // ===================================================================================
 
     /**
-     * Handles tools that require human approval.
-     * For simplicity in Phase 1: If ANY tool requires approval, treat first approval tool and pause execution.
-     * Future enhancement: Could batch multiple approval requests or handle mixed scenarios.
+     * Handles tools that require human approval via Salesforce Approval Process.
+     * This includes both HITLMode = 'Approval' and HITLMode = 'ConfirmationThenApproval'.
+     * Uses the HITLGatewayService for centralized HITL management.
+     *
+     * @param context OrchestrationContext
+     * @param savedUserMessageId ID of saved user message
+     * @param savedAssistantMessageId ID of saved assistant message
+     * @param assistantData Assistant message data
+     * @param approvalTools List of tools requiring approval
+     * @param logPrefix Logging prefix
+     * @param decisionLogger Decision step logger
+     * @return Outcome constant
      */
     private String handleApprovalRequiredTools(
         OrchestrationContext context,
@@ -504,32 +534,40 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         String logPrefix,
         AgentDecisionStepLogger decisionLogger
     ) {
-        // For now, handle first approval tool (could be enhanced to handle multiple)
+        // Handle first approval tool (could be enhanced to handle multiple)
         ToolCallRequest approvalTool = approvalTools[0];
 
-        System.debug(LoggingLevel.INFO, logPrefix + 'Tool "' + approvalTool.toolName + '" requires approval. Submitting approval request and pausing turn.');
+        System.debug(LoggingLevel.INFO, logPrefix + 'Tool "' + approvalTool.toolName +
+            '" requires approval. Creating approval request via HITLGatewayService.');
 
-        // Log the approval requirement
-        decisionLogger.logToolExecution(
-            'Approval Required',
-            'Tool execution requires human approval',
-            JSON.serialize(new Map<String, Object>{ 'toolName' => approvalTool.toolName, 'reason' => 'RequiresApproval__c is true' }),
-            null,
-            true,
-            null,
-            null,
-            approvalTool.capability.Id
-        );
+        // Load agent definition for HITL context
+        AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinition(context.agentDefinitionId);
 
-        // Extract confirmation message from tool arguments
-        String submissionComment = this.extractSubmissionComment(approvalTool.toolArguments, approvalTool.toolName, logPrefix);
-        if (String.isBlank(submissionComment)) {
-            String errMsg = 'Agent did not provide a required confirmation prompt for approval-required action "' + approvalTool.toolName + '".';
-            context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, errMsg, AIAgentConstants.ERR_CODE_LLM_CALL_FAILED, logPrefix);
+        // Build HITL context
+        HITLGatewayService.HITLContext hitlContext = new HITLGatewayService.HITLContext();
+        hitlContext.capability = approvalTool.capability;
+        hitlContext.agentDefinition = agentDef;
+        hitlContext.executionId = context.executionId;
+        hitlContext.requestingUserId = context.originalUserId;
+        hitlContext.turnIdentifier = context.turnIdentifier;
+        hitlContext.turnCount = context.currentTurnCount;
+        hitlContext.toolCallId = approvalTool.toolCallId;
+        hitlContext.toolArguments = approvalTool.toolArguments;
+        hitlContext.sourceRecordId = context.currentPageRecordId;
+        hitlContext.logPrefix = logPrefix;
+
+        // Evaluate HITL requirement (should return Approval)
+        HITLGatewayService.HITLDecision decision = HITLGatewayService.evaluate(hitlContext);
+
+        if (!decision.isValidConfiguration) {
+            // Configuration error - fail the turn
+            String errMsg = 'HITL configuration error: ' + decision.configurationError;
+            context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, errMsg,
+                AIAgentConstants.ERR_CODE_CONFIG_ERROR, logPrefix);
             decisionLogger.logError(
-                'Missing Confirmation Prompt',
-                'Agent did not provide required confirmation prompt',
-                AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
+                'HITL Configuration Error',
+                'Invalid HITL configuration for tool: ' + approvalTool.toolName,
+                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
                 errMsg,
                 null,
                 null
@@ -537,67 +575,48 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             return OrchestrationService.OUTCOME_FAILED;
         }
 
-        // Create approval request record
-        HumanApprovalRequest__c har = new HumanApprovalRequest__c(
-            AgentExecution__c = context.executionId,
-            OriginalAssistantStep__c = savedAssistantMessageId,
-            LLMConfirmationMessage__c = submissionComment,
-            LLMToolCallId__c = approvalTool.toolCallId,
-            LLMToolName__c = approvalTool.toolName,
-            LLMToolArgumentsJSON__c = approvalTool.toolArguments,
-            OriginalTurnIdentifier__c = context.turnIdentifier,
-            OriginalTurnCount__c = context.currentTurnCount,
-            ApprovalStatus__c = 'Pending'
+        // Log the approval requirement
+        decisionLogger.logToolExecution(
+            'Approval Required',
+            'Tool execution requires human approval',
+            JSON.serialize(new Map<String, Object>{
+                'toolName' => approvalTool.toolName,
+                'hitlMode' => decision.hitlMode
+            }),
+            null,
+            true,
+            null,
+            null,
+            approvalTool.capability.Id
         );
 
-        try {
-            insert har;
-        } catch (Exception e) {
-            context.agentStateSvc.failTurn(
-                context.executionId,
-                context.turnIdentifier,
-                'Failed to create approval request record: ' + e.getMessage(),
-                AIAgentConstants.ERR_CODE_DML_ERROR,
-                logPrefix
-            );
-            return OrchestrationService.OUTCOME_FAILED;
-        }
+        // Initiate the approval workflow
+        HITLGatewayService.HITLResult hitlResult = HITLGatewayService.initiateHITL(hitlContext, decision);
 
-        try {
-            // Submit approval request to Salesforce approval process
-            Approval.ProcessSubmitRequest req = new Approval.ProcessSubmitRequest();
-            req.setObjectId(har.Id);
-            req.setComments('Submitted by AI Agent. Justification: ' + submissionComment);
-            Approval.ProcessResult result = Approval.process(req);
-
-            if (result.isSuccess()) {
-                update new HumanApprovalRequest__c(Id = har.Id, RelatedApprovalProcessInstanceId__c = result.getInstanceId());
-            } else {
-                String submissionErrors = '';
-                for (Database.Error err : result.getErrors()) {
-                    submissionErrors += err.getMessage() + '; ';
-                }
-                throw new ToolProcessingException('Failed to submit request to approval process: ' + submissionErrors);
-            }
-        } catch (Exception approvalEx) {
-            context.agentStateSvc.failTurn(
-                context.executionId,
-                context.turnIdentifier,
-                'Failed to start approval process: ' + approvalEx.getMessage(),
+        if (!hitlResult.success) {
+            String errMsg = 'Failed to initiate approval: ' + hitlResult.errorMessage;
+            context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, errMsg,
+                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
+            decisionLogger.logError(
+                'Approval Initiation Failed',
+                'Failed to create approval request for tool: ' + approvalTool.toolName,
                 AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                logPrefix
+                errMsg,
+                null,
+                null
             );
-            delete har;
             return OrchestrationService.OUTCOME_FAILED;
         }
 
-        // Save pending status as tool result
-        String toolResultContent = JSON.serialize(
-            new Map<String, String>{
+        System.debug(LoggingLevel.INFO, logPrefix + 'Approval request created: ' + hitlResult.pendingActionId);
+
+        // Create placeholder tool result immediately to maintain proper OpenAI message sequence
+        String placeholderResult = JSON.serialize(
+            new Map<String, Object>{
                 'status' => 'pending_approval',
-                'message' => 'The action ' +
-                approvalTool.toolName +
-                ' has been submitted for Salesforce Approval.'
+                'message' => 'This action is pending approval. It will be executed once approved.',
+                'pendingActionId' => hitlResult.pendingActionId,
+                'toolName' => approvalTool.toolName
             }
         );
 
@@ -606,7 +625,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             context.executionId,
             approvalTool.toolCallId,
             approvalTool.capability.CapabilityName__c,
-            toolResultContent,
+            placeholderResult,
             context.turnIdentifier,
             context.currentTurnCount,
             0L,
@@ -614,19 +633,60 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             approvalTool.capability.Id
         );
 
-        // Queue follow-up LLM call to inform user
-        context.agentStateSvc.resumeForFollowUpLlmCall(context.executionId, context.turnIdentifier, null, logPrefix);
-        context.dispatchSvc.enqueueFollowUp(
-            context.executionId,
-            context.originalUserId,
-            context.agentDefinitionId,
-            context.turnIdentifier,
-            context.currentTurnCount + 1,
-            logPrefix,
-            false
-        );
+        // Publish approval request event to UI via TransientMessage__e
+        try {
+            TransientMessage__e approvalEvent = new TransientMessage__e(
+                AgentExecutionId__c = context.executionId,
+                MessageId__c = String.valueOf(hitlResult.pendingActionId),
+                MessageContent__c = JSON.serialize(new Map<String, Object>{
+                    'type' => 'ApprovalRequest',
+                    'pendingActionId' => hitlResult.pendingActionId,
+                    'toolName' => approvalTool.toolName,
+                    'approvalPrompt' => hitlResult.confirmationPrompt
+                })
+            );
+            EventBus.publish(approvalEvent);
+            System.debug(LoggingLevel.INFO, logPrefix + 'Published approval request event to UI');
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to publish approval event: ' + e.getMessage());
+        }
 
-        return OrchestrationService.OUTCOME_QUEUED_FOLLOWUP;
+        // Handle differently based on agent type
+        if (agentDef.AgentType__c == 'Conversational') {
+            // For conversational agents: create programmatic assistant response and complete turn
+            // This allows user to continue chatting while approval is pending
+            String assistantMessage = 'I\'ve submitted your request to ' + approvalTool.toolName +
+                ' for approval. You\'ll be notified when it\'s processed. Feel free to continue our conversation.';
+
+            Id assistantMessageId = executionStepService.createAgentResponseStep(
+                context.executionId,
+                assistantMessage,
+                context.turnIdentifier,
+                context.currentTurnCount
+            );
+
+            // Complete the turn successfully - user can continue chatting
+            context.agentStateSvc.completeTurnSuccessfully(
+                context.executionId,
+                context.turnIdentifier,
+                assistantMessageId,
+                logPrefix
+            );
+
+            return OrchestrationService.OUTCOME_COMPLETED;
+        } else {
+            // For Function/Workflow agents: just pause execution until approval resolved
+            // No user interaction needed - they run in background
+            context.agentStateSvc.updateStatus(
+                context.executionId,
+                'Awaiting Action',
+                AIAgentConstants.STATUS_AWAITING_ACTION,
+                context.turnIdentifier,
+                'Awaiting human approval'
+            );
+
+            return OrchestrationService.OUTCOME_QUEUED_ACTION;
+        }
     }
 
     // ===================================================================================
@@ -994,25 +1054,5 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         );
 
         return OrchestrationService.OUTCOME_QUEUED_FOLLOWUP;
-    }
-
-    // ===================================================================================
-    // HELPER METHODS
-    // ===================================================================================
-
-    /**
-     * Extracts the submission comment (confirmation prompt) from the tool arguments JSON.
-     */
-    private String extractSubmissionComment(String argumentsJson, String capabilityName, String logPrefix) {
-        if (String.isBlank(argumentsJson))
-            return null;
-        try {
-            Map<String, Object> argsMap = (Map<String, Object>) JSON.deserializeUntyped(argumentsJson);
-            Object commentValue = argsMap.get(LLMFormattingService.SUBMISSION_COMMENT_PARAM_NAME);
-            return (commentValue != null && commentValue instanceof String) ? (String) commentValue : null;
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to parse confirmation message for ' + capabilityName + ': ' + e.getMessage());
-            return null;
-        }
     }
 }

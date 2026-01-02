@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>HITLMode__c</fullName>
+    <description>Human-in-the-Loop mode for this capability. None = execute immediately. Confirmation = LLM asks user conversationally before executing (conversational agents only). Approval = formal Salesforce approval process (all agent types). ConfirmationThenApproval = LLM confirms conversationally, then submits for formal approval (conversational agents only).</description>
+    <externalId>false</externalId>
+    <inlineHelpText>None = no human check. Confirmation = LLM asks in chat. Approval = formal approval process. ConfirmationThenApproval = both (conversational only).</inlineHelpText>
+    <label>HITL Mode</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>None</fullName>
+                <default>true</default>
+                <label>None</label>
+            </value>
+            <value>
+                <fullName>Confirmation</fullName>
+                <default>false</default>
+                <label>Confirmation</label>
+            </value>
+            <value>
+                <fullName>Approval</fullName>
+                <default>false</default>
+                <label>Approval</label>
+            </value>
+            <value>
+                <fullName>ConfirmationThenApproval</fullName>
+                <default>false</default>
+                <label>Confirmation Then Approval</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -132,8 +132,8 @@
                     <name>uiBehavior</name>
                     <value>none</value>
                 </fieldInstanceProperties>
-                <fieldItem>Record.RequiresApproval__c</fieldItem>
-                <identifier>RecordRequiresApproval_cField</identifier>
+                <fieldItem>Record.HITLMode__c</fieldItem>
+                <identifier>RecordHITLMode_cField</identifier>
             </fieldInstance>
         </itemInstances>
         <name>Facet-c3b4d021-76eb-4ff9-97bf-50a2fd97c111</name>

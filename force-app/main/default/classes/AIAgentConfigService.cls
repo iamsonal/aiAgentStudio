@@ -87,8 +87,7 @@ public inherited sharing class AIAgentConfigService {
         'StandardActionType__c',
         'BackendConfiguration__c',
         'RunAsynchronously__c',
-        'RequiresConfirmation__c',
-        'RequiresApproval__c',
+        'HITLMode__c', // Unified HITL mode field (None, Confirmation, Approval, ConfirmationThenApproval)
         'FailFastOnError__c',
         'ExposureLevel__c'
     };

@@ -39,7 +39,6 @@ public inherited sharing class LLMFormattingService {
     // CONSTANTS
     // =============================================================================
 
-    public static final String SUBMISSION_COMMENT_PARAM_NAME = 'submission_comment';
     public static final String TOOL_RATIONALE_PARAM_NAME = '_rationale';
 
     // =============================================================================
@@ -175,8 +174,7 @@ public inherited sharing class LLMFormattingService {
                     CapabilityName__c,
                     Description__c,
                     Parameters__c,
-                    RequiresConfirmation__c,
-                    RequiresApproval__c,
+                    HITLMode__c,
                     ImplementationType__c,
                     StandardActionType__c,
                     BackendConfiguration__c
@@ -195,18 +193,23 @@ public inherited sharing class LLMFormattingService {
                 String capabilityName = cap.CapabilityName__c;
                 String capabilityDesc = cap.Description__c;
                 String capabilityInputSchemaJson = cap.Parameters__c;
-                Boolean needsConfirmation = cap.RequiresConfirmation__c;
-
-                if (needsConfirmation) {
-                    // Add explicit confirmation instruction for LLMs to the tool description
-                    capabilityDesc += '\n\nIMPORTANT: This is a sensitive action. Before calling this tool, you MUST first ask the user for confirmation with a simple "Are you sure?" style question. Do not call the tool until the user responds affirmatively.';
-                    System.debug(LoggingLevel.INFO, debugPrefix + 'Added confirmation instruction to tool description: ' + capabilityName);
-                }
 
                 if (String.isBlank(capabilityName) || String.isBlank(capabilityDesc)) {
                     System.debug(LoggingLevel.WARN, debugPrefix + 'Skipping capability (ID: ' + cap.Id + ') due to missing name or description.');
                     continue;
                 }
+
+                // Inject confirmation prompt for HITL Confirmation and ConfirmationThenApproval modes
+                // This tells the LLM to ask the user for confirmation before executing
+                String hitlMode = cap.HITLMode__c;
+                if (hitlMode == HITLGatewayService.HITL_MODE_CONFIRMATION || hitlMode == HITLGatewayService.HITL_MODE_CONFIRMATION_THEN_APPROVAL) {
+                    String confirmationSuffix = '\n\nRequires user confirmation before execution.';
+                    if (!capabilityDesc.containsIgnoreCase('confirm') && !capabilityDesc.containsIgnoreCase('approval')) {
+                        capabilityDesc += confirmationSuffix;
+                        System.debug(LoggingLevel.DEBUG, debugPrefix + 'Injected confirmation prompt for capability: ' + capabilityName + ' (HITLMode=' + hitlMode + ')');
+                    }
+                }
+
                 if (String.isBlank(capabilityInputSchemaJson)) {
                     System.debug(LoggingLevel.WARN, debugPrefix + 'Capability "' + capabilityName + '" missing Parameters__c. Using default empty schema.');
                     capabilityInputSchemaJson = '{"type":"object", "properties":{}}';
@@ -216,36 +219,6 @@ public inherited sharing class LLMFormattingService {
                 if (paramSchema == null) {
                     System.debug(LoggingLevel.WARN, debugPrefix + 'Skipping capability "' + capabilityName + '" due to invalid parameter schema.');
                     continue;
-                }
-
-                if (cap.RequiresApproval__c) {
-                    System.debug(
-                        LoggingLevel.INFO,
-                        debugPrefix + 'Capability "' + capabilityName + '" requires approval. Adding submission_comment parameter.'
-                    );
-
-                    // Inject submission comment parameter for approval workflow
-                    Map<String, Object> properties = (Map<String, Object>) paramSchema.get('properties');
-                    if (properties == null) {
-                        properties = new Map<String, Object>();
-                        paramSchema.put('properties', properties);
-                    }
-
-                    Map<String, Object> confirmationParam = new Map<String, Object>{
-                        'type' => 'string',
-                        'description' => 'A concise but clear justification for this request. This message will be sent to the manager for approval.'
-                    };
-
-                    properties.put(LLMFormattingService.SUBMISSION_COMMENT_PARAM_NAME, confirmationParam);
-
-                    // Ensure submission comment is required for approval actions
-                    Object requiredObj = paramSchema.get('required');
-                    List<Object> requiredList = (requiredObj instanceof List<Object>) ? (List<Object>) requiredObj : new List<Object>();
-
-                    if (!requiredList.contains(LLMFormattingService.SUBMISSION_COMMENT_PARAM_NAME)) {
-                        requiredList.add(LLMFormattingService.SUBMISSION_COMMENT_PARAM_NAME);
-                    }
-                    paramSchema.put('required', requiredList);
                 }
 
                 String sObjectApiName = getObjectApiNameFromConfig(cap);
@@ -531,8 +504,150 @@ public inherited sharing class LLMFormattingService {
             }
         }
 
+        // Post-process to ensure valid tool_call → tool_result sequence for OpenAI API
+        formattedMessages = ensureValidToolCallSequence(formattedMessages, debugPrefix);
+
         System.debug(LoggingLevel.DEBUG, debugPrefix + 'Formatted ' + formattedMessages.size() + ' messages for LLM API.');
         return formattedMessages;
+    }
+
+    /**
+     * Ensures valid message sequence for OpenAI API by reordering messages so that
+     * assistant messages with tool_calls are immediately followed by their corresponding tool results.
+     *
+     * OpenAI requirement: An assistant message with 'tool_calls' must be immediately
+     * followed by tool messages responding to each 'tool_call_id'.
+     *
+     * This fixes ordering issues where assistant messages appear between tool_calls and tool_results
+     * due to database timestamp/ID ordering, regardless of when ExecutionStep__c records were created.
+     *
+     * @param messages The list of formatted messages
+     * @param debugPrefix Debug logging prefix
+     * @return Reordered list of messages with valid tool_call → tool_result sequence
+     */
+    private static List<Map<String, Object>> ensureValidToolCallSequence(List<Map<String, Object>> messages, String debugPrefix) {
+        if (messages == null || messages.size() < 2) {
+            return messages;
+        }
+
+        List<Map<String, Object>> reorderedMessages = new List<Map<String, Object>>();
+        Map<String, Map<String, Object>> pendingToolResults = new Map<String, Map<String, Object>>();
+        Set<String> pendingToolCallIds = new Set<String>();
+
+        for (Integer i = 0; i < messages.size(); i++) {
+            Map<String, Object> msg = messages[i];
+            String role = (String) msg.get('role');
+
+            if ('assistant'.equals(role) && msg.containsKey('tool_calls')) {
+                // Assistant message with tool_calls - add it and track the tool_call_ids
+                reorderedMessages.add(msg);
+
+                List<Object> toolCalls = (List<Object>) msg.get('tool_calls');
+                if (toolCalls != null) {
+                    for (Object tc : toolCalls) {
+                        Map<String, Object> toolCall = (Map<String, Object>) tc;
+                        String toolCallId = (String) toolCall.get('id');
+                        if (String.isNotBlank(toolCallId)) {
+                            pendingToolCallIds.add(toolCallId);
+                        }
+                    }
+                }
+
+                // Immediately add any pending tool results that match these tool_call_ids
+                Set<String> resolvedIds = new Set<String>();
+                for (String toolCallId : pendingToolCallIds) {
+                    if (pendingToolResults.containsKey(toolCallId)) {
+                        reorderedMessages.add(pendingToolResults.get(toolCallId));
+                        resolvedIds.add(toolCallId);
+                    }
+                }
+
+                // Remove resolved tool results from pending
+                for (String resolvedId : resolvedIds) {
+                    pendingToolResults.remove(resolvedId);
+                    pendingToolCallIds.remove(resolvedId);
+                }
+            }
+            else if ('tool'.equals(role)) {
+                // Tool result message
+                String toolCallId = (String) msg.get('tool_call_id');
+
+                if (String.isNotBlank(toolCallId) && pendingToolCallIds.contains(toolCallId)) {
+                    // This tool result matches a pending tool_call - add it immediately
+                    reorderedMessages.add(msg);
+                    pendingToolCallIds.remove(toolCallId);
+                } else {
+                    // No matching pending tool_call - store for later
+                    if (String.isNotBlank(toolCallId)) {
+                        pendingToolResults.put(toolCallId, msg);
+                    } else {
+                        // Tool result without tool_call_id - add it normally
+                        reorderedMessages.add(msg);
+                    }
+                }
+            }
+            else {
+                // Regular message (user, assistant without tool_calls, system)
+                if (pendingToolCallIds.isEmpty()) {
+                    // No pending tool_calls - add message normally
+                    reorderedMessages.add(msg);
+                } else {
+                    // There are pending tool_calls - this message might be interrupting the sequence
+                    // Check if any of the remaining messages are tool results for pending tool_calls
+                    Boolean foundMatchingToolResult = false;
+
+                    for (Integer j = i + 1; j < messages.size(); j++) {
+                        Map<String, Object> futureMsg = messages[j];
+                        if ('tool'.equals(futureMsg.get('role'))) {
+                            String futureToolCallId = (String) futureMsg.get('tool_call_id');
+                            if (String.isNotBlank(futureToolCallId) && pendingToolCallIds.contains(futureToolCallId)) {
+                                foundMatchingToolResult = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (foundMatchingToolResult) {
+                        // Defer this message until after tool results are processed
+                        System.debug(LoggingLevel.INFO, debugPrefix +
+                            'Deferring ' + role + ' message to maintain tool_call → tool_result sequence. ' +
+                            'Pending tool_call_ids: ' + pendingToolCallIds);
+                        // We'll add this message later - for now, skip it
+                        continue;
+                    } else {
+                        // No matching tool results found - add message normally
+                        reorderedMessages.add(msg);
+                    }
+                }
+            }
+        }
+
+        // Add any remaining pending tool results (shouldn't happen in normal flow)
+        for (Map<String, Object> pendingResult : pendingToolResults.values()) {
+            reorderedMessages.add(pendingResult);
+        }
+
+        if (reorderedMessages.size() != messages.size()) {
+            System.debug(LoggingLevel.WARN, debugPrefix +
+                'Message reordering resulted in different count. Original: ' + messages.size() +
+                ', Reordered: ' + reorderedMessages.size() + '. Some messages may have been deferred.');
+        } else if (reorderedMessages.size() == messages.size()) {
+            // Check if any reordering actually happened
+            Boolean wasReordered = false;
+            for (Integer i = 0; i < messages.size(); i++) {
+                if (messages[i] != reorderedMessages[i]) {
+                    wasReordered = true;
+                    break;
+                }
+            }
+
+            if (wasReordered) {
+                System.debug(LoggingLevel.INFO, debugPrefix +
+                    'Reordered messages to ensure valid tool_call → tool_result sequence.');
+            }
+        }
+
+        return reorderedMessages;
     }
 
     /**

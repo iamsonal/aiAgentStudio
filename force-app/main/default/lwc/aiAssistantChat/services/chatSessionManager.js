@@ -117,7 +117,7 @@ export class ChatSessionManager {
                 currentRecordId: contextRecordId,
                 turnIdentifier: turnIdentifier
             });
-            
+
             // Check if the response indicates an error
             if (response && response.success === false) {
                 this.loadingManager.setLoading('sending', false);
@@ -197,6 +197,7 @@ export class ChatSessionManager {
 
     /**
      * Adds a transient ("thinking...") assistant message if not already present.
+     * Skips internal message types (e.g., ApprovalRequest) that shouldn't be displayed.
      * @param {string} content
      * @param {string} messageId
      */
@@ -205,7 +206,38 @@ export class ChatSessionManager {
         if (this.messages.some((msg) => msg.id === messageId)) {
             return;
         }
+
+        // Skip internal message types that shouldn't be displayed
+        if (this._isInternalMessageType(content)) {
+            return;
+        }
+
         this._addTransientAssistantMessage(content, messageId);
+    }
+
+    /**
+     * Checks if content is an internal message type that shouldn't be displayed.
+     * @param {string} content - Raw message content
+     * @returns {boolean} True if message should be skipped
+     * @private
+     */
+    _isInternalMessageType(content) {
+        if (!content || typeof content !== 'string') {
+            return false;
+        }
+
+        const trimmed = content.trim();
+        if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
+            return false;
+        }
+
+        try {
+            const parsed = JSON.parse(trimmed);
+            // ApprovalRequest messages are internal - the LLM provides user-facing context
+            return parsed.type === 'ApprovalRequest';
+        } catch {
+            return false;
+        }
     }
 
     /**

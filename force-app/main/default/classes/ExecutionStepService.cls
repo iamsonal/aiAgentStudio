@@ -436,6 +436,79 @@ public inherited sharing class ExecutionStepService {
     }
 
     /**
+     * Updates an existing tool result step with new result data.
+     * Used when a pending HITL action is resolved and the actual tool result needs to replace
+     * the "pending_approval" placeholder.
+     *
+     * @param executionId The execution ID
+     * @param toolCallId The tool call ID to find the existing step
+     * @param toolResult The new result from the tool execution
+     * @param processingDuration Optional processing duration in milliseconds
+     * @return Id of the updated step, or null if not found
+     */
+    public Id updateToolResultStep(
+        Id executionId,
+        String toolCallId,
+        String toolResult,
+        Long processingDuration
+    ) {
+        String logPrefix = LOG_PREFIX + '[updateToolResultStep] ';
+
+        try {
+            List<ExecutionStep__c> existingSteps = [
+                SELECT Id, StepMetadata__c
+                FROM ExecutionStep__c
+                WHERE AgentExecution__c = :executionId
+                AND ToolCallId__c = :toolCallId
+                AND StepType__c = 'ToolResult'
+                ORDER BY Timestamp__c DESC
+                LIMIT 1
+            ];
+
+            if (existingSteps.isEmpty()) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'No existing tool result step found for toolCallId: ' + toolCallId);
+                return null;
+            }
+
+            ExecutionStep__c step = existingSteps[0];
+
+            // Update the result
+            step.ToolResult__c = toolResult;
+            step.HasResult__c = String.isNotBlank(toolResult);
+            step.Timestamp__c = Datetime.now();
+
+            // Update metadata
+            Map<String, Object> metadata = new Map<String, Object>();
+            if (String.isNotBlank(step.StepMetadata__c)) {
+                try {
+                    metadata = (Map<String, Object>) JSON.deserializeUntyped(step.StepMetadata__c);
+                } catch (Exception e) {
+                    // Ignore parse errors, start fresh
+                }
+            }
+            if (processingDuration != null) {
+                metadata.put('processingDuration', processingDuration);
+            }
+            metadata.put('updatedAfterApproval', true);
+            metadata.put('approvalResolvedAt', Datetime.now());
+            step.StepMetadata__c = JSON.serialize(metadata);
+
+            if (processingDuration != null) {
+                step.ProcessingDuration__c = processingDuration;
+            }
+
+            update step;
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Updated tool result step: ' + step.Id + ' for toolCallId: ' + toolCallId);
+
+            return step.Id;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update tool result step: ' + e.getMessage());
+            throw new ExecutionStepException('Failed to update tool result step: ' + e.getMessage());
+        }
+    }
+
+    /**
      * Creates an error step.
      *
      * @param executionId The execution ID

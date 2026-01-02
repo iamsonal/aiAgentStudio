@@ -66,7 +66,7 @@ public with sharing class AgentTestDataFactory {
 
     public static void deleteExistingData() {
         System.debug('[Cleanup] Removing existing data...');
-        
+
         List<Order> ordersToDeactivate = [
             SELECT Id
             FROM Order
@@ -79,6 +79,7 @@ public with sharing class AgentTestDataFactory {
             update ordersToDeactivate;
         }
 
+//        delete [SELECT Id FROM BulkExecution__c];
         delete [SELECT Id FROM AgentDecisionStep__c];
         delete [SELECT Id FROM ExecutionStep__c];
         delete [SELECT Id FROM AgentExecution__c];
@@ -109,25 +110,25 @@ public with sharing class AgentTestDataFactory {
             'Business-Owner-Wealth-Management',
             'Client-Risk-Assessment-Methodology'
         };
-        
+
         List<Knowledge__kav> articles = [
             SELECT Id, KnowledgeArticleId, PublishStatus
-            FROM Knowledge__kav 
+            FROM Knowledge__kav
             WHERE UrlName IN :knowledgeUrlNames
         ];
-        
+
         if (!articles.isEmpty()) {
             Set<Id> masterArticleIds = new Set<Id>();
             for (Knowledge__kav article : articles) {
                 masterArticleIds.add(article.KnowledgeArticleId);
             }
-            
+
             List<Knowledge__ka> masterArticles = [
-                SELECT Id 
-                FROM Knowledge__ka 
+                SELECT Id
+                FROM Knowledge__ka
                 WHERE Id IN :masterArticleIds
             ];
-            
+
             if (!masterArticles.isEmpty()) {
                 delete masterArticles;
                 System.debug('[Cleanup] ✓ Deleted ' + masterArticles.size() + ' Knowledge articles');
@@ -167,9 +168,9 @@ public with sharing class AgentTestDataFactory {
 
         // Check if Service User already exists
         List<User> existingUsers = [
-            SELECT Id, Username, IsActive 
-            FROM User 
-            WHERE Name = 'Service User' 
+            SELECT Id, Username, IsActive
+            FROM User
+            WHERE Name = 'Service User'
             LIMIT 1
         ];
 
@@ -445,8 +446,8 @@ public with sharing class AgentTestDataFactory {
 
         // Query to get the KnowledgeArticleId (master article ID) for publishing
         List<Knowledge__kav> insertedArticles = [
-            SELECT Id, KnowledgeArticleId 
-            FROM Knowledge__kav 
+            SELECT Id, KnowledgeArticleId
+            FROM Knowledge__kav
             WHERE Id IN :articles
         ];
 
@@ -551,12 +552,12 @@ public with sharing class AgentTestDataFactory {
             createCapability(
                 agent.Id,
                 'create_case',
-                'Creates a new support case in Salesforce. Automatically sets `Status` to `"New"` and `Origin` to `"AI Agent"`. Use this to:\n- Log new customer issues\n- Escalate problems to support team\n- Create tickets for tracking\n\nRequires user confirmation before execution.',
-                '{"type":"object","properties":{"recordData":{"type":"object","description":"SObject field values to set on the new record. Property names should be valid field API names.","additionalProperties":true}},"required":[]}',
+                'Creates a new support case in Salesforce. Automatically sets `Status` to `"New"` and `Origin` to `"Web"`. Use this to:\n- Log new customer issues\n- Escalate problems to support team\n- Create tickets for tracking\n\nRequires user confirmation before execution.',
+                '{"type":"object","properties":{"recordData":{"type":"object","description":"SObject field values. Must include Subject, Description, and Priority.","properties":{"Subject":{"type":"string","description":"Case subject"},"Description":{"type":"string","description":"Case description"},"Priority":{"type":"string","description":"","enum":["High","Medium","Low"]}},"required":["Subject","Description","Priority"]}},"required":["recordData"]}',
                 'Standard',
                 'CreateRecord',
                 null,
-                '{"objectApiName":"Case","defaultFieldValues":{"Status":"New","Origin":"AI Agent"}}',
+                '{"objectApiName":"Case","defaultFieldValues":{"Status":"New","Origin":"Web"}}',
                 true,
                 false,
                 false,
@@ -593,15 +594,15 @@ public with sharing class AgentTestDataFactory {
             createCapability(
                 agent.Id,
                 'notify_support_team',
-                'Posts a message to the Support Team Chatter group. Use this to:\n- Alert team about critical issues\n- Share case updates and resolutions\n- Request team assistance\n\nRuns asynchronously. Requires user confirmation before posting.',
+                'Posts a message to the Support Team Chatter group. Use this to:\n- Alert team about critical issues\n- Share case updates and resolutions\n- Request team assistance\n\nRuns asynchronously.',
                 '{"type":"object","properties":{"messageText":{"type":"string","description":"Message to post"},"topics":{"type":"array","description":"Optional topics","items":{"type":"string"}}},"required":["messageText"]}',
                 'Standard',
                 'PostChatter',
                 null,
                 '{"feedType":"Group","targetId":"' + idMap.get('Support Chatter Group') + '"}',
-                true,
+                false,  // No confirmation for async tools
                 false,
-                true,
+                true,   // Runs asynchronously
                 'External'
             )
         };
@@ -753,13 +754,13 @@ public with sharing class AgentTestDataFactory {
             createCapability(
                 agent.Id,
                 'update_opportunity_stage',
-                'Updates the opportunity stage and win probability. Common `StageName` values: `"Prospecting"`, `"Qualification"`, `"Proposal"`, `"Negotiation"`, `"Closed Won"`. Use this to:\n- Move opportunities through sales pipeline\n- Update win probability percentage\n- Progress deals based on customer engagement\n\nRequires user confirmation before execution.',
+                'Updates the opportunity stage and win probability. Common `StageName` values: `"Prospecting"`, `"Qualification"`, `"Proposal"`, `"Negotiation"`, `"Closed Won"`. Use this to:\n- Move opportunities through sales pipeline\n- Update win probability percentage\n- Progress deals based on customer engagement',
                 '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"The 18-character Opportunity ID to update."},"recordData":{"type":"object","properties":{"StageName":{"type":"string","description":"Opportunity stage"},"Probability":{"type":"number","description":"Win probability (0-100)"}},"additionalProperties":true}},"required":["recordId","recordData"]}',
                 'Standard',
                 'UpdateRecord',
                 null,
                 '{"objectApiName":"Opportunity"}',
-                true,
+                false,  // No confirmation for Function agents - use Approval if needed
                 false,
                 false,
                 'External'
@@ -1228,8 +1229,8 @@ public with sharing class AgentTestDataFactory {
 
         // Query to get the KnowledgeArticleId (master article ID) for publishing
         List<Knowledge__kav> insertedArticles = [
-            SELECT Id, KnowledgeArticleId 
-            FROM Knowledge__kav 
+            SELECT Id, KnowledgeArticleId
+            FROM Knowledge__kav
             WHERE Id IN :articles
         ];
 
@@ -1398,6 +1399,22 @@ public with sharing class AgentTestDataFactory {
     // HELPER METHODS
     // ===================================================================================
 
+    /**
+     * @description Creates an AgentCapability__c record with all configuration options.
+     * @param agentId Parent agent definition ID
+     * @param name Capability name (tool name)
+     * @param description Tool description for LLM
+     * @param parameters JSON schema for parameters
+     * @param implType Implementation type (Apex, Flow, Standard)
+     * @param stdType Standard action type (if implType is Standard)
+     * @param implDetail Implementation detail (class name or flow name)
+     * @param backendConfig Backend configuration JSON
+     * @param requiresConfirmation Legacy field - use hitlMode instead
+     * @param requiresApproval Legacy field - use hitlMode instead
+     * @param runAsync Whether to run asynchronously
+     * @param exposure Exposure level (External, Internal, Disabled)
+     * @return AgentCapability__c record (not inserted)
+     */
     private static AgentCapability__c createCapability(
         Id agentId,
         String name,
@@ -1412,6 +1429,14 @@ public with sharing class AgentTestDataFactory {
         Boolean runAsync,
         String exposure
     ) {
+        // Map legacy fields to new HITLMode__c
+        String hitlMode = 'None';
+        if (requiresApproval == true) {
+            hitlMode = 'Approval';
+        } else if (requiresConfirmation == true) {
+            hitlMode = 'Confirmation';
+        }
+
         return new AgentCapability__c(
             AIAgentDefinition__c = agentId,
             CapabilityName__c = name,
@@ -1421,11 +1446,330 @@ public with sharing class AgentTestDataFactory {
             StandardActionType__c = stdType,
             ImplementationDetail__c = implDetail,
             BackendConfiguration__c = backendConfig,
-            RequiresConfirmation__c = requiresConfirmation,
-            RequiresApproval__c = requiresApproval,
+            HITLMode__c = hitlMode,
             RunAsynchronously__c = runAsync,
             ExposureLevel__c = exposure
         );
+    }
+
+    /**
+     * @description Creates an AgentCapability__c record with explicit HITL mode.
+     * Use this method for new code instead of the legacy createCapability method.
+     *
+     * @param agentId Parent agent definition ID
+     * @param name Capability name (tool name)
+     * @param description Tool description for LLM
+     * @param parameters JSON schema for parameters
+     * @param implType Implementation type (Apex, Flow, Standard)
+     * @param stdType Standard action type (if implType is Standard)
+     * @param implDetail Implementation detail (class name or flow name)
+     * @param backendConfig Backend configuration JSON
+     * @param hitlMode HITL mode: 'None', 'Confirmation', 'Approval', or 'ConfirmationThenApproval'
+     * @param runAsync Whether to run asynchronously
+     * @param exposure Exposure level (External, Internal, Disabled)
+     * @return AgentCapability__c record (not inserted)
+     */
+    public static AgentCapability__c createCapabilityWithHITL(
+        Id agentId,
+        String name,
+        String description,
+        String parameters,
+        String implType,
+        String stdType,
+        String implDetail,
+        String backendConfig,
+        String hitlMode,
+        Boolean runAsync,
+        String exposure
+    ) {
+        return new AgentCapability__c(
+            AIAgentDefinition__c = agentId,
+            CapabilityName__c = name,
+            Description__c = description,
+            Parameters__c = parameters,
+            ImplementationType__c = implType,
+            StandardActionType__c = stdType,
+            ImplementationDetail__c = implDetail,
+            BackendConfiguration__c = backendConfig,
+            HITLMode__c = hitlMode,
+            RunAsynchronously__c = runAsync,
+            ExposureLevel__c = exposure
+        );
+    }
+
+    // ===================================================================================
+    // HITL TEST DATA CREATION
+    // ===================================================================================
+
+    /**
+     * @description Creates a complete HITL test scenario with agent, capabilities, execution, and pending action.
+     * Useful for testing the full HITL flow.
+     *
+     * @param hitlMode The HITL mode to test: 'Confirmation' or 'Approval'
+     * @return Map<String, Id> containing IDs of created records:
+     *         - 'agentId': AIAgentDefinition__c ID
+     *         - 'capabilityId': AgentCapability__c ID
+     *         - 'executionId': AgentExecution__c ID
+     *         - 'pendingActionId': PendingHITLAction__c ID
+     */
+    public static Map<String, Id> createHITLTestScenario(String hitlMode) {
+        Map<String, Id> result = new Map<String, Id>();
+
+        // Create LLM Configuration if not exists
+        LLMConfiguration__c llmConfig = createTestLLMConfiguration();
+        result.put('llmConfigId', llmConfig.Id);
+
+        // Create Agent Definition
+        AIAgentDefinition__c agent = createTestAgentForHITL(llmConfig.Id, hitlMode);
+        result.put('agentId', agent.Id);
+
+        // Create Capability with HITL mode
+        AgentCapability__c capability = createTestCapabilityForHITL(agent.Id, hitlMode);
+        result.put('capabilityId', capability.Id);
+
+        // Create Agent Execution
+        AgentExecution__c execution = createTestExecution(agent.Id);
+        result.put('executionId', execution.Id);
+
+        // Create Pending HITL Action
+        PendingHITLAction__c pendingAction = createTestPendingHITLAction(
+            execution.Id,
+            capability.Id,
+            hitlMode
+        );
+        result.put('pendingActionId', pendingAction.Id);
+
+        return result;
+    }
+
+    /**
+     * @description Creates a test LLM configuration for HITL testing.
+     * @return LLMConfiguration__c record
+     */
+    public static LLMConfiguration__c createTestLLMConfiguration() {
+        // Check if test config already exists
+        List<LLMConfiguration__c> existing = [
+            SELECT Id FROM LLMConfiguration__c
+            WHERE DeveloperName__c = 'Test_HITL_Config'
+            LIMIT 1
+        ];
+        if (!existing.isEmpty()) {
+            return existing[0];
+        }
+
+        LLMConfiguration__c config = new LLMConfiguration__c(
+            Name = 'Test HITL Config',
+            DeveloperName__c = 'Test_HITL_Config',
+            ProviderAdapterClass__c = 'OpenAIProviderAdapter',
+            NamedCredential__c = 'OpenAI_API',
+            DefaultModelIdentifier__c = 'gpt-4o-mini',
+            DefaultTemperature__c = 0.1,
+            IsActive__c = true
+        );
+        insert config;
+        return config;
+    }
+
+    /**
+     * @description Creates a test agent definition configured for HITL testing.
+     * @param llmConfigId LLM Configuration ID
+     * @param hitlMode The HITL mode being tested
+     * @return AIAgentDefinition__c record
+     */
+    public static AIAgentDefinition__c createTestAgentForHITL(Id llmConfigId, String hitlMode) {
+        // For Confirmation mode, must be Conversational agent
+        String agentType = (hitlMode == 'Confirmation') ? 'Conversational' : 'Function';
+
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(
+            Name = 'HITL Test Agent - ' + hitlMode,
+            DeveloperName__c = 'HITL_Test_Agent_' + hitlMode + '_' + System.currentTimeMillis(),
+            AgentType__c = agentType,
+            IsActive__c = true,
+            LLMConfiguration__c = llmConfigId,
+            AuditLevel__c = 'Full',
+            IdentityPrompt__c = 'You are a test agent for HITL functionality.',
+            InstructionsPrompt__c = 'Execute tools as requested.'
+        );
+        insert agent;
+        return agent;
+    }
+
+    /**
+     * @description Creates a test capability with specified HITL mode.
+     * @param agentId Parent agent definition ID
+     * @param hitlMode HITL mode: 'None', 'Confirmation', 'Approval', or 'ConfirmationThenApproval'
+     * @return AgentCapability__c record
+     */
+    public static AgentCapability__c createTestCapabilityForHITL(Id agentId, String hitlMode) {
+        String capabilityName = 'test_hitl_action_' + hitlMode.toLowerCase();
+
+        AgentCapability__c capability = new AgentCapability__c(
+            AIAgentDefinition__c = agentId,
+            CapabilityName__c = capabilityName,
+            Description__c = 'Test capability for HITL ' + hitlMode + ' mode testing',
+            Parameters__c = '{"type":"object","properties":{"testParam":{"type":"string","description":"A test parameter"}},"required":["testParam"]}',
+            ImplementationType__c = 'Apex',
+            ImplementationDetail__c = 'ActionEcho',
+            HITLMode__c = hitlMode,
+            RunAsynchronously__c = false,
+            ExposureLevel__c = 'External'
+        );
+        insert capability;
+        return capability;
+    }
+
+    /**
+     * @description Creates a test agent execution record.
+     * @param agentId Parent agent definition ID
+     * @return AgentExecution__c record
+     */
+    public static AgentExecution__c createTestExecution(Id agentId) {
+        AgentExecution__c execution = new AgentExecution__c(
+            AIAgentDefinition__c = agentId,
+            User__c = UserInfo.getUserId(),
+            ExecutionStatus__c = 'Running',
+            ProcessingStatus__c = 'Processing',
+            StartTime__c = DateTime.now(),
+            CurrentTurnIdentifier__c = 'turn_' + System.currentTimeMillis()
+        );
+        insert execution;
+        return execution;
+    }
+
+    /**
+     * @description Creates a PendingHITLAction__c record for testing.
+     * @param executionId Parent execution ID
+     * @param capabilityId Capability ID
+     * @param hitlType HITL type: 'Confirmation' or 'Approval'
+     * @return PendingHITLAction__c record
+     */
+    public static PendingHITLAction__c createTestPendingHITLAction(
+        Id executionId,
+        Id capabilityId,
+        String hitlType
+    ) {
+        return createTestPendingHITLAction(
+            executionId,
+            capabilityId,
+            hitlType,
+            'Pending',
+            '{"testParam": "test value"}'
+        );
+    }
+
+    /**
+     * @description Creates a PendingHITLAction__c record with custom status and arguments.
+     * @param executionId Parent execution ID
+     * @param capabilityId Capability ID
+     * @param hitlType HITL type: 'Confirmation' or 'Approval'
+     * @param status Status: 'Pending', 'Confirmed', 'Declined', 'Approved', 'Rejected', 'Expired'
+     * @param toolArgumentsJson JSON string of tool arguments
+     * @return PendingHITLAction__c record
+     */
+    public static PendingHITLAction__c createTestPendingHITLAction(
+        Id executionId,
+        Id capabilityId,
+        String hitlType,
+        String status,
+        String toolArgumentsJson
+    ) {
+        // Get capability name
+        AgentCapability__c cap = [SELECT CapabilityName__c FROM AgentCapability__c WHERE Id = :capabilityId LIMIT 1];
+
+        DateTime expiresAt = null;
+        if (hitlType == 'Confirmation') {
+            expiresAt = DateTime.now().addSeconds(300);
+        }
+
+        PendingHITLAction__c pendingAction = new PendingHITLAction__c(
+            AgentExecution__c = executionId,
+            AIAgentCapability__c = capabilityId,
+            HITLType__c = hitlType,
+            Status__c = status,
+            TurnIdentifier__c = 'turn_' + System.currentTimeMillis(),
+            TurnCount__c = 1,
+            ToolCallId__c = 'call_test_' + System.currentTimeMillis(),
+            ToolName__c = cap.CapabilityName__c,
+            ToolArgumentsJSON__c = toolArgumentsJson,
+            ConfirmationPrompt__c = 'Test confirmation prompt for ' + cap.CapabilityName__c,
+            RequestedAt__c = DateTime.now(),
+            ExpiresAt__c = expiresAt,
+            RequestingUser__c = UserInfo.getUserId()
+        );
+        insert pendingAction;
+        return pendingAction;
+    }
+
+    /**
+     * @description Creates multiple pending HITL actions for batch testing.
+     * @param executionId Parent execution ID
+     * @param capabilityId Capability ID
+     * @param hitlType HITL type
+     * @param count Number of records to create
+     * @return List of PendingHITLAction__c records
+     */
+    public static List<PendingHITLAction__c> createBulkPendingHITLActions(
+        Id executionId,
+        Id capabilityId,
+        String hitlType,
+        Integer count
+    ) {
+        AgentCapability__c cap = [SELECT CapabilityName__c FROM AgentCapability__c WHERE Id = :capabilityId LIMIT 1];
+
+        List<PendingHITLAction__c> actions = new List<PendingHITLAction__c>();
+        DateTime expiresAt = hitlType == 'Confirmation' ? DateTime.now().addSeconds(300) : null;
+
+        for (Integer i = 0; i < count; i++) {
+            actions.add(new PendingHITLAction__c(
+                AgentExecution__c = executionId,
+                AIAgentCapability__c = capabilityId,
+                HITLType__c = hitlType,
+                Status__c = 'Pending',
+                TurnIdentifier__c = 'turn_' + System.currentTimeMillis() + '_' + i,
+                TurnCount__c = i + 1,
+                ToolCallId__c = 'call_test_' + System.currentTimeMillis() + '_' + i,
+                ToolName__c = cap.CapabilityName__c,
+                ToolArgumentsJSON__c = '{"testParam": "value_' + i + '"}',
+                ConfirmationPrompt__c = 'Test confirmation prompt #' + i,
+                RequestedAt__c = DateTime.now(),
+                ExpiresAt__c = expiresAt,
+                RequestingUser__c = UserInfo.getUserId()
+            ));
+        }
+        insert actions;
+        return actions;
+    }
+
+    /**
+     * @description Creates an expired pending HITL action for testing expiration handling.
+     * Note: This creates an Approval type action since Confirmation mode no longer creates PendingHITLAction records.
+     * @param executionId Parent execution ID
+     * @param capabilityId Capability ID
+     * @return PendingHITLAction__c record with past expiration time
+     */
+    public static PendingHITLAction__c createExpiredPendingHITLAction(
+        Id executionId,
+        Id capabilityId
+    ) {
+        AgentCapability__c cap = [SELECT CapabilityName__c FROM AgentCapability__c WHERE Id = :capabilityId LIMIT 1];
+
+        PendingHITLAction__c pendingAction = new PendingHITLAction__c(
+            AgentExecution__c = executionId,
+            AIAgentCapability__c = capabilityId,
+            HITLType__c = 'Approval',
+            Status__c = 'Pending',
+            TurnIdentifier__c = 'turn_expired_' + System.currentTimeMillis(),
+            TurnCount__c = 1,
+            ToolCallId__c = 'call_expired_' + System.currentTimeMillis(),
+            ToolName__c = cap.CapabilityName__c,
+            ToolArgumentsJSON__c = '{"testParam": "expired_test"}',
+            ConfirmationPrompt__c = 'This action has expired',
+            RequestedAt__c = DateTime.now().addMinutes(-10),
+            ExpiresAt__c = DateTime.now().addMinutes(-5), // Already expired
+            RequestingUser__c = UserInfo.getUserId()
+        );
+        insert pendingAction;
+        return pendingAction;
     }
 
     private static AgentContextConfig__c createContext(

@@ -222,8 +222,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
                     BackendConfiguration__c,
                     FailFastOnError__c,
                     RunAsynchronously__c,
-                    RequiresConfirmation__c,
-                    RequiresApproval__c,
+                    HITLMode__c,
                     ExposureLevel__c
                 FROM AgentCapability__c
                 WHERE Id = :agentDef.CompletionCapability__c
