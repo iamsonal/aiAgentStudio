@@ -63,6 +63,25 @@ public inherited sharing class AIAgentFrameworkSettings {
     }
 
     /**
+     * Gets the maximum processing cycles for an agent, using per-agent override from AIAgentSettings__c if set,
+     * otherwise falling back to the org-wide default.
+     *
+     * @param agentDeveloperName The developer name of the agent (used to lookup AIAgentSettings__c record)
+     * @return The maximum number of processing cycles for the agent, or org-wide default if agent override is not set.
+     */
+    public static Integer getMaxProcessingCycles(String agentDeveloperName) {
+        // Check if agent has per-agent override in custom setting
+        if (String.isNotBlank(agentDeveloperName)) {
+            AIAgentSettings__c agentSettings = AIAgentSettings__c.getInstance(agentDeveloperName);
+            if (agentSettings != null && agentSettings.MaxProcessingCycles__c != null && agentSettings.MaxProcessingCycles__c > 0) {
+                return Integer.valueOf(agentSettings.MaxProcessingCycles__c);
+            }
+        }
+        // Fall back to org-wide default
+        return getDefaultMaxConversationTurns();
+    }
+
+    /**
      * Gets the configured maximum queueable stack depth for chained jobs.
      * Returns 0 to use Salesforce defaults (recommended for production/sandbox).
      * Set to 50+ for scratch/developer orgs to override the 5-job limit.

@@ -1041,8 +1041,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             }
         }
 
-        // Enforce max turn limit
-        Integer maxTurns = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
+        // Enforce max turn limit (per-agent override with org-wide fallback)
+        // Reuse agentDef from line 996 (already loaded for fail-fast policy check)
+        Integer maxTurns = AIAgentFrameworkSettings.getMaxProcessingCycles(agentDef.DeveloperName__c);
         if ((context.currentTurnCount + 1) > maxTurns) {
             String limitErrorMsg = 'Maximum processing cycles (' + maxTurns + ') exceeded.';
             context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, limitErrorMsg, AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED, logPrefix);

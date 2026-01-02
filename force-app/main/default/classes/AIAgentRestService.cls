@@ -341,11 +341,34 @@ global with sharing class AIAgentRestService {
 
             // Notify requesting user about execution result
             if (String.isNotBlank(toolRequest.requestingUserId)) {
+                // Get the pending action to retrieve approver's comment
+                String approverComment = null;
+                if (String.isNotBlank(toolRequest.pendingActionId)) {
+                    try {
+                        List<PendingHITLAction__c> pendingActions = [
+                            SELECT ResolutionComment__c
+                            FROM PendingHITLAction__c
+                            WHERE Id = :toolRequest.pendingActionId
+                            LIMIT 1
+                        ];
+                        if (!pendingActions.isEmpty() && String.isNotBlank(pendingActions[0].ResolutionComment__c)) {
+                            approverComment = pendingActions[0].ResolutionComment__c;
+                        }
+                    } catch (Exception e) {
+                        System.debug(LoggingLevel.WARN, logPrefix + 'Could not retrieve approver comment: ' + e.getMessage());
+                    }
+                }
+
                 String title = outcome.isSuccess ? 'Action Executed: ' + toolRequest.toolName : 'Action Failed: ' + toolRequest.toolName;
 
                 String body = outcome.isSuccess
                     ? 'Your requested action "' + toolRequest.toolName + '" has been approved and executed successfully.'
                     : 'Your requested action "' + toolRequest.toolName + '" was approved but execution failed: ' + outcome.errorMessage;
+
+                // Add approver comment if available
+                if (String.isNotBlank(approverComment)) {
+                    body += '\n\nApprover comment: ' + approverComment;
+                }
 
                 NotificationService.sendUserNotification(Id.valueOf(toolRequest.requestingUserId), title, body, execution.Id);
             }

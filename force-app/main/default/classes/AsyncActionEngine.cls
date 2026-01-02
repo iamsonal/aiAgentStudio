@@ -204,8 +204,8 @@ public class AsyncActionEngine implements Queueable {
                 return; // Don't continue to follow-up processing
             }
 
-            // Validate turn limits and dispatch follow-up processing
-            Integer maxTurns = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
+            // Validate turn limits and dispatch follow-up processing (per-agent override with org-wide fallback)
+            Integer maxTurns = AIAgentFrameworkSettings.getMaxProcessingCycles(agentDefinition.DeveloperName__c);
             if ((this.currentTurnCount + 1) > maxTurns) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Maximum conversation turns exceeded (' + maxTurns + ') - terminating processing');
                 agentStateSvc.failTurn(
