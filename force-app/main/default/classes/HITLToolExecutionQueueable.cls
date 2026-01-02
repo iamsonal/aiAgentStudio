@@ -72,8 +72,8 @@ public class HITLToolExecutionQueueable implements Queueable, Database.AllowsCal
                 String errorMsg = 'HTTP ' + result.response.getStatusCode() + ': ' + result.response.getBody();
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Tool execution failed: ' + errorMsg);
 
-                // Notify user of failure
-                if (action.RequestingUser__c != null) {
+                // Notify user of failure (check notification preference)
+                if (action.RequestingUser__c != null && shouldSendNotification(action, HITLGatewayService.NOTIFICATION_TYPE_ERROR)) {
                     NotificationService.sendUserNotification(
                         action.RequestingUser__c,
                         'Tool Execution Failed: ' + action.ToolName__c,
@@ -85,10 +85,10 @@ public class HITLToolExecutionQueueable implements Queueable, Database.AllowsCal
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error executing tool via REST API: ' + e.getMessage() + '\n' + e.getStackTraceString());
 
-            // Try to notify user of failure
+            // Try to notify user of failure (check notification preference)
             try {
                 PendingHITLAction__c action = HITLGatewayService.getPendingAction(pendingActionId);
-                if (action?.RequestingUser__c != null) {
+                if (action?.RequestingUser__c != null && shouldSendNotification(action, HITLGatewayService.NOTIFICATION_TYPE_ERROR)) {
                     NotificationService.sendUserNotification(
                         action.RequestingUser__c,
                         'Tool Execution Error: ' + (action.ToolName__c ?? 'Unknown'),
@@ -141,5 +141,16 @@ public class HITLToolExecutionQueueable implements Queueable, Database.AllowsCal
 
         System.debug(LoggingLevel.INFO, logPrefix + 'HTTP request built for tool execution via Named Credential');
         return httpReq;
+    }
+
+    /**
+     * @description Determines if a notification should be sent based on the capability's notification preference.
+     * @param action The PendingHITLAction__c record (must have AIAgentCapability__r.HITLNotificationPreference__c populated)
+     * @param eventType The type of event: HITLGatewayService.NOTIFICATION_TYPE_APPROVAL, NOTIFICATION_TYPE_REJECTION, or NOTIFICATION_TYPE_ERROR
+     * @return True if notification should be sent, false otherwise
+     */
+    private static Boolean shouldSendNotification(PendingHITLAction__c action, String eventType) {
+        String preference = action.AIAgentCapability__r?.HITLNotificationPreference__c;
+        return HITLGatewayService.shouldSendHITLNotification(preference, eventType);
     }
 }

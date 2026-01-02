@@ -60,6 +60,15 @@ public with sharing class HITLGatewayService {
     public static final String AGENT_TYPE_FUNCTION = 'Function';
     public static final String AGENT_TYPE_WORKFLOW = 'Workflow';
 
+    // Notification preference constants
+    public static final String NOTIFICATION_PREF_ALWAYS_NOTIFY = 'Always Notify';
+    public static final String NOTIFICATION_PREF_REJECTION_ONLY = 'Notify on Rejection Only';
+
+    // Notification event type constants
+    public static final String NOTIFICATION_TYPE_APPROVAL = 'approval';
+    public static final String NOTIFICATION_TYPE_REJECTION = 'rejection';
+    public static final String NOTIFICATION_TYPE_ERROR = 'error';
+
     private static final String LOG_PREFIX = '[HITLGateway] ';
 
     // =============================================================================
@@ -757,6 +766,7 @@ public with sharing class HITLGatewayService {
                 ConfirmationPrompt__c,
                 AIAgentCapability__c,
                 AIAgentCapability__r.CapabilityName__c,
+                AIAgentCapability__r.HITLNotificationPreference__c,
                 AgentExecution__c,
                 TurnIdentifier__c,
                 TurnCount__c,
@@ -823,6 +833,38 @@ public with sharing class HITLGatewayService {
                 WHERE AgentExecution__c = :executionId AND Status__c = :STATUS_PENDING
             ] > 0;
     }
+    // =============================================================================
+    // NOTIFICATION PREFERENCE METHODS
+    // =============================================================================
+
+    /**
+     * @description Determines if a notification should be sent based on the capability's notification preference.
+     * This is the centralized logic for all HITL notification decisions.
+     *
+     * @param preference The HITLNotificationPreference__c value from AgentCapability__c (can be null/blank)
+     * @param eventType The type of event: NOTIFICATION_TYPE_APPROVAL, NOTIFICATION_TYPE_REJECTION, or NOTIFICATION_TYPE_ERROR
+     * @return True if notification should be sent, false otherwise
+     */
+    public static Boolean shouldSendHITLNotification(String preference, String eventType) {
+        // If capability preference is not set, default to "Always Notify" behavior
+        if (String.isBlank(preference)) {
+            return true; // Default to always notify for safety
+        }
+
+        // "Always Notify" - send for all events
+        if (preference == NOTIFICATION_PREF_ALWAYS_NOTIFY) {
+            return true;
+        }
+
+        // "Notify on Rejection Only" - only send for rejections
+        if (preference == NOTIFICATION_PREF_REJECTION_ONLY) {
+            return eventType == NOTIFICATION_TYPE_REJECTION;
+        }
+
+        // Unknown preference value - default to always notify for safety
+        return true;
+    }
+
     // =============================================================================
     // PRIVATE HELPER METHODS
     // =============================================================================

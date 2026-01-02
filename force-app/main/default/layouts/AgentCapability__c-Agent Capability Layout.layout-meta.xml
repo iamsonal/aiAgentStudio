@@ -64,6 +64,10 @@
                 <behavior>Edit</behavior>
                 <field>HITLMode__c</field>
             </layoutItems>
+            <layoutItems>
+                <behavior>Edit</behavior>
+                <field>HITLNotificationPreference__c</field>
+            </layoutItems>
         </layoutColumns>
         <style>TwoColumnsTopToBottom</style>
     </layoutSections>

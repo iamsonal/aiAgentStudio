@@ -339,8 +339,8 @@ global with sharing class AIAgentRestService {
                 System.debug(LoggingLevel.INFO, logPrefix + 'Conversational agent - no follow-up needed (pre-determined)');
             }
 
-            // Notify requesting user about execution result
-            if (String.isNotBlank(toolRequest.requestingUserId)) {
+            // Notify requesting user about execution result (check notification preference)
+            if (String.isNotBlank(toolRequest.requestingUserId) && shouldSendNotification(capability, outcome.isSuccess ? HITLGatewayService.NOTIFICATION_TYPE_APPROVAL : HITLGatewayService.NOTIFICATION_TYPE_ERROR)) {
                 // Get the pending action to retrieve approver's comment
                 String approverComment = null;
                 if (String.isNotBlank(toolRequest.pendingActionId)) {
@@ -476,5 +476,15 @@ global with sharing class AIAgentRestService {
      * Exception for REST service business logic errors (e.g., validation, configuration, or user errors).
      */
     public class AIAgentRestException extends Exception {
+    }
+
+    /**
+     * @description Determines if a notification should be sent based on the capability's notification preference.
+     * @param capability The AgentCapability__c record (must have HITLNotificationPreference__c populated)
+     * @param eventType The type of event: HITLGatewayService.NOTIFICATION_TYPE_APPROVAL, NOTIFICATION_TYPE_REJECTION, or NOTIFICATION_TYPE_ERROR
+     * @return True if notification should be sent, false otherwise
+     */
+    private static Boolean shouldSendNotification(AgentCapability__c capability, String eventType) {
+        return HITLGatewayService.shouldSendHITLNotification(capability.HITLNotificationPreference__c, eventType);
     }
 }

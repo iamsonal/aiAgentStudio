@@ -130,6 +130,7 @@ Best for development, testing, and debugging.
 | Field | Type | Description |
 |:------|:-----|:------------|
 | `HITLMode__c` | Picklist | Human-in-the-Loop mode: blank (no HITL), Confirmation (LLM asks in chat), Approval (formal approval process), or ConfirmationThenApproval (both) |
+| `HITLNotificationPreference__c` | Picklist | Controls when to send notifications for HITL actions: "Always Notify" (default) sends notifications for approvals, rejections, and errors; "Notify on Rejection Only" only sends notifications when actions are rejected. Only applies when `HITLMode__c` is "Approval" or "ConfirmationThenApproval". |
 | `RunAsynchronously__c` | Checkbox | Execute in separate transaction |
 | `FailFastOnError__c` | Checkbox | Stop immediately on error |
 

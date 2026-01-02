@@ -97,6 +97,34 @@ public with sharing class PendingHITLActionTriggerHandler {
             }
         }
 
+        // Query relationship fields for actions that need notification preference checks
+        Set<Id> actionIdsNeedingNotificationCheck = new Set<Id>();
+        actionIdsNeedingNotificationCheck.addAll(getActionIds(approvedActions));
+        actionIdsNeedingNotificationCheck.addAll(getActionIds(rejectedActions));
+        actionIdsNeedingNotificationCheck.addAll(getActionIds(expiredActions));
+        
+        Map<Id, PendingHITLAction__c> actionsWithRelationships = new Map<Id, PendingHITLAction__c>();
+        if (!actionIdsNeedingNotificationCheck.isEmpty()) {
+            actionsWithRelationships = new Map<Id, PendingHITLAction__c>([
+                SELECT
+                    Id,
+                    RequestingUser__c,
+                    ToolName__c,
+                    AgentExecution__c,
+                    TurnIdentifier__c,
+                    TurnCount__c,
+                    ResolutionComment__c,
+                    AIAgentCapability__r.HITLNotificationPreference__c
+                FROM PendingHITLAction__c
+                WHERE Id IN :actionIdsNeedingNotificationCheck
+            ]);
+        }
+        
+        // Replace action lists with queried records that include relationship data
+        approvedActions = mergeRelationshipData(approvedActions, actionsWithRelationships);
+        rejectedActions = mergeRelationshipData(rejectedActions, actionsWithRelationships);
+        expiredActions = mergeRelationshipData(expiredActions, actionsWithRelationships);
+
         // Process each category
         if (!confirmedActions.isEmpty()) {
             processConfirmedActions(confirmedActions);
@@ -267,8 +295,8 @@ public with sharing class PendingHITLActionTriggerHandler {
             try {
                 resumeFlowWithRejection(action, logPrefix);
 
-                // Notify requesting user
-                if (action.RequestingUser__c != null) {
+                // Notify requesting user (check notification preference)
+                if (action.RequestingUser__c != null && shouldSendNotification(action, HITLGatewayService.NOTIFICATION_TYPE_REJECTION)) {
                     String message = 'Your requested action "' + action.ToolName__c + '" was rejected.';
                     if (String.isNotBlank(action.ResolutionComment__c)) {
                         message += ' Reason: ' + action.ResolutionComment__c;
@@ -638,7 +666,7 @@ public with sharing class PendingHITLActionTriggerHandler {
      * @description Notifies the user of an error during HITL processing.
      */
     private static void notifyUserOfError(PendingHITLAction__c action, String errorMessage) {
-        if (action.RequestingUser__c != null) {
+        if (action.RequestingUser__c != null && shouldSendNotification(action, HITLGatewayService.NOTIFICATION_TYPE_ERROR)) {
             try {
                 NotificationService.sendUserNotification(
                     action.RequestingUser__c,
@@ -650,5 +678,48 @@ public with sharing class PendingHITLActionTriggerHandler {
                 System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Failed to send error notification: ' + e.getMessage());
             }
         }
+    }
+
+    /**
+     * @description Helper method to extract IDs from a list of actions.
+     * @param actions List of PendingHITLAction__c records
+     * @return Set of action IDs
+     */
+    private static Set<Id> getActionIds(List<PendingHITLAction__c> actions) {
+        Set<Id> ids = new Set<Id>();
+        for (PendingHITLAction__c action : actions) {
+            ids.add(action.Id);
+        }
+        return ids;
+    }
+
+    /**
+     * @description Helper method to merge relationship data into action records.
+     * @param actions List of PendingHITLAction__c records to update
+     * @param actionsWithRelationships Map of actions with relationship data
+     * @return List of actions with relationship data merged
+     */
+    private static List<PendingHITLAction__c> mergeRelationshipData(List<PendingHITLAction__c> actions, Map<Id, PendingHITLAction__c> actionsWithRelationships) {
+        List<PendingHITLAction__c> mergedActions = new List<PendingHITLAction__c>();
+        for (PendingHITLAction__c action : actions) {
+            PendingHITLAction__c actionWithRelationship = actionsWithRelationships.get(action.Id);
+            if (actionWithRelationship != null) {
+                mergedActions.add(actionWithRelationship);
+            } else {
+                mergedActions.add(action);
+            }
+        }
+        return mergedActions;
+    }
+
+    /**
+     * @description Determines if a notification should be sent based on the capability's notification preference.
+     * @param action The PendingHITLAction__c record (must have AIAgentCapability__r.HITLNotificationPreference__c populated)
+     * @param eventType The type of event: HITLGatewayService.NOTIFICATION_TYPE_APPROVAL, NOTIFICATION_TYPE_REJECTION, or NOTIFICATION_TYPE_ERROR
+     * @return True if notification should be sent, false otherwise
+     */
+    private static Boolean shouldSendNotification(PendingHITLAction__c action, String eventType) {
+        String preference = action.AIAgentCapability__r?.HITLNotificationPreference__c;
+        return HITLGatewayService.shouldSendHITLNotification(preference, eventType);
     }
 }

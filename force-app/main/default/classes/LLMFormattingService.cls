@@ -697,12 +697,12 @@ public inherited sharing class LLMFormattingService {
 
         messageMap.put('tool_calls', toolCalls);
 
-        // Include content if available, otherwise set to null (required by some LLM APIs)
+        // Include content if available, otherwise omit the field entirely
+        // OpenAI API rejects null content - must either be a string or omitted
         if (String.isNotBlank(content)) {
             messageMap.put('content', content);
-        } else {
-            messageMap.put('content', null);
         }
+        // If content is blank, omit the field - tool_calls are sufficient for assistant messages
 
         System.debug(
             LoggingLevel.DEBUG,
@@ -736,7 +736,12 @@ public inherited sharing class LLMFormattingService {
 
         // Handle content based on step type
         if ('UserInput'.equals(step.StepType__c) || 'AgentResponse'.equals(step.StepType__c)) {
-            // Direct content for user input and agent responses
+            // User input and agent responses require content - skip if null/blank
+            // OpenAI API rejects messages with null content
+            if (String.isBlank(step.Content__c)) {
+                System.debug(LoggingLevel.DEBUG, debugPrefix + 'Skipping ' + step.StepType__c + ' step with blank content');
+                return null; // Skip this message entirely
+            }
             messageMap.put('content', step.Content__c);
         } else if ('ToolCall'.equals(step.StepType__c)) {
             // Format tool calls similar to ChatMessage format
@@ -750,24 +755,37 @@ public inherited sharing class LLMFormattingService {
                 toolCalls.add(toolCall);
                 messageMap.put('tool_calls', toolCalls);
 
-                // Include content if available
+                // Include content if available, otherwise omit the field entirely
+                // OpenAI API rejects null content - tool_calls are sufficient without content
                 if (String.isNotBlank(step.Content__c)) {
                     messageMap.put('content', step.Content__c);
-                } else {
-                    messageMap.put('content', null); // Required by some LLM APIs
                 }
+                // If content is blank, omit the field - tool_calls are sufficient for assistant messages
             } else {
                 // Fallback to content if tool call details are incomplete
+                // Skip if content is also blank
+                if (String.isBlank(step.Content__c)) {
+                    System.debug(LoggingLevel.DEBUG, debugPrefix + 'Skipping ToolCall step with incomplete tool details and blank content');
+                    return null;
+                }
                 messageMap.put('content', step.Content__c);
             }
         } else if ('ToolResult'.equals(step.StepType__c)) {
-            // Format tool results
+            // Format tool results - content is required
+            if (String.isBlank(step.ToolResult__c)) {
+                System.debug(LoggingLevel.DEBUG, debugPrefix + 'Skipping ToolResult step with blank result');
+                return null; // Skip if no result content
+            }
             messageMap.put('content', step.ToolResult__c);
             if (String.isNotBlank(step.ToolCallId__c)) {
                 messageMap.put('tool_call_id', step.ToolCallId__c);
             }
         } else {
-            // Default to content for other step types
+            // Default to content for other step types - skip if blank
+            if (String.isBlank(step.Content__c)) {
+                System.debug(LoggingLevel.DEBUG, debugPrefix + 'Skipping step type ' + step.StepType__c + ' with blank content');
+                return null;
+            }
             messageMap.put('content', step.Content__c);
         }
 
