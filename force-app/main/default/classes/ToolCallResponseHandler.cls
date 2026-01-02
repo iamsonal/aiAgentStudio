@@ -32,7 +32,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         public String toolArguments;
         public AgentCapability__c capability;
         public Boolean isAsync;
-        public String hitlMode; // None, Confirmation, Approval
+        public String hitlMode; // Blank/null (no HITL), Confirmation, Approval, ConfirmationThenApproval
         public Integer executionOrder;
         public String rationale;
 
