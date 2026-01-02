@@ -169,15 +169,7 @@ public inherited sharing class LLMFormattingService {
 
         try {
             List<AgentCapability__c> capabilities = [
-                SELECT
-                    Id,
-                    CapabilityName__c,
-                    Description__c,
-                    Parameters__c,
-                    HITLMode__c,
-                    ImplementationType__c,
-                    StandardActionType__c,
-                    BackendConfiguration__c
+                SELECT Id, CapabilityName__c, Description__c, Parameters__c, HITLMode__c, ImplementationType__c, StandardActionType__c, BackendConfiguration__c
                 FROM AgentCapability__c
                 WHERE AIAgentDefinition__c = :agentDefinitionId AND ExposureLevel__c = 'External'
                 ORDER BY CapabilityName__c ASC
@@ -206,7 +198,10 @@ public inherited sharing class LLMFormattingService {
                     String confirmationSuffix = '\n\nRequires user confirmation before execution.';
                     if (!capabilityDesc.containsIgnoreCase('confirm') && !capabilityDesc.containsIgnoreCase('approval')) {
                         capabilityDesc += confirmationSuffix;
-                        System.debug(LoggingLevel.DEBUG, debugPrefix + 'Injected confirmation prompt for capability: ' + capabilityName + ' (HITLMode=' + hitlMode + ')');
+                        System.debug(
+                            LoggingLevel.DEBUG,
+                            debugPrefix + 'Injected confirmation prompt for capability: ' + capabilityName + ' (HITLMode=' + hitlMode + ')'
+                        );
                     }
                 }
 
@@ -567,8 +562,7 @@ public inherited sharing class LLMFormattingService {
                     pendingToolResults.remove(resolvedId);
                     pendingToolCallIds.remove(resolvedId);
                 }
-            }
-            else if ('tool'.equals(role)) {
+            } else if ('tool'.equals(role)) {
                 // Tool result message
                 String toolCallId = (String) msg.get('tool_call_id');
 
@@ -585,8 +579,7 @@ public inherited sharing class LLMFormattingService {
                         reorderedMessages.add(msg);
                     }
                 }
-            }
-            else {
+            } else {
                 // Regular message (user, assistant without tool_calls, system)
                 if (pendingToolCallIds.isEmpty()) {
                     // No pending tool_calls - add message normally
@@ -609,9 +602,15 @@ public inherited sharing class LLMFormattingService {
 
                     if (foundMatchingToolResult) {
                         // Defer this message until after tool results are processed
-                        System.debug(LoggingLevel.INFO, debugPrefix +
-                            'Deferring ' + role + ' message to maintain tool_call → tool_result sequence. ' +
-                            'Pending tool_call_ids: ' + pendingToolCallIds);
+                        System.debug(
+                            LoggingLevel.INFO,
+                            debugPrefix +
+                                'Deferring ' +
+                                role +
+                                ' message to maintain tool_call → tool_result sequence. ' +
+                                'Pending tool_call_ids: ' +
+                                pendingToolCallIds
+                        );
                         // We'll add this message later - for now, skip it
                         continue;
                     } else {
@@ -628,9 +627,15 @@ public inherited sharing class LLMFormattingService {
         }
 
         if (reorderedMessages.size() != messages.size()) {
-            System.debug(LoggingLevel.WARN, debugPrefix +
-                'Message reordering resulted in different count. Original: ' + messages.size() +
-                ', Reordered: ' + reorderedMessages.size() + '. Some messages may have been deferred.');
+            System.debug(
+                LoggingLevel.WARN,
+                debugPrefix +
+                    'Message reordering resulted in different count. Original: ' +
+                    messages.size() +
+                    ', Reordered: ' +
+                    reorderedMessages.size() +
+                    '. Some messages may have been deferred.'
+            );
         } else if (reorderedMessages.size() == messages.size()) {
             // Check if any reordering actually happened
             Boolean wasReordered = false;
@@ -642,8 +647,7 @@ public inherited sharing class LLMFormattingService {
             }
 
             if (wasReordered) {
-                System.debug(LoggingLevel.INFO, debugPrefix +
-                    'Reordered messages to ensure valid tool_call → tool_result sequence.');
+                System.debug(LoggingLevel.INFO, debugPrefix + 'Reordered messages to ensure valid tool_call → tool_result sequence.');
             }
         }
 

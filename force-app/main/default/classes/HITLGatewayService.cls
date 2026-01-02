@@ -41,7 +41,6 @@
  * }
  */
 public with sharing class HITLGatewayService {
-
     // =============================================================================
     // CONSTANTS
     // =============================================================================
@@ -70,12 +69,14 @@ public with sharing class HITLGatewayService {
     /**
      * @description Exception thrown when HITL configuration is invalid.
      */
-    public class HITLConfigurationException extends Exception {}
+    public class HITLConfigurationException extends Exception {
+    }
 
     /**
      * @description Exception thrown when HITL processing fails.
      */
-    public class HITLProcessingException extends Exception {}
+    public class HITLProcessingException extends Exception {
+    }
 
     // =============================================================================
     // DATA TRANSFER OBJECTS
@@ -108,16 +109,19 @@ public with sharing class HITLGatewayService {
         public void validate() {
             List<String> missingFields = new List<String>();
 
-            if (this.capability == null) missingFields.add('capability');
-            if (this.agentDefinition == null) missingFields.add('agentDefinition');
-            if (this.executionId == null) missingFields.add('executionId');
-            if (String.isBlank(this.turnIdentifier)) missingFields.add('turnIdentifier');
-            if (String.isBlank(this.toolCallId)) missingFields.add('toolCallId');
+            if (this.capability == null)
+                missingFields.add('capability');
+            if (this.agentDefinition == null)
+                missingFields.add('agentDefinition');
+            if (this.executionId == null)
+                missingFields.add('executionId');
+            if (String.isBlank(this.turnIdentifier))
+                missingFields.add('turnIdentifier');
+            if (String.isBlank(this.toolCallId))
+                missingFields.add('toolCallId');
 
             if (!missingFields.isEmpty()) {
-                throw new HITLConfigurationException(
-                    'HITLContext validation failed. Missing required fields: ' + String.join(missingFields, ', ')
-                );
+                throw new HITLConfigurationException('HITLContext validation failed. Missing required fields: ' + String.join(missingFields, ', '));
             }
         }
     }
@@ -288,9 +292,16 @@ public with sharing class HITLGatewayService {
             hitlMode = null;
         }
 
-        System.debug(LoggingLevel.DEBUG, debugPrefix + 'Evaluating HITL for capability: ' +
-            context.capability.CapabilityName__c + ', HITLMode: ' + hitlMode +
-            ', AgentType: ' + context.agentDefinition.AgentType__c);
+        System.debug(
+            LoggingLevel.DEBUG,
+            debugPrefix +
+                'Evaluating HITL for capability: ' +
+                context.capability.CapabilityName__c +
+                ', HITLMode: ' +
+                hitlMode +
+                ', AgentType: ' +
+                context.agentDefinition.AgentType__c
+        );
 
         // No HITL required
         if (hitlMode == null) {
@@ -302,17 +313,26 @@ public with sharing class HITLGatewayService {
         // No system enforcement needed - the LLM will ask the user before executing
         if (hitlMode == HITL_MODE_CONFIRMATION) {
             if (context.agentDefinition.AgentType__c != AGENT_TYPE_CONVERSATIONAL) {
-                String errorMsg = 'Confirmation mode is only supported for Conversational agents. ' +
-                    'Capability "' + context.capability.CapabilityName__c + '" has HITLMode=Confirmation ' +
-                    'but agent "' + context.agentDefinition.DeveloperName__c + '" is type "' +
-                    context.agentDefinition.AgentType__c + '". Use Approval mode instead or change agent type.';
+                String errorMsg =
+                    'Confirmation mode is only supported for Conversational agents. ' +
+                    'Capability "' +
+                    context.capability.CapabilityName__c +
+                    '" has HITLMode=Confirmation ' +
+                    'but agent "' +
+                    context.agentDefinition.DeveloperName__c +
+                    '" is type "' +
+                    context.agentDefinition.AgentType__c +
+                    '". Use Approval mode instead or change agent type.';
                 System.debug(LoggingLevel.ERROR, debugPrefix + errorMsg);
                 return createInvalidConfigDecision(errorMsg);
             }
 
             if (context.capability.RunAsynchronously__c == true) {
-                String errorMsg = 'Confirmation mode cannot be used with asynchronous tools. ' +
-                    'Capability "' + context.capability.CapabilityName__c + '" has both HITLMode=Confirmation ' +
+                String errorMsg =
+                    'Confirmation mode cannot be used with asynchronous tools. ' +
+                    'Capability "' +
+                    context.capability.CapabilityName__c +
+                    '" has both HITLMode=Confirmation ' +
                     'and RunAsynchronously=true. Use Approval mode for async tools requiring human oversight.';
                 System.debug(LoggingLevel.ERROR, debugPrefix + errorMsg);
                 return createInvalidConfigDecision(errorMsg);
@@ -328,17 +348,26 @@ public with sharing class HITLGatewayService {
         // This requires system intervention for the approval part
         if (hitlMode == HITL_MODE_CONFIRMATION_THEN_APPROVAL) {
             if (context.agentDefinition.AgentType__c != AGENT_TYPE_CONVERSATIONAL) {
-                String errorMsg = 'ConfirmationThenApproval mode is only supported for Conversational agents. ' +
-                    'Capability "' + context.capability.CapabilityName__c + '" has HITLMode=ConfirmationThenApproval ' +
-                    'but agent "' + context.agentDefinition.DeveloperName__c + '" is type "' +
-                    context.agentDefinition.AgentType__c + '". Use Approval mode instead.';
+                String errorMsg =
+                    'ConfirmationThenApproval mode is only supported for Conversational agents. ' +
+                    'Capability "' +
+                    context.capability.CapabilityName__c +
+                    '" has HITLMode=ConfirmationThenApproval ' +
+                    'but agent "' +
+                    context.agentDefinition.DeveloperName__c +
+                    '" is type "' +
+                    context.agentDefinition.AgentType__c +
+                    '". Use Approval mode instead.';
                 System.debug(LoggingLevel.ERROR, debugPrefix + errorMsg);
                 return createInvalidConfigDecision(errorMsg);
             }
 
             if (context.capability.RunAsynchronously__c == true) {
-                String errorMsg = 'ConfirmationThenApproval mode cannot be used with asynchronous tools. ' +
-                    'Capability "' + context.capability.CapabilityName__c + '" has both HITLMode=ConfirmationThenApproval ' +
+                String errorMsg =
+                    'ConfirmationThenApproval mode cannot be used with asynchronous tools. ' +
+                    'Capability "' +
+                    context.capability.CapabilityName__c +
+                    '" has both HITLMode=ConfirmationThenApproval ' +
                     'and RunAsynchronously=true. Use Approval mode for async tools requiring human oversight.';
                 System.debug(LoggingLevel.ERROR, debugPrefix + errorMsg);
                 return createInvalidConfigDecision(errorMsg);
@@ -356,8 +385,12 @@ public with sharing class HITLGatewayService {
         }
 
         // Unknown mode - treat as configuration error
-        String errorMsg = 'Unknown HITLMode value: "' + hitlMode + '" for capability "' +
-            context.capability.CapabilityName__c + '". Valid values are: None, Confirmation, Approval, ConfirmationThenApproval.';
+        String errorMsg =
+            'Unknown HITLMode value: "' +
+            hitlMode +
+            '" for capability "' +
+            context.capability.CapabilityName__c +
+            '". Valid values are: None, Confirmation, Approval, ConfirmationThenApproval.';
         System.debug(LoggingLevel.ERROR, debugPrefix + errorMsg);
         return createInvalidConfigDecision(errorMsg);
     }
@@ -398,8 +431,7 @@ public with sharing class HITLGatewayService {
                 return createFailureResult('Unknown HITL mode: ' + decision.hitlMode);
             }
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, debugPrefix + 'Failed to initiate HITL: ' + e.getMessage() +
-                '\n' + e.getStackTraceString());
+            System.debug(LoggingLevel.ERROR, debugPrefix + 'Failed to initiate HITL: ' + e.getMessage() + '\n' + e.getStackTraceString());
             return createFailureResult('Failed to initiate HITL workflow: ' + e.getMessage());
         }
     }
@@ -438,8 +470,12 @@ public with sharing class HITLGatewayService {
         try {
             Approval.ProcessSubmitRequest approvalRequest = new Approval.ProcessSubmitRequest();
             approvalRequest.setObjectId(pendingAction.Id);
-            approvalRequest.setComments('AI Agent action requires approval (user confirmed in chat). Tool: ' + context.capability.CapabilityName__c +
-                '. Justification: ' + approvalPrompt);
+            approvalRequest.setComments(
+                'AI Agent action requires approval (user confirmed in chat). Tool: ' +
+                    context.capability.CapabilityName__c +
+                    '. Justification: ' +
+                    approvalPrompt
+            );
 
             Approval.ProcessResult approvalResult = Approval.process(approvalRequest);
 
@@ -448,16 +484,21 @@ public with sharing class HITLGatewayService {
                 // Use Database.update with allOrNone=false to handle record locking gracefully
                 pendingAction.ApprovalProcessInstanceId__c = approvalResult.getInstanceId();
                 Database.SaveResult saveResult = Database.update(pendingAction, false);
-                
+
                 if (!saveResult.isSuccess()) {
                     // Log the update failure but don't fail the entire approval process
-                    System.debug(LoggingLevel.WARN, debugPrefix + 'Could not update ApprovalProcessInstanceId due to record lock (this is expected): ' + 
-                        saveResult.getErrors()[0].getMessage());
-                    System.debug(LoggingLevel.INFO, debugPrefix + 'Approval process submitted successfully despite update failure. Instance ID: ' +
-                        approvalResult.getInstanceId());
+                    System.debug(
+                        LoggingLevel.WARN,
+                        debugPrefix +
+                            'Could not update ApprovalProcessInstanceId due to record lock (this is expected): ' +
+                            saveResult.getErrors()[0].getMessage()
+                    );
+                    System.debug(
+                        LoggingLevel.INFO,
+                        debugPrefix + 'Approval process submitted successfully despite update failure. Instance ID: ' + approvalResult.getInstanceId()
+                    );
                 } else {
-                    System.debug(LoggingLevel.INFO, debugPrefix + 'Submitted to approval process. Instance ID: ' +
-                        approvalResult.getInstanceId());
+                    System.debug(LoggingLevel.INFO, debugPrefix + 'Submitted to approval process. Instance ID: ' + approvalResult.getInstanceId());
                 }
 
                 return createSuccessResult(pendingAction.Id, approvalPrompt, HITL_MODE_CONFIRMATION_THEN_APPROVAL, null);
@@ -473,8 +514,10 @@ public with sharing class HITLGatewayService {
                 // Use Database.delete with allOrNone=false to handle potential locks
                 Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
                 if (!deleteResult.isSuccess()) {
-                    System.debug(LoggingLevel.WARN, debugPrefix + 'Could not delete PendingHITLAction after approval failure: ' + 
-                        deleteResult.getErrors()[0].getMessage());
+                    System.debug(
+                        LoggingLevel.WARN,
+                        debugPrefix + 'Could not delete PendingHITLAction after approval failure: ' + deleteResult.getErrors()[0].getMessage()
+                    );
                 }
 
                 return createFailureResult('Failed to submit to approval process: ' + errors);
@@ -486,8 +529,10 @@ public with sharing class HITLGatewayService {
             try {
                 Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
                 if (!deleteResult.isSuccess()) {
-                    System.debug(LoggingLevel.WARN, debugPrefix + 'Could not delete PendingHITLAction after exception: ' + 
-                        deleteResult.getErrors()[0].getMessage());
+                    System.debug(
+                        LoggingLevel.WARN,
+                        debugPrefix + 'Could not delete PendingHITLAction after exception: ' + deleteResult.getErrors()[0].getMessage()
+                    );
                 }
             } catch (Exception deleteEx) {
                 System.debug(LoggingLevel.WARN, debugPrefix + 'Exception during cleanup delete: ' + deleteEx.getMessage());
@@ -529,8 +574,9 @@ public with sharing class HITLGatewayService {
         try {
             Approval.ProcessSubmitRequest approvalRequest = new Approval.ProcessSubmitRequest();
             approvalRequest.setObjectId(pendingAction.Id);
-            approvalRequest.setComments('AI Agent action requires approval. Tool: ' + context.capability.CapabilityName__c +
-                '. Justification: ' + approvalPrompt);
+            approvalRequest.setComments(
+                'AI Agent action requires approval. Tool: ' + context.capability.CapabilityName__c + '. Justification: ' + approvalPrompt
+            );
 
             Approval.ProcessResult approvalResult = Approval.process(approvalRequest);
 
@@ -539,16 +585,21 @@ public with sharing class HITLGatewayService {
                 // Use Database.update with allOrNone=false to handle record locking gracefully
                 pendingAction.ApprovalProcessInstanceId__c = approvalResult.getInstanceId();
                 Database.SaveResult saveResult = Database.update(pendingAction, false);
-                
+
                 if (!saveResult.isSuccess()) {
                     // Log the update failure but don't fail the entire approval process
-                    System.debug(LoggingLevel.WARN, debugPrefix + 'Could not update ApprovalProcessInstanceId due to record lock (this is expected): ' + 
-                        saveResult.getErrors()[0].getMessage());
-                    System.debug(LoggingLevel.INFO, debugPrefix + 'Approval process submitted successfully despite update failure. Instance ID: ' +
-                        approvalResult.getInstanceId());
+                    System.debug(
+                        LoggingLevel.WARN,
+                        debugPrefix +
+                            'Could not update ApprovalProcessInstanceId due to record lock (this is expected): ' +
+                            saveResult.getErrors()[0].getMessage()
+                    );
+                    System.debug(
+                        LoggingLevel.INFO,
+                        debugPrefix + 'Approval process submitted successfully despite update failure. Instance ID: ' + approvalResult.getInstanceId()
+                    );
                 } else {
-                    System.debug(LoggingLevel.INFO, debugPrefix + 'Submitted to approval process. Instance ID: ' +
-                        approvalResult.getInstanceId());
+                    System.debug(LoggingLevel.INFO, debugPrefix + 'Submitted to approval process. Instance ID: ' + approvalResult.getInstanceId());
                 }
 
                 return createSuccessResult(pendingAction.Id, approvalPrompt, HITL_MODE_APPROVAL, null);
@@ -564,8 +615,10 @@ public with sharing class HITLGatewayService {
                 // Use Database.delete with allOrNone=false to handle potential locks
                 Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
                 if (!deleteResult.isSuccess()) {
-                    System.debug(LoggingLevel.WARN, debugPrefix + 'Could not delete PendingHITLAction after approval failure: ' + 
-                        deleteResult.getErrors()[0].getMessage());
+                    System.debug(
+                        LoggingLevel.WARN,
+                        debugPrefix + 'Could not delete PendingHITLAction after approval failure: ' + deleteResult.getErrors()[0].getMessage()
+                    );
                 }
 
                 return createFailureResult('Failed to submit to approval process: ' + errors);
@@ -577,8 +630,10 @@ public with sharing class HITLGatewayService {
             try {
                 Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
                 if (!deleteResult.isSuccess()) {
-                    System.debug(LoggingLevel.WARN, debugPrefix + 'Could not delete PendingHITLAction after exception: ' + 
-                        deleteResult.getErrors()[0].getMessage());
+                    System.debug(
+                        LoggingLevel.WARN,
+                        debugPrefix + 'Could not delete PendingHITLAction after exception: ' + deleteResult.getErrors()[0].getMessage()
+                    );
                 }
             } catch (Exception deleteEx) {
                 System.debug(LoggingLevel.WARN, debugPrefix + 'Exception during cleanup delete: ' + deleteEx.getMessage());
@@ -601,20 +656,24 @@ public with sharing class HITLGatewayService {
      * @param comment Approver's comment
      * @return HITLResolutionResult indicating whether to proceed with execution
      */
-    public static HITLResolutionResult resolveApproval(
-        Id pendingActionId,
-        Boolean approved,
-        Id approverId,
-        String comment
-    ) {
+    public static HITLResolutionResult resolveApproval(Id pendingActionId, Boolean approved, Id approverId, String comment) {
         String debugPrefix = LOG_PREFIX + '[resolveApproval] ';
         HITLResolutionResult result = new HITLResolutionResult();
 
         try {
             List<PendingHITLAction__c> actions = [
-                SELECT Id, Status__c, HITLType__c, ToolCallId__c, ToolName__c, ToolArgumentsJSON__c,
-                       AIAgentCapability__c, AgentExecution__c, TurnIdentifier__c, TurnCount__c,
-                       RequestingUser__c
+                SELECT
+                    Id,
+                    Status__c,
+                    HITLType__c,
+                    ToolCallId__c,
+                    ToolName__c,
+                    ToolArgumentsJSON__c,
+                    AIAgentCapability__c,
+                    AgentExecution__c,
+                    TurnIdentifier__c,
+                    TurnCount__c,
+                    RequestingUser__c
                 FROM PendingHITLAction__c
                 WHERE Id = :pendingActionId
                 FOR UPDATE
@@ -630,8 +689,11 @@ public with sharing class HITLGatewayService {
 
             // Validate this is an Approval or ConfirmationThenApproval type
             if (action.HITLType__c != HITL_MODE_APPROVAL && action.HITLType__c != HITL_MODE_CONFIRMATION_THEN_APPROVAL) {
-                result.errorMessage = 'Cannot resolve action with resolveApproval. ' +
-                    'Action type is: ' + action.HITLType__c + '. Expected Approval or ConfirmationThenApproval.';
+                result.errorMessage =
+                    'Cannot resolve action with resolveApproval. ' +
+                    'Action type is: ' +
+                    action.HITLType__c +
+                    '. Expected Approval or ConfirmationThenApproval.';
                 System.debug(LoggingLevel.ERROR, debugPrefix + result.errorMessage);
                 return result;
             }
@@ -665,7 +727,6 @@ public with sharing class HITLGatewayService {
             }
 
             return result;
-
         } catch (Exception e) {
             result.errorMessage = 'Error resolving approval: ' + e.getMessage();
             System.debug(LoggingLevel.ERROR, debugPrefix + result.errorMessage + '\n' + e.getStackTraceString());
@@ -685,11 +746,28 @@ public with sharing class HITLGatewayService {
      */
     public static PendingHITLAction__c getPendingAction(Id pendingActionId) {
         List<PendingHITLAction__c> actions = [
-            SELECT Id, Name, Status__c, HITLType__c, ToolCallId__c, ToolName__c, ToolArgumentsJSON__c,
-                   ConfirmationPrompt__c, AIAgentCapability__c, AIAgentCapability__r.CapabilityName__c,
-                   AgentExecution__c, TurnIdentifier__c, TurnCount__c, ExpiresAt__c,
-                   RequestedAt__c, ResolvedAt__c, ResolvedBy__c, ResolutionComment__c,
-                   RequestingUser__c, SourceRecordId__c, ApprovalProcessInstanceId__c
+            SELECT
+                Id,
+                Name,
+                Status__c,
+                HITLType__c,
+                ToolCallId__c,
+                ToolName__c,
+                ToolArgumentsJSON__c,
+                ConfirmationPrompt__c,
+                AIAgentCapability__c,
+                AIAgentCapability__r.CapabilityName__c,
+                AgentExecution__c,
+                TurnIdentifier__c,
+                TurnCount__c,
+                ExpiresAt__c,
+                RequestedAt__c,
+                ResolvedAt__c,
+                ResolvedBy__c,
+                ResolutionComment__c,
+                RequestingUser__c,
+                SourceRecordId__c,
+                ApprovalProcessInstanceId__c
             FROM PendingHITLAction__c
             WHERE Id = :pendingActionId
             LIMIT 1
@@ -705,14 +783,29 @@ public with sharing class HITLGatewayService {
      */
     public static List<PendingHITLAction__c> getPendingActionsForExecution(Id executionId) {
         return [
-            SELECT Id, Name, Status__c, HITLType__c, ToolCallId__c, ToolName__c, ToolArgumentsJSON__c,
-                   ConfirmationPrompt__c, AIAgentCapability__c, AIAgentCapability__r.CapabilityName__c,
-                   AgentExecution__c, TurnIdentifier__c, TurnCount__c, ExpiresAt__c,
-                   RequestedAt__c, ResolvedAt__c, ResolvedBy__c, ResolutionComment__c,
-                   RequestingUser__c, SourceRecordId__c
+            SELECT
+                Id,
+                Name,
+                Status__c,
+                HITLType__c,
+                ToolCallId__c,
+                ToolName__c,
+                ToolArgumentsJSON__c,
+                ConfirmationPrompt__c,
+                AIAgentCapability__c,
+                AIAgentCapability__r.CapabilityName__c,
+                AgentExecution__c,
+                TurnIdentifier__c,
+                TurnCount__c,
+                ExpiresAt__c,
+                RequestedAt__c,
+                ResolvedAt__c,
+                ResolvedBy__c,
+                ResolutionComment__c,
+                RequestingUser__c,
+                SourceRecordId__c
             FROM PendingHITLAction__c
-            WHERE AgentExecution__c = :executionId
-            AND Status__c = :STATUS_PENDING
+            WHERE AgentExecution__c = :executionId AND Status__c = :STATUS_PENDING
             ORDER BY RequestedAt__c ASC
         ];
     }
@@ -725,11 +818,10 @@ public with sharing class HITLGatewayService {
      */
     public static Boolean hasPendingActions(Id executionId) {
         return [
-            SELECT COUNT()
-            FROM PendingHITLAction__c
-            WHERE AgentExecution__c = :executionId
-            AND Status__c = :STATUS_PENDING
-        ] > 0;
+                SELECT COUNT()
+                FROM PendingHITLAction__c
+                WHERE AgentExecution__c = :executionId AND Status__c = :STATUS_PENDING
+            ] > 0;
     }
     // =============================================================================
     // PRIVATE HELPER METHODS

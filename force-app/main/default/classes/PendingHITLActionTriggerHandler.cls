@@ -17,7 +17,6 @@
  * AI Agent Framework's execution flow.
  */
 public with sharing class PendingHITLActionTriggerHandler {
-
     private static final String LOG_PREFIX = '[PendingHITLActionHandler] ';
 
     /**
@@ -27,16 +26,14 @@ public with sharing class PendingHITLActionTriggerHandler {
      * @param newRecords List of updated PendingHITLAction__c records
      * @param oldMap Map of old record versions
      */
-    public static void handleAfterUpdate(
-        List<PendingHITLAction__c> newRecords,
-        Map<Id, PendingHITLAction__c> oldMap
-    ) {
+    public static void handleAfterUpdate(List<PendingHITLAction__c> newRecords, Map<Id, PendingHITLAction__c> oldMap) {
         List<PendingHITLAction__c> confirmedActions = new List<PendingHITLAction__c>();
         List<PendingHITLAction__c> declinedActions = new List<PendingHITLAction__c>();
         List<PendingHITLAction__c> approvedActions = new List<PendingHITLAction__c>();
         List<PendingHITLAction__c> rejectedActions = new List<PendingHITLAction__c>();
         List<PendingHITLAction__c> expiredActions = new List<PendingHITLAction__c>();
         List<PendingHITLAction__c> recordsToUpdate = new List<PendingHITLAction__c>();
+        Set<Id> recordsNeedingApprovalComments = new Set<Id>();
 
         for (PendingHITLAction__c newRecord : newRecords) {
             PendingHITLAction__c oldRecord = oldMap.get(newRecord.Id);
@@ -47,15 +44,11 @@ public with sharing class PendingHITLActionTriggerHandler {
             }
 
             String newStatus = newRecord.Status__c;
-            System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Status changed for ' + newRecord.Id +
-                ': ' + oldRecord.Status__c + ' → ' + newStatus);
+            System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Status changed for ' + newRecord.Id + ': ' + oldRecord.Status__c + ' → ' + newStatus);
 
             // Populate ResolvedAt__c and ResolvedBy__c for all resolved statuses
             if (isResolvedStatus(newStatus)) {
-                PendingHITLAction__c recordToUpdate = new PendingHITLAction__c(
-                    Id = newRecord.Id,
-                    ResolvedAt__c = Datetime.now()
-                );
+                PendingHITLAction__c recordToUpdate = new PendingHITLAction__c(Id = newRecord.Id, ResolvedAt__c = Datetime.now());
 
                 // Set ResolvedBy__c based on resolution type
                 if (newStatus == HITLGatewayService.STATUS_EXPIRED) {
@@ -67,6 +60,11 @@ public with sharing class PendingHITLActionTriggerHandler {
                 }
 
                 recordsToUpdate.add(recordToUpdate);
+
+                // For Approved/Rejected, we need to capture approval comments
+                if (newStatus == HITLGatewayService.STATUS_APPROVED || newStatus == HITLGatewayService.STATUS_REJECTED) {
+                    recordsNeedingApprovalComments.add(newRecord.Id);
+                }
             }
 
             // Route to appropriate handler based on new status
@@ -83,12 +81,16 @@ public with sharing class PendingHITLActionTriggerHandler {
             }
         }
 
+        // Capture approval comments for approved/rejected records
+        if (!recordsNeedingApprovalComments.isEmpty()) {
+            captureApprovalComments(recordsNeedingApprovalComments, recordsToUpdate);
+        }
+
         // Update ResolvedAt__c and ResolvedBy__c fields
         if (!recordsToUpdate.isEmpty()) {
             try {
                 update recordsToUpdate;
-                System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Updated resolution tracking for ' +
-                    recordsToUpdate.size() + ' record(s)');
+                System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Updated resolution tracking for ' + recordsToUpdate.size() + ' record(s)');
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Failed to update resolution tracking: ' + e.getMessage());
                 // Don't throw - this is audit data, shouldn't block the main flow
@@ -120,10 +122,80 @@ public with sharing class PendingHITLActionTriggerHandler {
      */
     private static Boolean isResolvedStatus(String status) {
         return status == HITLGatewayService.STATUS_CONFIRMED ||
-               status == HITLGatewayService.STATUS_DECLINED ||
-               status == HITLGatewayService.STATUS_APPROVED ||
-               status == HITLGatewayService.STATUS_REJECTED ||
-               status == HITLGatewayService.STATUS_EXPIRED;
+            status == HITLGatewayService.STATUS_DECLINED ||
+            status == HITLGatewayService.STATUS_APPROVED ||
+            status == HITLGatewayService.STATUS_REJECTED ||
+            status == HITLGatewayService.STATUS_EXPIRED;
+    }
+
+    /**
+     * @description Captures approval comments and ProcessInstance ID from ProcessInstanceStep and updates PendingHITLAction records.
+     * When an approver approves/rejects a record, they can add comments. These comments are stored in
+     * ProcessInstanceStep.Comments, and we need to copy them to PendingHITLAction__c.ResolutionComment__c.
+     * Also populates ApprovalProcessInstanceId__c if not already set.
+     *
+     * @param recordIds Set of PendingHITLAction__c IDs that need approval comments
+     * @param recordsToUpdate List of records being updated (to add ResolutionComment__c updates)
+     */
+    private static void captureApprovalComments(Set<Id> recordIds, List<PendingHITLAction__c> recordsToUpdate) {
+        String logPrefix = LOG_PREFIX + '[captureApprovalComments] ';
+
+        try {
+            // Query ProcessInstance records for our target objects, then get the steps with comments
+            // ProcessInstanceStep contains the approval/rejection comments
+            List<ProcessInstance> processInstances = [
+                SELECT
+                    Id,
+                    TargetObjectId,
+                    (
+                        SELECT Id, Comments, StepStatus, ActorId, CreatedDate
+                        FROM StepsAndWorkitems
+                        WHERE StepStatus IN ('Approved', 'Rejected')
+                        ORDER BY CreatedDate DESC
+                    )
+                FROM ProcessInstance
+                WHERE TargetObjectId IN :recordIds AND Status IN ('Approved', 'Rejected')
+            ];
+
+            // Build maps for record ID to comment and ProcessInstance ID
+            Map<Id, String> recordIdToComment = new Map<Id, String>();
+            Map<Id, Id> recordIdToProcessInstanceId = new Map<Id, Id>();
+
+            for (ProcessInstance pi : processInstances) {
+                // Always capture the ProcessInstance ID
+                recordIdToProcessInstanceId.put(pi.TargetObjectId, pi.Id);
+
+                if (pi.StepsAndWorkitems != null && !pi.StepsAndWorkitems.isEmpty()) {
+                    for (ProcessInstanceHistory step : pi.StepsAndWorkitems) {
+                        // Only capture if there's a comment and we haven't captured one for this record yet
+                        if (String.isNotBlank(step.Comments) && !recordIdToComment.containsKey(pi.TargetObjectId)) {
+                            recordIdToComment.put(pi.TargetObjectId, step.Comments);
+                            break; // Got the most recent comment, move to next process instance
+                        }
+                    }
+                }
+            }
+
+            // Update the recordsToUpdate list with resolution comments and ProcessInstance ID
+            for (PendingHITLAction__c record : recordsToUpdate) {
+                if (recordIdToComment.containsKey(record.Id)) {
+                    record.ResolutionComment__c = recordIdToComment.get(record.Id);
+                }
+                if (recordIdToProcessInstanceId.containsKey(record.Id)) {
+                    record.ApprovalProcessInstanceId__c = recordIdToProcessInstanceId.get(record.Id);
+                }
+            }
+
+            if (!recordIdToComment.isEmpty()) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Captured approval comments for ' + recordIdToComment.size() + ' record(s)');
+            }
+            if (!recordIdToProcessInstanceId.isEmpty()) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Captured ProcessInstance IDs for ' + recordIdToProcessInstanceId.size() + ' record(s)');
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error capturing approval data: ' + e.getMessage());
+            // Don't throw - this is non-critical, shouldn't block approval processing
+        }
     }
 
     /**
@@ -137,8 +209,10 @@ public with sharing class PendingHITLActionTriggerHandler {
             try {
                 executeAndResumeFlow(action, logPrefix);
             } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing confirmed action ' +
-                    action.Id + ': ' + e.getMessage() + '\n' + e.getStackTraceString());
+                System.debug(
+                    LoggingLevel.ERROR,
+                    logPrefix + 'Error processing confirmed action ' + action.Id + ': ' + e.getMessage() + '\n' + e.getStackTraceString()
+                );
                 notifyUserOfError(action, 'Error executing confirmed action: ' + e.getMessage());
             }
         }
@@ -155,8 +229,7 @@ public with sharing class PendingHITLActionTriggerHandler {
             try {
                 resumeFlowWithDecline(action, logPrefix);
             } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing declined action ' +
-                    action.Id + ': ' + e.getMessage());
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing declined action ' + action.Id + ': ' + e.getMessage());
             }
         }
     }
@@ -174,8 +247,10 @@ public with sharing class PendingHITLActionTriggerHandler {
                 // Note: User notification will be sent by the REST API after actual execution
                 executeAndResumeFlow(action, logPrefix);
             } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing approved action ' +
-                    action.Id + ': ' + e.getMessage() + '\n' + e.getStackTraceString());
+                System.debug(
+                    LoggingLevel.ERROR,
+                    logPrefix + 'Error processing approved action ' + action.Id + ': ' + e.getMessage() + '\n' + e.getStackTraceString()
+                );
                 notifyUserOfError(action, 'Error executing approved action: ' + e.getMessage());
             }
         }
@@ -206,8 +281,7 @@ public with sharing class PendingHITLActionTriggerHandler {
                     );
                 }
             } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing rejected action ' +
-                    action.Id + ': ' + e.getMessage());
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing rejected action ' + action.Id + ': ' + e.getMessage());
             }
         }
     }
@@ -223,8 +297,7 @@ public with sharing class PendingHITLActionTriggerHandler {
             try {
                 resumeFlowWithExpiration(action, logPrefix);
             } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing expired action ' +
-                    action.Id + ': ' + e.getMessage());
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Error processing expired action ' + action.Id + ': ' + e.getMessage());
             }
         }
     }
@@ -247,20 +320,19 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         // Log decision step for approved action
         try {
-            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(
-                fullAction.AgentExecution__c,
-                fullAction.TurnIdentifier__c
-            );
+            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(fullAction.AgentExecution__c, fullAction.TurnIdentifier__c);
             decisionLogger.logResumeApprovedFrameworkAction(
                 'Resume Approved Framework Action',
                 'Tool "' + fullAction.ToolName__c + '" was approved and will now be executed',
-                JSON.serialize(new Map<String, Object>{
-                    'toolName' => fullAction.ToolName__c,
-                    'pendingActionId' => fullAction.Id,
-                    'approvedBy' => fullAction.ResolvedBy__c,
-                    'approvedAt' => fullAction.ResolvedAt__c,
-                    'resolutionComment' => fullAction.ResolutionComment__c
-                }),
+                JSON.serialize(
+                    new Map<String, Object>{
+                        'toolName' => fullAction.ToolName__c,
+                        'pendingActionId' => fullAction.Id,
+                        'approvedBy' => fullAction.ResolvedBy__c,
+                        'approvedAt' => fullAction.ResolvedAt__c,
+                        'resolutionComment' => fullAction.ResolutionComment__c
+                    }
+                ),
                 0L
             );
             decisionLogger.commitSteps();
@@ -276,10 +348,15 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         // Load execution to get user context and agent definition
         AgentExecution__c execution = [
-            SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c, CurrentTurnIdentifier__c,
-                   AIAgentDefinition__r.RequiresServiceUserContext__c,
-                   AIAgentDefinition__r.DeveloperName__c,
-                   AIAgentDefinition__r.AgentType__c
+            SELECT
+                Id,
+                User__c,
+                ServiceUser__c,
+                AIAgentDefinition__c,
+                CurrentTurnIdentifier__c,
+                AIAgentDefinition__r.RequiresServiceUserContext__c,
+                AIAgentDefinition__r.DeveloperName__c,
+                AIAgentDefinition__r.AgentType__c
             FROM AgentExecution__c
             WHERE Id = :fullAction.AgentExecution__c
             LIMIT 1
@@ -289,15 +366,15 @@ public with sharing class PendingHITLActionTriggerHandler {
         // This ensures the tool never executes in the approver's context
         // - If RequiresServiceUserContext__c = true: Execute as service user
         // - If RequiresServiceUserContext__c = false: Execute as original requesting user
-        
+
         Boolean requiresServiceUserContext = execution.AIAgentDefinition__r.RequiresServiceUserContext__c == true;
         Id targetUserId = requiresServiceUserContext ? execution.ServiceUser__c : execution.User__c;
-        
+
         if (targetUserId == null) {
             // No target user available - this shouldn't happen, but handle gracefully
             String userType = requiresServiceUserContext ? 'service user' : 'original user';
             System.debug(LoggingLevel.ERROR, logPrefix + 'ERROR: No ' + userType + ' available for tool execution. Cannot proceed.');
-            
+
             // Notify requesting user of the failure
             if (execution.User__c != null) {
                 NotificationService.sendUserNotification(
@@ -309,17 +386,20 @@ public with sharing class PendingHITLActionTriggerHandler {
             }
             return;
         }
-        
+
         // Check if follow-up LLM call will be needed (to optimize REST API execution)
         Boolean needsFollowUp = (execution.AIAgentDefinition__r.AgentType__c != 'Conversational');
-        
+
         // Enqueue Queueable to execute tool via REST API in the correct user context
         String contextType = requiresServiceUserContext ? 'service user' : 'original user';
         System.debug(LoggingLevel.INFO, logPrefix + 'Enqueueing tool execution via REST API as ' + contextType + ': ' + targetUserId);
-        System.debug(LoggingLevel.DEBUG, logPrefix + 'Follow-up LLM call needed: ' + needsFollowUp + ' (AgentType: ' + execution.AIAgentDefinition__r.AgentType__c + ')');
-        
+        System.debug(
+            LoggingLevel.DEBUG,
+            logPrefix + 'Follow-up LLM call needed: ' + needsFollowUp + ' (AgentType: ' + execution.AIAgentDefinition__r.AgentType__c + ')'
+        );
+
         System.enqueueJob(new HITLToolExecutionQueueable(fullAction.Id, needsFollowUp));
-        
+
         System.debug(LoggingLevel.INFO, logPrefix + 'Tool execution queued. Queueable will route through REST API to execute as ' + contextType + '.');
         // Exit - Queueable will handle execution, step updates, and follow-up LLM calls (if needed)
     }
@@ -331,24 +411,22 @@ public with sharing class PendingHITLActionTriggerHandler {
         System.debug(LoggingLevel.INFO, logPrefix + 'Resuming flow with decline for action: ' + action.Id);
 
         PendingHITLAction__c fullAction = HITLGatewayService.getPendingAction(action.Id);
-        if (fullAction == null) return;
+        if (fullAction == null)
+            return;
 
         // Create a tool result indicating the decline
-        String declineMessage = JSON.serialize(new Map<String, Object>{
-            'success' => false,
-            'declined' => true,
-            'message' => 'User declined to execute this action.',
-            'comment' => fullAction.ResolutionComment__c
-        });
+        String declineMessage = JSON.serialize(
+            new Map<String, Object>{
+                'success' => false,
+                'declined' => true,
+                'message' => 'User declined to execute this action.',
+                'comment' => fullAction.ResolutionComment__c
+            }
+        );
 
         // Update the existing placeholder tool result step with decline message
         ExecutionStepService stepService = new ExecutionStepService();
-        Id updatedStepId = stepService.updateToolResultStep(
-            fullAction.AgentExecution__c,
-            fullAction.ToolCallId__c,
-            declineMessage,
-            0L
-        );
+        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, declineMessage, 0L);
 
         // Fallback: create new step if update failed
         if (updatedStepId == null) {
@@ -385,24 +463,24 @@ public with sharing class PendingHITLActionTriggerHandler {
         System.debug(LoggingLevel.INFO, logPrefix + 'Resuming flow with rejection for action: ' + action.Id);
 
         PendingHITLAction__c fullAction = HITLGatewayService.getPendingAction(action.Id);
-        if (fullAction == null) return;
+        if (fullAction == null)
+            return;
 
         // Log decision step for rejected action
         try {
-            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(
-                fullAction.AgentExecution__c,
-                fullAction.TurnIdentifier__c
-            );
+            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(fullAction.AgentExecution__c, fullAction.TurnIdentifier__c);
             decisionLogger.logHandleRejectedFrameworkAction(
                 'Handle Rejected Framework Action',
                 'Tool "' + fullAction.ToolName__c + '" was rejected by approver',
-                JSON.serialize(new Map<String, Object>{
-                    'toolName' => fullAction.ToolName__c,
-                    'pendingActionId' => fullAction.Id,
-                    'rejectedBy' => fullAction.ResolvedBy__c,
-                    'rejectedAt' => fullAction.ResolvedAt__c,
-                    'resolutionComment' => fullAction.ResolutionComment__c
-                }),
+                JSON.serialize(
+                    new Map<String, Object>{
+                        'toolName' => fullAction.ToolName__c,
+                        'pendingActionId' => fullAction.Id,
+                        'rejectedBy' => fullAction.ResolvedBy__c,
+                        'rejectedAt' => fullAction.ResolvedAt__c,
+                        'resolutionComment' => fullAction.ResolutionComment__c
+                    }
+                ),
                 0L
             );
             decisionLogger.commitSteps();
@@ -411,21 +489,18 @@ public with sharing class PendingHITLActionTriggerHandler {
         }
 
         // Create a tool result indicating the rejection
-        String rejectionMessage = JSON.serialize(new Map<String, Object>{
-            'success' => false,
-            'rejected' => true,
-            'message' => 'Action was rejected by approver.',
-            'approverComment' => fullAction.ResolutionComment__c
-        });
+        String rejectionMessage = JSON.serialize(
+            new Map<String, Object>{
+                'success' => false,
+                'rejected' => true,
+                'message' => 'Action was rejected by approver.',
+                'approverComment' => fullAction.ResolutionComment__c
+            }
+        );
 
         // Update the existing placeholder tool result step with rejection message
         ExecutionStepService stepService = new ExecutionStepService();
-        Id updatedStepId = stepService.updateToolResultStep(
-            fullAction.AgentExecution__c,
-            fullAction.ToolCallId__c,
-            rejectionMessage,
-            0L
-        );
+        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, rejectionMessage, 0L);
 
         // Fallback: create new step if update failed
         if (updatedStepId == null) {
@@ -462,23 +537,21 @@ public with sharing class PendingHITLActionTriggerHandler {
         System.debug(LoggingLevel.INFO, logPrefix + 'Resuming flow with expiration for action: ' + action.Id);
 
         PendingHITLAction__c fullAction = HITLGatewayService.getPendingAction(action.Id);
-        if (fullAction == null) return;
+        if (fullAction == null)
+            return;
 
         // Create a tool result indicating the expiration
-        String expirationMessage = JSON.serialize(new Map<String, Object>{
-            'success' => false,
-            'expired' => true,
-            'message' => 'Confirmation request expired without user response. The user may have been away or busy.'
-        });
+        String expirationMessage = JSON.serialize(
+            new Map<String, Object>{
+                'success' => false,
+                'expired' => true,
+                'message' => 'Confirmation request expired without user response. The user may have been away or busy.'
+            }
+        );
 
         // Update the existing placeholder tool result step with expiration message
         ExecutionStepService stepService = new ExecutionStepService();
-        Id updatedStepId = stepService.updateToolResultStep(
-            fullAction.AgentExecution__c,
-            fullAction.ToolCallId__c,
-            expirationMessage,
-            0L
-        );
+        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, expirationMessage, 0L);
 
         // Fallback: create new step if update failed
         if (updatedStepId == null) {
@@ -516,11 +589,7 @@ public with sharing class PendingHITLActionTriggerHandler {
      * @description Queues a follow-up LLM call to continue the agent flow.
      * Only needed for Function/Workflow agents. Conversational agents already completed their turn.
      */
-    private static void queueFollowUpLLMCall(
-        PendingHITLAction__c action,
-        AgentExecution__c execution,
-        String logPrefix
-    ) {
+    private static void queueFollowUpLLMCall(PendingHITLAction__c action, AgentExecution__c execution, String logPrefix) {
         System.debug(LoggingLevel.INFO, logPrefix + 'Checking if follow-up LLM call needed for execution: ' + execution.Id);
 
         try {
@@ -544,12 +613,7 @@ public with sharing class PendingHITLActionTriggerHandler {
 
             // Update execution state to resume processing
             AgentStateService stateService = new AgentStateService();
-            stateService.resumeForFollowUpLlmCall(
-                execution.Id,
-                action.TurnIdentifier__c,
-                null,
-                logPrefix
-            );
+            stateService.resumeForFollowUpLlmCall(execution.Id, action.TurnIdentifier__c, null, logPrefix);
 
             // Enqueue the follow-up
             AgentJobEnqueuer enqueuer = new AgentJobEnqueuer();

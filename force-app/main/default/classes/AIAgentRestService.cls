@@ -10,7 +10,7 @@
  * @description
  * REST API endpoint for AI agent message processing with user context management.
  * Provides secure message processing and asynchronous handling via platform events.
- * 
+ *
  * Endpoints:
  * - POST /ai/agent/process/* - Process chat messages (existing)
  * - POST /ai/agent/hitl/execute - Execute approved HITL tools in service user context (new)
@@ -234,10 +234,7 @@ global with sharing class AIAgentRestService {
             }
 
             // Parse request
-            HITLToolRequest toolRequest = (HITLToolRequest) JSON.deserialize(
-                req.requestBody.toString(), 
-                HITLToolRequest.class
-            );
+            HITLToolRequest toolRequest = (HITLToolRequest) JSON.deserialize(req.requestBody.toString(), HITLToolRequest.class);
 
             // Validate required fields
             if (String.isBlank(toolRequest.pendingActionId)) {
@@ -250,8 +247,10 @@ global with sharing class AIAgentRestService {
                 throw new AIAgentRestException('capabilityId is required');
             }
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Executing tool as authenticated user: ' + UserInfo.getUserName() + 
-                ' (UserId: ' + UserInfo.getUserId() + ')');
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Executing tool as authenticated user: ' + UserInfo.getUserName() + ' (UserId: ' + UserInfo.getUserId() + ')'
+            );
 
             // Load capability
             AgentCapability__c capability = AIAgentConfigService.getCapabilityById(Id.valueOf(toolRequest.capabilityId));
@@ -285,19 +284,12 @@ global with sharing class AIAgentRestService {
 
             // Execute the tool
             CapabilityExecutionService capabilityService = new CapabilityExecutionService();
-            ActionOutcome outcome = capabilityService.executeSingleAction(
-                capability,
-                toolRequest.toolArguments,
-                actionContext
-            );
+            ActionOutcome outcome = capabilityService.executeSingleAction(capability, toolRequest.toolArguments, actionContext);
 
             // Log decision step for tool result only (execution is already indicated by "Resume Approved Framework Action")
             try {
-                AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(
-                    execution.Id,
-                    toolRequest.turnIdentifier
-                );
-                
+                AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(execution.Id, toolRequest.turnIdentifier);
+
                 // Log tool result step
                 String resultJsonForLogging = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
                 decisionLogger.logToolResult(
@@ -310,7 +302,7 @@ global with sharing class AIAgentRestService {
                     outcome.errorMessage,
                     capability.Id
                 );
-                
+
                 decisionLogger.commitSteps();
             } catch (Exception e) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to log tool result decision step: ' + e.getMessage());
@@ -320,12 +312,7 @@ global with sharing class AIAgentRestService {
             ExecutionStepService stepService = new ExecutionStepService();
             String resultJson = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
 
-            Id updatedStepId = stepService.updateToolResultStep(
-                execution.Id,
-                toolRequest.toolCallId,
-                resultJson,
-                0L
-            );
+            Id updatedStepId = stepService.updateToolResultStep(execution.Id, toolRequest.toolCallId, resultJson, 0L);
 
             // Fallback: create new step if update failed
             if (updatedStepId == null) {
@@ -354,25 +341,17 @@ global with sharing class AIAgentRestService {
 
             // Notify requesting user about execution result
             if (String.isNotBlank(toolRequest.requestingUserId)) {
-                String title = outcome.isSuccess ? 
-                    'Action Executed: ' + toolRequest.toolName :
-                    'Action Failed: ' + toolRequest.toolName;
-                    
-                String body = outcome.isSuccess ?
-                    'Your requested action "' + toolRequest.toolName + '" has been approved and executed successfully.' :
-                    'Your requested action "' + toolRequest.toolName + '" was approved but execution failed: ' + outcome.errorMessage;
-                    
-                NotificationService.sendUserNotification(
-                    Id.valueOf(toolRequest.requestingUserId),
-                    title,
-                    body,
-                    execution.Id
-                );
+                String title = outcome.isSuccess ? 'Action Executed: ' + toolRequest.toolName : 'Action Failed: ' + toolRequest.toolName;
+
+                String body = outcome.isSuccess
+                    ? 'Your requested action "' + toolRequest.toolName + '" has been approved and executed successfully.'
+                    : 'Your requested action "' + toolRequest.toolName + '" was approved but execution failed: ' + outcome.errorMessage;
+
+                NotificationService.sendUserNotification(Id.valueOf(toolRequest.requestingUserId), title, body, execution.Id);
             }
 
             res.statusCode = 200;
             return new AIAgentResponse(true, 'Tool executed successfully', null, requestId);
-
         } catch (AIAgentRestException e) {
             System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage());
             res.statusCode = 400;
@@ -398,12 +377,7 @@ global with sharing class AIAgentRestService {
             System.debug(LoggingLevel.INFO, logPrefix + 'Queueing follow-up LLM call');
 
             AgentStateService stateService = new AgentStateService();
-            stateService.resumeForFollowUpLlmCall(
-                execution.Id,
-                toolRequest.turnIdentifier,
-                null,
-                logPrefix
-            );
+            stateService.resumeForFollowUpLlmCall(execution.Id, toolRequest.turnIdentifier, null, logPrefix);
 
             AgentJobEnqueuer enqueuer = new AgentJobEnqueuer();
             enqueuer.enqueueFollowUp(

@@ -446,21 +446,14 @@ public inherited sharing class ExecutionStepService {
      * @param processingDuration Optional processing duration in milliseconds
      * @return Id of the updated step, or null if not found
      */
-    public Id updateToolResultStep(
-        Id executionId,
-        String toolCallId,
-        String toolResult,
-        Long processingDuration
-    ) {
+    public Id updateToolResultStep(Id executionId, String toolCallId, String toolResult, Long processingDuration) {
         String logPrefix = LOG_PREFIX + '[updateToolResultStep] ';
 
         try {
             List<ExecutionStep__c> existingSteps = [
                 SELECT Id, StepMetadata__c
                 FROM ExecutionStep__c
-                WHERE AgentExecution__c = :executionId
-                AND ToolCallId__c = :toolCallId
-                AND StepType__c = 'ToolResult'
+                WHERE AgentExecution__c = :executionId AND ToolCallId__c = :toolCallId AND StepType__c = 'ToolResult'
                 ORDER BY Timestamp__c DESC
                 LIMIT 1
             ];
