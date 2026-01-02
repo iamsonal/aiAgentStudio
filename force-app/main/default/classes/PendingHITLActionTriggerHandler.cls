@@ -245,6 +245,29 @@ public with sharing class PendingHITLActionTriggerHandler {
             throw new HITLGatewayService.HITLProcessingException('Could not load pending action: ' + action.Id);
         }
 
+        // Log decision step for approved action
+        try {
+            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(
+                fullAction.AgentExecution__c,
+                fullAction.TurnIdentifier__c
+            );
+            decisionLogger.logResumeApprovedFrameworkAction(
+                'Resume Approved Framework Action',
+                'Tool "' + fullAction.ToolName__c + '" was approved and will now be executed',
+                JSON.serialize(new Map<String, Object>{
+                    'toolName' => fullAction.ToolName__c,
+                    'pendingActionId' => fullAction.Id,
+                    'approvedBy' => fullAction.ResolvedBy__c,
+                    'approvedAt' => fullAction.ResolvedAt__c,
+                    'resolutionComment' => fullAction.ResolutionComment__c
+                }),
+                0L
+            );
+            decisionLogger.commitSteps();
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to log approval decision step: ' + e.getMessage());
+        }
+
         // Load the capability
         AgentCapability__c capability = AIAgentConfigService.getCapabilityById(fullAction.AIAgentCapability__c);
         if (capability == null) {
@@ -363,6 +386,29 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         PendingHITLAction__c fullAction = HITLGatewayService.getPendingAction(action.Id);
         if (fullAction == null) return;
+
+        // Log decision step for rejected action
+        try {
+            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(
+                fullAction.AgentExecution__c,
+                fullAction.TurnIdentifier__c
+            );
+            decisionLogger.logHandleRejectedFrameworkAction(
+                'Handle Rejected Framework Action',
+                'Tool "' + fullAction.ToolName__c + '" was rejected by approver',
+                JSON.serialize(new Map<String, Object>{
+                    'toolName' => fullAction.ToolName__c,
+                    'pendingActionId' => fullAction.Id,
+                    'rejectedBy' => fullAction.ResolvedBy__c,
+                    'rejectedAt' => fullAction.ResolvedAt__c,
+                    'resolutionComment' => fullAction.ResolutionComment__c
+                }),
+                0L
+            );
+            decisionLogger.commitSteps();
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to log rejection decision step: ' + e.getMessage());
+        }
 
         // Create a tool result indicating the rejection
         String rejectionMessage = JSON.serialize(new Map<String, Object>{

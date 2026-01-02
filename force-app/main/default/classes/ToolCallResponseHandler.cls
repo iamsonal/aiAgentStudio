@@ -575,22 +575,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             return OrchestrationService.OUTCOME_FAILED;
         }
 
-        // Log the approval requirement
-        decisionLogger.logToolExecution(
-            'Approval Required',
-            'Tool execution requires human approval',
-            JSON.serialize(new Map<String, Object>{
-                'toolName' => approvalTool.toolName,
-                'hitlMode' => decision.hitlMode
-            }),
-            null,
-            true,
-            null,
-            null,
-            approvalTool.capability.Id
-        );
-
-        // Initiate the approval workflow
+        // Initiate the approval workflow FIRST to get pendingActionId
         HITLGatewayService.HITLResult hitlResult = HITLGatewayService.initiateHITL(hitlContext, decision);
 
         if (!hitlResult.success) {
@@ -609,6 +594,23 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Approval request created: ' + hitlResult.pendingActionId);
+
+        // Log the approval requirement with pendingActionId for navigation
+        decisionLogger.logToolExecution(
+            'Approval Required',
+            'Tool execution requires human approval',
+            JSON.serialize(new Map<String, Object>{
+                'toolName' => approvalTool.toolName,
+                'hitlMode' => decision.hitlMode,
+                'pendingActionId' => hitlResult.pendingActionId,
+                'approvalPrompt' => hitlResult.confirmationPrompt
+            }),
+            null,
+            true,
+            null,
+            null,
+            approvalTool.capability.Id
+        );
 
         // Create placeholder tool result immediately to maintain proper OpenAI message sequence
         String placeholderResult = JSON.serialize(
@@ -663,6 +665,14 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 assistantMessage,
                 context.turnIdentifier,
                 context.currentTurnCount
+            );
+
+            // Log the final response in decision steps so it appears in storyboard
+            decisionLogger.logFinalResponse(
+                'Final Response',
+                'Agent informed user about pending approval',
+                assistantMessage,
+                null
             );
 
             // Complete the turn successfully - user can continue chatting

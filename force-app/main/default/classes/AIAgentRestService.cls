@@ -291,6 +291,31 @@ global with sharing class AIAgentRestService {
                 actionContext
             );
 
+            // Log decision step for tool result only (execution is already indicated by "Resume Approved Framework Action")
+            try {
+                AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(
+                    execution.Id,
+                    toolRequest.turnIdentifier
+                );
+                
+                // Log tool result step
+                String resultJsonForLogging = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
+                decisionLogger.logToolResult(
+                    'Tool Result',
+                    outcome.isSuccess ? 'Tool executed successfully' : 'Tool execution failed',
+                    resultJsonForLogging,
+                    0L,
+                    outcome.isSuccess,
+                    outcome.errorCode,
+                    outcome.errorMessage,
+                    capability.Id
+                );
+                
+                decisionLogger.commitSteps();
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to log tool result decision step: ' + e.getMessage());
+            }
+
             // Update the existing placeholder tool result step
             ExecutionStepService stepService = new ExecutionStepService();
             String resultJson = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
