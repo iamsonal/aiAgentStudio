@@ -341,7 +341,13 @@ global with sharing class AIAgentRestService {
             }
 
             // Notify requesting user about execution result (check notification preference)
-            if (String.isNotBlank(toolRequest.requestingUserId) && shouldSendNotification(capability, outcome.isSuccess ? HITLGatewayService.NOTIFICATION_TYPE_APPROVAL : HITLGatewayService.NOTIFICATION_TYPE_ERROR)) {
+            if (
+                String.isNotBlank(toolRequest.requestingUserId) &&
+                shouldSendNotification(
+                    capability,
+                    outcome.isSuccess ? HITLGatewayService.NOTIFICATION_TYPE_APPROVAL : HITLGatewayService.NOTIFICATION_TYPE_ERROR
+                )
+            ) {
                 // Get the pending action to retrieve approver's comment
                 String approverComment = null;
                 if (String.isNotBlank(toolRequest.pendingActionId)) {

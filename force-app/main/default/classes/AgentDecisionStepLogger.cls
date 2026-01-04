@@ -645,7 +645,7 @@ public inherited sharing class AgentDecisionStepLogger {
             // Insert all collected steps in a single bulk operation
             insert stepsToCommit;
             System.debug(LoggingLevel.INFO, '[AgentDecisionStepLogger] Committed ' + stepsToCommit.size() + ' decision steps.');
-            
+
             // Clear the list after successful insert to prevent re-insertion of records with Ids
             // This allows the same logger instance to be reused for multiple commit cycles
             stepsToCommit.clear();

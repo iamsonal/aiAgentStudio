@@ -356,7 +356,13 @@ public inherited sharing class OrchestrationService {
      * @param logPrefix Logging prefix for debug output
      * @return true if execution should fail immediately, false to allow LLM recovery
      */
-    public static Boolean shouldFailFast(AgentCapability__c capability, AIAgentDefinition__c agentDefinition, ActionOutcome toolOutcome, Id executionId, String logPrefix) {
+    public static Boolean shouldFailFast(
+        AgentCapability__c capability,
+        AIAgentDefinition__c agentDefinition,
+        ActionOutcome toolOutcome,
+        Id executionId,
+        String logPrefix
+    ) {
         // Only applies to tool failures
         if (toolOutcome == null || toolOutcome.isSuccess) {
             return false;
@@ -389,16 +395,24 @@ public inherited sharing class OrchestrationService {
         if (executionId != null && agentDefinition.ErrorHandlingPolicy__c != 'Fail-Fast' && agentDefinition.AgentType__c != 'Conversational') {
             Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
             Integer failureCount = countSuccessiveToolFailures(executionId, capability.CapabilityName__c, logPrefix);
-            
+
             // If failureCount >= maxRetries, fail the execution
             // Example: maxRetries=2 means allow 1 failure (count=1), fail on 2nd (count=2)
             if (failureCount >= maxRetries) {
                 System.debug(
                     LoggingLevel.WARN,
-                    logPrefix + '⚠️ FAIL-FAST (Tier 3): Tool "' + capability.CapabilityName__c + 
-                    '" exceeded MaxToolRetries__c (' + maxRetries + '). ' +
-                    'Successive failures: ' + failureCount + '. Halting execution. ' +
-                    '(AgentType: ' + agentDefinition.AgentType__c + ')'
+                    logPrefix +
+                        '⚠️ FAIL-FAST (Tier 3): Tool "' +
+                        capability.CapabilityName__c +
+                        '" exceeded MaxToolRetries__c (' +
+                        maxRetries +
+                        '). ' +
+                        'Successive failures: ' +
+                        failureCount +
+                        '. Halting execution. ' +
+                        '(AgentType: ' +
+                        agentDefinition.AgentType__c +
+                        ')'
                 );
                 return true;
             }
@@ -429,7 +443,7 @@ public inherited sharing class OrchestrationService {
 
     /**
      * @description Counts the number of successive failures for a specific tool in an execution.
-     * 
+     *
      * This method looks at the most recent execution steps and counts consecutive failures
      * of the same tool, starting from the most recent step and working backwards.
      * The count resets if a successful execution of the tool is found, or if a different
@@ -451,9 +465,7 @@ public inherited sharing class OrchestrationService {
             List<ExecutionStep__c> steps = [
                 SELECT Id, StepType__c, ToolName__c, IsError__c, Timestamp__c, ToolCallId__c
                 FROM ExecutionStep__c
-                WHERE AgentExecution__c = :executionId
-                AND StepType__c IN ('ToolCall', 'ToolResult')
-                AND ToolName__c = :toolName
+                WHERE AgentExecution__c = :executionId AND StepType__c IN ('ToolCall', 'ToolResult') AND ToolName__c = :toolName
                 ORDER BY Timestamp__c DESC, Id DESC
                 LIMIT 100
             ];
@@ -477,10 +489,7 @@ public inherited sharing class OrchestrationService {
                 }
             }
 
-            System.debug(
-                LoggingLevel.DEBUG,
-                logPrefix + 'Tool "' + toolName + '" has ' + failureCount + ' successive failure(s) in execution ' + executionId
-            );
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Tool "' + toolName + '" has ' + failureCount + ' successive failure(s) in execution ' + executionId);
 
             return failureCount;
         } catch (Exception e) {
@@ -488,7 +497,6 @@ public inherited sharing class OrchestrationService {
             return 0; // Fail open - don't exclude tool if we can't count
         }
     }
-
 
     // ===================================================================================
     // PARALLEL TOOL COMPLETION TRACKING (Consolidated from ParallelToolCallHandler)

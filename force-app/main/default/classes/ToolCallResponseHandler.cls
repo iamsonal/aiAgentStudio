@@ -659,42 +659,84 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to publish approval event: ' + e.getMessage());
         }
 
-        // Handle differently based on agent type
-        if (agentDef.AgentType__c == 'Conversational') {
-            // For conversational agents: create programmatic assistant response and complete turn
-            // This allows user to continue chatting while approval is pending
-            String assistantMessage =
-                'I\'ve submitted your request to ' +
-                approvalTool.toolName +
-                ' for approval. You\'ll be notified when it\'s processed. Feel free to continue our conversation.';
+        // Delegate agent-specific behavior to orchestrator
+        // This keeps ToolCallResponseHandler agent-agnostic
+        IAgentOrchestrator orchestrator = loadOrchestrator(agentDef);
 
-            Id assistantMessageId = executionStepService.createAgentResponseStep(
-                context.executionId,
-                assistantMessage,
-                context.turnIdentifier,
-                context.currentTurnCount
-            );
+        // Build tool execution result for the orchestrator
+        List<ToolExecutionResult> approvalToolResults = new List<ToolExecutionResult>();
+        approvalToolResults.add(
+            new ToolExecutionResult(
+                approvalTool.toolCallId,
+                approvalTool.toolName,
+                null, // No outcome yet - pending approval
+                0L,
+                false,
+                approvalTool.executionOrder,
+                approvalTool.capability.Id
+            )
+        );
 
-            // Log the final response in decision steps so it appears in storyboard
-            decisionLogger.logFinalResponse('Final Response', 'Agent informed user about pending approval', assistantMessage, null);
+        // Let orchestrator handle agent-specific completion behavior
+        String orchestratorOutcome = orchestrator.evaluateToolOutcome(context, approvalToolResults, 'APPROVAL_REQUIRED');
 
-            // Complete the turn successfully - user can continue chatting
-            context.agentStateSvc.completeTurnSuccessfully(context.executionId, context.turnIdentifier, assistantMessageId, logPrefix);
-
-            return OrchestrationService.OUTCOME_COMPLETED;
-        } else {
-            // For Function/Workflow agents: just pause execution until approval resolved
-            // No user interaction needed - they run in background
-            context.agentStateSvc.updateStatus(
-                context.executionId,
-                'Awaiting Action',
-                AIAgentConstants.STATUS_AWAITING_ACTION,
-                context.turnIdentifier,
-                'Awaiting human approval'
-            );
-
-            return OrchestrationService.OUTCOME_QUEUED_ACTION;
+        if (orchestratorOutcome != null) {
+            // Orchestrator handled it
+            return orchestratorOutcome;
         }
+
+        // Default behavior for orchestrators that don't override handleToolCompletion
+        // (Function/Workflow agents): just pause execution until approval resolved
+        context.agentStateSvc.updateStatus(
+            context.executionId,
+            'Awaiting Action',
+            AIAgentConstants.STATUS_AWAITING_ACTION,
+            context.turnIdentifier,
+            'Awaiting human approval'
+        );
+
+        return OrchestrationService.OUTCOME_QUEUED_ACTION;
+    }
+
+    /**
+     * Loads the appropriate orchestrator for an agent definition.
+     */
+    private IAgentOrchestrator loadOrchestrator(AIAgentDefinition__c agentDef) {
+        String agentType = agentDef.AgentType__c;
+
+        if (String.isBlank(agentType)) {
+            throw new ToolProcessingException('AgentType__c is required on agent definition');
+        }
+
+        // Query orchestrator mapping
+        List<AgentOrchestratorMapping__mdt> mappings = [
+            SELECT OrchestratorClassName__c
+            FROM AgentOrchestratorMapping__mdt
+            WHERE AgentType__c = :agentType AND IsActive__c = TRUE
+            LIMIT 1
+        ];
+
+        if (mappings.isEmpty()) {
+            throw new ToolProcessingException('No orchestrator mapping found for agent type: ' + agentType);
+        }
+
+        String orchestratorClassName = mappings[0].OrchestratorClassName__c;
+
+        // Instantiate orchestrator
+        Type orchestratorType = Type.forName(orchestratorClassName);
+        if (orchestratorType == null) {
+            throw new ToolProcessingException('Orchestrator class not found: ' + orchestratorClassName);
+        }
+
+        Object instanceObj = orchestratorType.newInstance();
+        if (!(instanceObj instanceof IAgentOrchestrator)) {
+            throw new ToolProcessingException('Class does not implement IAgentOrchestrator: ' + orchestratorClassName);
+        }
+
+        IAgentOrchestrator orchestrator = (IAgentOrchestrator) instanceObj;
+        orchestrator.configure(agentDef);
+
+        return orchestrator;
     }
 
     // ===================================================================================
@@ -1023,7 +1065,14 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
                     Integer failureCount = OrchestrationService.countSuccessiveToolFailures(context.executionId, capability.CapabilityName__c, logPrefix);
                     if (failureCount >= maxRetries) {
-                        failureReason = 'Tool "' + capability.CapabilityName__c + '" exceeded MaxToolRetries__c (' + maxRetries + ') after ' + failureCount + ' successive failures';
+                        failureReason =
+                            'Tool "' +
+                            capability.CapabilityName__c +
+                            '" exceeded MaxToolRetries__c (' +
+                            maxRetries +
+                            ') after ' +
+                            failureCount +
+                            ' successive failures';
                     } else {
                         failureReason = 'Tool execution failed (fail-fast policy)';
                     }

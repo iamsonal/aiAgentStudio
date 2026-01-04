@@ -395,7 +395,18 @@ public inherited sharing class ExecutionStepService {
         Boolean isAsyncToolExecution,
         Id capabilityId
     ) {
-        return createToolResultStep(executionId, toolCallId, toolName, toolResult, turnIdentifier, turnCount, processingDuration, isAsyncToolExecution, capabilityId, false);
+        return createToolResultStep(
+            executionId,
+            toolCallId,
+            toolName,
+            toolResult,
+            turnIdentifier,
+            turnCount,
+            processingDuration,
+            isAsyncToolExecution,
+            capabilityId,
+            false
+        );
     }
 
     /**
@@ -466,7 +477,16 @@ public inherited sharing class ExecutionStepService {
 
             System.debug(
                 LoggingLevel.DEBUG,
-                logPrefix + 'Created tool result step: ' + step.Id + ' for tool: ' + toolName + ' (async=' + isAsyncToolExecution + ', isError=' + step.IsError__c + ')'
+                logPrefix +
+                    'Created tool result step: ' +
+                    step.Id +
+                    ' for tool: ' +
+                    toolName +
+                    ' (async=' +
+                    isAsyncToolExecution +
+                    ', isError=' +
+                    step.IsError__c +
+                    ')'
             );
 
             return step.Id;

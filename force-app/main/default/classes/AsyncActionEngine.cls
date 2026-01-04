@@ -186,21 +186,32 @@ public class AsyncActionEngine implements Queueable {
                 Integer failureCount = OrchestrationService.countSuccessiveToolFailures(this.executionId, this.capability.CapabilityName__c, logPrefix);
                 String failureReason;
                 String logMessage;
-                
+
                 if (failureCount >= maxRetries) {
-                    failureReason = 'Async tool "' + this.capability.CapabilityName__c + '" exceeded MaxToolRetries__c (' + maxRetries + ') after ' + failureCount + ' successive failures';
+                    failureReason =
+                        'Async tool "' +
+                        this.capability.CapabilityName__c +
+                        '" exceeded MaxToolRetries__c (' +
+                        maxRetries +
+                        ') after ' +
+                        failureCount +
+                        ' successive failures';
                     logMessage = 'Async tool exceeded MaxToolRetries__c - halting execution';
                 } else {
                     failureReason = 'Async tool execution failed (fail-fast policy)';
                     logMessage = 'Async tool failed with fail-fast policy enabled - halting execution';
                 }
-                
+
                 System.debug(LoggingLevel.WARN, logPrefix + logMessage);
 
                 decisionLogger.logToolResult(
                     'Execution Halted',
                     logMessage,
-                    '{"reason":"' + (failureCount >= maxRetries ? 'max_retries_exceeded' : 'fail_fast_policy') + '","capability":"' + this.capability.CapabilityName__c + '"}',
+                    '{"reason":"' +
+                        (failureCount >= maxRetries ? 'max_retries_exceeded' : 'fail_fast_policy') +
+                        '","capability":"' +
+                        this.capability.CapabilityName__c +
+                        '"}',
                     0,
                     false,
                     outcome.errorCode,

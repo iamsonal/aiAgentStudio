@@ -90,9 +90,9 @@ public class AgentExecutionService {
             IAgentOrchestrator orchestrator = getOrchestrator(agentDef);
 
             // Delegate to orchestrator for type-specific execution logic
-            ExecutionResult result = orchestrator.initiate(agentDeveloperName, payload);
+            ExecutionResult result = orchestrator.start(agentDeveloperName, payload);
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Execution initiated successfully. ExecutionId=' + result.executionId + ', Status=' + result.status);
+            System.debug(LoggingLevel.INFO, logPrefix + 'Execution started successfully. ExecutionId=' + result.executionId + ', Status=' + result.status);
             return result;
         } catch (AIAgentException.OrchestrationException e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Orchestration error: ' + e.getMessage());
@@ -445,7 +445,7 @@ public class AgentExecutionService {
      * @return         IAgentOrchestrator implementation for the agent's type
      * @throws         AIAgentException.OrchestrationException if agent type is invalid or orchestrator cannot be created
      */
-    private static IAgentOrchestrator getOrchestrator(AIAgentDefinition__c agentDef) {
+    public static IAgentOrchestrator getOrchestrator(AIAgentDefinition__c agentDef) {
         // Ensure orchestrator mappings are loaded
         ensureOrchestratorMappingCacheInitialized();
 
@@ -487,11 +487,11 @@ public class AgentExecutionService {
                 );
             }
 
-            // Initialize orchestrator with agent definition
+            // Configure orchestrator with agent definition
             IAgentOrchestrator orchestrator = (IAgentOrchestrator) instanceObj;
-            orchestrator.initialize(agentDef);
+            orchestrator.configure(agentDef);
 
-            System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Successfully instantiated and initialized orchestrator: ' + mapping.OrchestratorClassName__c);
+            System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Successfully instantiated and configured orchestrator: ' + mapping.OrchestratorClassName__c);
 
             return orchestrator;
         } catch (AIAgentException.OrchestrationException e) {

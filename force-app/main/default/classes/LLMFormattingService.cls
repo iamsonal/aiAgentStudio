@@ -146,7 +146,7 @@ public inherited sharing class LLMFormattingService {
 
     /**
      * Overload for backward compatibility - calls the main method with null executionId.
-     * 
+     *
      * @param agentDefinitionId The Id of the agent definition whose capabilities should be exposed as tools.
      * @param agentConfig The agent configuration record (optional).
      * @param loggingContext Optional string prefix for log output.

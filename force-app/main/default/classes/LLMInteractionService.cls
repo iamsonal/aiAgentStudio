@@ -164,32 +164,22 @@ public inherited sharing class LLMInteractionService {
                 this.userId
             );
 
-            // --- 3. FINAL SUMMARY INJECTION LOGIC
-            // Only inject summarization instructions for Conversational agents to provide user-friendly summaries.
-            // Function and Workflow agents should be allowed to continue multi-step reasoning autonomously.
-            Boolean isMultiStepTurn = this.currentTurnCount > 1;
-            Boolean isFinalContentCall = (currentTurnUserMessage == null);
-            Boolean isConversationalAgent = (agentConfig.AgentType__c == 'Conversational');
+            // --- 3. AGENT-SPECIFIC PROMPT ADDITIONS ---
+            // Delegate to orchestrator for agent-type-specific prompt modifications.
+            // This keeps LLMInteractionService agent-agnostic.
+            String orchestratorAdditions = getOrchestratorPromptAdditions(
+                agentConfig,
+                this.executionId,
+                this.userId,
+                this.currentTurnCount,
+                currentTurnUserMessage,
+                this.currentPageRecordId,
+                logPrefix
+            );
 
-            if (isMultiStepTurn && isFinalContentCall && isConversationalAgent) {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Injecting summarization instructions for multi-step conversational turn.');
-
-                String summarizationInstruction =
-                    '\n\n# FINAL INSTRUCTIONS\n\n' +
-                    'You have just completed one or more tool actions that the user did not see. ' +
-                    'Your task is to synthesize the results of all actions into a single, user-friendly summary. ' +
-                    'This will be the only message the user sees for this turn. ' +
-                    'Do not ask questions; provide a conclusive, final response.';
-
-                finalSystemPrompt += summarizationInstruction;
-            } else if (isMultiStepTurn && isFinalContentCall && !isConversationalAgent) {
-                System.debug(
-                    LoggingLevel.INFO,
-                    logPrefix +
-                        'Skipping summarization injection for non-conversational agent (AgentType=' +
-                        agentConfig.AgentType__c +
-                        ') - allowing autonomous multi-step reasoning.'
-                );
+            if (String.isNotBlank(orchestratorAdditions)) {
+                finalSystemPrompt += orchestratorAdditions;
+                System.debug(LoggingLevel.INFO, logPrefix + 'Added orchestrator-specific prompt additions');
             }
 
             // This logic handles the "Halt and Report" error path.
@@ -470,5 +460,136 @@ public inherited sharing class LLMInteractionService {
     private static void clearAdapterCache() {
         adapterInstanceCache = new Map<String, ILLMProviderAdapter>();
         System.debug(LoggingLevel.DEBUG, '[LLMInteractionService] Adapter cache cleared.');
+    }
+
+    // =========================================================================
+    // ORCHESTRATOR INTEGRATION
+    // =========================================================================
+
+    /**
+     * @description
+     * Gets agent-specific prompt additions from the orchestrator.
+     * This delegates prompt customization to the orchestrator, keeping LLMInteractionService agent-agnostic.
+     *
+     * @param agentConfig The agent definition
+     * @param executionId The execution ID
+     * @param userId The user ID
+     * @param currentTurnCount The current turn count
+     * @param currentTurnUserMessage The user message for this turn (null for follow-up calls)
+     * @param currentPageRecordId The current page record ID
+     * @param logPrefix Logging prefix
+     * @return String to append to system prompt, or empty string
+     */
+    private String getOrchestratorPromptAdditions(
+        AIAgentDefinition__c agentConfig,
+        Id executionId,
+        Id userId,
+        Integer currentTurnCount,
+        MessageData currentTurnUserMessage,
+        Id currentPageRecordId,
+        String logPrefix
+    ) {
+        try {
+            // Build a minimal OrchestrationContext for the orchestrator hook
+            // Note: We don't have the full context here (no LLM result yet), but we have enough
+            // for the orchestrator to make prompt decisions
+            OrchestrationContext minimalContext = buildMinimalContext(
+                executionId,
+                userId,
+                agentConfig.Id,
+                currentTurnCount,
+                currentTurnUserMessage,
+                currentPageRecordId
+            );
+
+            // Load the orchestrator for this agent type
+            IAgentOrchestrator orchestrator = loadOrchestrator(agentConfig);
+
+            // Get prompt additions from orchestrator
+            String additions = orchestrator.buildSystemPromptAdditions(minimalContext);
+
+            return additions != null ? additions : '';
+        } catch (Exception e) {
+            // Log but don't fail - prompt additions are optional
+            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to get orchestrator prompt additions: ' + e.getMessage());
+            return '';
+        }
+    }
+
+    /**
+     * @description
+     * Builds a minimal OrchestrationContext for use in prompt building.
+     * This context doesn't have LLM results yet (we're preparing for the call).
+     */
+    private OrchestrationContext buildMinimalContext(
+        Id executionId,
+        Id userId,
+        Id agentDefinitionId,
+        Integer currentTurnCount,
+        MessageData currentTurnUserMessage,
+        Id currentPageRecordId
+    ) {
+        // Generate a temporary turn identifier for context
+        String turnIdentifier = 'prompt_' + System.currentTimeMillis();
+
+        return new OrchestrationContext(
+            null, // llmResult - not available yet
+            executionId,
+            userId,
+            userId, // executionUserId
+            agentDefinitionId,
+            turnIdentifier,
+            currentTurnCount,
+            currentTurnUserMessage,
+            new AgentStateService(),
+            new CapabilityExecutionService(),
+            new AgentJobEnqueuer(),
+            new ContextManagerService(),
+            currentPageRecordId,
+            this.decisionLogger
+        );
+    }
+
+    /**
+     * @description
+     * Loads the appropriate orchestrator for an agent definition.
+     * Uses the same metadata-driven approach as AgentExecutionService.
+     */
+    private IAgentOrchestrator loadOrchestrator(AIAgentDefinition__c agentConfig) {
+        String agentType = agentConfig.AgentType__c;
+
+        if (String.isBlank(agentType)) {
+            throw new LLMInteractionException('AgentType__c is required on agent definition');
+        }
+
+        // Query orchestrator mapping
+        List<AgentOrchestratorMapping__mdt> mappings = [
+            SELECT OrchestratorClassName__c
+            FROM AgentOrchestratorMapping__mdt
+            WHERE AgentType__c = :agentType AND IsActive__c = TRUE
+            LIMIT 1
+        ];
+
+        if (mappings.isEmpty()) {
+            throw new LLMInteractionException('No orchestrator mapping found for agent type: ' + agentType);
+        }
+
+        String orchestratorClassName = mappings[0].OrchestratorClassName__c;
+
+        // Instantiate orchestrator
+        Type orchestratorType = Type.forName(orchestratorClassName);
+        if (orchestratorType == null) {
+            throw new LLMInteractionException('Orchestrator class not found: ' + orchestratorClassName);
+        }
+
+        Object instanceObj = orchestratorType.newInstance();
+        if (!(instanceObj instanceof IAgentOrchestrator)) {
+            throw new LLMInteractionException('Class does not implement IAgentOrchestrator: ' + orchestratorClassName);
+        }
+
+        IAgentOrchestrator orchestrator = (IAgentOrchestrator) instanceObj;
+        orchestrator.configure(agentConfig);
+
+        return orchestrator;
     }
 }

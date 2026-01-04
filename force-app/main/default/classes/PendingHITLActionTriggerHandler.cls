@@ -102,24 +102,26 @@ public with sharing class PendingHITLActionTriggerHandler {
         actionIdsNeedingNotificationCheck.addAll(getActionIds(approvedActions));
         actionIdsNeedingNotificationCheck.addAll(getActionIds(rejectedActions));
         actionIdsNeedingNotificationCheck.addAll(getActionIds(expiredActions));
-        
+
         Map<Id, PendingHITLAction__c> actionsWithRelationships = new Map<Id, PendingHITLAction__c>();
         if (!actionIdsNeedingNotificationCheck.isEmpty()) {
-            actionsWithRelationships = new Map<Id, PendingHITLAction__c>([
-                SELECT
-                    Id,
-                    RequestingUser__c,
-                    ToolName__c,
-                    AgentExecution__c,
-                    TurnIdentifier__c,
-                    TurnCount__c,
-                    ResolutionComment__c,
-                    AIAgentCapability__r.HITLNotificationPreference__c
-                FROM PendingHITLAction__c
-                WHERE Id IN :actionIdsNeedingNotificationCheck
-            ]);
+            actionsWithRelationships = new Map<Id, PendingHITLAction__c>(
+                [
+                    SELECT
+                        Id,
+                        RequestingUser__c,
+                        ToolName__c,
+                        AgentExecution__c,
+                        TurnIdentifier__c,
+                        TurnCount__c,
+                        ResolutionComment__c,
+                        AIAgentCapability__r.HITLNotificationPreference__c
+                    FROM PendingHITLAction__c
+                    WHERE Id IN :actionIdsNeedingNotificationCheck
+                ]
+            );
         }
-        
+
         // Replace action lists with queried records that include relationship data
         approvedActions = mergeRelationshipData(approvedActions, actionsWithRelationships);
         rejectedActions = mergeRelationshipData(rejectedActions, actionsWithRelationships);
@@ -702,7 +704,10 @@ public with sharing class PendingHITLActionTriggerHandler {
      * @param actionsWithRelationships Map of actions with relationship data
      * @return List of actions with relationship data merged
      */
-    private static List<PendingHITLAction__c> mergeRelationshipData(List<PendingHITLAction__c> actions, Map<Id, PendingHITLAction__c> actionsWithRelationships) {
+    private static List<PendingHITLAction__c> mergeRelationshipData(
+        List<PendingHITLAction__c> actions,
+        Map<Id, PendingHITLAction__c> actionsWithRelationships
+    ) {
         List<PendingHITLAction__c> mergedActions = new List<PendingHITLAction__c>();
         for (PendingHITLAction__c action : actions) {
             PendingHITLAction__c actionWithRelationship = actionsWithRelationships.get(action.Id);
