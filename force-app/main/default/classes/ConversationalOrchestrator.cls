@@ -82,8 +82,7 @@ public class ConversationalOrchestrator implements IAgentOrchestrator {
                     'Processing',
                     AIAgentConstants.STATUS_PROCESSING,
                     payload.turnIdentifier,
-                    'Processing conversational turn',
-                    payload.serviceUserId
+                    'Processing conversational turn'
                 );
             } else {
                 // Create new AgentExecution__c record

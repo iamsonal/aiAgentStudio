@@ -286,7 +286,7 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
 
             // Update child execution record with result (for synchronous/completed execution)
             // The AgentExecutionTrigger will detect this status change and notify the parent workflow
-            updateChildExecution(childExecutionId, success, logPrefix);
+            updateChildExecution(childExecutionId, success, logPrefix, errorMessage);
 
             System.debug(
                 LoggingLevel.INFO,
@@ -311,7 +311,8 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
                     Id = childExecutionId,
                     ExecutionStatus__c = 'Failed',
                     ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
-                    EndTime__c = Datetime.now()
+                    EndTime__c = Datetime.now(),
+                    ErrorMessage__c = errorMessage?.abbreviate(255)
                 );
                 update childExec;
 
@@ -430,8 +431,9 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
      * @param childExecutionId The ID of the child execution to update
      * @param success Whether the execution was successful
      * @param logPrefix Logging prefix for debug output
+     * @param errorMessage Optional error message if execution failed
      */
-    private void updateChildExecution(Id childExecutionId, Boolean success, String logPrefix) {
+    private void updateChildExecution(Id childExecutionId, Boolean success, String logPrefix, String errorMessage) {
         try {
             AgentExecution__c childExec = new AgentExecution__c(
                 Id = childExecutionId,
@@ -439,6 +441,11 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
                 ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
                 EndTime__c = Datetime.now()
             );
+
+            // Set error message if execution failed
+            if (!success && String.isNotBlank(errorMessage)) {
+                childExec.ErrorMessage__c = errorMessage.abbreviate(255);
+            }
 
             update childExec;
 

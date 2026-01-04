@@ -822,7 +822,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     context.currentTurnCount,
                     result.processingTime,
                     false,
-                    result.capabilityId
+                    result.capabilityId,
+                    !result.outcome.isSuccess // isError = !isSuccess
                 );
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create execution step for sync tool result ' + result.toolName + ': ' + e.getMessage());
@@ -908,8 +909,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                         context.turnIdentifier,
                         context.currentTurnCount,
                         0L,
-                        true, // isError
-                        toolRequest.capability.Id
+                        true, // isAsyncToolExecution
+                        toolRequest.capability.Id,
+                        true // isError - this is a failure
                     );
                 } catch (Exception stepEx) {
                     System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create error step for failed queue: ' + stepEx.getMessage());
@@ -1014,12 +1016,21 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         for (ToolExecutionResult result : syncResults) {
             if (!result.outcome.isSuccess) {
                 AgentCapability__c capability = failedCapabilities.get(result.toolName);
-                if (capability != null && OrchestrationService.shouldFailFast(capability, agentDef, result.outcome, logPrefix)) {
+                if (capability != null && OrchestrationService.shouldFailFast(capability, agentDef, result.outcome, context.executionId, logPrefix)) {
                     shouldHalt = true;
+                    // Determine the reason for failure (fail-fast policy or max retries exceeded)
+                    String failureReason = 'Tool execution failed';
+                    Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
+                    Integer failureCount = OrchestrationService.countSuccessiveToolFailures(context.executionId, capability.CapabilityName__c, logPrefix);
+                    if (failureCount >= maxRetries) {
+                        failureReason = 'Tool "' + capability.CapabilityName__c + '" exceeded MaxToolRetries__c (' + maxRetries + ') after ' + failureCount + ' successive failures';
+                    } else {
+                        failureReason = 'Tool execution failed (fail-fast policy)';
+                    }
                     context.agentStateSvc.failTurn(
                         context.executionId,
                         context.turnIdentifier,
-                        'Tool execution failed (fail-fast policy): ' + result.outcome.errorMessage,
+                        failureReason + ': ' + result.outcome.errorMessage,
                         result.outcome.errorCode != null ? result.outcome.errorCode : AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
                         logPrefix
                     );

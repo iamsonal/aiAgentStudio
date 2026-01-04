@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>HITLNotificationPreference__c</fullName>
-    <description>Controls when to send notifications to the requesting user for HITL (Human-in-the-Loop) actions. Only applies to capabilities with HITLMode enabled (Approval, Confirmation, or ConfirmationThenApproval).</description>
+    <description>Controls when to send notifications to the requesting user for HITL (Human-in-the-Loop) actions. Only applies to capabilities with HITLMode set to "Approval" or "ConfirmationThenApproval". Does not apply to "Confirmation" mode (which is handled conversationally). If not set (null), no notifications will be sent.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Choose when to notify users about HITL action outcomes. "Always Notify" sends notifications for approvals, rejections, and errors. "Notify on Rejection Only" only notifies when actions are rejected.</inlineHelpText>
+    <inlineHelpText>Choose when to notify users about HITL action outcomes. "Always Notify" sends notifications for approvals, rejections, and errors. "Notify on Rejection Only" only notifies when actions are rejected. If left blank, no notifications will be sent. Note: This setting only applies to Approval and ConfirmationThenApproval modes, not Confirmation mode.</inlineHelpText>
     <label>HITL Notification Preference</label>
     <required>false</required>
     <trackTrending>false</trackTrending>

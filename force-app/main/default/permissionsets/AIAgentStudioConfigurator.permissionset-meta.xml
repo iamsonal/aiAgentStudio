@@ -334,11 +334,6 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AgentExecution__c.ExecutionMetadata__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
         <field>AgentExecution__c.LastActivityTime__c</field>
         <readable>true</readable>
     </fieldPermissions>

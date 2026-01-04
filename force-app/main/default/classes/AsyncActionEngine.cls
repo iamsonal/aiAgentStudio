@@ -171,22 +171,36 @@ public class AsyncActionEngine implements Queueable {
                 this.currentTurnCount,
                 actionDuration,
                 true, // isAsyncToolExecution - asynchronous execution
-                this.capability.Id
+                this.capability.Id,
+                !outcome.isSuccess // isError = !isSuccess
             );
 
             // FAIL-FAST CHECK: Apply three-tier error handling policy
             // This ensures async tools respect the same error handling policy as sync tools
             AIAgentDefinition__c agentDefinition = AIAgentConfigService.getAgentDefinition(this.agentDefinitionId);
-            Boolean shouldFailFast = OrchestrationService.shouldFailFast(this.capability, agentDefinition, outcome, logPrefix);
+            Boolean shouldFailFast = OrchestrationService.shouldFailFast(this.capability, agentDefinition, outcome, this.executionId, logPrefix);
 
             if (!outcome.isSuccess && shouldFailFast) {
-                // Tool failed and policy requires immediate failure
-                System.debug(LoggingLevel.WARN, logPrefix + 'Async tool failed with fail-fast policy enabled. Halting execution immediately.');
+                // Tool failed and policy requires immediate failure (could be fail-fast or max retries exceeded)
+                Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
+                Integer failureCount = OrchestrationService.countSuccessiveToolFailures(this.executionId, this.capability.CapabilityName__c, logPrefix);
+                String failureReason;
+                String logMessage;
+                
+                if (failureCount >= maxRetries) {
+                    failureReason = 'Async tool "' + this.capability.CapabilityName__c + '" exceeded MaxToolRetries__c (' + maxRetries + ') after ' + failureCount + ' successive failures';
+                    logMessage = 'Async tool exceeded MaxToolRetries__c - halting execution';
+                } else {
+                    failureReason = 'Async tool execution failed (fail-fast policy)';
+                    logMessage = 'Async tool failed with fail-fast policy enabled - halting execution';
+                }
+                
+                System.debug(LoggingLevel.WARN, logPrefix + logMessage);
 
                 decisionLogger.logToolResult(
-                    'Fail-Fast Policy Triggered',
-                    'Async tool execution failed and fail-fast policy is enabled - halting execution',
-                    '{"reason":"fail_fast_policy","capability":"' + this.capability.CapabilityName__c + '"}',
+                    'Execution Halted',
+                    logMessage,
+                    '{"reason":"' + (failureCount >= maxRetries ? 'max_retries_exceeded' : 'fail_fast_policy') + '","capability":"' + this.capability.CapabilityName__c + '"}',
                     0,
                     false,
                     outcome.errorCode,
@@ -197,7 +211,7 @@ public class AsyncActionEngine implements Queueable {
                 agentStateSvc.failTurn(
                     this.executionId,
                     this.turnIdentifier,
-                    'Async tool execution failed (fail-fast policy): ' + outcome.errorMessage,
+                    failureReason + ': ' + outcome.errorMessage,
                     outcome.errorCode != null ? outcome.errorCode : AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
                     logPrefix
                 );

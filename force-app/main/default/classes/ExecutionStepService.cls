@@ -115,6 +115,9 @@ public inherited sharing class ExecutionStepService {
         String logPrefix = LOG_PREFIX + '[createStep] ';
 
         try {
+            // Calculate estimated cost if we have token and model information
+            Decimal estimatedCost = calculateCost(modelIdentifier, promptTokens, completionTokens);
+
             ExecutionStep__c step = new ExecutionStep__c(
                 AgentExecution__c = executionId,
                 StepType__c = stepType,
@@ -134,6 +137,7 @@ public inherited sharing class ExecutionStepService {
                 TotalTokens__c = totalTokens,
                 ModelIdentifier__c = modelIdentifier,
                 LLMCalloutDurationMs__c = llmCalloutDurationMs,
+                EstimatedCostUSD__c = estimatedCost,
                 IsInternal__c = isInternal != null ? isInternal : false,
                 IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false,
                 AIAgentCapability__c = capabilityId
@@ -322,6 +326,9 @@ public inherited sharing class ExecutionStepService {
         String logPrefix = LOG_PREFIX + '[createToolCallStep] ';
 
         try {
+            // Calculate estimated cost if we have token and model information
+            Decimal estimatedCost = calculateCost(modelIdentifier, promptTokens, completionTokens);
+
             ExecutionStep__c step = new ExecutionStep__c(
                 AgentExecution__c = executionId,
                 StepType__c = 'ToolCall',
@@ -341,6 +348,7 @@ public inherited sharing class ExecutionStepService {
                 TotalTokens__c = totalTokens,
                 ModelIdentifier__c = modelIdentifier,
                 LLMCalloutDurationMs__c = llmCalloutDurationMs,
+                EstimatedCostUSD__c = estimatedCost,
                 IsInternal__c = false,
                 IsAsyncToolExecution__c = false,
                 AIAgentCapability__c = capabilityId,
@@ -362,7 +370,7 @@ public inherited sharing class ExecutionStepService {
     }
 
     /**
-     * Creates a tool result step.
+     * Creates a tool result step (overload without isError for backward compatibility).
      *
      * @param executionId The execution ID
      * @param toolCallId The tool call identifier for correlation
@@ -372,6 +380,7 @@ public inherited sharing class ExecutionStepService {
      * @param turnCount The turn number
      * @param processingDuration Optional processing duration in milliseconds
      * @param isAsyncToolExecution Whether this tool was executed asynchronously
+     * @param capabilityId The capability ID
      * @return Id of the created step
      * @throws ExecutionStepException if step creation fails
      */
@@ -385,6 +394,37 @@ public inherited sharing class ExecutionStepService {
         Long processingDuration,
         Boolean isAsyncToolExecution,
         Id capabilityId
+    ) {
+        return createToolResultStep(executionId, toolCallId, toolName, toolResult, turnIdentifier, turnCount, processingDuration, isAsyncToolExecution, capabilityId, false);
+    }
+
+    /**
+     * Creates a tool result step.
+     *
+     * @param executionId The execution ID
+     * @param toolCallId The tool call identifier for correlation
+     * @param toolName The name of the tool
+     * @param toolResult The result from the tool execution
+     * @param turnIdentifier The turn identifier
+     * @param turnCount The turn number
+     * @param processingDuration Optional processing duration in milliseconds
+     * @param isAsyncToolExecution Whether this tool was executed asynchronously
+     * @param capabilityId The capability ID
+     * @param isError Whether the tool execution had an error (optional, defaults to false)
+     * @return Id of the created step
+     * @throws ExecutionStepException if step creation fails
+     */
+    public Id createToolResultStep(
+        Id executionId,
+        String toolCallId,
+        String toolName,
+        String toolResult,
+        String turnIdentifier,
+        Integer turnCount,
+        Long processingDuration,
+        Boolean isAsyncToolExecution,
+        Id capabilityId,
+        Boolean isError
     ) {
         String logPrefix = LOG_PREFIX + '[createToolResultStep] ';
 
@@ -410,6 +450,7 @@ public inherited sharing class ExecutionStepService {
                 ToolName__c = toolName,
                 ToolResult__c = toolResult,
                 HasResult__c = String.isNotBlank(toolResult),
+                IsError__c = isError != null ? isError : false,
                 ProcessingDuration__c = processingDuration,
                 IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false,
                 StepMetadata__c = !metadata.isEmpty() ? JSON.serialize(metadata) : null,
@@ -425,7 +466,7 @@ public inherited sharing class ExecutionStepService {
 
             System.debug(
                 LoggingLevel.DEBUG,
-                logPrefix + 'Created tool result step: ' + step.Id + ' for tool: ' + toolName + ' (async=' + isAsyncToolExecution + ')'
+                logPrefix + 'Created tool result step: ' + step.Id + ' for tool: ' + toolName + ' (async=' + isAsyncToolExecution + ', isError=' + step.IsError__c + ')'
             );
 
             return step.Id;
@@ -433,6 +474,21 @@ public inherited sharing class ExecutionStepService {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create tool result step: ' + e.getMessage());
             throw new ExecutionStepException('Failed to create tool result step: ' + e.getMessage());
         }
+    }
+
+    /**
+     * Updates an existing tool result step with new result data (overload without isError for backward compatibility).
+     * Used when a pending HITL action is resolved and the actual tool result needs to replace
+     * the "pending_approval" placeholder.
+     *
+     * @param executionId The execution ID
+     * @param toolCallId The tool call ID to find the existing step
+     * @param toolResult The new result from the tool execution
+     * @param processingDuration Optional processing duration in milliseconds
+     * @return Id of the updated step, or null if not found
+     */
+    public Id updateToolResultStep(Id executionId, String toolCallId, String toolResult, Long processingDuration) {
+        return updateToolResultStep(executionId, toolCallId, toolResult, processingDuration, false);
     }
 
     /**
@@ -444,9 +500,10 @@ public inherited sharing class ExecutionStepService {
      * @param toolCallId The tool call ID to find the existing step
      * @param toolResult The new result from the tool execution
      * @param processingDuration Optional processing duration in milliseconds
+     * @param isError Whether the tool execution had an error (optional, defaults to false)
      * @return Id of the updated step, or null if not found
      */
-    public Id updateToolResultStep(Id executionId, String toolCallId, String toolResult, Long processingDuration) {
+    public Id updateToolResultStep(Id executionId, String toolCallId, String toolResult, Long processingDuration, Boolean isError) {
         String logPrefix = LOG_PREFIX + '[updateToolResultStep] ';
 
         try {
@@ -468,6 +525,7 @@ public inherited sharing class ExecutionStepService {
             // Update the result
             step.ToolResult__c = toolResult;
             step.HasResult__c = String.isNotBlank(toolResult);
+            step.IsError__c = isError != null ? isError : false;
             step.Timestamp__c = Datetime.now();
 
             // Update metadata
@@ -745,6 +803,75 @@ public inherited sharing class ExecutionStepService {
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to retrieve unsummarized steps: ' + e.getMessage());
             throw new ExecutionStepException('Failed to retrieve unsummarized steps: ' + e.getMessage());
+        }
+    }
+
+    // Static cache for LLM model pricing to avoid repeated SOQL queries
+    private static Map<String, LLMModelPricing__mdt> pricingCache;
+    private static Boolean isPricingCacheInitialized = false;
+
+    /**
+     * Calculate estimated cost based on model pricing and token usage
+     * Pricing is retrieved from LLMModelPricing__mdt custom metadata
+     *
+     * @param modelIdentifier The model identifier (e.g., gpt-4o, gpt-4o-mini)
+     * @param promptTokens Number of tokens in the prompt
+     * @param completionTokens Number of tokens in the completion
+     * @return The estimated cost in USD, or null if model is unknown or pricing not configured
+     */
+    private static Decimal calculateCost(String modelIdentifier, Integer promptTokens, Integer completionTokens) {
+        if (String.isBlank(modelIdentifier) || promptTokens == null || completionTokens == null) {
+            return null;
+        }
+
+        // Initialize pricing cache if needed
+        ensurePricingCacheInitialized();
+
+        // Normalize model identifier to lowercase for matching
+        String normalizedModel = modelIdentifier.toLowerCase();
+
+        // Try exact match first
+        if (pricingCache.containsKey(normalizedModel)) {
+            LLMModelPricing__mdt pricing = pricingCache.get(normalizedModel);
+            Decimal promptCost = (Decimal.valueOf(promptTokens) / 1000000.0) * pricing.PromptPricePer1MTokens__c;
+            Decimal completionCost = (Decimal.valueOf(completionTokens) / 1000000.0) * pricing.CompletionPricePer1MTokens__c;
+            return promptCost + completionCost;
+        }
+
+        // Model not found in pricing metadata
+        System.debug(LoggingLevel.WARN, LOG_PREFIX + 'No pricing found for model: ' + modelIdentifier);
+        return null;
+    }
+
+    /**
+     * Ensures pricing cache is initialized with active LLM model pricing records
+     */
+    private static void ensurePricingCacheInitialized() {
+        if (isPricingCacheInitialized) {
+            return;
+        }
+
+        pricingCache = new Map<String, LLMModelPricing__mdt>();
+
+        try {
+            List<LLMModelPricing__mdt> pricingRecords = [
+                SELECT ModelIdentifier__c, PromptPricePer1MTokens__c, CompletionPricePer1MTokens__c
+                FROM LLMModelPricing__mdt
+                WHERE IsActive__c = TRUE
+            ];
+
+            for (LLMModelPricing__mdt pricing : pricingRecords) {
+                if (String.isNotBlank(pricing.ModelIdentifier__c)) {
+                    pricingCache.put(pricing.ModelIdentifier__c.toLowerCase(), pricing);
+                }
+            }
+
+            isPricingCacheInitialized = true;
+            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Initialized pricing cache with ' + pricingCache.size() + ' models');
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Failed to initialize pricing cache: ' + e.getMessage());
+            // Initialize empty cache to avoid repeated failures
+            isPricingCacheInitialized = true;
         }
     }
 }

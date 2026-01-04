@@ -454,7 +454,7 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         // Update the existing placeholder tool result step with decline message
         ExecutionStepService stepService = new ExecutionStepService();
-        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, declineMessage, 0L);
+        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, declineMessage, 0L, true);
 
         // Fallback: create new step if update failed
         if (updatedStepId == null) {
@@ -468,7 +468,8 @@ public with sharing class PendingHITLActionTriggerHandler {
                 fullAction.TurnCount__c != null ? fullAction.TurnCount__c.intValue() : 1,
                 0L,
                 false,
-                fullAction.AIAgentCapability__c
+                fullAction.AIAgentCapability__c,
+                true // isError - declined action is an error
             );
         }
 
@@ -528,7 +529,7 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         // Update the existing placeholder tool result step with rejection message
         ExecutionStepService stepService = new ExecutionStepService();
-        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, rejectionMessage, 0L);
+        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, rejectionMessage, 0L, true);
 
         // Fallback: create new step if update failed
         if (updatedStepId == null) {
@@ -542,7 +543,8 @@ public with sharing class PendingHITLActionTriggerHandler {
                 fullAction.TurnCount__c != null ? fullAction.TurnCount__c.intValue() : 1,
                 0L,
                 false,
-                fullAction.AIAgentCapability__c
+                fullAction.AIAgentCapability__c,
+                true // isError - rejected action is an error
             );
         }
 
@@ -579,7 +581,7 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         // Update the existing placeholder tool result step with expiration message
         ExecutionStepService stepService = new ExecutionStepService();
-        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, expirationMessage, 0L);
+        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, expirationMessage, 0L, true);
 
         // Fallback: create new step if update failed
         if (updatedStepId == null) {
@@ -593,7 +595,8 @@ public with sharing class PendingHITLActionTriggerHandler {
                 fullAction.TurnCount__c != null ? fullAction.TurnCount__c.intValue() : 1,
                 0L,
                 false,
-                fullAction.AIAgentCapability__c
+                fullAction.AIAgentCapability__c,
+                true // isError - expired action is an error
             );
         }
 

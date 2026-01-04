@@ -1430,7 +1430,7 @@ public with sharing class AgentTestDataFactory {
         String exposure
     ) {
         // Map legacy fields to new HITLMode__c
-        String hitlMode = 'None';
+        String hitlMode;
         if (requiresApproval == true) {
             hitlMode = 'Approval';
         } else if (requiresConfirmation == true) {
@@ -1464,7 +1464,7 @@ public with sharing class AgentTestDataFactory {
      * @param stdType Standard action type (if implType is Standard)
      * @param implDetail Implementation detail (class name or flow name)
      * @param backendConfig Backend configuration JSON
-     * @param hitlMode HITL mode: 'None', 'Confirmation', 'Approval', or 'ConfirmationThenApproval'
+     * @param hitlMode HITL mode: 'Confirmation', 'Approval', or 'ConfirmationThenApproval'
      * @param runAsync Whether to run asynchronously
      * @param exposure Exposure level (External, Internal, Disabled)
      * @return AgentCapability__c record (not inserted)

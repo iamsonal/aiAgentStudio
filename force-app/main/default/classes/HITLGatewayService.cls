@@ -846,9 +846,9 @@ public with sharing class HITLGatewayService {
      * @return True if notification should be sent, false otherwise
      */
     public static Boolean shouldSendHITLNotification(String preference, String eventType) {
-        // If capability preference is not set, default to "Always Notify" behavior
+        // If capability preference is not set, do not send notifications
         if (String.isBlank(preference)) {
-            return true; // Default to always notify for safety
+            return false; // No preference set means no notifications
         }
 
         // "Always Notify" - send for all events
@@ -861,8 +861,8 @@ public with sharing class HITLGatewayService {
             return eventType == NOTIFICATION_TYPE_REJECTION;
         }
 
-        // Unknown preference value - default to always notify for safety
-        return true;
+        // Unknown preference value - default to no notification (conservative approach)
+        return false;
     }
 
     // =============================================================================

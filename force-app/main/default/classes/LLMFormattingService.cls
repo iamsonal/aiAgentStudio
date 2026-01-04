@@ -141,7 +141,19 @@ public inherited sharing class LLMFormattingService {
      * @throws ToolFormattingException if schema validation or formatting fails critically.
      */
     public static List<Map<String, Object>> formatToolsForApi(Id agentDefinitionId, String loggingContext) {
-        return formatToolsForApi(agentDefinitionId, null, loggingContext);
+        return formatToolsForApi(agentDefinitionId, null, null, loggingContext);
+    }
+
+    /**
+     * Overload for backward compatibility - calls the main method with null executionId.
+     * 
+     * @param agentDefinitionId The Id of the agent definition whose capabilities should be exposed as tools.
+     * @param agentConfig The agent configuration record (optional).
+     * @param loggingContext Optional string prefix for log output.
+     * @return List<Map<String, Object>> of tool definitions ready for LLM API consumption.
+     */
+    public static List<Map<String, Object>> formatToolsForApi(Id agentDefinitionId, AIAgentDefinition__c agentConfig, String loggingContext) {
+        return formatToolsForApi(agentDefinitionId, agentConfig, null, loggingContext);
     }
 
     /**
@@ -153,11 +165,12 @@ public inherited sharing class LLMFormattingService {
      * @param agentDefinitionId The Id of the agent definition whose capabilities should be exposed as tools.
      * @param agentConfig The agent configuration record (optional). When provided and EnableToolReasoning__c is true,
      *                    injects _rationale parameter into all tool schemas.
+     * @param executionId The execution ID (optional, currently unused but kept for future use).
      * @param loggingContext Optional string prefix for log output.
      * @return List<Map<String, Object>> of tool definitions ready for LLM API consumption.
      * @throws ToolFormattingException if schema validation or formatting fails critically.
      */
-    public static List<Map<String, Object>> formatToolsForApi(Id agentDefinitionId, AIAgentDefinition__c agentConfig, String loggingContext) {
+    public static List<Map<String, Object>> formatToolsForApi(Id agentDefinitionId, AIAgentDefinition__c agentConfig, Id executionId, String loggingContext) {
         String debugPrefix = String.isNotBlank(loggingContext) ? loggingContext : '[LLMFormattingService] ';
         List<Map<String, Object>> toolsPayload = new List<Map<String, Object>>();
 

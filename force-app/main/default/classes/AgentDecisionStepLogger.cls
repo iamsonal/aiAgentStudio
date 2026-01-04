@@ -39,7 +39,8 @@ public inherited sharing class AgentDecisionStepLogger {
         AVAILABLE_TOOLS,
         FINAL_RESPONSE,
         RESUME_APPROVED_FRAMEWORK_ACTION,
-        HANDLE_REJECTED_FRAMEWORK_ACTION
+        HANDLE_REJECTED_FRAMEWORK_ACTION,
+        FUNCTION_RESUMED
     }
 
     private Id executionId;
@@ -482,6 +483,20 @@ public inherited sharing class AgentDecisionStepLogger {
     }
 
     /**
+     * Log a function resumed step.
+     * Called when a function agent execution is manually resumed.
+     *
+     * @param title Descriptive title for the step
+     * @param description Short description for the title area
+     * @param metadataJson JSON representation of resume metadata
+     * @param detailedMessage Detailed message to display in content area
+     * @param durationMs Duration of processing this step
+     */
+    public void logFunctionResumed(String title, String description, String metadataJson, String detailedMessage, Long durationMs) {
+        logStepWithContextFormatting(StepType.FUNCTION_RESUMED, title, description, metadataJson, detailedMessage, durationMs, true, null, null);
+    }
+
+    /**
      * Log a step with parent relationship for causality tracking
      *
      * @param stepType The type of step
@@ -630,9 +645,14 @@ public inherited sharing class AgentDecisionStepLogger {
             // Insert all collected steps in a single bulk operation
             insert stepsToCommit;
             System.debug(LoggingLevel.INFO, '[AgentDecisionStepLogger] Committed ' + stepsToCommit.size() + ' decision steps.');
+            
+            // Clear the list after successful insert to prevent re-insertion of records with Ids
+            // This allows the same logger instance to be reused for multiple commit cycles
+            stepsToCommit.clear();
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[AgentDecisionStepLogger] Failed to commit steps: ' + e.getMessage());
             // We don't throw the exception to avoid disrupting the main agent flow
+            // Note: We don't clear the list on error so the caller can potentially retry
         }
     }
 
@@ -792,6 +812,9 @@ public inherited sharing class AgentDecisionStepLogger {
             }
             when HANDLE_REJECTED_FRAMEWORK_ACTION {
                 return 'Handle Rejected Framework Action';
+            }
+            when FUNCTION_RESUMED {
+                return 'Function Resumed';
             }
         }
         return 'Error'; // Default fallback

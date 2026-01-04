@@ -17,6 +17,7 @@ public inherited sharing class AIAgentFrameworkSettings {
     // Define hardcoded final defaults directly here. Names reflect settings field names.
     private static final Integer FINAL_DEFAULT_MaxConversationTurns = 5;
     private static final Integer FINAL_DEFAULT_MaxQueueableStackDepth = 0; // 0 means use Salesforce defaults
+    private static final Integer FINAL_DEFAULT_MaxToolRetries = 2;
     private static final String FINAL_DEFAULT_HITLApprovalNamedCredential = 'AgentStudioInternalAPI';
 
     /**
@@ -100,6 +101,21 @@ public inherited sharing class AIAgentFrameworkSettings {
      */
     public static String getHITLApprovalNamedCredential() {
         return getInstance().HITLApprovalNamedCredential__c;
+    }
+
+    /**
+     * Gets the maximum number of successive failures allowed for a tool before the execution
+     * is automatically failed. Only applies when ErrorHandlingPolicy__c is 'Autonomous Recovery'
+     * and AgentType__c is NOT 'Conversational'. Conversational agents let the LLM decide how to handle errors.
+     *
+     * @return The maximum tool retries (defaults to 2 if not set).
+     */
+    public static Integer getMaxToolRetries() {
+        AIAgentFrameworkSettings__c instance = getInstance();
+        if (instance.MaxToolRetries__c != null && instance.MaxToolRetries__c > 0) {
+            return Integer.valueOf(instance.MaxToolRetries__c);
+        }
+        return FINAL_DEFAULT_MaxToolRetries;
     }
 
     /**

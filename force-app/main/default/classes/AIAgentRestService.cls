@@ -312,7 +312,7 @@ global with sharing class AIAgentRestService {
             ExecutionStepService stepService = new ExecutionStepService();
             String resultJson = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
 
-            Id updatedStepId = stepService.updateToolResultStep(execution.Id, toolRequest.toolCallId, resultJson, 0L);
+            Id updatedStepId = stepService.updateToolResultStep(execution.Id, toolRequest.toolCallId, resultJson, 0L, !outcome.isSuccess);
 
             // Fallback: create new step if update failed
             if (updatedStepId == null) {
@@ -326,7 +326,8 @@ global with sharing class AIAgentRestService {
                     toolRequest.turnCount != null ? Integer.valueOf(toolRequest.turnCount) : 1,
                     0L,
                     false,
-                    capability.Id
+                    capability.Id,
+                    !outcome.isSuccess // isError = !isSuccess
                 );
             }
 

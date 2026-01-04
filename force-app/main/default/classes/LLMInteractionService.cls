@@ -233,7 +233,8 @@ public inherited sharing class LLMInteractionService {
 
             // --- 5. Format Tool Definitions ---
             // Pass agent config to enable tool reasoning if configured
-            List<Map<String, Object>> toolsPayload = LLMFormattingService.formatToolsForApi(agentConfig.Id, agentConfig, logPrefix);
+            // Pass executionId to enable tool exclusion based on MaxToolRetries__c
+            List<Map<String, Object>> toolsPayload = LLMFormattingService.formatToolsForApi(agentConfig.Id, agentConfig, this.executionId, logPrefix);
 
             // Log LLM request if decision logger is available
             if (this.decisionLogger != null) {
@@ -287,12 +288,16 @@ public inherited sharing class LLMInteractionService {
                     // Extract provider name from adapter class (e.g., "OpenAIProviderAdapter" -> "OpenAI")
                     String providerName = extractProviderName(llmConfig.ProviderAdapterClass__c);
 
+                    // Use the same duration value as ExecutionStep__c.LLMCalloutDurationMs__c
+                    // This ensures consistency between ExecutionStep and AgentDecisionStep records
+                    Long llmCalloutDuration = llmApiResult.llmCalloutDurationMs != null ? llmApiResult.llmCalloutDurationMs : callDuration;
+
                     // Use enhanced logging method with cost and token tracking
                     this.decisionLogger.logLLMResponseWithMetrics(
                         'LLM Response Received',
                         'Successfully received response from LLM',
                         JSON.serialize(llmApiResult),
-                        callDuration,
+                        llmCalloutDuration,
                         llmApiResult.promptTokens,
                         llmApiResult.completionTokens,
                         llmApiResult.totalTokens,
