@@ -341,20 +341,22 @@ public inherited sharing class OrchestrationService {
     /**
      * @description Determines if agent execution should fail immediately on tool error.
      *
-     * Implements Three-Tier Hierarchy for Error Handling:
+     * Implements Four-Tier Hierarchy for Error Handling:
      * Priority 1 (Highest): Capability.FailFastOnError__c = true → FAIL
      * Priority 2: Agent.ErrorHandlingPolicy__c = 'Fail-Fast' → FAIL
-     * Priority 3 (Default): 'Autonomous Recovery' → CONTINUE
+     * Priority 3: Tool exceeded MaxToolRetries__c successive failures → FAIL
+     * Priority 4 (Default): 'Autonomous Recovery' → CONTINUE
      *
      * This method centralizes error handling policy for all orchestrators (Function, Conversational, Workflow).
      *
      * @param capability The capability that was executed
      * @param agentDefinition The agent definition configuration
      * @param toolOutcome The outcome of the tool execution
+     * @param executionId The execution ID (required for MaxToolRetries__c check)
      * @param logPrefix Logging prefix for debug output
      * @return true if execution should fail immediately, false to allow LLM recovery
      */
-    public static Boolean shouldFailFast(AgentCapability__c capability, AIAgentDefinition__c agentDefinition, ActionOutcome toolOutcome, String logPrefix) {
+    public static Boolean shouldFailFast(AgentCapability__c capability, AIAgentDefinition__c agentDefinition, ActionOutcome toolOutcome, Id executionId, String logPrefix) {
         // Only applies to tool failures
         if (toolOutcome == null || toolOutcome.isSuccess) {
             return false;
@@ -380,12 +382,34 @@ public inherited sharing class OrchestrationService {
             return true;
         }
 
-        // Tier 3: Default behavior (autonomous recovery)
+        // Tier 3: MaxToolRetries__c check (only for Autonomous Recovery mode and non-Conversational agents)
+        // For Conversational agents, let the LLM decide how to handle errors
+        // For Function/Workflow agents, enforce retry limits to prevent infinite loops
+        // Note: MaxToolRetries__c = 2 means "allow 1 failure, fail on the 2nd"
+        if (executionId != null && agentDefinition.ErrorHandlingPolicy__c != 'Fail-Fast' && agentDefinition.AgentType__c != 'Conversational') {
+            Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
+            Integer failureCount = countSuccessiveToolFailures(executionId, capability.CapabilityName__c, logPrefix);
+            
+            // If failureCount >= maxRetries, fail the execution
+            // Example: maxRetries=2 means allow 1 failure (count=1), fail on 2nd (count=2)
+            if (failureCount >= maxRetries) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix + '⚠️ FAIL-FAST (Tier 3): Tool "' + capability.CapabilityName__c + 
+                    '" exceeded MaxToolRetries__c (' + maxRetries + '). ' +
+                    'Successive failures: ' + failureCount + '. Halting execution. ' +
+                    '(AgentType: ' + agentDefinition.AgentType__c + ')'
+                );
+                return true;
+            }
+        }
+
+        // Tier 4: Default behavior (autonomous recovery)
         // Let LLM see the error and attempt to handle it
         System.debug(
             LoggingLevel.INFO,
             logPrefix +
-                '✓ AUTONOMOUS RECOVERY (Tier 3): Passing error to LLM for handling. ' +
+                '✓ AUTONOMOUS RECOVERY (Tier 4): Passing error to LLM for handling. ' +
                 'Capability: ' +
                 capability.CapabilityName__c +
                 ', ' +
@@ -394,6 +418,77 @@ public inherited sharing class OrchestrationService {
         );
         return false;
     }
+
+    /**
+     * Overload for backward compatibility - calls the main method with null executionId.
+     * This maintains compatibility with existing code that doesn't pass executionId.
+     */
+    public static Boolean shouldFailFast(AgentCapability__c capability, AIAgentDefinition__c agentDefinition, ActionOutcome toolOutcome, String logPrefix) {
+        return shouldFailFast(capability, agentDefinition, toolOutcome, null, logPrefix);
+    }
+
+    /**
+     * @description Counts the number of successive failures for a specific tool in an execution.
+     * 
+     * This method looks at the most recent execution steps and counts consecutive failures
+     * of the same tool, starting from the most recent step and working backwards.
+     * The count resets if a successful execution of the tool is found, or if a different
+     * tool is encountered.
+     *
+     * @param executionId The execution ID to check
+     * @param toolName The name of the tool to check
+     * @param logPrefix Logging prefix for debug output
+     * @return The number of successive failures for this tool (0 if none or if tool succeeded recently)
+     */
+    public static Integer countSuccessiveToolFailures(Id executionId, String toolName, String logPrefix) {
+        if (executionId == null || String.isBlank(toolName)) {
+            return 0;
+        }
+
+        try {
+            // Query execution steps in reverse chronological order
+            // We need to find the most recent tool result for this tool and count backwards
+            List<ExecutionStep__c> steps = [
+                SELECT Id, StepType__c, ToolName__c, IsError__c, Timestamp__c, ToolCallId__c
+                FROM ExecutionStep__c
+                WHERE AgentExecution__c = :executionId
+                AND StepType__c IN ('ToolCall', 'ToolResult')
+                AND ToolName__c = :toolName
+                ORDER BY Timestamp__c DESC, Id DESC
+                LIMIT 100
+            ];
+
+            if (steps.isEmpty()) {
+                return 0;
+            }
+
+            Integer failureCount = 0;
+
+            // Process steps from most recent to oldest (steps are already ordered DESC)
+            // Count consecutive failures starting from the most recent result
+            for (ExecutionStep__c step : steps) {
+                if (step.StepType__c == 'ToolResult') {
+                    if (step.IsError__c == true) {
+                        failureCount++;
+                    } else {
+                        // Found a successful execution - stop counting (success resets the failure chain)
+                        break;
+                    }
+                }
+            }
+
+            System.debug(
+                LoggingLevel.DEBUG,
+                logPrefix + 'Tool "' + toolName + '" has ' + failureCount + ' successive failure(s) in execution ' + executionId
+            );
+
+            return failureCount;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error counting tool failures: ' + e.getMessage());
+            return 0; // Fail open - don't exclude tool if we can't count
+        }
+    }
+
 
     // ===================================================================================
     // PARALLEL TOOL COMPLETION TRACKING (Consolidated from ParallelToolCallHandler)

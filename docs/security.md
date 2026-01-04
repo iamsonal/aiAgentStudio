@@ -117,18 +117,24 @@ Permission Set: AI Agent User
 
 ## Approval Workflows
 
-For sensitive operations, enable approval on capabilities:
+For sensitive operations, enable approval on capabilities using the HITL (Human-in-the-Loop) system:
 
 ### Configuration
 
-Set `RequiresApproval__c = true` on the capability.
+Set `HITLMode__c = 'Approval'` on the capability to require formal Salesforce approval before execution.
+
+Available HITL modes:
+- **Blank** - No human intervention (execute immediately)
+- **Confirmation** - LLM asks user conversationally in chat before executing (conversational agents only)
+- **Approval** - Formal Salesforce approval process (works with all agent types)
+- **ConfirmationThenApproval** - LLM confirms in chat, then submits for formal approval (conversational agents only)
 
 ### User Experience
 
 1. User requests action (e.g., "Delete this account")
 2. Agent prepares the action but pauses
-3. User sees approval prompt with details
-4. User approves or rejects
+3. Approval request is created and routed to approvers
+4. Approver reviews and approves or rejects
 5. Action executes only if approved
 
 ### Best Practices

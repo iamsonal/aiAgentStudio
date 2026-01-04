@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ToolArgumentsJSON__c</fullName>
+    <description>JSON-serialized arguments for the tool call. Preserved to execute the tool after HITL approval/confirmation.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>The tool arguments that will be used when executing this action.</inlineHelpText>
+    <label>Tool Arguments (JSON)</label>
+    <length>131072</length>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>5</visibleLines>
+</CustomField>

@@ -159,16 +159,6 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AgentCapability__c.RequiresApproval__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AgentCapability__c.RequiresConfirmation__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
         <field>AgentCapability__c.RunAsynchronously__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -340,11 +330,6 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>AgentExecution__c.EndTime__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AgentExecution__c.ExecutionMetadata__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>

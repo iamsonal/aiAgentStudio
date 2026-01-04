@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ApprovalProcessInstanceId__c</fullName>
+    <description>The Salesforce ProcessInstance ID when this HITL action is submitted to an approval process. Used to track and correlate approval status.</description>
+    <externalId>true</externalId>
+    <inlineHelpText>Salesforce approval process instance ID.</inlineHelpText>
+    <label>Approval Process Instance ID</label>
+    <length>18</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

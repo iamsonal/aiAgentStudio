@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MaxProcessingCycles__c</fullName>
+    <defaultValue/>
+    <description>Maximum number of processing cycles (agent thinks -&gt; agent acts) allowed for processing a single user message for this agent. If blank, uses the org-wide default from AI Agent Framework Settings. Each cycle counts as one turn (e.g., call model, use tool, call model again).</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Per-agent limit on processing cycles. Prevents excessive processing for one user input. Leave blank to use org-wide default from AI Agent Framework Settings. Each agent action and follow-up LLM call counts as one cycle.</inlineHelpText>
+    <label>Max Processing Cycles</label>
+    <precision>3</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>
+

@@ -80,6 +80,11 @@
                 <default>false</default>
                 <label>Handle Rejected Framework Action</label>
             </value>
+            <value>
+                <fullName>Function Resumed</fullName>
+                <default>false</default>
+                <label>Function Resumed</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

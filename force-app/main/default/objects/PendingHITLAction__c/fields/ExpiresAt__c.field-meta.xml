@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExpiresAt__c</fullName>
+    <description>Timestamp when this HITL action will expire if not resolved. Primarily used for Confirmation type; Approval type may have longer or no expiration.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>When this request will expire if not resolved.</inlineHelpText>
+    <label>Expires At</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

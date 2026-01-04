@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsError__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Indicates whether this step had an error. For ToolResult steps, this indicates whether the tool execution failed.</description>
+    <inlineHelpText>True if the step had an error, false if it completed successfully.</inlineHelpText>
+    <label>Is Error</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>
+

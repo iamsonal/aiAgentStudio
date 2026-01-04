@@ -3,6 +3,6 @@
     <doesSendEmailToMembers>false</doesSendEmailToMembers>
     <name>HITL Queue</name>
     <queueSobject>
-        <sobjectType>HumanApprovalRequest__c</sobjectType>
+        <sobjectType>PendingHITLAction__c</sobjectType>
     </queueSobject>
 </Queue>

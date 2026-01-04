@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ConfirmationPrompt__c</fullName>
+    <description>The human-readable message shown to the user when requesting confirmation. Generated from tool context or custom template.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Message displayed to user when requesting confirmation.</inlineHelpText>
+    <label>Confirmation Prompt</label>
+    <length>32768</length>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>
