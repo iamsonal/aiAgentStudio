@@ -59,7 +59,6 @@ public inherited sharing class AIAgentConfigService {
         'EnableToolReasoning__c',
         'RequiresServiceUserContext__c',
         'AsyncDispatchType__c',
-        'ErrorHandlingPolicy__c',
         'SummarizerAgent__c',
         'SummarizerAgent__r.DeveloperName__c',
         'SummarizerAgent__r.LLMConfiguration__c',

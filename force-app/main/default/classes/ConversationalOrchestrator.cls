@@ -117,32 +117,15 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
         }
     }
 
-    /**
-     * Handles async results for conversational executions.
-     * This is called by ConversationalQueueable after it completes LLM processing.
-     */
-    public override void onChildComplete(Id executionId, Map<String, Object> asyncPayload) {
-        String logPrefix = LOG_PREFIX + '[Exec:' + executionId + '] ';
-        System.debug(LoggingLevel.INFO, logPrefix + 'Processing async result');
-
-        // For conversational agents, async processing happens in ConversationalQueueable or via ProcessLLMMessage event
-        // This method is primarily for future extensibility
-        System.debug(LoggingLevel.INFO, logPrefix + 'Async result processed');
-    }
-
     // ===================================================================================
     // CAPABILITY QUERY METHODS
     // ===================================================================================
 
-    /**
-     * Conversational agents support async results (for tool completion callbacks).
-     */
-    public override Boolean supportsChildDelegation() {
-        return true;
-    }
+    // Note: ConversationalOrchestrator does not override onChildComplete()
+    // because it uses ConversationalQueueable/ProcessLLMMessage events instead of callbacks
 
     // ===================================================================================
-    // CUSTOMIZATION HOOKS
+    // LLM CUSTOMIZATION HOOKS (override from BaseAgentOrchestrator)
     // ===================================================================================
 
     /**
@@ -465,7 +448,7 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
         CapabilityExecutionService capabilityService = new CapabilityExecutionService();
         ActionOutcome toolOutcome = capabilityService.executeSingleAction(capability, toolArguments, actionContext);
 
-        // Create tool call and result steps
+        // Create tool call and result steps with resume tracking
         ExecutionStepService stepSvc = new ExecutionStepService();
         stepSvc.createToolCallStep(
             executionId,
@@ -479,7 +462,8 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
             null,
             null,
             null,
-            capability.Id
+            capability.Id,
+            true // isResumed = true
         );
 
         String toolResultJson = OrchestrationService.serializeActionOutcome(toolOutcome, logPrefix);
@@ -493,7 +477,8 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
             0L,
             false,
             capability.Id,
-            !toolOutcome.isSuccess
+            !toolOutcome.isSuccess,
+            true // isResumed = true
         );
 
         if (!toolOutcome.isSuccess) {

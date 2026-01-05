@@ -140,16 +140,6 @@
                     <name>uiBehavior</name>
                     <value>none</value>
                 </fieldInstanceProperties>
-                <fieldItem>Record.ErrorHandlingPolicy__c</fieldItem>
-                <identifier>RecordErrorHandlingPolicy_cField</identifier>
-            </fieldInstance>
-        </itemInstances>
-        <itemInstances>
-            <fieldInstance>
-                <fieldInstanceProperties>
-                    <name>uiBehavior</name>
-                    <value>none</value>
-                </fieldInstanceProperties>
                 <fieldItem>Record.AsyncDispatchType__c</fieldItem>
                 <identifier>RecordAsyncDispatchType_cField</identifier>
                 <visibilityRule>

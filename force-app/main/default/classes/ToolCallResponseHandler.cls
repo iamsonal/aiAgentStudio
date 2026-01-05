@@ -677,7 +677,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             )
         );
 
-        // Let orchestrator handle agent-specific completion behavior
+        // Let orchestrator handle agent-specific completion behavior (polymorphic call - no instanceof check needed)
         String orchestratorOutcome = orchestrator.evaluateToolOutcome(context, approvalToolResults, 'APPROVAL_REQUIRED');
 
         if (orchestratorOutcome != null) {

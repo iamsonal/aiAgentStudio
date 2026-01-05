@@ -286,7 +286,7 @@ public inherited sharing class ExecutionStepService {
             modelIdentifier,
             llmCalloutDurationMs,
             capabilityId,
-            null // toolRationale
+            (String) null // toolRationale - explicit cast to resolve ambiguity
         );
     }
 
@@ -360,6 +360,147 @@ public inherited sharing class ExecutionStepService {
             System.debug(
                 LoggingLevel.DEBUG,
                 logPrefix + 'Created ToolCall ExecutionStep__c: ' + step.Id + ' Tool: ' + toolName + ' HasRationale: ' + String.isNotBlank(toolRationale)
+            );
+
+            return step.Id;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create tool call step: ' + e.getMessage());
+            throw new ExecutionStepException('Failed to create tool call step: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Creates a tool call step with resume tracking support.
+     *
+     * @param executionId The execution ID
+     * @param toolCallId The tool call identifier
+     * @param toolName The name of the tool being called
+     * @param toolArguments The arguments passed to the tool (JSON format)
+     * @param turnIdentifier The turn identifier
+     * @param turnCount The turn number
+     * @param promptTokens Optional prompt tokens used
+     * @param completionTokens Optional completion tokens used
+     * @param totalTokens Optional total tokens used
+     * @param modelIdentifier Optional model identifier
+     * @param llmCalloutDurationMs Optional LLM callout duration
+     * @param capabilityId The capability ID
+     * @param isResumed Whether this step was created during a resume operation
+     * @return Id of the created step
+     */
+    public Id createToolCallStep(
+        Id executionId,
+        String toolCallId,
+        String toolName,
+        String toolArguments,
+        String turnIdentifier,
+        Integer turnCount,
+        Integer promptTokens,
+        Integer completionTokens,
+        Integer totalTokens,
+        String modelIdentifier,
+        Long llmCalloutDurationMs,
+        Id capabilityId,
+        Boolean isResumed
+    ) {
+        return createToolCallStep(
+            executionId,
+            toolCallId,
+            toolName,
+            toolArguments,
+            turnIdentifier,
+            turnCount,
+            promptTokens,
+            completionTokens,
+            totalTokens,
+            modelIdentifier,
+            llmCalloutDurationMs,
+            capabilityId,
+            (String) null, // toolRationale - explicit cast to resolve ambiguity
+            isResumed
+        );
+    }
+
+    /**
+     * Creates a tool call step with resume tracking and rationale support.
+     *
+     * @param executionId The execution ID
+     * @param toolCallId The tool call identifier
+     * @param toolName The name of the tool being called
+     * @param toolArguments The arguments passed to the tool (JSON format)
+     * @param turnIdentifier The turn identifier
+     * @param turnCount The turn number
+     * @param promptTokens Optional prompt tokens used
+     * @param completionTokens Optional completion tokens used
+     * @param totalTokens Optional total tokens used
+     * @param modelIdentifier Optional model identifier
+     * @param llmCalloutDurationMs Optional LLM callout duration
+     * @param capabilityId The capability ID
+     * @param toolRationale Optional rationale for the tool call
+     * @param isResumed Whether this step was created during a resume operation
+     * @return Id of the created step
+     */
+    public Id createToolCallStep(
+        Id executionId,
+        String toolCallId,
+        String toolName,
+        String toolArguments,
+        String turnIdentifier,
+        Integer turnCount,
+        Integer promptTokens,
+        Integer completionTokens,
+        Integer totalTokens,
+        String modelIdentifier,
+        Long llmCalloutDurationMs,
+        Id capabilityId,
+        String toolRationale,
+        Boolean isResumed
+    ) {
+        String logPrefix = LOG_PREFIX + '[createToolCallStep] ';
+
+        try {
+            // Calculate estimated cost if we have token and model information
+            Decimal estimatedCost = calculateCost(modelIdentifier, promptTokens, completionTokens);
+
+            ExecutionStep__c step = new ExecutionStep__c(
+                AgentExecution__c = executionId,
+                StepType__c = 'ToolCall',
+                StepRole__c = 'Assistant',
+                Content__c = null,
+                ContentType__c = 'JSON',
+                Timestamp__c = Datetime.now(),
+                TurnIdentifier__c = turnIdentifier,
+                TurnCount__c = turnCount,
+                ToolCallId__c = toolCallId,
+                ToolName__c = toolName,
+                ToolArguments__c = toolArguments,
+                ToolResult__c = null,
+                StepMetadata__c = null,
+                PromptTokens__c = promptTokens,
+                CompletionTokens__c = completionTokens,
+                TotalTokens__c = totalTokens,
+                ModelIdentifier__c = modelIdentifier,
+                LLMCalloutDurationMs__c = llmCalloutDurationMs,
+                EstimatedCostUSD__c = estimatedCost,
+                IsInternal__c = false,
+                IsAsyncToolExecution__c = false,
+                AIAgentCapability__c = capabilityId,
+                ToolRationale__c = toolRationale,
+                IsResumed__c = isResumed != null ? isResumed : false
+            );
+
+            insert step;
+
+            System.debug(
+                LoggingLevel.DEBUG,
+                logPrefix +
+                    'Created ToolCall ExecutionStep__c: ' +
+                    step.Id +
+                    ' Tool: ' +
+                    toolName +
+                    ' HasRationale: ' +
+                    String.isNotBlank(toolRationale) +
+                    ' IsResumed: ' +
+                    (isResumed == true)
             );
 
             return step.Id;
@@ -470,7 +611,8 @@ public inherited sharing class ExecutionStepService {
                 TotalTokens__c = null,
                 ModelIdentifier__c = null,
                 LLMCalloutDurationMs__c = null,
-                AIAgentCapability__c = capabilityId
+                AIAgentCapability__c = capabilityId,
+                IsResumed__c = false // Default to false for existing method
             );
 
             insert step;
@@ -486,6 +628,98 @@ public inherited sharing class ExecutionStepService {
                     isAsyncToolExecution +
                     ', isError=' +
                     step.IsError__c +
+                    ')'
+            );
+
+            return step.Id;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create tool result step: ' + e.getMessage());
+            throw new ExecutionStepException('Failed to create tool result step: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Creates a tool result step with resume tracking support.
+     *
+     * @param executionId The execution ID
+     * @param toolCallId The tool call identifier for correlation
+     * @param toolName The name of the tool
+     * @param toolResult The result from the tool execution
+     * @param turnIdentifier The turn identifier
+     * @param turnCount The turn number
+     * @param processingDuration Optional processing duration in milliseconds
+     * @param isAsyncToolExecution Whether this tool was executed asynchronously
+     * @param capabilityId The capability ID
+     * @param isError Whether the tool execution had an error
+     * @param isResumed Whether this step was created during a resume operation
+     * @return Id of the created step
+     * @throws ExecutionStepException if step creation fails
+     */
+    public Id createToolResultStep(
+        Id executionId,
+        String toolCallId,
+        String toolName,
+        String toolResult,
+        String turnIdentifier,
+        Integer turnCount,
+        Long processingDuration,
+        Boolean isAsyncToolExecution,
+        Id capabilityId,
+        Boolean isError,
+        Boolean isResumed
+    ) {
+        String logPrefix = LOG_PREFIX + '[createToolResultStep] ';
+
+        try {
+            Map<String, Object> metadata = new Map<String, Object>();
+            if (processingDuration != null) {
+                metadata.put('processingDuration', processingDuration);
+            }
+            if (isAsyncToolExecution != null) {
+                metadata.put('isAsyncToolExecution', isAsyncToolExecution);
+            }
+
+            ExecutionStep__c step = new ExecutionStep__c(
+                AgentExecution__c = executionId,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                Content__c = null,
+                ContentType__c = 'JSON',
+                Timestamp__c = Datetime.now(),
+                TurnIdentifier__c = turnIdentifier,
+                TurnCount__c = turnCount,
+                ToolCallId__c = toolCallId,
+                ToolName__c = toolName,
+                ToolResult__c = toolResult,
+                HasResult__c = String.isNotBlank(toolResult),
+                IsError__c = isError != null ? isError : false,
+                ProcessingDuration__c = processingDuration,
+                IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false,
+                StepMetadata__c = !metadata.isEmpty() ? JSON.serialize(metadata) : null,
+                PromptTokens__c = null,
+                CompletionTokens__c = null,
+                TotalTokens__c = null,
+                ModelIdentifier__c = null,
+                LLMCalloutDurationMs__c = null,
+                AIAgentCapability__c = capabilityId,
+                IsResumed__c = isResumed != null ? isResumed : false
+            );
+
+            insert step;
+
+            System.debug(
+                LoggingLevel.DEBUG,
+                logPrefix +
+                    'Created tool result step: ' +
+                    step.Id +
+                    ' for tool: ' +
+                    toolName +
+                    ' (async=' +
+                    isAsyncToolExecution +
+                    ', isError=' +
+                    step.IsError__c +
+                    ', isResumed=' +
+                    (isResumed == true) +
                     ')'
             );
 

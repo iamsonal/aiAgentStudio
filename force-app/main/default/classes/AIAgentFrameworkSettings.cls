@@ -105,8 +105,8 @@ public inherited sharing class AIAgentFrameworkSettings {
 
     /**
      * Gets the maximum number of successive failures allowed for a tool before the execution
-     * is automatically failed. Only applies when ErrorHandlingPolicy__c is 'Autonomous Recovery'
-     * and AgentType__c is NOT 'Conversational'. Conversational agents let the LLM decide how to handle errors.
+     * is automatically failed. Only applies to non-Conversational agents when using autonomous recovery.
+     * Conversational agents let the LLM decide how to handle errors.
      *
      * @return The maximum tool retries (defaults to 2 if not set).
      */

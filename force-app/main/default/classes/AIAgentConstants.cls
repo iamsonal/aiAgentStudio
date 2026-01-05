@@ -49,6 +49,7 @@ public inherited sharing class AIAgentConstants {
     public static final String ERR_CODE_CONFIRMATION_TIMEOUT = 'CONFIRMATION_TIMEOUT'; // User confirmation timed out
     public static final String ERR_CODE_CONFIRMATION_STATE_ERROR = 'CONFIRMATION_STATE_ERROR'; // Confirmation state inconsistency
     public static final String ERR_CODE_COMPLETION_CAPABILITY_FAILED = 'COMPLETION_CAPABILITY_FAILED'; // Completion capability execution failed
+    public static final String ERR_CODE_TOOL_RECOVERY_VIOLATION = 'TOOL_RECOVERY_VIOLATION'; // Function agent violated strict recovery rules
 
     // Miscellaneous
     public static final String NEXT_EXPECTED_NONE = 'None'; // Indicates no next expected action

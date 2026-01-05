@@ -85,6 +85,11 @@
                 <default>false</default>
                 <label>Function Resumed</label>
             </value>
+            <value>
+                <fullName>Workflow Resumed</fullName>
+                <default>false</default>
+                <label>Workflow Resumed</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

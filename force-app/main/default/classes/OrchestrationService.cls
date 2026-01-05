@@ -341,11 +341,10 @@ public inherited sharing class OrchestrationService {
     /**
      * @description Determines if agent execution should fail immediately on tool error.
      *
-     * Implements Four-Tier Hierarchy for Error Handling:
-     * Priority 1 (Highest): Capability.FailFastOnError__c = true → FAIL
-     * Priority 2: Agent.ErrorHandlingPolicy__c = 'Fail-Fast' → FAIL
-     * Priority 3: Tool exceeded MaxToolRetries__c successive failures → FAIL
-     * Priority 4 (Default): 'Autonomous Recovery' → CONTINUE
+     * Implements Three-Tier Hierarchy for Error Handling:
+     * Tier 1 (Highest): Capability.FailFastOnError__c = true → FAIL
+     * Tier 2: Tool exceeded MaxToolRetries__c successive failures → FAIL (non-Conversational agents only)
+     * Tier 3 (Default): 'Autonomous Recovery' → CONTINUE
      *
      * This method centralizes error handling policy for all orchestrators (Function, Conversational, Workflow).
      *
@@ -378,21 +377,11 @@ public inherited sharing class OrchestrationService {
             return true;
         }
 
-        // Tier 2: Agent-level policy
-        // Check if agent is configured for fail-fast behavior
-        if (agentDefinition.ErrorHandlingPolicy__c == 'Fail-Fast') {
-            System.debug(
-                LoggingLevel.WARN,
-                logPrefix + '⚠️ FAIL-FAST (Tier 2): Agent "' + agentDefinition.DeveloperName__c + '" has ErrorHandlingPolicy=Fail-Fast. Halting execution.'
-            );
-            return true;
-        }
-
-        // Tier 3: MaxToolRetries__c check (only for Autonomous Recovery mode and non-Conversational agents)
-        // For Conversational agents, let the LLM decide how to handle errors
-        // For Function/Workflow agents, enforce retry limits to prevent infinite loops
+        // Tier 2: MaxToolRetries__c check for non-Conversational agents
+        // For Conversational agents, let the LLM decide how to handle errors (autonomous recovery)
+        // For Function agents (standalone and workflow children), enforce retry limits to prevent infinite loops
         // Note: MaxToolRetries__c = 2 means "allow 1 failure, fail on the 2nd"
-        if (executionId != null && agentDefinition.ErrorHandlingPolicy__c != 'Fail-Fast' && agentDefinition.AgentType__c != 'Conversational') {
+        if (executionId != null && agentDefinition.AgentType__c != 'Conversational') {
             Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
             Integer failureCount = countSuccessiveToolFailures(executionId, capability.CapabilityName__c, logPrefix);
 
@@ -418,17 +407,18 @@ public inherited sharing class OrchestrationService {
             }
         }
 
-        // Tier 4: Default behavior (autonomous recovery)
+        // Tier 3: Default behavior (autonomous recovery)
         // Let LLM see the error and attempt to handle it
+        // Note: Function agents have strict recovery validation in FunctionOrchestrator
+        // to enforce proper recovery behavior and maintain deterministic execution
         System.debug(
             LoggingLevel.INFO,
             logPrefix +
-                '✓ AUTONOMOUS RECOVERY (Tier 4): Passing error to LLM for handling. ' +
+                '✓ AUTONOMOUS RECOVERY (Tier 3): Passing error to LLM for handling. ' +
                 'Capability: ' +
                 capability.CapabilityName__c +
-                ', ' +
-                'Agent Policy: ' +
-                (agentDefinition.ErrorHandlingPolicy__c != null ? agentDefinition.ErrorHandlingPolicy__c : 'Not Set (Default)')
+                ', AgentType: ' +
+                agentDefinition.AgentType__c
         );
         return false;
     }

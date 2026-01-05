@@ -20,7 +20,6 @@
  *
  * **Capability Query Methods:**
  * - canResume(): Check if an execution can be resumed
- * - supportsChildDelegation(): Whether this orchestrator uses onChildComplete()
  *
  * **Customization Hooks (called by shared services):**
  * - buildSystemPromptAdditions(): Agent-specific prompt modifications
@@ -28,6 +27,14 @@
  *
  * This design keeps shared services (OrchestrationService, LLMInteractionService, ToolCallResponseHandler)
  * agent-agnostic by delegating agent-specific decisions back to the orchestrator.
+ *
+ * **Design Note:**
+ * All methods are defined in this single interface with virtual no-op defaults in BaseAgentOrchestrator.
+ * This enables pure polymorphism - services can call methods blindly without instanceof checks.
+ * Concrete orchestrators override only the methods they need:
+ * - ConversationalOrchestrator: buildSystemPromptAdditions(), evaluateToolOutcome()
+ * - FunctionOrchestrator: buildSystemPromptAdditions(), evaluateToolOutcome()
+ * - WorkflowOrchestrator: onChildComplete()
  */
 public interface IAgentOrchestrator {
     // ===================================================================================
@@ -49,15 +56,6 @@ public interface IAgentOrchestrator {
      * @return                   Execution result
      */
     AgentExecutionService.ExecutionResult start(String agentDeveloperName, AgentExecutionService.ExecutionPayload payload);
-
-    /**
-     * Handles async operation results (e.g., workflow child agent completion).
-     * Not all orchestrators use this - check supportsChildDelegation() first.
-     *
-     * @param executionId  Execution ID
-     * @param asyncPayload Async-specific context and results
-     */
-    void onChildComplete(Id executionId, Map<String, Object> asyncPayload);
 
     /**
      * Resumes a failed or paused execution from the point of failure.
@@ -83,6 +81,18 @@ public interface IAgentOrchestrator {
      */
     void runAsync(Map<String, Object> payload, String logPrefix);
 
+    /**
+     * Handles async operation results (e.g., workflow child agent completion, tool completion).
+     * Called when a child agent or async operation completes and needs to notify the parent.
+     *
+     * Default implementation (in BaseAgentOrchestrator) is a no-op.
+     * Override in orchestrators that support child delegation (e.g., WorkflowOrchestrator).
+     *
+     * @param executionId  Execution ID
+     * @param asyncPayload Async-specific context and results
+     */
+    void onChildComplete(Id executionId, Map<String, Object> asyncPayload);
+
     // ===================================================================================
     // CAPABILITY QUERY METHODS
     // ===================================================================================
@@ -95,16 +105,6 @@ public interface IAgentOrchestrator {
      * @return            True if execution can be resumed, false otherwise
      */
     Boolean canResume(Id executionId);
-
-    /**
-     * Indicates whether this orchestrator uses onChildComplete().
-     * - Conversational: true (for async tool completion)
-     * - Function: false (uses queueable chain instead)
-     * - Workflow: true (for child agent completion)
-     *
-     * @return True if onChildComplete() is applicable
-     */
-    Boolean supportsChildDelegation();
 
     // ===================================================================================
     // CUSTOMIZATION HOOKS (called by shared services)
@@ -119,6 +119,8 @@ public interface IAgentOrchestrator {
      * - Function: No additions (autonomous multi-step reasoning)
      * - Workflow: Step context and chaining instructions
      *
+     * Default implementation (in BaseAgentOrchestrator) returns empty string.
+     *
      * @param context The orchestration context for the current turn
      * @return        String to append to system prompt, or empty string
      */
@@ -130,12 +132,15 @@ public interface IAgentOrchestrator {
      *
      * Examples:
      * - Conversational: Create assistant message for approval, complete turn
-     * - Function/Workflow: Pause execution, no user message needed
+     * - Function: Detect hallucination in content-only responses, enforce tool completion
+     * - Workflow: Pause execution, no user message needed
+     *
+     * Default implementation (in BaseAgentOrchestrator) returns null (use default behavior).
      *
      * @param context     The orchestration context
      * @param toolResults Results from tool execution(s)
-     * @param scenario    The scenario type (e.g., 'APPROVAL_REQUIRED', 'TOOL_COMPLETED')
-     * @return            Outcome constant (OUTCOME_COMPLETED, OUTCOME_QUEUED_ACTION, etc.)
+     * @param scenario    The scenario type (e.g., 'APPROVAL_REQUIRED', 'TOOL_COMPLETED', 'CONTENT_ONLY_RESPONSE')
+     * @return            Outcome constant (OUTCOME_COMPLETED, OUTCOME_QUEUED_ACTION, OUTCOME_FAILED, etc.) or null for default behavior
      */
     String evaluateToolOutcome(OrchestrationContext context, List<ToolCallResponseHandler.ToolExecutionResult> toolResults, String scenario);
 

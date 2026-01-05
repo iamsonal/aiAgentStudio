@@ -505,7 +505,7 @@ public inherited sharing class LLMInteractionService {
             // Load the orchestrator for this agent type
             IAgentOrchestrator orchestrator = loadOrchestrator(agentConfig);
 
-            // Get prompt additions from orchestrator
+            // Get prompt additions from orchestrator (polymorphic call - no instanceof check needed)
             String additions = orchestrator.buildSystemPromptAdditions(minimalContext);
 
             return additions != null ? additions : '';

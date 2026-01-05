@@ -14,14 +14,18 @@
  *
  * **Subclasses must implement:**
  * - start(): Agent-specific execution initiation
+ * - runAsync(): Agent-specific queueable execution
  * - determineResumePoint(): Agent-specific resume point detection
  * - executeResume(): Agent-specific resume execution
  *
- * **Subclasses may override:**
- * - onChildComplete(): For orchestrators that handle async callbacks
- * - buildSystemPromptAdditions(): For agent-specific prompt modifications
- * - evaluateToolOutcome(): For agent-specific post-tool behavior
- * - supportsChildDelegation(): Default is true
+ * **Subclasses may override (virtual no-op defaults provided):**
+ * - onChildComplete(): For orchestrators that handle async callbacks (default: no-op)
+ * - buildSystemPromptAdditions(): For agent-specific prompt modifications (default: empty string)
+ * - evaluateToolOutcome(): For agent-specific post-tool behavior (default: null)
+ *
+ * **Design Note:**
+ * The virtual no-op defaults enable pure polymorphism - services can call these methods
+ * blindly without instanceof checks. Concrete orchestrators override only what they need.
  */
 public abstract class BaseAgentOrchestrator implements IAgentOrchestrator {
     protected AIAgentDefinition__c agentDefinition;
@@ -168,15 +172,6 @@ public abstract class BaseAgentOrchestrator implements IAgentOrchestrator {
     public abstract AgentExecutionService.ExecutionResult start(String agentDeveloperName, AgentExecutionService.ExecutionPayload payload);
 
     /**
-     * Default implementation throws exception - override in subclasses that support async results.
-     */
-    public virtual void onChildComplete(Id executionId, Map<String, Object> asyncPayload) {
-        throw new AIAgentException.OrchestrationException(
-            'This orchestrator does not support onChildComplete(). ' + 'Check supportsChildDelegation() before calling this method.'
-        );
-    }
-
-    /**
      * Template method for resume operations.
      * Provides common validation and logging, delegates to abstract methods for agent-specific logic.
      */
@@ -238,35 +233,6 @@ public abstract class BaseAgentOrchestrator implements IAgentOrchestrator {
         }
     }
 
-    /**
-     * Default is true - most orchestrators support async results.
-     * Override in FunctionOrchestrator to return false.
-     */
-    public virtual Boolean supportsChildDelegation() {
-        return true;
-    }
-
-    // ===================================================================================
-    // INTERFACE IMPLEMENTATION - CUSTOMIZATION HOOKS
-    // ===================================================================================
-
-    /**
-     * Default implementation returns empty string (no prompt additions).
-     * Override in subclasses for agent-specific prompt modifications.
-     */
-    public virtual String buildSystemPromptAdditions(OrchestrationContext context) {
-        return '';
-    }
-
-    /**
-     * Default implementation returns null (use default behavior).
-     * Override in subclasses for agent-specific post-tool handling.
-     */
-    public virtual String evaluateToolOutcome(OrchestrationContext context, List<ToolCallResponseHandler.ToolExecutionResult> toolResults, String scenario) {
-        // Return null to indicate "use default behavior"
-        return null;
-    }
-
     // ===================================================================================
     // INTERFACE IMPLEMENTATION - ACCESSOR METHODS
     // ===================================================================================
@@ -276,6 +242,48 @@ public abstract class BaseAgentOrchestrator implements IAgentOrchestrator {
      */
     public AIAgentDefinition__c getAgentDefinition() {
         return this.agentDefinition;
+    }
+
+    // ===================================================================================
+    // VIRTUAL NO-OP DEFAULTS (override in subclasses as needed)
+    // ===================================================================================
+
+    /**
+     * Handles async operation results (e.g., workflow child agent completion).
+     * Default implementation is a no-op - override in orchestrators that support child delegation.
+     *
+     * @param executionId  Execution ID
+     * @param asyncPayload Async-specific context and results
+     */
+    public virtual void onChildComplete(Id executionId, Map<String, Object> asyncPayload) {
+        // No-op default - orchestrators that don't support child delegation do nothing
+        System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'onChildComplete called but not implemented for this orchestrator type');
+    }
+
+    /**
+     * Returns agent-specific additions to the system prompt.
+     * Default implementation returns empty string - override for agent-specific prompt modifications.
+     *
+     * @param context The orchestration context for the current turn
+     * @return        String to append to system prompt, or empty string
+     */
+    public virtual String buildSystemPromptAdditions(OrchestrationContext context) {
+        // No-op default - return empty string (no additions)
+        return '';
+    }
+
+    /**
+     * Handles agent-specific behavior after tool execution completes.
+     * Default implementation returns null (use default behavior) - override for agent-specific post-tool behavior.
+     *
+     * @param context     The orchestration context
+     * @param toolResults Results from tool execution(s)
+     * @param scenario    The scenario type (e.g., 'APPROVAL_REQUIRED', 'TOOL_COMPLETED', 'CONTENT_ONLY_RESPONSE')
+     * @return            Outcome constant or null for default behavior
+     */
+    public virtual String evaluateToolOutcome(OrchestrationContext context, List<ToolCallResponseHandler.ToolExecutionResult> toolResults, String scenario) {
+        // No-op default - return null to use default behavior
+        return null;
     }
 
     // ===================================================================================

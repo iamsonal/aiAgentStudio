@@ -40,7 +40,8 @@ public inherited sharing class AgentDecisionStepLogger {
         FINAL_RESPONSE,
         RESUME_APPROVED_FRAMEWORK_ACTION,
         HANDLE_REJECTED_FRAMEWORK_ACTION,
-        FUNCTION_RESUMED
+        FUNCTION_RESUMED,
+        WORKFLOW_RESUMED
     }
 
     private Id executionId;
@@ -497,6 +498,19 @@ public inherited sharing class AgentDecisionStepLogger {
     }
 
     /**
+     * Log a workflow resumed step for workflow orchestrator resume operations.
+     *
+     * @param title Descriptive title for the step
+     * @param description Short description for the title area
+     * @param metadataJson JSON representation of resume metadata
+     * @param detailedMessage Detailed message to display in content area
+     * @param durationMs Duration of processing this step
+     */
+    public void logWorkflowResumed(String title, String description, String metadataJson, String detailedMessage, Long durationMs) {
+        logStepWithContextFormatting(StepType.WORKFLOW_RESUMED, title, description, metadataJson, detailedMessage, durationMs, true, null, null);
+    }
+
+    /**
      * Log a step with parent relationship for causality tracking
      *
      * @param stepType The type of step
@@ -815,6 +829,9 @@ public inherited sharing class AgentDecisionStepLogger {
             }
             when FUNCTION_RESUMED {
                 return 'Function Resumed';
+            }
+            when WORKFLOW_RESUMED {
+                return 'Workflow Resumed';
             }
         }
         return 'Error'; // Default fallback
