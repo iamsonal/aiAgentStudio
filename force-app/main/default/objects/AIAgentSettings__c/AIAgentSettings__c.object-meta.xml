@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customSettingsType>List</customSettingsType>
+    <enableFeeds>false</enableFeeds>
+    <label>AI Agent Settings</label>
+    <description>Configuration settings for AI Agent Definitions that are not stored on the agent definition object itself. Use the agent's DeveloperName as the Name field value.</description>
+    <visibility>Public</visibility>
+</CustomObject>
+

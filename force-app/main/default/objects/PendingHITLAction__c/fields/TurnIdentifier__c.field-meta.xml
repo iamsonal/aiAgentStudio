@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>TurnIdentifier__c</fullName>
+    <description>The conversation turn identifier when this HITL action was requested. Used for state correlation and stale request detection.</description>
+    <externalId>true</externalId>
+    <inlineHelpText>Conversation turn when this action was requested.</inlineHelpText>
+    <label>Turn Identifier</label>
+    <length>100</length>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

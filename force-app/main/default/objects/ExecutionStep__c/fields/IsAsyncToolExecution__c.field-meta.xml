@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsAsyncToolExecution__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Indicates whether this tool was executed asynchronously or synchronously. Applicable to ToolResult step types. Set alongside ProcessingDuration__c to describe execution characteristics.</description>
+    <inlineHelpText>True if the tool was executed asynchronously, false for synchronous execution.</inlineHelpText>
+    <label>Is Async Tool Execution</label>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>
+

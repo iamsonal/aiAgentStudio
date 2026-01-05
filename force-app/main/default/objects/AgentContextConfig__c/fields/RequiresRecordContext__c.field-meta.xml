@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RequiresRecordContext__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When checked, this context configuration will only execute when there is a specific Salesforce record being discussed in the conversation. When unchecked, it can execute for general conversations without record context.</description>
+    <inlineHelpText>Check this if the context configuration needs a specific Salesforce record to work with (e.g., getting Account details requires an Account ID). Leave unchecked for general context that doesn&apos;t need a specific record.</inlineHelpText>
+    <label>Requires Record Context</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

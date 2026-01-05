@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Update Record</label>
+    <protected>false</protected>
+    <values>
+        <field>Description__c</field>
+        <value xsi:type="xsd:string">Updates an existing Salesforce record with field-level security checks</value>
+    </values>
+    <values>
+        <field>GuidanceText__c</field>
+        <value xsi:type="xsd:string">&lt;div style=&quot;font-family: -apple-system, BlinkMacSystemFont, &apos;Segoe UI&apos;, Roboto, Arial, sans-serif; line-height: 1.6;&quot;&gt;&lt;div style=&quot;background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px; border-radius: 8px 8px 0 0; margin: -8px -8px 16px -8px;&quot;&gt;&lt;h2 style=&quot;margin: 0; font-size: 18px; font-weight: 600;&quot;&gt;📝 Update Record&lt;/h2&gt;&lt;p style=&quot;margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;&quot;&gt;Modify existing Salesforce records with automatic field-level security&lt;/p&gt;&lt;/div&gt;&lt;h3 style=&quot;font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;&quot;&gt;📋 Runtime Parameters&lt;/h3&gt;&lt;p style=&quot;margin: 8px 0; font-size: 13px; color: #6c757d;&quot;&gt;The AI will provide these parameters when calling this action:&lt;/p&gt;&lt;div style=&quot;background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;&quot;&gt;&lt;table style=&quot;width: 100%; font-size: 13px;&quot;&gt;&lt;tr&gt;&lt;td style=&quot;padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;&quot;&gt;&lt;strong style=&quot;color: #495057;&quot;&gt;recordId&lt;/strong&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #dc3545;&quot;&gt;Required&lt;/span&gt;&lt;/td&gt;&lt;td style=&quot;padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;&quot;&gt;The 18-character Salesforce ID of the record to update. 15-character IDs are automatically converted.&lt;br/&gt;&lt;code style=&quot;background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;&quot;&gt;&quot;001xxxxxxxxxxxxxxx&quot;&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;padding: 8px;&quot;&gt;&lt;strong style=&quot;color: #495057;&quot;&gt;recordData&lt;/strong&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #dc3545;&quot;&gt;Required&lt;/span&gt;&lt;/td&gt;&lt;td style=&quot;padding: 8px; color: #6c757d;&quot;&gt;JSON object containing field API names and their new values. Only include fields you want to update.&lt;br/&gt;&lt;code style=&quot;background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;&quot;&gt;{ &quot;Status&quot;: &quot;Closed&quot;, &quot;Priority&quot;: &quot;High&quot; }&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;&lt;h3 style=&quot;font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;&quot;&gt;⚙️ Configuration Options&lt;/h3&gt;&lt;div style=&quot;background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;&quot;&gt;&lt;table style=&quot;width: 100%; font-size: 13px;&quot;&gt;&lt;tr&gt;&lt;td style=&quot;padding: 8px; width: 30%;&quot;&gt;&lt;strong style=&quot;color: #495057;&quot;&gt;objectApiName&lt;/strong&gt;&lt;br/&gt;&lt;span style=&quot;font-size: 11px; color: #6c757d;&quot;&gt;Optional&lt;/span&gt;&lt;/td&gt;&lt;td style=&quot;padding: 8px; color: #6c757d;&quot;&gt;When specified, validates that the recordId matches this object type. Useful for type safety in specific scenarios.&lt;br/&gt;&lt;code style=&quot;background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;&quot;&gt;&quot;Case&quot;, &quot;Account&quot;, &quot;CustomObject__c&quot;&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/div&gt;&lt;div style=&quot;background: #e7f1ff; border-left: 4px solid #0066cc; padding: 12px; margin: 12px 0; border-radius: 4px;&quot;&gt;&lt;p style=&quot;margin: 0; font-size: 13px; color: #004085;&quot;&gt;&lt;strong&gt;💡 Note:&lt;/strong&gt; Field-level security is automatically enforced. Non-updateable fields are silently skipped. Validation rules fire normally and errors are returned to the AI.&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;</value>
+    </values>
+    <values>
+        <field>HandlerClassName__c</field>
+        <value xsi:type="xsd:string">ActionUpdateRecord</value>
+    </values>
+    <values>
+        <field>IsActive__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>IsStandardAction__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>RequiresSObject__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>ConfigSchema__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;objectApiName&quot;,
+    &quot;type&quot;: &quot;string&quot;,
+    &quot;required&quot;: false,
+    &quot;help&quot;: &quot;Optional: The API name of the SObject being updated (e.g., Account, Contact). When specified, validates that recordId matches this object type.&quot;,
+    &quot;label&quot;: &quot;Object API Name&quot;,
+    &quot;placeholder&quot;: &quot;Account&quot;
+  }
+]</value>
+    </values>
+    <values>
+        <field>ConfigJsonSchema__c</field>
+        <value xsi:type="xsd:string">{
+  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;objectApiName&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;Optional: The API name of the SObject being updated (e.g., Account, Contact). When specified, validates that recordId matches this object type.&quot;
+    }
+  }
+}</value>
+    </values>
+    <values>
+        <field>ParametersSchema__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;recordId&quot;,
+    &quot;type&quot;: &quot;salesforce-id&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;The 18-character Salesforce ID of the record to update&quot;,
+    &quot;label&quot;: &quot;Record ID&quot;,
+    &quot;placeholder&quot;: &quot;001000000000000AAA&quot;
+  },
+  {
+    &quot;name&quot;: &quot;recordData&quot;,
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;Field names and new values for the fields to update&quot;,
+    &quot;label&quot;: &quot;Record Data&quot;
+  }
+]</value>
+    </values>
+    <values>
+        <field>ParametersJsonSchema__c</field>
+        <value xsi:type="xsd:string">{
+  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;recordId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;The 18-character Salesforce ID of the record to update&quot;,
+      &quot;format&quot;: &quot;salesforce-id&quot;
+    },
+    &quot;recordData&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;description&quot;: &quot;Field names and new values for the fields to update&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;recordId&quot;,
+    &quot;recordData&quot;
+  ]
+}</value>
+    </values>
+</CustomMetadata>

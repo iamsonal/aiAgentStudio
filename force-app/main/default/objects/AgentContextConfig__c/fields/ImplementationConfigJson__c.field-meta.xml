@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ImplementationConfigJson__c</fullName>
+    <description>JSON configuration object containing specific parameters for the context implementation, such as SOQL queries, field lists, filtering criteria, or other implementation-specific settings.</description>
+    <inlineHelpText>Enter JSON configuration for the context implementation. This might include SOQL queries, field selections, filters, or other settings specific to how this context retrieves data.</inlineHelpText>
+    <label>Implementation Config Json</label>
+    <length>32768</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

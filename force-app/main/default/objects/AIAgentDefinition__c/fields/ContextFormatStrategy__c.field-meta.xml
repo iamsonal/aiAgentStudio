@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ContextFormatStrategy__c</fullName>
+    <description>Determines the format used to present contextual SObject data to the LLM. The agent&apos;s &apos;Instructions Prompt&apos; should be written to match this chosen format for best results.</description>
+    <inlineHelpText>Choose how data is formatted for the AI. &apos;JSON&apos; is compact and structured for modern LLMs. &apos;YAML&apos; is token-efficient and highly readable. &apos;Structured Text&apos; is human-readable for debugging. Match your Instructions Prompt to the selected format.</inlineHelpText>
+    <label>Context Format Strategy</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>JSON</fullName>
+                <default>true</default>
+                <label>JSON</label>
+            </value>
+            <value>
+                <fullName>YAML</fullName>
+                <default>false</default>
+                <label>YAML</label>
+            </value>
+            <value>
+                <fullName>Structured Text</fullName>
+                <default>false</default>
+                <label>Structured Text</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

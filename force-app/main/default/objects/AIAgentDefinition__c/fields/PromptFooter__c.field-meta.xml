@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PromptFooter__c</fullName>
+    <description>Optional final instructions placed at the very end of the prompt. Useful for reinforcing critical rules or inducing a specific thought process, like Chain-of-Thought.</description>
+    <inlineHelpText>Add final instructions that appear at the end of the system prompt. Use this to reinforce critical behaviors or encourage step-by-step thinking (e.g., "Think carefully before responding").</inlineHelpText>
+    <label>Prompt Footer</label>
+    <length>32768</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

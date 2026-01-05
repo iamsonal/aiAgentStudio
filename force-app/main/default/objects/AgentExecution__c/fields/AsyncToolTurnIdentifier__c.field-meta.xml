@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AsyncToolTurnIdentifier__c</fullName>
+    <description>Stores the turn identifier associated with the current batch of async tools. Used to validate that async tool completions belong to the current turn and prevent stale completions from triggering follow-up calls.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Turn identifier for the current async tool batch.</inlineHelpText>
+    <label>Async Tool Turn Identifier</label>
+    <length>50</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

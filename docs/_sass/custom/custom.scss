@@ -1,0 +1,1048 @@
+// Salesforce-inspired color scheme
+$link-color: #0176d3;
+$btn-primary-color: #0176d3;
+
+// Custom colors
+:root {
+  --sf-blue: #0176d3;
+  --sf-blue-dark: #014486;
+  --sf-navy: #032d60;
+  --sf-cloud: #1b96ff;
+  --sf-success: #2e844a;
+  --sf-warning: #fe9339;
+  --sf-error: #ea001e;
+}
+
+// Hero section styling
+.hero-section {
+  text-align: center;
+  padding: 2rem 0 3rem;
+
+  .hero-logo {
+    max-width: 120px;
+    margin-bottom: 1.5rem;
+  }
+
+  .hero-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--sf-navy);
+    margin-bottom: 0.5rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1.25rem;
+    color: #666;
+    max-width: 600px;
+    margin: 0 auto 1.5rem;
+  }
+
+  .hero-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+// Feature cards
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.feature-card {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  border-left: 4px solid var(--sf-blue);
+
+  h3 {
+    margin-top: 0;
+    color: var(--sf-navy);
+    font-size: 1.1rem;
+  }
+
+  p {
+    margin-bottom: 0;
+    color: #666;
+    font-size: 0.95rem;
+  }
+}
+
+// Callout boxes
+.callout {
+  padding: 1rem 1.25rem;
+  border-radius: 6px;
+  margin: 1.5rem 0;
+  border-left: 4px solid;
+
+  .callout-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  p:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.callout-note {
+  background: #e8f4fd;
+  border-color: var(--sf-blue);
+
+  .callout-title {
+    color: var(--sf-blue-dark);
+  }
+}
+
+.callout-warning {
+  background: #fff8e6;
+  border-color: var(--sf-warning);
+
+  .callout-title {
+    color: #b86e00;
+  }
+}
+
+.callout-tip {
+  background: #e8f5e9;
+  border-color: var(--sf-success);
+
+  .callout-title {
+    color: var(--sf-success);
+  }
+}
+
+.callout-important {
+  background: #fce8e8;
+  border-color: var(--sf-error);
+
+  .callout-title {
+    color: var(--sf-error);
+  }
+}
+
+// Better code blocks
+.highlight {
+  position: relative;
+
+  pre {
+    border-radius: 6px;
+  }
+}
+
+// Copy button for code
+.code-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+
+  &:hover {
+    background: #f0f0f0;
+  }
+}
+
+.highlight:hover .code-copy-btn {
+  opacity: 1;
+}
+
+// Value proposition section - lighter version
+.value-prop {
+  background: linear-gradient(135deg, #e8f4fd 0%, #d4e9f7 100%);
+  color: #032d60;
+  padding: 2rem;
+  border-radius: 12px;
+  margin: 2rem 0;
+  border: 1px solid #b8d4e8;
+
+  h2 {
+    color: #032d60;
+    margin-top: 0;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+
+    li {
+      padding: 0.5rem 0;
+      padding-left: 1.5rem;
+      position: relative;
+
+      &:before {
+        content: "✓";
+        position: absolute;
+        left: 0;
+        color: #0176d3;
+        font-weight: bold;
+      }
+    }
+  }
+}
+
+// Repository notice
+.repo-notice {
+  background: #fff8e6;
+  border: 1px solid #fe9339;
+  border-left: 4px solid #fe9339;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+
+  .notice-title {
+    font-weight: 600;
+    color: #b86e00;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  p {
+    margin: 0;
+    color: #666;
+  }
+}
+
+// Audience cards
+.audience-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.audience-card {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+
+  .audience-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  h4 {
+    margin: 0 0 0.5rem;
+    color: var(--sf-navy);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #666;
+  }
+}
+
+// Button styling
+.btn-sf {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--sf-blue);
+  color: white !important;
+
+  &:hover {
+    background: var(--sf-blue-dark);
+  }
+}
+
+.btn-secondary {
+  background: white;
+  color: var(--sf-navy) !important;
+  border: 2px solid var(--sf-navy);
+
+  &:hover {
+    background: var(--sf-navy);
+    color: white !important;
+  }
+}
+
+// Sponsor section
+.sponsor-section {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+  margin: 2rem 0;
+
+  h3 {
+    margin-top: 0;
+  }
+}
+
+// Edit page link
+.edit-page-link {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+  font-size: 0.9rem;
+
+  a {
+    color: #666;
+
+    &:hover {
+      color: var(--sf-blue);
+    }
+  }
+}
+
+// ============================================
+// UI/UX IMPROVEMENTS
+// ============================================
+
+// Smooth scrolling
+html {
+  scroll-behavior: smooth;
+}
+
+// Card hover effects
+.feature-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.audience-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  }
+}
+
+// Numbered step badges
+.step-section {
+  position: relative;
+  padding-left: 3.5rem;
+  margin-bottom: 2.5rem;
+
+  .step-number {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    background: linear-gradient(135deg, #0176d3 0%, #014486 100%);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+    box-shadow: 0 3px 10px rgba(1, 118, 211, 0.3);
+  }
+
+  h3 {
+    margin-top: 0;
+    padding-top: 0.25rem;
+  }
+
+  // Style the step title (bold text at start)
+  > p:first-of-type strong:first-child {
+    font-size: 1.15rem;
+    color: #032d60;
+  }
+}
+
+// Connecting line between steps
+.steps-container {
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 1.2rem;
+    top: 2.5rem;
+    bottom: 2.5rem;
+    width: 2px;
+    background: linear-gradient(to bottom, #0176d3, #e8f4fd);
+  }
+
+  .step-section:last-child {
+    margin-bottom: 0;
+  }
+}
+
+// GitHub stars badge styling
+.github-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+
+  img {
+    height: 20px;
+  }
+}
+
+// Hero badges row
+.hero-badges {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
+
+  img {
+    height: 22px;
+  }
+}
+
+// Responsive tables
+.table-wrapper {
+  overflow-x: auto;
+  margin: 1rem 0;
+  border-radius: 8px;
+  border: 1px solid #e8e8e8;
+
+  table {
+    margin: 0;
+    border: none;
+    min-width: 500px;
+  }
+}
+
+@media (max-width: 768px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .audience-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .hero-title {
+    font-size: 2rem !important;
+  }
+
+  .hero-subtitle {
+    font-size: 1.1rem !important;
+  }
+
+  // Mobile navigation improvements
+  .site-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 85%;
+    max-width: 300px;
+    height: 100vh;
+    background: #fff;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    overflow-y: auto;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+    padding-top: 60px;
+
+    &.nav-open {
+      transform: translateX(0);
+    }
+  }
+
+  // Mobile nav overlay
+  .nav-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+
+    &.active {
+      opacity: 1;
+      visibility: visible;
+    }
+  }
+
+  // Hamburger menu button
+  .mobile-menu-btn {
+    display: flex !important;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 1001;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    background: var(--sf-blue, #0176d3);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+
+    span {
+      display: block;
+      width: 22px;
+      height: 2px;
+      background: #fff;
+      position: relative;
+      transition: background 0.2s;
+
+      &::before,
+      &::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        width: 22px;
+        height: 2px;
+        background: #fff;
+        transition: transform 0.3s ease;
+      }
+
+      &::before {
+        top: -7px;
+      }
+
+      &::after {
+        top: 7px;
+      }
+    }
+
+    &.active span {
+      background: transparent;
+
+      &::before {
+        transform: rotate(45deg);
+        top: 0;
+      }
+
+      &::after {
+        transform: rotate(-45deg);
+        top: 0;
+      }
+    }
+  }
+
+  // Close button in nav
+  .mobile-nav-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f0f0;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 20px;
+    color: #666;
+
+    &:hover {
+      background: #e0e0e0;
+    }
+  }
+
+  // Adjust main content for mobile
+  .main {
+    padding-top: 70px;
+  }
+
+  .main-content {
+    padding: 1rem;
+  }
+
+  // Better touch targets for nav links
+  .nav-list-link {
+    padding: 12px 16px !important;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  // Site header adjustments
+  .site-header {
+    padding-left: 60px;
+  }
+}
+
+@media (max-width: 480px) {
+  .audience-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .btn-sf {
+    width: 100%;
+    max-width: 250px;
+    text-align: center;
+  }
+}
+
+// TL;DR summary box
+.tldr-box {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e8f4fd 100%);
+  border: 1px solid #9ec5e8;
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 2rem;
+
+  .tldr-title {
+    font-weight: 700;
+    color: #0176d3;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+
+    &::before {
+      content: '⚡ ';
+    }
+  }
+
+  p {
+    margin: 0;
+    color: #333;
+  }
+}
+
+// Reading time indicator
+.reading-time {
+  color: #888;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  &::before {
+    content: '⏱️';
+  }
+}
+
+// Related pages section
+.related-pages {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-top: 3rem;
+
+  h3 {
+    margin-top: 0;
+    color: var(--sf-navy);
+    font-size: 1.1rem;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 1.25rem;
+
+    li {
+      margin-bottom: 0.5rem;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+}
+
+// Better focus states for accessibility
+a:focus,
+button:focus,
+.btn-sf:focus {
+  outline: 2px solid #0176d3;
+  outline-offset: 2px;
+}
+
+// Improved link styling
+.main-content a:not(.btn-sf):not(.nav-list-link) {
+  text-decoration: underline;
+  text-decoration-color: rgba(1, 118, 211, 0.3);
+  text-underline-offset: 2px;
+  transition: text-decoration-color 0.2s;
+
+  &:hover {
+    text-decoration-color: #0176d3;
+  }
+}
+
+// Animated checkmarks in value prop
+.value-prop li {
+  opacity: 0;
+  animation: fadeInLeft 0.4s ease forwards;
+
+  @for $i from 1 through 6 {
+    &:nth-child(#{$i}) {
+      animation-delay: #{$i * 0.1}s;
+    }
+  }
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+// Version badge
+.version-badge {
+  display: inline-block;
+  background: #e8f4fd;
+  color: #0176d3;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-left: 0.5rem;
+}
+
+// Last updated indicator
+.last-updated {
+  color: #888;
+  font-size: 0.85rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+
+  &::before {
+    content: '📅 ';
+  }
+}
+
+// ============================================
+// FIX: Logo disappearing on hover
+// ============================================
+// Override just-the-docs gradient hover effect on logo
+.site-header .site-button,
+.site-header .site-button:hover,
+.site-header .site-button:focus {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+// The theme uses a pseudo-element with gradient - hide it
+.site-header .site-button::before {
+  display: none !important;
+}
+
+// Ensure the logo image is always visible
+.site-header .site-logo {
+  position: relative;
+  z-index: 10;
+}
+
+// Print styles
+@media print {
+  .site-nav,
+  .site-header,
+  .site-footer,
+  .edit-page-link,
+  .hero-buttons,
+  .github-badge,
+  .hero-badges {
+    display: none !important;
+  }
+
+  .main-content {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .value-prop {
+    background: #f5f5f5 !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+  }
+
+  a {
+    text-decoration: none !important;
+    color: #000 !important;
+  }
+
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666;
+  }
+}
+
+// ============================================
+// CODE BLOCK VARIANTS (Wrong/Correct)
+// ============================================
+
+// Wrong code example - red accent
+.code-wrong {
+  position: relative;
+  margin-bottom: 1rem;
+
+  &::before {
+    content: '✗ Wrong';
+    display: block;
+    background: #fce8e8;
+    color: #c41e3a;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 6px 6px 0 0;
+    border: 1px solid #f5c6cb;
+    border-bottom: none;
+  }
+
+  .highlight, pre {
+    border-radius: 0 0 6px 6px !important;
+    margin-top: 0 !important;
+    border: 1px solid #f5c6cb !important;
+    border-top: none !important;
+    background: #fff8f8 !important;
+  }
+}
+
+// Correct code example - green accent
+.code-correct {
+  position: relative;
+  margin-bottom: 1rem;
+
+  &::before {
+    content: '✓ Correct';
+    display: block;
+    background: #e8f5e9;
+    color: #2e7d32;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 6px 6px 0 0;
+    border: 1px solid #c3e6cb;
+    border-bottom: none;
+  }
+
+  .highlight, pre {
+    border-radius: 0 0 6px 6px !important;
+    margin-top: 0 !important;
+    border: 1px solid #c3e6cb !important;
+    border-top: none !important;
+    background: #f8fff8 !important;
+  }
+}
+
+// Better copy button visibility
+.code-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s, background 0.2s;
+  z-index: 10;
+
+  &:hover {
+    opacity: 1;
+    background: #f0f0f0;
+  }
+}
+
+.highlight:hover .code-copy-btn {
+  opacity: 1;
+}
+
+
+// ============================================
+// APEX SYNTAX HIGHLIGHTING
+// ============================================
+// Rouge uses Java highlighting for Apex which works well
+// These styles enhance the default highlighting
+
+// Apex-specific keywords styling
+.highlight .k,  // keyword
+.highlight .kd, // keyword declaration
+.highlight .kn, // keyword namespace
+.highlight .kp, // keyword pseudo
+.highlight .kr, // keyword reserved
+.highlight .kt  // keyword type
+{
+  color: #0176d3;
+  font-weight: 600;
+}
+
+// Apex class/type names
+.highlight .nc, // name class
+.highlight .nn  // name namespace
+{
+  color: #032d60;
+}
+
+// Apex strings
+.highlight .s,
+.highlight .s1,
+.highlight .s2 {
+  color: #2e844a;
+}
+
+// Apex comments
+.highlight .c,
+.highlight .c1,
+.highlight .cm,
+.highlight .cs {
+  color: #706e6b;
+  font-style: italic;
+}
+
+// Apex numbers
+.highlight .m,
+.highlight .mi,
+.highlight .mf {
+  color: #b86e00;
+}
+
+// Apex annotations (@)
+.highlight .nd {
+  color: #9050e9;
+  font-weight: 500;
+}
+
+// Apex method names
+.highlight .nf {
+  color: #014486;
+}
+
+// Apex operators
+.highlight .o,
+.highlight .ow {
+  color: #c41e3a;
+}
+
+// Better code block styling
+.highlight {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 0;
+  margin: 1rem 0;
+  overflow: hidden;
+
+  pre {
+    margin: 0;
+    padding: 1rem;
+    overflow-x: auto;
+    background: transparent;
+
+    code {
+      background: transparent;
+      padding: 0;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+  }
+}
+
+// Inline code styling
+code:not(.highlight code) {
+  background: #f0f2f5;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+  color: #032d60;
+  font-weight: 500;
+}
+
+// Language label for code blocks
+.highlight[data-lang]::before {
+  content: attr(data-lang);
+  display: block;
+  background: #e8e8e8;
+  padding: 0.25rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #666;
+  border-bottom: 1px solid #ddd;
+}
+
+// Dark mode syntax highlighting
+@media (prefers-color-scheme: dark) {
+  .highlight {
+    background: #1e1e32;
+
+    .k, .kd, .kn, .kp, .kr, .kt {
+      color: #4da6ff;
+    }
+
+    .nc, .nn {
+      color: #7dd3fc;
+    }
+
+    .s, .s1, .s2 {
+      color: #86efac;
+    }
+
+    .c, .c1, .cm, .cs {
+      color: #9ca3af;
+    }
+
+    .m, .mi, .mf {
+      color: #fbbf24;
+    }
+
+    .nd {
+      color: #c084fc;
+    }
+
+    .nf {
+      color: #60a5fa;
+    }
+
+    .o, .ow {
+      color: #f87171;
+    }
+  }
+
+  code:not(.highlight code) {
+    background: #2a2a4a;
+    color: #f87171;
+  }
+}

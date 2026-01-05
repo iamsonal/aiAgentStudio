@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Description__c</fullName>
+    <description>A high-level internal description of the agent&apos;s purpose, intended audience, or key functionalities.</description>
+    <inlineHelpText>Describe what this agent does and who it's for. This helps administrators and developers understand the agent's purpose and use cases (e.g., "Customer service agent for handling billing inquiries").</inlineHelpText>
+    <label>Description</label>
+    <length>32768</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

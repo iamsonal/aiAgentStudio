@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>StepType__c</fullName>
+    <description>The type of decision step in the agent&apos;s process.</description>
+    <label>Step Type</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>User Input</fullName>
+                <default>false</default>
+                <label>User Input</label>
+            </value>
+            <value>
+                <fullName>Context Gathering</fullName>
+                <default>false</default>
+                <label>Context Gathering</label>
+            </value>
+            <value>
+                <fullName>System Prompt Construction</fullName>
+                <default>false</default>
+                <label>System Prompt Construction</label>
+            </value>
+            <value>
+                <fullName>LLM Request</fullName>
+                <default>false</default>
+                <label>LLM Request</label>
+            </value>
+            <value>
+                <fullName>LLM Response</fullName>
+                <default>false</default>
+                <label>LLM Response</label>
+            </value>
+            <value>
+                <fullName>Tool Selection</fullName>
+                <default>false</default>
+                <label>Tool Selection</label>
+            </value>
+            <value>
+                <fullName>Tool Execution</fullName>
+                <default>false</default>
+                <label>Tool Execution</label>
+            </value>
+            <value>
+                <fullName>Tool Result</fullName>
+                <default>false</default>
+                <label>Tool Result</label>
+            </value>
+            <value>
+                <fullName>Response Formulation</fullName>
+                <default>false</default>
+                <label>Response Formulation</label>
+            </value>
+            <value>
+                <fullName>Final Response</fullName>
+                <default>false</default>
+                <label>Final Response</label>
+            </value>
+            <value>
+                <fullName>Error</fullName>
+                <default>false</default>
+                <label>Error</label>
+            </value>
+            <value>
+                <fullName>Available Tools</fullName>
+                <default>false</default>
+                <label>Available Tools</label>
+            </value>
+            <value>
+                <fullName>Resume Approved Framework Action</fullName>
+                <default>false</default>
+                <label>Resume Approved Framework Action</label>
+            </value>
+            <value>
+                <fullName>Handle Rejected Framework Action</fullName>
+                <default>false</default>
+                <label>Handle Rejected Framework Action</label>
+            </value>
+            <value>
+                <fullName>Function Resumed</fullName>
+                <default>false</default>
+                <label>Function Resumed</label>
+            </value>
+            <value>
+                <fullName>Workflow Resumed</fullName>
+                <default>false</default>
+                <label>Workflow Resumed</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ImplementationDetail__c</fullName>
+    <description>Required when Implementation Type is &apos;Apex&apos; or &apos;Flow&apos;. For &apos;Apex&apos;, this is the name of the Apex class. For &apos;Flow&apos;, this is the API Name of the Flow. This field is ignored for &apos;Standard&apos; implementations.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>If Type is &apos;Apex&apos;, enter the Apex class name (e.g., MyCustomAction). If Type is &apos;Flow&apos;, enter the Flow&apos;s API Name (e.g., My_Update_Case_Flow). Ignored for &apos;Standard&apos;.</inlineHelpText>
+    <label>Implementation Detail</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

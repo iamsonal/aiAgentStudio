@@ -1,0 +1,79 @@
+// Salesforce-inspired color scheme for Just the Docs
+
+// Disable the gradient hover effect
+$logo-hover-background-color: transparent;
+
+$link-color: #0176d3;
+$btn-primary-color: #0176d3;
+$body-heading-color: #032d60;
+$search-result-preview-color: #666;
+$nav-child-link-color: #444;
+$sidebar-color: #f8f9fa;
+$code-background-color: #f4f6f8;
+$feedback-color: #0176d3;
+
+// Override base colors
+$base-button-color: #0176d3;
+
+// Fix hover states - override the gradient with light blue
+.nav-list-link:hover,
+.nav-list-item:hover > .nav-list-link,
+.site-nav .nav-list-link:hover,
+.nav-list .nav-list-item .nav-list-link:hover {
+  background-color: #e8f4fd !important;
+  background-image: none !important;
+  background: #e8f4fd !important;
+  color: #0176d3 !important;
+}
+
+// Active nav item
+.nav-list-link.active,
+.nav-list .nav-list-item .nav-list-link.active {
+  background-color: #e8f4fd !important;
+  background-image: none !important;
+  background: #e8f4fd !important;
+  color: #0176d3 !important;
+  font-weight: 600;
+}
+
+// Aux nav (top right links)
+.aux-nav-list-item a:hover,
+.site-header .aux-nav-list-item a:hover {
+  background-color: #e8f4fd !important;
+  background-image: none !important;
+  background: #e8f4fd !important;
+  color: #0176d3 !important;
+}
+
+// Search button hover
+.search-button:hover {
+  background-color: #e8f4fd !important;
+  background-image: none !important;
+}
+
+// Logo/site title hover - remove blue gradient but KEEP logo background-image
+.site-title:hover,
+a.site-title:hover {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+// The logo IS a background-image, so don't remove it - just add subtle hover effect
+.site-logo:hover {
+  opacity: 0.85;
+  transition: opacity 0.2s ease;
+}
+
+// Site header link hover - exclude the logo link
+.site-header .site-button:hover {
+  // Don't set background to transparent here - it removes the logo
+}
+
+// Keep logo visible on hover - override the theme's gradient overlay
+.site-button {
+  &::before,
+  &::after {
+    display: none !important;
+    content: none !important;
+  }
+}

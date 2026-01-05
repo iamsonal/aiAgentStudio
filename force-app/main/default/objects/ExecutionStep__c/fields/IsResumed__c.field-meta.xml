@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsResumed__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Indicates whether this execution step was created during a resume operation. When an execution is resumed, both the Tool Call and Tool Result records for the first tool will be marked as true.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>True if this step was created when the user manually resumed execution after a failure or pause.</inlineHelpText>
+    <label>Is Resumed</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

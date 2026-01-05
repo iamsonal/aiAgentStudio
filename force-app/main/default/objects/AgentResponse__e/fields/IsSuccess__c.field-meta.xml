@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsSuccess__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Indicates whether the overall agent processing turn completed successfully or ended in an error.</description>
+    <inlineHelpText>Check indicates the agent turn finished without critical errors. Unchecked indicates a failure occurred.</inlineHelpText>
+    <isFilteringDisabled>false</isFilteringDisabled>
+    <isNameField>false</isNameField>
+    <isSortingDisabled>false</isSortingDisabled>
+    <label>Operation Successful</label>
+    <type>Checkbox</type>
+</CustomField>

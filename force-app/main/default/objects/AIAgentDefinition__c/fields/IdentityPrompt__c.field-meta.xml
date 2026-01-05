@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IdentityPrompt__c</fullName>
+    <description>The &quot;Persona&quot; of the agent. Defines its purpose, communication style, and high-level goals. This content will be rendered under a &apos;# Identity&apos; Markdown header in the final system prompt.</description>
+    <inlineHelpText>Define who the agent is. For example: &quot;You are a helpful and witty customer service agent for a financial services company. Your goal is to answer questions about credit card benefits.&quot;</inlineHelpText>
+    <label>Identity Prompt</label>
+    <length>32768</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

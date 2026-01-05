@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DefaultTemperature__c</fullName>
+    <defaultValue>0.1</defaultValue>
+    <description>Default creativity/randomness setting for the LLM (typically 0.0 to 2.0). Lower values result in more deterministic and focused output, while higher values increase randomness and creativity.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Controls the randomness of the LLM&apos;s responses. Consult provider documentation for allowed range and default behavior if left blank (though a default is provided here).</inlineHelpText>
+    <label>Default Temperature</label>
+    <precision>5</precision>
+    <required>false</required>
+    <scale>2</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

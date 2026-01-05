@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>GPT-5 nano</label>
+    <protected>false</protected>
+    <values>
+        <field>ModelIdentifier__c</field>
+        <value xsi:type="xsd:string">gpt-5-nano</value>
+    </values>
+    <values>
+        <field>Provider__c</field>
+        <value xsi:type="xsd:string">OpenAI</value>
+    </values>
+    <values>
+        <field>PromptPricePer1MTokens__c</field>
+        <value xsi:type="xsd:double">0.05</value>
+    </values>
+    <values>
+        <field>CompletionPricePer1MTokens__c</field>
+        <value xsi:type="xsd:double">0.40</value>
+    </values>
+    <values>
+        <field>IsActive__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>Description__c</field>
+        <value xsi:type="xsd:string">GPT-5 nano - The fastest, cheapest version of GPT-5. Great for summarization and classification tasks. Best cost/performance for simple operations.</value>
+    </values>
+</CustomMetadata>
+

@@ -1,0 +1,205 @@
+<template>
+    <lightning-card title={cardTitle} icon-name="utility:einstein">
+        <!-- Actions: New Chat button -->
+        <div slot="actions">
+            <lightning-button-icon
+                icon-name="utility:add"
+                variant="border-filled"
+                alternative-text="Start New Chat"
+                title={newChatTooltip}
+                onclick={handleNewChatClick}
+                disabled={isNewChatDisabled}
+            >
+            </lightning-button-icon>
+        </div>
+
+        <div class="slds-card__body slds-card__body_inner">
+            <div class="slds-grid slds-grid_vertical">
+                <!-- Chat History Container (scrollable) -->
+                <div class="slds-col slds-size_12-of-12 chat-container slds-scrollable_y" onscroll={handleScroll}>
+                    <template if:true={criticalError}>
+                        <div class="slds-notify slds-notify_alert slds-theme_alert-texture slds-m-bottom_small" role="alert">
+                            <lightning-icon
+                                icon-name="utility:warning"
+                                alternative-text="Error!"
+                                variant="inverse"
+                                size="small"
+                                class="slds-m-right_small"
+                            ></lightning-icon>
+                            <h2>{criticalError}</h2>
+                        </div>
+                    </template>
+
+                    <div class="slds-p-around_small slds-text-align_center">
+                        <!-- Load More button and spinner for paginated history -->
+                        <template if:true={showLoadMoreButton}>
+                            <lightning-button
+                                label="Load More"
+                                title="Load older messages"
+                                onclick={handleLoadMoreHistory}
+                                disabled={isLoadingMoreHistory}
+                                variant="neutral"
+                                class="slds-m-bottom_small"
+                            >
+                            </lightning-button>
+                            <template if:true={isLoadingMoreHistory}>
+                                <div class="slds-is-relative slds-p-top_x-small">
+                                    <lightning-spinner size="small" alternative-text="Loading..."></lightning-spinner>
+                                </div>
+                            </template>
+                        </template>
+
+                        <template if:true={loadingState.history}>
+                            <div class="slds-is-relative slds-p-vertical_medium">
+                                <lightning-spinner alternative-text="Loading history..." size="medium"></lightning-spinner>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Chat message list -->
+                    <ul class="slds-chat-list" lwc:ref="chatList">
+                        <template for:each={chatMessages} for:item="message">
+                            <li key={message.displayKey} class={message.listItemClass} data-key={message.displayKey}>
+                                <div class="slds-chat-message">
+                                    <!-- Start Over button for outbound messages (if enabled) -->
+                                    <template if:true={showStartOverButton}>
+                                        <template if:true={message.isOutbound}>
+                                            <div class="message-actions">
+                                                <lightning-button-icon
+                                                    icon-name="utility:refresh"
+                                                    alternative-text="Start over from here"
+                                                    title="Start over from here"
+                                                    size="x-small"
+                                                    variant="border-filled"
+                                                    class="start-over-icon"
+                                                    data-turn-identifier={message.turnIdentifier}
+                                                    onclick={handleStartOverClick}
+                                                >
+                                                </lightning-button-icon>
+                                            </div>
+                                        </template>
+                                    </template>
+
+                                    <!-- Avatar for inbound (assistant) messages -->
+                                    <template if:true={message.isInbound}>
+                                        <div class="slds-chat-avatar">
+                                            <span class="slds-avatar slds-avatar_circle slds-avatar_small">
+                                                <template if:true={message.isTransient}>
+                                                    <lightning-icon
+                                                        icon-name="utility:einstein"
+                                                        alternative-text="Assistant thinking"
+                                                        size="small"
+                                                        class="transient-avatar"
+                                                    >
+                                                    </lightning-icon>
+                                                </template>
+                                                <template if:false={message.isTransient}>
+                                                    <lightning-icon icon-name={message.avatarIcon} alternative-text={message.roleLabel} size="small">
+                                                    </lightning-icon>
+                                                </template>
+                                            </span>
+                                        </div>
+                                    </template>
+
+                                    <div class="slds-chat-message__body">
+                                        <div class={message.textBubbleClass}>
+                                            <template if:true={message.prefix}>
+                                                <span class={message.prefixClass}>{message.prefix}</span>
+                                            </template>
+                                            <div class="slds-chat-message__text-content">
+                                                <lightning-formatted-rich-text value={message.content}></lightning-formatted-rich-text>
+                                            </div>
+                                        </div>
+                                        <div class="slds-chat-message__meta" aria-label={message.ariaLabelMeta}>
+                                            <span class="slds-text-body_small slds-chat-meta-text">{message.roleLabel} • {message.formattedTimestamp}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+                        </template>
+
+                        <!-- Typing indicator for assistant while sending -->
+                        <template if:true={loadingState.sending}>
+                            <li class="slds-chat-listitem slds-chat-listitem_inbound">
+                                <div class="slds-chat-message">
+                                    <div class="slds-chat-avatar">
+                                        <span class="slds-avatar slds-avatar_circle slds-avatar_small">
+                                            <lightning-icon icon-name="utility:einstein" alternative-text="Assistant" size="small"> </lightning-icon>
+                                        </span>
+                                    </div>
+                                    <div class="slds-chat-message__body">
+                                        <div class="slds-chat-message__text slds-chat-message__text_inbound slds-chat-typing">
+                                            <span class="slds-assistant-typing" aria-live="polite">
+                                                <span class="slds-ball"></span>
+                                                <span class="slds-ball"></span>
+                                                <span class="slds-ball"></span>
+                                            </span>
+                                        </div>
+                                        <div class="slds-chat-message__meta" aria-label="Assistant is typing">
+                                            <span class="slds-text-body_small slds-chat-meta-text">Assistant • typing...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+                        </template>
+                        <div lwc:ref="scrollAnchor"></div>
+                    </ul>
+                </div>
+
+                <!-- Footer: Enhanced Input Container -->
+                <div class="slds-chat-input-container">
+                    <template if:true={criticalError}>
+                        <div class="slds-notify slds-notify_alert slds-theme_alert-texture slds-m-bottom_small" role="alert">
+                            <lightning-icon
+                                icon-name="utility:warning"
+                                alternative-text="Error!"
+                                variant="inverse"
+                                size="small"
+                                class="slds-m-right_small"
+                            ></lightning-icon>
+                            <span>Chat is temporarily unavailable. Please refresh the page.</span>
+                        </div>
+                    </template>
+
+                    <!-- Unified Input Wrapper -->
+                    <div class="chat-input-wrapper">
+                        <div class="chat-input-field">
+                            <lightning-textarea
+                                label="Type your message"
+                                variant="label-hidden"
+                                placeholder={inputPlaceholder}
+                                value={userMessageInput}
+                                onchange={handleInputChange}
+                                onkeydown={handleKeyDown}
+                                max-length="32000"
+                                class="slds-chat-input"
+                                disabled={isInputDisabled}
+                                aria-describedby="input-help"
+                            >
+                            </lightning-textarea>
+                        </div>
+
+                        <!-- Action Buttons Container -->
+                        <div class="chat-input-actions">
+                            <!-- Send Button -->
+                            <lightning-button-icon
+                                icon-name="utility:send"
+                                variant="brand"
+                                alternative-text="Send message"
+                                title={sendButtonTitle}
+                                onclick={handleSendMessageClick}
+                                disabled={isInputDisabled}
+                                class="chat-action-button send-button"
+                                size="small"
+                            >
+                            </lightning-button-icon>
+                        </div>
+
+                        <!-- Hidden Help Text -->
+                        <div id="input-help" class="slds-assistive-text">Press Enter to send, Shift+Enter for new line.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </lightning-card>
+</template>

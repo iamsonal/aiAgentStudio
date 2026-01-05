@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ApplicableSObjectTypes__c</fullName>
+    <description>Comma-separated list of Salesforce object API names that this context configuration applies to. When a conversation involves records of these types, this configuration will be used to retrieve contextual data.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Enter object API names separated by commas (e.g., &quot;Account,Contact,Opportunity&quot;). This configuration will activate when the conversation involves records of these types.</inlineHelpText>
+    <label>Applicable SObject Types</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

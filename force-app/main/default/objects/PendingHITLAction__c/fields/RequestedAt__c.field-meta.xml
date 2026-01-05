@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RequestedAt__c</fullName>
+    <description>Timestamp when the HITL action was requested. Used for timeout calculations and audit.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>When this HITL request was created.</inlineHelpText>
+    <label>Requested At</label>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

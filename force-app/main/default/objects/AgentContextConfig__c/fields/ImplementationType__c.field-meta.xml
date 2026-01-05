@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ImplementationType__c</fullName>
+    <description>Specifies the type of implementation used to retrieve context data. Currently supports Apex classes that implement the context retrieval interface.</description>
+    <inlineHelpText>Select the implementation method for context retrieval. &apos;Apex&apos; uses custom Apex classes to retrieve and format context data for the AI agent.</inlineHelpText>
+    <label>Implementation Type</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Apex</fullName>
+                <default>false</default>
+                <label>Apex</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

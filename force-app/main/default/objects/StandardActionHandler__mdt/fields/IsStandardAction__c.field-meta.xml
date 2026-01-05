@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsStandardAction__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>Indicates whether this is a standard framework action (true) or a custom user action (false). Standard actions are built-in framework capabilities, while custom actions are organization-specific implementations.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>Is Standard Action</label>
+    <type>Checkbox</type>
+</CustomField>
+

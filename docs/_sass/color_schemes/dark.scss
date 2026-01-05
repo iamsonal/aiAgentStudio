@@ -1,0 +1,185 @@
+// Dark color scheme for Just the Docs
+
+$body-background-color: #1a1a2e;
+$sidebar-color: #16213e;
+$body-text-color: #e8e8e8;
+$body-heading-color: #ffffff;
+$link-color: #4da6ff;
+$btn-primary-color: #4da6ff;
+$nav-child-link-color: #b8b8b8;
+$search-result-preview-color: #999;
+$code-background-color: #0f0f1a;
+$table-background-color: #1e1e32;
+$feedback-color: #4da6ff;
+$border-color: #2a2a4a;
+
+// Base button color
+$base-button-color: #4da6ff;
+
+// Fix hover states for dark mode
+.nav-list-link:hover,
+.nav-list-item:hover > .nav-list-link,
+.site-nav .nav-list-link:hover,
+.nav-list .nav-list-item .nav-list-link:hover {
+  background-color: #2a2a4a !important;
+  background-image: none !important;
+  background: #2a2a4a !important;
+  color: #4da6ff !important;
+}
+
+// Active nav item
+.nav-list-link.active,
+.nav-list .nav-list-item .nav-list-link.active {
+  background-color: #2a2a4a !important;
+  background-image: none !important;
+  background: #2a2a4a !important;
+  color: #4da6ff !important;
+  font-weight: 600;
+}
+
+// Aux nav (top right links)
+.aux-nav-list-item a:hover,
+.site-header .aux-nav-list-item a:hover {
+  background-color: #2a2a4a !important;
+  background-image: none !important;
+  background: #2a2a4a !important;
+  color: #4da6ff !important;
+}
+
+// Search button hover
+.search-button:hover {
+  background-color: #2a2a4a !important;
+  background-image: none !important;
+}
+
+// Table styling
+table {
+  background-color: $table-background-color;
+}
+
+th {
+  background-color: #252540;
+}
+
+// Code blocks
+pre, code {
+  background-color: $code-background-color;
+  border-color: $border-color;
+}
+
+// Feature cards dark mode
+.feature-card {
+  background: #1e1e32 !important;
+  border-left-color: #4da6ff !important;
+
+  h3 {
+    color: #ffffff !important;
+  }
+
+  p {
+    color: #b8b8b8 !important;
+  }
+}
+
+// Audience cards dark mode
+.audience-card {
+  background: #1e1e32 !important;
+
+  h4 {
+    color: #ffffff !important;
+  }
+
+  p {
+    color: #b8b8b8 !important;
+  }
+}
+
+// Value prop dark mode
+.value-prop {
+  background: linear-gradient(135deg, #1e1e32 0%, #252540 100%) !important;
+  border-color: #3a3a5a !important;
+
+  h2 {
+    color: #ffffff !important;
+  }
+
+  li {
+    color: #e8e8e8 !important;
+
+    &:before {
+      color: #4da6ff !important;
+    }
+  }
+}
+
+// Repo notice dark mode
+.repo-notice {
+  background: #2a2a1a !important;
+  border-color: #fe9339 !important;
+
+  p {
+    color: #b8b8b8 !important;
+  }
+}
+
+// Callouts dark mode
+.callout-note {
+  background: #1a2a3a !important;
+}
+
+.callout-warning {
+  background: #2a2a1a !important;
+}
+
+.callout-tip {
+  background: #1a2a1a !important;
+}
+
+.callout-important {
+  background: #2a1a1a !important;
+}
+
+// TL;DR box dark mode
+.tldr-box {
+  background: linear-gradient(135deg, #1a2a3a 0%, #1e2e3e 100%) !important;
+  border-color: #3a5a7a !important;
+
+  p {
+    color: #e8e8e8 !important;
+  }
+}
+
+// Related pages dark mode
+.related-pages {
+  background: #1e1e32 !important;
+
+  h3 {
+    color: #ffffff !important;
+  }
+}
+
+// Sponsor section dark mode
+.sponsor-section {
+  background: #1e1e32 !important;
+}
+
+// Hero section dark mode
+.hero-title {
+  color: #ffffff !important;
+}
+
+.hero-subtitle {
+  color: #b8b8b8 !important;
+}
+
+// Button secondary dark mode
+.btn-secondary {
+  background: transparent !important;
+  color: #e8e8e8 !important;
+  border-color: #e8e8e8 !important;
+
+  &:hover {
+    background: #e8e8e8 !important;
+    color: #1a1a2e !important;
+  }
+}

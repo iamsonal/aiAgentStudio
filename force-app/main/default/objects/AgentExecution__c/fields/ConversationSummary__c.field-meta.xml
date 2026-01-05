@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ConversationSummary__c</fullName>
+    <description>AI-generated summary of the execution for long-running or complex executions. Used for memory management and context compression.</description>
+    <inlineHelpText>Summary of this execution for memory management.</inlineHelpText>
+    <label>Conversation Summary</label>
+    <length>131072</length>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>5</visibleLines>
+</CustomField>

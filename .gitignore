@@ -44,10 +44,26 @@ ehthumbs.db
 [Dd]esktop.ini
 $RECYCLE.BIN/
 
-# Editors
-*.sublime-project
-*.sublime-workspace
-.vscode
-.idea
-.project
-.settings
+# Local environment variables
+.env
+
+# Python Salesforce Functions
+**/__pycache__/
+**/.venv/
+**/venv/
+
+# Added by Illuminated Cloud
+/IlluminatedCloud/
+/out/
+target/
+/.illuminatedCloud/
+**/tsconfig*.json
+**/*.tsbuildinfo
+/.cci/
+/.idea/
+
+aiAgentStudioAddons/
+xtras/
+
+*.sh
+

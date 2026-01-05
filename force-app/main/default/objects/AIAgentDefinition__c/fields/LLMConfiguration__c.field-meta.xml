@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>LLMConfiguration__c</fullName>
+    <deleteConstraint>Restrict</deleteConstraint>
+    <description>Lookup relationship to the LLMConfiguration__c record specifying the LLM provider, model, credentials, and adapter class used by this agent.</description>
+    <inlineHelpText>Select the specific LLM Configuration record that defines the language model, API connection details, and provider adapter this agent will use.</inlineHelpText>
+    <label>LLM Configuration</label>
+    <referenceTo>LLMConfiguration__c</referenceTo>
+    <relationshipLabel>AI Agent Definitions</relationshipLabel>
+    <relationshipName>AIAgentDefinitions</relationshipName>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

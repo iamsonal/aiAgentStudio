@@ -1,21 +1,30 @@
 {
   "orgName": "aiAgentStudio - Dev Org",
   "edition": "Developer",
+  "features": [
+    "Knowledge",
+    "LightningServiceConsole",
+    "Communities",
+    "LiveAgent",
+    "ServiceCloud",
+    "EnableSetPasswordInApi"
+  ],
   "settings": {
+    "communitiesSettings": {
+      "enableNetworksEnabled": true
+    },
+    "liveAgentSettings": {
+      "enableLiveAgent": true
+    },
+    "knowledgeSettings": {
+      "enableKnowledge": true,
+      "enableLightningKnowledge": true
+    },
     "lightningExperienceSettings": {
       "enableS1DesktopEnabled": true
     },
-    "chatterSettings": {
-      "enableChatter": true
-    },
-    "userManagementSettings": {
-      "enableNewProfileUI": true
-    },
-    "securitySettings": {
-      "enableAdminLoginAsAnyUser": true,
-      "sessionSettings": {
-        "forceRelogin": false
-      }
+    "pathAssistantSettings": {
+      "pathAssistantEnabled": true
     },
     "languageSettings": {
       "enableTranslationWorkbench": true

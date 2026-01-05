@@ -1,0 +1,62 @@
+<!-- Favicon -->
+<link rel="icon" type="image/png" href="{{ '/assets/images/logo.png' | relative_url }}">
+<link rel="apple-touch-icon" href="{{ '/assets/images/logo.png' | relative_url }}">
+
+<!-- Mobile navigation script -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Only run on mobile
+  if (window.innerWidth <= 768) {
+    // Create mobile menu button
+    const menuBtn = document.createElement('button');
+    menuBtn.className = 'mobile-menu-btn';
+    menuBtn.setAttribute('aria-label', 'Toggle navigation menu');
+    menuBtn.innerHTML = '<span></span>';
+    document.body.appendChild(menuBtn);
+
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'nav-overlay';
+    document.body.appendChild(overlay);
+
+    // Get nav element
+    const nav = document.querySelector('.site-nav');
+
+    // Toggle menu
+    function toggleMenu() {
+      menuBtn.classList.toggle('active');
+      nav.classList.toggle('nav-open');
+      overlay.classList.toggle('active');
+      document.body.style.overflow = nav.classList.contains('nav-open') ? 'hidden' : '';
+    }
+
+    menuBtn.addEventListener('click', toggleMenu);
+    overlay.addEventListener('click', toggleMenu);
+
+    // Close menu when clicking a link
+    nav.querySelectorAll('a').forEach(function(link) {
+      link.addEventListener('click', function() {
+        if (nav.classList.contains('nav-open')) {
+          toggleMenu();
+        }
+      });
+    });
+  }
+
+  // Copy code button script
+  document.querySelectorAll('pre').forEach(function(pre) {
+    const btn = document.createElement('button');
+    btn.className = 'code-copy-btn';
+    btn.textContent = 'Copy';
+    btn.addEventListener('click', function() {
+      const code = pre.querySelector('code') || pre;
+      navigator.clipboard.writeText(code.textContent).then(function() {
+        btn.textContent = 'Copied!';
+        setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+      });
+    });
+    pre.parentElement.style.position = 'relative';
+    pre.parentElement.appendChild(btn);
+  });
+});
+</script>

@@ -1,0 +1,206 @@
+---
+layout: default
+title: Examples
+nav_order: 8
+parent: Guides
+---
+
+# Use Cases & Examples
+{: .no_toc }
+
+Real-world scenarios and implementation patterns.
+{: .fs-6 .fw-300 }
+
+## Table of contents
+{: .no_toc .text-delta }
+
+1. TOC
+{:toc}
+
+---
+
+## Customer Support Agent
+
+Help desk agent that searches cases, updates status, and creates tasks.
+
+### Agent Configuration
+
+| Setting | Value |
+|:--------|:------|
+| Agent Type | Conversational |
+| Memory Strategy | BufferWindow |
+| History Limit | 10 |
+
+**Identity Prompt**:
+```
+You are a customer support assistant for the service team.
+You help agents find case information, update case status, and create follow-up tasks.
+Always be helpful and professional.
+```
+
+**Instructions Prompt**:
+```
+- Search for cases before asking users for case numbers
+- Confirm before updating case status or priority
+- Create tasks for any follow-up actions mentioned
+- Summarize case details clearly
+```
+
+### Capabilities
+
+**Search Cases**
+```json
+{
+  "capabilityName": "search_cases",
+  "description": "Search for support cases by number, contact, account, or subject",
+  "implementationType": "Standard",
+  "standardActionType": "GetRecordDetails",
+  "backendConfiguration": {
+    "objectApiName": "Case",
+    "defaultFields": ["CaseNumber", "Subject", "Status", "Priority", "Contact.Name", "Account.Name"]
+  }
+}
+```
+
+**Update Case**
+```json
+{
+  "capabilityName": "update_case",
+  "description": "Update case status, priority, or other fields",
+  "implementationType": "Standard",
+  "standardActionType": "UpdateRecord",
+  "requiresApproval": true,
+  "backendConfiguration": {
+    "objectApiName": "Case"
+  }
+}
+```
+
+**Create Follow-up Task**
+```json
+{
+  "capabilityName": "create_followup",
+  "description": "Create a follow-up task for a case",
+  "implementationType": "Standard",
+  "standardActionType": "CreateRecord",
+  "backendConfiguration": {
+    "objectApiName": "Task",
+    "defaultValues": {
+      "Status": "Not Started",
+      "Priority": "Normal"
+    }
+  }
+}
+```
+
+### Sample Conversation
+
+```
+User: Find cases for Acme Corp
+
+Agent: I found 3 open cases for Acme Corp:
+       1. Case #00001234 - Login issues (High Priority)
+       2. Case #00001235 - Billing question (Normal)
+       3. Case #00001236 - Feature request (Low)
+
+       Would you like details on any of these?
+
+User: Update the billing question to high priority
+
+Agent: I'll update Case #00001235 to High priority.
+       [Approval Required]
+       Confirm this change?
+
+User: Yes
+
+Agent: ✓ Case #00001235 priority updated to High.
+```
+
+---
+
+## Sales Assistant
+
+Sales copilot that helps reps find leads, opportunities, and manage their pipeline.
+
+### Agent Configuration
+
+| Setting | Value |
+|:--------|:------|
+| Agent Type | Conversational |
+| Memory Strategy | SummaryBuffer |
+| History Limit | 15 |
+
+**Identity Prompt**:
+```
+You are a sales assistant helping account executives manage their pipeline.
+You can find accounts, contacts, opportunities, and help with sales tasks.
+Be proactive in suggesting next steps.
+```
+
+### Capabilities
+
+**Search Opportunities**
+```json
+{
+  "capabilityName": "search_opportunities",
+  "description": "Find opportunities by account, stage, amount, or close date",
+  "backendConfiguration": {
+    "objectApiName": "Opportunity",
+    "defaultFields": ["Name", "Account.Name", "Amount", "StageName", "CloseDate", "Probability"]
+  }
+}
+```
+
+**Search Contacts**
+```json
+{
+  "capabilityName": "search_contacts",
+  "description": "Find contacts by name, title, account, or email",
+  "backendConfiguration": {
+    "objectApiName": "Contact",
+    "defaultFields": ["Name", "Title", "Email", "Phone", "Account.Name"]
+  }
+}
+```
+
+**Log Activity**
+```json
+{
+  "capabilityName": "log_activity",
+  "description": "Log a call, email, or meeting with a contact or account",
+  "implementationType": "Standard",
+  "standardActionType": "CreateRecord",
+  "backendConfiguration": {
+    "objectApiName": "Task",
+    "defaultValues": {
+      "Status": "Completed",
+      "Type": "Call"
+    }
+  }
+}
+```
+
+---
+
+## Best Practices
+
+### Capability Design
+
+1. **One purpose per capability** - Don't combine search and update
+2. **Clear descriptions** - Tell the AI exactly when to use it
+3. **Appropriate parameters** - Only expose what's needed
+4. **Enable approval** - For any data modifications
+
+### Prompt Engineering
+
+1. **Be specific** about the agent's role
+2. **Include constraints** (what NOT to do)
+3. **Provide examples** of good responses
+4. **Set expectations** for tone and format
+
+### Testing
+
+1. **Test edge cases** - Empty results, errors, permissions
+2. **Test with real users** - Different profiles and permissions
+3. **Monitor decision steps** - Verify AI reasoning
+4. **Iterate on prompts** - Refine based on actual usage

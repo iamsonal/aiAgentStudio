@@ -17,3 +17,5 @@ package.xml
 **/tsconfig*.json
 **/*.tsbuildinfo
 **/eslint.config.mjs
+
+scripts/**

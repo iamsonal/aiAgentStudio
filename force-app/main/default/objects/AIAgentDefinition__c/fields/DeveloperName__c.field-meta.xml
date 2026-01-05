@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DeveloperName__c</fullName>
+    <caseSensitive>false</caseSensitive>
+    <description>Machine-readable unique name for this agent configuration. Referenced by AIAgentConfigService and potentially when initiating Chat Sessions.</description>
+    <externalId>true</externalId>
+    <inlineHelpText>Unique identifier used to reference this agent definition in code or API calls (e.g., &apos;Sales_Copilot_Opportunity_Manager&apos;). Cannot contain spaces or special characters other than underscore.</inlineHelpText>
+    <label>Developer Name</label>
+    <length>255</length>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

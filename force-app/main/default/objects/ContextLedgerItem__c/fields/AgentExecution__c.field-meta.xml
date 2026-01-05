@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AgentExecution__c</fullName>
+    <description>The parent agent execution this context item belongs to.</description>
+    <inlineHelpText>The agent execution session that this context item is part of.</inlineHelpText>
+    <label>Agent Execution</label>
+    <referenceTo>AgentExecution__c</referenceTo>
+    <relationshipLabel>Context Ledger Items</relationshipLabel>
+    <relationshipName>ContextLedgerItems</relationshipName>
+    <relationshipOrder>0</relationshipOrder>
+    <reparentableMasterDetail>false</reparentableMasterDetail>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>MasterDetail</type>
+    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+</CustomField>
+
