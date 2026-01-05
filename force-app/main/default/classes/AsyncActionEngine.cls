@@ -14,7 +14,7 @@
  * Implements Queueable for direct async execution without unnecessary wrapper classes.
  * Can be invoked via System.enqueueJob (low dispatch) or Platform Events (high dispatch).
  */
-public class AsyncActionEngine implements Queueable {
+public class AsyncActionEngine implements Queueable, Database.AllowsCallouts {
     // Core execution properties
     private final Id executionId;
     private final Id originalUserId;
@@ -109,8 +109,6 @@ public class AsyncActionEngine implements Queueable {
                 return;
             }
 
-            // Update execution status to indicate active action processing
-            agentStateSvc.startTurnProcessing(this.executionId, this.turnIdentifier, null, logPrefix);
 
             // Execute the action with performance tracking
             Long actionDuration = 0L;

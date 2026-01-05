@@ -1772,6 +1772,37 @@ public with sharing class AgentTestDataFactory {
         return pendingAction;
     }
 
+    /**
+     * @description Replaces update_case_priority and create_follow_up_task capabilities with HTTP callout capabilities
+     * This allows manual testing of external API integrations
+     * @return Map with old and new capability IDs
+     */
+    public static void replaceCapabilitiesWithHttpCallout() {
+        System.debug('[Capability Replacement] Starting replacement of capabilities with HTTP callout...');
+
+        // Find existing capabilities to update
+        List<AgentCapability__c> capabilities = [
+            SELECT Id, CapabilityName__c, Description__c, Parameters__c,
+                   ImplementationType__c, ImplementationDetail__c, BackendConfiguration__c
+            FROM AgentCapability__c
+            WHERE CapabilityName__c IN ('update_case_priority', 'create_follow_up_task', 'create_case')
+        ];
+
+        // Update capabilities to use HTTP callout
+        for (AgentCapability__c cap : capabilities) {
+            System.debug('[Capability Replacement] Updating: ' + cap.CapabilityName__c);
+
+            // Change to use ActionHttpCallout
+            cap.ImplementationType__c = 'Apex';
+            cap.ImplementationDetail__c = 'ActionHttpCallout';
+            cap.RunAsynchronously__c = true;
+            cap.HITLMode__c = null;
+            cap.BackendConfiguration__c = null; // No config needed - endpoint is hardcoded
+        }
+
+        update capabilities;
+    }
+
     private static AgentContextConfig__c createContext(
         Id agentId,
         String label,

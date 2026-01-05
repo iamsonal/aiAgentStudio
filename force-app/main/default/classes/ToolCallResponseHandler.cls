@@ -889,12 +889,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         Integer successfullyQueued = 0;
         List<String> failedTools = new List<String>();
 
-        // Initialize the atomic async tool tracking counter BEFORE queuing any tools
-        // This ensures the counter is set before any async tool can complete
-        OrchestrationService.initializeAsyncToolTracking(context.executionId, context.turnIdentifier, asyncTools.size(), logPrefix);
-
-        // Pause the turn for async action processing
-        context.agentStateSvc.pauseForAsyncAction(context.executionId, context.turnIdentifier, null, 'Async Tools', logPrefix);
+        // Initialize async tool tracking and pause for async action processing in a single DML operation
+        // This reduces DML operations from 2 to 1 by batching the updates
+        context.agentStateSvc.pauseForAsyncActionWithTracking(context.executionId, context.turnIdentifier, asyncTools.size(), 'Async Tools', logPrefix);
 
         // Queue each async tool individually
         for (ToolCallRequest toolRequest : asyncTools) {

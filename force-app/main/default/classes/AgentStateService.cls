@@ -134,24 +134,6 @@ public inherited sharing class AgentStateService {
     // ===================================================================================
 
     /**
-     * Transitions the turn to the active processing state for LLM calls or action execution.
-     *
-     * @param executionId The execution Id (AgentExecution__c)
-     * @param turnIdentifier The unique identifier for the turn
-     * @param jobIdIfAny Optional job Id associated with the turn
-     * @param logPrefix String prefix for log output
-     */
-    public void startTurnProcessing(Id executionId, String turnIdentifier, Id jobIdIfAny, String logPrefix) {
-        System.debug(
-            LoggingLevel.INFO,
-            logPrefix + 'AgentStateService: PROCESSING state for Turn=' + turnIdentifier + (jobIdIfAny != null ? (', Job=' + jobIdIfAny) : '')
-        );
-        String stepDesc = generateStepDescription(AIAgentConstants.STATUS_PROCESSING, null);
-
-        updateStatus(executionId, 'Processing', AIAgentConstants.STATUS_PROCESSING, turnIdentifier, stepDesc);
-    }
-
-    /**
      * Transitions the turn to the awaiting state while an asynchronous action executes.
      *
      * @param executionId The execution Id (AgentExecution__c)
@@ -172,6 +154,52 @@ public inherited sharing class AgentStateService {
         String stepDesc = generateStepDescription(AIAgentConstants.STATUS_AWAITING_ACTION, toolName);
 
         updateStatus(executionId, 'Processing', AIAgentConstants.STATUS_AWAITING_ACTION, turnIdentifier, stepDesc);
+    }
+
+    /**
+     * Optimized method that combines async tool tracking initialization with status update.
+     * This reduces DML operations from 2 to 1 by batching the updates.
+     *
+     * @param executionId The execution Id (AgentExecution__c)
+     * @param turnIdentifier The unique identifier for the turn
+     * @param asyncToolCount Number of async tools being queued
+     * @param toolName The name of the tool being executed (for context)
+     * @param logPrefix String prefix for log output
+     */
+    public void pauseForAsyncActionWithTracking(Id executionId, String turnIdentifier, Integer asyncToolCount, String toolName, String logPrefix) {
+        System.debug(
+            LoggingLevel.INFO,
+            logPrefix +
+                'AgentStateService: AWAITING_ACTION state for Turn=' +
+                turnIdentifier +
+                ', AsyncToolCount=' + asyncToolCount +
+                (String.isNotBlank(toolName) ? (', Tool=' + toolName) : '')
+        );
+
+        try {
+            // Use FOR UPDATE to lock the record and prevent concurrent modifications
+            AgentExecution__c execution = [
+                SELECT Id, PendingAsyncToolCount__c, AsyncToolTurnIdentifier__c
+                FROM AgentExecution__c
+                WHERE Id = :executionId
+                FOR UPDATE
+            ];
+
+            // Batch all updates in a single DML operation
+            execution.ExecutionStatus__c = 'Processing';
+            execution.ProcessingStatus__c = AIAgentConstants.STATUS_AWAITING_ACTION;
+            execution.CurrentTurnIdentifier__c = turnIdentifier;
+            execution.LastActivityTime__c = Datetime.now();
+            execution.PendingAsyncToolCount__c = asyncToolCount;
+            execution.AsyncToolTurnIdentifier__c = turnIdentifier;
+
+            update execution;
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Batched update: status=AWAITING_ACTION, asyncToolCount=' + asyncToolCount + ', turnId=' + turnIdentifier);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update execution with async tracking: ' + e.getMessage());
+            throw new AgentStateException('Failed to update execution with async tracking: ' + e.getMessage());
+        }
     }
 
     /**

@@ -494,43 +494,6 @@ public inherited sharing class OrchestrationService {
 
     /**
      * @description
-     * Initializes the async tool tracking counter on the execution record.
-     * Must be called BEFORE queuing async tools to set up the atomic counter.
-     * Uses FOR UPDATE to ensure exclusive access during initialization.
-     *
-     * @param executionId The execution ID
-     * @param turnIdentifier The turn identifier for this batch of async tools
-     * @param asyncToolCount The number of async tools being queued
-     * @param logPrefix Logging prefix
-     */
-    public static void initializeAsyncToolTracking(Id executionId, String turnIdentifier, Integer asyncToolCount, String logPrefix) {
-        if (asyncToolCount <= 0) {
-            System.debug(LoggingLevel.DEBUG, logPrefix + 'No async tools to track, skipping initialization.');
-            return;
-        }
-
-        try {
-            // Use FOR UPDATE to lock the record and prevent concurrent modifications
-            AgentExecution__c execution = [
-                SELECT Id, PendingAsyncToolCount__c, AsyncToolTurnIdentifier__c
-                FROM AgentExecution__c
-                WHERE Id = :executionId
-                FOR UPDATE
-            ];
-
-            execution.PendingAsyncToolCount__c = asyncToolCount;
-            execution.AsyncToolTurnIdentifier__c = turnIdentifier;
-            update execution;
-
-            System.debug(LoggingLevel.INFO, logPrefix + 'Initialized async tool tracking: count=' + asyncToolCount + ', turnId=' + turnIdentifier);
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to initialize async tool tracking: ' + e.getMessage());
-            throw new OrchestrationException('Failed to initialize async tool tracking: ' + e.getMessage());
-        }
-    }
-
-    /**
-     * @description
      * Called by AsyncActionEngine after an async tool completes to atomically decrement
      * the pending counter and trigger the final follow-up LLM call when all tools complete.
      *
