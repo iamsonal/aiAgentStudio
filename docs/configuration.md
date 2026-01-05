@@ -52,7 +52,8 @@ Complete reference for all agent and capability settings.
 | `IdentityPrompt__c` | Long Text | Defines who the agent is (persona) |
 | `InstructionsPrompt__c` | Long Text | How the agent should behave |
 | `EnableActionTransparency__c` | Checkbox | Show tool execution details to users |
-| `ErrorHandlingPolicy__c` | Picklist | Fail-Fast or Autonomous Recovery |
+| `EnableToolReasoning__c` | Checkbox | Require LLM to explain tool selection for better transparency |
+| `AuditLevel__c` | Picklist | None, Standard, or Detailed logging |
 
 ### Performance Settings
 
@@ -133,6 +134,7 @@ Best for development, testing, and debugging.
 | `HITLNotificationPreference__c` | Picklist | Controls when to send notifications for HITL actions: "Always Notify" (default) sends notifications for approvals, rejections, and errors; "Notify on Rejection Only" only sends notifications when actions are rejected. Only applies when `HITLMode__c` is "Approval" or "ConfirmationThenApproval". |
 | `RunAsynchronously__c` | Checkbox | Execute in separate transaction |
 | `FailFastOnError__c` | Checkbox | Stop immediately on error |
+| `ExposureLevel__c` | Picklist | External (visible to LLM), Internal (framework only), or Disabled |
 
 ### Configuration Fields
 

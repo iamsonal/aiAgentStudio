@@ -71,11 +71,11 @@ permalink: /
   </div>
   <div class="feature-card">
     <h3>⚡ Function Agents</h3>
-    <p>Single-task specialists for one-shot operations like summarization or classification. Fast, stateless execution.</p>
+    <p>Single-task specialists for one-shot operations like summarization, classification, or data enrichment. Fast execution with automatic pattern selection based on complexity.</p>
   </div>
   <div class="feature-card">
     <h3>🔄 Workflow Agents</h3>
-    <p>Multi-step automation that orchestrates complex processes with multiple agents. Sequential execution with checkpoints.</p>
+    <p>Multi-agent orchestration that coordinates complex processes with multiple specialized agents. Sequential execution with state management and bulk processing support.</p>
   </div>
 </div>
 
