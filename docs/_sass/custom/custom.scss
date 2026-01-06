@@ -136,21 +136,25 @@ pre,
   font-weight: 700;
   font-size: 1.1rem;
   color: #032d60;
-  padding: 0.75rem 1.25rem !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent !important;
+  background-image: none !important;
+  text-decoration: none;
+  line-height: 1;
 
   &:hover {
     opacity: 0.85;
+    background: transparent !important;
+    background-image: none !important;
   }
 }
 
 // ============================================
 // ENHANCED HEADER & AUX NAVIGATION
 // ============================================
-.site-header {
-  border-bottom: 1px solid #e5e7eb;
-  background: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
 
 // Aux navigation (top right links like GitHub, Sponsor)
 .aux-nav-list {
@@ -1266,9 +1270,25 @@ html {
     align-items: center;
   }
 
-  // Site header adjustments
+  // Site header adjustments for mobile
   .site-header {
-    padding-left: 60px;
+    padding: 0.625rem 0.75rem !important;
+    min-height: 52px;
+    
+    .site-title {
+      gap: 0.5rem;
+      
+      .site-logo {
+        width: 26px;
+        height: 26px;
+        min-width: 26px;
+        min-height: 26px;
+      }
+      
+      &::after {
+        font-size: 1rem;
+      }
+    }
   }
 }
 
@@ -1426,9 +1446,66 @@ button:focus,
 }
 
 // ============================================
-// FIX: Logo disappearing on hover
+// SITE HEADER - PIXEL PERFECT LOGO & TITLE
 // ============================================
-// Override just-the-docs gradient hover effect on logo
+.site-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between;
+  padding: 0.75rem 1rem !important;
+  min-height: 60px;
+  border-bottom: none;
+  
+  // The site title link containing logo + text
+  .site-title {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.625rem; // 10px gap between logo and text
+    text-decoration: none !important;
+    padding: 0 !important;
+    margin: 0;
+    background: transparent !important;
+    background-image: none !important;
+    font-weight: 700;
+    font-size: 1.125rem;
+    color: #032d60;
+    white-space: nowrap;
+    
+    &:hover {
+      background: transparent !important;
+      background-image: none !important;
+      opacity: 0.85;
+    }
+    
+    // The logo container
+    .site-logo {
+      display: block !important;
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      min-height: 28px;
+      background-image: url('/aiAgentStudio/assets/images/logo.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 10;
+    }
+    
+    // Add site title text after logo via CSS
+    &::after {
+      content: 'AI Agent Studio';
+      display: inline-block;
+      font-weight: 700;
+      font-size: 1.125rem;
+      color: #032d60;
+      letter-spacing: -0.01em;
+    }
+  }
+}
+
+// Override just-the-docs gradient hover effect on any button in header
 .site-header .site-button,
 .site-header .site-button:hover,
 .site-header .site-button:focus {
@@ -1442,10 +1519,40 @@ button:focus,
   display: none !important;
 }
 
-// Ensure the logo image is always visible
-.site-header .site-logo {
-  position: relative;
-  z-index: 10;
+// Menu button styling (hamburger menu) - HIDDEN on desktop, visible on mobile only
+.site-header .site-button {
+  display: none; // Hidden by default on desktop
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+  background: transparent !important;
+  background-image: none !important;
+  border: none;
+
+  &:hover {
+    background-color: rgba(1, 118, 211, 0.1) !important;
+    background-image: none !important;
+  }
+
+  &:focus {
+    background: transparent !important;
+    background-image: none !important;
+  }
+
+  .icon {
+    width: 24px;
+    height: 24px;
+    color: #032d60;
+  }
+}
+
+// Show hamburger menu only on mobile/tablet when sidebar is hidden
+@media (max-width: 50rem) {
+  .site-header .site-button {
+    display: flex;
+  }
 }
 
 // Print styles

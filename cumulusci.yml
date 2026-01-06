@@ -66,12 +66,17 @@ flows:
                 options:
                     apex: "AgentTestDataFactory.createComprehensiveShowcase();"
             7.1:
-              task: deploy_addons
-            8:
-                task: execute_anon
-                description: Set up Salesforce Data
+                task: command
+                description: Deploy addons and set up Connected App (if available)
                 options:
-                    apex: "CreateAgentStudioConnectedApp.setup();"
+                    command: |
+                        if [ -f "aiAgentStudioAddons/main/default/classes/CreateAgentStudioConnectedApp.cls" ]; then
+                            echo "Addons found - deploying and configuring Connected App..."
+                            cci task run deploy_addons --org dev
+                            cci task run execute_anon --org dev --apex "CreateAgentStudioConnectedApp.setup();"
+                        else
+                            echo "Addons not available - skipping Connected App setup (this is expected for public repo)"
+                        fi
 
 orgs:
     scratch:
