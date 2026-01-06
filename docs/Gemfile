@@ -8,6 +8,10 @@ gem "just-the-docs", "~> 0.10"
 gem "jekyll-remote-theme"
 gem "jekyll-seo-tag", "~> 2.8"
 
+# Ruby 4.0 compatibility fix
+gem "listen", "~> 3.9"
+gem "jekyll-watch", "~> 2.2"
+
 # Windows and JRuby does not include zoneinfo files
 platforms :mingw, :x64_mingw, :mswin, :jruby do
   gem "tzinfo", ">= 1", "< 3"

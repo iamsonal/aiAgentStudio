@@ -463,8 +463,12 @@ public with sharing class AgentTestDataFactory {
     // ===================================================================================
 
     private static LLMConfiguration__c createLLMConfiguration() {
-        System.debug('[LLM] Creating configuration...');
-        LLMConfiguration__c config = new LLMConfiguration__c(
+        System.debug('[LLM] Creating configurations...');
+
+        List<LLMConfiguration__c> configs = new List<LLMConfiguration__c>();
+
+        // GPT-4 (existing default)
+        LLMConfiguration__c gpt4Config = new LLMConfiguration__c(
             Name = 'OpenAI GPT-4',
             DeveloperName__c = 'OpenAI_GPT4',
             ProviderAdapterClass__c = 'OpenAIProviderAdapter',
@@ -473,10 +477,42 @@ public with sharing class AgentTestDataFactory {
             DefaultTemperature__c = 0.1,
             IsActive__c = true
         );
-        insert config;
-        idMap.put('LLM Config', config.Id);
-        System.debug('[LLM] ✓ Configuration created');
-        return config;
+        configs.add(gpt4Config);
+
+        // GPT-5 Mini
+        LLMConfiguration__c gpt5MiniConfig = new LLMConfiguration__c(
+            Name = 'OpenAI GPT-5 Mini',
+            DeveloperName__c = 'OpenAI_GPT5_Mini',
+            ProviderAdapterClass__c = 'OpenAIProviderAdapter',
+            NamedCredential__c = 'OpenAI_API',
+            DefaultModelIdentifier__c = 'gpt-5-mini',
+            DefaultTemperature__c = 0.1,
+            IsActive__c = true
+        );
+        configs.add(gpt5MiniConfig);
+
+        // GPT-5 Nano
+        LLMConfiguration__c gpt5NanoConfig = new LLMConfiguration__c(
+            Name = 'OpenAI GPT-5 Nano',
+            DeveloperName__c = 'OpenAI_GPT5_Nano',
+            ProviderAdapterClass__c = 'OpenAIProviderAdapter',
+            NamedCredential__c = 'OpenAI_API',
+            DefaultModelIdentifier__c = 'gpt-5-nano',
+            DefaultTemperature__c = 0.2,
+            IsActive__c = true
+        );
+        configs.add(gpt5NanoConfig);
+
+        insert configs;
+
+        // Store all configs in idMap for reference
+        idMap.put('LLM Config', gpt4Config.Id);
+        idMap.put('LLM Config GPT4', gpt4Config.Id);
+        idMap.put('LLM Config GPT5 Mini', gpt5MiniConfig.Id);
+        idMap.put('LLM Config GPT5 Nano', gpt5NanoConfig.Id);
+
+        System.debug('[LLM] ✓ Created ' + configs.size() + ' LLM configurations');
+        return gpt4Config; // Return default for backward compatibility
     }
 
     // ===================================================================================
@@ -953,7 +989,7 @@ public with sharing class AgentTestDataFactory {
                 'Standard',
                 'UpdateRecord',
                 null,
-                '{"objectApiName":"Case"}',
+                '{"objectApiName":"Case","defaultFieldValues":{"Origin":"Web"}}',
                 false,
                 false,
                 false,

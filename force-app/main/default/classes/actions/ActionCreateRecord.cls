@@ -201,11 +201,28 @@ public class ActionCreateRecord extends BaseAgentAction {
 
         if (saveResult.isSuccess()) {
             System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] Successfully created record with ID: ' + saveResult.getId());
+
+            // Query for the Name field to provide more meaningful output
+            Map<String, String> nameFieldInfo = queryNameFieldWithLabel(saveResult.getId());
+            String nameFieldValue = nameFieldInfo?.get('value');
+            String nameFieldLabel = nameFieldInfo?.get('label');
+
+            // Create a more informative success message
+            String successMessage = 'Successfully created ' + config.objectApiName + ' record with ID ' + saveResult.getId();
+            if (String.isNotBlank(nameFieldValue) && String.isNotBlank(nameFieldLabel)) {
+                successMessage += ' (' + nameFieldLabel + ': ' + nameFieldValue + ')';
+            } else if (String.isNotBlank(nameFieldValue)) {
+                successMessage += ' (' + nameFieldValue + ')';
+            }
+            successMessage += '.';
+
             return ActionOutcome.success(
                 new CreateResult(
                     saveResult.getId(),
-                    'Successfully created ' + config.objectApiName + ' record with ID ' + saveResult.getId() + '.',
-                    new List<String>(typedData.keySet())
+                    successMessage,
+                    new List<String>(typedData.keySet()),
+                    nameFieldValue,
+                    nameFieldLabel
                 )
             );
         } else {
@@ -269,6 +286,57 @@ public class ActionCreateRecord extends BaseAgentAction {
         if (!config.defaultFieldValues.isEmpty()) {
             System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] Loaded ' + config.defaultFieldValues.size() + ' default field values from configuration.');
         }
+    }
+
+    /**
+     * @description
+     * Queries for the Name field of the newly created record to provide more meaningful output.
+     * Uses the SOQL query pattern provided to find the Name field for any object type.
+    /**
+     * @description
+     * Queries for the Name field of the newly created record to provide more meaningful output.
+     * Uses the SOQL query pattern provided to find the Name field for any object type.
+     * Also retrieves the field label for better context in messages.
+     *
+     * @param recordId Id - The ID of the newly created record
+     * @return Map<String, String> - Contains 'value' and 'label' keys, or null if not found or accessible
+     */
+    private Map<String, String> queryNameFieldWithLabel(Id recordId) {
+        try {
+            // First, get the Name field API name and label for this object type
+            List<String> objectNames = new List<String>{ config.objectApiName };
+            List<FieldDefinition> nameFields = [
+                SELECT QualifiedApiName, Label
+                FROM FieldDefinition
+                WHERE EntityDefinition.QualifiedApiName IN :objectNames
+                AND IsNameField = TRUE
+                LIMIT 1
+            ];
+
+            if (nameFields.isEmpty()) {
+                System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] No Name field found for object: ' + config.objectApiName);
+                return null;
+            }
+
+            String nameFieldApiName = nameFields[0].QualifiedApiName;
+            String nameFieldLabel = nameFields[0].Label;
+
+            // Query the record to get the Name field value
+            String soql = 'SELECT ' + nameFieldApiName + ' FROM ' + config.objectApiName + ' WHERE Id = :recordId WITH USER_MODE LIMIT 1';
+            List<SObject> records = Database.query(soql);
+
+            if (!records.isEmpty() && records[0].get(nameFieldApiName) != null) {
+                return new Map<String, String>{
+                    'value' => String.valueOf(records[0].get(nameFieldApiName)),
+                    'label' => nameFieldLabel
+                };
+            }
+
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, '[ActionCreateRecord] Failed to query Name field: ' + e.getMessage());
+        }
+
+        return null;
     }
 
     /**
@@ -392,20 +460,28 @@ public class ActionCreateRecord extends BaseAgentAction {
      *   - recordId: String - The Salesforce record Id of the newly created record.
      *   - message: String - User-facing message summarizing the result.
      *   - fieldsSet: List<String> - List of fields that were set on the new record.
+     *   - recordName: String - The value of the Name field for the created record (e.g., Case Number, Account Name).
+     *   - recordNameLabel: String - The label of the Name field (e.g., "Case Number", "Account Name").
      *   - metadata: Map<String, Object> - Additional context for downstream consumers.
      */
     public class CreateResult {
         public String recordId;
         public String message; // Framework uses this for user display
         public List<String> fieldsSet;
+        public String recordName; // Name field value (e.g., Case Number, Account Name)
+        public String recordNameLabel; // Name field label (e.g., "Case Number", "Account Name")
         public Map<String, Object> metadata; // Additional context for LLMs
 
-        public CreateResult(String recordId, String message, List<String> fieldsSet) {
+        public CreateResult(String recordId, String message, List<String> fieldsSet, String recordName, String recordNameLabel) {
             this.recordId = recordId;
             this.message = message;
             this.fieldsSet = fieldsSet;
+            this.recordName = recordName;
+            this.recordNameLabel = recordNameLabel;
             this.metadata = new Map<String, Object>{
                 'recordId' => recordId,
+                'recordName' => recordName,
+                'recordNameLabel' => recordNameLabel,
                 'fieldsSet' => fieldsSet.size(),
                 'fieldNames' => fieldsSet,
                 'creationSuccessful' => true

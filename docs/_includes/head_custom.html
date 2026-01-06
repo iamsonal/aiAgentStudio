@@ -2,10 +2,10 @@
 <link rel="icon" type="image/png" href="{{ '/assets/images/logo.png' | relative_url }}">
 <link rel="apple-touch-icon" href="{{ '/assets/images/logo.png' | relative_url }}">
 
-<!-- Mobile navigation script -->
+<!-- Mobile navigation and interactive elements script -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Only run on mobile
+  // Only run mobile menu on mobile
   if (window.innerWidth <= 768) {
     // Create mobile menu button
     const menuBtn = document.createElement('button');
@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Copy code button script
+  // Enhanced copy code button with animation
   document.querySelectorAll('pre').forEach(function(pre) {
     const btn = document.createElement('button');
     btn.className = 'code-copy-btn';
@@ -51,12 +51,99 @@ document.addEventListener('DOMContentLoaded', function() {
     btn.addEventListener('click', function() {
       const code = pre.querySelector('code') || pre;
       navigator.clipboard.writeText(code.textContent).then(function() {
-        btn.textContent = 'Copied!';
-        setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+        btn.textContent = '✓ Copied!';
+        btn.style.background = '#2e844a';
+        btn.style.color = 'white';
+        btn.style.borderColor = '#2e844a';
+        setTimeout(function() { 
+          btn.textContent = 'Copy';
+          btn.style.background = '';
+          btn.style.color = '';
+          btn.style.borderColor = '';
+        }, 2000);
       });
     });
     pre.parentElement.style.position = 'relative';
     pre.parentElement.appendChild(btn);
   });
+  
+  // Scroll animations for elements
+  const observerOptions = {
+    threshold: 0.1,
+    rootMargin: '0px 0px -100px 0px'
+  };
+  
+  const observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('animate-in');
+      }
+    });
+  }, observerOptions);
+  
+  // Observe feature cards, audience cards, and callouts
+  document.querySelectorAll('.feature-card, .audience-card, .callout, .value-prop, .repo-notice, .sponsor-section').forEach(function(el) {
+    el.classList.add('fade-in-element');
+    observer.observe(el);
+  });
+  
+  // Add reading progress bar
+  const progressBar = document.createElement('div');
+  progressBar.className = 'reading-progress-bar';
+  document.body.appendChild(progressBar);
+  
+  window.addEventListener('scroll', function() {
+    const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+    const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+    const scrolled = (winScroll / height) * 100;
+    progressBar.style.width = scrolled + '%';
+  });
+  
+  // Smooth scroll for anchor links
+  document.querySelectorAll('a[href^="#"]').forEach(function(anchor) {
+    anchor.addEventListener('click', function(e) {
+      const href = this.getAttribute('href');
+      if (href !== '#') {
+        e.preventDefault();
+        const target = document.querySelector(href);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    });
+  });
+  
+  // Add "Back to top" button
+  const backToTop = document.createElement('button');
+  backToTop.className = 'back-to-top-btn';
+  backToTop.innerHTML = '↑';
+  backToTop.setAttribute('aria-label', 'Back to top');
+  backToTop.style.opacity = '0';
+  backToTop.style.visibility = 'hidden';
+  document.body.appendChild(backToTop);
+  
+  window.addEventListener('scroll', function() {
+    if (window.pageYOffset > 300) {
+      backToTop.style.opacity = '1';
+      backToTop.style.visibility = 'visible';
+    } else {
+      backToTop.style.opacity = '0';
+      backToTop.style.visibility = 'hidden';
+    }
+  });
+  
+  backToTop.addEventListener('click', function() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
 });
 </script>
+
+<!-- SEO and Social Meta Tags -->
+<meta property="og:title" content="AI Agent Studio - Enterprise AI for Salesforce">
+<meta property="og:description" content="Build intelligent AI agents powered by Large Language Models that seamlessly integrate with your Salesforce environment.">
+<meta property="og:image" content="{{ '/assets/images/logo.png' | absolute_url }}">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI Agent Studio">
+<meta name="twitter:description" content="Enterprise-Grade AI Platform for Salesforce">
+
