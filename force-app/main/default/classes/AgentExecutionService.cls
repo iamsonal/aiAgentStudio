@@ -61,23 +61,60 @@ public class AgentExecutionService {
 
     /**
      * @description Flow-compatible entry point for agent execution.
+     * Groups requests by agent and calls startExecution directly.
+     * Orchestrators automatically handle async deferral when DML is detected.
      */
-    @InvocableMethod(Label='Start Agent Execution' Description='Starts agent execution for single or multiple records' category='AI Agent')
+    @InvocableMethod(
+        Label='AI Agent: Start Execution'
+        Description='Initiates AI agent execution for a record. Use in record-triggered flows to process records with AI agents. Automatically handles bulkification when multiple records trigger the flow.'
+        Category='AI Agent'
+        IconName='slds:standard:bot'
+    )
     public static List<ExecutionResult> startExecutionFromFlow(List<InvocableRequest> requests) {
-        List<ExecutionResult> results = new List<ExecutionResult>();
+        if (requests.isEmpty()) {
+            return new List<ExecutionResult>();
+        }
+
+        // Group requests by agent name for bulk processing
+        Map<String, List<Id>> agentToRecordIds = new Map<String, List<Id>>();
+        Map<String, InvocableRequest> agentToSampleRequest = new Map<String, InvocableRequest>();
 
         for (InvocableRequest request : requests) {
+            if (!agentToRecordIds.containsKey(request.agentName)) {
+                agentToRecordIds.put(request.agentName, new List<Id>());
+                agentToSampleRequest.put(request.agentName, request);
+            }
+            agentToRecordIds.get(request.agentName).add(request.recordId);
+        }
+
+        List<ExecutionResult> results = new List<ExecutionResult>();
+
+        // Queue bulk execution for each agent
+        for (String agentName : agentToRecordIds.keySet()) {
             try {
+                InvocableRequest sampleRequest = agentToSampleRequest.get(agentName);
+                List<Id> recordIds = agentToRecordIds.get(agentName);
+
                 ExecutionPayload payload = new ExecutionPayload();
                 payload.userId = UserInfo.getUserId();
-                payload.sourceRecordIds = request.recordIds;
-                payload.userMessage = request.userMessage;
-                payload.triggerSource = request.triggerSource;
+                payload.sourceRecordIds = recordIds;
+                payload.userMessage = sampleRequest.userMessage;
+                payload.triggerSource = sampleRequest.triggerSource;
                 payload.turnIdentifier = UUID.randomUUID().toString();
 
-                results.add(startExecution(request.agentName, payload));
+                // Call startExecution directly - orchestrators handle async deferral automatically
+                ExecutionResult result = startExecution(agentName, payload);
+
+                // Return the same result for each record (Flow expects 1:1 mapping)
+                for (Integer i = 0; i < recordIds.size(); i++) {
+                    results.add(result);
+                }
             } catch (Exception e) {
-                results.add(new ExecutionResult('Failed to start execution: ' + e.getMessage()));
+                // Return error result for each record in this agent group
+                List<Id> recordIds = agentToRecordIds.get(agentName);
+                for (Integer i = 0; i < recordIds.size(); i++) {
+                    results.add(new ExecutionResult('Failed to start execution: ' + e.getMessage()));
+                }
             }
         }
 
@@ -165,18 +202,25 @@ public class AgentExecutionService {
     /**
      * @description Flow-friendly request wrapper for @InvocableMethod.
      * Simplified for Flow admins - internal flags handled automatically.
+     *
+     * For record-triggered flows, pass $Record.Id to recordId.
+     * Salesforce automatically bulkifies multiple flow interviews into a single invocable call.
      */
     public class InvocableRequest {
-        @InvocableVariable(Label='Agent Name' Description='Developer name of the agent to execute' Required=true)
+        @InvocableVariable(Label='Agent Name' Description='The developer name of the AI agent to execute (e.g., Case_Processing_Workflow)' Required=true)
         public String agentName;
 
-        @InvocableVariable(Label='Record IDs' Description='Record IDs to process' Required=true)
-        public List<Id> recordIds;
+        @InvocableVariable(
+            Label='Record ID'
+            Description='The record to process. In record-triggered flows, use $Record.Id. Flow automatically bulkifies multiple records.'
+            Required=true
+        )
+        public Id recordId;
 
-        @InvocableVariable(Label='User Message' Description='Message for conversational agents')
+        @InvocableVariable(Label='User Message' Description='Optional message for conversational agents. Leave blank for autonomous agents.')
         public String userMessage;
 
-        @InvocableVariable(Label='Trigger Source' Description='Source identifier (defaults to Flow)')
+        @InvocableVariable(Label='Trigger Source' Description='Optional identifier for tracking where the execution originated (e.g., "Case Creation Flow")')
         public String triggerSource;
     }
 
@@ -236,23 +280,23 @@ public class AgentExecutionService {
      */
     public class ExecutionResult {
         @AuraEnabled
-        @InvocableVariable(Label='Execution ID' Description='ID of created execution record')
+        @InvocableVariable(Label='Execution ID' Description='The ID of the created AgentExecution__c record. Use this to track execution progress.')
         public Id executionId;
 
         @AuraEnabled
-        @InvocableVariable(Label='Status' Description='Execution status')
+        @InvocableVariable(Label='Status' Description='Current execution status (e.g., Processing, Completed, Failed)')
         public String status;
 
         @AuraEnabled
-        @InvocableVariable(Label='Message' Description='Status message')
+        @InvocableVariable(Label='Message' Description='Human-readable status message describing the execution state')
         public String message;
 
         @AuraEnabled
-        @InvocableVariable(Label='Success' Description='Whether execution started successfully')
+        @InvocableVariable(Label='Success' Description='True if execution started successfully, false if there was an error')
         public Boolean success;
 
         @AuraEnabled
-        @InvocableVariable(Label='Error Message' Description='Error details if failed')
+        @InvocableVariable(Label='Error Message' Description='Detailed error information if the execution failed to start')
         public String errorMessage;
 
         public ExecutionResult(Id executionId, String status, String message) {
