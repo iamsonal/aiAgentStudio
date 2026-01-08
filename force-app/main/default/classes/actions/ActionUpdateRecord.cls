@@ -19,6 +19,7 @@
  *
  * Configuration:
  *   - objectApiName (optional): When specified, validates that the recordId matches this object type
+ *   - defaultFieldValues (optional): Default field values merged with AI-provided values
  *
  * Security Architecture:
  *   - Proactive FLS checks via TypeCoercionService provide clear, actionable errors for AI agents
@@ -36,7 +37,7 @@
  * @ActionRequiresSObject true
  * @ActionIsActive true
  * @ActionGuidance
- * <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6;"><div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px; border-radius: 8px 8px 0 0; margin: -8px -8px 16px -8px;"><h2 style="margin: 0; font-size: 18px; font-weight: 600;">📝 Update Record</h2><p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">Modify existing Salesforce records with automatic field-level security</p></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">📋 Runtime Parameters</h3><p style="margin: 8px 0; font-size: 13px; color: #6c757d;">The AI will provide these parameters when calling this action:</p><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">recordId</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">The 18-character Salesforce ID of the record to update. 15-character IDs are automatically converted.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">"001xxxxxxxxxxxxxxx"</code></td></tr><tr><td style="padding: 8px;"><strong style="color: #495057;">recordData</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; color: #6c757d;">JSON object containing field API names and their new values. Only include fields you want to update.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{ "Status": "Closed", "Priority": "High" }</code></td></tr></table></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">⚙️ Configuration Options</h3><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; width: 30%;"><strong style="color: #495057;">objectApiName</strong><br/><span style="font-size: 11px; color: #6c757d;">Optional</span></td><td style="padding: 8px; color: #6c757d;">When specified, validates that the recordId matches this object type. Useful for type safety in specific scenarios.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">"Case", "Account", "CustomObject__c"</code></td></tr></table></div><div style="background: #e7f1ff; border-left: 4px solid #0066cc; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #004085;"><strong>💡 Note:</strong> Field-level security is automatically enforced. Non-updateable fields are silently skipped. Validation rules fire normally and errors are returned to the AI.</p></div></div>
+ * <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6;"><div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px; border-radius: 8px 8px 0 0; margin: -8px -8px 16px -8px;"><h2 style="margin: 0; font-size: 18px; font-weight: 600;">📝 Update Record</h2><p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">Modify existing Salesforce records with automatic field-level security and intelligent defaults</p></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">⚙️ Configuration Required</h3><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">Object API Name</strong><br/><span style="font-size: 11px; color: #6c757d;">Optional</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">When specified, validates that the recordId matches this object type. Useful for type safety in specific scenarios.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">"Case", "Account", "CustomObject__c"</code></td></tr><tr><td style="padding: 8px;"><strong style="color: #495057;">Default Field Values</strong><br/><span style="font-size: 11px; color: #6c757d;">Optional</span></td><td style="padding: 8px; color: #6c757d;">JSON object with field API names and default values applied to every record update. These are merged with AI-provided values.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{ "Status": "In Progress", "Origin": "AI Agent" }</code></td></tr></table></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">📋 Runtime Parameters</h3><p style="margin: 8px 0; font-size: 13px; color: #6c757d;">The AI will provide these parameters when calling this action:</p><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">recordId</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">The 18-character Salesforce ID of the record to update. 15-character IDs are automatically converted.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">"001xxxxxxxxxxxxxxx"</code></td></tr><tr><td style="padding: 8px;"><strong style="color: #495057;">recordData</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; color: #6c757d;">JSON object containing field API names and their new values. These are merged with your configured default values.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{ "Priority": "High", "Subject": "Updated" }</code></td></tr></table></div><div style="background: #e7f1ff; border-left: 4px solid #0066cc; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #004085;"><strong>💡 How it works:</strong> AI-provided values in recordData are merged with your configured default values. If the AI provides a field that exists in defaults, the AI value takes precedence. Field-level security is automatically enforced.</p></div></div>
  *
  * @extends BaseAgentAction
  */
@@ -76,6 +77,13 @@ public class ActionUpdateRecord extends BaseAgentAction {
          * @FieldHelp Optional: The API name of the SObject being updated (e.g., Account, Contact). When specified, validates that recordId matches this object type.
          */
         public String objectApiName;
+
+        /**
+         * @FieldLabel Default Field Values
+         * @FieldType object
+         * @FieldHelp Optional default values to set on all updated records. These are merged with AI-provided values.
+         */
+        public Map<String, Object> defaultFieldValues;
     }
 
     /**
@@ -133,8 +141,17 @@ public class ActionUpdateRecord extends BaseAgentAction {
             args.recordData = new Map<String, Object>();
         }
 
+        // Merge default and user-supplied field values
+        Map<String, Object> finalData = new Map<String, Object>();
+        if (config.defaultFieldValues != null) {
+            finalData.putAll(config.defaultFieldValues);
+        }
+        if (!args.recordData.isEmpty()) {
+            finalData.putAll(args.recordData); // AI values override defaults
+        }
+
         // Validate DTO
-        if (args.recordData.isEmpty()) {
+        if (finalData.isEmpty()) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'No field data provided in recordData for record ID: ' + args.recordId);
         }
 
@@ -173,8 +190,8 @@ public class ActionUpdateRecord extends BaseAgentAction {
 
         Map<String, Object> typedData;
         try {
-            // Coerce types and enforce field-level security (FLS) using DTO recordData
-            typedData = TypeCoercionService.coerceArgumentTypesForSObject(args.recordData, targetSObjectType, AccessType.UPDATABLE);
+            // Coerce types and enforce field-level security (FLS) using merged field data
+            typedData = TypeCoercionService.coerceArgumentTypesForSObject(finalData, targetSObjectType, AccessType.UPDATABLE);
         } catch (TypeCoercionService.TypeCoercionException typeEx) {
             // Extract auto-generated correction guidance to help LLM self-correct format errors
             if (String.isNotBlank(typeEx.correctionGuidance)) {
@@ -186,7 +203,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
         }
 
         if (typedData.isEmpty()) {
-            Set<String> originalFields = args.recordData.keySet();
+            Set<String> originalFields = finalData.keySet();
             return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
                 'No updatable fields provided after security checks for record ' +
@@ -198,7 +215,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
 
         // Track and log fields filtered out by FLS for auditability
         Set<String> allowedFields = typedData.keySet();
-        Set<String> removedFieldsForFLS = new Set<String>(args.recordData.keySet());
+        Set<String> removedFieldsForFLS = new Set<String>(finalData.keySet());
         removedFieldsForFLS.removeAll(allowedFields);
         if (!removedFieldsForFLS.isEmpty()) {
             System.debug(
@@ -303,12 +320,32 @@ public class ActionUpdateRecord extends BaseAgentAction {
                     this.config.objectApiName = (String) configMap.get('objectApiName');
                 }
 
+                // Handle defaultFieldValues
+                Object defaultFieldsObj = configMap.get('defaultFieldValues');
+                if (defaultFieldsObj instanceof Map<String, Object>) {
+                    this.config.defaultFieldValues = (Map<String, Object>) defaultFieldsObj;
+                } else {
+                    this.config.defaultFieldValues = new Map<String, Object>();
+                }
+
                 if (String.isNotBlank(this.config.objectApiName)) {
                     System.debug(LoggingLevel.DEBUG, '[ActionUpdateRecord] Configured to validate updates against object type: ' + this.config.objectApiName);
+                }
+
+                if (!this.config.defaultFieldValues.isEmpty()) {
+                    System.debug(
+                        LoggingLevel.DEBUG,
+                        '[ActionUpdateRecord] Loaded ' + this.config.defaultFieldValues.size() + ' default field values from configuration.'
+                    );
                 }
             } catch (Exception e) {
                 System.debug(LoggingLevel.WARN, '[ActionUpdateRecord] Failed to parse configuration JSON: ' + e.getMessage() + '. Using defaults.');
             }
+        }
+
+        // Initialize defaultFieldValues if null
+        if (config.defaultFieldValues == null) {
+            config.defaultFieldValues = new Map<String, Object>();
         }
     }
 

@@ -47,7 +47,7 @@
                 <componentInstanceProperties>
                     <name>width</name>
                     <type>decorator</type>
-                    <value>400</value>
+                    <value>450</value>
                 </componentInstanceProperties>
                 <componentName>aiAssistantChat</componentName>
                 <identifier>aiAssistantChat</identifier>
