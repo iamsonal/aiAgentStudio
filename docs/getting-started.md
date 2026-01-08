@@ -353,6 +353,6 @@ Now that you have a working agent, explore:
 
 - [Configuration Guide](configuration.html) - Deep dive into all settings
 - [Standard Actions](actions.html) - All available built-in actions
-- [Custom Actions](custom-actions.html) - Build your own capabilities
+- [Custom Actions](developer-guide.html#custom-actions) - Build your own capabilities
 - [Security](security.html) - Permissions and best practices
 - [Troubleshooting](troubleshooting.html) - Common issues and solutions
