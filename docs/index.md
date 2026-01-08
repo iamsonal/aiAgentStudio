@@ -33,7 +33,7 @@ permalink: /
   <h2>Why AI Agent Studio?</h2>
   <ul>
     <li><strong>No Code Required</strong> — Configure AI agents with point-and-click tools</li>
-    <li><strong>Enterprise Security</strong> — Automatic CRUD, FLS, and sharing rule enforcement</li>
+    <li><strong>Enterprise Security</strong> — Automatic CRUD, FLS, sharing rules, plus PII masking and jailbreak protection</li>
     <li><strong>Multiple AI Providers</strong> — OpenAI included, extensible for Claude, Gemini, and more</li>
     <li><strong>Full Observability</strong> — Every interaction logged for transparency and debugging</li>
     <li><strong>Open Source</strong> — Free forever under MPL-2.0 license</li>
@@ -107,6 +107,14 @@ permalink: /
   <div class="feature-card">
     <h3>📊 Deep Observability</h3>
     <p>Full logging of inputs, outputs, and tool executions</p>
+  </div>
+  <div class="feature-card">
+    <h3>🔐 PII Masking <span class="badge badge-beta">Beta</span></h3>
+    <p>Automatic masking of sensitive data before sending to LLMs</p>
+  </div>
+  <div class="feature-card">
+    <h3>🛡️ Prompt Safety <span class="badge badge-beta">Beta</span></h3>
+    <p>Multi-layered jailbreak and prompt injection detection</p>
   </div>
 </div>
 
