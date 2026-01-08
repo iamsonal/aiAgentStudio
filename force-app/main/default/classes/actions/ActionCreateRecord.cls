@@ -217,13 +217,7 @@ public class ActionCreateRecord extends BaseAgentAction {
             successMessage += '.';
 
             return ActionOutcome.success(
-                new CreateResult(
-                    saveResult.getId(),
-                    successMessage,
-                    new List<String>(typedData.keySet()),
-                    nameFieldValue,
-                    nameFieldLabel
-                )
+                new CreateResult(saveResult.getId(), successMessage, new List<String>(typedData.keySet()), nameFieldValue, nameFieldLabel)
             );
         } else {
             String enhancedMessage = enhanceCreateErrorMessage(saveResult.getErrors()[0], typedData);
@@ -308,8 +302,7 @@ public class ActionCreateRecord extends BaseAgentAction {
             List<FieldDefinition> nameFields = [
                 SELECT QualifiedApiName, Label
                 FROM FieldDefinition
-                WHERE EntityDefinition.QualifiedApiName IN :objectNames
-                AND IsNameField = TRUE
+                WHERE EntityDefinition.QualifiedApiName IN :objectNames AND IsNameField = TRUE
                 LIMIT 1
             ];
 
@@ -326,12 +319,8 @@ public class ActionCreateRecord extends BaseAgentAction {
             List<SObject> records = Database.query(soql);
 
             if (!records.isEmpty() && records[0].get(nameFieldApiName) != null) {
-                return new Map<String, String>{
-                    'value' => String.valueOf(records[0].get(nameFieldApiName)),
-                    'label' => nameFieldLabel
-                };
+                return new Map<String, String>{ 'value' => String.valueOf(records[0].get(nameFieldApiName)), 'label' => nameFieldLabel };
             }
-
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, '[ActionCreateRecord] Failed to query Name field: ' + e.getMessage());
         }

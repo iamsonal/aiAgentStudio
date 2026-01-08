@@ -18,6 +18,8 @@ public inherited sharing class AIAgentFrameworkSettings {
     private static final Integer FINAL_DEFAULT_MaxConversationTurns = 5;
     private static final Integer FINAL_DEFAULT_MaxQueueableStackDepth = 0; // 0 means use Salesforce defaults
     private static final Integer FINAL_DEFAULT_MaxToolRetries = 2;
+    private static final Integer FINAL_DEFAULT_BulkConcurrencyLimit = 5; // Safe default for row locking
+    private static final Integer FINAL_DEFAULT_BulkFailureThreshold = 5; // Stop after 5 failures
     private static final String FINAL_DEFAULT_HITLApprovalNamedCredential = 'AgentStudioInternalAPI';
 
     /**
@@ -35,6 +37,9 @@ public inherited sharing class AIAgentFrameworkSettings {
                 // Explicitly set all values from FINAL defaults if no record exists
                 settings.DefaultMaxConversationTurns__c = FINAL_DEFAULT_MaxConversationTurns;
                 settings.MaxQueueableStackDepth__c = FINAL_DEFAULT_MaxQueueableStackDepth;
+                settings.MaxToolRetries__c = FINAL_DEFAULT_MaxToolRetries;
+                settings.BulkConcurrencyLimit__c = FINAL_DEFAULT_BulkConcurrencyLimit;
+                settings.BulkFailureThreshold__c = FINAL_DEFAULT_BulkFailureThreshold;
                 settings.HITLApprovalNamedCredential__c = FINAL_DEFAULT_HITLApprovalNamedCredential;
                 System.debug(LoggingLevel.WARN, '[AIAgentFrameworkSettings] No Custom Setting record found - using hardcoded default values for all settings');
             } else {
@@ -44,6 +49,15 @@ public inherited sharing class AIAgentFrameworkSettings {
                 }
                 if (settings.MaxQueueableStackDepth__c == null || settings.MaxQueueableStackDepth__c < 0) {
                     settings.MaxQueueableStackDepth__c = FINAL_DEFAULT_MaxQueueableStackDepth;
+                }
+                if (settings.MaxToolRetries__c == null || settings.MaxToolRetries__c < 0) {
+                    settings.MaxToolRetries__c = FINAL_DEFAULT_MaxToolRetries;
+                }
+                if (settings.BulkConcurrencyLimit__c == null || settings.BulkConcurrencyLimit__c < 1) {
+                    settings.BulkConcurrencyLimit__c = FINAL_DEFAULT_BulkConcurrencyLimit;
+                }
+                if (settings.BulkFailureThreshold__c == null || settings.BulkFailureThreshold__c < 0) {
+                    settings.BulkFailureThreshold__c = FINAL_DEFAULT_BulkFailureThreshold;
                 }
                 if (String.isBlank(settings.HITLApprovalNamedCredential__c)) {
                     settings.HITLApprovalNamedCredential__c = FINAL_DEFAULT_HITLApprovalNamedCredential;
@@ -116,6 +130,74 @@ public inherited sharing class AIAgentFrameworkSettings {
             return Integer.valueOf(instance.MaxToolRetries__c);
         }
         return FINAL_DEFAULT_MaxToolRetries;
+    }
+
+    /**
+     * Gets the configured bulk concurrency limit for parallel worker execution.
+     * This soft limit prevents database row-locking contention and API rate limiting
+     * while allowing administrators to control concurrency safely.
+     *
+     * @return The bulk concurrency limit (defaults to 5 if not set or invalid).
+     */
+    public static Integer getBulkConcurrencyLimit() {
+        AIAgentFrameworkSettings__c instance = getInstance();
+        if (instance.BulkConcurrencyLimit__c != null && instance.BulkConcurrencyLimit__c >= 1) {
+            return Integer.valueOf(instance.BulkConcurrencyLimit__c);
+        }
+        return FINAL_DEFAULT_BulkConcurrencyLimit;
+    }
+
+    /**
+     * Gets the configured bulk failure threshold - maximum number of failed records
+     * allowed before stopping further processing in a bulk execution.
+     * Set to 0 to disable failure threshold (process all records regardless of failures).
+     *
+     * @return The bulk failure threshold (defaults to 10 if not set).
+     */
+    public static Integer getBulkFailureThreshold() {
+        AIAgentFrameworkSettings__c instance = getInstance();
+        if (instance.BulkFailureThreshold__c != null && instance.BulkFailureThreshold__c >= 0) {
+            return Integer.valueOf(instance.BulkFailureThreshold__c);
+        }
+        return FINAL_DEFAULT_BulkFailureThreshold;
+    }
+
+    /**
+     * Calculates the optimal worker count using the Hybrid Cap algorithm.
+     * Takes the minimum of: admin-configured soft limit, available queueable slots, and actual records to process.
+     * This ensures maximum throughput without exceeding transactional safety boundaries or wasting resources.
+     *
+     * @param recordCount The number of records that need to be processed
+     * @return The optimal number of workers to enqueue
+     */
+    public static Integer calculateOptimalWorkerCount(Integer recordCount) {
+        if (recordCount == null || recordCount <= 0) {
+            return 0;
+        }
+
+        // Get admin-configured soft limit
+        Integer softLimit = getBulkConcurrencyLimit();
+
+        // Get available queueable slots in current transaction
+        Integer availableSlots = Limits.getLimitQueueableJobs() - Limits.getQueueableJobs();
+
+        // Hybrid Cap: min(soft limit, available slots, actual records)
+        Integer optimalCount = Math.min(Math.min(softLimit, availableSlots), recordCount);
+
+        System.debug(
+            LoggingLevel.DEBUG,
+            '[AIAgentFrameworkSettings] Hybrid Cap calculation: ' +
+                'SoftLimit=' +
+                softLimit +
+                ', AvailableSlots=' +
+                availableSlots +
+                ', RecordCount=' +
+                recordCount +
+                ', OptimalCount=' +
+                optimalCount
+        );
+
+        return Math.max(0, optimalCount); // Ensure non-negative
     }
 
     /**

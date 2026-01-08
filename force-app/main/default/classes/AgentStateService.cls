@@ -172,7 +172,8 @@ public inherited sharing class AgentStateService {
             logPrefix +
                 'AgentStateService: AWAITING_ACTION state for Turn=' +
                 turnIdentifier +
-                ', AsyncToolCount=' + asyncToolCount +
+                ', AsyncToolCount=' +
+                asyncToolCount +
                 (String.isNotBlank(toolName) ? (', Tool=' + toolName) : '')
         );
 
@@ -195,7 +196,10 @@ public inherited sharing class AgentStateService {
 
             update execution;
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Batched update: status=AWAITING_ACTION, asyncToolCount=' + asyncToolCount + ', turnId=' + turnIdentifier);
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Batched update: status=AWAITING_ACTION, asyncToolCount=' + asyncToolCount + ', turnId=' + turnIdentifier
+            );
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update execution with async tracking: ' + e.getMessage());
             throw new AgentStateException('Failed to update execution with async tracking: ' + e.getMessage());

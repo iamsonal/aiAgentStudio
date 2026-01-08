@@ -109,7 +109,6 @@ public class AsyncActionEngine implements Queueable, Database.AllowsCallouts {
                 return;
             }
 
-
             // Execute the action with performance tracking
             Long actionDuration = 0L;
             ActionOutcome outcome = null;
@@ -178,6 +177,28 @@ public class AsyncActionEngine implements Queueable, Database.AllowsCallouts {
             AIAgentDefinition__c agentDefinition = AIAgentConfigService.getAgentDefinition(this.agentDefinitionId);
             Boolean shouldFailFast = OrchestrationService.shouldFailFast(this.capability, agentDefinition, outcome, this.executionId, logPrefix);
 
+            // TOOL-TERMINATING MODE OVERRIDE: If execution is in tool-terminating mode,
+            // tool failures should fail immediately since no follow-up LLM call is planned
+            Boolean isToolTerminatingMode = false;
+            if (!outcome.isSuccess && !shouldFailFast) {
+                // Only check tool-terminating mode if we would normally attempt autonomous recovery
+                AgentExecution__c executionRecord = [
+                    SELECT IsToolTerminatingMode__c
+                    FROM AgentExecution__c
+                    WHERE Id = :this.executionId
+                    LIMIT 1
+                ];
+                isToolTerminatingMode = executionRecord.IsToolTerminatingMode__c == true;
+
+                if (isToolTerminatingMode) {
+                    shouldFailFast = true; // Override autonomous recovery
+                    System.debug(
+                        LoggingLevel.INFO,
+                        logPrefix + 'Tool-terminating mode detected. Overriding autonomous recovery - failing execution immediately.'
+                    );
+                }
+            }
+
             if (!outcome.isSuccess && shouldFailFast) {
                 // Tool failed and policy requires immediate failure (could be fail-fast or max retries exceeded)
                 Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
@@ -185,7 +206,10 @@ public class AsyncActionEngine implements Queueable, Database.AllowsCallouts {
                 String failureReason;
                 String logMessage;
 
-                if (failureCount >= maxRetries) {
+                if (isToolTerminatingMode) {
+                    failureReason = 'Async tool execution failed in tool-terminating mode';
+                    logMessage = 'Async tool failed in tool-terminating mode - no follow-up LLM call planned, halting execution';
+                } else if (failureCount >= maxRetries) {
                     failureReason =
                         'Async tool "' +
                         this.capability.CapabilityName__c +
@@ -206,7 +230,7 @@ public class AsyncActionEngine implements Queueable, Database.AllowsCallouts {
                     'Execution Halted',
                     logMessage,
                     '{"reason":"' +
-                        (failureCount >= maxRetries ? 'max_retries_exceeded' : 'fail_fast_policy') +
+                        (isToolTerminatingMode ? 'tool_terminating_mode' : (failureCount >= maxRetries ? 'max_retries_exceeded' : 'fail_fast_policy')) +
                         '","capability":"' +
                         this.capability.CapabilityName__c +
                         '"}',

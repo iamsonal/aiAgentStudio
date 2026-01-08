@@ -333,7 +333,10 @@ public class ActionUpdateRecord extends BaseAgentAction {
                 }
 
                 if (!this.config.defaultFieldValues.isEmpty()) {
-                    System.debug(LoggingLevel.DEBUG, '[ActionUpdateRecord] Loaded ' + this.config.defaultFieldValues.size() + ' default field values from configuration.');
+                    System.debug(
+                        LoggingLevel.DEBUG,
+                        '[ActionUpdateRecord] Loaded ' + this.config.defaultFieldValues.size() + ' default field values from configuration.'
+                    );
                 }
             } catch (Exception e) {
                 System.debug(LoggingLevel.WARN, '[ActionUpdateRecord] Failed to parse configuration JSON: ' + e.getMessage() + '. Using defaults.');
