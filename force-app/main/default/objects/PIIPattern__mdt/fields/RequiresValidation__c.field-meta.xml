@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RequiresValidation__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When checked, matches will be validated using additional logic (e.g., Luhn algorithm for credit cards). The validation type is determined by the pattern name.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>Requires Validation</label>
+    <type>Checkbox</type>
+</CustomField>

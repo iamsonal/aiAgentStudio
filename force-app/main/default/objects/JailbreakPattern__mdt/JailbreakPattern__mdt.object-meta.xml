@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Defines patterns for detecting jailbreak attempts and prompt injection attacks in user messages. Part of the Prompt Safety Trust Layer for AI safety.</description>
+    <label>Jailbreak Pattern</label>
+    <pluralLabel>Jailbreak Patterns</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

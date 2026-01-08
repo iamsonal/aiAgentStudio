@@ -9,7 +9,7 @@
 /**
  * @description
  * ContextFormattingService provides unified context formatting for SObject data into various formats
- * optimized for LLM (Large Language Model) consumption. Supports JSON, YAML, and Structured Text formats
+ * optimized for LLM (Large Language Model) consumption. Supports JSON and Structured Text (YAML) formats
  * with token budget awareness.
  *
  * Key Features:
@@ -19,8 +19,12 @@
  * - Hierarchical data support for parent-child relationships
  * - ID field exclusion to reduce token waste
  *
+ * Supported Formats:
+ * - JSON: Most token-efficient, machine-parseable, ~20% better than text formats
+ * - Structured Text: Uses YAML format internally - human-readable, good token efficiency
+ *
  * Token Optimization Notes:
- * - JSON format is ~20% more token-efficient than Structured Text
+ * - JSON format is ~20% more token-efficient than text formats
  * - Excluding ID fields can save ~15% tokens
  * - Use dot notation (Parent.Field) instead of arrows for better tokenization
  */
@@ -41,7 +45,8 @@ public inherited sharing class ContextFormattingService {
      *   FormattingOptions opts = new FormattingOptions()
      *       .withExcludeIdFields(true)
      *       .withMetadata(false)
-     *       .withMaxChars(4000);
+     *       .withMaxChars(4000)
+     *       .withPIIMasking(schemaMasker, maskingSession);
      */
     public class FormattingOptions {
         public Integer maxChars = DEFAULT_MAX_CHARS;
@@ -49,6 +54,10 @@ public inherited sharing class ContextFormattingService {
         public Boolean includeRecordUrls = false;
         public Boolean excludeIdFields = false; // When true, skips all Salesforce ID fields for token efficiency
         public Set<String> excludeFields = new Set<String>();
+
+        // PII Masking support - uses schema-based masking via Data Classification
+        public SchemaBasedMasker piiMasker = null;
+        public PIIMaskingSession piiSession = null;
 
         public FormattingOptions() {
         }
@@ -73,6 +82,63 @@ public inherited sharing class ContextFormattingService {
             this.excludeFields = fields;
             return this;
         }
+
+        /**
+         * Enables PII masking for sensitive fields based on their Data Classification.
+         * Fields marked as Confidential, Restricted, etc. will have their values replaced
+         * with tokens before being sent to external LLMs.
+         *
+         * @param masker The SchemaBasedMasker configured with sensitive classifications
+         * @param session The PIIMaskingSession for token generation and tracking
+         * @return This FormattingOptions instance for method chaining
+         */
+        public FormattingOptions withPIIMasking(SchemaBasedMasker masker, PIIMaskingSession session) {
+            this.piiMasker = masker;
+            this.piiSession = session;
+            return this;
+        }
+
+        /**
+         * Checks if PII masking is enabled for these options.
+         * @return True if both masker and session are configured
+         */
+        public Boolean isPIIMaskingEnabled() {
+            return this.piiMasker != null && this.piiSession != null;
+        }
+
+        // Cache of pre-calculated sensitive fields per SObject type
+        // Optimization: Pre-calculate once per type instead of calling shouldMaskField for each field
+        private transient Map<String, Set<String>> sensitiveFieldsCache = new Map<String, Set<String>>();
+
+        /**
+         * Gets the set of sensitive field names for an SObject type.
+         * Pre-calculates and caches the result for performance optimization.
+         * This avoids repeated shouldMaskField() calls inside record loops.
+         *
+         * @param sObjectType The SObject type to get sensitive fields for
+         * @return Set of field API names (lowercased) that should be masked
+         */
+        public Set<String> getSensitiveFieldsForType(SObjectType sObjectType) {
+            if (!isPIIMaskingEnabled() || sObjectType == null) {
+                return new Set<String>();
+            }
+
+            String typeName = sObjectType.getDescribe().getName();
+
+            // Check cache first
+            if (sensitiveFieldsCache.containsKey(typeName)) {
+                return sensitiveFieldsCache.get(typeName);
+            }
+
+            // Pre-calculate sensitive fields for this type
+            Set<String> sensitiveFields = new Set<String>();
+            for (String fieldName : piiMasker.getMaskedFields(sObjectType)) {
+                sensitiveFields.add(fieldName.toLowerCase());
+            }
+
+            sensitiveFieldsCache.put(typeName, sensitiveFields);
+            return sensitiveFields;
+        }
     }
 
     /**
@@ -87,14 +153,14 @@ public inherited sharing class ContextFormattingService {
      * Format with custom options.
      * @param records List of SObject records to format (supports nested child relationships)
      * @param logPrefix Prefix for debug logs
-     * @param formatStrategy 'JSON', 'YAML', or 'Structured Text' (defaults to JSON)
+     * @param formatStrategy 'JSON' or 'Structured Text' (defaults to JSON). 'YAML' is accepted as alias for backward compatibility.
      * @param options Formatting options for customization
      * @return Formatted string representation of the records
      */
     public String formatContext(List<SObject> records, String logPrefix, String formatStrategy, FormattingOptions options) {
         System.debug(logPrefix + 'ContextFormattingService.formatContext called with strategy: ' + formatStrategy);
 
-        // Default to JSON - it's ~20% more token-efficient than Structured Text
+        // Default to JSON - it's ~20% more token-efficient than text formats
         if (String.isBlank(formatStrategy)) {
             formatStrategy = 'JSON';
         }
@@ -104,11 +170,10 @@ public inherited sharing class ContextFormattingService {
             when 'JSON' {
                 result = formatAsJson(records, logPrefix, options);
             }
-            when 'YAML' {
+            when 'Structured Text', 'YAML' {
+                // Structured Text now uses YAML format internally for better token efficiency
+                // YAML is kept as alias for backward compatibility
                 result = formatAsYaml(records, logPrefix, options);
-            }
-            when 'Structured Text' {
-                result = formatAsStructuredText(records, logPrefix, options);
             }
             when else {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Unknown format strategy: ' + formatStrategy + '. Defaulting to JSON.');
@@ -197,6 +262,9 @@ public inherited sharing class ContextFormattingService {
         Map<String, Object> populatedFields = record.getPopulatedFieldsAsMap();
         Map<String, SObjectField> fieldMap = SchemaUtils.getObjectFields(objDescribe.getSObjectType());
 
+        // Pre-calculate sensitive fields once per SObject type (optimization)
+        Set<String> sensitiveFields = options.getSensitiveFieldsForType(objDescribe.getSObjectType());
+
         for (String fieldName : populatedFields.keySet()) {
             if (options.excludeFields.contains(fieldName.toLowerCase()))
                 continue;
@@ -222,7 +290,14 @@ public inherited sharing class ContextFormattingService {
                     recordData.put(relLabel, relatedFields.get(relLabel));
                 }
             } else {
-                recordData.put(fieldLabel, fieldValue);
+                // Check if PII masking should be applied (using pre-calculated set)
+                Object outputValue = fieldValue;
+                if (options.isPIIMaskingEnabled() && fieldValue != null && sensitiveFields.contains(fieldName.toLowerCase())) {
+                    // Mask the field value
+                    outputValue = options.piiMasker.maskFieldValue(fieldValue, fieldName, options.piiSession);
+                    System.debug(LoggingLevel.DEBUG, logPrefix + 'PII masked field: ' + fieldName);
+                }
+                recordData.put(fieldLabel, outputValue);
             }
         }
 
@@ -321,6 +396,9 @@ public inherited sharing class ContextFormattingService {
         Map<String, Object> populatedFields = record.getPopulatedFieldsAsMap();
         Map<String, SObjectField> fieldMap = SchemaUtils.getObjectFields(objDescribe.getSObjectType());
 
+        // Pre-calculate sensitive fields once per SObject type (optimization)
+        Set<String> sensitiveFields = options.getSensitiveFieldsForType(objDescribe.getSObjectType());
+
         Boolean isFirst = true;
         for (String fieldName : populatedFields.keySet()) {
             if (options.excludeFields.contains(fieldName.toLowerCase()))
@@ -350,7 +428,12 @@ public inherited sharing class ContextFormattingService {
                     prefix = '  ';
                 }
             } else {
-                String valueStr = formatYamlValue(fieldValue);
+                // Check if PII masking should be applied (using pre-calculated set)
+                Object outputValue = fieldValue;
+                if (options.isPIIMaskingEnabled() && fieldValue != null && sensitiveFields.contains(fieldName.toLowerCase())) {
+                    outputValue = options.piiMasker.maskFieldValue(fieldValue, fieldName, options.piiSession);
+                }
+                String valueStr = formatYamlValue(outputValue);
                 lines.add(indent + prefix + fieldLabel + ': ' + valueStr);
             }
         }
@@ -405,147 +488,6 @@ public inherited sharing class ContextFormattingService {
     }
 
     // ===================================================================================
-    // STRUCTURED TEXT FORMATTING
-    // ===================================================================================
-
-    private String formatAsStructuredText(List<SObject> records, String logPrefix, FormattingOptions options) {
-        try {
-            if (records == null || records.isEmpty()) {
-                return options.includeMetadata ? '--- No records ---' : '';
-            }
-
-            List<String> parts = new List<String>();
-
-            if (options.includeMetadata) {
-                parts.add('=== Context Data ===');
-                parts.add('Generated: ' + Datetime.now().formatGmt('yyyy-MM-dd HH:mm:ss') + ' UTC');
-                parts.add('Records: ' + records.size());
-                parts.add('');
-            }
-
-            Map<String, List<SObject>> recordsByType = groupRecordsByType(records);
-
-            for (String sObjTypeName : recordsByType.keySet()) {
-                List<SObject> sObjectList = recordsByType.get(sObjTypeName);
-                String formattedGroup = formatSObjectGroupAsText(sObjectList, logPrefix, options);
-                if (String.isNotBlank(formattedGroup)) {
-                    parts.add(formattedGroup);
-                }
-            }
-
-            parts.add('=== End Context ===');
-            return String.join(parts, '\n');
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Error in formatAsStructuredText: ' + e.getMessage());
-            return 'Error: ' + e.getMessage();
-        }
-    }
-
-    private String formatSObjectGroupAsText(List<SObject> sObjectList, String logPrefix, FormattingOptions options) {
-        if (sObjectList.isEmpty())
-            return '';
-
-        Schema.DescribeSObjectResult objDescribe = sObjectList[0].getSObjectType().getDescribe();
-        List<String> lines = new List<String>();
-
-        lines.add('--- ' + objDescribe.getLabelPlural() + ' (' + sObjectList.size() + ') ---');
-
-        for (Integer i = 0; i < sObjectList.size(); i++) {
-            SObject record = sObjectList[i];
-            String recordText = formatSingleRecordAsText(record, objDescribe, logPrefix, options);
-            if (String.isNotBlank(recordText)) {
-                if (i > 0)
-                    lines.add('');
-                lines.add(recordText);
-            }
-        }
-
-        return String.join(lines, '\n');
-    }
-
-    private String formatSingleRecordAsText(SObject record, Schema.DescribeSObjectResult objDescribe, String logPrefix, FormattingOptions options) {
-        List<String> lines = new List<String>();
-
-        Map<String, Object> populatedFields = record.getPopulatedFieldsAsMap();
-        Map<String, SObjectField> fieldMap = SchemaUtils.getObjectFields(objDescribe.getSObjectType());
-
-        // Find primary display value for header
-        String primaryValue = findPrimaryDisplayValue(record, populatedFields);
-        if (String.isNotBlank(primaryValue)) {
-            lines.add('[' + primaryValue + ']');
-        }
-
-        for (String fieldName : populatedFields.keySet()) {
-            if (options.excludeFields.contains(fieldName.toLowerCase()))
-                continue;
-
-            // Skip ID fields if option is enabled
-            if (options.excludeIdFields && isIdField(fieldName))
-                continue;
-
-            Object fieldValue = populatedFields.get(fieldName);
-            String fieldLabel = getFieldLabel(fieldName, fieldMap);
-
-            if (fieldValue instanceof List<SObject>) {
-                List<SObject> children = (List<SObject>) fieldValue;
-                if (!children.isEmpty()) {
-                    lines.add('  ' + fieldLabel + ':');
-                    lines.add(formatChildrenAsText(children, logPrefix, options));
-                }
-            } else if (fieldValue instanceof SObject) {
-                SObject relatedRecord = (SObject) fieldValue;
-                Map<String, Object> relatedFields = extractRelatedFieldValues(relatedRecord, fieldLabel, logPrefix, options);
-                for (String relLabel : relatedFields.keySet()) {
-                    String valueStr = relatedFields.get(relLabel) == null ? '[not set]' : String.valueOf(relatedFields.get(relLabel));
-                    valueStr = valueStr.replace('\n', ' ').replace('\r', '');
-                    lines.add('  ' + relLabel + ': ' + valueStr);
-                }
-            } else {
-                String valueStr = fieldValue == null ? '[not set]' : String.valueOf(fieldValue);
-                valueStr = valueStr.replace('\n', ' ').replace('\r', '');
-                lines.add('  ' + fieldLabel + ': ' + valueStr);
-            }
-        }
-
-        if (options.includeRecordUrls && record.Id != null) {
-            lines.add('  URL: ' + getRecordUrl(record.Id));
-        }
-
-        return String.join(lines, '\n');
-    }
-
-    private String formatChildrenAsText(List<SObject> children, String logPrefix, FormattingOptions options) {
-        List<String> lines = new List<String>();
-        if (children == null || children.isEmpty())
-            return '';
-
-        Schema.DescribeSObjectResult childDescribe = children[0].getSObjectType().getDescribe();
-        Map<String, SObjectField> childFieldMap = SchemaUtils.getObjectFields(childDescribe.getSObjectType());
-
-        for (SObject child : children) {
-            Map<String, Object> childFields = child.getPopulatedFieldsAsMap();
-            List<String> fieldStrs = new List<String>();
-
-            for (String fieldName : childFields.keySet()) {
-                // Skip ID fields in children if option is enabled
-                if (options.excludeIdFields && isIdField(fieldName))
-                    continue;
-
-                Object fieldValue = childFields.get(fieldName);
-                if (!(fieldValue instanceof List<SObject>) && !(fieldValue instanceof SObject) && fieldValue != null) {
-                    String fieldLabel = getFieldLabel(fieldName, childFieldMap);
-                    fieldStrs.add(fieldLabel + ': ' + String.valueOf(fieldValue));
-                }
-            }
-
-            if (!fieldStrs.isEmpty()) {
-                lines.add('    - ' + String.join(fieldStrs, ', '));
-            }
-        }
-        return String.join(lines, '\n');
-    }
-
-    // ===================================================================================
     // UTILITY METHODS
     // ===================================================================================
 
@@ -570,18 +512,6 @@ public inherited sharing class ContextFormattingService {
             return fieldToken.getDescribe().getLabel();
         }
         return fieldName;
-    }
-
-    private String findPrimaryDisplayValue(SObject record, Map<String, Object> populatedFields) {
-        for (String fieldName : new List<String>{ 'Name', 'Subject', 'Title', 'CaseNumber' }) {
-            if (populatedFields.containsKey(fieldName)) {
-                Object value = populatedFields.get(fieldName);
-                if (value != null) {
-                    return String.valueOf(value);
-                }
-            }
-        }
-        return null;
     }
 
     /**
@@ -619,6 +549,9 @@ public inherited sharing class ContextFormattingService {
             Schema.DescribeSObjectResult relatedDescribe = relatedRecord.getSObjectType().getDescribe();
             Map<String, SObjectField> relatedFieldMap = SchemaUtils.getObjectFields(relatedDescribe.getSObjectType());
 
+            // Pre-calculate sensitive fields for the related record's type (optimization)
+            Set<String> sensitiveFields = options.getSensitiveFieldsForType(relatedDescribe.getSObjectType());
+
             for (String fieldName : relatedPopulated.keySet()) {
                 Object fieldValue = relatedPopulated.get(fieldName);
 
@@ -634,7 +567,15 @@ public inherited sharing class ContextFormattingService {
                 String fieldLabel = getFieldLabel(fieldName, relatedFieldMap);
                 // Use dot notation for better tokenization: "Account.Name" instead of "Account → Name"
                 String fullPath = pathPrefix + PATH_SEPARATOR + fieldLabel;
-                result.put(fullPath, fieldValue);
+
+                // Check if PII masking should be applied (using pre-calculated set)
+                Object outputValue = fieldValue;
+                if (options.isPIIMaskingEnabled() && fieldValue != null && sensitiveFields.contains(fieldName.toLowerCase())) {
+                    outputValue = options.piiMasker.maskFieldValue(fieldValue, fieldName, options.piiSession);
+                    System.debug(LoggingLevel.DEBUG, logPrefix + 'PII masked related field: ' + fullPath);
+                }
+
+                result.put(fullPath, outputValue);
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Error extracting related fields: ' + e.getMessage());
@@ -671,10 +612,9 @@ public inherited sharing class ContextFormattingService {
 
         if (format == 'JSON') {
             return truncated + '\n... [truncated]"}';
-        } else if (format == 'YAML') {
-            return truncated + '\n# ... [truncated due to size limit]';
         } else {
-            return truncated + '\n... [truncated due to size limit]';
+            // Both 'Structured Text' and 'YAML' use YAML format with YAML comment syntax
+            return truncated + '\n# ... [truncated due to size limit]';
         }
     }
 }

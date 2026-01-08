@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EnablePromptSafety__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When enabled, user messages are analyzed for jailbreak attempts and prompt injection attacks before being sent to the LLM. Part of the Prompt Safety Trust Layer for AI safety. This is an org-wide setting that applies to all agents.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Enable to automatically detect and handle jailbreak attempts and prompt injection attacks (org-wide setting)</inlineHelpText>
+    <label>Enable Prompt Safety</label>
+    <type>Checkbox</type>
+</CustomField>

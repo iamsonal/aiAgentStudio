@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Defines patterns for detecting and masking Personally Identifiable Information (PII) in text sent to external LLM providers. Part of the PII Masking Trust Layer.</description>
+    <label>PII Pattern</label>
+    <pluralLabel>PII Patterns</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

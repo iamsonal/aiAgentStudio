@@ -62,7 +62,15 @@ public inherited sharing class AIAgentConfigService {
         'SummarizerAgent__c',
         'SummarizerAgent__r.DeveloperName__c',
         'SummarizerAgent__r.LLMConfiguration__c',
-        'SummarizerAgent__r.InstructionsPrompt__c'
+        'SummarizerAgent__r.InstructionsPrompt__c',
+        // PII Masking Trust Layer configuration fields (enable/audit flags are in AIAgentFrameworkSettings__c)
+        'PIIMaskingMode__c',
+        'SensitiveClassifications__c',
+        'PIIPatternCategories__c',
+        // Prompt Safety Trust Layer configuration fields (enable/audit flags are in AIAgentFrameworkSettings__c)
+        'PromptSafetyMode__c',
+        'SafetyThreshold__c',
+        'SafetyPatternCategories__c'
     };
 
     private static final List<String> LLM_CONFIGURATION_FIELDS = new List<String>{

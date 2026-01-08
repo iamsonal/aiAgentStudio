@@ -21,6 +21,10 @@ public inherited sharing class AIAgentFrameworkSettings {
     private static final Integer FINAL_DEFAULT_BulkConcurrencyLimit = 5; // Safe default for row locking
     private static final Integer FINAL_DEFAULT_BulkFailureThreshold = 5; // Stop after 5 failures
     private static final String FINAL_DEFAULT_HITLApprovalNamedCredential = 'AgentStudioInternalAPI';
+    private static final Boolean FINAL_DEFAULT_EnablePIIMasking = false;
+    private static final Boolean FINAL_DEFAULT_EnablePromptSafety = false;
+    private static final Boolean FINAL_DEFAULT_PIIAuditLogging = false;
+    private static final Boolean FINAL_DEFAULT_PromptSafetyAuditLogging = false;
 
     /**
      * Gets the singleton instance of the framework settings, applying hardcoded defaults for any missing or invalid values.
@@ -41,6 +45,10 @@ public inherited sharing class AIAgentFrameworkSettings {
                 settings.BulkConcurrencyLimit__c = FINAL_DEFAULT_BulkConcurrencyLimit;
                 settings.BulkFailureThreshold__c = FINAL_DEFAULT_BulkFailureThreshold;
                 settings.HITLApprovalNamedCredential__c = FINAL_DEFAULT_HITLApprovalNamedCredential;
+                settings.EnablePIIMasking__c = FINAL_DEFAULT_EnablePIIMasking;
+                settings.EnablePromptSafety__c = FINAL_DEFAULT_EnablePromptSafety;
+                settings.PIIAuditLogging__c = FINAL_DEFAULT_PIIAuditLogging;
+                settings.PromptSafetyAuditLogging__c = FINAL_DEFAULT_PromptSafetyAuditLogging;
                 System.debug(LoggingLevel.WARN, '[AIAgentFrameworkSettings] No Custom Setting record found - using hardcoded default values for all settings');
             } else {
                 // Record exists, fill in missing individual fields with FINAL defaults
@@ -198,6 +206,49 @@ public inherited sharing class AIAgentFrameworkSettings {
         );
 
         return Math.max(0, optimalCount); // Ensure non-negative
+    }
+
+    /**
+     * Gets whether PII Masking is enabled at the org level.
+     * When enabled, sensitive data (PII) is automatically masked before being sent to external LLM providers.
+     * Part of the PII Masking Trust Layer.
+     *
+     * @return True if PII masking is enabled org-wide.
+     */
+    public static Boolean isPIIMaskingEnabled() {
+        return getInstance().EnablePIIMasking__c == true;
+    }
+
+    /**
+     * Gets whether Prompt Safety is enabled at the org level.
+     * When enabled, user messages are analyzed for jailbreak attempts and prompt injection attacks.
+     * Part of the Prompt Safety Trust Layer.
+     *
+     * @return True if prompt safety is enabled org-wide.
+     */
+    public static Boolean isPromptSafetyEnabled() {
+        return getInstance().EnablePromptSafety__c == true;
+    }
+
+    /**
+     * Gets whether PII Audit Logging is enabled at the org level.
+     * When enabled, PII masking events are logged to AgentDecisionStep__c.
+     * Logs only pattern types detected, never actual PII values.
+     *
+     * @return True if PII audit logging is enabled org-wide.
+     */
+    public static Boolean isPIIAuditLoggingEnabled() {
+        return getInstance().PIIAuditLogging__c == true;
+    }
+
+    /**
+     * Gets whether Prompt Safety Audit Logging is enabled at the org level.
+     * When enabled, all prompt safety checks are logged to AgentDecisionStep__c.
+     *
+     * @return True if prompt safety audit logging is enabled org-wide.
+     */
+    public static Boolean isPromptSafetyAuditLoggingEnabled() {
+        return getInstance().PromptSafetyAuditLogging__c == true;
     }
 
     /**

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EnablePIIMasking__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When enabled, sensitive data (PII) is automatically masked before being sent to external LLM providers. This ensures that personally identifiable information like SSN, credit card numbers, and emails never leave the Salesforce org in raw form. Part of the PII Masking Trust Layer. This is an org-wide setting that applies to all agents.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Enable to automatically mask sensitive data before sending to external LLMs (org-wide setting)</inlineHelpText>
+    <label>Enable PII Masking</label>
+    <type>Checkbox</type>
+</CustomField>

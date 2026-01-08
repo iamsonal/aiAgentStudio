@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Base64 Encoded Instruction</label>
+    <protected>false</protected>
+    <values>
+        <field>Category__c</field>
+        <value xsi:type="xsd:string">EncodingAttack</value>
+    </values>
+    <values>
+        <field>Description__c</field>
+        <value xsi:type="xsd:string">Detects attempts to hide instructions in Base64 encoding.</value>
+    </values>
+    <values>
+        <field>IsActive__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>PatternRegex__c</field>
+        <value xsi:type="xsd:string">(?i)(decode\s+(this\s+)?base64|base64\s*:\s*[A-Za-z0-9+/]{20,}|execute\s+(the\s+)?following\s+base64)</value>
+    </values>
+    <values>
+        <field>Priority__c</field>
+        <value xsi:type="xsd:double">15.0</value>
+    </values>
+    <values>
+        <field>Severity__c</field>
+        <value xsi:type="xsd:double">0.75</value>
+    </values>
+</CustomMetadata>

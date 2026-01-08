@@ -262,6 +262,42 @@ The framework enforces security at every level:
 
 ---
 
+## Trust Layers
+
+<div class="callout callout-warning">
+  <div class="callout-title">🧪 Experimental Features</div>
+  <p>The Trust Layers described below are currently in <strong>beta testing</strong>. While functional, they may undergo changes and should be thoroughly tested in sandbox environments before production use. Feedback is welcome!</p>
+</div>
+
+AI Agent Studio includes enterprise-grade Trust Layers to protect your data and AI agents:
+
+<div class="feature-grid">
+  <div class="feature-card">
+    <h3>🔐 PII Masking Trust Layer</h3>
+    <p><strong>Data Privacy Protection</strong></p>
+    <ul>
+      <li>Automatically masks sensitive data (SSN, credit cards, emails, etc.) before sending to external LLMs</li>
+      <li>Hybrid detection: Schema-based (Salesforce Data Classification) + Pattern-based (regex)</li>
+      <li>Bidirectional: Masks outbound, unmasks responses</li>
+      <li>Session-scoped tokens — no persistent PII storage</li>
+    </ul>
+  </div>
+  <div class="feature-card">
+    <h3>🛡️ Prompt Safety Trust Layer</h3>
+    <p><strong>AI Safety &amp; Jailbreak Protection</strong></p>
+    <ul>
+      <li>Multi-layered detection: Pattern matching, Heuristic analysis, Structural analysis</li>
+      <li>Detects jailbreak attempts, prompt injection, role manipulation</li>
+      <li>Configurable response modes: Block, Sanitize, Flag, Log Only</li>
+      <li>Threat scoring with configurable thresholds</li>
+    </ul>
+  </div>
+</div>
+
+[Learn more about Trust Layers →](security.html#pii-masking-trust-layer)
+
+---
+
 <div class="sponsor-section">
   <h3>💖 Support This Project</h3>
   <p>AI Agent Studio is <strong>free and open-source</strong> and will always remain so.<br>If you find it useful, consider supporting ongoing development.</p>

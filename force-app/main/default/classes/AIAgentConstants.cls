@@ -50,6 +50,8 @@ public inherited sharing class AIAgentConstants {
     public static final String ERR_CODE_CONFIRMATION_STATE_ERROR = 'CONFIRMATION_STATE_ERROR'; // Confirmation state inconsistency
     public static final String ERR_CODE_COMPLETION_CAPABILITY_FAILED = 'COMPLETION_CAPABILITY_FAILED'; // Completion capability execution failed
     public static final String ERR_CODE_TOOL_RECOVERY_VIOLATION = 'TOOL_RECOVERY_VIOLATION'; // Function agent violated strict recovery rules
+    public static final String ERR_CODE_SAFETY_BLOCKED = 'SAFETY_BLOCKED'; // Message blocked by prompt safety service (jailbreak detection)
+    public static final String ERR_CODE_SAFETY_FLAGGED = 'SAFETY_FLAGGED'; // Message flagged for review by prompt safety service
 
     // Miscellaneous
     public static final String NEXT_EXPECTED_NONE = 'None'; // Indicates no next expected action
