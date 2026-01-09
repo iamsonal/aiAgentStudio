@@ -16,6 +16,8 @@
     "test:unit:coverage": "sfdx-lwc-jest --coverage",
     "prettier": "prettier --write \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,yaml,yml}\"",
     "prettier:verify": "prettier --check \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,yaml,yml}\"",
+    "code-analyzer": "sf code-analyzer run --target \"force-app/**/*.cls,aiAgentStudioAddons/**/*.cls\" --output-file code-analyzer-results.csv",
+    "code-analyzer:force-app": "sf code-analyzer run --target \"force-app/**/*.cls\" --output-file code-analyzer-force-app.csv",
     "postinstall": "husky install",
     "precommit": "lint-staged"
   },
