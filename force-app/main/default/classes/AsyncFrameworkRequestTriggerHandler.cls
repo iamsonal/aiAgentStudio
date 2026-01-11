@@ -148,9 +148,12 @@ public class AsyncFrameworkRequestTriggerHandler {
             OrchestrationService orchestrationSvc = new OrchestrationService();
 
             // Initialize the decision step logger - single instance for the entire turn
-            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(sessionId, turnIdentifier, originalUserId);
+            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(sessionId, turnIdentifier, originalUserId);
 
-            decisionLogger.logUserInput('User Input Received (via Platform Event)', userMessage, null);
+            // Get user name and agent name for enhanced logging
+            String userName = getUserName(originalUserId);
+            String agentName = AIAgentConfigService.getAgentName(agentDefinitionId);
+            decisionLogger.logUserInputWithContext('User Input Received (via Platform Event)', userMessage, null, userName, agentName);
 
             // Instantiate LLMInteractionService with the execution user context and decision logger
             LLMInteractionService interactionService = new LLMInteractionService(
@@ -206,6 +209,22 @@ public class AsyncFrameworkRequestTriggerHandler {
             } catch (Exception failEx) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Could not update turn state: ' + failEx.getMessage());
             }
+        }
+    }
+
+    /**
+     * Helper method to get user name for enhanced logging
+     */
+    private static String getUserName(Id userId) {
+        if (userId == null)
+            return null;
+
+        try {
+            List<User> users = [SELECT Name FROM User WHERE Id = :userId LIMIT 1];
+            return users.isEmpty() ? null : users[0].Name;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, 'Failed to query user name for ID: ' + userId + '. Error: ' + e.getMessage());
+            return null;
         }
     }
 

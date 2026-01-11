@@ -79,7 +79,7 @@ public inherited sharing class LLMInteractionService {
     private final Id currentPageRecordId;
     private final Boolean isFinalErrorTurn;
     // Add decision logger reference
-    private final AgentDecisionStepLogger decisionLogger;
+    private final IDecisionStepLogger.ILogger decisionLogger;
 
     /**
      * Constructor for LLMInteractionService working exclusively with the unified AgentExecution__c model.
@@ -103,7 +103,7 @@ public inherited sharing class LLMInteractionService {
         Integer turnNum,
         Id pageRecordId,
         Boolean isFinalError,
-        AgentDecisionStepLogger decisionLogger
+        IDecisionStepLogger.ILogger decisionLogger
     ) {
         if (executionId == null || usrId == null || agentDefId == null || llmConfigId == null || String.isBlank(turnId) || turnNum == null) {
             throw new IllegalArgumentException('Required arguments cannot be null for LLMInteractionService.');

@@ -38,7 +38,7 @@ public class OrchestrationContext {
     public ContextManagerService contextManagerSvc { get; private set; }
 
     // Shared decision step logger for the turn
-    public AgentDecisionStepLogger decisionLogger { get; private set; }
+    public IDecisionStepLogger.ILogger decisionLogger { get; private set; }
 
     /**
      * Constructs an OrchestrationContext with all state and dependencies for a single LLM orchestration turn.
@@ -75,7 +75,7 @@ public class OrchestrationContext {
         AgentJobEnqueuer dispatchSvc,
         ContextManagerService contextMgrSvc,
         Id pageRecordId,
-        AgentDecisionStepLogger decisionLogger
+        IDecisionStepLogger.ILogger decisionLogger
     ) {
         this.llmResult = llmResult;
         this.executionId = executionId;

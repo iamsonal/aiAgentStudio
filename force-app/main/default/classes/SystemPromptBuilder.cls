@@ -39,7 +39,7 @@ public inherited sharing class SystemPromptBuilder {
     };
 
     // Add decision logger reference
-    private final AgentDecisionStepLogger decisionLogger;
+    private final IDecisionStepLogger.ILogger decisionLogger;
 
     // PII Masking support for context data
     private PIIMaskingService piiMaskingService;
@@ -49,17 +49,17 @@ public inherited sharing class SystemPromptBuilder {
     }
 
     // Constructor that accepts a decision logger
-    public SystemPromptBuilder(AgentDecisionStepLogger decisionLogger) {
+    public SystemPromptBuilder(IDecisionStepLogger.ILogger decisionLogger) {
         this(new ContextManagerService(), new ContextResolverService(), decisionLogger, null);
     }
 
     // Constructor that accepts both decision logger and PII masking service
-    public SystemPromptBuilder(AgentDecisionStepLogger decisionLogger, PIIMaskingService piiMaskingService) {
+    public SystemPromptBuilder(IDecisionStepLogger.ILogger decisionLogger, PIIMaskingService piiMaskingService) {
         this(new ContextManagerService(), new ContextResolverService(), decisionLogger, piiMaskingService);
     }
 
     @TestVisible
-    private SystemPromptBuilder(ContextManagerService contextService, ContextResolverService contextResolverSvc, AgentDecisionStepLogger decisionLogger) {
+    private SystemPromptBuilder(ContextManagerService contextService, ContextResolverService contextResolverSvc, IDecisionStepLogger.ILogger decisionLogger) {
         this(contextService, contextResolverSvc, decisionLogger, null);
     }
 
@@ -67,7 +67,7 @@ public inherited sharing class SystemPromptBuilder {
     private SystemPromptBuilder(
         ContextManagerService contextService,
         ContextResolverService contextResolverSvc,
-        AgentDecisionStepLogger decisionLogger,
+        IDecisionStepLogger.ILogger decisionLogger,
         PIIMaskingService piiMaskingService
     ) {
         this.contextManager = contextService;

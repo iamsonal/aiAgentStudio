@@ -94,7 +94,7 @@ public class AsyncActionEngine implements Queueable, Database.AllowsCallouts {
             '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting asynchronous execution for capability: ' + this.capability.CapabilityName__c);
 
-        AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(this.executionId, this.turnIdentifier, this.originalUserId);
+        IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(this.executionId, this.turnIdentifier, this.originalUserId);
 
         AgentStateService agentStateSvc = new AgentStateService();
         CapabilityExecutionService actionService = new CapabilityExecutionService();
@@ -139,16 +139,18 @@ public class AsyncActionEngine implements Queueable, Database.AllowsCallouts {
             // Process and store the action execution outcome
             String resultJsonForStorage = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
 
-            // Add async execution flag to the result for decision step logging
-            Map<String, Object> resultWithAsyncFlag = (Map<String, Object>) JSON.deserializeUntyped(resultJsonForStorage);
-            resultWithAsyncFlag.put('isAsyncToolExecution', true);
-            String enhancedResultJson = JSON.serialize(resultWithAsyncFlag);
+            // Add async execution flag and tool metadata to the result for decision step logging
+            Map<String, Object> resultWithMetadata = (Map<String, Object>) JSON.deserializeUntyped(resultJsonForStorage);
+            resultWithMetadata.put('isAsyncToolExecution', true);
+            resultWithMetadata.put('toolName', this.capability.CapabilityName__c);
+            resultWithMetadata.put('toolCallId', this.toolCallId);
+            String enhancedResultJson = JSON.serialize(resultWithMetadata);
 
             Id newRecordContextId = OrchestrationService.extractRecordIdFromOutcome(outcome);
 
             decisionLogger.logToolResult(
-                'Tool Execution Completed',
-                'Tool execution has completed',
+                'Tool Result: ' + this.capability.CapabilityName__c,
+                'Tool ' + this.capability.CapabilityName__c + (outcome.isSuccess ? ' completed successfully' : ' failed'),
                 enhancedResultJson,
                 actionDuration,
                 outcome.isSuccess,
@@ -226,19 +228,33 @@ public class AsyncActionEngine implements Queueable, Database.AllowsCallouts {
 
                 System.debug(LoggingLevel.WARN, logPrefix + logMessage);
 
-                decisionLogger.logToolResult(
-                    'Execution Halted',
-                    logMessage,
+                // Log as an Error step so UI can display it as a divider
+                String errorCode;
+                String errorTitle;
+                if (isToolTerminatingMode) {
+                    errorCode = 'TOOL_TERMINATING_MODE';
+                    errorTitle = 'Tool Execution Stopped';
+                } else if (failureCount >= maxRetries) {
+                    errorCode = 'MAX_TOOL_RETRIES_EXCEEDED';
+                    errorTitle = 'Tool Retry Limit Exceeded';
+                } else {
+                    errorCode = 'FAIL_FAST_POLICY';
+                    errorTitle = 'Tool Execution Stopped';
+                }
+
+                decisionLogger.logError(
+                    errorTitle,
+                    failureReason + ': ' + outcome.errorMessage,
+                    errorCode,
+                    outcome.errorMessage,
                     '{"reason":"' +
                         (isToolTerminatingMode ? 'tool_terminating_mode' : (failureCount >= maxRetries ? 'max_retries_exceeded' : 'fail_fast_policy')) +
                         '","capability":"' +
                         this.capability.CapabilityName__c +
+                        '","toolName":"' +
+                        this.capability.CapabilityName__c +
                         '"}',
-                    0,
-                    false,
-                    outcome.errorCode,
-                    outcome.errorMessage,
-                    this.capability.Id
+                    0
                 );
 
                 agentStateSvc.failTurn(

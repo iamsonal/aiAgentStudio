@@ -489,4 +489,24 @@ public inherited sharing class AIAgentConfigService {
             llmConfigNameCache.put(llmConfig.DeveloperName__c.toLowerCase(), llmConfig);
         }
     }
+
+    /**
+     * Retrieves the display name for an AI Agent Definition, preferring the actual Name over DeveloperName__c.
+     * Uses cached lookups for optimal performance.
+     *
+     * @param agentDefinitionId The ID of the AIAgentDefinition__c record.
+     * @return                  The agent's display name (Name field if available, otherwise DeveloperName__c), or 'AI Agent' as fallback.
+     */
+    public static String getAgentName(Id agentDefinitionId) {
+        try {
+            if (agentDefinitionId != null) {
+                AIAgentDefinition__c agent = getAgentDefinition(agentDefinitionId);
+                // Prefer the actual Name over DeveloperName
+                return String.isNotBlank(agent.Name) ? agent.Name : agent.DeveloperName__c;
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, 'Could not retrieve agent name for ID: ' + agentDefinitionId + '. Error: ' + e.getMessage());
+        }
+        return 'AI Agent';
+    }
 }

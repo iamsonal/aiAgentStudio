@@ -409,7 +409,7 @@ public abstract class BaseAgentOrchestrator implements IAgentOrchestrator {
         String logPrefix
     ) {
         try {
-            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(executionId, newTurnIdentifier, execution.User__c);
+            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(executionId, newTurnIdentifier, execution.User__c);
 
             Map<String, Object> resumeMetadata = new Map<String, Object>{
                 'resumeType' => resumePoint.resumeType.name(),

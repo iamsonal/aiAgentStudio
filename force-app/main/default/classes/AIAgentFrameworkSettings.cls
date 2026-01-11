@@ -25,6 +25,7 @@ public inherited sharing class AIAgentFrameworkSettings {
     private static final Boolean FINAL_DEFAULT_EnablePromptSafety = false;
     private static final Boolean FINAL_DEFAULT_PIIAuditLogging = false;
     private static final Boolean FINAL_DEFAULT_PromptSafetyAuditLogging = false;
+    private static final Boolean FINAL_DEFAULT_EnableDecisionStepLogging = true;
 
     /**
      * Gets the singleton instance of the framework settings, applying hardcoded defaults for any missing or invalid values.
@@ -49,6 +50,7 @@ public inherited sharing class AIAgentFrameworkSettings {
                 settings.EnablePromptSafety__c = FINAL_DEFAULT_EnablePromptSafety;
                 settings.PIIAuditLogging__c = FINAL_DEFAULT_PIIAuditLogging;
                 settings.PromptSafetyAuditLogging__c = FINAL_DEFAULT_PromptSafetyAuditLogging;
+                settings.EnableDecisionStepLogging__c = FINAL_DEFAULT_EnableDecisionStepLogging;
                 System.debug(LoggingLevel.WARN, '[AIAgentFrameworkSettings] No Custom Setting record found - using hardcoded default values for all settings');
             } else {
                 // Record exists, fill in missing individual fields with FINAL defaults
@@ -232,7 +234,7 @@ public inherited sharing class AIAgentFrameworkSettings {
 
     /**
      * Gets whether PII Audit Logging is enabled at the org level.
-     * When enabled, PII masking events are logged to AgentDecisionStep__c.
+     * When enabled, PII masking events are logged to decision steps.
      * Logs only pattern types detected, never actual PII values.
      *
      * @return True if PII audit logging is enabled org-wide.
@@ -243,12 +245,27 @@ public inherited sharing class AIAgentFrameworkSettings {
 
     /**
      * Gets whether Prompt Safety Audit Logging is enabled at the org level.
-     * When enabled, all prompt safety checks are logged to AgentDecisionStep__c.
+     * When enabled, all prompt safety checks are logged to decision steps.
      *
      * @return True if prompt safety audit logging is enabled org-wide.
      */
     public static Boolean isPromptSafetyAuditLoggingEnabled() {
         return getInstance().PromptSafetyAuditLogging__c == true;
+    }
+
+    /**
+     * Gets whether Decision Step Logging is enabled at the org level.
+     * When enabled, agent decision steps are logged for visualization in the
+     * storyboard UI. This feature requires the AI Agent Studio Addons package
+     * to be deployed. When disabled or when addons is not deployed, logging
+     * is skipped (no-op).
+     *
+     * @return True if decision step logging is enabled org-wide.
+     */
+    public static Boolean isDecisionStepLoggingEnabled() {
+        AIAgentFrameworkSettings__c instance = getInstance();
+        // Default to true if the field is null (for backward compatibility)
+        return instance.EnableDecisionStepLogging__c != false;
     }
 
     /**

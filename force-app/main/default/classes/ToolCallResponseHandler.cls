@@ -149,7 +149,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting unified tool call handling for ' + requestedActions.size() + ' tool(s).');
 
-        AgentDecisionStepLogger decisionLogger = context.decisionLogger;
+        IDecisionStepLogger.ILogger decisionLogger = context.decisionLogger;
 
         try {
             // Step 1: Parse and validate all tool calls
@@ -286,7 +286,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     private List<ToolCallRequest> parseAndValidateToolCalls(
         OrchestrationContext context,
         List<Map<String, String>> requestedActions,
-        AgentDecisionStepLogger decisionLogger,
+        IDecisionStepLogger.ILogger decisionLogger,
         String logPrefix
     ) {
         List<ToolCallRequest> toolRequests = new List<ToolCallRequest>();
@@ -463,7 +463,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     private void createToolCallExecutionSteps(
         OrchestrationContext context,
         List<ToolCallRequest> toolRequests,
-        AgentDecisionStepLogger decisionLogger,
+        IDecisionStepLogger.ILogger decisionLogger,
         String logPrefix
     ) {
         ExecutionStepService executionStepService = new ExecutionStepService();
@@ -486,13 +486,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     toolRequest.rationale
                 );
 
-                // Register tool call ID for causality tracking
-                if (String.isNotBlank(toolRequest.toolCallId)) {
-                    Id toolExecutionStepId = decisionLogger.getLastLoggedStepId();
-                    if (toolExecutionStepId != null) {
-                        decisionLogger.registerToolCall(toolRequest.toolCallId, toolExecutionStepId);
-                    }
-                }
+                // Note: Tool Execution decision step logging removed
+                // The LLM Response step already shows tool calls with arguments
+                // Only Tool Result steps are logged to show the outcome
 
                 System.debug(
                     LoggingLevel.DEBUG,
@@ -534,7 +530,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         LLMInteractionService.MessageData assistantData,
         List<ToolCallRequest> approvalTools,
         String logPrefix,
-        AgentDecisionStepLogger decisionLogger
+        IDecisionStepLogger.ILogger decisionLogger
     ) {
         // Handle first approval tool (could be enhanced to handle multiple)
         ToolCallRequest approvalTool = approvalTools[0];
@@ -597,23 +593,22 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Approval request created: ' + hitlResult.pendingActionId);
 
-        // Log the approval requirement with pendingActionId for navigation
-        decisionLogger.logToolExecution(
+        // Log the approval requirement as a decision step
+        decisionLogger.logApprovalRequiredWithContext(
             'Approval Required',
-            'Tool execution requires human approval',
+            approvalTool.toolName,
             JSON.serialize(
                 new Map<String, Object>{
                     'toolName' => approvalTool.toolName,
                     'hitlMode' => decision.hitlMode,
                     'pendingActionId' => hitlResult.pendingActionId,
-                    'approvalPrompt' => hitlResult.confirmationPrompt
+                    'approvalPrompt' => hitlResult.confirmationPrompt,
+                    'expiresAt' => hitlResult.expiresAt,
+                    'status' => 'pending_approval'
                 }
             ),
-            null,
-            true,
-            null,
-            null,
-            approvalTool.capability.Id
+            approvalTool.capability.Id,
+            0L
         );
 
         // Create placeholder tool result immediately to maintain proper OpenAI message sequence
@@ -749,7 +744,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     private List<ToolExecutionResult> executeSynchronousTools(
         OrchestrationContext context,
         List<ToolCallRequest> syncTools,
-        AgentDecisionStepLogger decisionLogger,
+        IDecisionStepLogger.ILogger decisionLogger,
         String logPrefix
     ) {
         List<ToolExecutionResult> syncResults = new List<ToolExecutionResult>();
@@ -796,23 +791,29 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     logPrefix + 'Executed sync tool ' + toolRequest.toolName + ' in ' + processingTime + 'ms (success=' + outcome.isSuccess + ')'
                 );
 
-                // Log the tool execution result with async flag
+                // Log the tool execution result with matching tool call index
                 if (decisionLogger != null) {
-                    // Add sync execution flag to the result for decision step logging
+                    // Add execution metadata to the result for decision step logging
                     String resultJsonForStorage = JSON.serialize(outcome);
-                    Map<String, Object> resultWithSyncFlag = (Map<String, Object>) JSON.deserializeUntyped(resultJsonForStorage);
-                    resultWithSyncFlag.put('isAsyncToolExecution', false);
-                    String enhancedResultJson = JSON.serialize(resultWithSyncFlag);
+                    Map<String, Object> resultWithMetadata = (Map<String, Object>) JSON.deserializeUntyped(resultJsonForStorage);
+                    resultWithMetadata.put('isAsyncToolExecution', false);
+                    resultWithMetadata.put('toolName', toolRequest.toolName);
+                    resultWithMetadata.put('toolCallId', toolRequest.toolCallId);
+                    String enhancedResultJson = JSON.serialize(resultWithMetadata);
 
-                    decisionLogger.logToolResult(
-                        'Tool Execution Completed',
-                        'Tool ' + toolRequest.toolName + ' executed successfully',
+                    // Use executionOrder - 1 to match the 0-based tool call index
+                    Integer toolCallIndex = toolRequest.executionOrder - 1;
+
+                    decisionLogger.logToolResultWithIndex(
+                        'Tool Result: ' + toolRequest.toolName,
+                        'Tool ' + toolRequest.toolName + (outcome.isSuccess ? ' completed successfully' : ' failed'),
                         enhancedResultJson,
                         processingTime,
                         outcome.isSuccess,
                         outcome.errorCode,
                         outcome.errorMessage,
-                        toolRequest.capability.Id
+                        toolRequest.capability.Id,
+                        toolCallIndex
                     );
                 }
             } catch (Exception e) {
@@ -846,7 +847,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     private void createToolResultExecutionSteps(
         OrchestrationContext context,
         List<ToolExecutionResult> syncResults,
-        AgentDecisionStepLogger decisionLogger,
+        IDecisionStepLogger.ILogger decisionLogger,
         String logPrefix
     ) {
         ExecutionStepService executionStepService = new ExecutionStepService();
@@ -882,12 +883,13 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
      * Initializes atomic tracking counter before queuing to enable race-condition-free completion detection.
      * Handles queue failures by decrementing the counter to prevent execution hangs.
      */
-    private void queueAsyncTools(OrchestrationContext context, List<ToolCallRequest> asyncTools, AgentDecisionStepLogger decisionLogger, String logPrefix) {
+    private void queueAsyncTools(OrchestrationContext context, List<ToolCallRequest> asyncTools, IDecisionStepLogger.ILogger decisionLogger, String logPrefix) {
         System.debug(LoggingLevel.INFO, logPrefix + 'Queuing ' + asyncTools.size() + ' asynchronous tool(s)');
 
         // Track successfully queued tools to handle partial failures
         Integer successfullyQueued = 0;
         List<String> failedTools = new List<String>();
+        List<String> failureReasons = new List<String>(); // Collect actual error messages
 
         // Initialize async tool tracking and pause for async action processing in a single DML operation
         // This reduces DML operations from 2 to 1 by batching the updates
@@ -915,6 +917,13 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to queue async tool ' + toolRequest.toolName + ': ' + e.getMessage());
                 failedTools.add(toolRequest.toolName);
+
+                // Capture the actual error message - check for root cause
+                String actualErrorMessage = e.getMessage();
+                if (e.getCause() != null && String.isNotBlank(e.getCause().getMessage())) {
+                    actualErrorMessage = e.getCause().getMessage();
+                }
+                failureReasons.add(actualErrorMessage);
 
                 // Decrement the counter for this failed queue to prevent execution hang
                 // This ensures the counter accurately reflects only successfully queued tools
@@ -972,11 +981,29 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             );
 
             if (decisionLogger != null) {
+                // Create a more informative error message
+                String errorDescription;
+                String errorDetails;
+
+                if (failedTools.size() == 1) {
+                    // Single tool failure - be specific
+                    errorDescription = 'Tool "' + failedTools[0] + '" failed to queue for execution';
+                    errorDetails = 'Error: ' + failureReasons[0];
+                } else {
+                    // Multiple tool failures - provide summary
+                    errorDescription = failedTools.size() + ' async tools failed to queue for execution';
+                    List<String> toolErrorPairs = new List<String>();
+                    for (Integer i = 0; i < failedTools.size(); i++) {
+                        toolErrorPairs.add(failedTools[i] + ': ' + failureReasons[i]);
+                    }
+                    errorDetails = String.join(toolErrorPairs, '; ');
+                }
+
                 decisionLogger.logError(
                     'Async Tool Queue Partial Failure',
-                    'Some async tools failed to queue',
+                    errorDescription,
                     AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
-                    'Failed to queue: ' + String.join(failedTools, ', '),
+                    errorDetails,
                     null,
                     null
                 );
@@ -1065,13 +1092,47 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                         failureReason =
                             'Tool "' +
                             capability.CapabilityName__c +
-                            '" exceeded MaxToolRetries__c (' +
+                            '" exceeded maximum retry limit (' +
                             maxRetries +
                             ') after ' +
                             failureCount +
                             ' successive failures';
+
+                        // Log a step to record this MaxToolRetries failure for UI display
+                        context.decisionLogger.logError(
+                            'Tool Retry Limit Exceeded',
+                            failureReason,
+                            'MAX_TOOL_RETRIES_EXCEEDED',
+                            'Execution halted due to tool retry limit: ' + result.outcome.errorMessage,
+                            JSON.serialize(
+                                new Map<String, Object>{
+                                    'toolName' => capability.CapabilityName__c,
+                                    'maxRetries' => maxRetries,
+                                    'failureCount' => failureCount,
+                                    'lastErrorCode' => result.outcome.errorCode,
+                                    'lastErrorMessage' => result.outcome.errorMessage
+                                }
+                            ),
+                            null
+                        );
                     } else {
-                        failureReason = 'Tool execution failed (fail-fast policy)';
+                        failureReason = 'Tool execution stopped due to error prevention policy';
+
+                        // Log a step to record this fail-fast policy failure for UI display
+                        context.decisionLogger.logError(
+                            'Tool Execution Stopped',
+                            'Tool "' + capability.CapabilityName__c + '" execution was stopped due to fail-fast policy',
+                            'FAIL_FAST_POLICY',
+                            'Execution halted due to error prevention policy: ' + result.outcome.errorMessage,
+                            JSON.serialize(
+                                new Map<String, Object>{
+                                    'toolName' => capability.CapabilityName__c,
+                                    'errorCode' => result.outcome.errorCode,
+                                    'errorMessage' => result.outcome.errorMessage
+                                }
+                            ),
+                            null
+                        );
                     }
                     context.agentStateSvc.failTurn(
                         context.executionId,
