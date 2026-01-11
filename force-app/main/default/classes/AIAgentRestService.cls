@@ -227,6 +227,7 @@ global with sharing class AIAgentRestService {
     private static AIAgentResponse executeApprovedHITLTool(RestRequest req, RestResponse res, String requestId, String logPrefix) {
         System.debug(LoggingLevel.INFO, logPrefix + 'Processing HITL tool execution request');
 
+        HITLToolRequest toolRequest = null; // Declare outside try block for catch block access
         try {
             // Validate request
             if (req.requestBody == null || req.requestBody.size() == 0) {
@@ -234,7 +235,7 @@ global with sharing class AIAgentRestService {
             }
 
             // Parse request
-            HITLToolRequest toolRequest = (HITLToolRequest) JSON.deserialize(req.requestBody.toString(), HITLToolRequest.class);
+            toolRequest = (HITLToolRequest) JSON.deserialize(req.requestBody.toString(), HITLToolRequest.class);
 
             // Validate required fields
             if (String.isBlank(toolRequest.pendingActionId)) {
@@ -288,14 +289,19 @@ global with sharing class AIAgentRestService {
 
             // Log decision step for tool result only (execution is already indicated by "Resume Approved Framework Action")
             try {
-                AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(execution.Id, toolRequest.turnIdentifier);
+                IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(execution.Id, toolRequest.turnIdentifier);
 
                 // Log tool result step
                 String resultJsonForLogging = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
+                // Add tool metadata for better UI display
+                Map<String, Object> resultWithMetadata = (Map<String, Object>) JSON.deserializeUntyped(resultJsonForLogging);
+                resultWithMetadata.put('toolName', capability.CapabilityName__c);
+                String enhancedResultJson = JSON.serialize(resultWithMetadata);
+
                 decisionLogger.logToolResult(
-                    'Tool Result',
-                    outcome.isSuccess ? 'Tool executed successfully' : 'Tool execution failed',
-                    resultJsonForLogging,
+                    'Tool Result: ' + capability.CapabilityName__c,
+                    'Tool ' + capability.CapabilityName__c + (outcome.isSuccess ? ' executed successfully' : ' execution failed'),
+                    enhancedResultJson,
                     0L,
                     outcome.isSuccess,
                     outcome.errorCode,
@@ -384,17 +390,60 @@ global with sharing class AIAgentRestService {
             return new AIAgentResponse(true, 'Tool executed successfully', null, requestId);
         } catch (AIAgentRestException e) {
             System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage());
+            // Log error to decision steps if we have the execution and turn info
+            logResumeError(toolRequest, e.getMessage(), 'VALIDATION_ERROR');
             res.statusCode = 400;
             return new AIAgentResponse(false, null, e.getMessage(), requestId);
         } catch (AIAgentConfigService.ConfigurationException e) {
             // Configuration errors (capability not found, etc.) are client errors
             System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage());
+            // Log error to decision steps if we have the execution and turn info
+            logResumeError(toolRequest, e.getMessage(), 'CONFIGURATION_ERROR');
             res.statusCode = 400;
             return new AIAgentResponse(false, null, e.getMessage(), requestId);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage() + '\n' + e.getStackTraceString());
+            // Log error to decision steps if we have the execution and turn info
+            logResumeError(toolRequest, e.getMessage() + '\n' + e.getStackTraceString(), 'UNEXPECTED_ERROR');
             res.statusCode = 500;
             return new AIAgentResponse(false, null, 'Internal server error: ' + e.getMessage(), requestId);
+        }
+    }
+
+    /**
+     * Helper method to log errors during tool execution after approval.
+     * This ensures errors are visible in the storyboard UI.
+     */
+    private static void logResumeError(HITLToolRequest toolRequest, String errorMessage, String errorCode) {
+        if (toolRequest == null || String.isBlank(toolRequest.executionId) || String.isBlank(toolRequest.turnIdentifier)) {
+            return; // Cannot log without execution and turn info
+        }
+
+        try {
+            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(Id.valueOf(toolRequest.executionId), toolRequest.turnIdentifier);
+
+            // Log error step
+            Map<String, Object> errorDetails = new Map<String, Object>{
+                'errorCode' => errorCode,
+                'errorMessage' => errorMessage,
+                'toolName' => toolRequest.toolName,
+                'capabilityId' => toolRequest.capabilityId,
+                'pendingActionId' => toolRequest.pendingActionId
+            };
+
+            decisionLogger.logError(
+                'Tool Execution Error',
+                'Error executing tool "' + (String.isNotBlank(toolRequest.toolName) ? toolRequest.toolName : 'Unknown') + '" after approval',
+                errorCode,
+                errorMessage,
+                JSON.serialize(errorDetails),
+                0L
+            );
+
+            decisionLogger.commitSteps();
+        } catch (Exception e) {
+            // Best effort - don't let logging errors break the error response
+            System.debug(LoggingLevel.WARN, '[AIAgentRestService] Failed to log resume error to decision steps: ' + e.getMessage());
         }
     }
 

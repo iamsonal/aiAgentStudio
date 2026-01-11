@@ -72,6 +72,13 @@ public class HITLToolExecutionQueueable implements Queueable, Database.AllowsCal
                 String errorMsg = 'HTTP ' + result.response.getStatusCode() + ': ' + result.response.getBody();
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Tool execution failed: ' + errorMsg);
 
+                // Log HTTP error to decision steps
+                try {
+                    logHttpError(action, result.response.getStatusCode(), result.response.getBody(), logPrefix);
+                } catch (Exception logEx) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Failed to log HTTP error to decision steps: ' + logEx.getMessage());
+                }
+
                 // Notify user of failure (check notification preference)
                 if (action.RequestingUser__c != null && shouldSendNotification(action, HITLGatewayService.NOTIFICATION_TYPE_ERROR)) {
                     NotificationService.sendUserNotification(
@@ -84,6 +91,16 @@ public class HITLToolExecutionQueueable implements Queueable, Database.AllowsCal
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error executing tool via REST API: ' + e.getMessage() + '\n' + e.getStackTraceString());
+
+            // Log error to decision steps for visibility in storyboard
+            try {
+                PendingHITLAction__c action = HITLGatewayService.getPendingAction(pendingActionId);
+                if (action != null && action.AgentExecution__c != null && String.isNotBlank(action.TurnIdentifier__c)) {
+                    logToolExecutionError(action, e, logPrefix);
+                }
+            } catch (Exception logEx) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Failed to log error to decision steps: ' + logEx.getMessage());
+            }
 
             // Try to notify user of failure (check notification preference)
             try {
@@ -152,5 +169,93 @@ public class HITLToolExecutionQueueable implements Queueable, Database.AllowsCal
     private static Boolean shouldSendNotification(PendingHITLAction__c action, String eventType) {
         String preference = action.AIAgentCapability__r?.HITLNotificationPreference__c;
         return HITLGatewayService.shouldSendHITLNotification(preference, eventType);
+    }
+
+    /**
+     * @description Logs HTTP error responses for visibility in storyboard.
+     * @param action The PendingHITLAction__c record with execution context
+     * @param statusCode The HTTP status code
+     * @param responseBody The HTTP response body
+     * @param logPrefix Logging prefix
+     */
+    private static void logHttpError(PendingHITLAction__c action, Integer statusCode, String responseBody, String logPrefix) {
+        try {
+            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(action.AgentExecution__c, action.TurnIdentifier__c);
+
+            // Build error details
+            Map<String, Object> errorDetails = new Map<String, Object>{
+                'errorCode' => 'HTTP_ERROR',
+                'httpStatusCode' => statusCode,
+                'responseBody' => responseBody,
+                'toolName' => action.ToolName__c,
+                'capabilityId' => action.AIAgentCapability__c,
+                'pendingActionId' => action.Id,
+                'toolCallId' => action.ToolCallId__c
+            };
+
+            decisionLogger.logError(
+                'Tool Execution HTTP Error',
+                'HTTP ' + statusCode + ' error executing tool "' + (action.ToolName__c ?? 'Unknown') + '" after approval',
+                'HTTP_ERROR',
+                'HTTP ' + statusCode + ': ' + responseBody,
+                JSON.serialize(errorDetails),
+                0L
+            );
+
+            decisionLogger.commitSteps();
+            System.debug(LoggingLevel.INFO, logPrefix + 'HTTP error logged to decision steps for storyboard visibility');
+        } catch (Exception logEx) {
+            // Best effort - don't let logging errors break the error handling
+            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to log HTTP error to decision steps: ' + logEx.getMessage());
+        }
+    }
+
+    /**
+     * @description Logs tool execution errors for visibility in storyboard.
+     * @param action The PendingHITLAction__c record with execution context
+     * @param e The exception that occurred
+     * @param logPrefix Logging prefix
+     */
+    private static void logToolExecutionError(PendingHITLAction__c action, Exception e, String logPrefix) {
+        try {
+            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(action.AgentExecution__c, action.TurnIdentifier__c);
+
+            // Determine error category
+            String errorCode = 'TOOL_EXECUTION_ERROR';
+            if (e instanceof AIAgentException.NonRetriableHttpException) {
+                errorCode = 'CALLOUT_ERROR';
+            } else if (e instanceof System.CalloutException) {
+                errorCode = 'CALLOUT_ERROR';
+            } else if (e instanceof HITLGatewayService.HITLProcessingException) {
+                errorCode = 'HITL_PROCESSING_ERROR';
+            }
+
+            // Build error details
+            Map<String, Object> errorDetails = new Map<String, Object>{
+                'errorCode' => errorCode,
+                'errorMessage' => e.getMessage(),
+                'errorType' => e.getTypeName(),
+                'stackTrace' => e.getStackTraceString(),
+                'toolName' => action.ToolName__c,
+                'capabilityId' => action.AIAgentCapability__c,
+                'pendingActionId' => action.Id,
+                'toolCallId' => action.ToolCallId__c
+            };
+
+            decisionLogger.logError(
+                'Tool Execution Error',
+                'Error executing tool "' + (action.ToolName__c ?? 'Unknown') + '" after approval',
+                errorCode,
+                e.getMessage(),
+                JSON.serialize(errorDetails),
+                0L
+            );
+
+            decisionLogger.commitSteps();
+            System.debug(LoggingLevel.INFO, logPrefix + 'Error logged to decision steps for storyboard visibility');
+        } catch (Exception logEx) {
+            // Best effort - don't let logging errors break the error handling
+            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to log error to decision steps: ' + logEx.getMessage());
+        }
     }
 }

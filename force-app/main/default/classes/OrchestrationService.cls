@@ -90,7 +90,7 @@ public inherited sharing class OrchestrationService {
         Integer currentTurnCount,
         LLMInteractionService.MessageData userMessageDataForTurn,
         Id currentPageRecordId,
-        AgentDecisionStepLogger decisionLogger
+        IDecisionStepLogger.ILogger decisionLogger
     ) {
         String logPrefix = '[OrchSvc Turn:' + turnIdentifier?.left(8) + ' Cycle:' + currentTurnCount + ' Exec:' + executionId + '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting orchestration for LLM result. Page context: ' + currentPageRecordId);

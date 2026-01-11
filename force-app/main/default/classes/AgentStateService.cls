@@ -134,29 +134,6 @@ public inherited sharing class AgentStateService {
     // ===================================================================================
 
     /**
-     * Transitions the turn to the awaiting state while an asynchronous action executes.
-     *
-     * @param executionId The execution Id (AgentExecution__c)
-     * @param turnIdentifier The unique identifier for the turn
-     * @param jobId The job Id for the async action
-     * @param toolName The name of the tool being executed (for context)
-     * @param logPrefix String prefix for log output
-     */
-    public void pauseForAsyncAction(Id executionId, String turnIdentifier, Id jobId, String toolName, String logPrefix) {
-        System.debug(
-            LoggingLevel.INFO,
-            logPrefix +
-                'AgentStateService: AWAITING_ACTION state for Turn=' +
-                turnIdentifier +
-                (jobId != null ? (', Job=' + jobId) : '') +
-                (String.isNotBlank(toolName) ? (', Tool=' + toolName) : '')
-        );
-        String stepDesc = generateStepDescription(AIAgentConstants.STATUS_AWAITING_ACTION, toolName);
-
-        updateStatus(executionId, 'Processing', AIAgentConstants.STATUS_AWAITING_ACTION, turnIdentifier, stepDesc);
-    }
-
-    /**
      * Optimized method that combines async tool tracking initialization with status update.
      * This reduces DML operations from 2 to 1 by batching the updates.
      *

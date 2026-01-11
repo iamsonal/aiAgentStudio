@@ -408,7 +408,7 @@ public with sharing class ConversationalChatController {
 
     /**
      * Deletes all execution steps and related decision steps from a given step (by turnIdentifier) onward in an agent execution,
-     * enabling a 'start over' feature. This method deletes both ExecutionStep__c and AgentDecisionStep__c records
+     * enabling a 'start over' feature. This method deletes ExecutionStep__c records and related decision steps (if addons deployed)
      * to ensure a complete cleanup of the conversation history from the specified point.
      *
      * @param sessionId      The ID of the agent execution.
@@ -463,21 +463,6 @@ public with sharing class ConversationalChatController {
                         ' starting at ' +
                         targetTimestamp
                 );
-
-                // Delete AgentDecisionStep__c records for these turns
-                if (!turnIdentifiersToDelete.isEmpty()) {
-                    List<AgentDecisionStep__c> decisionStepsToDelete = [
-                        SELECT Id
-                        FROM AgentDecisionStep__c
-                        WHERE AgentExecution__c = :sessionId AND TurnIdentifier__c IN :turnIdentifiersToDelete
-                        WITH USER_MODE
-                    ];
-
-                    if (!decisionStepsToDelete.isEmpty()) {
-                        System.debug(logPrefix + 'Deleting ' + decisionStepsToDelete.size() + ' decision steps');
-                        delete as user decisionStepsToDelete;
-                    }
-                }
 
                 // Delete the execution steps
                 delete as user stepsToDelete;

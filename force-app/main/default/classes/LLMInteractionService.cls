@@ -79,7 +79,7 @@ public inherited sharing class LLMInteractionService {
     private final Id currentPageRecordId;
     private final Boolean isFinalErrorTurn;
     // Add decision logger reference
-    private final AgentDecisionStepLogger decisionLogger;
+    private final IDecisionStepLogger.ILogger decisionLogger;
 
     /**
      * Constructor for LLMInteractionService working exclusively with the unified AgentExecution__c model.
@@ -103,7 +103,7 @@ public inherited sharing class LLMInteractionService {
         Integer turnNum,
         Id pageRecordId,
         Boolean isFinalError,
-        AgentDecisionStepLogger decisionLogger
+        IDecisionStepLogger.ILogger decisionLogger
     ) {
         if (executionId == null || usrId == null || agentDefId == null || llmConfigId == null || String.isBlank(turnId) || turnNum == null) {
             throw new IllegalArgumentException('Required arguments cannot be null for LLMInteractionService.');
@@ -140,9 +140,7 @@ public inherited sharing class LLMInteractionService {
         );
         AIAgentDefinition__c agentConfig = null;
         LLMConfiguration__c llmConfig = null;
-
-        // Create SystemPromptBuilder with decision logger if available
-        SystemPromptBuilder promptBuilder = (this.decisionLogger != null) ? new SystemPromptBuilder(this.decisionLogger) : new SystemPromptBuilder();
+        PIIMaskingService maskingService = null;
 
         try {
             // 1. Load Core Configurations
@@ -152,6 +150,16 @@ public inherited sharing class LLMInteractionService {
                 LoggingLevel.DEBUG,
                 logPrefix + 'Loaded configuration: Agent=' + agentConfig.DeveloperName__c + ', LLM=' + llmConfig.DeveloperName__c + ', User=' + this.userId
             );
+
+            // 1b. Create PII Masking Service early so it can be used for context data formatting
+            // This ensures schema-based PII masking works for context data in the system prompt
+            maskingService = PIIMaskingService.createForAgent(agentConfig, this.executionId);
+            if (maskingService != null) {
+                System.debug(LoggingLevel.DEBUG, logPrefix + 'PII masking service created. Mode: ' + maskingService.getMode());
+            }
+
+            // Create SystemPromptBuilder with decision logger and PII masking service
+            SystemPromptBuilder promptBuilder = new SystemPromptBuilder(this.decisionLogger, maskingService);
 
             // --- 2. DELEGATE Prompt Composition ---
             // All complex prompt assembly logic is now in one place.
@@ -226,39 +234,110 @@ public inherited sharing class LLMInteractionService {
             // Pass executionId to enable tool exclusion based on MaxToolRetries__c
             List<Map<String, Object>> toolsPayload = LLMFormattingService.formatToolsForApi(agentConfig.Id, agentConfig, this.executionId, logPrefix);
 
-            // Log LLM request if decision logger is available
-            if (this.decisionLogger != null) {
-                // Additionally log the available tools list for better diagnostic visibility
-                if (!toolsPayload.isEmpty()) {
-                    List<String> toolNames = new List<String>();
-                    for (Map<String, Object> tool : toolsPayload) {
-                        if (tool.containsKey('function')) {
-                            Map<String, Object> functionDef = (Map<String, Object>) tool.get('function');
-                            if (functionDef.containsKey('name')) {
-                                toolNames.add((String) functionDef.get('name'));
-                            }
+            // Log available tools if decision logger is available (before masking - tools don't contain PII)
+            if (this.decisionLogger != null && !toolsPayload.isEmpty()) {
+                List<String> toolNames = new List<String>();
+                for (Map<String, Object> tool : toolsPayload) {
+                    if (tool.containsKey('function')) {
+                        Map<String, Object> functionDef = (Map<String, Object>) tool.get('function');
+                        if (functionDef.containsKey('name')) {
+                            toolNames.add((String) functionDef.get('name'));
                         }
                     }
-
-                    this.decisionLogger.logAvailableTools(
-                        'Available Tools for LLM',
-                        'List of tools made available to the LLM for this turn',
-                        JSON.serialize(new Map<String, Object>{ 'toolCount' => toolsPayload.size(), 'toolNames' => toolNames, 'tools' => toolsPayload }),
-                        null
-                    );
                 }
 
-                Map<String, Object> requestPayload = new Map<String, Object>{ 'messages' => finalMessagesPayload, 'tools' => toolsPayload };
-
-                this.decisionLogger.logLLMRequest(
-                    'LLM Request Prepared',
-                    'Prepared complete LLM request payload with ' + toolsPayload.size() + ' available tools',
-                    JSON.serialize(requestPayload),
+                this.decisionLogger.logAvailableTools(
+                    'Available Tools for LLM',
+                    'List of tools made available to the LLM for this turn',
+                    JSON.serialize(new Map<String, Object>{ 'toolCount' => toolsPayload.size(), 'toolNames' => toolNames, 'tools' => toolsPayload }),
                     null
                 );
             }
 
-            // --- 6. Call LLM ---
+            // --- 6. Apply Prompt Safety Check (BEFORE PII Masking) ---
+            // Checks for jailbreak attempts and prompt injection attacks
+            PromptSafetyService safetyService = PromptSafetyService.createForAgent(agentConfig, this.executionId);
+            if (safetyService != null && currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
+                ThreatAssessment safetyResult = safetyService.checkMessage(currentTurnUserMessage.content);
+
+                // Log safety check result if decision logger is available
+                if (this.decisionLogger != null) {
+                    this.decisionLogger.logLLMRequest(
+                        'Prompt Safety Check',
+                        'Analyzed user message for jailbreak/injection attempts. Score: ' +
+                            safetyResult.overallScore +
+                            ', Level: ' +
+                            safetyResult.levelName +
+                            ', Action: ' +
+                            safetyResult.recommendedAction,
+                        JSON.serialize(safetyResult.getSummary()),
+                        safetyResult.processingTimeMs
+                    );
+                }
+
+                // Handle blocking if needed
+                if (safetyResult.shouldBlock()) {
+                    System.debug(
+                        LoggingLevel.WARN,
+                        logPrefix +
+                            'Message blocked by prompt safety service. Score: ' +
+                            safetyResult.overallScore +
+                            ', Indicators: ' +
+                            safetyResult.getIndicatorCount()
+                    );
+
+                    // Log error if decision logger is available
+                    if (this.decisionLogger != null) {
+                        this.decisionLogger.logError(
+                            'Message Blocked',
+                            'User message blocked by prompt safety service due to detected threat',
+                            AIAgentConstants.ERR_CODE_SAFETY_BLOCKED,
+                            safetyResult.getSafeMessage(),
+                            null,
+                            safetyResult.processingTimeMs
+                        );
+                    }
+
+                    return new LLMInteractionResult(safetyResult.getSafeMessage(), AIAgentConstants.ERR_CODE_SAFETY_BLOCKED, null);
+                }
+
+                // Apply sanitization if configured
+                if (safetyResult.hasSanitizedContent()) {
+                    currentTurnUserMessage.content = safetyResult.getSanitizedContent();
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Applied sanitization to user message. Original threats neutralized.');
+                }
+
+                // Handle flagging (message continues but is marked for review)
+                if (safetyResult.flagged) {
+                    System.debug(
+                        LoggingLevel.INFO,
+                        logPrefix + 'Message flagged for review. Score: ' + safetyResult.overallScore + ', Indicators: ' + safetyResult.getIndicatorCount()
+                    );
+                    // The flagged status is logged via decision logger above
+                }
+            }
+
+            // --- 8. Apply PII Masking (if enabled) ---
+            // IMPORTANT: Must happen BEFORE logging the LLM request to ensure no raw PII is stored in decision logs
+            // Note: maskingService was created earlier (step 1b) for context data formatting, reusing it here
+            if (maskingService != null) {
+                finalMessagesPayload = maskingService.maskMessagePayload(finalMessagesPayload);
+                System.debug(LoggingLevel.INFO, logPrefix + 'Applied PII masking to message payload. Mode: ' + maskingService.getMode());
+            }
+
+            // Log LLM request AFTER PII masking to ensure decision logs contain only masked data
+            if (this.decisionLogger != null) {
+                Map<String, Object> requestPayload = new Map<String, Object>{ 'messages' => finalMessagesPayload, 'tools' => toolsPayload };
+
+                String description = 'Prepared complete LLM request payload with ' + toolsPayload.size() + ' available tools';
+                if (maskingService != null) {
+                    description += ' (PII masked)';
+                }
+
+                this.decisionLogger.logLLMRequest('LLM Request Prepared', description, JSON.serialize(requestPayload), null);
+            }
+
+            // --- 9. Call LLM ---
             Long callStartTime = System.currentTimeMillis();
             try {
                 ILLMProviderAdapter adapter = LLMInteractionService.getLLMProviderAdapter(llmConfig);
@@ -297,13 +376,33 @@ public inherited sharing class LLMInteractionService {
                     );
                 }
 
+                // --- Unmask PII in response (if masking was applied) ---
+                String unmaskedContent = llmApiResult.content;
+                String unmaskedToolCallsJson = llmApiResult.rawToolCallsJson;
+                if (maskingService != null) {
+                    if (String.isNotBlank(unmaskedContent)) {
+                        unmaskedContent = maskingService.unmaskText(unmaskedContent);
+                    }
+                    if (String.isNotBlank(unmaskedToolCallsJson)) {
+                        unmaskedToolCallsJson = maskingService.unmaskText(unmaskedToolCallsJson);
+                    }
+                    System.debug(
+                        LoggingLevel.DEBUG,
+                        logPrefix + 'Applied PII unmasking to LLM response. Stats: ' + JSON.serialize(maskingService.getStatistics())
+                    );
+                }
+
                 // Package result DTOs
                 MessageData asstMsgData = new MessageData();
                 asstMsgData.role = AIAgentConstants.ROLE_ASSISTANT;
-                asstMsgData.content = llmApiResult.content;
-                asstMsgData.assistantToolCallsJson = llmApiResult.rawToolCallsJson;
+                asstMsgData.content = unmaskedContent;
+                asstMsgData.assistantToolCallsJson = unmaskedToolCallsJson;
                 asstMsgData.tokensUsed = llmApiResult.totalTokens;
                 asstMsgData.processingTimeMs = callDuration;
+
+                // Also update the provider result with unmasked content for consistency
+                llmApiResult.content = unmaskedContent;
+                llmApiResult.rawToolCallsJson = unmaskedToolCallsJson;
 
                 return new LLMInteractionResult(llmApiResult, asstMsgData);
             } catch (Exception callEx) {

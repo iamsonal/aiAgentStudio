@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PIIPatternCategories__c</fullName>
+    <description>Select which categories of PII patterns to apply for regex-based detection. Used when PII Masking Mode is Hybrid or Pattern-Only. Leave blank to enable all categories.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Choose which PII pattern categories to enable. Leave blank to enable all categories.</inlineHelpText>
+    <label>PII Pattern Categories</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>MultiselectPicklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Financial</fullName>
+                <default>false</default>
+                <label>Financial (Credit Card, Bank Account)</label>
+            </value>
+            <value>
+                <fullName>Identity</fullName>
+                <default>false</default>
+                <label>Identity (SSN, Passport, Driver's License)</label>
+            </value>
+            <value>
+                <fullName>Contact</fullName>
+                <default>false</default>
+                <label>Contact (Email, Phone, Address)</label>
+            </value>
+            <value>
+                <fullName>Health</fullName>
+                <default>false</default>
+                <label>Health (Medical Record Numbers)</label>
+            </value>
+            <value>
+                <fullName>Technical</fullName>
+                <default>false</default>
+                <label>Technical (IP Address, API Keys)</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+    <visibleLines>5</visibleLines>
+</CustomField>

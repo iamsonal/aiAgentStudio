@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EnableDecisionStepLogging__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>When enabled, agent decision steps are logged to AgentDecisionStep__c for visualization in the storyboard UI. This feature requires the AI Agent Studio Addons package to be deployed. When disabled or when addons is not deployed, logging is skipped (no-op). This is an org-wide setting that applies to all agents.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Enable to log agent decision steps for storyboard visualization (requires addons package)</inlineHelpText>
+    <label>Enable Decision Step Logging</label>
+    <type>Checkbox</type>
+</CustomField>

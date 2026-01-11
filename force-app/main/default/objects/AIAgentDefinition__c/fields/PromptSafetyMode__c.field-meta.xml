@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PromptSafetyMode__c</fullName>
+    <description>Controls how the system responds when a potential jailbreak or prompt injection is detected. Block rejects the request, Sanitize removes threats, Flag marks for review, Log Only records but continues.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Block: Reject request. Sanitize: Remove threats and continue. Flag: Mark for review. Log Only: Record threat details but continue.</inlineHelpText>
+    <label>Prompt Safety Mode</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Block</fullName>
+                <default>true</default>
+                <label>Block</label>
+            </value>
+            <value>
+                <fullName>Sanitize</fullName>
+                <default>false</default>
+                <label>Sanitize</label>
+            </value>
+            <value>
+                <fullName>Flag</fullName>
+                <default>false</default>
+                <label>Flag for Review</label>
+            </value>
+            <value>
+                <fullName>LogOnly</fullName>
+                <default>false</default>
+                <label>Log Only</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

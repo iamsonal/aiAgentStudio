@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PIIAuditLogging__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When enabled, PII masking events are logged to AgentDecisionStep__c. Logs only pattern types detected, never actual PII values. Part of the PII Masking Trust Layer. This is an org-wide setting.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Enable to log PII masking events for compliance and debugging (org-wide setting)</inlineHelpText>
+    <label>PII Audit Logging</label>
+    <type>Checkbox</type>
+</CustomField>

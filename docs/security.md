@@ -25,11 +25,13 @@ The framework enforces security at multiple levels:
 
 ```mermaid
 flowchart TB
-    A[User Request] --> B[1. User Context Validation]
-    B --> C[2. Object-Level Security<br/>CRUD permission checks]
-    C --> D[3. Field-Level Security<br/>FLS enforcement]
-    D --> E[4. Record-Level Security<br/>Sharing rules]
-    E --> F[5. Audit Trail<br/>All actions logged]
+    A[User Request] --> B[1. Prompt Safety Check<br/>Jailbreak/injection detection]
+    B --> C[2. PII Masking<br/>Sensitive data protection]
+    C --> D[3. User Context Validation]
+    D --> E[4. Object-Level Security<br/>CRUD permission checks]
+    E --> F[5. Field-Level Security<br/>FLS enforcement]
+    F --> G[6. Record-Level Security<br/>Sharing rules]
+    G --> H[7. Audit Trail<br/>All actions logged]
 ```
 
 ---
@@ -148,6 +150,234 @@ Enable approval for:
 
 ---
 
+## PII Masking Trust Layer
+
+The framework includes an enterprise-grade PII masking system that ensures sensitive customer data (SSN, credit cards, emails, etc.) never leaves your Salesforce Org in raw form when communicating with external LLM providers.
+
+### How It Works
+
+1. **Outbound Masking**: Before sending to LLM, sensitive data is replaced with tokens (e.g., `123-45-6789` → `[SSN:001]`)
+2. **LLM Processing**: The LLM works with masked tokens, never seeing actual PII
+3. **Inbound Unmasking**: Responses are unmasked before displaying to users
+
+### Enabling PII Masking
+
+**Org-Level Settings** (in `AIAgentFrameworkSettings__c`):
+
+| Field | Description | Default |
+|:------|:------------|:--------|
+| `EnablePIIMasking__c` | Master toggle (org-wide) | `false` |
+| `PIIAuditLogging__c` | Log masking events (pattern types only) | `false` |
+
+**Per-Agent Configuration** (on `AIAgentDefinition__c`):
+
+| Field | Description | Default |
+|:------|:------------|:--------|
+| `PIIMaskingMode__c` | Detection method | `Hybrid` |
+| `SensitiveClassifications__c` | Which Data Classifications trigger masking | Confidential, Restricted |
+| `PIIPatternCategories__c` | Which pattern categories to enable | All |
+
+### Masking Modes
+
+| Mode | Description | Use Case |
+|:-----|:------------|:---------|
+| **Hybrid** | Schema-based for fields + Pattern-based for text | Recommended for most use cases |
+| **Schema-Only** | Only fields with Data Classification | When field classification is comprehensive |
+| **Pattern-Only** | Only regex pattern matching | When Data Classification isn't set up |
+
+### Schema-Based Masking
+
+Leverages Salesforce's native Data Classification (Compliance Categorization) feature by querying the `FieldDefinition` object:
+
+```sql
+SELECT QualifiedApiName, SecurityClassification
+FROM FieldDefinition
+WHERE EntityDefinition.QualifiedApiName = 'Account'
+```
+
+When a field's `SecurityClassification` matches your configured sensitive classifications, its value is automatically masked.
+
+**Configure which classifications trigger masking via `SensitiveClassifications__c`:**
+- `Confidential` - Highly sensitive (SSN, financial data)
+- `Restricted` - Limited access data
+- `MissionCritical` - Business critical
+- `Internal` - Internal use only
+
+**Fallback Pattern Matching**: If a field has no Data Classification set, the system falls back to field name pattern matching (e.g., fields containing "SSN", "CreditCard", "TaxId" in their name).
+
+{: .note }
+> To set Data Classification on fields, go to Setup → Object Manager → [Object] → Fields → [Field] → Edit → Set the "Field Usage" compliance fields.
+
+### Pattern-Based Masking
+
+Uses regex patterns defined in `PIIPattern__mdt`:
+
+| Pattern | Category | Example |
+|:--------|:---------|:--------|
+| SSN | Identity | `123-45-6789` |
+| Credit Card | Financial | `4111-1111-1111-1111` |
+| Email | Contact | `user@example.com` |
+| Phone | Contact | `(555) 123-4567` |
+| IP Address | Technical | `192.168.1.1` |
+| DOB | Identity | `DOB: 01/15/1990` |
+
+Credit card detection includes Luhn algorithm validation to reduce false positives.
+
+### Security Properties
+
+- **No persistent storage**: PII mappings exist only in memory during execution
+- **Deterministic tokens**: Same value produces same token within a session
+- **Session-scoped**: Tokens cannot be resolved outside their session
+- **FLS respected**: Only masks fields user has permission to read
+
+### Extending PII Patterns
+
+Add custom patterns via `PIIPattern__mdt`:
+
+1. Navigate to Setup → Custom Metadata Types → PII Pattern
+2. Create new record with:
+   - `PatternRegex__c`: Your regex pattern
+   - `MaskFormat__c`: Token format (e.g., `[CUSTOM:{index}]`)
+   - `Category__c`: Pattern category
+   - `Priority__c`: Detection order (lower = first)
+   - `RequiresValidation__c`: Enable for additional validation
+
+---
+
+## Prompt Safety Trust Layer
+
+The framework includes enterprise-grade jailbreak protection and prompt injection detection to ensure AI agents are protected from malicious user inputs that attempt to override instructions, manipulate roles, or extract system prompts.
+
+### How It Works
+
+The system uses a multi-layered detection approach:
+
+```mermaid
+flowchart LR
+    A[User Message] --> B[Layer 1:<br/>Pattern Matching]
+    B --> C[Layer 2:<br/>Heuristic Analysis]
+    C --> D[Layer 3:<br/>Structural Analysis]
+    D --> E[Threat Scorer]
+    E --> F{Above Threshold?}
+    F -->|Yes| G[Apply Response Mode]
+    F -->|No| H[Allow Message]
+```
+
+1. **Pattern-Based Detection**: Regex patterns from `JailbreakPattern__mdt` custom metadata
+2. **Heuristic Analysis**: Semantic analysis of instruction patterns, role manipulation, delimiter injection
+3. **Structural Analysis**: Code block abuse, encoding detection, N-gram similarity to known attacks
+
+### Enabling Prompt Safety
+
+**Org-Level Settings** (in `AIAgentFrameworkSettings__c`):
+
+| Field | Description | Default |
+|:------|:------------|:--------|
+| `EnablePromptSafety__c` | Master toggle (org-wide) | `false` |
+| `PromptSafetyAuditLogging__c` | Log all safety checks | `false` |
+
+**Per-Agent Configuration** (on `AIAgentDefinition__c`):
+
+| Field | Description | Default |
+|:------|:------------|:--------|
+| `PromptSafetyMode__c` | Response mode when threat detected | `Block` |
+| `SafetyThreshold__c` | Score threshold for action (0.0-1.0) | `0.6` |
+| `SafetyPatternCategories__c` | Which pattern categories to enable | All |
+
+### Response Modes
+
+| Mode | Behavior | Use Case |
+|:-----|:---------|:---------|
+| **Block** | Reject request with safe error message | Production, public-facing agents |
+| **Sanitize** | Remove/neutralize threats, continue processing | Balanced security |
+| **Flag** | Mark for human review, continue processing | Human-in-the-loop workflows |
+| **Log Only** | Record threat details, continue unchanged | Development, testing |
+
+### Threat Categories Detected
+
+| Category | Examples | Severity |
+|:---------|:---------|:---------|
+| **Role Manipulation** | "You are now DAN", "pretend to be unrestricted" | High |
+| **Instruction Override** | "Ignore previous instructions", "new instructions" | High |
+| **Delimiter Injection** | `### System:`, `[INST]`, `<\|system\|>` | Critical |
+| **Encoding Attacks** | Base64 encoded instructions, obfuscation | Medium |
+| **Prompt Leaking** | "Repeat your system prompt", "show instructions" | Medium |
+| **Context Manipulation** | Token stuffing, hypothetical scenarios | Low-Medium |
+
+### Threat Levels
+
+| Level | Score Range | Meaning |
+|:------|:------------|:--------|
+| `NONE` | 0.0 - 0.2 | No threat detected |
+| `LOW` | 0.2 - 0.4 | Minor suspicious patterns |
+| `MEDIUM` | 0.4 - 0.6 | Potential attack indicators |
+| `HIGH` | 0.6 - 0.8 | Likely attack attempt |
+| `CRITICAL` | 0.8 - 1.0 | Definite attack attempt |
+
+### Heuristic Detection Details
+
+The heuristic analyzer evaluates multiple signals:
+
+| Heuristic | What It Detects | Weight |
+|:----------|:----------------|:-------|
+| Instruction Override | "ignore previous", "disregard", "new instructions" | 0.4 |
+| Role Manipulation | "you are now", "pretend to be", "act as DAN" | 0.4 |
+| Delimiter Injection | System prompt markers, boundary violations | 0.5 |
+| Repetition Attack | Token stuffing, excessive phrase repetition | 0.3 |
+| Unicode Abuse | Homoglyphs, invisible characters, RTL override | 0.3 |
+| Excessive Instructions | High imperative verb density | 0.2 |
+
+### Structural Analysis
+
+The structural analyzer detects:
+
+- **Code Block Abuse**: Fake system messages hidden in code blocks
+- **Length Anomalies**: Extremely long messages (context exhaustion attacks)
+- **Encoding Patterns**: Base64, hex encoding, leetspeak obfuscation
+- **N-gram Similarity**: Fuzzy matching against known attack signatures
+- **Structural Anomalies**: Unusual character distributions, suspicious formatting
+
+### Extending Jailbreak Patterns
+
+Add custom patterns via `JailbreakPattern__mdt`:
+
+1. Navigate to Setup → Custom Metadata Types → Jailbreak Pattern
+2. Create new record with:
+   - `PatternRegex__c`: Your regex pattern (use `(?i)` for case-insensitive)
+   - `Category__c`: Pattern category (RoleManipulation, InstructionOverride, etc.)
+   - `Severity__c`: Base severity score (0.1-1.0)
+   - `Priority__c`: Detection order (lower = first)
+   - `Description__c`: Human-readable description
+
+### Default Jailbreak Patterns
+
+The framework includes patterns for common attacks:
+
+| Pattern | Category | Description |
+|:--------|:---------|:------------|
+| `IgnorePrevious` | InstructionOverride | "ignore all previous instructions" |
+| `NewInstructions` | InstructionOverride | "your new instructions are" |
+| `ActAsDAN` | RoleManipulation | "you are now DAN", jailbreak modes |
+| `SystemPromptLeak` | PromptLeaking | "repeat your system prompt" |
+| `DelimiterInjection` | DelimiterInjection | System markers like `### System:` |
+| `DeveloperMode` | RoleManipulation | "enable developer mode" |
+| `NoRestrictions` | RoleManipulation | "you have no restrictions" |
+| `GrandmaExploit` | RoleManipulation | Grandma storytelling exploit |
+| `BypassFilters` | InstructionOverride | "bypass safety filters" |
+
+### Security Properties
+
+- **Defense in depth**: Three independent detection layers for comprehensive coverage
+- **Configurable sensitivity**: Adjustable thresholds per agent based on use case
+- **No information leakage**: Safe error messages don't reveal detection details
+- **Audit trail**: Optional logging for compliance and security review
+- **Performance optimized**: CPU safeguards for large messages, cached pattern compilation
+
+{: .important }
+> **Recommended**: Enable `EnablePromptSafety__c` in AI Agent Framework Settings (`AIAgentFrameworkSettings__c`) for production orgs with public-facing agents to protect against jailbreak attempts and prompt injection attacks.
+
+---
+
 ## Audit Trail
 
 ### What's Logged
@@ -201,8 +431,12 @@ User inputs are sent to external AI providers. Consider:
 |:--------|:-----------|
 | Data residency | Choose providers with appropriate regions |
 | Data retention | Review provider data handling policies |
-| PII exposure | Implement input sanitization if needed |
+| PII exposure | **Enable PII Masking** on agent definitions |
+| Jailbreak attacks | **Enable Prompt Safety** on agent definitions |
 | Compliance | Ensure provider meets your requirements |
+
+{: .important }
+> **Recommended**: Enable both `EnablePIIMasking__c` and `EnablePromptSafety__c` in AI Agent Framework Settings (`AIAgentFrameworkSettings__c`) for production orgs to ensure (1) sensitive data is masked before leaving your org, and (2) agents are protected from jailbreak attempts. See [PII Masking Trust Layer](#pii-masking-trust-layer) and [Prompt Safety Trust Layer](#prompt-safety-trust-layer) above.
 
 ### Provider Data Policies
 
@@ -229,12 +463,17 @@ User inputs are sent to external AI providers. Consider:
 - Test with realistic user profiles
 - Review audit logs regularly
 - Use specific object configurations
+- **Enable PII Masking** for agents handling customer data
+- **Enable Prompt Safety** for public-facing agents
+- Start with default threshold (0.6) and tune based on false positive rates
 
 ❌ **Don't**:
 - Grant Modify All Data to agent users
 - Skip approval for delete operations
 - Expose sensitive fields unnecessarily
 - Ignore audit trail data
+- Deploy public-facing agents without prompt safety enabled
+- Use "Log Only" mode in production for security features
 
 ### Monitoring
 
@@ -243,6 +482,10 @@ Set up monitoring for:
 - High-volume tool executions
 - Failed permission checks
 - Error rates
+- **Blocked messages** (prompt safety): Indicates attack attempts
+- **Flagged messages**: Review for false positives/negatives
+- **Threat score trends**: Identify patterns in attack attempts
+- **PII masking events**: Track data protection effectiveness
 
 ### Incident Response
 
@@ -252,6 +495,13 @@ If you suspect misuse:
 3. Check Salesforce audit trail
 4. Investigate user activity
 5. Implement additional controls as needed
+
+For jailbreak/injection incidents:
+1. Review flagged and blocked messages in audit logs
+2. Add new patterns to `JailbreakPattern__mdt` if novel attack detected
+3. Consider lowering `SafetyThreshold__c` if attacks are getting through
+4. Switch from "Log Only" to "Block" mode if needed
+5. Enable `PromptSafetyAuditLogging__c` for detailed forensics
 
 ---
 

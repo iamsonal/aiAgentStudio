@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SafetyThreshold__c</fullName>
+    <defaultValue>0.6</defaultValue>
+    <description>The threat score threshold (0.0-1.0) at which the configured safety action is triggered. Lower values are more strict, higher values are more permissive. Default is 0.6.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Score threshold for action (0.0-1.0). Lower = stricter. Default 0.6.</inlineHelpText>
+    <label>Safety Threshold</label>
+    <precision>3</precision>
+    <required>false</required>
+    <scale>2</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

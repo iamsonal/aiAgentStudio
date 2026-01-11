@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SafetyPatternCategories__c</fullName>
+    <description>Select which categories of jailbreak patterns to check against. Leave blank to enable all categories.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Choose which jailbreak pattern categories to enable. Leave blank to enable all categories.</inlineHelpText>
+    <label>Safety Pattern Categories</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>MultiselectPicklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>RoleManipulation</fullName>
+                <default>false</default>
+                <label>Role Manipulation (DAN, persona changes)</label>
+            </value>
+            <value>
+                <fullName>InstructionOverride</fullName>
+                <default>false</default>
+                <label>Instruction Override (ignore previous)</label>
+            </value>
+            <value>
+                <fullName>DelimiterInjection</fullName>
+                <default>false</default>
+                <label>Delimiter Injection (system markers)</label>
+            </value>
+            <value>
+                <fullName>EncodingAttack</fullName>
+                <default>false</default>
+                <label>Encoding Attack (Base64, obfuscation)</label>
+            </value>
+            <value>
+                <fullName>PromptLeaking</fullName>
+                <default>false</default>
+                <label>Prompt Leaking (system prompt extraction)</label>
+            </value>
+            <value>
+                <fullName>ContextManipulation</fullName>
+                <default>false</default>
+                <label>Context Manipulation (token stuffing)</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+    <visibleLines>6</visibleLines>
+</CustomField>

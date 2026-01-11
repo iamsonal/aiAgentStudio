@@ -104,7 +104,7 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
             Id originalUserId = this.userId;
 
             // Initialize the decision step logger - single instance for the entire turn
-            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(this.executionId, this.turnIdentifier, originalUserId);
+            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(this.executionId, this.turnIdentifier, originalUserId);
 
             // Perform LLM callout for follow-up interaction with decision logger
             LLMInteractionService interactionService = new LLMInteractionService(

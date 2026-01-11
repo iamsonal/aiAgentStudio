@@ -350,7 +350,7 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         // Log decision step for approved action
         try {
-            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(fullAction.AgentExecution__c, fullAction.TurnIdentifier__c);
+            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(fullAction.AgentExecution__c, fullAction.TurnIdentifier__c);
             decisionLogger.logResumeApprovedFrameworkAction(
                 'Resume Approved Framework Action',
                 'Tool "' + fullAction.ToolName__c + '" was approved and will now be executed',
@@ -360,6 +360,7 @@ public with sharing class PendingHITLActionTriggerHandler {
                         'pendingActionId' => fullAction.Id,
                         'approvedBy' => fullAction.ResolvedBy__c,
                         'approvedAt' => fullAction.ResolvedAt__c,
+                        'requestedAt' => fullAction.RequestedAt__c,
                         'resolutionComment' => fullAction.ResolutionComment__c
                     }
                 ),
@@ -499,7 +500,7 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         // Log decision step for rejected action
         try {
-            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(fullAction.AgentExecution__c, fullAction.TurnIdentifier__c);
+            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(fullAction.AgentExecution__c, fullAction.TurnIdentifier__c);
             decisionLogger.logHandleRejectedFrameworkAction(
                 'Handle Rejected Framework Action',
                 'Tool "' + fullAction.ToolName__c + '" was rejected by approver',
@@ -509,6 +510,7 @@ public with sharing class PendingHITLActionTriggerHandler {
                         'pendingActionId' => fullAction.Id,
                         'rejectedBy' => fullAction.ResolvedBy__c,
                         'rejectedAt' => fullAction.ResolvedAt__c,
+                        'requestedAt' => fullAction.RequestedAt__c,
                         'resolutionComment' => fullAction.ResolutionComment__c
                     }
                 ),

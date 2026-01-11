@@ -39,22 +39,41 @@ public inherited sharing class SystemPromptBuilder {
     };
 
     // Add decision logger reference
-    private final AgentDecisionStepLogger decisionLogger;
+    private final IDecisionStepLogger.ILogger decisionLogger;
+
+    // PII Masking support for context data
+    private PIIMaskingService piiMaskingService;
 
     public SystemPromptBuilder() {
-        this(new ContextManagerService(), new ContextResolverService(), null);
+        this(new ContextManagerService(), new ContextResolverService(), null, null);
     }
 
     // Constructor that accepts a decision logger
-    public SystemPromptBuilder(AgentDecisionStepLogger decisionLogger) {
-        this(new ContextManagerService(), new ContextResolverService(), decisionLogger);
+    public SystemPromptBuilder(IDecisionStepLogger.ILogger decisionLogger) {
+        this(new ContextManagerService(), new ContextResolverService(), decisionLogger, null);
+    }
+
+    // Constructor that accepts both decision logger and PII masking service
+    public SystemPromptBuilder(IDecisionStepLogger.ILogger decisionLogger, PIIMaskingService piiMaskingService) {
+        this(new ContextManagerService(), new ContextResolverService(), decisionLogger, piiMaskingService);
     }
 
     @TestVisible
-    private SystemPromptBuilder(ContextManagerService contextService, ContextResolverService contextResolverSvc, AgentDecisionStepLogger decisionLogger) {
+    private SystemPromptBuilder(ContextManagerService contextService, ContextResolverService contextResolverSvc, IDecisionStepLogger.ILogger decisionLogger) {
+        this(contextService, contextResolverSvc, decisionLogger, null);
+    }
+
+    @TestVisible
+    private SystemPromptBuilder(
+        ContextManagerService contextService,
+        ContextResolverService contextResolverSvc,
+        IDecisionStepLogger.ILogger decisionLogger,
+        PIIMaskingService piiMaskingService
+    ) {
         this.contextManager = contextService;
         this.contextResolver = contextResolverSvc;
         this.decisionLogger = decisionLogger;
+        this.piiMaskingService = piiMaskingService;
     }
 
     /**
@@ -195,7 +214,15 @@ public inherited sharing class SystemPromptBuilder {
                 if (resolvedContext != null && !resolvedContext.recordsToLoad.isEmpty()) {
                     try {
                         ContextFormattingService formatter = new ContextFormattingService();
-                        String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix, formatStrategy);
+
+                        // Configure formatting options with PII masking if available
+                        ContextFormattingService.FormattingOptions formatOptions = new ContextFormattingService.FormattingOptions();
+                        if (this.piiMaskingService != null && this.piiMaskingService.getSchemaMasker() != null) {
+                            formatOptions.withPIIMasking(this.piiMaskingService.getSchemaMasker(), this.piiMaskingService.getSession());
+                            System.debug(LoggingLevel.DEBUG, logPrefix + 'PII schema masking enabled for context data formatting');
+                        }
+
+                        String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix, formatStrategy, formatOptions);
 
                         // Log context gathering with formatting if decision logger is available
                         if (this.decisionLogger != null) {

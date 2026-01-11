@@ -1,0 +1,449 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2025 Sonal
+ */
+
+/**
+ * @description
+ * PromptSafetyService is the core orchestrator for the Prompt Safety Trust Layer. It provides
+ * multi-layered detection of jailbreak attempts and prompt injection attacks to protect AI
+ * agents from malicious user inputs.
+ *
+ * Key Features:
+ * - Multi-layered detection: Pattern-based, Heuristic, and Structural analysis
+ * - Configurable response modes: Block, Sanitize, Flag, Log Only
+ * - Configurable threat thresholds per agent
+ * - Category filtering to enable/disable specific detection patterns
+ * - Audit logging support for compliance and debugging
+ * - Factory method for easy agent configuration
+ *
+ * Detection Layers:
+ * 1. Pattern-Based (JailbreakPatternMatcher): Regex patterns from JailbreakPattern__mdt
+ * 2. Heuristic (PromptHeuristicAnalyzer): Semantic analysis of instruction patterns
+ * 3. Structural (PromptStructureAnalyzer): Content structure, encoding, N-gram similarity
+ *
+ * Response Modes:
+ * - Block: Reject the request entirely with a safe error message
+ * - Sanitize: Remove/neutralize detected threats and continue
+ * - Flag: Mark for human review but continue processing
+ * - LogOnly: Record threat details but take no action
+ *
+ * Part of the Prompt Safety Trust Layer for AI safety.
+ *
+ * @example
+ * // Create service for an agent
+ * AIAgentDefinition__c agent = [SELECT ... FROM AIAgentDefinition__c WHERE ...];
+ * PromptSafetyService service = PromptSafetyService.createForAgent(agent);
+ *
+ * // Check user message
+ * ThreatAssessment assessment = service.checkMessage(userMessage);
+ * if (assessment.shouldBlock()) {
+ *     // Block the request
+ *     return assessment.getSafeMessage();
+ * }
+ */
+public inherited sharing class PromptSafetyService {
+    // Response mode constants
+    public static final String MODE_BLOCK = 'Block';
+    public static final String MODE_SANITIZE = 'Sanitize';
+    public static final String MODE_FLAG = 'Flag';
+    public static final String MODE_LOG_ONLY = 'LogOnly';
+
+    // Detection layer weight constants
+    private static final Decimal WEIGHT_PATTERN = 0.4;
+    private static final Decimal WEIGHT_HEURISTIC = 0.35;
+    private static final Decimal WEIGHT_STRUCTURAL = 0.25;
+
+    // Detection layers
+    private JailbreakPatternMatcher patternMatcher;
+    private PromptHeuristicAnalyzer heuristicAnalyzer;
+    private PromptStructureAnalyzer structureAnalyzer;
+
+    // Configuration
+    private Boolean isEnabled;
+    private String responseMode;
+    private Decimal threshold;
+    private Boolean auditLoggingEnabled;
+    private Id executionId;
+
+    // Logging prefix
+    private static final String LOG_PREFIX = '[PromptSafetyService] ';
+
+    /**
+     * @description Creates a safety service with default configuration.
+     * Uses Block mode with 0.6 threshold and all pattern categories.
+     */
+    public PromptSafetyService() {
+        this(MODE_BLOCK, 0.6, null, null);
+    }
+
+    /**
+     * @description Creates a safety service with specified configuration.
+     *
+     * @param responseMode The response mode (Block, Sanitize, Flag, LogOnly)
+     * @param threshold The threat score threshold for triggering action (0.0-1.0)
+     * @param patternCategories Set of pattern categories to enable (null = all)
+     * @param executionId Optional execution ID for context tracking
+     */
+    public PromptSafetyService(String responseMode, Decimal threshold, Set<String> patternCategories, Id executionId) {
+        this.isEnabled = true;
+        this.responseMode = String.isNotBlank(responseMode) ? responseMode : MODE_BLOCK;
+        this.threshold = threshold != null ? threshold : 0.6;
+        this.executionId = executionId;
+        this.auditLoggingEnabled = false;
+
+        // Initialize detection layers
+        this.patternMatcher = new JailbreakPatternMatcher(patternCategories);
+        this.heuristicAnalyzer = new PromptHeuristicAnalyzer();
+        this.structureAnalyzer = new PromptStructureAnalyzer();
+
+        System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Service initialized. Mode: ' + this.responseMode + ', Threshold: ' + this.threshold);
+    }
+
+    /**
+     * @description Factory method to create a PromptSafetyService configured for an agent.
+     * Reads configuration from AIAgentDefinition__c fields.
+     *
+     * @param agentConfig The agent definition record
+     * @return Configured PromptSafetyService, or null if safety is disabled
+     */
+    public static PromptSafetyService createForAgent(AIAgentDefinition__c agentConfig) {
+        return createForAgent(agentConfig, null);
+    }
+
+    /**
+     * @description Factory method with execution context.
+     *
+     * @param agentConfig The agent definition record
+     * @param executionId The execution ID for context tracking
+     * @return Configured PromptSafetyService, or null if safety is disabled
+     */
+    public static PromptSafetyService createForAgent(AIAgentDefinition__c agentConfig, Id executionId) {
+        if (agentConfig == null) {
+            return null;
+        }
+
+        // Check if prompt safety is enabled at org level (from AIAgentFrameworkSettings__c)
+        Boolean enabled = AIAgentFrameworkSettings.isPromptSafetyEnabled();
+        if (!enabled) {
+            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Prompt safety disabled at org level');
+            return null;
+        }
+
+        // Parse response mode
+        String mode = parseResponseMode(agentConfig.PromptSafetyMode__c);
+
+        // Parse threshold
+        Decimal threshold = agentConfig.SafetyThreshold__c != null ? agentConfig.SafetyThreshold__c : 0.6;
+
+        // Parse pattern categories
+        Set<String> patternCategories = parseMultiSelectPicklist(agentConfig.SafetyPatternCategories__c);
+
+        PromptSafetyService service = new PromptSafetyService(mode, threshold, patternCategories, executionId);
+
+        // Configure audit logging from org-level settings
+        service.auditLoggingEnabled = AIAgentFrameworkSettings.isPromptSafetyAuditLoggingEnabled();
+
+        System.debug(
+            LoggingLevel.INFO,
+            LOG_PREFIX +
+                'Created service for agent: ' +
+                agentConfig.DeveloperName__c +
+                ', Mode: ' +
+                mode +
+                ', Threshold: ' +
+                threshold +
+                ', Audit: ' +
+                service.auditLoggingEnabled
+        );
+
+        return service;
+    }
+
+    // =========================================================================
+    // MESSAGE CHECKING METHODS
+    // =========================================================================
+
+    /**
+     * @description Checks a user message for jailbreak/injection attempts.
+     * This is the primary method for message safety analysis.
+     *
+     * @param message The user message to check
+     * @return ThreatAssessment containing analysis results and recommended action
+     */
+    public ThreatAssessment checkMessage(String message) {
+        Long startTime = System.currentTimeMillis();
+
+        if (!this.isEnabled || String.isBlank(message)) {
+            return ThreatAssessment.safe(message);
+        }
+
+        // Run all detection layers
+        List<ThreatAssessment.ThreatIndicator> allIndicators = new List<ThreatAssessment.ThreatIndicator>();
+
+        // Layer 1: Pattern-based detection
+        Decimal patternScore = runPatternDetection(message, allIndicators);
+
+        // Layer 2: Heuristic analysis
+        Decimal heuristicScore = runHeuristicAnalysis(message, allIndicators);
+
+        // Layer 3: Structural analysis
+        Decimal structuralScore = runStructuralAnalysis(message, allIndicators);
+
+        // Calculate aggregate score
+        Decimal aggregateScore = calculateAggregateScore(patternScore, heuristicScore, structuralScore);
+
+        // Create threat assessment
+        ThreatAssessment assessment = ThreatAssessment.fromAnalysis(message, aggregateScore, allIndicators);
+
+        // Apply response mode
+        assessment.applyResponseMode(this.responseMode, this.threshold);
+
+        // Set processing time
+        Long processingTime = System.currentTimeMillis() - startTime;
+        assessment.withProcessingTime(processingTime);
+
+        // Audit logging
+        if (this.auditLoggingEnabled) {
+            logAssessment(assessment);
+        }
+
+        System.debug(
+            LoggingLevel.INFO,
+            LOG_PREFIX +
+                'Message checked. Score: ' +
+                aggregateScore +
+                ', Level: ' +
+                assessment.levelName +
+                ', Action: ' +
+                assessment.recommendedAction +
+                ', Time: ' +
+                processingTime +
+                'ms'
+        );
+
+        return assessment;
+    }
+
+    /**
+     * @description Quick check if a message contains any threats.
+     * More efficient than full checkMessage() when you only need a boolean result.
+     *
+     * @param message The user message to check
+     * @return True if any threat indicators are detected
+     */
+    public Boolean containsThreats(String message) {
+        if (!this.isEnabled || String.isBlank(message)) {
+            return false;
+        }
+
+        // Quick pattern check first (fastest)
+        if (this.patternMatcher.containsJailbreakPattern(message)) {
+            return true;
+        }
+
+        // Full analysis for more sophisticated detection
+        ThreatAssessment assessment = checkMessage(message);
+        return assessment.hasThreats();
+    }
+
+    // =========================================================================
+    // DETECTION LAYER METHODS
+    // =========================================================================
+
+    /**
+     * @description Runs pattern-based detection and adds indicators.
+     */
+    private Decimal runPatternDetection(String message, List<ThreatAssessment.ThreatIndicator> indicators) {
+        List<JailbreakPatternMatcher.PatternMatch> matches = this.patternMatcher.findMatches(message);
+
+        for (JailbreakPatternMatcher.PatternMatch match : matches) {
+            ThreatAssessment.ThreatIndicator indicator = new ThreatAssessment.ThreatIndicator(
+                'Pattern',
+                match.category,
+                match.patternName,
+                match.description != null ? match.description : 'Pattern match: ' + match.patternName,
+                match.severity
+            );
+            indicator.withMatchDetails(redactIfNeeded(match.matchedValue), match.startIndex, match.endIndex);
+            indicators.add(indicator);
+        }
+
+        return this.patternMatcher.calculateAggregatedSeverity(matches);
+    }
+
+    /**
+     * @description Runs heuristic analysis and adds indicators.
+     */
+    private Decimal runHeuristicAnalysis(String message, List<ThreatAssessment.ThreatIndicator> indicators) {
+        PromptHeuristicAnalyzer.AnalysisResult result = this.heuristicAnalyzer.analyze(message);
+
+        if (result.indicators != null) {
+            indicators.addAll(result.indicators);
+        }
+
+        return result.aggregatedScore;
+    }
+
+    /**
+     * @description Runs structural analysis and adds indicators.
+     */
+    private Decimal runStructuralAnalysis(String message, List<ThreatAssessment.ThreatIndicator> indicators) {
+        PromptStructureAnalyzer.AnalysisResult result = this.structureAnalyzer.analyze(message);
+
+        if (result.indicators != null) {
+            indicators.addAll(result.indicators);
+        }
+
+        return result.aggregatedScore;
+    }
+
+    /**
+     * @description Calculates the weighted aggregate score from all layers.
+     */
+    private Decimal calculateAggregateScore(Decimal patternScore, Decimal heuristicScore, Decimal structuralScore) {
+        // Weighted combination
+        Decimal weightedSum =
+            (patternScore != null ? patternScore : 0) * WEIGHT_PATTERN +
+            (heuristicScore != null ? heuristicScore : 0) * WEIGHT_HEURISTIC +
+            (structuralScore != null ? structuralScore : 0) * WEIGHT_STRUCTURAL;
+
+        // Normalize by total weight
+        Decimal totalWeight = WEIGHT_PATTERN + WEIGHT_HEURISTIC + WEIGHT_STRUCTURAL;
+        Decimal normalizedScore = weightedSum / totalWeight;
+
+        // Boost if multiple layers detect threats (ensemble effect)
+        Integer detectingLayers = 0;
+        if (patternScore != null && patternScore > 0.3)
+            detectingLayers++;
+        if (heuristicScore != null && heuristicScore > 0.3)
+            detectingLayers++;
+        if (structuralScore != null && structuralScore > 0.3)
+            detectingLayers++;
+
+        if (detectingLayers >= 2) {
+            // Boost score by 20% if multiple layers agree
+            normalizedScore = normalizedScore * 1.2;
+        }
+
+        return Math.min(1.0, normalizedScore);
+    }
+
+    // =========================================================================
+    // CONFIGURATION AND STATUS METHODS
+    // =========================================================================
+
+    /**
+     * @description Checks if the service is enabled.
+     *
+     * @return True if safety checking is enabled
+     */
+    public Boolean isEnabled() {
+        return this.isEnabled;
+    }
+
+    /**
+     * @description Gets the current response mode.
+     *
+     * @return The response mode (Block, Sanitize, Flag, LogOnly)
+     */
+    public String getResponseMode() {
+        return this.responseMode;
+    }
+
+    /**
+     * @description Gets the current threat threshold.
+     *
+     * @return The threshold value (0.0-1.0)
+     */
+    public Decimal getThreshold() {
+        return this.threshold;
+    }
+
+    /**
+     * @description Gets service statistics for monitoring.
+     *
+     * @return Map of statistics
+     */
+    public Map<String, Object> getStatistics() {
+        return new Map<String, Object>{
+            'enabled' => this.isEnabled,
+            'responseMode' => this.responseMode,
+            'threshold' => this.threshold,
+            'auditLogging' => this.auditLoggingEnabled,
+            'patternCount' => this.patternMatcher.getPatternCount(),
+            'executionId' => this.executionId
+        };
+    }
+
+    // =========================================================================
+    // HELPER METHODS
+    // =========================================================================
+
+    /**
+     * @description Parses response mode from string.
+     */
+    private static String parseResponseMode(String modeString) {
+        if (String.isBlank(modeString)) {
+            return MODE_BLOCK;
+        }
+
+        String normalized = modeString.trim();
+
+        if (normalized.equalsIgnoreCase('Sanitize')) {
+            return MODE_SANITIZE;
+        } else if (normalized.equalsIgnoreCase('Flag') || normalized.containsIgnoreCase('Review')) {
+            return MODE_FLAG;
+        } else if (normalized.equalsIgnoreCase('LogOnly') || normalized.equalsIgnoreCase('Log Only')) {
+            return MODE_LOG_ONLY;
+        }
+
+        return MODE_BLOCK;
+    }
+
+    /**
+     * @description Parses a semicolon-separated multi-select picklist value to a Set.
+     */
+    private static Set<String> parseMultiSelectPicklist(String picklistValue) {
+        if (String.isBlank(picklistValue)) {
+            return null;
+        }
+
+        Set<String> values = new Set<String>();
+        for (String value : picklistValue.split(';')) {
+            String trimmed = value.trim();
+            if (String.isNotBlank(trimmed)) {
+                values.add(trimmed);
+            }
+        }
+
+        return values.isEmpty() ? null : values;
+    }
+
+    /**
+     * @description Redacts sensitive matched content for logging.
+     */
+    private String redactIfNeeded(String matchedValue) {
+        if (String.isBlank(matchedValue)) {
+            return matchedValue;
+        }
+
+        // Truncate long matches
+        if (matchedValue.length() > 50) {
+            return matchedValue.substring(0, 47) + '...';
+        }
+
+        return matchedValue;
+    }
+
+    /**
+     * @description Logs assessment details for audit purposes.
+     */
+    private void logAssessment(ThreatAssessment assessment) {
+        Map<String, Object> summary = assessment.getSummary();
+        System.debug(LoggingLevel.INFO, LOG_PREFIX + 'AUDIT: ' + JSON.serialize(summary));
+    }
+}

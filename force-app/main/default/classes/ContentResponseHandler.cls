@@ -54,7 +54,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
         );
 
         // Use the shared decision step logger from the context
-        AgentDecisionStepLogger decisionLogger = context.decisionLogger;
+        IDecisionStepLogger.ILogger decisionLogger = context.decisionLogger;
 
         LLMInteractionService.MessageData assistantData = context.llmResult.assistantMessageData;
 

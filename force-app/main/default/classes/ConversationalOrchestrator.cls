@@ -231,10 +231,14 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
 
         try {
             // Initialize decision logger
-            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(executionId, turnIdentifier, originalUserId);
+            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(executionId, turnIdentifier, originalUserId);
+
+            // Get user and agent names for dynamic description
+            String userName = getUserName(originalUserId);
+            String agentName = getAgentName(agentDefinitionId);
 
             // Log user input
-            decisionLogger.logUserInput('User Input Received', userMessage, null);
+            decisionLogger.logUserInputWithContext('User Input Received', userMessage, null, userName, agentName);
 
             // Prepare user message data
             LLMInteractionService.MessageData currentUserMessageData = new LLMInteractionService.MessageData();
@@ -405,9 +409,9 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
 
         // Check if tool is async
         if (capability.RunAsynchronously__c == true) {
-            // Enqueue async tool execution
+            // Enqueue async tool execution with proper tracking
             AgentStateService agentStateSvc = new AgentStateService();
-            agentStateSvc.pauseForAsyncAction(executionId, newTurnIdentifier, null, capability.CapabilityName__c, logPrefix);
+            agentStateSvc.pauseForAsyncActionWithTracking(executionId, newTurnIdentifier, 1, capability.CapabilityName__c, logPrefix);
 
             AgentJobEnqueuer enqueuer = new AgentJobEnqueuer();
             enqueuer.enqueueAsyncAction(
@@ -594,10 +598,14 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
     private AgentExecutionService.ExecutionResult executeSynchronously(Id executionId, AgentExecutionService.ExecutionPayload payload, String logPrefix) {
         try {
             // Initialize decision logger
-            AgentDecisionStepLogger decisionLogger = new AgentDecisionStepLogger(executionId, payload.turnIdentifier, payload.userId);
+            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(executionId, payload.turnIdentifier, payload.userId);
+
+            // Get user and agent names for dynamic description
+            String userName = getUserName(payload.userId);
+            String agentName = getAgentName(agentDefinition.Id); // Use actual agent name instead of developer name
 
             // Log user input
-            decisionLogger.logUserInput('User Input Received', payload.userMessage, null);
+            decisionLogger.logUserInputWithContext('User Input Received', payload.userMessage, null, userName, agentName);
 
             // Prepare user message data
             LLMInteractionService.MessageData currentUserMessageData = new LLMInteractionService.MessageData();
@@ -720,5 +728,33 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
             throw new AIAgentException.OrchestrationException(errorMsg);
         }
         return (Id) payload.get(fieldName);
+    }
+
+    /**
+     * Helper method to get user name for dynamic descriptions
+     *
+     * @param userId The user ID
+     * @return User name or fallback
+     */
+    private String getUserName(Id userId) {
+        try {
+            if (userId != null) {
+                User user = [SELECT Name FROM User WHERE Id = :userId LIMIT 1];
+                return user.Name;
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, 'Could not retrieve user name for ID: ' + userId + '. Error: ' + e.getMessage());
+        }
+        return 'User';
+    }
+
+    /**
+     * Helper method to get agent name for dynamic descriptions
+     *
+     * @param agentDefinitionId The agent definition ID
+     * @return Agent name or fallback
+     */
+    private String getAgentName(Id agentDefinitionId) {
+        return AIAgentConfigService.getAgentName(agentDefinitionId);
     }
 }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PromptSafetyAuditLogging__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When enabled, all prompt safety checks are logged to AgentDecisionStep__c including threat assessments and indicators. Part of the Prompt Safety Trust Layer. This is an org-wide setting.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Enable to log all prompt safety checks for compliance and debugging (org-wide setting)</inlineHelpText>
+    <label>Prompt Safety Audit Logging</label>
+    <type>Checkbox</type>
+</CustomField>

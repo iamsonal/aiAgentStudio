@@ -62,7 +62,15 @@ public inherited sharing class AIAgentConfigService {
         'SummarizerAgent__c',
         'SummarizerAgent__r.DeveloperName__c',
         'SummarizerAgent__r.LLMConfiguration__c',
-        'SummarizerAgent__r.InstructionsPrompt__c'
+        'SummarizerAgent__r.InstructionsPrompt__c',
+        // PII Masking Trust Layer configuration fields (enable/audit flags are in AIAgentFrameworkSettings__c)
+        'PIIMaskingMode__c',
+        'SensitiveClassifications__c',
+        'PIIPatternCategories__c',
+        // Prompt Safety Trust Layer configuration fields (enable/audit flags are in AIAgentFrameworkSettings__c)
+        'PromptSafetyMode__c',
+        'SafetyThreshold__c',
+        'SafetyPatternCategories__c'
     };
 
     private static final List<String> LLM_CONFIGURATION_FIELDS = new List<String>{
@@ -480,5 +488,25 @@ public inherited sharing class AIAgentConfigService {
         if (String.isNotBlank(llmConfig.DeveloperName__c)) {
             llmConfigNameCache.put(llmConfig.DeveloperName__c.toLowerCase(), llmConfig);
         }
+    }
+
+    /**
+     * Retrieves the display name for an AI Agent Definition, preferring the actual Name over DeveloperName__c.
+     * Uses cached lookups for optimal performance.
+     *
+     * @param agentDefinitionId The ID of the AIAgentDefinition__c record.
+     * @return                  The agent's display name (Name field if available, otherwise DeveloperName__c), or 'AI Agent' as fallback.
+     */
+    public static String getAgentName(Id agentDefinitionId) {
+        try {
+            if (agentDefinitionId != null) {
+                AIAgentDefinition__c agent = getAgentDefinition(agentDefinitionId);
+                // Prefer the actual Name over DeveloperName
+                return String.isNotBlank(agent.Name) ? agent.Name : agent.DeveloperName__c;
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, 'Could not retrieve agent name for ID: ' + agentDefinitionId + '. Error: ' + e.getMessage());
+        }
+        return 'AI Agent';
     }
 }
