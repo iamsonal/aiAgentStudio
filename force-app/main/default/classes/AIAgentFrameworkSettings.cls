@@ -20,6 +20,7 @@ public inherited sharing class AIAgentFrameworkSettings {
     private static final Integer FINAL_DEFAULT_MaxToolRetries = 2;
     private static final Integer FINAL_DEFAULT_BulkConcurrencyLimit = 5; // Safe default for row locking
     private static final Integer FINAL_DEFAULT_BulkFailureThreshold = 5; // Stop after 5 failures
+    private static final Integer FINAL_DEFAULT_MaxLLMCallsPerTransaction = 2; // Allow 2 LLM calls per transaction for multi-turn optimization
     private static final String FINAL_DEFAULT_HITLApprovalNamedCredential = 'AgentStudioInternalAPI';
     private static final Boolean FINAL_DEFAULT_EnablePIIMasking = false;
     private static final Boolean FINAL_DEFAULT_EnablePromptSafety = false;
@@ -266,6 +267,25 @@ public inherited sharing class AIAgentFrameworkSettings {
         AIAgentFrameworkSettings__c instance = getInstance();
         // Default to true if the field is null (for backward compatibility)
         return instance.EnableDecisionStepLogging__c != false;
+    }
+
+    /**
+     * Gets the maximum number of LLM calls allowed per transaction for multi-turn optimization.
+     * When a sync tool doesn't perform DML or callouts, the framework can call the LLM again
+     * in the same transaction instead of queueing a follow-up job. This reduces queueable
+     * usage and improves response latency.
+     *
+     * Set to 1 to disable multi-LLM optimization (use single call per transaction).
+     * Default is 2, allowing one additional LLM call when the first tool is safe.
+     *
+     * @return The maximum number of LLM calls allowed per transaction.
+     */
+    public static Integer getMaxLLMCallsPerTransaction() {
+        AIAgentFrameworkSettings__c instance = getInstance();
+        if (instance.MaxLLMCallsPerTransaction__c != null && instance.MaxLLMCallsPerTransaction__c >= 1) {
+            return Integer.valueOf(instance.MaxLLMCallsPerTransaction__c);
+        }
+        return FINAL_DEFAULT_MaxLLMCallsPerTransaction;
     }
 
     /**

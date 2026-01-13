@@ -23,6 +23,9 @@ public inherited sharing class OrchestrationService {
     public static final String OUTCOME_QUEUED_FOLLOWUP = 'QUEUED_FOLLOWUP';
     public static final String OUTCOME_QUEUED_ACTION = 'QUEUED_ACTION';
     public static final String OUTCOME_AWAITING_CONFIRMATION = 'AWAITING_CONFIRMATION';
+    // Multi-LLM optimization: indicates handler detected conditions for immediate follow-up
+    // (sync tool executed without DML/callout, under max LLM calls limit)
+    public static final String OUTCOME_IMMEDIATE_FOLLOWUP = 'IMMEDIATE_FOLLOWUP';
 
     // Injected service dependencies
     private final AgentStateService agentStateSvc;
@@ -168,9 +171,16 @@ public inherited sharing class OrchestrationService {
             }
             return OUTCOME_FAILED;
         } finally {
-            // Commit all decision steps at the end of the transaction
-            // This ensures all logs are persisted in one transaction after all business logic and potential callouts are complete
-            decisionLogger.commitSteps();
+            // Multi-LLM optimization: When in deferred DML mode, the entry point (ConversationalOrchestrator,
+            // FollowUpLLMEngine) is responsible for committing buffered DML and decision steps after the
+            // multi-LLM loop exits. Skip commits here to allow OUTCOME_IMMEDIATE_FOLLOWUP to work.
+            if (!TransactionContext.getInstance().isDeferredDMLMode()) {
+                // Normal mode (not multi-LLM optimization): commit decision steps now
+                decisionLogger.commitSteps();
+            }
+            // Note: When in deferred mode, entry point will call:
+            // 1. TransactionContext.getInstance().commitBuffer()
+            // 2. decisionLogger.commitSteps()
         }
     }
 

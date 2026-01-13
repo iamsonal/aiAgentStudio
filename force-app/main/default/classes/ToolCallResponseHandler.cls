@@ -755,6 +755,10 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             try {
                 Long startTime = System.currentTimeMillis();
 
+                // Multi-LLM optimization: Capture Limits before tool execution
+                // This allows us to detect if the tool performed DML or callouts
+                TransactionContext.getInstance().capturePreToolLimits();
+
                 // Build action execution context
                 ActionContext actionContext = new ActionContext(
                     context.executionId,
@@ -1151,7 +1155,11 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
 
         // Commit page context to ledger
-        if (context.currentPageRecordId != null) {
+        // Skip when in deferred DML mode (function/workflow agents) since:
+        // 1. Context was already resolved upfront from the recordId
+        // 2. The DML would prevent multi-LLM optimization
+        // 3. Function agents don't need multi-turn context tracking
+        if (context.currentPageRecordId != null && !TransactionContext.getInstance().isDeferredDMLMode()) {
             try {
                 context.contextManagerSvc.commitExecutionTurnContext(context.executionId, context.currentTurnCount, context.currentPageRecordId, null);
             } catch (Exception e) {
@@ -1166,6 +1174,47 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             String limitErrorMsg = 'Maximum processing cycles (' + maxTurns + ') exceeded.';
             context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, limitErrorMsg, AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED, logPrefix);
             return OrchestrationService.OUTCOME_FAILED;
+        }
+
+        // =====================================================================================
+        // Multi-LLM Optimization: Check if we can call LLM again in the same transaction
+        // =====================================================================================
+        // This optimization reduces queueable usage by making multiple LLM calls per transaction
+        // when the intervening tool executions don't perform DML or callouts.
+        //
+        // Conditions for immediate follow-up:
+        // 1. Deferred DML mode is enabled (set by entry point)
+        // 2. The sync tool(s) did not perform DML or callouts (detected via Limits class)
+        // 3. We haven't reached the max LLM calls per transaction limit
+        //
+        // If any condition fails, we fall back to the normal queueable-based follow-up.
+        // =====================================================================================
+        TransactionContext txnCtx = TransactionContext.getInstance();
+
+        if (txnCtx.canContinueWithImmediateFollowUp()) {
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix +
+                    'Multi-LLM optimization: Conditions met for immediate follow-up. ' +
+                    'LLM call count: ' +
+                    txnCtx.getLLMCallCount() +
+                    ', Max: ' +
+                    AIAgentFrameworkSettings.getMaxLLMCallsPerTransaction()
+            );
+
+            // Return IMMEDIATE_FOLLOWUP to signal the entry point to call LLM again
+            // The entry point will handle the actual LLM call in its loop
+            return OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP;
+        }
+
+        // Multi-LLM optimization not applicable - fall back to queueable
+        // Reasons: tool performed DML/callout, max calls reached, or deferred mode not enabled
+        System.debug(LoggingLevel.INFO, logPrefix + 'Multi-LLM optimization not applicable, queueing follow-up');
+
+        // Commit buffer before queueing (if in deferred mode)
+        if (txnCtx.isDeferredDMLMode()) {
+            TransactionContext.getInstance().commitBuffer();
+            txnCtx.disableDeferredDMLMode();
         }
 
         // Queue follow-up LLM call

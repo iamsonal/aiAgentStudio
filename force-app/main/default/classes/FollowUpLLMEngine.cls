@@ -64,6 +64,9 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
      * This method validates session and turn state, invokes the LLM, processes the resulting output,
      * and handles errors. It is safe to call from Queueable jobs, Platform Events, or other asynchronous triggers.
      *
+     * Supports multi-LLM optimization: when sync tools don't perform DML/callouts, multiple LLM
+     * calls can be made in the same transaction to reduce queueable usage.
+     *
      * @param jobIdForLogging  The Apex Job ID or other identifier for logging purposes. Can be null.
      * @return                 None.
      * @throws                 Does not propagate exceptions; all errors are handled and logged internally.
@@ -82,6 +85,9 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
 
         OrchestrationService orchestrationSvc = new OrchestrationService();
         AgentStateService agentStateSvcForFailure = new AgentStateService();
+
+        // Initialize decision logger outside try for finally access
+        IDecisionStepLogger.ILogger decisionLogger = null;
 
         try {
             // Validate execution and turn state before proceeding
@@ -104,37 +110,64 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
             Id originalUserId = this.userId;
 
             // Initialize the decision step logger - single instance for the entire turn
-            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(this.executionId, this.turnIdentifier, originalUserId);
+            decisionLogger = IDecisionStepLogger.create(this.executionId, this.turnIdentifier, originalUserId);
 
-            // Perform LLM callout for follow-up interaction with decision logger
-            LLMInteractionService interactionService = new LLMInteractionService(
-                this.executionId,
-                originalUserId,
-                this.agentDefinitionId,
-                llmConfigurationId,
-                this.turnIdentifier,
-                this.currentTurnCount,
-                null,
-                this.isFinalErrorTurn,
-                decisionLogger
+            // =====================================================================================
+            // Multi-LLM Optimization: Enable deferred DML mode and track LLM calls
+            // =====================================================================================
+            TransactionContext txnCtx = TransactionContext.getInstance();
+            txnCtx.enableDeferredDMLMode();
+            txnCtx.incrementLLMCallCount();
+            txnCtx.capturePreToolLimits();
+
+            String outcome;
+            Integer currentTurnCount = this.currentTurnCount;
+
+            // Multi-LLM loop: Continue making LLM calls while conditions allow
+            do {
+                // Perform LLM callout for follow-up interaction
+                LLMInteractionService interactionService = new LLMInteractionService(
+                    this.executionId,
+                    originalUserId,
+                    this.agentDefinitionId,
+                    llmConfigurationId,
+                    this.turnIdentifier,
+                    currentTurnCount,
+                    null,
+                    this.isFinalErrorTurn,
+                    decisionLogger
+                );
+                LLMInteractionService.LLMInteractionResult llmInteractionResult = interactionService.prepareAndCallLLM(null);
+
+                // Process the LLM result
+                outcome = orchestrationSvc.processLlmResult(
+                    llmInteractionResult,
+                    this.executionId,
+                    originalUserId,
+                    executionUserId,
+                    this.agentDefinitionId,
+                    this.turnIdentifier,
+                    currentTurnCount,
+                    null,
+                    null,
+                    decisionLogger
+                );
+
+                System.debug(LoggingLevel.INFO, logPrefix + 'LLM call ' + txnCtx.getLLMCallCount() + ' completed. Outcome: ' + outcome);
+
+                // If immediate follow-up is needed, prepare for next iteration
+                if (outcome == OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP) {
+                    currentTurnCount++;
+                    txnCtx.incrementLLMCallCount();
+                    txnCtx.capturePreToolLimits();
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Multi-LLM optimization: Continuing with immediate follow-up (turn ' + currentTurnCount + ')');
+                }
+            } while (outcome == OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP);
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Follow-up LLM orchestration completed. Final outcome: ' + outcome + ', Total LLM calls: ' + txnCtx.getLLMCallCount()
             );
-            LLMInteractionService.LLMInteractionResult llmInteractionResult = interactionService.prepareAndCallLLM(null);
-
-            // Process the LLM result and update orchestration state with decision logger
-            String outcome = orchestrationSvc.processLlmResult(
-                llmInteractionResult,
-                this.executionId,
-                originalUserId,
-                executionUserId,
-                this.agentDefinitionId,
-                this.turnIdentifier,
-                this.currentTurnCount,
-                null,
-                null,
-                decisionLogger
-            );
-
-            System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up LLM orchestration outcome: ' + outcome);
         } catch (Exception ex) {
             System.debug(LoggingLevel.ERROR, logPrefix + ex.getTypeName() + ': ' + ex.getMessage() + '\n' + ex.getStackTraceString());
             try {
@@ -149,6 +182,14 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Could not update turn state: ' + failEx.getMessage());
             }
         } finally {
+            // Multi-LLM optimization: Commit any remaining buffered DML and decision steps
+            if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                TransactionContext.getInstance().commitBuffer();
+                TransactionContext.getInstance().disableDeferredDMLMode();
+            }
+            if (decisionLogger != null) {
+                decisionLogger.commitSteps();
+            }
             System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up LLM processing finished.');
         }
     }

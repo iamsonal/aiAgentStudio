@@ -143,6 +143,17 @@ public inherited sharing class ExecutionStepService {
                 AIAgentCapability__c = capabilityId
             );
 
+            // Multi-LLM optimization: Check if deferred DML mode is enabled
+            // When enabled, buffer the insert instead of executing immediately
+            // This allows subsequent LLM callouts in the same transaction
+            if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                TransactionContext.getInstance().bufferInsert(step);
+                System.debug(LoggingLevel.DEBUG, logPrefix + 'Buffered ExecutionStep__c for deferred insert. Type: ' + stepType + ' Role: ' + stepRole);
+                // Return null since record doesn't have an ID until commit
+                // Callers must handle null IDs gracefully
+                return null;
+            }
+
             insert step;
 
             System.debug(LoggingLevel.DEBUG, logPrefix + 'Created ExecutionStep__c: ' + step.Id + ' Type: ' + stepType + ' Role: ' + stepRole);
@@ -355,6 +366,13 @@ public inherited sharing class ExecutionStepService {
                 ToolRationale__c = toolRationale
             );
 
+            // Multi-LLM optimization: Check if deferred DML mode is enabled
+            if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                TransactionContext.getInstance().bufferInsert(step);
+                System.debug(LoggingLevel.DEBUG, logPrefix + 'Buffered ToolCall ExecutionStep__c for deferred insert. Tool: ' + toolName);
+                return null;
+            }
+
             insert step;
 
             System.debug(
@@ -488,6 +506,16 @@ public inherited sharing class ExecutionStepService {
                 IsResumed__c = isResumed != null ? isResumed : false
             );
 
+            // Multi-LLM optimization: Check if deferred DML mode is enabled
+            if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                TransactionContext.getInstance().bufferInsert(step);
+                System.debug(
+                    LoggingLevel.DEBUG,
+                    logPrefix + 'Buffered ToolCall ExecutionStep__c for deferred insert. Tool: ' + toolName + ' IsResumed: ' + (isResumed == true)
+                );
+                return null;
+            }
+
             insert step;
 
             System.debug(
@@ -615,6 +643,13 @@ public inherited sharing class ExecutionStepService {
                 IsResumed__c = false // Default to false for existing method
             );
 
+            // Multi-LLM optimization: Check if deferred DML mode is enabled
+            if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                TransactionContext.getInstance().bufferInsert(step);
+                System.debug(LoggingLevel.DEBUG, logPrefix + 'Buffered tool result step for deferred insert. Tool: ' + toolName);
+                return null;
+            }
+
             insert step;
 
             System.debug(
@@ -704,6 +739,16 @@ public inherited sharing class ExecutionStepService {
                 AIAgentCapability__c = capabilityId,
                 IsResumed__c = isResumed != null ? isResumed : false
             );
+
+            // Multi-LLM optimization: Check if deferred DML mode is enabled
+            if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                TransactionContext.getInstance().bufferInsert(step);
+                System.debug(
+                    LoggingLevel.DEBUG,
+                    logPrefix + 'Buffered tool result step for deferred insert. Tool: ' + toolName + ' IsResumed: ' + (isResumed == true)
+                );
+                return null;
+            }
 
             insert step;
 
@@ -889,10 +934,107 @@ public inherited sharing class ExecutionStepService {
             }
 
             System.debug(LoggingLevel.DEBUG, logPrefix + 'Executing history query for execution: ' + executionId);
-            return Database.query(query);
+            List<ExecutionStep__c> dbResults = Database.query(query);
+
+            // Multi-LLM optimization: Include buffered (not yet persisted) execution steps
+            // This ensures subsequent LLM calls in the same transaction can see tool results
+            // from earlier iterations of the multi-LLM loop
+            if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                List<ExecutionStep__c> bufferedSteps = TransactionContext.getInstance().getBufferedExecutionSteps(executionId);
+
+                if (!bufferedSteps.isEmpty()) {
+                    // Filter buffered steps based on query criteria
+                    List<ExecutionStep__c> filteredBuffered = new List<ExecutionStep__c>();
+                    Set<String> stepTypeSet = (stepTypes != null && !stepTypes.isEmpty()) ? new Set<String>(stepTypes) : null;
+
+                    for (ExecutionStep__c step : bufferedSteps) {
+                        // Apply includeInternal filter
+                        if (!includeInternal && step.IsInternal__c == true) {
+                            continue;
+                        }
+                        // Apply stepTypes filter
+                        if (stepTypeSet != null && !stepTypeSet.contains(step.StepType__c)) {
+                            continue;
+                        }
+                        filteredBuffered.add(step);
+                    }
+
+                    if (!filteredBuffered.isEmpty()) {
+                        System.debug(
+                            LoggingLevel.DEBUG,
+                            logPrefix + 'Multi-LLM optimization: Adding ' + filteredBuffered.size() + ' buffered steps to history'
+                        );
+
+                        // Merge database results with buffered steps using sortable wrappers
+                        List<ExecutionStepWrapper> wrappers = new List<ExecutionStepWrapper>();
+                        Boolean isDescending = 'DESC'.equalsIgnoreCase(order);
+
+                        for (ExecutionStep__c step : dbResults) {
+                            wrappers.add(new ExecutionStepWrapper(step, isDescending));
+                        }
+                        for (ExecutionStep__c step : filteredBuffered) {
+                            wrappers.add(new ExecutionStepWrapper(step, isDescending));
+                        }
+
+                        // Sort wrappers by timestamp
+                        wrappers.sort();
+
+                        // Extract sorted steps
+                        List<ExecutionStep__c> merged = new List<ExecutionStep__c>();
+                        for (ExecutionStepWrapper wrapper : wrappers) {
+                            merged.add(wrapper.step);
+                        }
+
+                        // Apply maxResults limit if specified
+                        if (maxResults != null && maxResults > 0 && merged.size() > maxResults) {
+                            List<ExecutionStep__c> limited = new List<ExecutionStep__c>();
+                            for (Integer i = 0; i < maxResults && i < merged.size(); i++) {
+                                limited.add(merged[i]);
+                            }
+                            return limited;
+                        }
+
+                        return merged;
+                    }
+                }
+            }
+
+            return dbResults;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to retrieve execution history: ' + e.getMessage());
             throw new ExecutionStepException('Failed to retrieve execution history: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Wrapper class for sorting ExecutionStep__c records by Timestamp.
+     * Used by getHistory() to merge and sort database results with buffered steps.
+     * Implements Comparable to enable List.sort() functionality.
+     */
+    private class ExecutionStepWrapper implements Comparable {
+        public ExecutionStep__c step;
+        private Boolean descending;
+
+        public ExecutionStepWrapper(ExecutionStep__c step, Boolean descending) {
+            this.step = step;
+            this.descending = descending;
+        }
+
+        public Integer compareTo(Object other) {
+            ExecutionStepWrapper otherWrapper = (ExecutionStepWrapper) other;
+            Datetime thisTime = this.step.Timestamp__c;
+            Datetime otherTime = otherWrapper.step.Timestamp__c;
+
+            if (thisTime == null && otherTime == null) {
+                return 0;
+            } else if (thisTime == null) {
+                return descending ? -1 : 1;
+            } else if (otherTime == null) {
+                return descending ? 1 : -1;
+            }
+
+            Integer result = thisTime < otherTime ? -1 : (thisTime > otherTime ? 1 : 0);
+            return descending ? -result : result;
         }
     }
 

@@ -266,6 +266,15 @@ public inherited sharing class AgentStateService {
         String logPrefix = LOG_PREFIX + '[updateStatus] ';
 
         try {
+            // Multi-LLM optimization: For terminal states, commit any buffered DML first
+            // This ensures all execution steps are persisted before marking the execution as complete/failed
+            Boolean isTerminalState = (executionStatus == 'Completed' || executionStatus == 'Failed' || executionStatus == 'Cancelled');
+            if (isTerminalState && TransactionContext.getInstance().isDeferredDMLMode()) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Terminal state update - committing buffered DML before state change');
+                TransactionContext.getInstance().commitBuffer();
+                TransactionContext.getInstance().disableDeferredDMLMode();
+            }
+
             AgentExecution__c execution = new AgentExecution__c(Id = executionId, ExecutionStatus__c = executionStatus, LastActivityTime__c = Datetime.now());
 
             if (String.isNotBlank(processingStatus)) {
@@ -277,7 +286,7 @@ public inherited sharing class AgentStateService {
             }
 
             // Set end time for terminal states
-            if (executionStatus == 'Completed' || executionStatus == 'Failed' || executionStatus == 'Cancelled') {
+            if (isTerminalState) {
                 execution.EndTime__c = Datetime.now();
             }
 

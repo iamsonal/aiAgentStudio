@@ -272,6 +272,73 @@ public class AgentExecutionService {
             if (userId == null) {
                 userId = UserInfo.getUserId();
             }
+
+            // Validate source record exists if provided
+            if (sourceRecordId != null) {
+                validateRecordExists(sourceRecordId, 'Source record');
+            }
+
+            // Validate current record exists if provided
+            if (currentRecordId != null && currentRecordId != sourceRecordId) {
+                validateRecordExists(currentRecordId, 'Current record');
+            }
+
+            // Validate bulk source records exist if provided
+            if (sourceRecordIds != null && !sourceRecordIds.isEmpty()) {
+                validateRecordsExist(sourceRecordIds, 'Source records');
+            }
+        }
+
+        private void validateRecordExists(Id recordId, String recordType) {
+            try {
+                // Use a generic SOQL query that works for any object type
+                List<SObject> records = Database.query('SELECT Id FROM ' + recordId.getSObjectType() + ' WHERE Id = :recordId LIMIT 1');
+                if (records.isEmpty()) {
+                    throw new AIAgentException.OrchestrationException(recordType + ' with ID ' + recordId + ' does not exist or is not accessible');
+                }
+            } catch (QueryException e) {
+                throw new AIAgentException.OrchestrationException(
+                    recordType + ' with ID ' + recordId + ' does not exist or is not accessible: ' + e.getMessage()
+                );
+            }
+        }
+
+        private void validateRecordsExist(List<Id> recordIds, String recordType) {
+            if (recordIds.isEmpty())
+                return;
+
+            // Group by object type for efficient querying
+            Map<String, List<Id>> recordsByType = new Map<String, List<Id>>();
+            for (Id recordId : recordIds) {
+                String objectType = String.valueOf(recordId.getSObjectType());
+                if (!recordsByType.containsKey(objectType)) {
+                    recordsByType.put(objectType, new List<Id>());
+                }
+                recordsByType.get(objectType).add(recordId);
+            }
+
+            // Validate each object type
+            for (String objectType : recordsByType.keySet()) {
+                List<Id> typeRecordIds = recordsByType.get(objectType);
+                try {
+                    List<SObject> existingRecords = Database.query('SELECT Id FROM ' + objectType + ' WHERE Id IN :typeRecordIds');
+                    if (existingRecords.size() != typeRecordIds.size()) {
+                        Set<Id> existingIds = new Set<Id>();
+                        for (SObject record : existingRecords) {
+                            existingIds.add(record.Id);
+                        }
+                        List<Id> missingIds = new List<Id>();
+                        for (Id recordId : typeRecordIds) {
+                            if (!existingIds.contains(recordId)) {
+                                missingIds.add(recordId);
+                            }
+                        }
+                        throw new AIAgentException.OrchestrationException(recordType + ' with IDs ' + missingIds + ' do not exist or are not accessible');
+                    }
+                } catch (QueryException e) {
+                    throw new AIAgentException.OrchestrationException(recordType + ' validation failed: ' + e.getMessage());
+                }
+            }
         }
     }
 

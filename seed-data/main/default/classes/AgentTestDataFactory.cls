@@ -238,9 +238,53 @@ public with sharing class AgentTestDataFactory {
         System.debug('[Foundation] Creating core business data...');
 
         List<Account> accounts = new List<Account>{
-            new Account(Name = 'Acme Corporation', Industry = 'Technology', BillingCountry = 'USA', AnnualRevenue = 5000000),
-            new Account(Name = 'Global Logistics Ltd', Industry = 'Transportation', BillingCountry = 'UK', AnnualRevenue = 2000000),
-            new Account(Name = 'TechStart Innovations', Industry = 'Technology', BillingCountry = 'Canada', AnnualRevenue = 500000)
+            new Account(
+                Name = 'Acme Corporation',
+                Industry = 'Technology',
+                Type = 'Customer - Direct',
+                BillingCountry = 'USA',
+                BillingCity = 'San Francisco',
+                BillingState = 'CA',
+                BillingStreet = '350 Mission Street',
+                BillingPostalCode = '94105',
+                AnnualRevenue = 5000000,
+                NumberOfEmployees = 250,
+                AccountNumber = 'ACC-001234',
+                Phone = '(415) 555-0199',
+                Website = 'www.acmecorp.com',
+                Description = 'Enterprise SaaS customer since 2020. Tier 1 support contract with 4-hour SLA. 250 active users across 3 business units (Sales, Marketing, Support). Annual contract value: $500K. Renewal date: Q4 2024. Key stakeholders: Sarah Johnson (IT Director), Michael Chen (Support Manager).'
+            ),
+            new Account(
+                Name = 'Global Logistics Ltd',
+                Industry = 'Transportation',
+                Type = 'Customer - Direct',
+                BillingCountry = 'UK',
+                BillingCity = 'London',
+                BillingStreet = '1 Canada Square',
+                BillingPostalCode = 'E14 5AB',
+                AnnualRevenue = 2000000,
+                NumberOfEmployees = 150,
+                AccountNumber = 'ACC-005678',
+                Phone = '+44 20 7946 0958',
+                Website = 'www.globallogistics.co.uk',
+                Description = 'Mid-market logistics customer since 2021. Standard support package. 75 active users in operations and warehouse management. Recently completed professional services implementation. Complex legacy system integrations (SAP, Oracle WMS).'
+            ),
+            new Account(
+                Name = 'TechStart Innovations',
+                Industry = 'Technology',
+                Type = 'Customer - Direct',
+                BillingCountry = 'Canada',
+                BillingCity = 'Toronto',
+                BillingState = 'ON',
+                BillingStreet = '100 King Street West',
+                BillingPostalCode = 'M5X 1A9',
+                AnnualRevenue = 500000,
+                NumberOfEmployees = 45,
+                AccountNumber = 'ACC-009012',
+                Phone = '+1 (416) 555-0234',
+                Website = 'www.techstart.ca',
+                Description = 'Fast-growing startup customer since 2023. Basic support tier. 25 active users. High growth potential - expanded team by 50% in last 6 months. Interested in upgrading to premium features. Champion: David Martinez (CTO).'
+            )
         };
         insert accounts;
         idMap.put('Acme Account', accounts[0].Id);
@@ -316,44 +360,255 @@ public with sharing class AgentTestDataFactory {
             new Case(
                 AccountId = accounts[0].Id,
                 ContactId = contacts[0].Id,
-                Subject = 'Platform Performance Issues',
-                Description = 'Our enterprise cloud platform has been experiencing significant slowdowns during peak hours. Dashboard load times have increased from 2 seconds to over 30 seconds. This is impacting our entire organization and we need urgent assistance.',
+                Subject = 'URGENT: Platform Performance Issues - Dashboard Timeouts',
+                Description = '🔴 URGENCY: HIGH\n\n' +
+                    '=== ISSUE DETAILS ===\n' +
+                    'Problem: Enterprise dashboard timing out during peak hours (9-11am PST)\n' +
+                    'Error Message: "Request timeout after 30s" in browser console (Error Code: PERF-504)\n' +
+                    'First Occurred: 3 days ago (coincides with platform update v2.4.1)\n' +
+                    'Frequency: Daily, consistent during business hours\n\n' +
+                    '=== BUSINESS IMPACT ===\n' +
+                    '• 50+ users across Sales, Marketing, and Executive teams unable to access real-time metrics\n' +
+                    '• Q1 Sales Review meeting delayed (scheduled for tomorrow)\n' +
+                    '• Executive dashboard visibility completely blocked\n' +
+                    '• Revenue at Risk: $500K annual contract up for renewal in 60 days\n\n' +
+                    '=== TECHNICAL DETAILS ===\n' +
+                    '• Dashboard load time: Previously 2s, now 30s+ (timeout)\n' +
+                    '• Browser: Chrome 120.0, Firefox 121.0 (consistent across browsers)\n' +
+                    '• Network: Corporate network, 100Mbps+ stable connection\n' +
+                    '• Workaround: Users reverting to legacy reports (missing key features, slower)\n\n' +
+                    '=== CUSTOMER SENTIMENT ===\n' +
+                    'Escalated to VP level (Sarah Johnson). Customer frustration high. Renewal conversation at risk.\n\n' +
+                    'Contact: Sarah Johnson (IT Director) - Available for screen share 2-4pm PST',
                 Status = 'New',
                 Priority = 'High',
-                Origin = 'Email'
+                Origin = 'Email',
+                Type = 'Problem',
+                Reason = 'Performance'
             ),
             new Case(
                 AccountId = accounts[0].Id,
                 ContactId = contacts[1].Id,
-                Subject = 'Unable to Access Reports Module',
-                Description = 'Since yesterday, our team cannot access the reports module. When clicking on the Reports tab, we receive an error: "Module not available". This is blocking our end-of-quarter analysis.',
+                Subject = 'Unable to Access Reports Module - Error 403',
+                Description = '⚠️ ISSUE SUMMARY\n\n' +
+                    '=== PROBLEM ===\n' +
+                    'Since yesterday (2:00 PM EST), our support team (12 users) cannot access the Reports module.\n' +
+                    'Error: "Module not available - Access Denied (Error Code: AUTH-403)"\n\n' +
+                    '=== STEPS TO REPRODUCE ===\n' +
+                    '1. Login as Support Manager or Support Agent\n' +
+                    '2. Navigate to Reports tab\n' +
+                    '3. Click any report folder\n' +
+                    '4. Error appears immediately\n\n' +
+                    '=== BUSINESS IMPACT ===\n' +
+                    '• Blocking end-of-quarter performance analysis (due Friday)\n' +
+                    '• Team KPI dashboards inaccessible\n' +
+                    '• Manual data pulls required (adding 2 hours/day overhead)\n' +
+                    '• Impact Level: Medium - workaround exists but inefficient\n\n' +
+                    '=== WHAT CHANGED ===\n' +
+                    'IT ran user permission audit yesterday morning. May have affected report access permissions.\n\n' +
+                    '=== ATTEMPTED FIXES ===\n' +
+                    '• Cleared browser cache - No change\n' +
+                    '• Tried different browsers - Same error\n' +
+                    '• Logged out/in - Issue persists\n' +
+                    '• Admin access works fine - Issue only affects Support team\n\n' +
+                    'Contact: Michael Chen (Support Manager) - michael.chen@acme.com',
                 Status = 'Working',
                 Priority = 'Medium',
-                Origin = 'Web'
+                Origin = 'Web',
+                Type = 'Problem',
+                Reason = 'Permissions'
             ),
             new Case(
                 AccountId = accounts[1].Id,
                 ContactId = contacts[2].Id,
-                Subject = 'Integration with Legacy System Failed',
-                Description = 'We completed the implementation services last week, but the integration with our legacy inventory system is not working. Orders are not syncing correctly.',
+                Subject = 'CRITICAL: Legacy System Integration Failure - Orders Not Syncing',
+                Description = '🔴 CRITICAL - BUSINESS OPERATIONS IMPACTED\n\n' +
+                    '=== SITUATION ===\n' +
+                    'Implementation services completed last week. Integration with Oracle WMS (Warehouse Management System) failing since go-live on Monday.\n' +
+                    'Error: "Connection timeout - Host unreachable (Error Code: INT-408)"\n\n' +
+                    '=== BUSINESS IMPACT - CRITICAL ===\n' +
+                    '• Orders NOT syncing to warehouse system\n' +
+                    '• 150+ orders in queue, manual processing required\n' +
+                    '• Shipping delays: 24-48 hours behind schedule\n' +
+                    '• Customer complaints increasing\n' +
+                    '• Daily Revenue Impact: ~$50K in delayed shipments\n' +
+                    '• Operations team working overtime to manually process\n\n' +
+                    '=== TECHNICAL DETAILS ===\n' +
+                    'Source System: Your platform (Order Management)\n' +
+                    'Target System: Oracle WMS v12.2 (on-premises)\n' +
+                    'Integration Method: REST API calls every 5 minutes\n' +
+                    'Endpoint: https://wms.globallogistics.internal/api/v1/orders\n' +
+                    'Authentication: API Key (confirmed valid, expires 2025-12-31)\n\n' +
+                    '=== ERROR LOGS ===\n' +
+                    '2024-01-15 09:23:15 - Connection attempt #1 - TIMEOUT (30s)\n' +
+                    '2024-01-15 09:28:20 - Connection attempt #2 - TIMEOUT (30s)\n' +
+                    '2024-01-15 09:33:25 - Retry queue building up - 47 orders pending\n\n' +
+                    '=== SUSPECTED CAUSE ===\n' +
+                    'IT team suspects firewall rules may have been reset during weekend network maintenance.\n' +
+                    'Need to coordinate with customer IT to verify:\n' +
+                    '1. Firewall whitelist includes your IP ranges\n' +
+                    '2. Port 443 open for HTTPS traffic\n' +
+                    '3. API endpoint accessible from external network\n\n' +
+                    '=== URGENCY ===\n' +
+                    'IMMEDIATE RESPONSE NEEDED. Customer exec team involved. Account at risk.\n\n' +
+                    'Primary Contact: Emma Williams (Operations Lead) - +44 20 7946 0958\n' +
+                    'Technical Contact: IT Infrastructure Team - Available for joint troubleshooting call ASAP',
                 Status = 'Escalated',
                 Priority = 'High',
-                Origin = 'Phone'
+                Origin = 'Phone',
+                Type = 'Problem',
+                Reason = 'Installation'
             ),
             new Case(
                 AccountId = accounts[2].Id,
                 ContactId = contacts[3].Id,
-                Subject = 'Request for Additional User Licenses',
-                Description = 'Our team has grown and we need to add 10 more user licenses to our current subscription.',
-                Status = 'Closed',
+                Subject = 'Request for Additional User Licenses - Team Expansion',
+                Description = '📋 LICENSE REQUEST\n\n' +
+                    '=== REQUEST DETAILS ===\n' +
+                    'Our team has grown significantly and we need to add 10 more user licenses to accommodate new hires.\n\n' +
+                    '=== BUSINESS CONTEXT ===\n' +
+                    '• Current License Count: 25 users\n' +
+                    '• Requested Additional Licenses: 10 users\n' +
+                    '• New Total: 35 users\n' +
+                    '• Reason: Successful Series A funding, expanding Engineering and Sales teams\n' +
+                    '• Timeline: Need licenses activated by next Monday (new hire onboarding)\n\n' +
+                    '=== CURRENT USAGE ===\n' +
+                    '• Active Users: 25/25 (at capacity)\n' +
+                    '• Average Daily Active Users: 23\n' +
+                    '• License Utilization: 92%\n\n' +
+                    '=== ADDITIONAL REQUESTS ===\n' +
+                    '• Please provide pricing quote for 10 additional licenses\n' +
+                    '• Confirm if pro-rated to current subscription end date (Aug 2024)\n' +
+                    '• Interested in volume discount discussion for future growth\n\n' +
+                    '=== DECISION MAKER ===\n' +
+                    'David Martinez (CTO) - Approved budget for expansion\n' +
+                    'PO ready to issue upon quote receipt\n\n' +
+                    'Contact: david.martinez@techstart.com | +1 (416) 555-0234',
+                Status = 'New',
                 Priority = 'Low',
-                Origin = 'Web'
+                Origin = 'Web',
+                Type = 'Feature Request',
+                Reason = 'Enhancement'
             )
         };
         insert cases;
         idMap.put('Performance Case', cases[0].Id);
         idMap.put('Reports Case', cases[1].Id);
         idMap.put('Integration Case', cases[2].Id);
+
+        // Add Tasks to show case progression
+        List<Task> caseTasks = new List<Task>{
+            new Task(
+                WhatId = cases[0].Id, // Performance case
+                Subject = 'Initial triage - Review error logs and system metrics',
+                Status = 'Completed',
+                Priority = 'High',
+                ActivityDate = Date.today().addDays(-2),
+                Description = 'Reviewed dashboard performance logs. Identified slow query patterns in widget rendering. Average query time increased from 200ms to 15s after v2.4.1 deployment.'
+            ),
+            new Task(
+                WhatId = cases[0].Id,
+                Subject = 'Investigate database query performance',
+                Status = 'Completed',
+                Priority = 'High',
+                ActivityDate = Date.today().addDays(-1),
+                Description = 'Found N+1 query pattern in dashboard widgets. Main dashboard making 50+ database calls instead of optimized batch queries. Caching layer bypassed in recent update.'
+            ),
+            new Task(
+                WhatId = cases[0].Id,
+                Subject = 'Develop and test performance fix',
+                Status = 'In Progress',
+                Priority = 'High',
+                ActivityDate = Date.today(),
+                Description = 'Engineering team developing query optimization patch. Target: Reduce DB calls from 50+ to 5-8 using batch loading. ETA: Hotfix ready for testing by EOD.'
+            ),
+            new Task(
+                WhatId = cases[1].Id, // Reports case
+                Subject = 'Verify user permissions in Setup',
+                Status = 'Completed',
+                Priority = 'Medium',
+                ActivityDate = Date.today().addDays(-1),
+                Description = 'Checked Support Manager and Support Agent profiles. Reports Viewer permission was accidentally removed during yesterday\'s permission audit. Root cause identified.'
+            ),
+            new Task(
+                WhatId = cases[1].Id,
+                Subject = 'Restore Reports Viewer permission for Support team',
+                Status = 'In Progress',
+                Priority = 'Medium',
+                ActivityDate = Date.today(),
+                Description = 'Re-enabling Reports Viewer permission on Support profiles. Need to test with 2-3 users before rolling out to entire team (12 users).'
+            ),
+            new Task(
+                WhatId = cases[2].Id, // Integration case
+                Subject = 'Schedule technical call with customer IT team',
+                Status = 'Completed',
+                Priority = 'High',
+                ActivityDate = Date.today().addDays(-1),
+                Description = 'Call scheduled for today 10am GMT. Agenda: (1) Verify firewall rules, (2) Test API endpoint accessibility, (3) Review authentication credentials.'
+            ),
+            new Task(
+                WhatId = cases[2].Id,
+                Subject = 'Test API connectivity from external network',
+                Status = 'In Progress',
+                Priority = 'High',
+                ActivityDate = Date.today(),
+                Description = 'Working with customer IT to whitelist integration server IPs. Testing connection from our staging environment to their Oracle WMS endpoint. Initial tests showing DNS resolution working but connection refused - likely firewall blocking port 443.'
+            ),
+            new Task(
+                WhatId = cases[3].Id, // License request case
+                Subject = 'Generate quote for 10 additional user licenses',
+                Status = 'Completed',
+                Priority = 'Low',
+                ActivityDate = Date.today().addDays(-3),
+                Description = 'Quote generated: 10 licenses @ $400/user/year = $4,000 total. Pro-rated to subscription end date (Aug 2024): $2,400. Quote sent to David Martinez.'
+            )
+        };
+        insert caseTasks;
+
+        // Add Case Comments for historical context
+        List<CaseComment> caseComments = new List<CaseComment>{
+            new CaseComment(
+                ParentId = cases[0].Id, // Performance case
+                CommentBody = '[Customer - Sarah Johnson] Dashboard performance has gotten significantly worse over the past 3 days. Our executive team can\'t access their KPI dashboards during morning meetings. This is becoming a serious issue - we have our quarterly business review tomorrow and need this resolved ASAP.',
+                IsPublished = true
+            ),
+            new CaseComment(
+                ParentId = cases[0].Id,
+                CommentBody = '[Internal - Support Engineer] Initial investigation shows the issue started immediately after the v2.4.1 platform update deployed on Friday evening. Timeline correlates perfectly with customer complaints. Dashboard query performance degraded significantly - seeing 15+ second response times vs. previous 200ms baseline.',
+                IsPublished = false
+            ),
+            new CaseComment(
+                ParentId = cases[0].Id,
+                CommentBody = '[Internal - Engineering Team] Root cause identified: Recent refactoring introduced N+1 query antipattern in dashboard widget loader. Each widget making individual DB calls instead of batch queries. Caching layer also accidentally disabled in config merge. Hotfix in development - targeting deployment tonight with customer approval.',
+                IsPublished = false
+            ),
+            new CaseComment(
+                ParentId = cases[1].Id, // Reports case
+                CommentBody = '[Customer - Michael Chen] Just following up - our support team still can\'t access any reports. We tried all the basic troubleshooting (cache clear, different browsers, logout/login) with no luck. It seems like a permissions issue since our admin account can access reports fine.',
+                IsPublished = true
+            ),
+            new CaseComment(
+                ParentId = cases[1].Id,
+                CommentBody = '[Internal - Support Engineer] Confirmed this is a permissions issue. The "Reports Viewer" permission was removed from the Support Manager and Support Agent profiles during yesterday\'s security audit. Easy fix - just need to re-enable the permission. Testing with pilot user group before rolling out to all 12 affected users.',
+                IsPublished = false
+            ),
+            new CaseComment(
+                ParentId = cases[2].Id, // Integration case
+                CommentBody = '[Customer - Emma Williams] This is becoming critical. We now have over 150 orders stuck in the queue that aren\'t syncing to our warehouse system. Our operations team is manually processing these but it\'s not sustainable. We\'re falling 2 days behind on shipments and getting customer complaints. Need immediate help on this integration issue.',
+                IsPublished = true
+            ),
+            new CaseComment(
+                ParentId = cases[2].Id,
+                CommentBody = '[Internal - Implementation Team] Spoke with customer IT. During weekend network maintenance, their firewall rules were reset to default settings. Our integration server IPs were removed from the whitelist. Customer IT is re-adding the IP ranges now. We should see connection restored within the hour. Will monitor sync queue to ensure orders start flowing.',
+                IsPublished = false
+            ),
+            new CaseComment(
+                ParentId = cases[2].Id,
+                CommentBody = '[Internal - Update] Firewall rules updated. Test connection successful from our staging environment to their Oracle WMS API endpoint. Orders are now syncing correctly. Backlog of 150+ orders should process within next 2-3 hours. Recommended to customer: Add our IP ranges to their firewall change control process to prevent future incidents.',
+                IsPublished = false
+            )
+        };
+        insert caseComments;
 
         List<Opportunity> opportunities = new List<Opportunity>{
             new Opportunity(
@@ -378,6 +633,53 @@ public with sharing class AgentTestDataFactory {
         insert opportunities;
         idMap.put('Acme Opportunity', opportunities[0].Id);
 
+        // Add Opportunity Products for richer context
+        List<OpportunityLineItem> oppProducts = new List<OpportunityLineItem>{
+            new OpportunityLineItem(
+                OpportunityId = opportunities[0].Id, // Acme expansion
+                PricebookEntryId = pbes[0].Id, // Enterprise Cloud Platform License
+                Quantity = 50,
+                UnitPrice = 1000,
+                Description = 'Expansion: 50 additional user licenses for Sales and Marketing teams. Upgrade from 250 to 300 total users.'
+            ),
+            new OpportunityLineItem(
+                OpportunityId = opportunities[0].Id,
+                PricebookEntryId = pbes[2].Id, // Premium Support Package
+                Quantity = 1,
+                UnitPrice = 15000,
+                Description = 'Renewal: Premium support package with 4-hour SLA for expanded team (300 users). Includes dedicated CSM and quarterly business reviews.'
+            ),
+            new OpportunityLineItem(
+                OpportunityId = opportunities[0].Id,
+                PricebookEntryId = pbes[1].Id, // Professional Services
+                Quantity = 40,
+                UnitPrice = 250,
+                Description = 'Professional Services: 40 hours for implementation support, custom integration development, and user training for new team members.'
+            ),
+            new OpportunityLineItem(
+                OpportunityId = opportunities[1].Id, // TechStart new customer
+                PricebookEntryId = pbes[0].Id, // Enterprise Cloud Platform License
+                Quantity = 35,
+                UnitPrice = 1200,
+                Description = 'New Customer: 35 user licenses for entire team. Initial deployment across Engineering (20 users) and Sales (15 users) departments.'
+            ),
+            new OpportunityLineItem(
+                OpportunityId = opportunities[1].Id,
+                PricebookEntryId = pbes[1].Id, // Professional Services
+                Quantity = 200,
+                UnitPrice = 250,
+                Description = 'Professional Services: Full implementation package (200 hours) including system setup, data migration, custom configuration, and comprehensive user training.'
+            ),
+            new OpportunityLineItem(
+                OpportunityId = opportunities[1].Id,
+                PricebookEntryId = pbes[2].Id, // Premium Support
+                Quantity = 1,
+                UnitPrice = 8000,
+                Description = 'Standard Support Package: 12-hour SLA, email and phone support, access to knowledge base and community forums. First year included in implementation package.'
+            )
+        };
+        insert oppProducts;
+
         List<Lead> leads = new List<Lead>{
             new Lead(
                 FirstName = 'Jennifer',
@@ -389,21 +691,62 @@ public with sharing class AgentTestDataFactory {
                 Status = 'Open - Not Contacted',
                 LeadSource = 'Web',
                 Industry = 'Manufacturing',
+                NumberOfEmployees = 250,
+                AnnualRevenue = 50000000,
                 Rating = null,
-                Description = 'Downloaded whitepaper on cloud migration strategies. Company has 200+ employees.'
+                Description = 'HIGH-INTENT LEAD - Downloaded whitepaper: "Cloud Migration Strategies for Manufacturing". ' +
+                    '\n\n📊 ENGAGEMENT SIGNALS:\n' +
+                    '• Content Downloads: 2 (Cloud Migration Whitepaper, ROI Calculator)\n' +
+                    '• Webinar Attendance: Attended "Digital Transformation for Manufacturers" (Jan 10, 2024)\n' +
+                    '• Website Activity: Viewed pricing page 3x, spent 12 minutes on Enterprise features page\n' +
+                    '• Email Engagement: 85% open rate, clicked "Schedule Demo" link twice\n\n' +
+                    '🏢 FIRMOGRAPHICS:\n' +
+                    '• Company Size: 250 employees\n' +
+                    '• Annual Revenue: $50M\n' +
+                    '• Industry: Manufacturing (Industrial Equipment)\n' +
+                    '• Location: Midwest USA\n\n' +
+                    '💡 PAIN POINTS & BUYING SIGNALS:\n' +
+                    '• Current Challenge: "Legacy ERP system limiting growth and visibility"\n' +
+                    '• Timeline: Q2 2024 decision (mentioned in webinar Q&A)\n' +
+                    '• Budget: $200K allocated for cloud transformation project\n' +
+                    '• Decision Committee: VP Operations (Jennifer), CIO, CFO\n' +
+                    '• Competitor Eval: Also evaluating 2 competitors (mentioned on discovery call)\n\n' +
+                    '🎯 QUALIFICATION NOTES:\n' +
+                    'Strong HOT lead - Enterprise buyer, clear pain point, active budget, senior decision-maker engaged. Recommend immediate sales follow-up.'
             ),
             new Lead(
                 FirstName = 'Robert',
                 LastName = 'Taylor',
                 Company = 'Startup Co',
-                Title = 'Founder',
+                Title = 'Founder & CEO',
                 Email = 'robert@startupco.com',
                 Phone = '555-0102',
                 Status = 'Open - Not Contacted',
                 LeadSource = 'Referral',
                 Industry = 'Technology',
+                NumberOfEmployees = 12,
+                AnnualRevenue = 800000,
                 Rating = null,
-                Description = 'Small startup, looking for affordable solutions. Limited budget.'
+                Description = 'EARLY-STAGE STARTUP - Referred by existing customer (TechStart Innovations). ' +
+                    '\n\n📊 ENGAGEMENT SIGNALS:\n' +
+                    '• Referral Source: David Martinez (TechStart CTO) - warm introduction\n' +
+                    '• Initial Contact: Brief phone inquiry about pricing\n' +
+                    '• Content Downloads: 1 (Startup pricing guide)\n' +
+                    '• Website Activity: Minimal - viewed homepage and pricing page once\n\n' +
+                    '🏢 FIRMOGRAPHICS:\n' +
+                    '• Company Size: 12 employees (seed stage)\n' +
+                    '• Annual Revenue: ~$800K (bootstrapped)\n' +
+                    '• Industry: Technology (B2B SaaS)\n' +
+                    '• Location: Austin, TX\n' +
+                    '• Stage: Seed - Pre Series A\n\n' +
+                    '💡 PAIN POINTS & BUYING SIGNALS:\n' +
+                    '• Current Challenge: "Need affordable solution to manage growing customer base"\n' +
+                    '• Budget Constraint: Looking for starter tier, very price sensitive\n' +
+                    '• Timeline: "Exploring options, no immediate urgency"\n' +
+                    '• Decision Maker: Founder (Robert) has full authority\n' +
+                    '• Competition: Also considering free/open-source alternatives\n\n' +
+                    '🎯 QUALIFICATION NOTES:\n' +
+                    'COLD lead - Very small company, limited budget, no urgent timeline. However, strong referral source and high growth potential if they secure Series A funding. Consider for startup/SMB nurture program rather than enterprise sales track.'
             )
         };
         insert leads;
@@ -730,8 +1073,8 @@ public with sharing class AgentTestDataFactory {
         AgentCapability__c updateLeadCap = createCapability(
             agent.Id,
             'update_lead_rating',
-            'Updates the lead rating field based on qualification analysis. Valid `Rating` values:\n- `"Hot"` - Enterprise company, senior title, strong engagement\n- `"Warm"` - Mid-market company, manager title, some engagement\n- `"Cold"` - Small company, junior title, passive engagement\n\nUse this after analyzing lead data to prioritize for the sales team.',
-            '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"The 18-character Lead ID to update."},"recordData":{"type":"object","properties":{"Rating":{"type":"string","enum":["Hot","Warm","Cold"],"description":"Lead qualification rating"}},"additionalProperties":true}},"required":["recordId","recordData"]}',
+            'Updates the lead rating field based on qualification analysis. Valid `Rating` values and qualification criteria:\n\n**"Hot"** - High-priority, enterprise leads:\n  • Company: 500+ employees OR ≥$50M annual revenue\n  • Title: C-level, VP, SVP, EVP, or Director\n  • Engagement: 2+ touchpoints (downloads, webinars, demos, multiple page views)\n  • Budget/Timeline: Active budget, specific timeline, urgent need\n  • Example: "VP Operations, 250 employees, $50M revenue, attended 2 webinars, Q2 budget"\n\n**"Warm"** - Mid-market qualified leads:\n  • Company: 50-500 employees OR $5M-$50M revenue\n  • Title: Manager, Senior Manager, Team Lead, Supervisor\n  • Engagement: 1-2 activities (content download, pricing view, form submission)\n  • Budget/Timeline: Exploring, no immediate urgency\n  • Example: "IT Manager, 75 employees, downloaded whitepaper"\n\n**"Cold"** - Low-priority/nurture leads:\n  • Company: <50 employees OR <$5M revenue OR unknown\n  • Title: Coordinator, Associate, Analyst, Junior, or missing\n  • Engagement: Minimal (single page view, generic inquiry)\n  • Budget/Timeline: No budget, price-sensitive, very early stage\n  • Example: "Coordinator, 12 employees, $800K revenue, minimal activity"\n\n**Special Rules:**\n• Strong customer referral: Boost one level\n• Fortune 500: Always Hot\n• 3+ engagement signals: Boost one level\n\nUse this tool IMMEDIATELY after analyzing lead context. DO NOT provide text explanations.',
+            '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"The 18-character Lead ID to update. MUST start with \'00Q\'. Extract from lead context - never fabricate IDs.","examples":["00QXX000004ABCDEF","00Q5500000AbCdEfG"],"pattern":"^00Q[a-zA-Z0-9]{15}$"},"recordData":{"type":"object","properties":{"Rating":{"type":"string","enum":["Hot","Warm","Cold"],"description":"Lead qualification rating based on company size, title seniority, and engagement level. Choose using the criteria in tool description.","examples":["Hot","Warm","Cold"]}},"required":["Rating"],"additionalProperties":false}},"required":["recordId","recordData"],"additionalProperties":false}',
             'Standard',
             'UpdateRecord',
             null,
@@ -776,8 +1119,8 @@ public with sharing class AgentTestDataFactory {
             createCapability(
                 agent.Id,
                 'find_opportunities',
-                'Searches for opportunities associated with a specific account. Returns up to 10 opportunities with `Name`, `StageName`, `Amount`, `CloseDate`, and `Probability`. Use this to:\n- List opportunities for an account\n- Analyze sales pipeline\n- Review opportunity status and stages',
-                '{"type":"object","properties":{"accountId":{"type":"string","description":"The Salesforce Account ID to search opportunities for"}},"required":["accountId"]}',
+                'Searches for opportunities associated with a specific account. Returns up to 10 most recent opportunities with `Name`, `StageName`, `Amount`, `CloseDate`, and `Probability`. Use this to:\n- List all opportunities for a specific account\n- Analyze sales pipeline and deal flow\n- Review opportunity status, stages, and amounts\n- Identify which opportunities need attention\n\n**Example Use Case:** When user asks "Show me opportunities for Acme Corp", first get the account ID, then call this tool with that accountId to retrieve all related opportunities.\n\n**Workflow:**\n1. User mentions account name\n2. Search for account to get ID\n3. Call find_opportunities with accountId\n4. Present results with stage, amount, close date\n\n**CRITICAL:** Use valid Account ID (starts with 001) - extract from context or prior tool calls.',
+                '{"type":"object","properties":{"accountId":{"type":"string","format":"salesforce-id","description":"The 18-character Salesforce Account ID. MUST start with \'001\'. Extract from context or previous tool calls - never fabricate IDs.","examples":["001XX000004ABCDEF","0015500000AbCdEfG"],"pattern":"^001[a-zA-Z0-9]{15}$"}},"required":["accountId"],"additionalProperties":false}',
                 'Apex',
                 null,
                 'ActionOpportunity',
@@ -790,8 +1133,8 @@ public with sharing class AgentTestDataFactory {
             createCapability(
                 agent.Id,
                 'update_opportunity_stage',
-                'Updates the opportunity stage and win probability. Common `StageName` values: `"Prospecting"`, `"Qualification"`, `"Proposal"`, `"Negotiation"`, `"Closed Won"`. Use this to:\n- Move opportunities through sales pipeline\n- Update win probability percentage\n- Progress deals based on customer engagement',
-                '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"The 18-character Opportunity ID to update."},"recordData":{"type":"object","properties":{"StageName":{"type":"string","description":"Opportunity stage"},"Probability":{"type":"number","description":"Win probability (0-100)"}},"additionalProperties":true}},"required":["recordId","recordData"]}',
+                'Updates the opportunity stage and win probability based on deal progress. Valid `StageName` values and typical probability mappings:\n\n**Sales Stage Progression:**\n• "Prospecting" (10-20%) - Initial outreach, identifying opportunities\n• "Qualification" (20-40%) - Needs identified, budget confirmed, decision-makers engaged\n• "Needs Analysis" (40-60%) - Requirements gathering, solution design\n• "Proposal/Price Quote" (60-75%) - Formal proposal submitted, pricing discussed\n• "Negotiation/Review" (75-90%) - Contract terms negotiation, legal review\n• "Closed Won" (100%) - Deal signed and won\n• "Closed Lost" (0%) - Deal lost to competitor or no decision\n\n**Use this to:**\n- Move opportunities through sales pipeline as deals progress\n- Update win probability based on sales stage and deal health\n- Track deal velocity and pipeline health\n\n**Example Use Cases:**\n• Customer accepts proposal → Move to "Negotiation/Review" with 80% probability\n• Discovery call completed, budget confirmed → Move to "Qualification" with 30% probability\n• Contract signed → Move to "Closed Won" with 100% probability\n\n**CRITICAL:** Extract Opportunity ID from find_opportunities response or context - DO NOT fabricate IDs.',
+                '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"The 18-character Opportunity ID to update. MUST start with \'006\'. Extract from find_opportunities response or context - never invent IDs.","examples":["006XX000004ABCDEF","0065500000AbCdEfG"],"pattern":"^006[a-zA-Z0-9]{15}$"},"recordData":{"type":"object","properties":{"StageName":{"type":"string","enum":["Prospecting","Qualification","Needs Analysis","Proposal/Price Quote","Negotiation/Review","Closed Won","Closed Lost"],"description":"Opportunity sales stage. Choose based on deal progression and customer engagement level.","examples":["Qualification","Negotiation/Review"]},"Probability":{"type":"number","minimum":0,"maximum":100,"description":"Win probability percentage (0-100). Align with stage: Prospecting 10-20%, Qualification 20-40%, Needs Analysis 40-60%, Proposal 60-75%, Negotiation 75-90%, Closed Won 100%, Closed Lost 0%.","examples":[30,75,100]}},"required":["StageName"],"additionalProperties":false}},"required":["recordId","recordData"],"additionalProperties":false}',
                 'Standard',
                 'UpdateRecord',
                 null,
@@ -956,12 +1299,12 @@ public with sharing class AgentTestDataFactory {
             createCapability(
                 agent.Id,
                 'get_account',
-                'Retrieves comprehensive account information by account ID. Returns `Name`, `Industry`, `Type`, `AccountNumber`, `Phone`, `BillingCity`, and `AnnualRevenue`. Use this to:\n- Enrich case context with customer data\n- Assess account value and importance\n- Understand customer profile\n\n**Example:** For a case with AccountId "001XX000004ABCD", retrieve account details to determine if this is a high-value customer requiring priority handling.',
-                '{"type":"object","properties":{"Id":{"type":"string","format":"salesforce-id","description":"The 18-character Salesforce Account ID (starts with 001). Extract this from the case\'s AccountId field.","examples":["001XX000004ABCDEF"]}},"required":["Id"]}',
+                'Retrieves comprehensive account information by account ID. Returns `Name`, `Industry`, `Type`, `AccountNumber`, `Phone`, `BillingCity`, `BillingState`, `NumberOfEmployees`, `AnnualRevenue`, `Website`, and `Description`. Use this to:\n- Enrich case context with customer data (tier, SLA, contract details from Description)\n- Assess account value and importance (AnnualRevenue, NumberOfEmployees)\n- Understand customer profile and segment (Industry, Type)\n\n**Example Use Case:** For a case with AccountId "001XX000004ABCD", call this tool to retrieve account details. If AnnualRevenue > $1M, classify as high-value customer requiring priority handling.\n\n**CRITICAL:** Extract the AccountId from the case context - DO NOT invent or guess Account IDs. The case object contains an AccountId field - use that exact value.',
+                '{"type":"object","properties":{"Id":{"type":"string","format":"salesforce-id","description":"The 18-character Salesforce Account ID. MUST start with \'001\' followed by 15 alphanumeric characters. Extract this from the case\'s AccountId field - never fabricate IDs.","examples":["001XX000004ABCDEF","0015500000AbCdEfG"],"pattern":"^001[a-zA-Z0-9]{15}$"}},"required":["Id"],"additionalProperties":false}',
                 'Standard',
                 'GetRecordDetails',
                 null,
-                '{"objectApiName":"Account","defaultFields":["Id","Name","Industry","Type","AccountNumber","Phone","BillingCity","AnnualRevenue"]}',
+                '{"objectApiName":"Account","defaultFields":["Id","Name","Industry","Type","AccountNumber","Phone","BillingCity","BillingState","NumberOfEmployees","AnnualRevenue","Website","Description"]}',
                 false,
                 false,
                 false,
@@ -970,8 +1313,8 @@ public with sharing class AgentTestDataFactory {
             createCapability(
                 agent.Id,
                 'get_orders',
-                'Retrieves orders for a specific account. Returns up to 10 orders with `OrderNumber`, `Status`, `TotalAmount`, `EffectiveDate`, and `Type`. Use this to:\n- Review customer purchase history\n- Identify recent transactions\n- Understand order volume and patterns\n\n**Example:** After retrieving account information, get recent orders to assess if the case is related to a recent purchase or ongoing customer relationship.',
-                '{"type":"object","properties":{"accountId":{"type":"string","format":"salesforce-id","description":"The 18-character Salesforce Account ID (starts with 001). Use the same AccountId from the case or from the get_account call.","examples":["001XX000004ABCDEF"]}},"required":["accountId"]}',
+                'Retrieves orders for a specific account. Returns up to 10 most recent orders with `OrderNumber`, `Status`, `TotalAmount`, `EffectiveDate`, and `Type`. Use this to:\n- Review customer purchase history and relationship tenure\n- Identify recent transactions (orders in last 90 days = active customer)\n- Understand order volume, frequency, and total value\n- Assess customer engagement level for priority decision\n\n**Example Use Case:** After retrieving account info with get_account, call this tool to check purchase history. If customer has orders in last 90 days with total value > $50K, they are highly engaged and may warrant priority treatment.\n\n**Workflow:** \n1. Call get_account first to get AccountId\n2. Use that AccountId to call get_orders\n3. Look for recent orders (last 90 days) and total order value\n4. Factor this into priority decision',
+                '{"type":"object","properties":{"accountId":{"type":"string","format":"salesforce-id","description":"The 18-character Salesforce Account ID. MUST start with \'001\'. Use the AccountId from the case context or from the get_account response - never fabricate IDs.","examples":["001XX000004ABCDEF","0015500000AbCdEfG"],"pattern":"^001[a-zA-Z0-9]{15}$"}},"required":["accountId"],"additionalProperties":false}',
                 'Apex',
                 null,
                 'ActionOrder',
@@ -984,12 +1327,12 @@ public with sharing class AgentTestDataFactory {
             createCapability(
                 agent.Id,
                 'update_case_priority',
-                'Updates the case priority field. Valid `Priority` values:\n- `"High"` - Urgent/critical/blocking issues, system outages, high-value customer escalations\n- `"Medium"` - Standard problems or issues requiring timely resolution\n- `"Low"` - Minor questions or requests, informational inquiries\n\nUse this after analyzing case urgency, customer value (from account revenue), and business impact. Consider:\n- Account annual revenue (High priority for accounts > $1M)\n- Case subject/description urgency keywords\n- Recent order activity and customer relationship value',
-                '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"The 18-character Case ID to update. Extract from the case context provided.","examples":["500XX000004ABCDEF"]},"recordData":{"type":"object","properties":{"Priority":{"type":"string","enum":["High","Medium","Low"],"description":"Case priority level based on urgency and customer value analysis","examples":["High"]}},"additionalProperties":true}},"required":["recordId","recordData"]}',
+                'Updates the case priority field based on analysis of urgency, customer value, and business impact. Valid `Priority` values:\n\n**High** - Use when:\n  • Subject/description contains: "urgent", "critical", "down", "blocking", "outage", "not working", "failed"\n  • AND high-value account (AnnualRevenue > $1M) OR business operations impacted\n  • OR >50 users affected, revenue impact, customer complaints, escalated status\n\n**Medium** - Use when:\n  • Standard issue: "error", "issue", "problem", "unable to access"\n  • Active customer (recent orders in last 90 days)\n  • Moderate impact with workarounds available\n\n**Low** - Use when:\n  • Questions, feature requests, license inquiries\n  • No immediate business impact\n  • Customer has available workaround\n\n**Decision Factors (in order):**\n1. Urgency keywords in case description\n2. Account value from get_account (AnnualRevenue, NumberOfEmployees)\n3. Customer engagement from get_orders (recent order activity)\n4. Business impact severity\n\n**CRITICAL:** Extract the Case ID from the case context - DO NOT fabricate record IDs.',
+                '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"The 18-character Case ID to update. MUST start with \'500\'. Extract from the case context provided - never invent IDs.","examples":["500XX000004ABCDEF","5005500000AbCdEfG"],"pattern":"^500[a-zA-Z0-9]{15}$"},"recordData":{"type":"object","properties":{"Priority":{"type":"string","enum":["High","Medium","Low"],"description":"Case priority level. Choose based on urgency analysis + customer value assessment + business impact.","examples":["High","Medium","Low"]}},"required":["Priority"],"additionalProperties":false}},"required":["recordId","recordData"],"additionalProperties":false}',
                 'Standard',
                 'UpdateRecord',
                 null,
-                '{"objectApiName":"Case","defaultFieldValues":{"Origin":"Web"}}',
+                '{"objectApiName":"Case"}',
                 false,
                 false,
                 false,

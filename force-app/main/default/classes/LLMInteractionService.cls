@@ -25,6 +25,52 @@ public inherited sharing class LLMInteractionService {
     @TestVisible
     private static Map<String, ILLMProviderAdapter> adapterInstanceCache = new Map<String, ILLMProviderAdapter>();
 
+    // --- STATIC CACHE FOR MULTI-LLM OPTIMIZATION ---
+    // Caches system prompt, tools, and configs per execution to avoid rebuilding on subsequent LLM calls
+    // within the same transaction. This significantly reduces CPU time and SOQL queries.
+    @TestVisible
+    private static Map<Id, LLMRequestCache> requestCacheByExecution = new Map<Id, LLMRequestCache>();
+
+    /**
+     * Cache class holding reusable LLM request components for multi-LLM optimization.
+     * When making multiple LLM calls within the same transaction (multi-LLM loop),
+     * we can reuse the system prompt, tools, and configurations instead of rebuilding.
+     */
+    @TestVisible
+    private class LLMRequestCache {
+        public String systemPrompt;
+        public List<Map<String, Object>> toolsPayload;
+        public AIAgentDefinition__c agentConfig;
+        public LLMConfiguration__c llmConfig;
+        public PIIMaskingService maskingService;
+        public Datetime createdAt;
+
+        public LLMRequestCache() {
+            this.createdAt = Datetime.now();
+        }
+    }
+
+    /**
+     * Clears the LLM request cache for a specific execution.
+     * Called when deferred DML mode ends or when cache should be invalidated.
+     *
+     * @param executionId The execution ID to clear cache for
+     */
+    public static void clearRequestCache(Id executionId) {
+        if (executionId != null && requestCacheByExecution.containsKey(executionId)) {
+            requestCacheByExecution.remove(executionId);
+            System.debug(LoggingLevel.DEBUG, '[LLMInteractionService] Cleared request cache for execution: ' + executionId);
+        }
+    }
+
+    /**
+     * Clears all LLM request caches. Used for testing and transaction cleanup.
+     */
+    @TestVisible
+    private static void clearAllRequestCaches() {
+        requestCacheByExecution.clear();
+    }
+
     /**
      * Data Transfer Object containing the complete result of an LLM interaction cycle.
      *
@@ -141,67 +187,136 @@ public inherited sharing class LLMInteractionService {
         AIAgentDefinition__c agentConfig = null;
         LLMConfiguration__c llmConfig = null;
         PIIMaskingService maskingService = null;
+        String finalSystemPrompt = null;
+        List<Map<String, Object>> toolsPayload = null;
 
         try {
-            // 1. Load Core Configurations
-            agentConfig = AIAgentConfigService.getAgentDefinition(this.agentDefinitionId);
-            llmConfig = AIAgentConfigService.getLLMConfiguration(this.llmConfigurationId);
-            System.debug(
-                LoggingLevel.DEBUG,
-                logPrefix + 'Loaded configuration: Agent=' + agentConfig.DeveloperName__c + ', LLM=' + llmConfig.DeveloperName__c + ', User=' + this.userId
-            );
+            // =====================================================================================
+            // Multi-LLM Optimization: Check for cached request context
+            // When making multiple LLM calls in the same transaction (multi-LLM loop), we can
+            // reuse the system prompt, tools, and configs from the first call to save CPU/SOQL.
+            // =====================================================================================
+            Boolean useCachedContext = false;
+            LLMRequestCache cachedRequest = null;
 
-            // 1b. Create PII Masking Service early so it can be used for context data formatting
-            // This ensures schema-based PII masking works for context data in the system prompt
-            maskingService = PIIMaskingService.createForAgent(agentConfig, this.executionId);
-            if (maskingService != null) {
-                System.debug(LoggingLevel.DEBUG, logPrefix + 'PII masking service created. Mode: ' + maskingService.getMode());
+            if (TransactionContext.getInstance().isDeferredDMLMode() && requestCacheByExecution.containsKey(this.executionId)) {
+                cachedRequest = requestCacheByExecution.get(this.executionId);
+                // Only use cache if it's from the same transaction (within reasonable time window)
+                if (cachedRequest != null && cachedRequest.systemPrompt != null) {
+                    useCachedContext = true;
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Multi-LLM optimization: Using cached request context (saved system prompt rebuild)');
+                }
             }
 
-            // Create SystemPromptBuilder with decision logger and PII masking service
-            SystemPromptBuilder promptBuilder = new SystemPromptBuilder(this.decisionLogger, maskingService);
+            if (useCachedContext) {
+                // --- USE CACHED CONTEXT (subsequent LLM calls in multi-LLM loop) ---
+                agentConfig = cachedRequest.agentConfig;
+                llmConfig = cachedRequest.llmConfig;
+                maskingService = cachedRequest.maskingService;
+                finalSystemPrompt = cachedRequest.systemPrompt;
+                toolsPayload = cachedRequest.toolsPayload;
 
-            // --- 2. DELEGATE Prompt Composition ---
-            // All complex prompt assembly logic is now in one place.
-            String finalSystemPrompt = promptBuilder.build(
-                this.executionId,
-                agentConfig,
-                llmConfig,
-                this.currentPageRecordId,
-                this.currentTurnCount,
-                this.userId
-            );
+                System.debug(
+                    LoggingLevel.DEBUG,
+                    logPrefix + 'Loaded cached config: Agent=' + agentConfig.DeveloperName__c + ', LLM=' + llmConfig.DeveloperName__c
+                );
+            } else {
+                // --- BUILD FRESH CONTEXT (first LLM call or no multi-LLM mode) ---
 
-            // --- 3. AGENT-SPECIFIC PROMPT ADDITIONS ---
-            // Delegate to orchestrator for agent-type-specific prompt modifications.
-            // This keeps LLMInteractionService agent-agnostic.
-            String orchestratorAdditions = getOrchestratorPromptAdditions(
-                agentConfig,
-                this.executionId,
-                this.userId,
-                this.currentTurnCount,
-                currentTurnUserMessage,
-                this.currentPageRecordId,
-                logPrefix
-            );
+                // 1. Load Core Configurations
+                agentConfig = AIAgentConfigService.getAgentDefinition(this.agentDefinitionId);
+                llmConfig = AIAgentConfigService.getLLMConfiguration(this.llmConfigurationId);
+                System.debug(
+                    LoggingLevel.DEBUG,
+                    logPrefix + 'Loaded configuration: Agent=' + agentConfig.DeveloperName__c + ', LLM=' + llmConfig.DeveloperName__c + ', User=' + this.userId
+                );
 
-            if (String.isNotBlank(orchestratorAdditions)) {
-                finalSystemPrompt += orchestratorAdditions;
-                System.debug(LoggingLevel.INFO, logPrefix + 'Added orchestrator-specific prompt additions');
+                // 1b. Create PII Masking Service early so it can be used for context data formatting
+                // This ensures schema-based PII masking works for context data in the system prompt
+                maskingService = PIIMaskingService.createForAgent(agentConfig, this.executionId);
+                if (maskingService != null) {
+                    System.debug(LoggingLevel.DEBUG, logPrefix + 'PII masking service created. Mode: ' + maskingService.getMode());
+                }
+
+                // Create SystemPromptBuilder with decision logger and PII masking service
+                SystemPromptBuilder promptBuilder = new SystemPromptBuilder(this.decisionLogger, maskingService);
+
+                // --- 2. DELEGATE Prompt Composition ---
+                // All complex prompt assembly logic is now in one place.
+                finalSystemPrompt = promptBuilder.build(this.executionId, agentConfig, llmConfig, this.currentPageRecordId, this.currentTurnCount, this.userId);
+
+                // --- 3. AGENT-SPECIFIC PROMPT ADDITIONS ---
+                // Delegate to orchestrator for agent-type-specific prompt modifications.
+                // This keeps LLMInteractionService agent-agnostic.
+                String orchestratorAdditions = getOrchestratorPromptAdditions(
+                    agentConfig,
+                    this.executionId,
+                    this.userId,
+                    this.currentTurnCount,
+                    currentTurnUserMessage,
+                    this.currentPageRecordId,
+                    logPrefix
+                );
+
+                if (String.isNotBlank(orchestratorAdditions)) {
+                    finalSystemPrompt += orchestratorAdditions;
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Added orchestrator-specific prompt additions');
+                }
+
+                // This logic handles the "Halt and Report" error path.
+                if (this.isFinalErrorTurn) {
+                    String finalErrorInstruction =
+                        '\n\n# CRITICAL INSTRUCTIONS\n\n' +
+                        'The last tool you tried to use failed. Inform the user of this failure based on the history. ' +
+                        'Then, check if you have an alternative tool and propose it as the next step. ' +
+                        'Do not use any tools now; only generate a text response.';
+                    finalSystemPrompt += finalErrorInstruction;
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Injecting error recovery instructions into system prompt for failed tool use.');
+                }
+
+                // --- 5. Format Tool Definitions ---
+                // Pass agent config to enable tool reasoning if configured
+                // Pass executionId to enable tool exclusion based on MaxToolRetries__c
+                toolsPayload = LLMFormattingService.formatToolsForApi(agentConfig.Id, agentConfig, this.executionId, logPrefix);
+
+                // Log available tools if decision logger is available (before masking - tools don't contain PII)
+                if (this.decisionLogger != null && !toolsPayload.isEmpty()) {
+                    List<String> toolNames = new List<String>();
+                    for (Map<String, Object> tool : toolsPayload) {
+                        if (tool.containsKey('function')) {
+                            Map<String, Object> functionDef = (Map<String, Object>) tool.get('function');
+                            if (functionDef.containsKey('name')) {
+                                toolNames.add((String) functionDef.get('name'));
+                            }
+                        }
+                    }
+
+                    this.decisionLogger.logAvailableTools(
+                        'Available Tools for LLM',
+                        'List of tools made available to the LLM for this turn',
+                        JSON.serialize(new Map<String, Object>{ 'toolCount' => toolsPayload.size(), 'toolNames' => toolNames, 'tools' => toolsPayload }),
+                        null
+                    );
+                }
+
+                // --- CACHE FOR MULTI-LLM OPTIMIZATION ---
+                // If in deferred DML mode (multi-LLM context), cache the request context for subsequent calls
+                if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                    LLMRequestCache newCache = new LLMRequestCache();
+                    newCache.systemPrompt = finalSystemPrompt;
+                    newCache.toolsPayload = toolsPayload;
+                    newCache.agentConfig = agentConfig;
+                    newCache.llmConfig = llmConfig;
+                    newCache.maskingService = maskingService;
+                    requestCacheByExecution.put(this.executionId, newCache);
+                    System.debug(LoggingLevel.DEBUG, logPrefix + 'Multi-LLM optimization: Cached request context for subsequent calls');
+                }
             }
 
-            // This logic handles the "Halt and Report" error path.
-            if (this.isFinalErrorTurn) {
-                String finalErrorInstruction =
-                    '\n\n# CRITICAL INSTRUCTIONS\n\n' +
-                    'The last tool you tried to use failed. Inform the user of this failure based on the history. ' +
-                    'Then, check if you have an alternative tool and propose it as the next step. ' +
-                    'Do not use any tools now; only generate a text response.';
-                finalSystemPrompt += finalErrorInstruction;
-                System.debug(LoggingLevel.WARN, logPrefix + 'Injecting error recovery instructions into system prompt for failed tool use.');
-            }
-
+            // =====================================================================================
             // 4. Assemble the Final Message Payload for the LLM
+            // NOTE: Messages ALWAYS need to be refreshed since tool results are added between calls
+            // =====================================================================================
             List<Map<String, Object>> finalMessagesPayload = new List<Map<String, Object>>();
 
             // a. Add the single, unified system prompt as the first message.
@@ -226,31 +341,6 @@ public inherited sharing class LLMInteractionService {
                     null,
                     logPrefix,
                     'Current User Turn'
-                );
-            }
-
-            // --- 5. Format Tool Definitions ---
-            // Pass agent config to enable tool reasoning if configured
-            // Pass executionId to enable tool exclusion based on MaxToolRetries__c
-            List<Map<String, Object>> toolsPayload = LLMFormattingService.formatToolsForApi(agentConfig.Id, agentConfig, this.executionId, logPrefix);
-
-            // Log available tools if decision logger is available (before masking - tools don't contain PII)
-            if (this.decisionLogger != null && !toolsPayload.isEmpty()) {
-                List<String> toolNames = new List<String>();
-                for (Map<String, Object> tool : toolsPayload) {
-                    if (tool.containsKey('function')) {
-                        Map<String, Object> functionDef = (Map<String, Object>) tool.get('function');
-                        if (functionDef.containsKey('name')) {
-                            toolNames.add((String) functionDef.get('name'));
-                        }
-                    }
-                }
-
-                this.decisionLogger.logAvailableTools(
-                    'Available Tools for LLM',
-                    'List of tools made available to the LLM for this turn',
-                    JSON.serialize(new Map<String, Object>{ 'toolCount' => toolsPayload.size(), 'toolNames' => toolNames, 'tools' => toolsPayload }),
-                    null
                 );
             }
 
