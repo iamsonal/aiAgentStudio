@@ -7,44 +7,15 @@
  */
 
 /**
- * @description
- * Singleton class that tracks transaction state for multi-LLM optimization.
- * Manages deferred DML mode, LLM call counting, and tool safety detection
- * using the Limits class to check for DML/callouts.
- *
- * Usage:
- *   TransactionContext ctx = TransactionContext.getInstance();
- *   ctx.enableDeferredDMLMode();
- *   ctx.incrementLLMCallCount();
- *   ctx.capturePreToolLimits();
- *   // ... execute tool ...
- *   if (!ctx.toolPerformedDMLOrCallout() && ctx.canMakeAnotherLLMCall()) {
- *       // Safe to call LLM again in this transaction
- *   }
- *
- * Thread Safety:
- *   Apex is single-threaded within a transaction, so no synchronization is needed.
- *   The static instance is reset between transactions automatically.
+ * @description Singleton class that tracks transaction state for multi-LLM optimization. Manages deferred DML mode, LLM call counting, and tool safety detection.
  */
 public inherited sharing class TransactionContext {
     private static TransactionContext instance;
-
-    // Deferred DML mode flag
     private Boolean deferredDMLMode;
-
-    // LLM call tracking
     private Integer llmCallCount;
-
-    // Limits tracking for tool safety detection
     private Integer dmlCountBeforeTool;
     private Integer calloutCountBeforeTool;
-
-    // DML buffer for deferred inserts (multi-LLM optimization)
     private List<SObject> insertBuffer;
-
-    /**
-     * Private constructor to enforce singleton pattern.
-     */
     private TransactionContext() {
         this.deferredDMLMode = false;
         this.llmCallCount = 0;
@@ -66,9 +37,7 @@ public inherited sharing class TransactionContext {
         return instance;
     }
 
-    // ===================================================================================
     // DEFERRED DML MODE MANAGEMENT
-    // ===================================================================================
 
     /**
      * Enables deferred DML mode for this transaction.
@@ -80,52 +49,24 @@ public inherited sharing class TransactionContext {
         System.debug(LoggingLevel.DEBUG, '[TransactionContext] Deferred DML mode ENABLED');
     }
 
-    /**
-     * Disables deferred DML mode for this transaction.
-     * After disabling, services will execute DML immediately as normal.
-     */
     public void disableDeferredDMLMode() {
         this.deferredDMLMode = false;
         System.debug(LoggingLevel.DEBUG, '[TransactionContext] Deferred DML mode DISABLED');
     }
 
-    /**
-     * Checks if deferred DML mode is currently enabled.
-     *
-     * @return True if deferred DML mode is enabled, false otherwise.
-     */
     public Boolean isDeferredDMLMode() {
         return this.deferredDMLMode;
     }
 
-    // ===================================================================================
-    // LLM CALL TRACKING
-    // ===================================================================================
-
-    /**
-     * Increments the LLM call counter.
-     * Call this each time an LLM callout is made in the transaction.
-     */
     public void incrementLLMCallCount() {
         this.llmCallCount++;
         System.debug(LoggingLevel.DEBUG, '[TransactionContext] LLM call count: ' + this.llmCallCount);
     }
 
-    /**
-     * Gets the current LLM call count for this transaction.
-     *
-     * @return The number of LLM calls made in this transaction.
-     */
     public Integer getLLMCallCount() {
         return this.llmCallCount;
     }
 
-    /**
-     * Checks if another LLM call can be made in this transaction.
-     * Uses the configured MaxLLMCallsPerTransaction setting.
-     *
-     * @return True if under the limit, false if limit reached.
-     */
     public Boolean canMakeAnotherLLMCall() {
         Integer maxCalls = AIAgentFrameworkSettings.getMaxLLMCallsPerTransaction();
         Boolean canCall = this.llmCallCount < maxCalls;
@@ -137,14 +78,6 @@ public inherited sharing class TransactionContext {
         return canCall;
     }
 
-    // ===================================================================================
-    // TOOL SAFETY DETECTION (using Limits class)
-    // ===================================================================================
-
-    /**
-     * Captures the current DML and callout counts from the Limits class.
-     * Call this BEFORE executing a tool to establish a baseline.
-     */
     public void capturePreToolLimits() {
         this.dmlCountBeforeTool = Limits.getDMLStatements();
         this.calloutCountBeforeTool = Limits.getCallouts();
@@ -154,12 +87,6 @@ public inherited sharing class TransactionContext {
         );
     }
 
-    /**
-     * Checks if the most recently executed tool performed any DML or callouts.
-     * Call this AFTER executing a tool to determine if it's safe to continue.
-     *
-     * @return True if the tool performed DML or callouts, false if safe.
-     */
     public Boolean toolPerformedDMLOrCallout() {
         Integer currentDML = Limits.getDMLStatements();
         Integer currentCallouts = Limits.getCallouts();
@@ -215,9 +142,7 @@ public inherited sharing class TransactionContext {
         return true;
     }
 
-    // ===================================================================================
     // DML BUFFER MANAGEMENT (for deferred inserts)
-    // ===================================================================================
 
     /**
      * Buffers an SObject record for deferred insert.
@@ -267,9 +192,7 @@ public inherited sharing class TransactionContext {
         return result;
     }
 
-    // ===================================================================================
     // LIFECYCLE MANAGEMENT
-    // ===================================================================================
 
     /**
      * Resets all context state to initial values.

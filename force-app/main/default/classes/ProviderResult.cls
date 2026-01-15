@@ -7,16 +7,7 @@
  */
 
 /**
- * @description
- * ProviderResult is a data transfer object (DTO) that encapsulates the full outcome of a Large Language Model (LLM) API call.
- * It provides a structured representation of the LLM's response, including generated content, token usage metrics,
- * requested tool actions, and raw JSON payloads for downstream processing, auditing, and debugging.
- *
- * Responsibilities:
- *   - Store LLM response content and token accounting
- *   - Track tool/action requests made by the LLM
- *   - Preserve raw JSON for traceability and advanced analysis
- *   - Serve as a transport object between orchestration, logging, and UI layers
+ * @description Data transfer object that encapsulates the full outcome of an LLM API call. Includes content, token usage, and tool requests.
  */
 public class ProviderResult {
     @AuraEnabled
@@ -35,20 +26,6 @@ public class ProviderResult {
     public String modelIdentifier { get; set; }
     @AuraEnabled
     public Long llmCalloutDurationMs { get; set; }
-
-    /**
-     * Constructs a ProviderResult with all LLM response data.
-     *
-     * @param content         The text content returned by the LLM.
-     * @param promptTokens    Number of tokens used in the prompt/input.
-     * @param completionTokens Number of tokens generated in the completion/output.
-     * @param totalTokens     Total tokens consumed (prompt + completion).
-     * @param actions         List of tool/action requests made by the LLM.
-     * @param rawToolCalls    Raw JSON string of tool calls from the LLM response.
-     * @param rawAssistantMsg Raw JSON string of the complete assistant message.
-     * @param modelIdentifier The LLM model identifier (e.g., gpt-4o-mini).
-     * @param llmCalloutDurationMs The duration of the HTTP callout to the LLM provider in milliseconds.
-     */
     public ProviderResult(
         String content,
         Integer promptTokens,
@@ -71,9 +48,6 @@ public class ProviderResult {
         this.llmCalloutDurationMs = llmCalloutDurationMs;
     }
 
-    /**
-     * Default constructor. Initializes requestedActions to an empty list.
-     */
     public ProviderResult() {
         this.requestedActions = new List<Map<String, String>>();
     }

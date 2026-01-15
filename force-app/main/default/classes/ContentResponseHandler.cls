@@ -7,45 +7,18 @@
  */
 
 /**
- * @description
- * Processes LLM responses that contain only textual content (no tool calls).
- * Orchestrates message persistence, context ledger updates, memory management,
- * and completion capability execution with declarative parameter mapping.
- *
- * Includes integrated parameter mapping capabilities for deterministic,
- * template-based transformation of completion context into capability parameters.
+ * @description Processes LLM responses that contain only textual content (no tool calls). Orchestrates message persistence and completion capability execution.
  */
 public class ContentResponseHandler implements ILLMResponseHandler {
-    /**
-     * Exception thrown when completion capability invocation fails.
-     */
     public class CompletionCapabilityException extends Exception {
     }
 
-    /**
-     * Exception thrown when parameter mapping fails.
-     */
     public class MappingException extends Exception {
     }
 
-    /**
-     * Default mapping templates by agent type.
-     * These are used when CompletionParameterMapping__c is not configured.
-     */
     private static final Map<String, String> DEFAULT_MAPPINGS_BY_TYPE = new Map<String, String>{
         'Email' => '{"toAddresses": ["{{triggerMetadata.fromAddress}}"], "subject": "Re: {{triggerMetadata.emailSubject}}", "plainTextBody": "{{summary}}"}'
-        // Future agent types can be added here:
-        // 'SMS' => '{"phoneNumber": "{{triggerMetadata.fromNumber}}", "messageBody": "{{summary}}"}',
-        // 'Slack' => '{"channelId": "{{triggerMetadata.channelId}}", "message": "{{summary}}"}',
-        // etc.
     };
-    /**
-     * Handles an LLM response containing only textual content (no tool calls).
-     * Orchestrates message persistence, context ledger update, memory management, and error handling.
-     *
-     * @param context The orchestration context for the current LLM turn.
-     * @return        OUTCOME_COMPLETED if successful, OUTCOME_FAILED if validation or persistence fails.
-     */
     public String handle(OrchestrationContext context) {
         String logPrefix = context.logPrefix + '[ContentHandler] ';
         System.debug(
@@ -381,9 +354,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
         }
     }
 
-    // ===================================================================================
     // PARAMETER MAPPING - Merged from CompletionParameterMapper
-    // ===================================================================================
 
     /**
      * Gets the default mapping template for a given agent type.

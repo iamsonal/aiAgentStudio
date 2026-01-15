@@ -7,10 +7,7 @@
  */
 
 /**
- * @description
- * Executes Salesforce Flows with strongly-typed DTOs.
- * Uses DTOs for type-safe argument handling and flow input parameter processing.
- *
+ * @description Executes Salesforce Flows with strongly-typed DTOs.
  * @ActionLabel Execute Flow
  * @ActionDescription Executes a Salesforce Flow and returns its output
  * @ActionRequiresSObject false
@@ -22,23 +19,16 @@ public class ActionFlowHandler extends BaseAgentAction {
     private static final String FAULT_MESSAGE_VAR = 'faultMessage';
     private static final String OUTPUT_RESULT_VAR = 'outputResult';
 
-    // Test support: allows tests to inject mock flow results
     @TestVisible
     private static FlowExecutionMock mockFlowExecution;
 
     private ConfigDTO config;
 
-    /**
-     * @description Interface for mocking Flow execution in tests
-     */
     @TestVisible
     public interface FlowExecutionMock {
         MockFlowResult execute(String flowApiName, Map<String, Object> flowParams);
     }
 
-    /**
-     * @description Mock result container for test injection
-     */
     @TestVisible
     public class MockFlowResult {
         public Boolean success;

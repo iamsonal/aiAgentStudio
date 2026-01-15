@@ -7,22 +7,7 @@
  */
 
 /**
- * @description
- * ConversationalChatController is the Lightning Web Component controller for conversational chat sessions in the AI Agent Framework.
- * This controller serves as a thin UI layer that delegates all execution logic to AgentExecutionService.
- *
- * Responsibilities:
- *   - Manages conversational chat session lifecycle, including creation, validation, and access control
- *   - Serves as a simple passthrough to AgentExecutionService for message processing
- *   - Provides secure, filtered access to conversation history for UI display
- *   - Translates AgentExecutionService results into UI-friendly response formats
- *   - Surfaces operational and configuration issues clearly via debug output for maintainability
- *
- * Architectural Note:
- *   This controller does NOT handle service user context switching or execution routing. All such logic
- *   is centralized in AgentExecutionService to ensure a single, predictable execution path for all agent types.
- *
- * This class is not intended to be instantiated or extended.
+ * @description Lightning Web Component controller for conversational chat sessions. Thin UI layer that delegates execution logic to AgentExecutionService.
  */
 public with sharing class ConversationalChatController {
     public class ConfigurationException extends AIAgentException {
@@ -38,16 +23,7 @@ public with sharing class ConversationalChatController {
     }
 
     /**
-     * Processes a user message for a given agent execution.
-     * This method serves as a simple passthrough to AgentExecutionService, which handles all routing logic
-     * including service user context switching when required.
-     *
-     * @param sessionId      The ID of the agent execution (AgentExecution__c).
-     * @param userMessage    The message content from the user.
-     * @param currentRecordId The current record context, if any.
-     * @param turnIdentifier The unique identifier for the current turn.
-     * @return               A response map containing success, message, and error details for the UI.
-     * @throws AuraHandledException for validation or access errors.
+     * Processes a user message for a given agent execution. Delegates to AgentExecutionService for all routing logic.
      */
     @AuraEnabled
     public static Map<String, Object> sendMessage(Id sessionId, String userMessage, Id currentRecordId, String turnIdentifier) {
@@ -390,7 +366,6 @@ public with sharing class ConversationalChatController {
             SessionDetails response = new SessionDetails();
             response.sessionId = executions[0].Id; // Returns AgentExecution__c ID for UI compatibility
 
-            // --- Start of Merged Logic ---
             String template = agentDef.WelcomeMessageTemplate__c;
             if (String.isNotBlank(template)) {
                 String processedMessage = template.replace('{User.FirstName}', UserInfo.getFirstName());

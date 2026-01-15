@@ -7,60 +7,26 @@
  */
 
 /**
- * ToolCallResponseHandler orchestrates the full lifecycle of tool call requests originating from LLM responses within the agent framework.
- *
- * Responsibilities:
- *   - Validates and interprets tool call requests from LLM output (single or multiple)
- *   - Determines whether tool execution requires human approval or can proceed autonomously
- *   - Manages both synchronous and asynchronous execution paths for tool actions, including queuing and follow-up
- *   - Handles parallel tool execution by grouping tools into Sync/Async/Approval buckets
- *   - Integrates with chat history, approval processes, and orchestration services to maintain robust conversation and action state
- *   - Ensures traceability and error handling throughout the tool call process, providing clear runtime diagnostics and developer insight
- *
- * Consolidated from ParallelToolCallHandler to eliminate code duplication and normalize list-based processing.
+ * @description Orchestrates the full lifecycle of tool call requests from LLM responses. Handles validation, approval, and execution paths.
  */
 public class ToolCallResponseHandler implements ILLMResponseHandler {
     public class ToolProcessingException extends AIAgentException {
     }
 
-    /**
-     * Data structure to hold information about a parsed tool call request
-     */
     public class ToolCallRequest {
         public String toolCallId;
         public String toolName;
         public String toolArguments;
         public AgentCapability__c capability;
         public Boolean isAsync;
-        public String hitlMode; // Blank/null (no HITL), Confirmation, Approval, ConfirmationThenApproval
+        public String hitlMode;
         public Integer executionOrder;
         public String rationale;
 
-        /**
-         * Constructs a ToolCallRequest with validation for execution mode constraints.
-         *
-         * @param toolCallId The unique identifier for this tool call from the LLM
-         * @param toolName The name of the tool/capability
-         * @param toolArguments JSON string of arguments from the LLM
-         * @param capability The AgentCapability__c record defining the tool
-         * @param executionOrder The order in which this tool was requested (1-based)
-         * @throws ToolProcessingException if capability has invalid execution mode configuration
-         */
         public ToolCallRequest(String toolCallId, String toolName, String toolArguments, AgentCapability__c capability, Integer executionOrder) {
             this(toolCallId, toolName, toolArguments, capability, executionOrder, null);
         }
 
-        /**
-         * Constructs a ToolCallRequest with rationale support.
-         *
-         * @param toolCallId The unique identifier for this tool call from the LLM
-         * @param toolName The name of the tool/capability
-         * @param toolArguments JSON string of arguments from the LLM (cleaned, without _rationale)
-         * @param capability The AgentCapability__c record defining the tool
-         * @param executionOrder The order in which this tool was requested (1-based)
-         * @param rationale The LLM's reasoning for selecting this tool (may be null)
-         * @throws ToolProcessingException if capability has invalid execution mode configuration
-         */
         public ToolCallRequest(
             String toolCallId,
             String toolName,
@@ -77,10 +43,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             this.executionOrder = executionOrder;
             this.rationale = rationale;
 
-            // Get HITL mode from capability
             this.hitlMode = String.isNotBlank(capability.HITLMode__c) ? capability.HITLMode__c : null;
 
-            // Defensive validation: Async tools cannot use Confirmation mode
             if (this.isAsync && this.hitlMode == HITLGatewayService.HITL_MODE_CONFIRMATION) {
                 throw new ToolProcessingException(
                     'Configuration error: Capability "' +
@@ -91,7 +55,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 );
             }
 
-            // Defensive validation: Async tools cannot use Approval mode
             if (this.isAsync && this.hitlMode == HITLGatewayService.HITL_MODE_APPROVAL) {
                 throw new ToolProcessingException(
                     'Configuration error: Capability "' +
@@ -104,9 +67,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
     }
 
-    /**
-     * Data structure to hold the result of a tool execution
-     */
     public class ToolExecutionResult {
         public String toolCallId;
         public String toolName;
@@ -135,14 +95,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
     }
 
-    /**
-     * Entry point for handling tool call requests from an LLM response.
-     * Now always treats requests as a list, even for single tool calls.
-     *
-     * @param context OrchestrationContext containing session state, LLM result, and service references.
-     * @return String outcome constant indicating the next orchestration step (e.g., queued, failed, follow-up).
-     * @throws ToolProcessingException if the tool request is malformed or capability is missing.
-     */
     public String handle(OrchestrationContext context) {
         String logPrefix = context.logPrefix + '[ToolCallHandler] ';
         List<Map<String, String>> requestedActions = context.llmResult.providerResult.requestedActions;
@@ -152,7 +104,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         IDecisionStepLogger.ILogger decisionLogger = context.decisionLogger;
 
         try {
-            // Step 1: Parse and validate all tool calls
             List<ToolCallRequest> toolRequests = parseAndValidateToolCalls(context, requestedActions, decisionLogger, logPrefix);
 
             if (toolRequests.isEmpty()) {
@@ -167,7 +118,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 return OrchestrationService.OUTCOME_FAILED;
             }
 
-            // Step 2: Group tools into execution buckets (Sync, Async, Approval, Confirmation) in single pass
             Map<String, List<ToolCallRequest>> toolGroups = groupToolsByExecutionMode(toolRequests);
             List<ToolCallRequest> approvalTools = toolGroups.get('approval');
             List<ToolCallRequest> confirmationTools = toolGroups.get('confirmation');
@@ -187,7 +137,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     asyncTools.size()
             );
 
-            // Step 3: Persist user message for traceability
             Id savedUserMessageId = null;
             if (context.userMessageData != null && String.isNotBlank(context.userMessageData.content)) {
                 ExecutionStepService executionStepService = new ExecutionStepService();
@@ -199,7 +148,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 );
             }
 
-            // Step 4: Save assistant message containing the tool call request
             Id savedAssistantMessageId = null;
             LLMInteractionService.MessageData assistantData = context.llmResult.assistantMessageData;
             if (String.isNotBlank(assistantData.content)) {
@@ -216,7 +164,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     context.llmResult.providerResult.llmCalloutDurationMs
                 );
 
-                // Publish assistant message for UI update
                 try {
                     TransientMessage__e event = new TransientMessage__e(
                         AgentExecutionId__c = context.executionId,
@@ -229,14 +176,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 }
             }
 
-            // Step 5: Create execution step records for all tool calls
             createToolCallExecutionSteps(context, toolRequests, decisionLogger, logPrefix);
 
-            // Step 6: Handle HITL tools (Approval or ConfirmationThenApproval) - these pause execution
-            // Note: Confirmation mode does NOT require system intervention - it's handled via prompt injection
-            // The LLM asks the user conversationally before executing
-
-            // Handle approval-required tools (if any exist, pause execution)
             if (!approvalTools.isEmpty()) {
                 return handleApprovalRequiredTools(
                     context,
@@ -249,19 +190,16 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 );
             }
 
-            // Step 7: Execute synchronous tools immediately
             List<ToolExecutionResult> syncResults = new List<ToolExecutionResult>();
             if (!syncTools.isEmpty()) {
                 syncResults = executeSynchronousTools(context, syncTools, decisionLogger, logPrefix);
                 createToolResultExecutionSteps(context, syncResults, decisionLogger, logPrefix);
             }
 
-            // Step 8: Queue asynchronous tools
             if (!asyncTools.isEmpty()) {
                 queueAsyncTools(context, asyncTools, decisionLogger, logPrefix);
             }
 
-            // Step 9: Determine next orchestration step
             return determineNextOrchestrationStep(context, syncResults, asyncTools, logPrefix);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error in tool call handling: ' + e.getMessage() + '\n' + e.getStackTraceString());
@@ -276,13 +214,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
     }
 
-    // ===================================================================================
-    // PARSING AND VALIDATION
-    // ===================================================================================
-
-    /**
-     * Parses and validates all tool call requests from the LLM response
-     */
     private List<ToolCallRequest> parseAndValidateToolCalls(
         OrchestrationContext context,
         List<Map<String, String>> requestedActions,
@@ -295,7 +226,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             Map<String, String> actionMap = requestedActions[i];
 
             try {
-                // Parse tool call details
                 String toolCallId = actionMap.get('id');
                 String toolName = actionMap.get('name');
                 String toolArguments = actionMap.get('arguments');
@@ -305,14 +235,12 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     continue;
                 }
 
-                // Lookup and validate capability
                 AgentCapability__c capability = AIAgentConfigService.getCapability(context.agentDefinitionId, toolName);
                 if (capability == null) {
                     System.debug(LoggingLevel.WARN, logPrefix + 'Skipping tool call ' + toolName + ': capability not found');
                     continue;
                 }
 
-                // Extract and strip _rationale from arguments if present
                 String extractedRationale = null;
                 String cleanedArguments = toolArguments;
 
@@ -399,9 +327,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         return toolRequests;
     }
 
-    // ===================================================================================
     // TOOL GROUPING
-    // ===================================================================================
 
     /**
      * Groups tool requests by execution mode in a single pass for efficiency.
@@ -453,9 +379,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         return groups;
     }
 
-    // ===================================================================================
     // EXECUTION STEP CREATION
-    // ===================================================================================
 
     /**
      * Creates execution step records for all tool calls
@@ -505,9 +429,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
     }
 
-    // ===================================================================================
     // APPROVAL HANDLING
-    // ===================================================================================
 
     /**
      * Handles tools that require human approval via Salesforce Approval Process.
@@ -734,9 +656,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         return orchestrator;
     }
 
-    // ===================================================================================
     // SYNCHRONOUS EXECUTION
-    // ===================================================================================
 
     /**
      * Executes all synchronous tools immediately in the same transaction
@@ -878,9 +798,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
     }
 
-    // ===================================================================================
     // ASYNCHRONOUS EXECUTION
-    // ===================================================================================
 
     /**
      * Queues asynchronous tools for separate transaction execution.
@@ -1015,9 +933,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
     }
 
-    // ===================================================================================
     // ORCHESTRATION FLOW
-    // ===================================================================================
 
     /**
      * Determines the next orchestration step based on execution results
@@ -1176,9 +1092,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             return OrchestrationService.OUTCOME_FAILED;
         }
 
-        // =====================================================================================
         // Multi-LLM Optimization: Check if we can call LLM again in the same transaction
-        // =====================================================================================
         // This optimization reduces queueable usage by making multiple LLM calls per transaction
         // when the intervening tool executions don't perform DML or callouts.
         //
@@ -1188,7 +1102,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         // 3. We haven't reached the max LLM calls per transaction limit
         //
         // If any condition fails, we fall back to the normal queueable-based follow-up.
-        // =====================================================================================
         TransactionContext txnCtx = TransactionContext.getInstance();
 
         if (txnCtx.canContinueWithImmediateFollowUp()) {

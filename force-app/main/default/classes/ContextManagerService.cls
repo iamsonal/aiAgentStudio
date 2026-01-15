@@ -7,48 +7,35 @@
  */
 
 /**
- * @description
- * Orchestrates lifecycle of conversational context for AI-driven chat sessions.
- * Uses ContextLedgerItem__c child records for scalability and performance.
- *
- * Also provides factory method for memory manager selection (consolidated from MemoryManagerFactory).
- * Includes all data access methods for context ledger management.
+ * @description Orchestrates lifecycle of conversational context for AI-driven chat sessions. Uses ContextLedgerItem__c child records.
  */
 public inherited sharing class ContextManagerService {
-    // --- CONSTANTS ---
     private static final Integer MAX_CONTEXT_ITEMS = 50;
-    private static final Integer RELEVANCE_DECAY_THRESHOLD = 10; // turns
+    private static final Integer RELEVANCE_DECAY_THRESHOLD = 10;
     private static final Decimal BASE_RELEVANCE_SCORE = 100.0;
-
-    // Scoring algorithm constants (configurable in future via custom metadata)
-    private static final Decimal AGE_DECAY_RATE = 0.99; // Slow decay per turn
-    private static final Decimal RECENCY_DECAY_RATE = 0.95; // Fast decay per turn
-    private static final Decimal AGE_WEIGHT = 0.3; // Weight for age decay
-    private static final Decimal RECENCY_WEIGHT = 0.7; // Weight for recency decay
-    private static final Decimal ACCESS_BOOST_MULTIPLIER = 20.0; // Multiplier for access frequency
-    private static final Decimal RECENT_ACCESS_BOOST = 1.5; // Boost for recently accessed items
-    private static final Integer RECENT_ACCESS_THRESHOLD = 2; // Turns threshold for "recent"
-    private static final Decimal MIN_RELEVANCE_SCORE = 1.0; // Floor to prevent zero/negative
-    private static final Decimal PINNED_RELEVANCE_SCORE = 9999.0; // PINNED items never decay
-
-    // Repository constants
+    private static final Decimal AGE_DECAY_RATE = 0.99;
+    private static final Decimal RECENCY_DECAY_RATE = 0.95;
+    private static final Decimal AGE_WEIGHT = 0.3;
+    private static final Decimal RECENCY_WEIGHT = 0.7;
+    private static final Decimal ACCESS_BOOST_MULTIPLIER = 20.0;
+    private static final Decimal RECENT_ACCESS_BOOST = 1.5;
+    private static final Integer RECENT_ACCESS_THRESHOLD = 2;
+    private static final Decimal MIN_RELEVANCE_SCORE = 1.0;
+    private static final Decimal PINNED_RELEVANCE_SCORE = 9999.0;
     private static final String DEFAULT_ORDER_BY = 'RelevanceScore__c DESC, LastAccessedTurn__c DESC';
     private static final Integer DEFAULT_QUERY_LIMIT = 100;
 
-    // --- EXCEPTIONS ---
     public class ContextManagementException extends AIAgentException {
     }
-
-    // --- ENUMS ---
     public enum ContextType {
-        IMPLICIT_PRIMARY, // User's current page (highest priority)
-        IMPLICIT_SECONDARY, // Related to current page
-        ACTION_GENERATED, // Created by agent action
-        USER_MENTIONED, // Explicitly referenced by user
-        SEARCH_RESULT, // Found via search action
-        RELATED_RECORD, // Discovered through relationships
-        PINNED, // User explicitly pinned
-        BACKGROUND_CONTEXT // Supporting information
+        IMPLICIT_PRIMARY,
+        IMPLICIT_SECONDARY,
+        ACTION_GENERATED,
+        USER_MENTIONED,
+        SEARCH_RESULT,
+        RELATED_RECORD,
+        PINNED,
+        BACKGROUND_CONTEXT
     }
 
     public enum ContextStatus {
@@ -57,9 +44,6 @@ public inherited sharing class ContextManagerService {
         PRUNED
     }
 
-    /**
-     * Fluent query builder for ledger queries
-     */
     public class LedgerQueryBuilder {
         private Id executionId;
         private Set<String> statuses;
@@ -131,7 +115,6 @@ public inherited sharing class ContextManagerService {
         }
     }
 
-    // --- CORE DATA STRUCTURE ---
     @TestVisible
     public class ContextItem implements Comparable {
         public String id;
@@ -397,13 +380,9 @@ public inherited sharing class ContextManagerService {
         }
     }
 
-    // --- CONSTRUCTORS ---
-
     public ContextManagerService() {
         // No dependencies needed anymore
     }
-
-    // --- CORE PUBLIC METHODS ---
 
     /**
      * Retrieves context items for an execution with dynamic scoring.
@@ -542,8 +521,6 @@ public inherited sharing class ContextManagerService {
             throw new ContextManagementException('Context commit failed: ' + e.getMessage(), e);
         }
     }
-
-    // --- PRIVATE HELPER METHODS ---
 
     /**
      * FIX: Process page context with deduplication.
@@ -723,9 +700,7 @@ public inherited sharing class ContextManagerService {
         return 'background';
     }
 
-    // =========================================================================
     // DATA ACCESS METHODS
-    // =========================================================================
 
     /**
      * Gets a query builder for fluent query construction.
@@ -846,9 +821,7 @@ public inherited sharing class ContextManagerService {
         );
     }
 
-    // =========================================================================
     // MEMORY MANAGER FACTORY (Consolidated from MemoryManagerFactory)
-    // =========================================================================
 
     /**
      * @description

@@ -7,9 +7,7 @@
  */
 
 /**
- * @description
- * Generic outcome container for agent actions with explicit success/failure states.
- * Provides unified error handling with LLM-friendly formatting.
+ * @description Generic outcome container for agent actions with explicit success/failure states. Provides unified error handling.
  */
 public class ActionOutcome {
     @AuraEnabled
@@ -28,11 +26,7 @@ public class ActionOutcome {
     public String llmFriendlyMessage { get; private set; }
 
     @AuraEnabled
-    public String correctionGuidance { get; private set; } // Format requirements and examples for LLM self-correction
-
-    /**
-     * Private constructor to enforce factory method usage.
-     */
+    public String correctionGuidance { get; private set; }
     private ActionOutcome(Boolean isSuccess, Object data, String errorCode, String errorMessage, String correctionGuidance) {
         this.isSuccess = isSuccess;
         this.data = data;
@@ -42,65 +36,26 @@ public class ActionOutcome {
         this.llmFriendlyMessage = formatLLMFriendlyMessage(isSuccess, errorCode, errorMessage, correctionGuidance);
     }
 
-    /**
-     * Factory method for successful outcomes.
-     *
-     * @param data Success data to return
-     * @return     ActionOutcome representing success
-     */
     public static ActionOutcome success(Object data) {
         return new ActionOutcome(true, data, null, null, null);
     }
 
-    /**
-     * @description Factory method for successful outcomes with no data
-     * @return ActionOutcome instance representing success with null data
-     */
     public static ActionOutcome success() {
         return success(null);
     }
 
-    /**
-     * @description Factory method for failure outcomes
-     * @param errorCode Standardized error code from AIAgentConstants
-     * @param errorMessage Detailed error message
-     * @return ActionOutcome instance representing failure
-     */
     public static ActionOutcome failure(String errorCode, String errorMessage) {
         return new ActionOutcome(false, null, errorCode, errorMessage, null);
     }
 
-    /**
-     * @description Factory method for failure outcomes with correction guidance
-     * Enables LLM self-correction by providing format requirements and examples
-     * @param errorCode Standardized error code from AIAgentConstants
-     * @param errorMessage Detailed error message
-     * @param correctionGuidance Format requirements and examples (e.g., "Expected format: YYYY-MM-DD. Example: 2024-03-15")
-     * @return ActionOutcome instance representing failure with actionable guidance
-     */
     public static ActionOutcome failureWithGuidance(String errorCode, String errorMessage, String correctionGuidance) {
         return new ActionOutcome(false, null, errorCode, errorMessage, correctionGuidance);
     }
 
-    /**
-     * @description Factory method for failure outcomes with generic error code
-     * @param errorMessage Detailed error message
-     * @return ActionOutcome instance representing failure with generic error code
-     */
     public static ActionOutcome failure(String errorMessage) {
         return failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, errorMessage);
     }
 
-    /**
-     * @description Creates LLM-friendly error messages with emojis and structured suggestions.
-     * Sanitizes technical details and provides user-appropriate messaging.
-     * Now includes optional correction guidance for format requirements and examples.
-     * @param isSuccess Whether the outcome was successful
-     * @param errorCode The error code
-     * @param errorMessage The detailed error message (may contain technical details)
-     * @param correctionGuidance Format requirements and examples for self-correction (optional)
-     * @return Formatted message for LLM consumption, sanitized for end users
-     */
     private String formatLLMFriendlyMessage(Boolean isSuccess, String errorCode, String errorMessage, String correctionGuidance) {
         if (isSuccess) {
             return null; // No LLM message needed for success cases
@@ -110,7 +65,6 @@ public class ActionOutcome {
         String userFriendlyError = sanitizeErrorMessage(errorCode, errorMessage);
         String suggestion = getErrorSuggestion(errorCode);
 
-        // Enhance with correction guidance if provided
         if (String.isNotBlank(correctionGuidance)) {
             return String.format(
                 '{0} **Error**: {1}\n\n**How to Fix**: {2}\n\n**Suggestion**: {3}',
@@ -121,15 +75,6 @@ public class ActionOutcome {
         return String.format('{0} **Error**: {1}\n\n**Suggestion**: {2}', new List<String>{ emoji, userFriendlyError, suggestion });
     }
 
-    /**
-     * @description Sanitizes technical error messages into user-friendly descriptions.
-     * Removes stack traces, class names, IDs, and technical jargon while preserving
-     * useful context like field names and validation issues.
-     *
-     * @param errorCode The error code to provide context-appropriate messaging
-     * @param rawErrorMessage The raw technical error message
-     * @return User-friendly error description
-     */
     private String sanitizeErrorMessage(String errorCode, String rawErrorMessage) {
         if (String.isBlank(rawErrorMessage)) {
             return getDefaultErrorMessage(errorCode);
@@ -137,7 +82,6 @@ public class ActionOutcome {
 
         String sanitized = rawErrorMessage;
 
-        // Remove stack traces (anything after "Stack Trace:" or similar)
         if (sanitized.contains('Stack Trace:') || sanitized.contains('stack trace') || sanitized.contains('at line')) {
             Integer stackTraceIndex = sanitized.indexOf('Stack Trace:');
             if (stackTraceIndex == -1) {
@@ -151,20 +95,11 @@ public class ActionOutcome {
             }
         }
 
-        // Remove Class.method() references
         sanitized = sanitized.replaceAll('\\w+\\.\\w+\\(\\)', '');
-
-        // Remove 18-character Salesforce IDs
         sanitized = sanitized.replaceAll('[a-zA-Z0-9]{18}', '[Record ID]');
         sanitized = sanitized.replaceAll('[a-zA-Z0-9]{15}', '[Record ID]');
-
-        // Remove exception type names (e.g., "DmlException:", "QueryException:")
         sanitized = sanitized.replaceAll('\\w+Exception:\\s*', '');
-
-        // Remove "System." prefixes
         sanitized = sanitized.replaceAll('System\\.', '');
-
-        // Clean up common technical phrases with user-friendly alternatives
         sanitized = sanitized.replaceAll('(?i)insufficient access', 'you do not have permission');
         sanitized = sanitized.replaceAll('(?i)security enforced', 'permission check');
         sanitized = sanitized.replaceAll('(?i)field is not writeable', 'field cannot be modified');
@@ -174,17 +109,14 @@ public class ActionOutcome {
         sanitized = sanitized.replaceAll('(?i)STRING_TOO_LONG', 'value exceeds maximum length');
         sanitized = sanitized.replaceAll('(?i)DUPLICATE_VALUE', 'duplicate value detected');
 
-        // Limit length to avoid overwhelming the LLM with details
         if (sanitized.length() > 300) {
             sanitized = sanitized.substring(0, 297) + '...';
         }
 
-        // If after sanitization the message is too short or empty, use default
         if (String.isBlank(sanitized) || sanitized.length() < 10) {
             return getDefaultErrorMessage(errorCode);
         }
 
-        // Capitalize first letter and ensure proper sentence ending
         sanitized = sanitized.trim();
         if (!sanitized.endsWith('.') && !sanitized.endsWith('!') && !sanitized.endsWith('?')) {
             sanitized += '.';
@@ -196,13 +128,6 @@ public class ActionOutcome {
         return sanitized;
     }
 
-    /**
-     * @description Provides default user-friendly error messages when raw message
-     * is unavailable or too technical to sanitize effectively.
-     *
-     * @param errorCode The error code
-     * @return Default user-friendly message for the error type
-     */
     private String getDefaultErrorMessage(String errorCode) {
         if (errorCode == null) {
             return 'An unexpected error occurred while processing your request.';
@@ -269,11 +194,6 @@ public class ActionOutcome {
         }
     }
 
-    /**
-     * @description Maps error codes to appropriate emojis for visual clarity
-     * @param errorCode The error code to map
-     * @return Appropriate emoji for the error type
-     */
     private String getErrorEmoji(String errorCode) {
         if (errorCode == null)
             return '⚠️';
@@ -417,10 +337,6 @@ public class ActionOutcome {
         }
     }
 
-    /**
-     * @description Override toString for debugging purposes
-     * @return String representation of the ActionOutcome
-     */
     public override String toString() {
         return String.format(
             'ActionOutcome[isSuccess={0}, errorCode={1}, errorMessage={2}]',

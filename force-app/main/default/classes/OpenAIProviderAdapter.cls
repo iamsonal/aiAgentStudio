@@ -7,46 +7,17 @@
  */
 
 /**
- * @description
- * OpenAIProviderAdapter is a robust integration layer for the OpenAI Chat Completions API.
- * Extends BaseProviderAdapter to leverage common HTTP and parsing functionality.
- * Focuses on OpenAI-specific request formatting and response parsing.
- *
- * **OpenAI-Specific Features:**
- * - Chat completions endpoint format
- * - Tool calls with parallel execution support
- * - Standard token usage tracking
- *
- * **Code Reduction:** ~80 lines eliminated by using BaseProviderAdapter shared functionality
+ * @description Integration layer for the OpenAI Chat Completions API. Extends BaseProviderAdapter for OpenAI-specific request formatting and response parsing.
  */
 public class OpenAIProviderAdapter extends BaseProviderAdapter {
     private static final String LOG_PREFIX = '[OpenAIAdapter] ';
 
-    /**
-     * Exception thrown when OpenAI response parsing fails due to malformed JSON or missing required fields.
-     * Used to distinguish parsing errors from transport or configuration failures.
-     */
     public class OpenAIParseException extends AIAgentException.ProviderException {
-        // Note: This nested exception provides provider-specific error details
     }
 
-    /**
-     * @description Returns the log prefix for this adapter
-     */
     protected override String getLogPrefix() {
         return LOG_PREFIX;
     }
-
-    /**
-     * @description Builds OpenAI-specific HTTP request
-     * Implements abstract method from BaseProviderAdapter
-     *
-     * @param llmConfig Configuration containing endpoint, model, and temperature settings (required)
-     * @param openAIMessages Conversation history formatted as OpenAI message objects (required)
-     * @param openAITools Tool definitions for function calling (optional, null if no tools available)
-     * @param agentConfig Agent configuration for parallel tool calling settings
-     * @return Configured HttpRequest with proper headers, endpoint, and JSON payload
-     */
     @TestVisible
     protected override HttpRequest buildProviderRequest(
         LLMConfiguration__c llmConfig,
@@ -54,7 +25,6 @@ public class OpenAIProviderAdapter extends BaseProviderAdapter {
         List<Map<String, Object>> openAITools,
         AIAgentDefinition__c agentConfig
     ) {
-        // Validate configuration using base class method
         validateConfiguration(llmConfig);
         validateMessages(openAIMessages);
 
@@ -72,31 +42,20 @@ public class OpenAIProviderAdapter extends BaseProviderAdapter {
 
         if (openAITools != null && !openAITools.isEmpty()) {
             body.put('tools', openAITools);
-            body.put('tool_choice', 'auto'); // Let OpenAI decide when to use tools
+            body.put('tool_choice', 'auto');
             Boolean allowParallel = (agentConfig != null && agentConfig.EnableParallelToolCalling__c == true);
             body.put('parallel_tool_calls', allowParallel);
             System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Parallel tool calling enabled: ' + allowParallel);
         }
         req.setBody(JSON.serialize(body));
-        req.setTimeout(120000); // 2 minute timeout for API calls
+        req.setTimeout(120000);
         System.debug(LoggingLevel.DEBUG, req.getBody());
         System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'HTTP request prepared. Payload size: ' + req.getBody().length() + ' characters.');
         return req;
     }
 
-    /**
-     * @description Parses OpenAI-specific response format
-     * Implements abstract method from BaseProviderAdapter
-     *
-     * @param responseBody Raw JSON response string from OpenAI API (required)
-     * @param modelIdentifier The model identifier used for this request (required)
-     * @param calloutDurationMs The duration of the HTTP callout in milliseconds (required)
-     * @return ProviderResult containing parsed content, token usage, and tool calls
-     * @throws AIAgentException.ProviderException If JSON is malformed or required response fields are missing
-     */
     @TestVisible
     protected override ProviderResult parseProviderResponse(String responseBody, String modelIdentifier, Long calloutDurationMs) {
-        // Use base class method for JSON parsing
         Map<String, Object> responseMap = parseJsonResponse(responseBody, LOG_PREFIX);
 
         String content = null;
@@ -105,14 +64,13 @@ public class OpenAIProviderAdapter extends BaseProviderAdapter {
         String rawAssistantMessageWithActionsJson = null;
 
         try {
-            // Parse response choices and extract message content and tool calls
             if (responseMap.get('choices') instanceof List<Object>) {
                 List<Object> choices = (List<Object>) responseMap.get('choices');
                 if (!choices.isEmpty() && choices[0] instanceof Map<String, Object>) {
                     Map<String, Object> choice = (Map<String, Object>) choices[0];
                     if (choice.get('message') instanceof Map<String, Object>) {
                         Map<String, Object> message = (Map<String, Object>) choice.get('message');
-                        rawAssistantMessageWithActionsJson = JSON.serialize(message); // Store for history
+                        rawAssistantMessageWithActionsJson = JSON.serialize(message);
                         if (message.get('content') instanceof String) {
                             content = (String) message.get('content');
                         }
@@ -134,12 +92,11 @@ public class OpenAIProviderAdapter extends BaseProviderAdapter {
                 throw new OpenAIParseException('OpenAI response missing required "choices" list.');
             }
 
-            // Create result with parsed data
             ProviderResult result = new ProviderResult(
                 content,
-                null, // promptTokens - will be extracted below
-                null, // completionTokens - will be extracted below
-                null, // totalTokens - will be extracted below
+                null,
+                null,
+                null,
                 parsedActions,
                 rawToolCallsListJson,
                 rawAssistantMessageWithActionsJson,
@@ -147,7 +104,6 @@ public class OpenAIProviderAdapter extends BaseProviderAdapter {
                 calloutDurationMs
             );
 
-            // Extract token usage using base class method
             if (responseMap.get('usage') instanceof Map<String, Object>) {
                 extractTokenUsage((Map<String, Object>) responseMap.get('usage'), result, LOG_PREFIX);
             } else {
@@ -165,16 +121,6 @@ public class OpenAIProviderAdapter extends BaseProviderAdapter {
         }
     }
 
-    /**
-     * Converts the OpenAI tool_calls array into a structured format for ProviderResult.
-     *
-     * Extracts tool call ID, function name, and arguments JSON string for each function call.
-     *
-     * @param rawToolCallsList Raw tool_calls array from OpenAI response (required)
-     * @return List of maps containing tool call id, function name, and arguments JSON string
-     *
-     * Side effects: Emits debug logs for malformed or skipped tool calls.
-     */
     @TestVisible
     private List<Map<String, String>> parseStructuredToolCalls(List<Object> rawToolCallsList) {
         List<Map<String, String>> actions = new List<Map<String, String>>();
@@ -185,7 +131,7 @@ public class OpenAIProviderAdapter extends BaseProviderAdapter {
                     String toolCallId = String.valueOf(callMap.get('id'));
                     Map<String, Object> funcMap = (Map<String, Object>) callMap.get('function');
                     String funcName = String.valueOf(funcMap.get('name'));
-                    Object argsObj = funcMap.get('arguments'); // Arguments should be a JSON *string*
+                    Object argsObj = funcMap.get('arguments');
                     String argsJson = (argsObj instanceof String) ? (String) argsObj : null;
                     if (String.isNotBlank(toolCallId) && String.isNotBlank(funcName) && argsJson != null) {
                         actions.add(new Map<String, String>{ 'id' => toolCallId, 'name' => funcName, 'arguments' => argsJson });

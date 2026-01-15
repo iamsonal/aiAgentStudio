@@ -7,9 +7,7 @@
  */
 
 /**
- * @description
- * Coordinates end-to-end flow of AI agent actions following LLM response processing.
- * Applies Strategy pattern for response handling and manages turn lifecycle.
+ * @description Coordinates AI agent action flow after LLM response processing. Manages turn lifecycle.
  */
 public inherited sharing class OrchestrationService {
     public virtual class OrchestrationException extends AIAgentException {
@@ -17,38 +15,20 @@ public inherited sharing class OrchestrationService {
     public class ConfigurationException extends OrchestrationException {
     }
 
-    // Turn outcome constants for orchestration flow control
     public static final String OUTCOME_COMPLETED = 'COMPLETED';
     public static final String OUTCOME_FAILED = 'FAILED';
     public static final String OUTCOME_QUEUED_FOLLOWUP = 'QUEUED_FOLLOWUP';
     public static final String OUTCOME_QUEUED_ACTION = 'QUEUED_ACTION';
     public static final String OUTCOME_AWAITING_CONFIRMATION = 'AWAITING_CONFIRMATION';
-    // Multi-LLM optimization: indicates handler detected conditions for immediate follow-up
-    // (sync tool executed without DML/callout, under max LLM calls limit)
     public static final String OUTCOME_IMMEDIATE_FOLLOWUP = 'IMMEDIATE_FOLLOWUP';
-
-    // Injected service dependencies
     private final AgentStateService agentStateSvc;
     private final CapabilityExecutionService actionExecSvc;
     private final AgentJobEnqueuer orchestrationDispatchSvc;
     private final ContextManagerService contextManagerSvc;
 
-    /**
-     * Default constructor with default service dependencies.
-     */
     public OrchestrationService() {
-        // Initialize with default service implementations
         this(new AgentStateService(), new CapabilityExecutionService(), new AgentJobEnqueuer(), new ContextManagerService());
     }
-
-    /**
-     * Constructor with dependency injection for testing and customization.
-     *
-     * @param stateSvc   AgentStateService instance
-     * @param actionSvc  CapabilityExecutionService instance
-     * @param dispatchSvc AgentJobEnqueuer instance
-     * @param contextSvc ContextManagerService instance
-     */
     public OrchestrationService(
         AgentStateService stateSvc,
         CapabilityExecutionService actionSvc,
@@ -64,25 +44,6 @@ public inherited sharing class OrchestrationService {
         this.contextManagerSvc = contextSvc;
     }
 
-    /**
-     * Processes the LLM interaction result for AgentExecution__c records.
-     * Main method that supports the unified agentic framework.
-     *
-     * @param llmInteractionResult      Result from LLM interaction containing response content and/or tool calls (required)
-     * @param executionId               The AgentExecution__c ID (required)
-     * @param originalUserId            The original user ID who initiated the execution (required)
-     * @param executionUserId           The user ID under which execution is performed (required)
-     * @param agentDefinitionId         The agent definition ID for this execution (required)
-     * @param turnIdentifier            Unique identifier for this turn (required)
-     * @param currentTurnCount          The current turn count in the execution (required)
-     * @param userMessageDataForTurn    The user message data for this turn (optional for non-conversational)
-     * @param currentPageRecordId       The current page record ID, if applicable (optional)
-     * @param decisionLogger            The decision step logger to use (required)
-     * @return                          Outcome constant indicating turn completion status and next steps
-     * @throws None. All errors are handled internally and surfaced via debug logs and return value.
-     *
-     * Side effects: Emits debug logs and orchestrates turn state transitions.
-     */
     public String processLlmResult(
         LLMInteractionService.LLMInteractionResult llmInteractionResult,
         Id executionId,
@@ -118,7 +79,6 @@ public inherited sharing class OrchestrationService {
                 return OUTCOME_FAILED;
             }
 
-            // Create orchestration context with all required state and dependencies for this turn.
             OrchestrationContext context = new OrchestrationContext(
                 llmInteractionResult,
                 executionId,
@@ -136,7 +96,6 @@ public inherited sharing class OrchestrationService {
                 decisionLogger
             );
 
-            // Select the appropriate response handler based on LLM response type (tool call or content-only).
             ILLMResponseHandler handler;
             if (llmInteractionResult.providerResult?.requestedActions != null && !llmInteractionResult.providerResult.requestedActions.isEmpty()) {
                 handler = new ToolCallResponseHandler();
@@ -144,7 +103,6 @@ public inherited sharing class OrchestrationService {
                 handler = new ContentResponseHandler();
             }
 
-            // Execute the selected response handling strategy.
             String outcome = handler.handle(context);
 
             return outcome;
@@ -152,7 +110,6 @@ public inherited sharing class OrchestrationService {
             String errorMsg = ex.getTypeName() + ': ' + ex.getMessage();
             System.debug(LoggingLevel.ERROR, logPrefix + errorMsg + '\n' + ex.getStackTraceString());
 
-            // Log the error step
             decisionLogger.logError(
                 'Orchestration Failed',
                 'A critical error occurred during orchestration',
@@ -162,43 +119,19 @@ public inherited sharing class OrchestrationService {
                 null
             );
 
-            // Attempt to mark turn as failed - this may also fail if execution is deleted/invalid
             try {
                 this.agentStateSvc.failTurn(executionId, turnIdentifier, errorMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
             } catch (Exception failTurnEx) {
-                // If we can't update state (e.g., execution deleted), log and continue with failure outcome
                 System.debug(LoggingLevel.WARN, logPrefix + 'Could not update turn state during error handling: ' + failTurnEx.getMessage());
             }
             return OUTCOME_FAILED;
         } finally {
-            // Multi-LLM optimization: When in deferred DML mode, the entry point (ConversationalOrchestrator,
-            // FollowUpLLMEngine) is responsible for committing buffered DML and decision steps after the
-            // multi-LLM loop exits. Skip commits here to allow OUTCOME_IMMEDIATE_FOLLOWUP to work.
             if (!TransactionContext.getInstance().isDeferredDMLMode()) {
-                // Normal mode (not multi-LLM optimization): commit decision steps now
                 decisionLogger.commitSteps();
             }
-            // Note: When in deferred mode, entry point will call:
-            // 1. TransactionContext.getInstance().commitBuffer()
-            // 2. decisionLogger.commitSteps()
         }
     }
 
-    // Static utility methods for use by response handlers
-
-    /**
-     * Serializes an ActionOutcome for LLM consumption, handling nulls and error cases gracefully.
-     *
-     * If the ActionOutcome is null or missing data, a synthetic error response is generated.
-     * For failures, the LLM-friendly message with emojis and suggestions is used. All serialization
-     * errors are logged and surfaced in the output.
-     *
-     * @param actionOutcome The ActionOutcome to serialize (may be null)
-     * @param logPrefix     Prefix for debug log output
-     * @return              JSON string representing the action outcome for LLM
-     *
-     * Side effects: Emits debug logs for null outcomes and serialization errors.
-     */
     public static String serializeActionOutcome(ActionOutcome actionOutcome, String logPrefix) {
         try {
             if (actionOutcome == null) {
@@ -207,11 +140,8 @@ public inherited sharing class OrchestrationService {
             }
 
             if (actionOutcome.isSuccess) {
-                // ✅ CRITICAL FIX: ALWAYS include isSuccess flag for standardized resume logic
-                // This enables WorkflowOrchestrator.buildResumeContext() to reliably identify successful tools
                 Map<String, Object> successOutput = new Map<String, Object>{ 'isSuccess' => true };
 
-                // Include the actual data payload if present
                 if (actionOutcome.data != null) {
                     successOutput.put('data', actionOutcome.data);
                 } else {
@@ -220,8 +150,6 @@ public inherited sharing class OrchestrationService {
 
                 return JSON.serialize(successOutput);
             } else {
-                // For failure, create structured error output with LLM-friendly message
-                // Note: Using 'isSuccess' for consistency (was 'success' before)
                 Map<String, Object> errorOutput = new Map<String, Object>{
                     'isSuccess' => false,
                     'errorCode' => actionOutcome.errorCode,
@@ -229,7 +157,6 @@ public inherited sharing class OrchestrationService {
                     'data' => new Map<String, Object>()
                 };
 
-                // Include correction guidance if provided (format requirements and examples)
                 if (String.isNotBlank(actionOutcome.correctionGuidance)) {
                     errorOutput.put('correctionGuidance', actionOutcome.correctionGuidance);
                 }
@@ -250,14 +177,6 @@ public inherited sharing class OrchestrationService {
         }
     }
 
-    /**
-     * Extracts a Salesforce record ID from an ActionOutcome payload for context management.
-     *
-     * Handles multiple output shapes (direct recordId, single-record list, or single record object).
-     *
-     * @param actionOutcome Action execution outcome containing potential record data (may be null)
-     * @return              Salesforce ID if found in outcome payload, null otherwise
-     */
     public static Id extractRecordIdFromOutcome(ActionOutcome actionOutcome) {
         if (actionOutcome == null || !actionOutcome.isSuccess || actionOutcome.data == null || !(actionOutcome.data instanceof Map<String, Object>)) {
             return null;
@@ -270,16 +189,13 @@ public inherited sharing class OrchestrationService {
 
         Map<String, Object> dataMap = (Map<String, Object>) outputMap.get('data');
 
-        // Direct recordId field (Create/Update actions)
         if (dataMap.get('recordId') instanceof String) {
             try {
                 return Id.valueOf((String) dataMap.get('recordId'));
             } catch (Exception e) {
-                // Invalid ID format, continue to other cases
             }
         }
 
-        // Records list with single record (GetRecords actions)
         if (dataMap.get('records') instanceof List<Object>) {
             List<Object> recordsList = (List<Object>) dataMap.get('records');
             if (recordsList.size() == 1) {
@@ -293,21 +209,18 @@ public inherited sharing class OrchestrationService {
                         try {
                             return Id.valueOf((String) recordMap.get('Id'));
                         } catch (Exception e) {
-                            // Invalid ID format, continue
                         }
                     }
                 }
             }
         }
 
-        // Single record object (FindEntities actions)
         if (dataMap.get('record') instanceof Map<String, Object>) {
             Map<String, Object> recordMap = (Map<String, Object>) dataMap.get('record');
             if (recordMap.get('Id') instanceof String) {
                 try {
                     return Id.valueOf((String) recordMap.get('Id'));
                 } catch (Exception e) {
-                    // Invalid ID format
                 }
             }
         }
@@ -315,19 +228,12 @@ public inherited sharing class OrchestrationService {
         return null;
     }
 
-    /**
-     * Serializes an LLMInteractionResult for logging purposes, excluding non-serializable Exception objects.
-     *
-     * @param result The LLMInteractionResult to serialize
-     * @return JSON string representation of the result, safe for logging
-     */
     private static String serializeLlmInteractionResultForLogging(LLMInteractionService.LLMInteractionResult result) {
         if (result == null) {
             return null;
         }
 
         try {
-            // Create a map with only the serializable fields
             Map<String, Object> serializableResult = new Map<String, Object>();
             serializableResult.put('isSuccess', result.isSuccess);
             serializableResult.put('providerResult', result.providerResult);
@@ -335,7 +241,6 @@ public inherited sharing class OrchestrationService {
             serializableResult.put('failureReason', result.failureReason);
             serializableResult.put('failureCode', result.failureCode);
 
-            // Instead of including the Exception object, include its message if it exists
             if (result.failureException != null) {
                 serializableResult.put('failureExceptionMessage', result.failureException.getMessage());
                 serializableResult.put('failureExceptionType', result.failureException.getTypeName());
@@ -343,27 +248,12 @@ public inherited sharing class OrchestrationService {
 
             return JSON.serialize(serializableResult);
         } catch (Exception e) {
-            // If serialization still fails, return a basic representation
             return '{"isSuccess": ' + result.isSuccess + ', "serializationError": "Failed to serialize LLMInteractionResult: ' + e.getMessage() + '"}';
         }
     }
 
     /**
-     * @description Determines if agent execution should fail immediately on tool error.
-     *
-     * Implements Three-Tier Hierarchy for Error Handling:
-     * Tier 1 (Highest): Capability.FailFastOnError__c = true → FAIL
-     * Tier 2: Tool exceeded MaxToolRetries__c successive failures → FAIL (non-Conversational agents only)
-     * Tier 3 (Default): 'Autonomous Recovery' → CONTINUE
-     *
-     * This method centralizes error handling policy for all orchestrators (Function, Conversational, Workflow).
-     *
-     * @param capability The capability that was executed
-     * @param agentDefinition The agent definition configuration
-     * @param toolOutcome The outcome of the tool execution
-     * @param executionId The execution ID (required for MaxToolRetries__c check)
-     * @param logPrefix Logging prefix for debug output
-     * @return true if execution should fail immediately, false to allow LLM recovery
+     * @description Determines if execution should fail immediately on tool error. Three-tier hierarchy: Capability.FailFastOnError__c, MaxToolRetries__c, or autonomous recovery.
      */
     public static Boolean shouldFailFast(
         AgentCapability__c capability,
@@ -372,13 +262,10 @@ public inherited sharing class OrchestrationService {
         Id executionId,
         String logPrefix
     ) {
-        // Only applies to tool failures
         if (toolOutcome == null || toolOutcome.isSuccess) {
             return false;
         }
 
-        // Tier 1: Capability-level override (highest priority)
-        // If this specific tool is marked as critical, always fail fast
         if (capability.FailFastOnError__c == true) {
             System.debug(
                 LoggingLevel.WARN,
@@ -387,16 +274,10 @@ public inherited sharing class OrchestrationService {
             return true;
         }
 
-        // Tier 2: MaxToolRetries__c check for non-Conversational agents
-        // For Conversational agents, let the LLM decide how to handle errors (autonomous recovery)
-        // For Function agents (standalone and workflow children), enforce retry limits to prevent infinite loops
-        // Note: MaxToolRetries__c = 2 means "allow 1 failure, fail on the 2nd"
         if (executionId != null && agentDefinition.AgentType__c != 'Conversational') {
             Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
             Integer failureCount = countSuccessiveToolFailures(executionId, capability.CapabilityName__c, logPrefix);
 
-            // If failureCount >= maxRetries, fail the execution
-            // Example: maxRetries=2 means allow 1 failure (count=1), fail on 2nd (count=2)
             if (failureCount >= maxRetries) {
                 System.debug(
                     LoggingLevel.WARN,
@@ -417,10 +298,6 @@ public inherited sharing class OrchestrationService {
             }
         }
 
-        // Tier 3: Default behavior (autonomous recovery)
-        // Let LLM see the error and attempt to handle it
-        // Note: Function agents have strict recovery validation in FunctionOrchestrator
-        // to enforce proper recovery behavior and maintain deterministic execution
         System.debug(
             LoggingLevel.INFO,
             logPrefix +
@@ -433,35 +310,16 @@ public inherited sharing class OrchestrationService {
         return false;
     }
 
-    /**
-     * Overload for backward compatibility - calls the main method with null executionId.
-     * This maintains compatibility with existing code that doesn't pass executionId.
-     */
     public static Boolean shouldFailFast(AgentCapability__c capability, AIAgentDefinition__c agentDefinition, ActionOutcome toolOutcome, String logPrefix) {
         return shouldFailFast(capability, agentDefinition, toolOutcome, null, logPrefix);
     }
 
-    /**
-     * @description Counts the number of successive failures for a specific tool in an execution.
-     *
-     * This method looks at the most recent execution steps and counts consecutive failures
-     * of the same tool, starting from the most recent step and working backwards.
-     * The count resets if a successful execution of the tool is found, or if a different
-     * tool is encountered.
-     *
-     * @param executionId The execution ID to check
-     * @param toolName The name of the tool to check
-     * @param logPrefix Logging prefix for debug output
-     * @return The number of successive failures for this tool (0 if none or if tool succeeded recently)
-     */
     public static Integer countSuccessiveToolFailures(Id executionId, String toolName, String logPrefix) {
         if (executionId == null || String.isBlank(toolName)) {
             return 0;
         }
 
         try {
-            // Query execution steps in reverse chronological order
-            // We need to find the most recent tool result for this tool and count backwards
             List<ExecutionStep__c> steps = [
                 SELECT Id, StepType__c, ToolName__c, IsError__c, Timestamp__c, ToolCallId__c
                 FROM ExecutionStep__c
@@ -476,14 +334,11 @@ public inherited sharing class OrchestrationService {
 
             Integer failureCount = 0;
 
-            // Process steps from most recent to oldest (steps are already ordered DESC)
-            // Count consecutive failures starting from the most recent result
             for (ExecutionStep__c step : steps) {
                 if (step.StepType__c == 'ToolResult') {
                     if (step.IsError__c == true) {
                         failureCount++;
                     } else {
-                        // Found a successful execution - stop counting (success resets the failure chain)
                         break;
                     }
                 }
@@ -494,35 +349,17 @@ public inherited sharing class OrchestrationService {
             return failureCount;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error counting tool failures: ' + e.getMessage());
-            return 0; // Fail open - don't exclude tool if we can't count
+            return 0;
         }
     }
 
-    // ===================================================================================
-    // PARALLEL TOOL COMPLETION TRACKING (Consolidated from ParallelToolCallHandler)
-    // ===================================================================================
-
     /**
-     * @description
-     * Called by AsyncActionEngine after an async tool completes to atomically decrement
-     * the pending counter and trigger the final follow-up LLM call when all tools complete.
-     *
-     * Uses FOR UPDATE row locking to prevent race conditions when multiple async tools
-     * complete simultaneously. Only the last completing tool (the one that decrements
-     * the counter to zero) will trigger the follow-up call.
-     *
-     * @param executionId The execution ID
-     * @param turnIdentifier The turn identifier
-     * @param currentTurnCount The current turn count
-     * @param completedToolCallId The tool call ID that just completed
-     * @param logPrefix Logging prefix
+     * @description Called by AsyncActionEngine after an async tool completes to atomically decrement the pending counter and trigger follow-up when all tools complete.
      */
     public static void onAsyncToolCompleted(Id executionId, String turnIdentifier, Integer currentTurnCount, String completedToolCallId, String logPrefix) {
         try {
             System.debug(LoggingLevel.INFO, logPrefix + 'Async tool completed: ' + completedToolCallId + '. Atomically decrementing counter.');
 
-            // Use FOR UPDATE to acquire exclusive lock on the execution record
-            // This prevents race conditions when multiple async tools complete simultaneously
             AgentExecution__c execution = [
                 SELECT Id, PendingAsyncToolCount__c, AsyncToolTurnIdentifier__c, AIAgentDefinition__c, User__c
                 FROM AgentExecution__c
@@ -530,7 +367,6 @@ public inherited sharing class OrchestrationService {
                 FOR UPDATE
             ];
 
-            // Validate turn identifier to prevent stale async completions from affecting current turn
             if (String.isNotBlank(execution.AsyncToolTurnIdentifier__c) && !turnIdentifier.equals(execution.AsyncToolTurnIdentifier__c)) {
                 System.debug(
                     LoggingLevel.WARN,
@@ -544,7 +380,6 @@ public inherited sharing class OrchestrationService {
                 return;
             }
 
-            // Atomically decrement the counter
             Integer currentCount = execution.PendingAsyncToolCount__c != null ? (Integer) execution.PendingAsyncToolCount__c : 0;
             Integer newCount = Math.max(0, currentCount - 1);
             execution.PendingAsyncToolCount__c = newCount;
@@ -552,7 +387,6 @@ public inherited sharing class OrchestrationService {
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Async tool counter decremented: ' + currentCount + ' -> ' + newCount);
 
-            // Only the last completing tool (counter reaches zero) triggers the follow-up
             if (newCount == 0 && currentCount > 0) {
                 System.debug(LoggingLevel.INFO, logPrefix + 'All async tools have completed. Triggering final follow-up LLM call.');
                 triggerFinalFollowUpLLMCallInternal(execution, turnIdentifier, currentTurnCount, logPrefix);
@@ -560,10 +394,8 @@ public inherited sharing class OrchestrationService {
                 System.debug(LoggingLevel.INFO, logPrefix + 'Still waiting for ' + newCount + ' more async tool(s) to complete.');
             }
         } catch (QueryException qe) {
-            // Handle case where record is locked by another transaction
             if (qe.getMessage().contains('UNABLE_TO_LOCK_ROW')) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Record locked by concurrent transaction. Will retry via platform retry mechanism.');
-                // The platform will retry the queueable job, or we can implement explicit retry
                 throw qe;
             }
             System.debug(LoggingLevel.ERROR, logPrefix + 'Query error in async tool completion: ' + qe.getMessage());
@@ -573,22 +405,12 @@ public inherited sharing class OrchestrationService {
     }
 
     /**
-     * @description
-     * Decrements the async tool counter without triggering follow-up.
-     * Used when an async tool fails to queue, to keep the counter accurate.
-     * This prevents execution hangs when some tools fail to queue.
-     *
-     * @param executionId The execution ID
-     * @param turnIdentifier The turn identifier
-     * @param currentTurnCount The current turn count
-     * @param failedToolCallId The tool call ID that failed to queue
-     * @param logPrefix Logging prefix
+     * @description Decrements the async tool counter when a tool fails to queue, preventing execution hangs.
      */
     public static void decrementAsyncToolCounter(Id executionId, String turnIdentifier, Integer currentTurnCount, String failedToolCallId, String logPrefix) {
         try {
             System.debug(LoggingLevel.INFO, logPrefix + 'Decrementing counter for failed queue: ' + failedToolCallId);
 
-            // Use FOR UPDATE to acquire exclusive lock
             AgentExecution__c execution = [
                 SELECT Id, PendingAsyncToolCount__c, AsyncToolTurnIdentifier__c, AIAgentDefinition__c, User__c
                 FROM AgentExecution__c
@@ -596,13 +418,11 @@ public inherited sharing class OrchestrationService {
                 FOR UPDATE
             ];
 
-            // Validate turn identifier
             if (String.isNotBlank(execution.AsyncToolTurnIdentifier__c) && !turnIdentifier.equals(execution.AsyncToolTurnIdentifier__c)) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Turn identifier mismatch. Skipping decrement.');
                 return;
             }
 
-            // Atomically decrement the counter
             Integer currentCount = execution.PendingAsyncToolCount__c != null ? (Integer) execution.PendingAsyncToolCount__c : 0;
             Integer newCount = Math.max(0, currentCount - 1);
             execution.PendingAsyncToolCount__c = newCount;
@@ -610,40 +430,23 @@ public inherited sharing class OrchestrationService {
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Counter decremented for queue failure: ' + currentCount + ' -> ' + newCount);
 
-            // If this was the last tool (all others also failed to queue), trigger follow-up
-            // so the LLM can see the error results and respond appropriately
             if (newCount == 0 && currentCount > 0) {
                 System.debug(LoggingLevel.INFO, logPrefix + 'All async tools failed to queue. Triggering follow-up for error handling.');
                 triggerFinalFollowUpLLMCallInternal(execution, turnIdentifier, currentTurnCount, logPrefix);
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error decrementing counter: ' + e.getMessage());
-            // Don't rethrow - this is a recovery operation, we don't want to cascade failures
         }
     }
 
-    /**
-     * @description
-     * Internal method to trigger the final follow-up LLM call using an already-queried execution record.
-     * Called from onAsyncToolCompleted after atomically determining all async tools have finished.
-     *
-     * @param execution The execution record (already queried with FOR UPDATE)
-     * @param turnIdentifier The turn identifier
-     * @param currentTurnCount The current turn count
-     * @param logPrefix Logging prefix
-     */
     private static void triggerFinalFollowUpLLMCallInternal(AgentExecution__c execution, String turnIdentifier, Integer currentTurnCount, String logPrefix) {
         try {
-            // Clear the async tracking fields now that all tools are complete
             execution.AsyncToolTurnIdentifier__c = null;
-            // Note: PendingAsyncToolCount__c is already 0 from the decrement
             update execution;
 
-            // Update execution status to indicate we're ready for final follow-up
             AgentStateService agentStateSvcLocal = new AgentStateService();
             agentStateSvcLocal.resumeForFollowUpLlmCall(execution.Id, turnIdentifier, null, logPrefix);
 
-            // Enqueue the final follow-up LLM call
             AgentJobEnqueuer orchestrationDispatchSvc = new AgentJobEnqueuer(agentStateSvcLocal);
             orchestrationDispatchSvc.enqueueFollowUp(
                 execution.Id,
@@ -652,7 +455,7 @@ public inherited sharing class OrchestrationService {
                 turnIdentifier,
                 currentTurnCount + 1,
                 logPrefix,
-                false // isFinalErrorTurn
+                false
             );
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Final follow-up LLM call queued for parallel execution completion');

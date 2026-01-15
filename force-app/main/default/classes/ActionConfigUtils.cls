@@ -7,24 +7,11 @@
  */
 
 /**
- * @description
- * Provides type-safe extraction and validation of parameters from untyped maps.
- * Offers static methods for retrieving required and optional values with comprehensive validation.
+ * @description Provides type-safe extraction and validation of parameters from untyped maps.
  */
 public with sharing class ActionConfigUtils {
-    /**
-     * Exception for parameter validation failures.
-     */
     public class ArgumentValidationException extends AIAgentException {
     }
-
-    /**
-     * Retrieves a required String value from parameters map.
-     *
-     * @param params Parameters map
-     * @param key    Key for required String parameter
-     * @return       Non-blank String value
-     */
     public static String getRequiredString(Map<String, Object> params, String key) {
         if (params == null || !params.containsKey(key) || params.get(key) == null) {
             throw new ArgumentValidationException('Missing required parameter: "' + key + '" (non-blank String)');
@@ -43,11 +30,6 @@ public with sharing class ActionConfigUtils {
 
     /**
      * Retrieves an optional String value from a parameters map.
-     * Uses TypeCoercionService for consistent coercion behavior across the framework.
-     *
-     * @param params   Map of parameters.
-     * @param key      Key for the optional String parameter.
-     * @return         The String value, or null if missing or not a String.
      */
     public static String getOptionalString(Map<String, Object> params, String key) {
         if (params == null || !params.containsKey(key) || params.get(key) == null) {

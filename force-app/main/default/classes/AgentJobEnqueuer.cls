@@ -7,44 +7,18 @@
  */
 
 /**
- * @description
- * AgentJobEnqueuer is the central service for dispatching asynchronous jobs within the AI Agent Framework.
- * It is responsible for dynamically routing asynchronous operations based on agent async dispatch type:
- *   - For agents with AsyncDispatchType__c = 'High', uses Platform Events (AsyncFrameworkRequest__e) for maximum throughput (fire-and-forget, no processing guarantee)
- *   - For agents with AsyncDispatchType__c = 'Low' or null, uses Queueable jobs for guaranteed sequential processing
- *
- * The class ensures:
- *   - Consistent, testable job dispatch logic for all asynchronous agent operations
- *   - Comprehensive error handling and session state management on dispatch failures
- *   - Clear, actionable debug output for troubleshooting and operational transparency
- *   - Dynamic async mechanism selection without code duplication
- *
- * This class is designed for extensibility and maintainability, serving as the single point of orchestration
- * for all asynchronous agent job requests.
+ * @description Central service for dispatching asynchronous jobs. Routes to Platform Events (High) or Queueable (Low/null) based on agent async dispatch type.
  */
 public inherited sharing class AgentJobEnqueuer {
     public class DispatchException extends AIAgentException {
     }
 
     private final AgentStateService agentStateSvc;
-
-    // Cache for agent async dispatch type settings to minimize SOQL queries
     private static Map<Id, String> agentAsyncDispatchTypeCache = new Map<Id, String>();
 
-    /**
-     * Default constructor. Instantiates its own AgentStateService dependency.
-     * Use this in production code where dependency injection is not required.
-     */
     public AgentJobEnqueuer() {
         this(new AgentStateService());
     }
-
-    /**
-     * Main constructor for dependency injection (primarily for testing).
-     *
-     * @param agentStateService The AgentStateService instance to use for session state management.
-     * @throws IllegalArgumentException if agentStateService is null.
-     */
     public AgentJobEnqueuer(AgentStateService agentStateService) {
         if (agentStateService == null) {
             throw new IllegalArgumentException('AgentStateService cannot be null.');

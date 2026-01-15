@@ -7,26 +7,11 @@
  */
 
 /**
- * @description
- * Utility class for enforcing Salesforce CRUD and Field-Level Security permissions.
- * Provides static methods to validate and check user access for SObject and field operations.
+ * @description Utility class for enforcing Salesforce CRUD and Field-Level Security permissions.
  */
 public with sharing class SecurityUtils {
-    /**
-     * Exception thrown when security validation fails.
-     */
     public class ActionSecurityException extends AIAgentException {
     }
-
-    /**
-     * Validates that the current user has the specified CRUD permission on an SObject type.
-     * Throws ActionSecurityException if permission is denied or parameters are invalid.
-     *
-     * @param sObjectType   The SObjectType to validate permissions for.
-     * @param accessType    The required access level (CREATABLE, READABLE, UPDATABLE).
-     * @throws              ActionSecurityException if permission is denied or parameters are invalid.
-     * @debug               Logs warnings on denied access and debug on success.
-     */
     public static void checkObjectPermission(SObjectType sObjectType, AccessType accessType) {
         if (sObjectType == null) {
             throw new ActionSecurityException('SObjectType cannot be null for object permission check.');

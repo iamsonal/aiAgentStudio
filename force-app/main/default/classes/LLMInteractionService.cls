@@ -7,35 +7,14 @@
  */
 
 /**
- * @description
- * LLMInteractionService orchestrates the complete LLM interaction lifecycle for a single execution turn.
- *
- * Responsibilities:
- *   - Manages prompt composition, payload formatting, HTTP communication, and response parsing
- *   - Integrates with SystemPromptBuilder for prompt assembly and MemoryManager for execution history
- *   - Supports action transparency mode, injecting summarization or error instructions as needed
- *   - Handles all configuration, error, and result packaging for downstream orchestration
- *   - Provides LLM provider adapter factory (consolidated from LLMProviderFactory)
- *
- * This service is the central entry point for all LLM calls in the agent framework, ensuring consistency,
- * observability, and extensibility for all execution turns.
+ * @description Orchestrates LLM interaction lifecycle for a single execution turn. Manages prompt composition, payload formatting, and response parsing.
  */
 public inherited sharing class LLMInteractionService {
-    // --- STATIC CACHE FOR LLM PROVIDER ADAPTERS (Consolidated from LLMProviderFactory) ---
     @TestVisible
     private static Map<String, ILLMProviderAdapter> adapterInstanceCache = new Map<String, ILLMProviderAdapter>();
 
-    // --- STATIC CACHE FOR MULTI-LLM OPTIMIZATION ---
-    // Caches system prompt, tools, and configs per execution to avoid rebuilding on subsequent LLM calls
-    // within the same transaction. This significantly reduces CPU time and SOQL queries.
     @TestVisible
     private static Map<Id, LLMRequestCache> requestCacheByExecution = new Map<Id, LLMRequestCache>();
-
-    /**
-     * Cache class holding reusable LLM request components for multi-LLM optimization.
-     * When making multiple LLM calls within the same transaction (multi-LLM loop),
-     * we can reuse the system prompt, tools, and configurations instead of rebuilding.
-     */
     @TestVisible
     private class LLMRequestCache {
         public String systemPrompt;
@@ -50,12 +29,6 @@ public inherited sharing class LLMInteractionService {
         }
     }
 
-    /**
-     * Clears the LLM request cache for a specific execution.
-     * Called when deferred DML mode ends or when cache should be invalidated.
-     *
-     * @param executionId The execution ID to clear cache for
-     */
     public static void clearRequestCache(Id executionId) {
         if (executionId != null && requestCacheByExecution.containsKey(executionId)) {
             requestCacheByExecution.remove(executionId);
@@ -63,19 +36,11 @@ public inherited sharing class LLMInteractionService {
         }
     }
 
-    /**
-     * Clears all LLM request caches. Used for testing and transaction cleanup.
-     */
     @TestVisible
     private static void clearAllRequestCaches() {
         requestCacheByExecution.clear();
     }
 
-    /**
-     * Data Transfer Object containing the complete result of an LLM interaction cycle.
-     *
-     * Includes success status, provider response data, message metadata, and failure details.
-     */
     public class LLMInteractionResult {
         public Boolean isSuccess { get; private set; }
         public ProviderResult providerResult { get; private set; }
@@ -97,11 +62,6 @@ public inherited sharing class LLMInteractionService {
         }
     }
 
-    /**
-     * Data Transfer Object for message metadata that hasn't been persisted to ExecutionStep__c yet.
-     *
-     * Contains role, content, tool calls, token usage, and processing time information.
-     */
     public class MessageData {
         public String role;
         public String content;
@@ -124,22 +84,7 @@ public inherited sharing class LLMInteractionService {
     private final String logPrefix;
     private final Id currentPageRecordId;
     private final Boolean isFinalErrorTurn;
-    // Add decision logger reference
     private final IDecisionStepLogger.ILogger decisionLogger;
-
-    /**
-     * Constructor for LLMInteractionService working exclusively with the unified AgentExecution__c model.
-     *
-     * @param executionId The AgentExecution__c ID
-     * @param usrId The user ID
-     * @param agentDefId The agent definition ID
-     * @param llmConfigId The LLM configuration ID
-     * @param turnId The turn identifier
-     * @param turnNum The turn number
-     * @param pageRecordId The current page record ID
-     * @param isFinalError Whether this is a final error turn
-     * @param decisionLogger The decision logger (optional)
-     */
     public LLMInteractionService(
         Id executionId,
         Id usrId,
@@ -166,19 +111,6 @@ public inherited sharing class LLMInteractionService {
         this.logPrefix = '[LLMIntSvc Turn:' + turnId?.left(8) + ' Cycle:' + turnNum + '] ';
     }
 
-    /**
-     * Orchestrates the process of calling the LLM for a single conversational turn.
-     *
-     * - Loads agent and LLM configuration
-     * - Delegates prompt composition to SystemPromptBuilder
-     * - Injects summarization or error instructions as needed
-     * - Assembles the final message and tool payloads
-     * - Calls the LLM provider adapter
-     * - Packages the result or error for downstream processing
-     *
-     * @param currentTurnUserMessage  The DTO containing the user message for the current turn. Can be null for follow-up calls.
-     * @return LLMInteractionResult   The result of the LLM interaction, including success/failure, provider result, and message metadata.
-     */
     public LLMInteractionResult prepareAndCallLLM(LLMInteractionService.MessageData currentTurnUserMessage) {
         System.debug(
             LoggingLevel.INFO,
@@ -191,11 +123,6 @@ public inherited sharing class LLMInteractionService {
         List<Map<String, Object>> toolsPayload = null;
 
         try {
-            // =====================================================================================
-            // Multi-LLM Optimization: Check for cached request context
-            // When making multiple LLM calls in the same transaction (multi-LLM loop), we can
-            // reuse the system prompt, tools, and configs from the first call to save CPU/SOQL.
-            // =====================================================================================
             Boolean useCachedContext = false;
             LLMRequestCache cachedRequest = null;
 
@@ -209,7 +136,6 @@ public inherited sharing class LLMInteractionService {
             }
 
             if (useCachedContext) {
-                // --- USE CACHED CONTEXT (subsequent LLM calls in multi-LLM loop) ---
                 agentConfig = cachedRequest.agentConfig;
                 llmConfig = cachedRequest.llmConfig;
                 maskingService = cachedRequest.maskingService;
@@ -221,9 +147,6 @@ public inherited sharing class LLMInteractionService {
                     logPrefix + 'Loaded cached config: Agent=' + agentConfig.DeveloperName__c + ', LLM=' + llmConfig.DeveloperName__c
                 );
             } else {
-                // --- BUILD FRESH CONTEXT (first LLM call or no multi-LLM mode) ---
-
-                // 1. Load Core Configurations
                 agentConfig = AIAgentConfigService.getAgentDefinition(this.agentDefinitionId);
                 llmConfig = AIAgentConfigService.getLLMConfiguration(this.llmConfigurationId);
                 System.debug(
@@ -231,23 +154,14 @@ public inherited sharing class LLMInteractionService {
                     logPrefix + 'Loaded configuration: Agent=' + agentConfig.DeveloperName__c + ', LLM=' + llmConfig.DeveloperName__c + ', User=' + this.userId
                 );
 
-                // 1b. Create PII Masking Service early so it can be used for context data formatting
-                // This ensures schema-based PII masking works for context data in the system prompt
                 maskingService = PIIMaskingService.createForAgent(agentConfig, this.executionId);
                 if (maskingService != null) {
                     System.debug(LoggingLevel.DEBUG, logPrefix + 'PII masking service created. Mode: ' + maskingService.getMode());
                 }
 
-                // Create SystemPromptBuilder with decision logger and PII masking service
                 SystemPromptBuilder promptBuilder = new SystemPromptBuilder(this.decisionLogger, maskingService);
-
-                // --- 2. DELEGATE Prompt Composition ---
-                // All complex prompt assembly logic is now in one place.
                 finalSystemPrompt = promptBuilder.build(this.executionId, agentConfig, llmConfig, this.currentPageRecordId, this.currentTurnCount, this.userId);
 
-                // --- 3. AGENT-SPECIFIC PROMPT ADDITIONS ---
-                // Delegate to orchestrator for agent-type-specific prompt modifications.
-                // This keeps LLMInteractionService agent-agnostic.
                 String orchestratorAdditions = getOrchestratorPromptAdditions(
                     agentConfig,
                     this.executionId,
@@ -263,7 +177,6 @@ public inherited sharing class LLMInteractionService {
                     System.debug(LoggingLevel.INFO, logPrefix + 'Added orchestrator-specific prompt additions');
                 }
 
-                // This logic handles the "Halt and Report" error path.
                 if (this.isFinalErrorTurn) {
                     String finalErrorInstruction =
                         '\n\n# CRITICAL INSTRUCTIONS\n\n' +
@@ -274,12 +187,8 @@ public inherited sharing class LLMInteractionService {
                     System.debug(LoggingLevel.WARN, logPrefix + 'Injecting error recovery instructions into system prompt for failed tool use.');
                 }
 
-                // --- 5. Format Tool Definitions ---
-                // Pass agent config to enable tool reasoning if configured
-                // Pass executionId to enable tool exclusion based on MaxToolRetries__c
                 toolsPayload = LLMFormattingService.formatToolsForApi(agentConfig.Id, agentConfig, this.executionId, logPrefix);
 
-                // Log available tools if decision logger is available (before masking - tools don't contain PII)
                 if (this.decisionLogger != null && !toolsPayload.isEmpty()) {
                     List<String> toolNames = new List<String>();
                     for (Map<String, Object> tool : toolsPayload) {
@@ -299,8 +208,6 @@ public inherited sharing class LLMInteractionService {
                     );
                 }
 
-                // --- CACHE FOR MULTI-LLM OPTIMIZATION ---
-                // If in deferred DML mode (multi-LLM context), cache the request context for subsequent calls
                 if (TransactionContext.getInstance().isDeferredDMLMode()) {
                     LLMRequestCache newCache = new LLMRequestCache();
                     newCache.systemPrompt = finalSystemPrompt;
@@ -313,25 +220,18 @@ public inherited sharing class LLMInteractionService {
                 }
             }
 
-            // =====================================================================================
-            // 4. Assemble the Final Message Payload for the LLM
-            // NOTE: Messages ALWAYS need to be refreshed since tool results are added between calls
-            // =====================================================================================
             List<Map<String, Object>> finalMessagesPayload = new List<Map<String, Object>>();
 
-            // a. Add the single, unified system prompt as the first message.
             if (String.isNotBlank(finalSystemPrompt)) {
                 finalMessagesPayload.add(new Map<String, Object>{ 'role' => AIAgentConstants.ROLE_SYSTEM, 'content' => finalSystemPrompt });
             }
 
-            // b. Get the execution history using the appropriate Memory Manager.
             IMemoryManager memoryManager = ContextManagerService.getMemoryManager(agentConfig.MemoryStrategy__c);
             List<Map<String, Object>> historyPayload = memoryManager.getHistoryPayload(this.executionId, agentConfig, llmConfig, logPrefix);
             if (historyPayload != null) {
                 finalMessagesPayload.addAll(historyPayload);
             }
 
-            // c. Append the current user's message for this turn.
             if (currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
                 LLMFormattingService.addMessageToPayload(
                     finalMessagesPayload,
@@ -344,13 +244,10 @@ public inherited sharing class LLMInteractionService {
                 );
             }
 
-            // --- 6. Apply Prompt Safety Check (BEFORE PII Masking) ---
-            // Checks for jailbreak attempts and prompt injection attacks
             PromptSafetyService safetyService = PromptSafetyService.createForAgent(agentConfig, this.executionId);
             if (safetyService != null && currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
                 ThreatAssessment safetyResult = safetyService.checkMessage(currentTurnUserMessage.content);
 
-                // Log safety check result if decision logger is available
                 if (this.decisionLogger != null) {
                     this.decisionLogger.logLLMRequest(
                         'Prompt Safety Check',
@@ -365,7 +262,6 @@ public inherited sharing class LLMInteractionService {
                     );
                 }
 
-                // Handle blocking if needed
                 if (safetyResult.shouldBlock()) {
                     System.debug(
                         LoggingLevel.WARN,
@@ -376,7 +272,6 @@ public inherited sharing class LLMInteractionService {
                             safetyResult.getIndicatorCount()
                     );
 
-                    // Log error if decision logger is available
                     if (this.decisionLogger != null) {
                         this.decisionLogger.logError(
                             'Message Blocked',
@@ -391,31 +286,24 @@ public inherited sharing class LLMInteractionService {
                     return new LLMInteractionResult(safetyResult.getSafeMessage(), AIAgentConstants.ERR_CODE_SAFETY_BLOCKED, null);
                 }
 
-                // Apply sanitization if configured
                 if (safetyResult.hasSanitizedContent()) {
                     currentTurnUserMessage.content = safetyResult.getSanitizedContent();
                     System.debug(LoggingLevel.INFO, logPrefix + 'Applied sanitization to user message. Original threats neutralized.');
                 }
 
-                // Handle flagging (message continues but is marked for review)
                 if (safetyResult.flagged) {
                     System.debug(
                         LoggingLevel.INFO,
                         logPrefix + 'Message flagged for review. Score: ' + safetyResult.overallScore + ', Indicators: ' + safetyResult.getIndicatorCount()
                     );
-                    // The flagged status is logged via decision logger above
                 }
             }
 
-            // --- 8. Apply PII Masking (if enabled) ---
-            // IMPORTANT: Must happen BEFORE logging the LLM request to ensure no raw PII is stored in decision logs
-            // Note: maskingService was created earlier (step 1b) for context data formatting, reusing it here
             if (maskingService != null) {
                 finalMessagesPayload = maskingService.maskMessagePayload(finalMessagesPayload);
                 System.debug(LoggingLevel.INFO, logPrefix + 'Applied PII masking to message payload. Mode: ' + maskingService.getMode());
             }
 
-            // Log LLM request AFTER PII masking to ensure decision logs contain only masked data
             if (this.decisionLogger != null) {
                 Map<String, Object> requestPayload = new Map<String, Object>{ 'messages' => finalMessagesPayload, 'tools' => toolsPayload };
 
@@ -427,7 +315,6 @@ public inherited sharing class LLMInteractionService {
                 this.decisionLogger.logLLMRequest('LLM Request Prepared', description, JSON.serialize(requestPayload), null);
             }
 
-            // --- 9. Call LLM ---
             Long callStartTime = System.currentTimeMillis();
             try {
                 ILLMProviderAdapter adapter = LLMInteractionService.getLLMProviderAdapter(llmConfig);
@@ -442,16 +329,10 @@ public inherited sharing class LLMInteractionService {
                     logPrefix + 'LLM call succeeded in ' + callDuration + 'ms. Tokens used: ' + llmApiResult.totalTokens + ', executionId=' + this.executionId
                 );
 
-                // Log LLM response if decision logger is available
                 if (this.decisionLogger != null) {
-                    // Extract provider name from adapter class (e.g., "OpenAIProviderAdapter" -> "OpenAI")
                     String providerName = extractProviderName(llmConfig.ProviderAdapterClass__c);
-
-                    // Use the same duration value as ExecutionStep__c.LLMCalloutDurationMs__c
-                    // This ensures consistency between ExecutionStep and AgentDecisionStep records
                     Long llmCalloutDuration = llmApiResult.llmCalloutDurationMs != null ? llmApiResult.llmCalloutDurationMs : callDuration;
 
-                    // Use enhanced logging method with cost and token tracking
                     this.decisionLogger.logLLMResponseWithMetrics(
                         'LLM Response Received',
                         'Successfully received response from LLM',
@@ -466,7 +347,6 @@ public inherited sharing class LLMInteractionService {
                     );
                 }
 
-                // --- Unmask PII in response (if masking was applied) ---
                 String unmaskedContent = llmApiResult.content;
                 String unmaskedToolCallsJson = llmApiResult.rawToolCallsJson;
                 if (maskingService != null) {
@@ -482,7 +362,6 @@ public inherited sharing class LLMInteractionService {
                     );
                 }
 
-                // Package result DTOs
                 MessageData asstMsgData = new MessageData();
                 asstMsgData.role = AIAgentConstants.ROLE_ASSISTANT;
                 asstMsgData.content = unmaskedContent;
@@ -490,7 +369,6 @@ public inherited sharing class LLMInteractionService {
                 asstMsgData.tokensUsed = llmApiResult.totalTokens;
                 asstMsgData.processingTimeMs = callDuration;
 
-                // Also update the provider result with unmasked content for consistency
                 llmApiResult.content = unmaskedContent;
                 llmApiResult.rawToolCallsJson = unmaskedToolCallsJson;
 
@@ -510,7 +388,6 @@ public inherited sharing class LLMInteractionService {
                         this.executionId
                 );
 
-                // Log error if decision logger is available
                 if (this.decisionLogger != null) {
                     this.decisionLogger.logError(
                         'LLM Call Failed',
@@ -552,22 +429,13 @@ public inherited sharing class LLMInteractionService {
         }
     }
 
-    /**
-     * Extract provider name from the adapter class name
-     * Example: "OpenAIProviderAdapter" -> "OpenAI"
-     *
-     * @param adapterClassName The adapter class name
-     * @return The provider name
-     */
     private String extractProviderName(String adapterClassName) {
         if (String.isBlank(adapterClassName)) {
             return 'Unknown';
         }
 
-        // Remove "ProviderAdapter" suffix if present
         String providerName = adapterClassName.replace('ProviderAdapter', '');
 
-        // If nothing left, return the full class name
         if (String.isBlank(providerName)) {
             return adapterClassName;
         }
@@ -575,22 +443,8 @@ public inherited sharing class LLMInteractionService {
         return providerName;
     }
 
-    // =========================================================================
-    // LLM PROVIDER ADAPTER FACTORY (Consolidated from LLMProviderFactory)
-    // =========================================================================
-
     /**
-     * @description
-     * Retrieves a cached or newly instantiated LLM provider adapter based on configuration.
-     * Consolidated from LLMProviderFactory to reduce file overhead.
-     *
-     * - Checks the cache for an existing adapter instance by class name
-     * - Dynamically instantiates the adapter if not cached, validates interface implementation
-     * - Caches the instance for future use
-     *
-     * @param llmConfig  The LLMConfiguration__c record containing the adapter class name
-     * @return ILLMProviderAdapter  Configured adapter instance ready for use
-     * @throws ConfigurationException if the adapter class is missing, invalid, or does not implement the required interface
+     * @description Retrieves a cached or newly instantiated LLM provider adapter based on configuration.
      */
     public static ILLMProviderAdapter getLLMProviderAdapter(LLMConfiguration__c llmConfig) {
         if (llmConfig == null) {
@@ -641,34 +495,12 @@ public inherited sharing class LLMInteractionService {
         }
     }
 
-    /**
-     * @description
-     * Clears the adapter instance cache. Used for testing or to force re-instantiation.
-     */
     @TestVisible
     private static void clearAdapterCache() {
         adapterInstanceCache = new Map<String, ILLMProviderAdapter>();
         System.debug(LoggingLevel.DEBUG, '[LLMInteractionService] Adapter cache cleared.');
     }
 
-    // =========================================================================
-    // ORCHESTRATOR INTEGRATION
-    // =========================================================================
-
-    /**
-     * @description
-     * Gets agent-specific prompt additions from the orchestrator.
-     * This delegates prompt customization to the orchestrator, keeping LLMInteractionService agent-agnostic.
-     *
-     * @param agentConfig The agent definition
-     * @param executionId The execution ID
-     * @param userId The user ID
-     * @param currentTurnCount The current turn count
-     * @param currentTurnUserMessage The user message for this turn (null for follow-up calls)
-     * @param currentPageRecordId The current page record ID
-     * @param logPrefix Logging prefix
-     * @return String to append to system prompt, or empty string
-     */
     private String getOrchestratorPromptAdditions(
         AIAgentDefinition__c agentConfig,
         Id executionId,
@@ -679,9 +511,6 @@ public inherited sharing class LLMInteractionService {
         String logPrefix
     ) {
         try {
-            // Build a minimal OrchestrationContext for the orchestrator hook
-            // Note: We don't have the full context here (no LLM result yet), but we have enough
-            // for the orchestrator to make prompt decisions
             OrchestrationContext minimalContext = buildMinimalContext(
                 executionId,
                 userId,
@@ -691,25 +520,16 @@ public inherited sharing class LLMInteractionService {
                 currentPageRecordId
             );
 
-            // Load the orchestrator for this agent type
             IAgentOrchestrator orchestrator = loadOrchestrator(agentConfig);
-
-            // Get prompt additions from orchestrator (polymorphic call - no instanceof check needed)
             String additions = orchestrator.buildSystemPromptAdditions(minimalContext);
 
             return additions != null ? additions : '';
         } catch (Exception e) {
-            // Log but don't fail - prompt additions are optional
             System.debug(LoggingLevel.WARN, logPrefix + 'Failed to get orchestrator prompt additions: ' + e.getMessage());
             return '';
         }
     }
 
-    /**
-     * @description
-     * Builds a minimal OrchestrationContext for use in prompt building.
-     * This context doesn't have LLM results yet (we're preparing for the call).
-     */
     private OrchestrationContext buildMinimalContext(
         Id executionId,
         Id userId,
@@ -718,11 +538,10 @@ public inherited sharing class LLMInteractionService {
         MessageData currentTurnUserMessage,
         Id currentPageRecordId
     ) {
-        // Generate a temporary turn identifier for context
         String turnIdentifier = 'prompt_' + System.currentTimeMillis();
 
         return new OrchestrationContext(
-            null, // llmResult - not available yet
+            null,
             executionId,
             userId,
             userId, // executionUserId
@@ -751,7 +570,6 @@ public inherited sharing class LLMInteractionService {
             throw new LLMInteractionException('AgentType__c is required on agent definition');
         }
 
-        // Query orchestrator mapping
         List<AgentOrchestratorMapping__mdt> mappings = [
             SELECT OrchestratorClassName__c
             FROM AgentOrchestratorMapping__mdt
@@ -765,7 +583,6 @@ public inherited sharing class LLMInteractionService {
 
         String orchestratorClassName = mappings[0].OrchestratorClassName__c;
 
-        // Instantiate orchestrator
         Type orchestratorType = Type.forName(orchestratorClassName);
         if (orchestratorType == null) {
             throw new LLMInteractionException('Orchestrator class not found: ' + orchestratorClassName);

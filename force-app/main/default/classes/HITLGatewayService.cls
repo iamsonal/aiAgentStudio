@@ -7,44 +7,9 @@
  */
 
 /**
- * @description
- * HITLGatewayService is the centralized gateway for all Human-in-the-Loop (HITL) decisions
- * in the AI Agent Framework. Every tool execution request must pass through this gateway
- * to ensure consistent HITL enforcement across all orchestrator types.
- *
- * This service implements the Strategy pattern to handle different HITL modes:
- * - None: Execute immediately without human intervention
- * - Confirmation: Require in-chat yes/no confirmation (conversational agents only)
- * - Approval: Require formal Salesforce approval process (all agent types)
- *
- * Key Responsibilities:
- * - Evaluate HITL requirements for tool execution requests
- * - Enforce agent-type compatibility (e.g., Confirmation only for Conversational)
- * - Create and manage PendingHITLAction__c records
- * - Handle confirmation responses and resume execution
- * - Integrate with Salesforce Approval Process for formal approvals
- *
- * Thread Safety: This service is stateless and safe for concurrent use.
- *
- * @example
- * // Evaluate HITL requirement before tool execution
- * HITLGatewayService.HITLContext context = new HITLGatewayService.HITLContext();
- * context.capability = myCapability;
- * context.agentDefinition = myAgentDef;
- * context.executionId = execId;
- * // ... populate other fields
- *
- * HITLGatewayService.HITLDecision decision = HITLGatewayService.evaluate(context);
- * if (decision.requiresIntervention) {
- *     // Handle HITL flow
- *     HITLGatewayService.HITLResult result = HITLGatewayService.initiateHITL(context);
- * }
+ * @description Centralized gateway for all Human-in-the-Loop (HITL) decisions. Handles Confirmation, Approval, and ConfirmationThenApproval modes.
  */
 public with sharing class HITLGatewayService {
-    // =============================================================================
-    // CONSTANTS
-    // =============================================================================
-
     public static final String HITL_MODE_CONFIRMATION = 'Confirmation';
     public static final String HITL_MODE_APPROVAL = 'Approval';
     public static final String HITL_MODE_CONFIRMATION_THEN_APPROVAL = 'ConfirmationThenApproval';
@@ -71,30 +36,12 @@ public with sharing class HITLGatewayService {
 
     private static final String LOG_PREFIX = '[HITLGateway] ';
 
-    // =============================================================================
-    // EXCEPTION CLASSES
-    // =============================================================================
-
-    /**
-     * @description Exception thrown when HITL configuration is invalid.
-     */
     public class HITLConfigurationException extends Exception {
     }
 
-    /**
-     * @description Exception thrown when HITL processing fails.
-     */
     public class HITLProcessingException extends Exception {
     }
 
-    // =============================================================================
-    // DATA TRANSFER OBJECTS
-    // =============================================================================
-
-    /**
-     * @description Context object containing all information needed for HITL evaluation.
-     * Immutable after construction to ensure thread safety.
-     */
     public class HITLContext {
         public AgentCapability__c capability { get; set; }
         public AIAgentDefinition__c agentDefinition { get; set; }
@@ -111,10 +58,6 @@ public with sharing class HITLGatewayService {
             this.logPrefix = LOG_PREFIX;
         }
 
-        /**
-         * @description Validates that all required fields are populated.
-         * @throws HITLConfigurationException if required fields are missing
-         */
         public void validate() {
             List<String> missingFields = new List<String>();
 
@@ -135,20 +78,10 @@ public with sharing class HITLGatewayService {
         }
     }
 
-    /**
-     * @description Result of HITL evaluation indicating what action is required.
-     */
     public class HITLDecision {
-        /** Whether human intervention is required before execution */
         public Boolean requiresIntervention { get; set; }
-
-        /** The type of HITL required (None, Confirmation, Approval) */
         public String hitlMode { get; set; }
-
-        /** Whether the configuration is valid for the agent type */
         public Boolean isValidConfiguration { get; set; }
-
-        /** Error message if configuration is invalid */
         public String configurationError { get; set; }
 
         public HITLDecision() {
@@ -157,9 +90,6 @@ public with sharing class HITLGatewayService {
         }
     }
 
-    /**
-     * @description Creates a decision indicating no HITL is required.
-     */
     public static HITLDecision createProceedDecision() {
         HITLDecision decision = new HITLDecision();
         decision.requiresIntervention = false;
@@ -168,9 +98,6 @@ public with sharing class HITLGatewayService {
         return decision;
     }
 
-    /**
-     * @description Creates a decision indicating HITL intervention is required.
-     */
     public static HITLDecision createInterventionDecision(String mode) {
         HITLDecision decision = new HITLDecision();
         decision.requiresIntervention = true;
@@ -180,9 +107,6 @@ public with sharing class HITLGatewayService {
         return decision;
     }
 
-    /**
-     * @description Creates a decision indicating invalid configuration.
-     */
     public static HITLDecision createInvalidConfigDecision(String errorMessage) {
         HITLDecision decision = new HITLDecision();
         decision.requiresIntervention = false;
@@ -192,26 +116,12 @@ public with sharing class HITLGatewayService {
         return decision;
     }
 
-    /**
-     * @description Result of initiating a HITL workflow.
-     */
     public class HITLResult {
-        /** Whether the HITL initiation was successful */
         public Boolean success { get; set; }
-
-        /** The created PendingHITLAction__c record ID */
         public Id pendingActionId { get; set; }
-
-        /** The confirmation prompt to display to the user */
         public String confirmationPrompt { get; set; }
-
-        /** Error message if initiation failed */
         public String errorMessage { get; set; }
-
-        /** The HITL type that was initiated */
         public String hitlType { get; set; }
-
-        /** Expiration timestamp for confirmation requests */
         public DateTime expiresAt { get; set; }
 
         public HITLResult() {
@@ -219,9 +129,6 @@ public with sharing class HITLGatewayService {
         }
     }
 
-    /**
-     * @description Creates a successful HITL result.
-     */
     public static HITLResult createSuccessResult(Id actionId, String prompt, String hitlType, DateTime expires) {
         HITLResult result = new HITLResult();
         result.success = true;
@@ -232,9 +139,6 @@ public with sharing class HITLGatewayService {
         return result;
     }
 
-    /**
-     * @description Creates a failure HITL result.
-     */
     public static HITLResult createFailureResult(String error) {
         HITLResult result = new HITLResult();
         result.success = false;
@@ -242,29 +146,13 @@ public with sharing class HITLGatewayService {
         return result;
     }
 
-    /**
-     * @description Result of resolving (confirming/declining) a HITL action.
-     */
     public class HITLResolutionResult {
-        /** Whether the resolution was successful */
         public Boolean success { get; set; }
-
-        /** The final status after resolution */
         public String status { get; set; }
-
-        /** Whether execution should proceed */
         public Boolean shouldProceed { get; set; }
-
-        /** The tool arguments to use for execution (if proceeding) */
         public String toolArguments { get; set; }
-
-        /** The capability to execute (if proceeding) */
         public AgentCapability__c capability { get; set; }
-
-        /** Error message if resolution failed */
         public String errorMessage { get; set; }
-
-        /** Message to return to LLM about the resolution */
         public String llmMessage { get; set; }
 
         public HITLResolutionResult() {
@@ -273,29 +161,10 @@ public with sharing class HITLGatewayService {
         }
     }
 
-    // =============================================================================
-    // PUBLIC API - EVALUATION
-    // =============================================================================
-
-    /**
-     * @description Evaluates whether a tool execution requires HITL intervention.
-     * This is the primary entry point for HITL evaluation.
-     *
-     * HITL Modes:
-     * - None: Execute immediately without human intervention
-     * - Confirmation: LLM asks user conversationally before executing (prompt injection, no system enforcement)
-     * - Approval: Formal Salesforce approval process (system enforced, all agent types)
-     * - ConfirmationThenApproval: LLM asks conversationally, then submits for formal approval (conversational only)
-     *
-     * @param context The HITL context containing capability and execution information
-     * @return HITLDecision indicating whether intervention is required and if config is valid
-     * @throws HITLConfigurationException if context validation fails
-     */
     public static HITLDecision evaluate(HITLContext context) {
         context.validate();
         String debugPrefix = context.logPrefix + '[evaluate] ';
 
-        // Get HITL mode from capability (default to None if not set)
         String hitlMode = context.capability.HITLMode__c;
         if (String.isBlank(hitlMode)) {
             hitlMode = null;
@@ -312,14 +181,11 @@ public with sharing class HITLGatewayService {
                 context.agentDefinition.AgentType__c
         );
 
-        // No HITL required
         if (hitlMode == null) {
             System.debug(LoggingLevel.DEBUG, debugPrefix + 'No HITL required (mode=None)');
             return createProceedDecision();
         }
 
-        // Confirmation mode - LLM-based conversational confirmation via prompt injection
-        // No system enforcement needed - the LLM will ask the user before executing
         if (hitlMode == HITL_MODE_CONFIRMATION) {
             if (context.agentDefinition.AgentType__c != AGENT_TYPE_CONVERSATIONAL) {
                 String errorMsg =
@@ -347,14 +213,10 @@ public with sharing class HITLGatewayService {
                 return createInvalidConfigDecision(errorMsg);
             }
 
-            // Confirmation mode does NOT require system intervention - it's handled via prompt injection
-            // The LLM will ask the user conversationally before executing
             System.debug(LoggingLevel.DEBUG, debugPrefix + 'Confirmation mode - no system intervention needed (prompt injection handles this)');
             return createProceedDecision();
         }
 
-        // ConfirmationThenApproval mode - LLM confirms first, then goes to approval
-        // This requires system intervention for the approval part
         if (hitlMode == HITL_MODE_CONFIRMATION_THEN_APPROVAL) {
             if (context.agentDefinition.AgentType__c != AGENT_TYPE_CONVERSATIONAL) {
                 String errorMsg =
@@ -382,18 +244,15 @@ public with sharing class HITLGatewayService {
                 return createInvalidConfigDecision(errorMsg);
             }
 
-            // For ConfirmationThenApproval, we need system intervention for the approval part
             System.debug(LoggingLevel.INFO, debugPrefix + 'HITL ConfirmationThenApproval required for: ' + context.capability.CapabilityName__c);
             return createInterventionDecision(HITL_MODE_CONFIRMATION_THEN_APPROVAL);
         }
 
-        // Approval mode - valid for all agent types
         if (hitlMode == HITL_MODE_APPROVAL) {
             System.debug(LoggingLevel.INFO, debugPrefix + 'HITL Approval required for: ' + context.capability.CapabilityName__c);
             return createInterventionDecision(HITL_MODE_APPROVAL);
         }
 
-        // Unknown mode - treat as configuration error
         String errorMsg =
             'Unknown HITLMode value: "' +
             hitlMode +
@@ -404,18 +263,6 @@ public with sharing class HITLGatewayService {
         return createInvalidConfigDecision(errorMsg);
     }
 
-    // =============================================================================
-    // PUBLIC API - INITIATION
-    // =============================================================================
-
-    /**
-     * @description Initiates a HITL workflow by creating a PendingHITLAction__c record.
-     * Call this after evaluate() returns requiresIntervention=true.
-     *
-     * @param context The HITL context
-     * @param decision The decision from evaluate() (must have requiresIntervention=true)
-     * @return HITLResult containing the pending action details
-     */
     public static HITLResult initiateHITL(HITLContext context, HITLDecision decision) {
         context.validate();
         String debugPrefix = context.logPrefix + '[initiateHITL] ';
@@ -445,17 +292,11 @@ public with sharing class HITLGatewayService {
         }
     }
 
-    /**
-     * @description Initiates a ConfirmationThenApproval HITL workflow.
-     * The LLM has already asked the user conversationally, now we submit for formal approval.
-     */
     private static HITLResult initiateConfirmationThenApproval(HITLContext context, String debugPrefix) {
         System.debug(LoggingLevel.INFO, debugPrefix + 'Initiating ConfirmationThenApproval HITL for tool: ' + context.capability.CapabilityName__c);
 
-        // Generate approval prompt
         String approvalPrompt = generateApprovalPrompt(context);
 
-        // Create PendingHITLAction__c record
         PendingHITLAction__c pendingAction = new PendingHITLAction__c(
             AgentExecution__c = context.executionId,
             AIAgentCapability__c = context.capability.Id,
@@ -475,7 +316,6 @@ public with sharing class HITLGatewayService {
         insert pendingAction;
         System.debug(LoggingLevel.INFO, debugPrefix + 'Created PendingHITLAction for ConfirmationThenApproval: ' + pendingAction.Id);
 
-        // Submit to Salesforce Approval Process
         try {
             Approval.ProcessSubmitRequest approvalRequest = new Approval.ProcessSubmitRequest();
             approvalRequest.setObjectId(pendingAction.Id);
@@ -489,13 +329,10 @@ public with sharing class HITLGatewayService {
             Approval.ProcessResult approvalResult = Approval.process(approvalRequest);
 
             if (approvalResult.isSuccess()) {
-                // Update with approval process instance ID
-                // Use Database.update with allOrNone=false to handle record locking gracefully
                 pendingAction.ApprovalProcessInstanceId__c = approvalResult.getInstanceId();
                 Database.SaveResult saveResult = Database.update(pendingAction, false);
 
                 if (!saveResult.isSuccess()) {
-                    // Log the update failure but don't fail the entire approval process
                     System.debug(
                         LoggingLevel.WARN,
                         debugPrefix +
@@ -512,15 +349,12 @@ public with sharing class HITLGatewayService {
 
                 return createSuccessResult(pendingAction.Id, approvalPrompt, HITL_MODE_CONFIRMATION_THEN_APPROVAL, null);
             } else {
-                // Approval submission failed - clean up and return error
                 String errors = '';
                 for (Database.Error err : approvalResult.getErrors()) {
                     errors += err.getMessage() + '; ';
                 }
                 System.debug(LoggingLevel.ERROR, debugPrefix + 'Approval submission failed: ' + errors);
 
-                // Try to delete the pending action since approval couldn't be started
-                // Use Database.delete with allOrNone=false to handle potential locks
                 Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
                 if (!deleteResult.isSuccess()) {
                     System.debug(
@@ -533,8 +367,6 @@ public with sharing class HITLGatewayService {
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, debugPrefix + 'Exception submitting approval: ' + e.getMessage());
-            // Try to delete the pending action since approval couldn't be started
-            // Use try-catch to handle potential record locking
             try {
                 Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
                 if (!deleteResult.isSuccess()) {
@@ -550,16 +382,11 @@ public with sharing class HITLGatewayService {
         }
     }
 
-    /**
-     * @description Initiates an Approval HITL workflow using Salesforce Approval Process.
-     */
     private static HITLResult initiateApproval(HITLContext context, String debugPrefix) {
         System.debug(LoggingLevel.INFO, debugPrefix + 'Initiating Approval HITL for tool: ' + context.capability.CapabilityName__c);
 
-        // Generate approval prompt/justification
         String approvalPrompt = generateApprovalPrompt(context);
 
-        // Create PendingHITLAction__c record first
         PendingHITLAction__c pendingAction = new PendingHITLAction__c(
             AgentExecution__c = context.executionId,
             AIAgentCapability__c = context.capability.Id,
@@ -613,15 +440,12 @@ public with sharing class HITLGatewayService {
 
                 return createSuccessResult(pendingAction.Id, approvalPrompt, HITL_MODE_APPROVAL, null);
             } else {
-                // Approval submission failed - clean up and return error
                 String errors = '';
                 for (Database.Error err : approvalResult.getErrors()) {
                     errors += err.getMessage() + '; ';
                 }
                 System.debug(LoggingLevel.ERROR, debugPrefix + 'Approval submission failed: ' + errors);
 
-                // Try to delete the pending action since approval couldn't be started
-                // Use Database.delete with allOrNone=false to handle potential locks
                 Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
                 if (!deleteResult.isSuccess()) {
                     System.debug(
@@ -634,8 +458,6 @@ public with sharing class HITLGatewayService {
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, debugPrefix + 'Exception submitting approval: ' + e.getMessage());
-            // Try to delete the pending action since approval couldn't be started
-            // Use try-catch to handle potential record locking
             try {
                 Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
                 if (!deleteResult.isSuccess()) {
@@ -651,20 +473,6 @@ public with sharing class HITLGatewayService {
         }
     }
 
-    // =============================================================================
-    // PUBLIC API - RESOLUTION
-    // =============================================================================
-
-    /**
-     * @description Handles approval process completion (called from trigger on PendingHITLAction__c
-     * or from approval process post-processing).
-     *
-     * @param pendingActionId The ID of the PendingHITLAction__c that was approved/rejected
-     * @param approved Whether the action was approved (true) or rejected (false)
-     * @param approverId The user who approved/rejected
-     * @param comment Approver's comment
-     * @return HITLResolutionResult indicating whether to proceed with execution
-     */
     public static HITLResolutionResult resolveApproval(Id pendingActionId, Boolean approved, Id approverId, String comment) {
         String debugPrefix = LOG_PREFIX + '[resolveApproval] ';
         HITLResolutionResult result = new HITLResolutionResult();
@@ -696,7 +504,6 @@ public with sharing class HITLGatewayService {
 
             PendingHITLAction__c action = actions[0];
 
-            // Validate this is an Approval or ConfirmationThenApproval type
             if (action.HITLType__c != HITL_MODE_APPROVAL && action.HITLType__c != HITL_MODE_CONFIRMATION_THEN_APPROVAL) {
                 result.errorMessage =
                     'Cannot resolve action with resolveApproval. ' +
@@ -707,7 +514,6 @@ public with sharing class HITLGatewayService {
                 return result;
             }
 
-            // Update the action
             action.Status__c = approved ? STATUS_APPROVED : STATUS_REJECTED;
             action.ResolvedAt__c = DateTime.now();
             action.ResolvedBy__c = approverId;
@@ -723,7 +529,6 @@ public with sharing class HITLGatewayService {
                 result.llmMessage = 'Action "' + action.ToolName__c + '" has been approved. Proceeding with execution.';
                 System.debug(LoggingLevel.INFO, debugPrefix + 'Action approved: ' + pendingActionId);
 
-                // Load the capability for execution
                 if (action.AIAgentCapability__c != null) {
                     result.capability = AIAgentConfigService.getCapabilityById(action.AIAgentCapability__c);
                 }
@@ -743,16 +548,6 @@ public with sharing class HITLGatewayService {
         }
     }
 
-    // =============================================================================
-    // PUBLIC API - QUERY METHODS
-    // =============================================================================
-
-    /**
-     * @description Retrieves a pending HITL action by ID.
-     *
-     * @param pendingActionId The ID of the PendingHITLAction__c
-     * @return The PendingHITLAction__c record or null if not found
-     */
     public static PendingHITLAction__c getPendingAction(Id pendingActionId) {
         List<PendingHITLAction__c> actions = [
             SELECT
@@ -785,12 +580,6 @@ public with sharing class HITLGatewayService {
         return actions.isEmpty() ? null : actions[0];
     }
 
-    /**
-     * @description Retrieves all pending HITL actions for an execution.
-     *
-     * @param executionId The AgentExecution__c ID
-     * @return List of pending PendingHITLAction__c records
-     */
     public static List<PendingHITLAction__c> getPendingActionsForExecution(Id executionId) {
         return [
             SELECT
@@ -820,12 +609,6 @@ public with sharing class HITLGatewayService {
         ];
     }
 
-    /**
-     * @description Checks if there are any pending HITL actions for an execution.
-     *
-     * @param executionId The AgentExecution__c ID
-     * @return True if there are pending actions
-     */
     public static Boolean hasPendingActions(Id executionId) {
         return [
                 SELECT COUNT()
@@ -833,45 +616,22 @@ public with sharing class HITLGatewayService {
                 WHERE AgentExecution__c = :executionId AND Status__c = :STATUS_PENDING
             ] > 0;
     }
-    // =============================================================================
-    // NOTIFICATION PREFERENCE METHODS
-    // =============================================================================
-
-    /**
-     * @description Determines if a notification should be sent based on the capability's notification preference.
-     * This is the centralized logic for all HITL notification decisions.
-     *
-     * @param preference The HITLNotificationPreference__c value from AgentCapability__c (can be null/blank)
-     * @param eventType The type of event: NOTIFICATION_TYPE_APPROVAL, NOTIFICATION_TYPE_REJECTION, or NOTIFICATION_TYPE_ERROR
-     * @return True if notification should be sent, false otherwise
-     */
     public static Boolean shouldSendHITLNotification(String preference, String eventType) {
-        // If capability preference is not set, do not send notifications
         if (String.isBlank(preference)) {
-            return false; // No preference set means no notifications
+            return false;
         }
 
-        // "Always Notify" - send for all events
         if (preference == NOTIFICATION_PREF_ALWAYS_NOTIFY) {
             return true;
         }
 
-        // "Notify on Rejection Only" - only send for rejections
         if (preference == NOTIFICATION_PREF_REJECTION_ONLY) {
             return eventType == NOTIFICATION_TYPE_REJECTION;
         }
 
-        // Unknown preference value - default to no notification (conservative approach)
         return false;
     }
 
-    // =============================================================================
-    // PRIVATE HELPER METHODS
-    // =============================================================================
-
-    /**
-     * @description Generates an approval prompt/justification.
-     */
     private static String generateApprovalPrompt(HITLContext context) {
         String toolName = context.capability.CapabilityName__c;
         String description = context.capability.Description__c;
@@ -891,9 +651,6 @@ public with sharing class HITLGatewayService {
         return prompt;
     }
 
-    /**
-     * @description Formats tool arguments JSON for human-readable display.
-     */
     private static String formatArgumentsForDisplay(String argumentsJson) {
         if (String.isBlank(argumentsJson)) {
             return '';
@@ -909,7 +666,6 @@ public with sharing class HITLGatewayService {
             for (String key : args.keySet()) {
                 Object value = args.get(key);
                 String valueStr = value != null ? String.valueOf(value) : 'null';
-                // Truncate long values
                 if (valueStr.length() > 200) {
                     valueStr = valueStr.substring(0, 200) + '...';
                 }
@@ -917,7 +673,6 @@ public with sharing class HITLGatewayService {
             }
             return String.join(lines, '\n');
         } catch (Exception e) {
-            // If parsing fails, return truncated raw JSON
             return argumentsJson.length() > 500 ? argumentsJson.substring(0, 500) + '...' : argumentsJson;
         }
     }

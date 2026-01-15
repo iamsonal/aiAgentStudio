@@ -7,20 +7,14 @@
  */
 
 /**
- * @description
- * Provides unified type coercion capabilities for the AI Agent Framework.
- * Consolidates type conversion logic and Field-Level Security validation for SObject operations.
+ * @description Provides unified type coercion and Field-Level Security validation for SObject operations.
  */
 public with sharing class TypeCoercionService {
-    /**
-     * Exception for type coercion failures with detailed context and auto-generated correction guidance.
-     * Provides LLM with format requirements and examples to enable self-correction on subsequent attempts.
-     */
     public class TypeCoercionException extends AIAgentException {
         public String fieldName { get; private set; }
         public String targetType { get; private set; }
         public String inputType { get; private set; }
-        public String correctionGuidance { get; private set; } // Format requirements and examples for LLM
+        public String correctionGuidance { get; private set; }
 
         public TypeCoercionException(String message, String field, String target, String input) {
             super(message);
@@ -39,10 +33,6 @@ public with sharing class TypeCoercionService {
             this.initCause(cause);
         }
 
-        /**
-         * Auto-generates correction guidance based on target type.
-         * Provides format requirements and concrete examples to help LLM self-correct.
-         */
         private String generateCorrectionGuidance(String targetType) {
             if (String.isBlank(targetType)) {
                 return null;
@@ -80,21 +70,6 @@ public with sharing class TypeCoercionService {
         }
     }
 
-    // ============================================================================
-    // --- Schema-Aware Coercion (Primary Interface) ---
-    // ============================================================================
-
-    /**
-     * Coerces and validates raw arguments to Salesforce-compatible field values with comprehensive validation.
-     * This is the authoritative method for SObject field processing, combining FLS enforcement, type coercion,
-     * and constraint validation in a single, secure operation.
-     *
-     * @param rawArguments Map of field names to raw values from JSON/LLM input
-     * @param targetSObjectType SObjectType for field metadata and validation context
-     * @param accessType CREATABLE or UPDATABLE for appropriate FLS validation
-     * @return Map of validated field names to properly typed values
-     * @throws TypeCoercionException For type conversion failures, constraint violations, or security violations
-     */
     public static Map<String, Object> coerceArgumentTypesForSObject(Map<String, Object> rawArguments, SObjectType targetSObjectType, AccessType accessType) {
         if (rawArguments == null || rawArguments.isEmpty()) {
             System.debug(LoggingLevel.DEBUG, '[TypeCoercionService] No arguments provided for coercion. Returning empty map.');
@@ -122,13 +97,11 @@ public with sharing class TypeCoercionService {
             }
 
             Schema.DescribeFieldResult dfr = fieldToken.getDescribe();
-            // Enforce field-level security before processing
             if (!SecurityUtils.hasFieldPermission(dfr, accessType)) {
                 System.debug(LoggingLevel.DEBUG, '[TypeCoercionService] Field "' + fieldName + '" skipped due to FLS (' + accessType + ').');
                 continue;
             }
 
-            // Perform type coercion with comprehensive validation
             Object rawValue = rawArguments.get(fieldName);
             if (rawValue != null) {
                 Schema.DisplayType fieldType = dfr.getType();
@@ -147,23 +120,11 @@ public with sharing class TypeCoercionService {
         return coercedArguments;
     }
 
-    /**
-     * Coerces a value to the target Salesforce field type using Schema.DisplayType.
-     * This is the primary interface for SObject field assignment with full validation.
-     *
-     * @param value      The raw input value to coerce
-     * @param targetType The target Schema.DisplayType
-     * @param fieldName  The field name for error context
-     * @param fieldDescribe Optional field describe result for additional validation (picklist, length, etc.)
-     * @return           The coerced value ready for SObject assignment
-     * @throws TypeCoercionException for conversion failures or validation errors
-     */
     public static Object coerce(Object value, Schema.DisplayType targetType, String fieldName, Schema.DescribeFieldResult fieldDescribe) {
         if (value == null) {
             return null;
         }
 
-        // Null safety: targetType must be provided for coercion
         if (targetType == null) {
             throw new TypeCoercionException('Target type cannot be null for field coercion', fieldName, 'null', getInputTypeString(value));
         }
@@ -175,7 +136,6 @@ public with sharing class TypeCoercionService {
                 }
                 when PICKLIST {
                     String stringValue = coerceToString(value, fieldName, fieldDescribe);
-                    // Automatic picklist validation when fieldDescribe is provided
                     if (fieldDescribe != null) {
                         validatePicklistValue(stringValue, fieldName, fieldDescribe);
                     }
@@ -183,7 +143,6 @@ public with sharing class TypeCoercionService {
                 }
                 when MULTIPICKLIST {
                     String stringValue = coerceToString(value, fieldName, fieldDescribe);
-                    // Automatic multipicklist validation when fieldDescribe is provided
                     if (fieldDescribe != null) {
                         validateMultiPicklistValues(stringValue, fieldName, fieldDescribe);
                     }
@@ -218,11 +177,11 @@ public with sharing class TypeCoercionService {
                 }
                 when else {
                     System.debug(LoggingLevel.WARN, '[TypeCoercionService] Unsupported DisplayType: ' + targetType + ' for field: ' + fieldName);
-                    return value; // Pass-through for unsupported types
+                    return value;
                 }
             }
         } catch (TypeCoercionException e) {
-            throw e; // Re-throw our exceptions
+            throw e;
         } catch (Exception e) {
             throw new TypeCoercionException(
                 'Unexpected error coercing value to ' + targetType + ': ' + e.getMessage(),
@@ -234,21 +193,10 @@ public with sharing class TypeCoercionService {
         }
     }
 
-    /**
-     * Simplified coercion method without field describe result.
-     * Useful for basic type coercion without advanced validation.
-     */
     public static Object coerce(Object value, Schema.DisplayType targetType, String fieldName) {
         return coerce(value, targetType, fieldName, null);
     }
 
-    // ============================================================================
-    // --- Type-Specific Coercion Methods ---
-    // ============================================================================
-
-    /**
-     * Coerces a value to String with optional length validation.
-     */
     public static String coerceToString(Object value, String fieldName, Schema.DescribeFieldResult fieldDescribe) {
         if (value == null) {
             return null;
@@ -256,12 +204,10 @@ public with sharing class TypeCoercionService {
 
         String stringValue = String.valueOf(value);
 
-        // Validate length if field describe is provided
         if (fieldDescribe != null) {
             Integer maxLength = fieldDescribe.getLength();
             Schema.DisplayType fieldType = fieldDescribe.getType();
 
-            // Skip length check for TextArea fields (they don't have reliable length limits from describe)
             if (fieldType != Schema.DisplayType.TEXTAREA && maxLength > 0 && stringValue.length() > maxLength) {
                 throw new TypeCoercionException(
                     'Value length (' + stringValue.length() + ') exceeds maximum (' + maxLength + ') for field',
@@ -275,9 +221,6 @@ public with sharing class TypeCoercionService {
         return stringValue;
     }
 
-    /**
-     * Coerces a value to Integer with range validation.
-     */
     public static Integer coerceToInteger(Object value, String fieldName) {
         final Long INT_MAX_AS_LONG = 2147483647L; // Integer.MAX_VALUE equivalent
         final Long INT_MIN_AS_LONG = -2147483648L; // Integer.MIN_VALUE equivalent
@@ -327,9 +270,6 @@ public with sharing class TypeCoercionService {
         throw new TypeCoercionException('Cannot coerce to Integer', fieldName, 'Integer', getInputTypeString(value));
     }
 
-    /**
-     * Coerces a value to Decimal.
-     */
     public static Decimal coerceToDecimal(Object value, String fieldName) {
         if (value == null) {
             return null;
@@ -354,9 +294,6 @@ public with sharing class TypeCoercionService {
         throw new TypeCoercionException('Cannot coerce to Decimal', fieldName, 'Decimal', getInputTypeString(value));
     }
 
-    /**
-     * Coerces a value to Boolean with flexible input handling.
-     */
     public static Boolean coerceToBoolean(Object value, String fieldName) {
         if (value == null) {
             return null;
@@ -388,9 +325,6 @@ public with sharing class TypeCoercionService {
         );
     }
 
-    /**
-     * Coerces a value to Salesforce Id with validation.
-     */
     public static Id coerceToId(Object value, String fieldName) {
         if (value == null) {
             return null;
@@ -411,9 +345,6 @@ public with sharing class TypeCoercionService {
         throw new TypeCoercionException('Cannot coerce to Id', fieldName, 'Id', getInputTypeString(value));
     }
 
-    /**
-     * Coerces a value to Date with multiple format support.
-     */
     public static Date coerceToDate(Object value, String fieldName) {
         if (value == null) {
             return null;
@@ -440,9 +371,6 @@ public with sharing class TypeCoercionService {
         throw new TypeCoercionException('Cannot coerce to Date', fieldName, 'Date', getInputTypeString(value));
     }
 
-    /**
-     * Coerces a value to DateTime with multiple format support.
-     */
     public static DateTime coerceToDateTime(Object value, String fieldName) {
         if (value == null) {
             return null;
@@ -460,12 +388,10 @@ public with sharing class TypeCoercionService {
             String dateTimeStr = ((String) value).trim();
 
             try {
-                // Try ISO datetime format with JSON deserialization
                 if (dateTimeStr.contains('T')) {
                     return (DateTime) JSON.deserialize('"' + dateTimeStr + '"', DateTime.class);
                 }
 
-                // Try Salesforce format
                 return DateTime.valueOf(dateTimeStr);
             } catch (Exception e) {
                 throw new TypeCoercionException(
@@ -481,9 +407,6 @@ public with sharing class TypeCoercionService {
         throw new TypeCoercionException('Cannot coerce to DateTime', fieldName, 'DateTime', getInputTypeString(value));
     }
 
-    /**
-     * Coerces a value to Time.
-     */
     public static Time coerceToTime(Object value, String fieldName) {
         if (value == null) {
             return null;
@@ -510,9 +433,6 @@ public with sharing class TypeCoercionService {
         throw new TypeCoercionException('Cannot coerce to Time', fieldName, 'Time', getInputTypeString(value));
     }
 
-    /**
-     * Coerces a value to Blob (Base64 decoding).
-     */
     public static Blob coerceToBlob(Object value, String fieldName) {
         if (value == null) {
             return null;
@@ -539,19 +459,6 @@ public with sharing class TypeCoercionService {
         throw new TypeCoercionException('Cannot coerce to Blob', fieldName, 'Blob', getInputTypeString(value));
     }
 
-    // ============================================================================
-    // --- Validation Helpers ---
-    // ============================================================================
-
-    /**
-     * Validates a picklist value against allowed values for the field.
-     * Centralized picklist validation used by all coercion operations.
-     *
-     * @param value Value to validate
-     * @param fieldName Field API name for error context
-     * @param fieldDescribe Field describe result for picklist values
-     * @throws TypeCoercionException if value is not valid for the picklist
-     */
     private static void validatePicklistValue(String value, String fieldName, Schema.DescribeFieldResult fieldDescribe) {
         List<Schema.PicklistEntry> entries = fieldDescribe.getPicklistValues();
         if (entries == null || entries.isEmpty()) {
@@ -559,24 +466,14 @@ public with sharing class TypeCoercionService {
         }
 
         for (Schema.PicklistEntry entry : entries) {
-            // Case-sensitive match is standard for SF picklists
             if (entry.isActive() && entry.getValue().equals(value)) {
-                return; // Valid value found
+                return;
             }
         }
 
         throw new TypeCoercionException('Invalid picklist value: ' + value, fieldName, 'Picklist', 'String');
     }
 
-    /**
-     * Validates multipicklist values against allowed values for the field.
-     * Centralized multipicklist validation used by all coercion operations.
-     *
-     * @param value Multipicklist value string (semicolon-separated)
-     * @param fieldName Field API name for error context
-     * @param fieldDescribe Field describe result for picklist values
-     * @throws TypeCoercionException if any value is not valid for the multipicklist
-     */
     private static void validateMultiPicklistValues(String value, String fieldName, Schema.DescribeFieldResult fieldDescribe) {
         List<Schema.PicklistEntry> entries = fieldDescribe.getPicklistValues();
         if (entries == null || entries.isEmpty()) {
@@ -598,19 +495,6 @@ public with sharing class TypeCoercionService {
         }
     }
 
-    // ============================================================================
-    // --- Format Validation Methods ---
-    // ============================================================================
-
-    /**
-     * Coerces and validates an email format string.
-     * Centralized email validation used by all coercion operations.
-     *
-     * @param value     The raw parameter value.
-     * @param fieldName The field name for error reporting.
-     * @return          The validated email string.
-     * @throws TypeCoercionException for invalid email format.
-     */
     public static String coerceToEmailString(Object value, String fieldName) {
         if (value == null) {
             return null;
@@ -628,15 +512,6 @@ public with sharing class TypeCoercionService {
         throw new TypeCoercionException('Invalid email format. Expected format: user@domain.com', fieldName, 'Email String', getInputTypeString(value));
     }
 
-    /**
-     * Coerces and validates a URL format string.
-     * Centralized URL validation used by all coercion operations.
-     *
-     * @param value     The raw parameter value.
-     * @param fieldName The field name for error reporting.
-     * @return          The validated URL string.
-     * @throws TypeCoercionException for invalid URL format.
-     */
     public static String coerceToUrlString(Object value, String fieldName) {
         if (value == null) {
             return null;
@@ -651,13 +526,6 @@ public with sharing class TypeCoercionService {
         throw new TypeCoercionException('Invalid URL format. Expected format: http://... or https://...', fieldName, 'URL String', getInputTypeString(value));
     }
 
-    // ============================================================================
-    // --- Utility Methods ---
-    // ============================================================================
-
-    /**
-     * Gets a human-readable string representation of the input type.
-     */
     private static String getInputTypeString(Object value) {
         if (value == null)
             return 'null';

@@ -7,27 +7,11 @@
  */
 
 /**
- * @description
- * Abstract base class for all agent actions in the AI Agent Framework.
- *
- * Uses two-pass deserialization pattern: JSON.deserializeUntyped() followed by manual DTO population
- * with ActionConfigUtils for type safety and LLM output variability handling.
- *
- * Subclasses must implement executeAction() method and define ArgumentsDTO/ConfigDTO classes.
- * For SObject operations, use TypeCoercionService.coerceArgumentTypesForSObject() for field type coercion.
- *
- * Schema Contract: ArgumentsDTO fields must match the describe() method's parameterFields exactly.
- *
- * @implements IAgentAction
+ * @description Abstract base class for all agent actions. Subclasses must implement executeAction() and define ArgumentsDTO/ConfigDTO classes.
  */
 public abstract class BaseAgentAction implements IAgentAction {
-    // --- Common State (Accessible by Subclasses) ---
     protected ActionContext actionContext { get; private set; }
     protected Map<String, Object> parsedActionConfig { get; private set; }
-
-    /**
-     * Exception for validation errors with optional field name.
-     */
     public virtual class ValidationException extends AIAgentException {
         public String fieldName; // Optional
 
@@ -47,26 +31,12 @@ public abstract class BaseAgentAction implements IAgentAction {
         return 'ActionHandler (Context: ' + (actionContext != null ? 'Set' : 'Not Set') + ')';
     }
 
-    /**
-     * Exception for security/permission denials.
-     */
     public virtual class ActionSecurityException extends AIAgentException {
     }
 
-    /**
-     * Exception for null ActionOutcome.
-     */
     private class ActionHandlerNullException extends AIAgentException {
     }
 
-    /**
-     * Executes an agent action with parameter deserialization and outcome wrapping.
-     *
-     * @param actionConfigurationJson Action configuration JSON
-     * @param argumentsJson           Action arguments JSON
-     * @param context                 ActionContext for execution
-     * @return                        ActionOutcome result
-     */
     public virtual ActionOutcome execute(String actionConfigurationJson, String argumentsJson, ActionContext context) {
         if (context == null) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Internal error: Missing context. ActionContext was null');
@@ -101,13 +71,6 @@ public abstract class BaseAgentAction implements IAgentAction {
         return finalOutcome;
     }
 
-    /**
-     * Abstract method for action implementation.
-     * Subclasses deserialize params into DTOs, validate, and execute business logic.
-     *
-     * @param params Raw parameters from JSON
-     * @return       ActionOutcome with result or error
-     */
     public abstract ActionOutcome executeAction(Map<String, Object> params);
 
     protected virtual String getLogPrefixName() {
@@ -125,6 +88,7 @@ public abstract class BaseAgentAction implements IAgentAction {
                 Object parsed = JSON.deserializeUntyped(actionConfigurationJson);
                 if (parsed instanceof Map<String, Object>) {
                     this.parsedActionConfig = (Map<String, Object>) parsed;
+                    this.parsedActionConfig = resolveContextTokens(this.parsedActionConfig);
                 } else {
                     throw new ValidationException('ActionConfiguration JSON must be a JSON Object (Map).');
                 }
@@ -134,13 +98,65 @@ public abstract class BaseAgentAction implements IAgentAction {
         }
     }
 
-    /**
-     * Maps exceptions to ActionOutcome.
-     *
-     * @param ex       Exception to map
-     * @param logPrefix Logging prefix
-     * @return         ActionOutcome representing error
-     */
+    private Map<String, Object> resolveContextTokens(Map<String, Object> configMap) {
+        Map<String, Object> resolved = new Map<String, Object>();
+
+        for (String key : configMap.keySet()) {
+            Object value = configMap.get(key);
+            resolved.put(key, resolveTokenValue(value));
+        }
+
+        return resolved;
+    }
+
+    private Object resolveTokenValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof String) {
+            return replaceTokensInString((String) value);
+        }
+
+        if (value instanceof Map<String, Object>) {
+            Map<String, Object> mapValue = (Map<String, Object>) value;
+            Map<String, Object> resolvedMap = new Map<String, Object>();
+            for (String key : mapValue.keySet()) {
+                resolvedMap.put(key, resolveTokenValue(mapValue.get(key)));
+            }
+            return resolvedMap;
+        }
+
+        if (value instanceof List<Object>) {
+            List<Object> listValue = (List<Object>) value;
+            List<Object> resolvedList = new List<Object>();
+            for (Object item : listValue) {
+                resolvedList.add(resolveTokenValue(item));
+            }
+            return resolvedList;
+        }
+
+        return value;
+    }
+
+    private String replaceTokensInString(String input) {
+        if (String.isBlank(input) || !input.contains('$')) {
+            return input;
+        }
+
+        String result = input;
+
+        if (this.actionContext != null) {
+            result = result.replace('$Context.UserId', String.valueOf(this.actionContext.originalUserId));
+        }
+
+        result = result.replace('$User.Id', UserInfo.getUserId());
+        result = result.replace('$System.Today', String.valueOf(System.today()));
+        result = result.replace('$System.Now', String.valueOf(System.now()));
+
+        return result;
+    }
+
     private ActionOutcome mapExceptionToOutcome(Exception ex, String logPrefix) {
         System.debug(LoggingLevel.ERROR, logPrefix + 'Exception during action execution - Type: ' + ex.getTypeName() + ', Message: ' + ex.getMessage());
         if (ex instanceof DmlException) {
@@ -195,13 +211,6 @@ public abstract class BaseAgentAction implements IAgentAction {
         return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex.getMessage());
     }
 
-    /**
-     * Maps DML StatusCode to framework error codes.
-     *
-     * @param statusCodeStr Status code string
-     * @param defaultCode   Default error code
-     * @return              Mapped error code
-     */
     private String mapStatusCodeToErrorCode(String statusCodeStr, String defaultCode) {
         if (statusCodeStr == null)
             return defaultCode;

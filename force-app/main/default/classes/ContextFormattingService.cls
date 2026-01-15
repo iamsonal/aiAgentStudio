@@ -7,47 +7,14 @@
  */
 
 /**
- * @description
- * ContextFormattingService provides unified context formatting for SObject data into various formats
- * optimized for LLM (Large Language Model) consumption. Supports JSON and Structured Text (YAML) formats
- * with token budget awareness.
- *
- * Key Features:
- * - Token budget awareness with intelligent truncation
- * - Salesforce-specific enrichment (record URLs)
- * - Compact output formats optimized for token efficiency
- * - Hierarchical data support for parent-child relationships
- * - ID field exclusion to reduce token waste
- *
- * Supported Formats:
- * - JSON: Most token-efficient, machine-parseable, ~20% better than text formats
- * - Structured Text: Uses YAML format internally - human-readable, good token efficiency
- *
- * Token Optimization Notes:
- * - JSON format is ~20% more token-efficient than text formats
- * - Excluding ID fields can save ~15% tokens
- * - Use dot notation (Parent.Field) instead of arrows for better tokenization
+ * @description Provides unified context formatting for SObject data into formats optimized for LLM consumption. Supports JSON and Structured Text with token budget awareness.
  */
 public inherited sharing class ContextFormattingService {
     private static final Integer DEFAULT_MAX_CHARS = 8000;
-    // Path separator for related field notation (e.g., "Account.Name")
-    // Using dot notation for better LLM tokenization vs arrows (→)
     private static final String PATH_SEPARATOR = '.';
 
     public ContextFormattingService() {
     }
-
-    /**
-     * Formatting options for customizing output.
-     * Use fluent builder pattern for configuration.
-     *
-     * Example:
-     *   FormattingOptions opts = new FormattingOptions()
-     *       .withExcludeIdFields(true)
-     *       .withMetadata(false)
-     *       .withMaxChars(4000)
-     *       .withPIIMasking(schemaMasker, maskingSession);
-     */
     public class FormattingOptions {
         public Integer maxChars = DEFAULT_MAX_CHARS;
         public Boolean includeMetadata = true;
@@ -189,9 +156,7 @@ public inherited sharing class ContextFormattingService {
         return result;
     }
 
-    // ===================================================================================
     // JSON FORMATTING
-    // ===================================================================================
 
     private String formatAsJson(List<SObject> records, String logPrefix, FormattingOptions options) {
         try {
@@ -328,9 +293,7 @@ public inherited sharing class ContextFormattingService {
         return result;
     }
 
-    // ===================================================================================
     // YAML FORMATTING
-    // ===================================================================================
 
     private String formatAsYaml(List<SObject> records, String logPrefix, FormattingOptions options) {
         try {
@@ -487,9 +450,7 @@ public inherited sharing class ContextFormattingService {
         return input.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r');
     }
 
-    // ===================================================================================
     // UTILITY METHODS
-    // ===================================================================================
 
     private Map<String, List<SObject>> groupRecordsByType(List<SObject> records) {
         Map<String, List<SObject>> mapByType = new Map<String, List<SObject>>();

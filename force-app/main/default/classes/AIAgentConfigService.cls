@@ -7,35 +7,18 @@
  */
 
 /**
- * @description
- * AIAgentConfigService is the central, high-performance configuration service for the AI Agent Framework.
- * Responsibilities include:
- *   - Providing cached, read-optimized access to AIAgentDefinition__c, LLMConfiguration__c, and AgentCapability__c records
- *   - Supporting lookups by both Salesforce Record IDs and Developer Names (case-insensitive)
- *   - Implementing intelligent, testable caching strategies for optimal performance (eliminates SOQL per action execution)
- *   - Ensuring robust error handling with clear differentiation between 'not found' and 'system error'
- *   - Serving as the single source of truth for agent, LLM, and capability configuration retrieval
- *
- * This service is designed for extensibility, reliability, and operational transparency.
+ * @description Central configuration service providing cached access to AIAgentDefinition__c, LLMConfiguration__c, and AgentCapability__c records.
  */
 public inherited sharing class AIAgentConfigService {
     public class ConfigurationException extends AIAgentException {
     }
 
-    // Cache Keys: Use separate caches for ID and DeveloperName lookups
     private static Map<Id, AIAgentDefinition__c> agentDefIdCache = new Map<Id, AIAgentDefinition__c>();
-    private static Map<String, AIAgentDefinition__c> agentDefNameCache = new Map<String, AIAgentDefinition__c>(); // Key: DeveloperName (lower case)
-
+    private static Map<String, AIAgentDefinition__c> agentDefNameCache = new Map<String, AIAgentDefinition__c>();
     private static Map<Id, LLMConfiguration__c> llmConfigIdCache = new Map<Id, LLMConfiguration__c>();
-    private static Map<String, LLMConfiguration__c> llmConfigNameCache = new Map<String, LLMConfiguration__c>(); // Key: DeveloperName (lower case)
-
-    // Cache for AgentCapability records by ID for schema-driven parameter processing
+    private static Map<String, LLMConfiguration__c> llmConfigNameCache = new Map<String, LLMConfiguration__c>();
     private static Map<Id, AgentCapability__c> agentCapabilityIdCache = new Map<Id, AgentCapability__c>();
-
-    // Cache for AgentCapability records by composite key (agentDefId + capabilityName) to prevent redundant queries
     private static Map<String, AgentCapability__c> agentCapabilityNameCache = new Map<String, AgentCapability__c>();
-
-    // Common field lists for queries to ensure consistency
     private static final List<String> AGENT_DEFINITION_FIELDS = new List<String>{
         'Id',
         'Name',
@@ -100,15 +83,6 @@ public inherited sharing class AIAgentConfigService {
         'ExposureLevel__c'
     };
 
-    /**
-     * Retrieves an AgentCapability__c record by its Salesforce Record ID with caching.
-     * Optimized for schema-driven parameter processing in BaseAgentAction.
-     *
-     * @param capabilityId The ID of the AgentCapability__c record.
-     * @return             The AgentCapability__c record.
-     * @throws ConfigurationException if the ID is null, record not found, or record is inactive.
-     * @throws ConfigurationException on query errors.
-     */
     public static AgentCapability__c getCapabilityById(Id capabilityId) {
         String logPrefix = '[AIAgentCfgSvc] ';
         if (capabilityId == null) {
@@ -203,6 +177,46 @@ public inherited sharing class AIAgentConfigService {
             System.debug(LoggingLevel.ERROR, logPrefix + errorMsg + ': ' + e.getMessage());
             throw new ConfigurationException(errorMsg, e);
         }
+    }
+
+    /**
+     * Retrieves all AgentCapability__c records for a given agent definition with caching.
+     * Useful for scenarios where all capabilities need to be accessed, such as formatting tools for LLM API.
+     *
+     * @param agentDefId The ID of the AIAgentDefinition__c.
+     * @return           List of all AgentCapability__c records for the agent (includes all exposure levels).
+     * @throws ConfigurationException if agentDefId is null or on query errors.
+     */
+    public static List<AgentCapability__c> getCapabilitiesByAgentId(Id agentDefId) {
+        String logPrefix = '[AIAgentCfgSvc] ';
+
+        if (agentDefId == null) {
+            throw new ConfigurationException('Agent Definition ID cannot be null.');
+        }
+
+        // First, query all capability names for this agent (lightweight query)
+        List<AgentCapability__c> capabilityStubs = [
+            SELECT Id, CapabilityName__c
+            FROM AgentCapability__c
+            WHERE AIAgentDefinition__c = :agentDefId AND ExposureLevel__c != 'Disabled'
+        ];
+
+        if (capabilityStubs.isEmpty()) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'No capabilities found for Agent: ' + agentDefId);
+            return new List<AgentCapability__c>();
+        }
+
+        // Build set of capability names
+        Set<String> capabilityNames = new Set<String>();
+        for (AgentCapability__c stub : capabilityStubs) {
+            capabilityNames.add(stub.CapabilityName__c);
+        }
+
+        // Use bulk cache lookup to get full capability records
+        Map<String, AgentCapability__c> capMap = getCapabilitiesByNames(agentDefId, capabilityNames);
+
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'Retrieved ' + capMap.size() + ' capabilities for Agent: ' + agentDefId);
+        return capMap.values();
     }
 
     /**
@@ -447,8 +461,6 @@ public inherited sharing class AIAgentConfigService {
         // Get the LLM Configuration - this will throw ConfigurationException if not found
         return getLLMConfiguration(llmConfigId);
     }
-
-    // --- Helper Methods ---
 
     /**
      * Helper to build a SOQL query string for a given object, field list, and where clause.

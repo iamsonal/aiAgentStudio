@@ -7,40 +7,28 @@
  */
 
 /**
- * @description
- * Centralized configuration management service for the AI Agent Framework.
- * Provides cached access to custom settings with intelligent fallback to defaults.
+ * @description Centralized configuration management service. Provides cached access to custom settings with intelligent fallback to defaults.
  */
 public inherited sharing class AIAgentFrameworkSettings {
     private static AIAgentFrameworkSettings__c settings;
-
-    // Define hardcoded final defaults directly here. Names reflect settings field names.
     private static final Integer FINAL_DEFAULT_MaxConversationTurns = 5;
-    private static final Integer FINAL_DEFAULT_MaxQueueableStackDepth = 0; // 0 means use Salesforce defaults
+    private static final Integer FINAL_DEFAULT_MaxQueueableStackDepth = 0;
     private static final Integer FINAL_DEFAULT_MaxToolRetries = 2;
-    private static final Integer FINAL_DEFAULT_BulkConcurrencyLimit = 5; // Safe default for row locking
-    private static final Integer FINAL_DEFAULT_BulkFailureThreshold = 5; // Stop after 5 failures
-    private static final Integer FINAL_DEFAULT_MaxLLMCallsPerTransaction = 2; // Allow 2 LLM calls per transaction for multi-turn optimization
+    private static final Integer FINAL_DEFAULT_BulkConcurrencyLimit = 5;
+    private static final Integer FINAL_DEFAULT_BulkFailureThreshold = 5;
+    private static final Integer FINAL_DEFAULT_MaxLLMCallsPerTransaction = 2;
     private static final String FINAL_DEFAULT_HITLApprovalNamedCredential = 'AgentStudioInternalAPI';
     private static final Boolean FINAL_DEFAULT_EnablePIIMasking = false;
     private static final Boolean FINAL_DEFAULT_EnablePromptSafety = false;
     private static final Boolean FINAL_DEFAULT_PIIAuditLogging = false;
     private static final Boolean FINAL_DEFAULT_PromptSafetyAuditLogging = false;
     private static final Boolean FINAL_DEFAULT_EnableDecisionStepLogging = true;
-
-    /**
-     * Gets the singleton instance of the framework settings, applying hardcoded defaults for any missing or invalid values.
-     *
-     * @return The singleton AIAgentFrameworkSettings__c instance with all fields populated (never null).
-     */
     public static AIAgentFrameworkSettings__c getInstance() {
         if (settings == null) {
             settings = AIAgentFrameworkSettings__c.getOrgDefaults();
 
-            // If NO custom setting record exists AT ALL, create an in-memory default
             if (settings == null || settings.Id == null) {
-                settings = new AIAgentFrameworkSettings__c(); // Create empty instance
-                // Explicitly set all values from FINAL defaults if no record exists
+                settings = new AIAgentFrameworkSettings__c();
                 settings.DefaultMaxConversationTurns__c = FINAL_DEFAULT_MaxConversationTurns;
                 settings.MaxQueueableStackDepth__c = FINAL_DEFAULT_MaxQueueableStackDepth;
                 settings.MaxToolRetries__c = FINAL_DEFAULT_MaxToolRetries;

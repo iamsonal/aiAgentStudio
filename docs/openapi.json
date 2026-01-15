@@ -1,0 +1,519 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "AI Agent Studio REST API",
+    "description": "Enterprise-Grade AI Platform for Salesforce - REST API for processing AI agent messages and executing human-in-the-loop approved actions.\n\n## Authentication\nAll endpoints require Salesforce authentication via OAuth 2.0 or Session ID.\n\n## Base URL\n`https://YOUR-INSTANCE.salesforce.com/services/apexrest`\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "AI Agent Studio Support",
+      "url": "https://github.com/iamsonal/aiAgentStudio"
+    },
+    "license": {
+      "name": "Mozilla Public License 2.0",
+      "url": "https://opensource.org/licenses/MPL-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://{instance}.salesforce.com/services/apexrest",
+      "description": "Salesforce Production",
+      "variables": {
+        "instance": {
+          "default": "your-instance",
+          "description": "Your Salesforce instance domain (e.g., na1, cs1, or MyDomainName)"
+        }
+      }
+    },
+    {
+      "url": "https://{instance}.sandbox.salesforce.com/services/apexrest",
+      "description": "Salesforce Sandbox",
+      "variables": {
+        "instance": {
+          "default": "your-instance--sandbox",
+          "description": "Your Salesforce sandbox instance"
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "Chat",
+      "description": "Agent message processing endpoints"
+    },
+    {
+      "name": "HITL",
+      "description": "Human-in-the-loop tool execution endpoints"
+    }
+  ],
+  "security": [
+    {
+      "OAuth2": []
+    },
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/ai/agent/process": {
+      "post": {
+        "tags": ["Chat"],
+        "summary": "Process Chat Message",
+        "description": "Process a user message through an AI agent with full conversation context.\nThis endpoint initiates or continues an agent execution session.\n\n**Use Cases:**\n- Start new conversations\n- Continue existing conversations\n- Provide contextual information via currentRecordId\n\n**Processing:**\n- Executes in service user context (elevated permissions)\n- Asynchronous processing with status tracking\n- Supports multi-turn conversations\n",
+        "operationId": "processChatMessage",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatMessageRequest"
+              },
+              "examples": {
+                "startConversation": {
+                  "summary": "Start new conversation",
+                  "value": {
+                    "sessionId": "a0X5g000001234567",
+                    "originalUserId": "0055g000001234567",
+                    "agentDefinitionId": "a0Y5g000001234567",
+                    "turnIdentifier": "turn-2024-01-15-12-30-45-abc123",
+                    "userMessage": "Help me close this case",
+                    "currentRecordId": "5005g000001234567"
+                  }
+                },
+                "continueConversation": {
+                  "summary": "Continue existing conversation",
+                  "value": {
+                    "sessionId": "a0X5g000001234567",
+                    "originalUserId": "0055g000001234567",
+                    "agentDefinitionId": "a0Y5g000001234567",
+                    "turnIdentifier": "turn-2024-01-15-12-31-00-def456",
+                    "userMessage": "Yes, please create that task",
+                    "currentRecordId": "5005g000001234567"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Request successfully processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "examples": {
+                  "success": {
+                    "summary": "Successful processing",
+                    "value": {
+                      "success": true,
+                      "outcome": "Processing",
+                      "error": null,
+                      "requestId": "12345678"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "examples": {
+                  "missingField": {
+                    "summary": "Missing required field",
+                    "value": {
+                      "success": false,
+                      "outcome": null,
+                      "error": "sessionId is required",
+                      "requestId": "12345678"
+                    }
+                  },
+                  "invalidId": {
+                    "summary": "Invalid ID format",
+                    "value": {
+                      "success": false,
+                      "outcome": null,
+                      "error": "Invalid sessionId format: abc123",
+                      "requestId": "12345678"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "examples": {
+                  "accessDenied": {
+                    "summary": "Insufficient privileges",
+                    "value": {
+                      "success": false,
+                      "outcome": null,
+                      "error": "Access denied: Insufficient privileges",
+                      "requestId": "12345678"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "examples": {
+                  "serverError": {
+                    "summary": "Unexpected error",
+                    "value": {
+                      "success": false,
+                      "outcome": null,
+                      "error": "Internal server error: Unexpected exception occurred",
+                      "requestId": "12345678"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/agent/hitl/execute": {
+      "post": {
+        "tags": ["HITL"],
+        "summary": "Execute HITL Approved Tool",
+        "description": "Execute a tool that has been approved through the Human-in-the-Loop workflow.\nThis endpoint is called after a user approves an action that requires human confirmation or approval.\n\n**Use Cases:**\n- Execute approved data modifications\n- Execute actions requiring elevated permissions\n- Resume agent workflow after approval\n\n**Processing:**\n- Executes in authenticated user context (user-specific permissions)\n- Supports optional follow-up LLM calls\n- Sends notifications based on capability settings\n",
+        "operationId": "executeHITLTool",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HITLToolRequest"
+              },
+              "examples": {
+                "createTask": {
+                  "summary": "Create approved task",
+                  "value": {
+                    "pendingActionId": "a0Z5g000001234567",
+                    "executionId": "a0X5g000001234567",
+                    "capabilityId": "a0W5g000001234567",
+                    "toolCallId": "call_abc123xyz789",
+                    "toolName": "CreateTask",
+                    "toolArguments": "{\"Subject\":\"Follow up on case\",\"Priority\":\"High\",\"WhatId\":\"5005g000001234567\"}",
+                    "turnIdentifier": "turn-2024-01-15-12-30-45-abc123",
+                    "turnCount": 3,
+                    "sourceRecordId": "5005g000001234567",
+                    "requestingUserId": "0055g000001234567",
+                    "needsFollowUp": true
+                  }
+                },
+                "updateRecord": {
+                  "summary": "Update approved record",
+                  "value": {
+                    "pendingActionId": "a0Z5g000001234568",
+                    "executionId": "a0X5g000001234567",
+                    "capabilityId": "a0W5g000001234568",
+                    "toolCallId": "call_def456xyz123",
+                    "toolName": "UpdateCase",
+                    "toolArguments": "{\"Id\":\"5005g000001234567\",\"Status\":\"Closed\",\"Resolution\":\"Issue resolved\"}",
+                    "turnIdentifier": "turn-2024-01-15-12-32-00-ghi789",
+                    "turnCount": 4,
+                    "requestingUserId": "0055g000001234567",
+                    "needsFollowUp": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tool executed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "examples": {
+                  "success": {
+                    "summary": "Successful execution",
+                    "value": {
+                      "success": true,
+                      "outcome": "Tool executed successfully",
+                      "error": null,
+                      "requestId": "12345678"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input or configuration error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "examples": {
+                  "missingField": {
+                    "summary": "Missing required field",
+                    "value": {
+                      "success": false,
+                      "outcome": null,
+                      "error": "capabilityId is required",
+                      "requestId": "12345678"
+                    }
+                  },
+                  "capabilityNotFound": {
+                    "summary": "Capability not found",
+                    "value": {
+                      "success": false,
+                      "outcome": null,
+                      "error": "Configuration error: Capability not found",
+                      "requestId": "12345678"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - Tool execution failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "examples": {
+                  "executionError": {
+                    "summary": "Tool execution failure",
+                    "value": {
+                      "success": false,
+                      "outcome": null,
+                      "error": "Internal server error: DML exception occurred",
+                      "requestId": "12345678"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "OAuth2": {
+        "type": "oauth2",
+        "description": "Salesforce OAuth 2.0 authentication",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://login.salesforce.com/services/oauth2/authorize",
+            "tokenUrl": "https://login.salesforce.com/services/oauth2/token",
+            "scopes": {
+              "api": "Access Salesforce APIs",
+              "full": "Full access to all data"
+            }
+          }
+        }
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Session ID",
+        "description": "Salesforce Session ID or OAuth access token"
+      }
+    },
+    "schemas": {
+      "ChatMessageRequest": {
+        "type": "object",
+        "required": [
+          "sessionId",
+          "originalUserId",
+          "agentDefinitionId",
+          "turnIdentifier",
+          "userMessage"
+        ],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$",
+            "description": "Unique identifier for the agent execution session (Salesforce ID)",
+            "example": "a0X5g000001234567"
+          },
+          "originalUserId": {
+            "type": "string",
+            "pattern": "^005[a-zA-Z0-9]{12}$|^005[a-zA-Z0-9]{15}$",
+            "description": "Salesforce User ID who initiated the request",
+            "example": "0055g000001234567"
+          },
+          "agentDefinitionId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$",
+            "description": "ID of the AIAgentDefinition__c record",
+            "example": "a0Y5g000001234567"
+          },
+          "turnIdentifier": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Unique identifier for this conversation turn",
+            "example": "turn-2024-01-15-12-30-45-abc123"
+          },
+          "userMessage": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32000,
+            "description": "The user's message text",
+            "example": "Help me close this case"
+          },
+          "currentRecordId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$",
+            "description": "Contextual Salesforce record ID (optional)",
+            "example": "5005g000001234567",
+            "nullable": true
+          }
+        }
+      },
+      "HITLToolRequest": {
+        "type": "object",
+        "required": [
+          "pendingActionId",
+          "executionId",
+          "capabilityId"
+        ],
+        "properties": {
+          "pendingActionId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$",
+            "description": "ID of the PendingHITLAction__c record",
+            "example": "a0Z5g000001234567"
+          },
+          "executionId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$",
+            "description": "ID of the AgentExecution__c record",
+            "example": "a0X5g000001234567"
+          },
+          "capabilityId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$",
+            "description": "ID of the AgentCapability__c to execute",
+            "example": "a0W5g000001234567"
+          },
+          "toolCallId": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "LLM tool call identifier",
+            "example": "call_abc123xyz789"
+          },
+          "toolName": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Name of the tool being executed",
+            "example": "CreateTask"
+          },
+          "toolArguments": {
+            "type": "string",
+            "description": "JSON string of tool arguments",
+            "example": "{\"Subject\":\"Follow up\",\"Priority\":\"High\"}"
+          },
+          "turnIdentifier": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Conversation turn identifier",
+            "example": "turn-2024-01-15-12-30-45-abc123"
+          },
+          "turnCount": {
+            "type": "number",
+            "minimum": 1,
+            "description": "Current turn count in the conversation",
+            "example": 3,
+            "nullable": true
+          },
+          "sourceRecordId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$",
+            "description": "Contextual Salesforce record ID",
+            "example": "5005g000001234567",
+            "nullable": true
+          },
+          "requestingUserId": {
+            "type": "string",
+            "pattern": "^005[a-zA-Z0-9]{12}$|^005[a-zA-Z0-9]{15}$",
+            "description": "User ID who requested the action (for notifications)",
+            "example": "0055g000001234567",
+            "nullable": true
+          },
+          "needsFollowUp": {
+            "type": "boolean",
+            "description": "Whether a follow-up LLM call is needed after execution",
+            "example": true,
+            "nullable": true
+          }
+        }
+      },
+      "AgentResponse": {
+        "type": "object",
+        "required": ["success", "requestId"],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Indicates if the request was successfully processed",
+            "example": true
+          },
+          "outcome": {
+            "type": "string",
+            "description": "Processing status or result message",
+            "example": "Processing",
+            "nullable": true,
+            "enum": [
+              "Processing",
+              "Completed",
+              "Failed",
+              "Tool executed successfully"
+            ]
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if success is false",
+            "example": null,
+            "nullable": true
+          },
+          "requestId": {
+            "type": "string",
+            "pattern": "^\\d{8}$",
+            "description": "Unique request identifier for troubleshooting",
+            "example": "12345678"
+          }
+        }
+      }
+    }
+  }
+}

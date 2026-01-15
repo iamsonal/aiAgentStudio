@@ -7,18 +7,7 @@
  */
 
 /**
- * @description
- * FollowUpLLMEngine coordinates the post-tool-execution phase of an LLM-driven execution, handling follow-up LLM interactions
- * after asynchronous operations complete. This engine contains all the business logic for follow-up LLM processing.
- *
- * Implements Queueable with Database.AllowsCallouts for direct async execution without unnecessary wrapper classes.
- * Can be invoked via System.enqueueJob (low dispatch) or Platform Events (high dispatch).
- *
- * Responsibilities:
- *   - Validate execution and turn state before proceeding with follow-up LLM processing
- *   - Invoke LLM interaction logic and process the resulting output
- *   - Handle both success and error scenarios, including marking turns as failed if needed
- *   - Provide clear, actionable debug output and commit logs for diagnostics
+ * @description Coordinates post-tool-execution follow-up LLM interactions. Handles follow-up LLM processing after async operations complete.
  */
 public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
     private final Id executionId;
@@ -27,17 +16,6 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
     private final String turnIdentifier;
     private final Integer currentTurnCount;
     private final Boolean isFinalErrorTurn;
-
-    /**
-     * Constructor for follow-up LLM processing using the unified AgentExecution__c model.
-     *
-     * @param executionId   The execution ID (AgentExecution__c) for this interaction.
-     * @param usrId         The original user ID who initiated the execution.
-     * @param agentDefId    The AI agent definition ID being used.
-     * @param turnId        The unique turn identifier for tracking this execution turn.
-     * @param turnCount     The current turn number in the execution.
-     * @param isFinalError  Whether this is a final error turn that should terminate the execution.
-     */
     public FollowUpLLMEngine(Id executionId, Id usrId, Id agentDefId, String turnId, Integer turnCount, Boolean isFinalError) {
         this.executionId = executionId;
         this.userId = usrId;
@@ -112,9 +90,7 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
             // Initialize the decision step logger - single instance for the entire turn
             decisionLogger = IDecisionStepLogger.create(this.executionId, this.turnIdentifier, originalUserId);
 
-            // =====================================================================================
             // Multi-LLM Optimization: Enable deferred DML mode and track LLM calls
-            // =====================================================================================
             TransactionContext txnCtx = TransactionContext.getInstance();
             txnCtx.enableDeferredDMLMode();
             txnCtx.incrementLLMCallCount();

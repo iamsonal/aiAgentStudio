@@ -7,20 +7,9 @@
  */
 
 /**
- * @description
- * HttpCalloutService is a simple HTTP client utility for Apex that provides:
- *   - Single-attempt HTTP callout execution (fail-fast approach)
- *   - Centralized, observable HTTP callout execution for LLM provider and external API integrations
- *   - Detailed debug logging and result metadata for troubleshooting
- *
- * This service is designed for use in AI agent and LLM provider integrations, but is general-purpose.
+ * @description Simple HTTP client utility for Apex. Provides single-attempt HTTP callout execution with centralized logging.
  */
 public class HttpCalloutService {
-    /**
-     * Configuration object for HTTP callout execution.
-     *
-     * Defines logging preferences for HTTP callouts.
-     */
     public class CalloutConfig {
         public String logPrefix = '[HttpCalloutService] ';
 
@@ -32,11 +21,6 @@ public class HttpCalloutService {
         }
     }
 
-    /**
-     * Result object containing HTTP response and execution metadata.
-     *
-     * Provides success status and timing information for analysis and troubleshooting.
-     */
     public class CalloutResult {
         public HttpResponse response { get; private set; }
         public Boolean isSuccess { get; private set; }
