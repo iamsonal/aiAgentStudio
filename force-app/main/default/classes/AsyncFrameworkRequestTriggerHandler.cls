@@ -117,7 +117,8 @@ public class AsyncFrameworkRequestTriggerHandler {
             (Id) params.get('agentDefId'),
             (String) params.get('turnId'),
             (Integer) params.get('nextTurnCount'),
-            isFinalError
+            isFinalError,
+            (Id) params.get('recordId')
         );
         engine.process(null);
     }

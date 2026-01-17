@@ -370,7 +370,8 @@ global with sharing class AIAgentRestService {
                 toolRequest.turnIdentifier,
                 (toolRequest.turnCount != null ? Integer.valueOf(toolRequest.turnCount) : 1) + 1,
                 logPrefix,
-                false
+                false,
+                execution.SourceRecordId__c
             );
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to queue follow-up: ' + e.getMessage());

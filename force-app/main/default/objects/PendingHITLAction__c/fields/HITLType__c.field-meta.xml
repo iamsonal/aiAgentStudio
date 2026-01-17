@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>HITLType__c</fullName>
-    <description>The type of human intervention required: Approval (formal approval process) or ConfirmationThenApproval (LLM confirms first, then formal approval).</description>
+    <description>The type of human intervention required: Approval (formal approval process), ConfirmationThenApproval (LLM confirms first, then formal approval), or ConditionalApproval (LLM decides if approval needed based on context).</description>
     <externalId>false</externalId>
-    <inlineHelpText>Approval = formal Salesforce approval process. ConfirmationThenApproval = LLM confirms in chat first, then formal approval.</inlineHelpText>
+    <inlineHelpText>Approval = always require formal approval. ConfirmationThenApproval = LLM confirms, then formal approval. ConditionalApproval = LLM analyzes context to decide if approval needed.</inlineHelpText>
     <label>HITL Type</label>
     <required>true</required>
     <trackHistory>true</trackHistory>
@@ -22,6 +22,11 @@
                 <fullName>ConfirmationThenApproval</fullName>
                 <default>false</default>
                 <label>Confirmation Then Approval</label>
+            </value>
+            <value>
+                <fullName>ConditionalApproval</fullName>
+                <default>false</default>
+                <label>Conditional Approval (LLM Decides)</label>
             </value>
         </valueSetDefinition>
     </valueSet>

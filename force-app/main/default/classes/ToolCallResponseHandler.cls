@@ -352,8 +352,23 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         };
 
         for (ToolCallRequest tool : toolRequests) {
+            // Check for ConditionalApproval mode first - LLM decides if approval is needed
+            if (tool.hitlMode == HITLGatewayService.HITL_MODE_CONDITIONAL_APPROVAL) {
+                Boolean requiresApproval = checkLLMApprovalRequest(tool);
+                if (requiresApproval) {
+                    // LLM determined approval is needed
+                    groups.get('approval').add(tool);
+                } else {
+                    // LLM did not request approval - proceed normally
+                    if (tool.isAsync) {
+                        groups.get('async').add(tool);
+                    } else {
+                        groups.get('sync').add(tool);
+                    }
+                }
+            }
             // Approval mode requires formal Salesforce approval process
-            if (tool.hitlMode == HITLGatewayService.HITL_MODE_APPROVAL) {
+            else if (tool.hitlMode == HITLGatewayService.HITL_MODE_APPROVAL) {
                 groups.get('approval').add(tool);
             }
             // ConfirmationThenApproval mode - LLM already confirmed, now needs approval
@@ -377,6 +392,73 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
 
         return groups;
+    }
+
+    /**
+     * Checks if LLM requested approval via _requiresApproval parameter
+     * Used for ConditionalApproval HITL mode
+     * @param tool The tool call request to check
+     * @return true if _requiresApproval=true, false otherwise
+     */
+    private static Boolean checkLLMApprovalRequest(ToolCallRequest tool) {
+        if (String.isBlank(tool.toolArguments)) {
+            return false;
+        }
+
+        try {
+            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(tool.toolArguments);
+
+            if (!args.containsKey('_requiresApproval')) {
+                return false;
+            }
+
+            Object requiresApproval = args.get('_requiresApproval');
+
+            // Handle boolean
+            if (requiresApproval instanceof Boolean) {
+                return (Boolean) requiresApproval;
+            }
+
+            // Handle string "true"/"false"
+            if (requiresApproval instanceof String) {
+                String strValue = ((String) requiresApproval).toLowerCase();
+                return strValue == 'true' || strValue == '1' || strValue == 'yes';
+            }
+
+            return false;
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.WARN,
+                '[ToolCallResponseHandler] ' + 'Error parsing _requiresApproval for tool "' + tool.toolName + '": ' + e.getMessage()
+            );
+            // Fail-safe: if we can't parse, don't require approval
+            return false;
+        }
+    }
+
+    /**
+     * Extracts approval reason from tool arguments
+     * Used for ConditionalApproval HITL mode to get LLM's reasoning
+     * @param tool The tool call request
+     * @return The approval reason string, or null if not present
+     */
+    private static String extractApprovalReason(ToolCallRequest tool) {
+        if (String.isBlank(tool.toolArguments)) {
+            return null;
+        }
+
+        try {
+            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(tool.toolArguments);
+
+            if (args.containsKey('_approvalReason')) {
+                return String.valueOf(args.get('_approvalReason'));
+            }
+
+            return null;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, '[ToolCallResponseHandler] ' + 'Error extracting _approvalReason: ' + e.getMessage());
+            return null;
+        }
     }
 
     // EXECUTION STEP CREATION
@@ -478,8 +560,23 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         hitlContext.sourceRecordId = context.currentPageRecordId;
         hitlContext.logPrefix = logPrefix;
 
-        // Evaluate HITL requirement (should return Approval)
-        HITLGatewayService.HITLDecision decision = HITLGatewayService.evaluate(hitlContext);
+        // Add conditional approval context
+        hitlContext.isConditionalApproval = (approvalTool.hitlMode == HITLGatewayService.HITL_MODE_CONDITIONAL_APPROVAL);
+        if (hitlContext.isConditionalApproval) {
+            hitlContext.llmApprovalReason = extractApprovalReason(approvalTool);
+        }
+
+        // Evaluate HITL requirement
+        // For ConditionalApproval mode, LLM already decided via _requiresApproval parameter
+        // So we create an Approval decision directly without calling evaluate()
+        HITLGatewayService.HITLDecision decision;
+        if (hitlContext.isConditionalApproval) {
+            // LLM decided approval is needed - create intervention decision
+            decision = HITLGatewayService.createInterventionDecision(HITLGatewayService.HITL_MODE_APPROVAL);
+        } else {
+            // Standard Approval or ConfirmationThenApproval - evaluate normally
+            decision = HITLGatewayService.evaluate(hitlContext);
+        }
 
         if (!decision.isValidConfiguration) {
             // Configuration error - fail the turn
@@ -1139,7 +1236,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             context.turnIdentifier,
             context.currentTurnCount + 1,
             logPrefix,
-            false
+            false,
+            context.currentPageRecordId
         );
 
         return OrchestrationService.OUTCOME_QUEUED_FOLLOWUP;

@@ -533,7 +533,8 @@ public with sharing class PendingHITLActionTriggerHandler {
                 action.TurnIdentifier__c,
                 (action.TurnCount__c != null ? action.TurnCount__c.intValue() : 1) + 1,
                 logPrefix,
-                false
+                false,
+                execution.SourceRecordId__c
             );
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up LLM call queued successfully');

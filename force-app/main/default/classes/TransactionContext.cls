@@ -16,12 +16,15 @@ public inherited sharing class TransactionContext {
     private Integer dmlCountBeforeTool;
     private Integer calloutCountBeforeTool;
     private List<SObject> insertBuffer;
+    private Boolean hasPreExistingExecution;
+
     private TransactionContext() {
         this.deferredDMLMode = false;
         this.llmCallCount = 0;
         this.dmlCountBeforeTool = 0;
         this.calloutCountBeforeTool = 0;
         this.insertBuffer = new List<SObject>();
+        this.hasPreExistingExecution = false;
     }
 
     /**
@@ -78,6 +81,32 @@ public inherited sharing class TransactionContext {
         return canCall;
     }
 
+    // PRE-EXISTING EXECUTION TRACKING
+
+    /**
+     * Sets whether a pre-existing execution record was provided at the start of this transaction.
+     * When true, indicates the execution was created in a previous transaction (workflow/bulk context).
+     * When false, indicates the execution will be created during this transaction.
+     *
+     * This flag is used by canContinueWithImmediateFollowUp() to ensure that newly created
+     * executions are committed before making follow-up LLM calls in a new transaction.
+     *
+     * @param hasPreExisting True if execution record existed before this transaction started.
+     */
+    public void setHasPreExistingExecution(Boolean hasPreExisting) {
+        this.hasPreExistingExecution = hasPreExisting;
+        System.debug(LoggingLevel.DEBUG, '[TransactionContext] Pre-existing execution flag set to: ' + hasPreExisting);
+    }
+
+    /**
+     * Returns whether a pre-existing execution record was provided.
+     *
+     * @return True if execution existed before this transaction, false otherwise.
+     */
+    public Boolean hasPreExistingExecution() {
+        return this.hasPreExistingExecution;
+    }
+
     public void capturePreToolLimits() {
         this.dmlCountBeforeTool = Limits.getDMLStatements();
         this.calloutCountBeforeTool = Limits.getCallouts();
@@ -118,14 +147,20 @@ public inherited sharing class TransactionContext {
      * Convenience method that combines the multi-LLM eligibility checks.
      * Returns true if:
      * 1. Deferred DML mode is enabled
-     * 2. The tool did not perform DML or callouts
-     * 3. We haven't reached the max LLM calls limit
+     * 2. A pre-existing execution record was provided (not created in this transaction)
+     * 3. The tool did not perform DML or callouts
+     * 4. We haven't reached the max LLM calls limit
      *
      * @return True if another immediate LLM call is allowed, false otherwise.
      */
     public Boolean canContinueWithImmediateFollowUp() {
         if (!this.deferredDMLMode) {
             System.debug(LoggingLevel.DEBUG, '[TransactionContext] Cannot continue: deferred DML mode not enabled');
+            return false;
+        }
+
+        if (!this.hasPreExistingExecution) {
+            System.debug(LoggingLevel.DEBUG, '[TransactionContext] Cannot continue: no pre-existing execution record (will commit and use new transaction)');
             return false;
         }
 
@@ -204,6 +239,7 @@ public inherited sharing class TransactionContext {
         this.dmlCountBeforeTool = 0;
         this.calloutCountBeforeTool = 0;
         this.insertBuffer.clear();
+        this.hasPreExistingExecution = false;
         System.debug(LoggingLevel.DEBUG, '[TransactionContext] Context reset to initial state');
     }
 

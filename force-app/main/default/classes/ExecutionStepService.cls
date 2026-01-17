@@ -923,56 +923,16 @@ public inherited sharing class ExecutionStepService {
         }
     }
 
-    // Static cache for LLM model pricing to avoid repeated SOQL queries
-    private static Map<String, LLMModelPricing__mdt> pricingCache;
-    private static Boolean isPricingCacheInitialized = false;
-
+    /**
+     * Calculates the estimated cost for an LLM call using centralized pricing logic.
+     * Delegates to AIAgentConfigService for consistent pricing across the framework.
+     *
+     * @param modelIdentifier  The model identifier (e.g., gpt-4o, gpt-4o-mini)
+     * @param promptTokens     Number of tokens in the prompt
+     * @param completionTokens Number of tokens in the completion
+     * @return                 The estimated cost in USD, or null if pricing not available
+     */
     private static Decimal calculateCost(String modelIdentifier, Integer promptTokens, Integer completionTokens) {
-        if (String.isBlank(modelIdentifier) || promptTokens == null || completionTokens == null) {
-            return null;
-        }
-
-        // Initialize pricing cache if needed
-        ensurePricingCacheInitialized();
-
-        String normalizedModel = modelIdentifier.toLowerCase();
-
-        if (pricingCache.containsKey(normalizedModel)) {
-            LLMModelPricing__mdt pricing = pricingCache.get(normalizedModel);
-            Decimal promptCost = (Decimal.valueOf(promptTokens) / 1000000.0) * pricing.PromptPricePer1MTokens__c;
-            Decimal completionCost = (Decimal.valueOf(completionTokens) / 1000000.0) * pricing.CompletionPricePer1MTokens__c;
-            return promptCost + completionCost;
-        }
-
-        System.debug(LoggingLevel.WARN, LOG_PREFIX + 'No pricing found for model: ' + modelIdentifier);
-        return null;
-    }
-
-    private static void ensurePricingCacheInitialized() {
-        if (isPricingCacheInitialized) {
-            return;
-        }
-
-        pricingCache = new Map<String, LLMModelPricing__mdt>();
-
-        try {
-            List<LLMModelPricing__mdt> pricingRecords = [
-                SELECT ModelIdentifier__c, PromptPricePer1MTokens__c, CompletionPricePer1MTokens__c
-                FROM LLMModelPricing__mdt
-                WHERE IsActive__c = TRUE
-            ];
-
-            for (LLMModelPricing__mdt pricing : pricingRecords) {
-                if (String.isNotBlank(pricing.ModelIdentifier__c)) {
-                    pricingCache.put(pricing.ModelIdentifier__c.toLowerCase(), pricing);
-                }
-            }
-
-            isPricingCacheInitialized = true;
-            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Initialized pricing cache with ' + pricingCache.size() + ' models');
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Failed to initialize pricing cache: ' + e.getMessage());
-            isPricingCacheInitialized = true;
-        }
+        return AIAgentConfigService.calculateLLMCost(modelIdentifier, promptTokens, completionTokens);
     }
 }

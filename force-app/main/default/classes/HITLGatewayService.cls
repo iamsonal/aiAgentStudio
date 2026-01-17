@@ -13,6 +13,7 @@ public with sharing class HITLGatewayService {
     public static final String HITL_MODE_CONFIRMATION = 'Confirmation';
     public static final String HITL_MODE_APPROVAL = 'Approval';
     public static final String HITL_MODE_CONFIRMATION_THEN_APPROVAL = 'ConfirmationThenApproval';
+    public static final String HITL_MODE_CONDITIONAL_APPROVAL = 'ConditionalApproval';
 
     public static final String STATUS_PENDING = 'Pending';
     public static final String STATUS_CONFIRMED = 'Confirmed';
@@ -53,6 +54,9 @@ public with sharing class HITLGatewayService {
         public String toolArguments { get; set; }
         public Id sourceRecordId { get; set; }
         public String logPrefix { get; set; }
+        // LLM-driven conditional approval fields
+        public Boolean isConditionalApproval { get; set; } // true if HITLMode = ConditionalApproval
+        public String llmApprovalReason { get; set; } // From _approvalReason parameter
 
         public HITLContext() {
             this.logPrefix = LOG_PREFIX;
@@ -253,12 +257,19 @@ public with sharing class HITLGatewayService {
             return createInterventionDecision(HITL_MODE_APPROVAL);
         }
 
+        if (hitlMode == HITL_MODE_CONDITIONAL_APPROVAL) {
+            // ConditionalApproval mode: LLM decides at execution time via _requiresApproval parameter
+            // evaluate() just validates the configuration - actual routing happens in ToolCallResponseHandler
+            System.debug(LoggingLevel.DEBUG, debugPrefix + 'ConditionalApproval mode configured - LLM will decide if approval needed');
+            return createProceedDecision();
+        }
+
         String errorMsg =
             'Unknown HITLMode value: "' +
             hitlMode +
             '" for capability "' +
             context.capability.CapabilityName__c +
-            '". Valid values are: None, Confirmation, Approval, ConfirmationThenApproval.';
+            '". Valid values are: None, Confirmation, Approval, ConfirmationThenApproval, ConditionalApproval.';
         System.debug(LoggingLevel.ERROR, debugPrefix + errorMsg);
         return createInvalidConfigDecision(errorMsg);
     }
@@ -643,6 +654,14 @@ public with sharing class HITLGatewayService {
             prompt += 'Description: ' + description + '\n';
         }
 
+        // Include LLM reasoning for conditional approvals
+        if (context.isConditionalApproval && String.isNotBlank(context.llmApprovalReason)) {
+            prompt += '\n═══════════════════════════════════════\n';
+            prompt += 'AI ANALYSIS:\n';
+            prompt += context.llmApprovalReason + '\n';
+            prompt += '═══════════════════════════════════════\n';
+        }
+
         String formattedArgs = formatArgumentsForDisplay(context.toolArguments);
         if (String.isNotBlank(formattedArgs)) {
             prompt += '\nParameters:\n' + formattedArgs;
@@ -658,6 +677,15 @@ public with sharing class HITLGatewayService {
 
         try {
             Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(argumentsJson);
+            if (args.isEmpty()) {
+                return '';
+            }
+
+            // Remove framework-internal parameters from display
+            args.remove('_requiresApproval');
+            args.remove('_approvalReason');
+            args.remove('_rationale'); // Also hide rationale
+
             if (args.isEmpty()) {
                 return '';
             }

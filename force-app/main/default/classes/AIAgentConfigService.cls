@@ -19,6 +19,11 @@ public inherited sharing class AIAgentConfigService {
     private static Map<String, LLMConfiguration__c> llmConfigNameCache = new Map<String, LLMConfiguration__c>();
     private static Map<Id, AgentCapability__c> agentCapabilityIdCache = new Map<Id, AgentCapability__c>();
     private static Map<String, AgentCapability__c> agentCapabilityNameCache = new Map<String, AgentCapability__c>();
+
+    // LLM Model Pricing Cache
+    private static Map<String, LLMModelPricing__mdt> pricingCache;
+    private static Boolean isPricingCacheInitialized = false;
+
     private static final List<String> AGENT_DEFINITION_FIELDS = new List<String>{
         'Id',
         'Name',
@@ -90,7 +95,7 @@ public inherited sharing class AIAgentConfigService {
         }
 
         if (!agentCapabilityIdCache.containsKey(capabilityId)) {
-            System.debug(LoggingLevel.INFO, logPrefix + 'Cache MISS for Capability ID: ' + capabilityId + ' - querying database');
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Loading capability from database: ' + capabilityId);
 
             try {
                 String queryString = buildQuery('AgentCapability__c', AGENT_CAPABILITY_FIELDS, 'Id = :capabilityId');
@@ -148,7 +153,7 @@ public inherited sharing class AIAgentConfigService {
             return cachedCapability;
         }
 
-        System.debug(LoggingLevel.INFO, logPrefix + 'Cache MISS - Querying capability "' + capabilityName + '" for Agent: ' + agentDefId);
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'Loading capability "' + capabilityName + '" from database for Agent: ' + agentDefId);
 
         try {
             String queryString = buildQuery(
@@ -268,7 +273,7 @@ public inherited sharing class AIAgentConfigService {
 
         // Query for uncached capabilities in a single SOQL
         if (!uncachedNames.isEmpty()) {
-            System.debug(LoggingLevel.INFO, logPrefix + 'Bulk querying ' + uncachedNames.size() + ' uncached capabilities for Agent: ' + agentDefId);
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Loading ' + uncachedNames.size() + ' capabilities from database for Agent: ' + agentDefId);
 
             try {
                 String fieldList = String.join(AGENT_CAPABILITY_FIELDS, ', ');
@@ -325,7 +330,7 @@ public inherited sharing class AIAgentConfigService {
         }
 
         if (!agentDefIdCache.containsKey(agentDefId)) {
-            System.debug(LoggingLevel.INFO, '[AIAgentConfigService] Cache MISS for Agent ID: ' + agentDefId + ' - querying database');
+            System.debug(LoggingLevel.DEBUG, '[AIAgentConfigService] Loading Agent Definition from database: ' + agentDefId);
 
             String queryString = buildQuery('AIAgentDefinition__c', AGENT_DEFINITION_FIELDS, 'Id = :agentDefId AND IsActive__c = TRUE');
 
@@ -367,7 +372,7 @@ public inherited sharing class AIAgentConfigService {
         String cacheKey = developerName.toLowerCase();
 
         if (!agentDefNameCache.containsKey(cacheKey)) {
-            System.debug(LoggingLevel.INFO, '[AIAgentConfigService] Cache MISS for Agent Name: ' + developerName + ' - querying database');
+            System.debug(LoggingLevel.DEBUG, '[AIAgentConfigService] Loading Agent Definition by name from database: ' + developerName);
 
             // Ensure DeveloperName field exists and is filterable/indexed for performance
             String queryString = buildQuery('AIAgentDefinition__c', AGENT_DEFINITION_FIELDS, 'DeveloperName__c = :developerName AND IsActive__c = TRUE');
@@ -416,7 +421,7 @@ public inherited sharing class AIAgentConfigService {
         }
 
         if (!llmConfigIdCache.containsKey(llmConfigId)) {
-            System.debug(LoggingLevel.INFO, '[AIAgentConfigService] Cache MISS for LLM ID: ' + llmConfigId + ' - querying database');
+            System.debug(LoggingLevel.DEBUG, '[AIAgentConfigService] Loading LLM Configuration from database: ' + llmConfigId);
 
             String queryString = buildQuery('LLMConfiguration__c', LLM_CONFIGURATION_FIELDS, 'Id = :llmConfigId AND IsActive__c = TRUE');
             List<LLMConfiguration__c> results = Database.query(queryString);
@@ -520,5 +525,109 @@ public inherited sharing class AIAgentConfigService {
             System.debug(LoggingLevel.WARN, 'Could not retrieve agent name for ID: ' + agentDefinitionId + '. Error: ' + e.getMessage());
         }
         return 'AI Agent';
+    }
+
+    // ========================================================================
+    // LLM MODEL PRICING METHODS
+    // ========================================================================
+
+    /**
+     * Calculate estimated cost based on LLM model pricing and token usage.
+     * Pricing is retrieved from LLMModelPricing__mdt custom metadata with transaction-level caching.
+     *
+     * This method provides centralized pricing calculation to avoid duplicate queries
+     * across ExecutionStepService and AgentDecisionStepLogger.
+     *
+     * @param modelIdentifier  The model identifier (e.g., gpt-4o, gpt-4o-mini, claude-3-5-sonnet)
+     * @param promptTokens     Number of tokens in the prompt
+     * @param completionTokens Number of tokens in the completion
+     * @return                 The estimated cost in USD, or null if model is unknown or pricing not configured
+     */
+    public static Decimal calculateLLMCost(String modelIdentifier, Integer promptTokens, Integer completionTokens) {
+        if (String.isBlank(modelIdentifier) || promptTokens == null || completionTokens == null) {
+            return null;
+        }
+
+        ensurePricingCacheInitialized();
+
+        // Normalize model identifier to lowercase for matching
+        String normalizedModel = modelIdentifier.toLowerCase();
+
+        if (pricingCache.containsKey(normalizedModel)) {
+            LLMModelPricing__mdt pricing = pricingCache.get(normalizedModel);
+            Decimal promptCost = (Decimal.valueOf(promptTokens) / 1000000.0) * pricing.PromptPricePer1MTokens__c;
+            Decimal completionCost = (Decimal.valueOf(completionTokens) / 1000000.0) * pricing.CompletionPricePer1MTokens__c;
+            return promptCost + completionCost;
+        }
+
+        System.debug(LoggingLevel.WARN, '[AIAgentConfigService] No pricing found for model: ' + modelIdentifier);
+        return null;
+    }
+
+    /**
+     * Retrieves the pricing metadata for a specific LLM model.
+     * Useful for displaying pricing information in UI or detailed cost breakdowns.
+     *
+     * @param modelIdentifier The model identifier (case-insensitive)
+     * @return                The LLMModelPricing__mdt record, or null if not found
+     */
+    public static LLMModelPricing__mdt getLLMPricing(String modelIdentifier) {
+        if (String.isBlank(modelIdentifier)) {
+            return null;
+        }
+
+        ensurePricingCacheInitialized();
+        return pricingCache.get(modelIdentifier.toLowerCase());
+    }
+
+    /**
+     * Ensures the LLM pricing cache is initialized with active model pricing records.
+     * Uses a static flag to prevent repeated queries within the same transaction.
+     *
+     * This method is called automatically by calculateLLMCost() and getLLMPricing().
+     */
+    private static void ensurePricingCacheInitialized() {
+        if (isPricingCacheInitialized) {
+            return;
+        }
+
+        pricingCache = new Map<String, LLMModelPricing__mdt>();
+
+        try {
+            List<LLMModelPricing__mdt> pricingRecords = [
+                SELECT ModelIdentifier__c, PromptPricePer1MTokens__c, CompletionPricePer1MTokens__c
+                FROM LLMModelPricing__mdt
+                WHERE IsActive__c = TRUE
+            ];
+
+            if (pricingRecords.isEmpty()) {
+                System.debug(LoggingLevel.WARN, '[AIAgentConfigService] No active LLM pricing metadata found. Cost calculation will be unavailable.');
+            }
+
+            for (LLMModelPricing__mdt pricing : pricingRecords) {
+                if (String.isNotBlank(pricing.ModelIdentifier__c)) {
+                    pricingCache.put(pricing.ModelIdentifier__c.toLowerCase(), pricing);
+                }
+            }
+
+            isPricingCacheInitialized = true;
+            System.debug(LoggingLevel.DEBUG, '[AIAgentConfigService] Initialized LLM pricing cache with ' + pricingCache.size() + ' models');
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, '[AIAgentConfigService] Failed to initialize LLM pricing cache: ' + e.getMessage());
+            // Do NOT set isPricingCacheInitialized = true on failure to allow retry
+            throw new ConfigurationException('LLM pricing cache initialization failed: ' + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Returns the current size of the LLM pricing cache.
+     * Useful for monitoring and diagnostics.
+     *
+     * @return Number of models in the pricing cache
+     */
+    @TestVisible
+    private static Integer getLLMPricingCacheSize() {
+        ensurePricingCacheInitialized();
+        return pricingCache.size();
     }
 }

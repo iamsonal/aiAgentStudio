@@ -168,6 +168,11 @@ public inherited sharing class LLMFormattingService {
                     injectRationaleParameter(paramSchema, debugPrefix);
                 }
 
+                // Inject conditional approval parameters if ConditionalApproval mode
+                if (hitlMode == HITLGatewayService.HITL_MODE_CONDITIONAL_APPROVAL) {
+                    injectConditionalApprovalParameters(paramSchema, capabilityName, debugPrefix);
+                }
+
                 Map<String, Object> functionDef = new Map<String, Object>{
                     'name' => capabilityName,
                     'description' => capabilityDesc,
@@ -239,6 +244,44 @@ public inherited sharing class LLMFormattingService {
         }
 
         System.debug(LoggingLevel.DEBUG, debugPrefix + 'Injected _rationale parameter into tool schema.');
+    }
+
+    /**
+     * @description Injects _requiresApproval and _approvalReason parameters for ConditionalApproval HITL mode
+     * @param paramSchema The parameter schema to inject into
+     * @param capabilityName Name of the capability (for logging)
+     * @param debugPrefix Debug prefix for logging
+     */
+    private static void injectConditionalApprovalParameters(Map<String, Object> paramSchema, String capabilityName, String debugPrefix) {
+        if (paramSchema == null) {
+            return;
+        }
+
+        Map<String, Object> properties = (Map<String, Object>) paramSchema.get('properties');
+        if (properties == null) {
+            properties = new Map<String, Object>();
+            paramSchema.put('properties', properties);
+        }
+
+        // Add _requiresApproval parameter
+        Map<String, Object> requiresApprovalDef = new Map<String, Object>{
+            'type' => 'boolean',
+            'description' => 'Set to true if this action requires manager approval based on the conditional approval rules in the capability description. Analyze the context data (account revenue, risk level, transaction amount, etc.) to determine if approval is needed per the rules specified.',
+            'default' => false
+        };
+        properties.put('_requiresApproval', requiresApprovalDef);
+
+        // Add _approvalReason parameter
+        Map<String, Object> approvalReasonDef = new Map<String, Object>{
+            'type' => 'string',
+            'description' => 'REQUIRED when _requiresApproval=true. Provide a clear, specific explanation of why approval is needed, referencing the relevant approval rule and including concrete data points (e.g., "Enterprise account with $75M annual revenue exceeds $50M approval threshold. Strategic $500k deal with CEO engagement."). This explanation will be shown to the approver.'
+        };
+        properties.put('_approvalReason', approvalReasonDef);
+
+        System.debug(
+            LoggingLevel.DEBUG,
+            debugPrefix + 'Injected conditional approval parameters (_requiresApproval, _approvalReason) for capability: ' + capabilityName
+        );
     }
 
     public static Map<String, String> extractAndStripRationale(String toolArguments, String debugPrefix) {

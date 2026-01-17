@@ -214,6 +214,9 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
             txnCtx.incrementLLMCallCount();
             txnCtx.capturePreToolLimits();
 
+            // Execution record was created in a previous transaction (queueable entry point)
+            txnCtx.setHasPreExistingExecution(true);
+
             OrchestrationService orchestrationSvc = new OrchestrationService();
             String outcome;
             Integer currentTurnCount = 1;
@@ -505,7 +508,16 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
         agentStateSvc.resumeForFollowUpLlmCall(executionId, newTurnIdentifier, null, logPrefix);
 
         AgentJobEnqueuer enqueuer = new AgentJobEnqueuer();
-        enqueuer.enqueueFollowUp(executionId, execution.User__c, agentDefinition.Id, newTurnIdentifier, resumePoint.turnCount, logPrefix, false);
+        enqueuer.enqueueFollowUp(
+            executionId,
+            execution.User__c,
+            agentDefinition.Id,
+            newTurnIdentifier,
+            resumePoint.turnCount,
+            logPrefix,
+            false,
+            execution.SourceRecordId__c
+        );
 
         return new AgentExecutionService.ExecutionResult(executionId, AIAgentConstants.STATUS_PROCESSING, 'Resuming with LLM call');
     }
@@ -611,6 +623,9 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
             txnCtx.enableDeferredDMLMode();
             txnCtx.incrementLLMCallCount();
             txnCtx.capturePreToolLimits();
+
+            // Execution record already exists (passed in from caller via existingExecutionId)
+            txnCtx.setHasPreExistingExecution(true);
 
             OrchestrationService orchestrationSvc = new OrchestrationService();
             String outcome;

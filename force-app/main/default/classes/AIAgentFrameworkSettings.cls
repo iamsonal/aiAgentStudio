@@ -11,7 +11,7 @@
  */
 public inherited sharing class AIAgentFrameworkSettings {
     private static AIAgentFrameworkSettings__c settings;
-    private static final Integer FINAL_DEFAULT_MaxConversationTurns = 5;
+    private static final Integer FINAL_DEFAULT_MaxConversationTurns = 10;
     private static final Integer FINAL_DEFAULT_MaxQueueableStackDepth = 0;
     private static final Integer FINAL_DEFAULT_MaxToolRetries = 2;
     private static final Integer FINAL_DEFAULT_BulkConcurrencyLimit = 5;

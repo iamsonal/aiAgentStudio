@@ -16,13 +16,15 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
     private final String turnIdentifier;
     private final Integer currentTurnCount;
     private final Boolean isFinalErrorTurn;
-    public FollowUpLLMEngine(Id executionId, Id usrId, Id agentDefId, String turnId, Integer turnCount, Boolean isFinalError) {
+    private final Id recordId;
+    public FollowUpLLMEngine(Id executionId, Id usrId, Id agentDefId, String turnId, Integer turnCount, Boolean isFinalError, Id recordId) {
         this.executionId = executionId;
         this.userId = usrId;
         this.agentDefinitionId = agentDefId;
         this.turnIdentifier = turnId;
         this.currentTurnCount = turnCount;
         this.isFinalErrorTurn = isFinalError;
+        this.recordId = recordId;
     }
 
     /**
@@ -96,6 +98,9 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
             txnCtx.incrementLLMCallCount();
             txnCtx.capturePreToolLimits();
 
+            // Execution record was created in a previous transaction (this is a queueable follow-up)
+            txnCtx.setHasPreExistingExecution(true);
+
             String outcome;
             Integer currentTurnCount = this.currentTurnCount;
 
@@ -109,7 +114,7 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
                     llmConfigurationId,
                     this.turnIdentifier,
                     currentTurnCount,
-                    null,
+                    this.recordId,
                     this.isFinalErrorTurn,
                     decisionLogger
                 );
@@ -125,7 +130,7 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
                     this.turnIdentifier,
                     currentTurnCount,
                     null,
-                    null,
+                    this.recordId,
                     decisionLogger
                 );
 

@@ -455,7 +455,8 @@ public inherited sharing class OrchestrationService {
                 turnIdentifier,
                 currentTurnCount + 1,
                 logPrefix,
-                false
+                false,
+                execution.SourceRecordId__c
             );
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Final follow-up LLM call queued for parallel execution completion');
