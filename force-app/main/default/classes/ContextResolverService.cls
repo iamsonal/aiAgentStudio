@@ -7,21 +7,9 @@
  */
 
 /**
- * @description
- * ContextResolverService orchestrates the resolution and aggregation of all relevant conversational context for an AI agent session.
- * It dynamically invokes context providers, groups and processes SObject records in bulk to avoid governor limits, and ensures
- * comprehensive context coverage for downstream consumers. The service is designed for extensibility, bulk safety, and clear diagnostics.
- *
- * Responsibilities:
- *   - Querying and filtering context provider configurations for a given agent definition
- *   - Gathering all relevant record and user IDs from the session context ledger and immediate page context
- *   - Grouping IDs by SObject type for efficient, bulk-safe provider invocation
- *   - Dynamically instantiating and invoking context providers, handling both record-based and user-centric providers
- *   - Aggregating and returning all resolved context records in a structured result object
- *   - Providing clear debug output and error handling for maintainability and troubleshooting
+ * @description Orchestrates the resolution and aggregation of all relevant conversational context. Dynamically invokes context providers with bulk-safe processing.
  */
 public inherited sharing class ContextResolverService {
-    // --- DTOs for structured results ---
     public class ResolutionResult {
         public List<SObject> recordsToLoad { get; private set; }
         public String longTermContextSummary { get; private set; }

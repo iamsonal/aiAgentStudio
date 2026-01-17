@@ -7,20 +7,7 @@
  */
 
 /**
- * @description
- * ActionPostChatter is a high-performance Apex action for posting messages to Chatter feeds using strongly-typed DTOs.
- *
- * Responsibilities:
- *   - Uses DTOs for type-safe argument and configuration handling
- *   - Validates feed type, target access, and message content before posting
- *   - Handles text length limits, topic processing, and integrates with ConnectApi for Chatter functionality
- *   - Returns structured, LLM-friendly result data and meaningful error messages for downstream use
- *
- * Architecture:
- *   - ArgumentsDTO: Strongly-typed with text and topics
- *   - ConfigDTO: Strongly-typed configuration with feedType and targetId
- *   - Uses native JSON.deserialize() for high-performance type conversion
- *
+ * @description Posts messages to Chatter feeds with support for mentions and topics.
  * @ActionLabel Post Chatter
  * @ActionDescription Posts a message to a Chatter feed with support for mentions and topics
  * @ActionRequiresSObject false
@@ -31,7 +18,6 @@
  * @extends BaseAgentAction
  */
 public class ActionPostChatter extends BaseAgentAction {
-    // Feed type constants - SINGLE SOURCE OF TRUTH
     private static final String FEED_TYPE_USER = 'User';
     private static final String FEED_TYPE_GROUP = 'Group';
     private static final String FEED_TYPE_RECORD = 'Record';
@@ -40,9 +26,6 @@ public class ActionPostChatter extends BaseAgentAction {
     private Id targetSObjectId;
     private String targetSObjectName;
 
-    /**
-     * DTO for strongly-typed arguments (AI-provided parameters at runtime)
-     */
     public class ArgumentsDTO {
         /**
          * @FieldLabel Message Text

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>HITLMode__c</fullName>
-    <description>Human-in-the-Loop mode for this capability. Leave blank to execute immediately without human intervention. Confirmation = LLM asks user conversationally before executing (conversational agents only). Approval = formal Salesforce approval process (all agent types). ConfirmationThenApproval = LLM confirms conversationally, then submits for formal approval (conversational agents only).</description>
+    <description>Human-in-the-Loop mode for this capability. Leave blank to execute immediately without human intervention. Confirmation = LLM asks user conversationally before executing (conversational agents only). Approval = ALWAYS require formal approval (all agent types). ConfirmationThenApproval = LLM confirms conversationally, then submits for formal approval (conversational agents only). ConditionalApproval = LLM DECIDES whether approval is needed based on context and rules in capability description (intelligent, context-aware).</description>
     <externalId>false</externalId>
-    <inlineHelpText>Leave blank for no human check. Confirmation = LLM asks in chat. Approval = formal approval process. ConfirmationThenApproval = both (conversational only).</inlineHelpText>
+    <inlineHelpText>Leave blank for no human check. Confirmation = LLM asks in chat. Approval = always require approval. ConfirmationThenApproval = both (conversational only). ConditionalApproval = LLM decides based on context (e.g., high-value accounts, large amounts).</inlineHelpText>
     <label>HITL Mode</label>
     <required>false</required>
     <trackTrending>false</trackTrending>
@@ -26,6 +26,11 @@
                 <fullName>ConfirmationThenApproval</fullName>
                 <default>false</default>
                 <label>Confirmation Then Approval</label>
+            </value>
+            <value>
+                <fullName>ConditionalApproval</fullName>
+                <default>false</default>
+                <label>Conditional Approval (LLM Decides)</label>
             </value>
         </valueSetDefinition>
     </valueSet>

@@ -11,6 +11,11 @@ Technical documentation and API reference for AI Agent Studio.
 
 <div class="feature-grid">
   <div class="feature-card">
+    <h3>📡 REST API</h3>
+    <p>Complete REST API reference with OpenAPI/Swagger specification.</p>
+    <p><a href="api-reference.html">View API docs →</a></p>
+  </div>
+  <div class="feature-card">
     <h3>🛠️ Standard Actions</h3>
     <p>Built-in actions that agents can perform out of the box.</p>
     <p><a href="actions.html">View actions →</a></p>

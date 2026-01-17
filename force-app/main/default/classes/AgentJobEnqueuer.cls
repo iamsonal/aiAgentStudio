@@ -7,44 +7,18 @@
  */
 
 /**
- * @description
- * AgentJobEnqueuer is the central service for dispatching asynchronous jobs within the AI Agent Framework.
- * It is responsible for dynamically routing asynchronous operations based on agent async dispatch type:
- *   - For agents with AsyncDispatchType__c = 'High', uses Platform Events (AsyncFrameworkRequest__e) for maximum throughput (fire-and-forget, no processing guarantee)
- *   - For agents with AsyncDispatchType__c = 'Low' or null, uses Queueable jobs for guaranteed sequential processing
- *
- * The class ensures:
- *   - Consistent, testable job dispatch logic for all asynchronous agent operations
- *   - Comprehensive error handling and session state management on dispatch failures
- *   - Clear, actionable debug output for troubleshooting and operational transparency
- *   - Dynamic async mechanism selection without code duplication
- *
- * This class is designed for extensibility and maintainability, serving as the single point of orchestration
- * for all asynchronous agent job requests.
+ * @description Central service for dispatching asynchronous jobs. Routes to Platform Events (High) or Queueable (Low/null) based on agent async dispatch type.
  */
 public inherited sharing class AgentJobEnqueuer {
     public class DispatchException extends AIAgentException {
     }
 
     private final AgentStateService agentStateSvc;
-
-    // Cache for agent async dispatch type settings to minimize SOQL queries
     private static Map<Id, String> agentAsyncDispatchTypeCache = new Map<Id, String>();
 
-    /**
-     * Default constructor. Instantiates its own AgentStateService dependency.
-     * Use this in production code where dependency injection is not required.
-     */
     public AgentJobEnqueuer() {
         this(new AgentStateService());
     }
-
-    /**
-     * Main constructor for dependency injection (primarily for testing).
-     *
-     * @param agentStateService The AgentStateService instance to use for session state management.
-     * @throws IllegalArgumentException if agentStateService is null.
-     */
     public AgentJobEnqueuer(AgentStateService agentStateService) {
         if (agentStateService == null) {
             throw new IllegalArgumentException('AgentStateService cannot be null.');
@@ -104,19 +78,29 @@ public inherited sharing class AgentJobEnqueuer {
      * @param nextTurnCount    The cycle number for the next turn.
      * @param logPrefix        A logging prefix for debug output.
      * @param isFinalErrorTurn Whether this is the final error turn for the session.
+     * @param recordId         The record ID for context (can be null).
      * @throws DispatchException if event publication fails.
      */
-    public void enqueueFollowUp(Id executionId, Id userId, Id agentDefId, String turnId, Integer nextTurnCount, String logPrefix, Boolean isFinalErrorTurn) {
+    public void enqueueFollowUp(
+        Id executionId,
+        Id userId,
+        Id agentDefId,
+        String turnId,
+        Integer nextTurnCount,
+        String logPrefix,
+        Boolean isFinalErrorTurn,
+        Id recordId
+    ) {
         try {
             Boolean finalErrorFlag = (isFinalErrorTurn == true);
             String asyncDispatchType = this.getAgentAsyncDispatchType(agentDefId);
 
             if ('High'.equalsIgnoreCase(asyncDispatchType)) {
                 // High dispatch type: Use Platform Event for maximum throughput (fire-and-forget)
-                this.enqueueFollowUpViaPlatformEvent(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag, logPrefix);
+                this.enqueueFollowUpViaPlatformEvent(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag, recordId, logPrefix);
             } else {
                 // Low dispatch type (or null): Use Queueable for guaranteed sequential processing
-                this.enqueueFollowUpViaQueueable(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag, logPrefix);
+                this.enqueueFollowUpViaQueueable(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag, recordId, logPrefix);
             }
         } catch (Exception e) {
             this.handleDispatchFailure(executionId, turnId, 'FollowUpLLM', e, logPrefix);
@@ -133,6 +117,7 @@ public inherited sharing class AgentJobEnqueuer {
         String turnId,
         Integer nextTurnCount,
         Boolean finalErrorFlag,
+        Id recordId,
         String logPrefix
     ) {
         Map<String, Object> payload = new Map<String, Object>{
@@ -141,7 +126,8 @@ public inherited sharing class AgentJobEnqueuer {
             'agentDefId' => agentDefId,
             'turnId' => turnId,
             'nextTurnCount' => nextTurnCount,
-            'isFinalErrorTurn' => finalErrorFlag
+            'isFinalErrorTurn' => finalErrorFlag,
+            'recordId' => recordId
         };
         AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
             AgentExecutionId__c = executionId,
@@ -179,9 +165,10 @@ public inherited sharing class AgentJobEnqueuer {
         String turnId,
         Integer nextTurnCount,
         Boolean finalErrorFlag,
+        Id recordId,
         String logPrefix
     ) {
-        FollowUpLLMEngine queueable = new FollowUpLLMEngine(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag);
+        FollowUpLLMEngine queueable = new FollowUpLLMEngine(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag, recordId);
 
         // Get AsyncOptions if configured (for scratch/developer orgs)
         AsyncOptions asyncOptions = getAsyncOptions(logPrefix);

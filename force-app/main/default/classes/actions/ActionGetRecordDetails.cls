@@ -7,42 +7,7 @@
  */
 
 /**
- * @description
- * ActionGetRecordDetails: Generic record retrieval action with flexible field selection and identifier lookups.
- *
- * This action provides two ways to configure field selection:
- * 1. **FieldSets** (Declarative) - Admin-friendly, reusable across capabilities
- * 2. **defaultFields** (JSON Array) - Quick configuration without creating FieldSets
- *
- * Identifier Lookup:
- *   AI can provide ANY field defined in the Parameters schema:
- *   - Id: Direct record lookup (fastest, most reliable)
- *   - CaseNumber: Find case by case number
- *   - ContactEmail: Find contact by email
- *   - Any field you define in ArgumentsDTO
- *
- * Parameter Format:
- *   {"Id": "001XXXXXXXXXXXX"}           // Direct ID lookup
- *   {"CaseNumber": "00001234"}          // Case number lookup
- *   {"ContactEmail": "john@example.com"} // Email lookup
- *
- * Configuration Schema:
- *   {
- *     "objectApiName": "Case",                              // Required: Object type
- *     "defaultFields": ["Id", "CaseNumber", "Subject"]      // Fields to return
- *   }
- *
- * Adding New Identifier Fields:
- *   1. Add field to ArgumentsDTO with proper annotations
- *   2. Run generate-action-metadata.js script
- *   3. Deploy metadata - AI will see the new parameter option
- *
- * Security Architecture:
- *   - Respects object-level read permissions
- *   - Enforces field-level security on all fields
- *   - Uses Security.stripInaccessible() to filter inaccessible fields
- *   - Returns clear error messages for permission issues
- *
+ * @description Generic record retrieval action with flexible field selection and identifier lookups.
  * @ActionLabel Get Record Details
  * @ActionDescription Retrieves any Salesforce record by ID or unique identifier field
  * @ActionRequiresSObject true

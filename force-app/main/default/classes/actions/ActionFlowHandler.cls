@@ -7,10 +7,7 @@
  */
 
 /**
- * @description
- * Executes Salesforce Flows with strongly-typed DTOs.
- * Uses DTOs for type-safe argument handling and flow input parameter processing.
- *
+ * @description Executes Salesforce Flows with strongly-typed DTOs.
  * @ActionLabel Execute Flow
  * @ActionDescription Executes a Salesforce Flow and returns its output
  * @ActionRequiresSObject false
@@ -22,23 +19,19 @@ public class ActionFlowHandler extends BaseAgentAction {
     private static final String FAULT_MESSAGE_VAR = 'faultMessage';
     private static final String OUTPUT_RESULT_VAR = 'outputResult';
 
-    // Test support: allows tests to inject mock flow results
     @TestVisible
     private static FlowExecutionMock mockFlowExecution;
 
     private ConfigDTO config;
 
-    /**
-     * @description Interface for mocking Flow execution in tests
-     */
+    // Cached output variable names for the Flow being executed
+    private List<String> outputVariableNames;
+
     @TestVisible
     public interface FlowExecutionMock {
         MockFlowResult execute(String flowApiName, Map<String, Object> flowParams);
     }
 
-    /**
-     * @description Mock result container for test injection
-     */
     @TestVisible
     public class MockFlowResult {
         public Boolean success;
@@ -111,11 +104,9 @@ public class ActionFlowHandler extends BaseAgentAction {
         }
         String flowApiName = (String) flowNameResult.data;
 
-        // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
+        // Two-Pass Hybrid Deserialization: Use params directly as Flow inputs
         ArgumentsDTO args = new ArgumentsDTO();
-        args.inputParameters = params.containsKey('inputParameters') && params.get('inputParameters') instanceof Map<String, Object>
-            ? (Map<String, Object>) params.get('inputParameters')
-            : new Map<String, Object>();
+        args.inputParameters = params != null ? params : new Map<String, Object>();
 
         // Validate and prepare flow parameters from DTO
         Map<String, Object> flowParams = validateFlowParameters(args.inputParameters);
@@ -228,6 +219,7 @@ public class ActionFlowHandler extends BaseAgentAction {
     /**
      * @description
      * Validates Flow parameters before execution by querying Flow metadata.
+     * Also caches output variable names for result processing.
      *
      * @param flowApiName String - Name of the Flow to validate.
      * @param flowParams Map<String, Object> - Input parameters to validate.
@@ -235,12 +227,13 @@ public class ActionFlowHandler extends BaseAgentAction {
      */
     private ActionOutcome validateFlowParameters(String flowApiName, Map<String, Object> flowParams) {
         try {
-            // Query Flow metadata to get input variable definitions
+            // Query Flow metadata to get active version
+            // Note: Using SYSTEM_MODE as Flow metadata may require elevated access
             List<FlowDefinitionView> flowDefs = [
                 SELECT ApiName, ActiveVersionId
                 FROM FlowDefinitionView
                 WHERE ApiName = :flowApiName
-                WITH USER_MODE
+                WITH SYSTEM_MODE
                 LIMIT 1
             ];
 
@@ -259,20 +252,37 @@ public class ActionFlowHandler extends BaseAgentAction {
                 );
             }
 
-            // Query Flow variables for the active version
+            // Query ALL Flow variables for the active version
+            // Note: FlowVariableView doesn't support OR conditions, so we query all and filter in Apex
             List<FlowVariableView> flowVariables = [
-                SELECT ApiName, DataType, IsInput
+                SELECT ApiName, DataType, IsInput, IsOutput
                 FROM FlowVariableView
-                WHERE FlowVersionViewId = :flowDef.ActiveVersionId AND IsInput = TRUE
-                WITH USER_MODE
+                WHERE FlowVersionViewId = :flowDef.ActiveVersionId
+                WITH SYSTEM_MODE
             ];
 
-            // Build a map of expected input variables
+            // Build maps of expected input and output variables by filtering in code
             Map<String, FlowVariableView> expectedInputs = new Map<String, FlowVariableView>();
+            this.outputVariableNames = new List<String>();
 
             for (FlowVariableView var : flowVariables) {
-                expectedInputs.put(var.ApiName, var);
+                if (var.IsInput == true) {
+                    expectedInputs.put(var.ApiName, var);
+                }
+                if (var.IsOutput == true) {
+                    this.outputVariableNames.add(var.ApiName);
+                }
             }
+
+            System.debug(
+                LoggingLevel.DEBUG,
+                '[ActionFlowHandler] Flow "' +
+                    flowApiName +
+                    '" has ' +
+                    this.outputVariableNames.size() +
+                    ' output variables: ' +
+                    String.join(this.outputVariableNames, ', ')
+            );
 
             // Warn about unexpected parameters
             List<String> unexpectedParams = new List<String>();
@@ -307,6 +317,7 @@ public class ActionFlowHandler extends BaseAgentAction {
                 LoggingLevel.WARN,
                 '[ActionFlowHandler] Unable to validate Flow parameters (metadata query failed): ' + qe.getMessage() + '. Proceeding with Flow execution.'
             );
+            this.outputVariableNames = new List<String>();
             return ActionOutcome.success();
         }
     }
@@ -389,7 +400,8 @@ public class ActionFlowHandler extends BaseAgentAction {
 
     /**
      * @description
-     * Processes Flow results and handles both success and fault scenarios.
+     * Processes Flow results by capturing ALL output variables (not just outputResult).
+     * Handles both success and fault scenarios.
      *
      * @param flowInterview Flow.Interview - Executed Flow interview instance (or MockFlowInterviewWrapper in tests).
      * @param flowApiName String - Flow name for error context.
@@ -397,19 +409,44 @@ public class ActionFlowHandler extends BaseAgentAction {
      */
     private ActionOutcome processFlowResults(Object flowInterviewOrMock, String flowApiName) {
         Object faultMessageValue;
-        Object flowDataPayload;
+        Map<String, Object> allOutputs = new Map<String, Object>();
 
         // Handle both real Flow.Interview and mock wrapper
         if (flowInterviewOrMock instanceof MockFlowInterviewWrapper) {
             MockFlowInterviewWrapper mockWrapper = (MockFlowInterviewWrapper) flowInterviewOrMock;
             faultMessageValue = mockWrapper.getVariableValue(FAULT_MESSAGE_VAR);
-            flowDataPayload = mockWrapper.getVariableValue(OUTPUT_RESULT_VAR);
+
+            // For mocks, check legacy outputResult
+            Object legacyOutput = mockWrapper.getVariableValue(OUTPUT_RESULT_VAR);
+            if (legacyOutput != null) {
+                allOutputs.put(OUTPUT_RESULT_VAR, legacyOutput);
+            }
         } else {
             Flow.Interview flowInterview = (Flow.Interview) flowInterviewOrMock;
             faultMessageValue = flowInterview.getVariableValue(FAULT_MESSAGE_VAR);
-            flowDataPayload = flowInterview.getVariableValue(OUTPUT_RESULT_VAR);
+
+            // Capture ALL output variables from the Flow
+            if (this.outputVariableNames != null && !this.outputVariableNames.isEmpty()) {
+                for (String outputVarName : this.outputVariableNames) {
+                    try {
+                        Object outputValue = flowInterview.getVariableValue(outputVarName);
+                        if (outputValue != null) {
+                            allOutputs.put(outputVarName, outputValue);
+                        }
+                    } catch (Exception e) {
+                        System.debug(LoggingLevel.WARN, '[ActionFlowHandler] Could not retrieve output variable "' + outputVarName + '": ' + e.getMessage());
+                    }
+                }
+            } else {
+                // Fallback: check for legacy outputResult variable
+                Object legacyOutput = flowInterview.getVariableValue(OUTPUT_RESULT_VAR);
+                if (legacyOutput != null) {
+                    allOutputs.put(OUTPUT_RESULT_VAR, legacyOutput);
+                }
+            }
         }
 
+        // Check for Flow-reported faults
         if (faultMessageValue instanceof String && String.isNotBlank((String) faultMessageValue)) {
             String faultMessage = (String) faultMessageValue;
             String enhancedError = 'Flow "' + flowApiName + '" reported failure via "' + FAULT_MESSAGE_VAR + '": ' + faultMessage;
@@ -417,12 +454,29 @@ public class ActionFlowHandler extends BaseAgentAction {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, enhancedError);
         }
 
-        if (flowDataPayload == null) {
-            System.debug(LoggingLevel.INFO, '[ActionFlowHandler] Flow completed with no output result. Returning default payload.');
+        // Build the result payload
+        Object flowDataPayload;
+        if (allOutputs.isEmpty()) {
+            System.debug(LoggingLevel.INFO, '[ActionFlowHandler] Flow completed with no output variables. Returning default payload.');
             flowDataPayload = new Map<String, Object>{ 'flowCompleted' => true };
+        } else if (allOutputs.size() == 1 && allOutputs.containsKey(OUTPUT_RESULT_VAR)) {
+            // Single outputResult variable - return it directly for backward compatibility
+            flowDataPayload = allOutputs.get(OUTPUT_RESULT_VAR);
+            System.debug(LoggingLevel.INFO, '[ActionFlowHandler] Flow "' + flowApiName + '" completed with single outputResult variable.');
+        } else {
+            // Multiple outputs or different variable names - return all of them
+            flowDataPayload = allOutputs;
+            System.debug(
+                LoggingLevel.INFO,
+                '[ActionFlowHandler] Flow "' +
+                    flowApiName +
+                    '" completed with ' +
+                    allOutputs.size() +
+                    ' output variables: ' +
+                    String.join(new List<String>(allOutputs.keySet()), ', ')
+            );
         }
 
-        System.debug(LoggingLevel.INFO, '[ActionFlowHandler] Flow "' + flowApiName + '" completed successfully. Returning output result.');
         return ActionOutcome.success(flowDataPayload);
     }
 
@@ -449,7 +503,7 @@ public class ActionFlowHandler extends BaseAgentAction {
      *
      * Fields:
      *   - flowName: String - The Flow API name executed.
-     *   - result: Object - The output/result from the Flow.
+     *   - result: Object - The output/result from the Flow (all output variables).
      *   - message: String - User-facing message summarizing the result.
      *   - metadata: Map<String, Object> - Additional context for downstream consumers.
      */
@@ -463,11 +517,18 @@ public class ActionFlowHandler extends BaseAgentAction {
             this.flowName = flowName;
             this.result = result;
             this.message = message;
-            this.metadata = new Map<String, Object>{
-                'flowApiName' => flowName,
-                'hasResult' => result != null,
-                'resultType' => result != null ? String.valueOf(result).left(50) : 'null'
-            };
+
+            // Build informative metadata
+            this.metadata = new Map<String, Object>{ 'flowApiName' => flowName, 'hasResult' => result != null };
+
+            // Add output variable names if result is a map of outputs
+            if (result instanceof Map<String, Object>) {
+                Map<String, Object> resultMap = (Map<String, Object>) result;
+                this.metadata.put('outputVariables', new List<String>(resultMap.keySet()));
+                this.metadata.put('outputCount', resultMap.size());
+            } else if (result != null) {
+                this.metadata.put('resultType', String.valueOf(result).left(100));
+            }
         }
     }
 }

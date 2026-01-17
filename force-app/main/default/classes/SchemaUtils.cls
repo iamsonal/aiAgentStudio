@@ -27,15 +27,6 @@ public inherited sharing class SchemaUtils {
     private static Map<String, Map<String, SObjectField>> fieldDescribeCache = new Map<String, Map<String, SObjectField>>();
     @TestVisible
     private static Map<String, DescribeSObjectResult> describeCache = new Map<String, DescribeSObjectResult>();
-
-    /**
-     * Retrieves an SObjectType by API name, using case-insensitive lookup and transaction-scoped caching.
-     *
-     * @param apiName   The SObject API name to retrieve (case-insensitive).
-     * @return          SObjectType instance, or null if not found or inaccessible.
-     * @sideeffect      Caches the result for the duration of the transaction.
-     * @debug           Logs errors if describe fails.
-     */
     public static SObjectType getSObjectType(String apiName) {
         if (String.isBlank(apiName)) {
             System.debug(LoggingLevel.WARN, '[SchemaUtils.getSObjectType] Blank API name provided. Returning null.');

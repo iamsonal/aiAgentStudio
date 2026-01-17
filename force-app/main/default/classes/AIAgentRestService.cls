@@ -7,23 +7,11 @@
  */
 
 /**
- * @description
- * REST API endpoint for AI agent message processing with user context management.
- * Provides secure message processing and asynchronous handling via platform events.
- *
- * Endpoints:
- * - POST /ai/agent/process/* - Process chat messages (existing)
- * - POST /ai/agent/hitl/execute - Execute approved HITL tools in service user context (new)
+ * @description REST API endpoint for AI agent message processing with user context management.
  */
 @RestResource(urlMapping='/ai/agent/*')
 global with sharing class AIAgentRestService {
     private static final String LOG_PREFIX = '[AIAgentRestService] ';
-
-    /**
-     * Processes AI agent messages with user context management.
-     *
-     * @return AIAgentResponse with processing outcome
-     */
     @HttpPost
     global static AIAgentResponse processMessage() {
         RestRequest req = RestContext.request;
@@ -31,22 +19,15 @@ global with sharing class AIAgentRestService {
         String requestId = generateRequestId();
         String logPrefix = LOG_PREFIX + '[ReqId:' + requestId + '] ';
 
-        // Route based on URL path
         String requestUri = req.requestURI;
         System.debug(LoggingLevel.INFO, logPrefix + 'Processing request: ' + requestUri);
 
         if (String.isNotBlank(requestUri) && requestUri.endsWith('/hitl/execute')) {
-            // HITL tool execution endpoint
             return executeApprovedHITLTool(req, res, requestId, logPrefix);
         } else {
-            // Default chat message processing endpoint
             return processChatMessage(req, res, requestId, logPrefix);
         }
     }
-
-    /**
-     * Processes chat messages (original functionality).
-     */
     private static AIAgentResponse processChatMessage(RestRequest req, RestResponse res, String requestId, String logPrefix) {
         System.debug(LoggingLevel.INFO, logPrefix + 'Processing incoming AI agent message request');
 
@@ -82,18 +63,10 @@ global with sharing class AIAgentRestService {
         }
     }
 
-    /**
-     * Parses and validates incoming request data.
-     *
-     * @param requestBody Raw JSON request body
-     * @param logPrefix   Logging prefix
-     * @return            Parsed and validated request
-     */
     private static AIAgentRequest parseAndValidateRequest(String requestBody, String logPrefix) {
         try {
             AIAgentRequest requestData = (AIAgentRequest) JSON.deserialize(requestBody, AIAgentRequest.class);
 
-            // Validate required fields
             if (String.isBlank(requestData.sessionId)) {
                 throw new AIAgentRestException('sessionId is required');
             }
@@ -110,7 +83,6 @@ global with sharing class AIAgentRestService {
                 throw new AIAgentRestException('userMessage is required');
             }
 
-            // Validate ID formats
             validateId(requestData.sessionId, 'sessionId');
             validateId(requestData.originalUserId, 'originalUserId');
             validateId(requestData.agentDefinitionId, 'agentDefinitionId');
@@ -126,13 +98,6 @@ global with sharing class AIAgentRestService {
         }
     }
 
-    /**
-     * Validates that a string is a proper Salesforce ID format.
-     *
-     * @param idValue   The string value to validate as an ID.
-     * @param fieldName The name of the field being validated (for error reporting).
-     * @throws AIAgentRestException if the ID is not valid.
-     */
     private static void validateId(String idValue, String fieldName) {
         try {
             Id.valueOf(idValue);
@@ -141,21 +106,6 @@ global with sharing class AIAgentRestService {
         }
     }
 
-    /**
-     * Processes the message in the execution user context (SERVICE USER after Named Credential switch).
-     * This method now delegates to the unified AgentExecutionService, which will call the appropriate
-     * orchestrator. The orchestrator executes with the service user's permissions because we're already
-     * in the service user context after the Named Credential switch.
-     *
-     * CRITICAL: Sets isInServiceUserContext=true to prevent AgentExecutionService from attempting
-     * another context switch (which would cause infinite recursion).
-     *
-     * @param requestData The parsed and validated AIAgentRequest.
-     * @param logPrefix   The logging prefix for debug output.
-     * @return            The processing status string (e.g., 'Processing').
-     * @throws AIAgentRestException for configuration or business logic errors.
-     * @throws Exception for unexpected system errors (will be caught by the main handler).
-     */
     private static String processMessageInContext(AIAgentRequest requestData, String logPrefix) {
         Id sessionId = Id.valueOf(requestData.sessionId);
         Id originalUserId = Id.valueOf(requestData.originalUserId);
@@ -163,28 +113,23 @@ global with sharing class AIAgentRestService {
         Id currentRecordId = String.isNotBlank(requestData.currentRecordId) ? Id.valueOf(requestData.currentRecordId) : null;
 
         try {
-            // Get the agent definition to use its developer name
             AIAgentDefinition__c agentDefinition = AIAgentConfigService.getAgentDefinition(agentDefinitionId);
             if (agentDefinition == null) {
                 throw new AIAgentRestException('Agent definition not found: ' + agentDefinitionId);
             }
 
-            // Build execution payload for unified service
-            // Note: We're now running as the service user after the Named Credential context switch
             AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
-            payload.userId = originalUserId; // Original user who initiated the request
-            payload.serviceUserId = UserInfo.getUserId(); // Current user (service user after context switch)
+            payload.userId = originalUserId;
+            payload.serviceUserId = UserInfo.getUserId();
             payload.triggerSource = 'Chat';
             payload.userMessage = requestData.userMessage;
             payload.currentRecordId = currentRecordId;
             payload.turnIdentifier = requestData.turnIdentifier;
-            payload.existingExecutionId = sessionId; // Continue existing execution
-            payload.isInServiceUserContext = true; // CRITICAL: Prevent infinite recursion
+            payload.existingExecutionId = sessionId;
+            payload.isInServiceUserContext = true;
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Delegating to AgentExecutionService as service user: ' + UserInfo.getUserName());
 
-            // Use unified AgentExecutionService to initiate/continue execution
-            // The orchestrator will now execute with service user permissions
             AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution(agentDefinition.DeveloperName__c, payload);
 
             if (result.success) {
@@ -198,7 +143,6 @@ global with sharing class AIAgentRestService {
         } catch (AIAgentException.OrchestrationException e) {
             throw new AIAgentRestException('Orchestration error: ' + e.getMessage());
         } catch (Exception e) {
-            // Mark the turn as failed before re-throwing
             try {
                 AgentStateService ass = new AgentStateService();
                 ass.failTurn(
@@ -212,32 +156,21 @@ global with sharing class AIAgentRestService {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'CRITICAL: Failed to update session state after processing failure: ' + failEx.getMessage());
             }
 
-            throw e; // Re-throw the original exception
+            throw e;
         }
     }
 
-    /**
-     * Executes approved HITL tools in the authenticated user's context.
-     * The authenticated user is determined by the Named Credential configured in
-     * AIAgentFrameworkSettings__c.HITLApprovalNamedCredential__c:
-     * - JWT Bearer Flow → Service user (dedicated account with elevated permissions)
-     * - Per-User OAuth → Original requesting user (user-specific permissions)
-     * Called by HITLToolExecutionQueueable after approval.
-     */
     private static AIAgentResponse executeApprovedHITLTool(RestRequest req, RestResponse res, String requestId, String logPrefix) {
         System.debug(LoggingLevel.INFO, logPrefix + 'Processing HITL tool execution request');
 
-        HITLToolRequest toolRequest = null; // Declare outside try block for catch block access
+        HITLToolRequest toolRequest = null;
         try {
-            // Validate request
             if (req.requestBody == null || req.requestBody.size() == 0) {
                 throw new AIAgentRestException('Request body is required');
             }
 
-            // Parse request
             toolRequest = (HITLToolRequest) JSON.deserialize(req.requestBody.toString(), HITLToolRequest.class);
 
-            // Validate required fields
             if (String.isBlank(toolRequest.pendingActionId)) {
                 throw new AIAgentRestException('pendingActionId is required');
             }
@@ -253,13 +186,11 @@ global with sharing class AIAgentRestService {
                 logPrefix + 'Executing tool as authenticated user: ' + UserInfo.getUserName() + ' (UserId: ' + UserInfo.getUserId() + ')'
             );
 
-            // Load capability
             AgentCapability__c capability = AIAgentConfigService.getCapabilityById(Id.valueOf(toolRequest.capabilityId));
             if (capability == null) {
                 throw new AIAgentRestException('Capability not found: ' + toolRequest.capabilityId);
             }
 
-            // Load execution
             AgentExecution__c execution = [
                 SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c
                 FROM AgentExecution__c
@@ -267,13 +198,10 @@ global with sharing class AIAgentRestService {
                 LIMIT 1
             ];
 
-            // Build action context
-            // - originalUserId: The user who originally requested the action
-            // - executionUserId: The authenticated user executing the tool (current user via Named Credential)
             ActionContext actionContext = new ActionContext(
                 execution.Id,
-                execution.User__c, // Original user
-                UserInfo.getUserId(), // Authenticated user (service user or original user)
+                execution.User__c,
+                UserInfo.getUserId(),
                 String.isNotBlank(toolRequest.sourceRecordId) ? Id.valueOf(toolRequest.sourceRecordId) : null,
                 execution.AIAgentDefinition__c,
                 capability.Id,
@@ -283,17 +211,13 @@ global with sharing class AIAgentRestService {
                 'HITLResume'
             );
 
-            // Execute the tool
             CapabilityExecutionService capabilityService = new CapabilityExecutionService();
             ActionOutcome outcome = capabilityService.executeSingleAction(capability, toolRequest.toolArguments, actionContext);
 
-            // Log decision step for tool result only (execution is already indicated by "Resume Approved Framework Action")
             try {
                 IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(execution.Id, toolRequest.turnIdentifier);
 
-                // Log tool result step
                 String resultJsonForLogging = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
-                // Add tool metadata for better UI display
                 Map<String, Object> resultWithMetadata = (Map<String, Object>) JSON.deserializeUntyped(resultJsonForLogging);
                 resultWithMetadata.put('toolName', capability.CapabilityName__c);
                 String enhancedResultJson = JSON.serialize(resultWithMetadata);
@@ -314,13 +238,11 @@ global with sharing class AIAgentRestService {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to log tool result decision step: ' + e.getMessage());
             }
 
-            // Update the existing placeholder tool result step
             ExecutionStepService stepService = new ExecutionStepService();
             String resultJson = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
 
             Id updatedStepId = stepService.updateToolResultStep(execution.Id, toolRequest.toolCallId, resultJson, 0L, !outcome.isSuccess);
 
-            // Fallback: create new step if update failed
             if (updatedStepId == null) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Could not find existing tool result step, creating new one');
                 stepService.createToolResultStep(
@@ -333,20 +255,18 @@ global with sharing class AIAgentRestService {
                     0L,
                     false,
                     capability.Id,
-                    !outcome.isSuccess // isError = !isSuccess
+                    !outcome.isSuccess
                 );
             }
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Tool executed successfully. Success: ' + outcome.isSuccess);
 
-            // Queue follow-up LLM call if needed (optimization: use pre-determined flag)
             if (toolRequest.needsFollowUp == true) {
                 queueFollowUpLLMCall(execution, toolRequest, logPrefix);
             } else {
                 System.debug(LoggingLevel.INFO, logPrefix + 'Conversational agent - no follow-up needed (pre-determined)');
             }
 
-            // Notify requesting user about execution result (check notification preference)
             if (
                 String.isNotBlank(toolRequest.requestingUserId) &&
                 shouldSendNotification(
@@ -354,7 +274,6 @@ global with sharing class AIAgentRestService {
                     outcome.isSuccess ? HITLGatewayService.NOTIFICATION_TYPE_APPROVAL : HITLGatewayService.NOTIFICATION_TYPE_ERROR
                 )
             ) {
-                // Get the pending action to retrieve approver's comment
                 String approverComment = null;
                 if (String.isNotBlank(toolRequest.pendingActionId)) {
                     try {
@@ -378,7 +297,6 @@ global with sharing class AIAgentRestService {
                     ? 'Your requested action "' + toolRequest.toolName + '" has been approved and executed successfully.'
                     : 'Your requested action "' + toolRequest.toolName + '" was approved but execution failed: ' + outcome.errorMessage;
 
-                // Add approver comment if available
                 if (String.isNotBlank(approverComment)) {
                     body += '\n\nApprover comment: ' + approverComment;
                 }
@@ -390,39 +308,30 @@ global with sharing class AIAgentRestService {
             return new AIAgentResponse(true, 'Tool executed successfully', null, requestId);
         } catch (AIAgentRestException e) {
             System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage());
-            // Log error to decision steps if we have the execution and turn info
             logResumeError(toolRequest, e.getMessage(), 'VALIDATION_ERROR');
             res.statusCode = 400;
             return new AIAgentResponse(false, null, e.getMessage(), requestId);
         } catch (AIAgentConfigService.ConfigurationException e) {
-            // Configuration errors (capability not found, etc.) are client errors
             System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage());
-            // Log error to decision steps if we have the execution and turn info
             logResumeError(toolRequest, e.getMessage(), 'CONFIGURATION_ERROR');
             res.statusCode = 400;
             return new AIAgentResponse(false, null, e.getMessage(), requestId);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage() + '\n' + e.getStackTraceString());
-            // Log error to decision steps if we have the execution and turn info
             logResumeError(toolRequest, e.getMessage() + '\n' + e.getStackTraceString(), 'UNEXPECTED_ERROR');
             res.statusCode = 500;
             return new AIAgentResponse(false, null, 'Internal server error: ' + e.getMessage(), requestId);
         }
     }
 
-    /**
-     * Helper method to log errors during tool execution after approval.
-     * This ensures errors are visible in the storyboard UI.
-     */
     private static void logResumeError(HITLToolRequest toolRequest, String errorMessage, String errorCode) {
         if (toolRequest == null || String.isBlank(toolRequest.executionId) || String.isBlank(toolRequest.turnIdentifier)) {
-            return; // Cannot log without execution and turn info
+            return;
         }
 
         try {
             IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(Id.valueOf(toolRequest.executionId), toolRequest.turnIdentifier);
 
-            // Log error step
             Map<String, Object> errorDetails = new Map<String, Object>{
                 'errorCode' => errorCode,
                 'errorMessage' => errorMessage,
@@ -442,15 +351,10 @@ global with sharing class AIAgentRestService {
 
             decisionLogger.commitSteps();
         } catch (Exception e) {
-            // Best effort - don't let logging errors break the error response
             System.debug(LoggingLevel.WARN, '[AIAgentRestService] Failed to log resume error to decision steps: ' + e.getMessage());
         }
     }
 
-    /**
-     * Queues follow-up LLM call for Function/Workflow agents.
-     * Note: This method assumes the caller has already determined that a follow-up is needed.
-     */
     private static void queueFollowUpLLMCall(AgentExecution__c execution, HITLToolRequest toolRequest, String logPrefix) {
         try {
             System.debug(LoggingLevel.INFO, logPrefix + 'Queueing follow-up LLM call');
@@ -466,25 +370,18 @@ global with sharing class AIAgentRestService {
                 toolRequest.turnIdentifier,
                 (toolRequest.turnCount != null ? Integer.valueOf(toolRequest.turnCount) : 1) + 1,
                 logPrefix,
-                false
+                false,
+                execution.SourceRecordId__c
             );
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to queue follow-up: ' + e.getMessage());
         }
     }
 
-    /**
-     * Generates a unique request ID for tracking and debugging.
-     *
-     * @return A unique request ID string.
-     */
     private static String generateRequestId() {
         return String.valueOf(Crypto.getRandomLong()).substring(1, 9);
     }
 
-    /**
-     * Request data structure for AI agent processing.
-     */
     global class AIAgentRequest {
         public String sessionId { get; set; }
         public String originalUserId { get; set; }
@@ -494,9 +391,6 @@ global with sharing class AIAgentRestService {
         public String currentRecordId { get; set; }
     }
 
-    /**
-     * Response data structure for AI agent processing.
-     */
     global class AIAgentResponse {
         public Boolean success { get; set; }
         public String outcome { get; set; }
@@ -511,9 +405,6 @@ global with sharing class AIAgentRestService {
         }
     }
 
-    /**
-     * Request data structure for HITL tool execution.
-     */
     global class HITLToolRequest {
         public String pendingActionId { get; set; }
         public String executionId { get; set; }
@@ -525,21 +416,12 @@ global with sharing class AIAgentRestService {
         public Decimal turnCount { get; set; }
         public String sourceRecordId { get; set; }
         public String requestingUserId { get; set; }
-        public Boolean needsFollowUp { get; set; } // Whether follow-up LLM call is needed
+        public Boolean needsFollowUp { get; set; }
     }
 
-    /**
-     * Exception for REST service business logic errors (e.g., validation, configuration, or user errors).
-     */
     public class AIAgentRestException extends Exception {
     }
 
-    /**
-     * @description Determines if a notification should be sent based on the capability's notification preference.
-     * @param capability The AgentCapability__c record (must have HITLNotificationPreference__c populated)
-     * @param eventType The type of event: HITLGatewayService.NOTIFICATION_TYPE_APPROVAL, NOTIFICATION_TYPE_REJECTION, or NOTIFICATION_TYPE_ERROR
-     * @return True if notification should be sent, false otherwise
-     */
     private static Boolean shouldSendNotification(AgentCapability__c capability, String eventType) {
         return HITLGatewayService.shouldSendHITLNotification(capability.HITLNotificationPreference__c, eventType);
     }

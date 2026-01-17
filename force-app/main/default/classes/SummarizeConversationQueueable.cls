@@ -7,19 +7,7 @@
  */
 
 /**
- * @description
- * SummarizeConversationQueueable is an asynchronous queueable job that processes and summarizes complete execution turns
- * atomically. It supports the unified AgentExecution__c model. The job generates a condensed
- * summary by combining the existing summary with entire turns, then marks all steps from processed turns as
- * summarized to optimize memory usage and improve LLM context efficiency.
- *
- * Responsibilities:
- *   - Retrieve and summarize the oldest unsummarized execution turns atomically
- *   - Process complete turns to maintain conversational context integrity
- *   - Generate a new summary using an LLM, combining prior summary and new turns
- *   - Update the execution with the new summary and mark all processed turn messages/steps
- *   - Support the unified AgentExecution__c/ExecutionStep__c model
- *   - Log all key operations and error conditions for monitoring and troubleshooting
+ * @description Asynchronous queueable job that processes and summarizes complete execution turns atomically. Generates condensed summaries using LLM.
  */
 public class SummarizeConversationQueueable implements Queueable, Database.AllowsCallouts {
     private static final String FALLBACK_PROMPT_TEMPLATE =
@@ -33,33 +21,14 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
 
     private final Id executionId;
     private final Id agentConfigId;
+
     public class SummarizationException extends Exception {
     }
-
-    /**
-     * Constructs a new SummarizeConversationQueueable job.
-     *
-     * @param execId    The AgentExecution__c ID to summarize.
-     * @param agentId   The agent definition ID containing summarization settings.
-     */
     public SummarizeConversationQueueable(Id execId, Id agentId) {
         this.executionId = execId;
         this.agentConfigId = agentId;
     }
 
-    /**
-     * Main execution method for the queueable job. Processes turn-based conversation summarization for a chat session.
-     *
-     * Steps:
-     *   - Loads agent and LLM configuration
-     *   - Atomically retrieves oldest unsummarized conversation turns
-     *   - Generates a new summary using the LLM, incorporating complete turns
-     *   - Updates the execution and marks all steps from processed turns as summarized
-     *   - Logs all key operations and errors
-     *
-     * @param context   Queueable execution context.
-     * @sideeffect      Updates AgentExecution__c and ExecutionStep__c records; logs errors and info.
-     */
     public void execute(QueueableContext context) {
         String logPrefix = '[SummarizerQueueable Job:' + context.getJobId() + ' AgentExecution:' + this.executionId + '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Summarization job started for AgentExecution.');
@@ -72,13 +41,11 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
             primaryAgentConfig = AIAgentConfigService.getAgentDefinition(this.agentConfigId);
 
             if (primaryAgentConfig.SummarizerAgent__c != null && primaryAgentConfig.SummarizerAgent__c != null) {
-                // A dedicated summarizer agent IS configured. Use its settings.
                 AIAgentDefinition__c summarizerAgent = primaryAgentConfig.SummarizerAgent__r;
                 llmConfigToUse = AIAgentConfigService.getLLMConfiguration(summarizerAgent.LLMConfiguration__c);
                 promptTemplateToUse = summarizerAgent.InstructionsPrompt__c;
                 System.debug(LoggingLevel.INFO, logPrefix + 'Using dedicated summarizer agent: ' + summarizerAgent.DeveloperName__c);
             } else {
-                // FALLBACK: No dedicated summarizer is linked. Use the primary agent's LLM and the hardcoded default prompt.
                 llmConfigToUse = AIAgentConfigService.getLLMConfiguration(primaryAgentConfig.LLMConfiguration__c);
                 promptTemplateToUse = FALLBACK_PROMPT_TEMPLATE;
                 System.debug(LoggingLevel.WARN, logPrefix + 'No summarizer agent linked. Falling back to primary agent LLM and default prompt.');
@@ -106,7 +73,6 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
         List<String> newLinesList = new List<String>();
         for (Object obj : messagesToProcess) {
             ExecutionStep__c step = (ExecutionStep__c) obj;
-            // Only include steps that represent actual conversation content
             if (step.StepType__c == 'UserInput' || step.StepType__c == 'AgentResponse') {
                 newLinesList.add(step.StepRole__c + ': ' + step.Content__c);
             }
@@ -123,11 +89,9 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
             ProviderResult result = adapter.sendMessage(messagesPayload, null, llmConfigToUse, null);
 
             if (result != null && String.isNotBlank(result.content)) {
-                // Update AgentExecution__c record and mark ExecutionStep__c records as summarized
                 AgentExecution__c executionToUpdate = new AgentExecution__c(Id = this.executionId, ConversationSummary__c = result.content);
                 update executionToUpdate;
 
-                // Mark ExecutionStep__c records as summarized
                 List<Id> stepIdsToMarkSummarized = new List<Id>();
                 for (Object obj : messagesToProcess) {
                     ExecutionStep__c step = (ExecutionStep__c) obj;
@@ -147,24 +111,12 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
         }
     }
 
-    /**
-     * Retrieves a specific number of the oldest unsummarized execution turns atomically.
-     * This method first queries for the oldest unsummarized turn identifiers, then fetches all messages/steps
-     * belonging to only those turns, ensuring entire execution turns are processed deterministically.
-     * Supports the unified AgentExecution__c/ExecutionStep__c model.
-     *
-     * @param executionId       The AgentExecution__c ID to process.
-     * @param turnCount         Number of oldest turns to retrieve.
-     * @param logPrefix         Logging prefix for debug output.
-     * @return                  List of ExecutionStep__c records representing complete turns, in chronological order.
-     */
     private static List<Object> getOldestUnsummarizedTurns(Id executionId, Integer turnCount, String logPrefix) {
         if (executionId == null || turnCount == null || turnCount <= 0) {
             return new List<Object>();
         }
 
         try {
-            // Step 1: Get the oldest N unsummarized turn identifiers for ExecutionStep__c
             List<AggregateResult> oldestTurns = [
                 SELECT TurnIdentifier__c, MIN(Timestamp__c) earliestTimestamp
                 FROM ExecutionStep__c
@@ -179,7 +131,6 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
                 return new List<Object>();
             }
 
-            // Step 2: Extract turn identifiers from the aggregation results
             Set<String> turnIdentifiersToProcess = new Set<String>();
             for (AggregateResult ar : oldestTurns) {
                 String turnId = (String) ar.get('TurnIdentifier__c');
@@ -193,7 +144,6 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
                 logPrefix + 'Processing ' + turnIdentifiersToProcess.size() + ' oldest unsummarized ExecutionStep turns atomically.'
             );
 
-            // Step 3: Fetch ALL steps for the identified turns to ensure atomic processing
             List<ExecutionStep__c> stepsForTurns = [
                 SELECT
                     Id,

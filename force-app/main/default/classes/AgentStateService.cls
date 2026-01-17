@@ -7,43 +7,13 @@
  */
 
 /**
- * @description
- * Unified service for managing AgentExecution__c lifecycle and state transitions.
- * Consolidated from TurnLifecycleService and ExecutionContextService to eliminate
- * pass-through logic and centralize all state management in one place.
- *
- * Responsibilities:
- *   - Creation and validation of AgentExecution__c records
- *   - State transition orchestration (start, pause, resume, complete, fail)
- *   - Status updates and persistence
- *   - Platform event publishing for UI notifications
- *   - Stale execution detection and validation
+ * @description Unified service for managing AgentExecution__c lifecycle and state transitions.
  */
 public inherited sharing class AgentStateService {
-    // --- CONSTANTS ---
     private static final String LOG_PREFIX = '[AgentStateService] ';
 
-    // --- EXCEPTIONS ---
     public class AgentStateException extends AIAgentException {
     }
-
-    // ===================================================================================
-    // EXECUTION CREATION AND VALIDATION
-    // ===================================================================================
-
-    /**
-     * Creates a new AgentExecution__c record for any execution type.
-     *
-     * @param executionType     Execution type (Conversational, Function, Workflow)
-     * @param agentDefinitionId Agent definition ID
-     * @param triggerSource     Trigger source
-     * @param triggerPayload    Trigger payload JSON
-     * @param sourceRecordId    Source record ID
-     * @param userId            User ID
-     * @param serviceUserId     Service user ID
-     * @return                  Created execution ID
-     * @throws AgentStateException if creation fails
-     */
     public Id createExecution(
         String executionType,
         Id agentDefinitionId,
@@ -128,10 +98,6 @@ public inherited sharing class AgentStateService {
             throw new AgentStateException('Failed to validate execution: ' + e.getMessage());
         }
     }
-
-    // ===================================================================================
-    // STATE TRANSITION METHODS
-    // ===================================================================================
 
     /**
      * Optimized method that combines async tool tracking initialization with status update.
@@ -249,9 +215,7 @@ public inherited sharing class AgentStateService {
         publishAgentResponseEvent(executionId, false, null, errorMessage?.abbreviate(255), turnIdentifier, logPrefix);
     }
 
-    // ===================================================================================
     // STATUS UPDATE (Public for direct callers)
-    // ===================================================================================
 
     /**
      * Updates the status of an AgentExecution__c record.
@@ -266,6 +230,15 @@ public inherited sharing class AgentStateService {
         String logPrefix = LOG_PREFIX + '[updateStatus] ';
 
         try {
+            // Multi-LLM optimization: For terminal states, commit any buffered DML first
+            // This ensures all execution steps are persisted before marking the execution as complete/failed
+            Boolean isTerminalState = (executionStatus == 'Completed' || executionStatus == 'Failed' || executionStatus == 'Cancelled');
+            if (isTerminalState && TransactionContext.getInstance().isDeferredDMLMode()) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Terminal state update - committing buffered DML before state change');
+                TransactionContext.getInstance().commitBuffer();
+                TransactionContext.getInstance().disableDeferredDMLMode();
+            }
+
             AgentExecution__c execution = new AgentExecution__c(Id = executionId, ExecutionStatus__c = executionStatus, LastActivityTime__c = Datetime.now());
 
             if (String.isNotBlank(processingStatus)) {
@@ -277,7 +250,7 @@ public inherited sharing class AgentStateService {
             }
 
             // Set end time for terminal states
-            if (executionStatus == 'Completed' || executionStatus == 'Failed' || executionStatus == 'Cancelled') {
+            if (isTerminalState) {
                 execution.EndTime__c = Datetime.now();
             }
 
@@ -294,10 +267,6 @@ public inherited sharing class AgentStateService {
             throw new AgentStateException('Failed to update execution status: ' + e.getMessage());
         }
     }
-
-    // ===================================================================================
-    // PLATFORM EVENT PUBLISHING
-    // ===================================================================================
 
     /**
      * Publishes AgentResponse__e event for AgentExecution__c records to notify UI of completion.
@@ -398,9 +367,7 @@ public inherited sharing class AgentStateService {
         }
     }
 
-    // ===================================================================================
     // UTILITY METHODS
-    // ===================================================================================
 
     /**
      * Generates user-friendly status descriptions for UI display based on technical status codes.

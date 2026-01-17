@@ -7,16 +7,9 @@
  */
 
 /**
- * @description
- * Platform event handler for AsyncFrameworkRequest__e events.
- * Routes events to appropriate handlers based on job type (ProcessLLMMessage, ExecuteAction, FollowUpLLM).
+ * @description Platform event handler for AsyncFrameworkRequest__e events. Routes events to appropriate handlers based on job type.
  */
 public class AsyncFrameworkRequestTriggerHandler {
-    /**
-     * Routes AsyncFrameworkRequest__e events to appropriate handlers based on job type.
-     *
-     * @param events List of AsyncFrameworkRequest__e platform events
-     */
     public static void handleEvents(List<AsyncFrameworkRequest__e> events) {
         System.debug(LoggingLevel.INFO, '[AsyncFrameworkRequestTriggerHandler] Processing ' + events.size() + ' AsyncFrameworkRequest__e event(s).');
 
@@ -70,8 +63,24 @@ public class AsyncFrameworkRequestTriggerHandler {
     private static void handleExecuteAction(String payloadJson) {
         Map<String, Object> params = (Map<String, Object>) JSON.deserializeUntyped(payloadJson);
 
-        // Deserialize the AgentCapability__c object from the payload
-        AgentCapability__c capability = (AgentCapability__c) JSON.deserialize(JSON.serialize(params.get('capability')), AgentCapability__c.class);
+        // OPTIMIZATION: Direct field mapping instead of double serialization
+        // Eliminates unnecessary heap pressure from re-serializing capability object
+        Map<String, Object> capabilityMap = (Map<String, Object>) params.get('capability');
+
+        AgentCapability__c capability = new AgentCapability__c();
+        capability.Id = (Id) capabilityMap.get('Id');
+        capability.CapabilityName__c = (String) capabilityMap.get('CapabilityName__c');
+        capability.Description__c = (String) capabilityMap.get('Description__c');
+        capability.Parameters__c = (String) capabilityMap.get('Parameters__c');
+        capability.ImplementationType__c = (String) capabilityMap.get('ImplementationType__c');
+        capability.StandardActionType__c = (String) capabilityMap.get('StandardActionType__c');
+        capability.BackendConfiguration__c = (String) capabilityMap.get('BackendConfiguration__c');
+        capability.RunAsynchronously__c = (Boolean) capabilityMap.get('RunAsynchronously__c');
+        capability.HITLMode__c = (String) capabilityMap.get('HITLMode__c');
+        capability.HITLNotificationPreference__c = (String) capabilityMap.get('HITLNotificationPreference__c');
+        capability.FailFastOnError__c = (Boolean) capabilityMap.get('FailFastOnError__c');
+        capability.ExposureLevel__c = (String) capabilityMap.get('ExposureLevel__c');
+        capability.AIAgentDefinition__c = (Id) capabilityMap.get('AIAgentDefinition__c');
 
         AsyncActionEngine engine = new AsyncActionEngine(
             (Id) params.get('sessionId'),
@@ -108,7 +117,8 @@ public class AsyncFrameworkRequestTriggerHandler {
             (Id) params.get('agentDefId'),
             (String) params.get('turnId'),
             (Integer) params.get('nextTurnCount'),
-            isFinalError
+            isFinalError,
+            (Id) params.get('recordId')
         );
         engine.process(null);
     }

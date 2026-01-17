@@ -7,15 +7,9 @@
  */
 
 /**
- * @description
- * Core asynchronous action execution engine for the AI Agent Framework.
- * Handles action processing lifecycle: validation, execution, result processing, and orchestration.
- *
- * Implements Queueable for direct async execution without unnecessary wrapper classes.
- * Can be invoked via System.enqueueJob (low dispatch) or Platform Events (high dispatch).
+ * @description Core asynchronous action execution engine. Handles action processing lifecycle: validation, execution, result processing, and orchestration.
  */
 public class AsyncActionEngine implements Queueable, Database.AllowsCallouts {
-    // Core execution properties
     private final Id executionId;
     private final Id originalUserId;
     private final Id agentDefinitionId;
@@ -26,21 +20,6 @@ public class AsyncActionEngine implements Queueable, Database.AllowsCallouts {
     private final Integer currentTurnCount;
     private final Id relatedRecordId;
     private final AgentCapability__c capability;
-
-    /**
-     * Constructor for asynchronous action processing.
-     *
-     * @param executionId      Execution ID
-     * @param origUserId       Original user ID
-     * @param agentDefId       Agent definition ID
-     * @param parentMsgId      Parent message ID
-     * @param toolCallId       Tool call ID
-     * @param llmArgs          LLM arguments JSON
-     * @param cap              Agent capability
-     * @param relId            Related record ID
-     * @param turnId           Turn identifier
-     * @param turnCount        Turn count
-     */
     public AsyncActionEngine(
         Id executionId,
         Id origUserId,

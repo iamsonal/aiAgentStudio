@@ -7,49 +7,22 @@
  */
 
 /**
- * @description
- * Orchestrator for conversational (chat-based) agent executions.
- * Handles AgentExecution__c creation and async dispatch strategy selection.
- *
- * **Key Characteristics:**
- * - Multi-turn conversations with user
- * - UI-driven interactions (chat interface)
- * - Summarization instructions for multi-step turns
- * - Platform events for real-time UI updates
+ * @description Orchestrator for conversational (chat-based) agent executions. Handles multi-turn conversations and async dispatch.
  */
 public class ConversationalOrchestrator extends BaseAgentOrchestrator {
     private static final String LOG_PREFIX = '[ConversationalOrch] ';
 
-    /**
-     * No-argument constructor for dynamic instantiation.
-     */
     public ConversationalOrchestrator() {
-        // No-op constructor for reflection-based instantiation
     }
-
-    /**
-     * Parameterized constructor for direct instantiation.
-     *
-     * @param agentDefinition Agent definition
-     */
     public ConversationalOrchestrator(AIAgentDefinition__c agentDefinition) {
         configure(agentDefinition);
     }
 
-    // ===================================================================================
-    // LIFECYCLE METHODS
-    // ===================================================================================
-
-    /**
-     * Starts a conversational execution. Creates or updates the AgentExecution__c record,
-     * then immediately hands off to async context based on async dispatch type setting.
-     */
     public override AgentExecutionService.ExecutionResult start(String agentDeveloperName, AgentExecutionService.ExecutionPayload payload) {
         String logPrefix = LOG_PREFIX + '[Agent:' + agentDeveloperName + '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting conversational execution');
 
         try {
-            // Validate conversational-specific fields
             if (String.isBlank(payload.userMessage)) {
                 throw new AIAgentException.OrchestrationException('User message is required for conversational execution');
             }
@@ -59,20 +32,16 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
 
             Id executionId;
 
-            // Determine if this is a new execution or continuing an existing one
             if (payload.existingExecutionId != null) {
-                // Validate access and status
                 validateExecutionAccess(payload.existingExecutionId, payload.userId);
                 executionId = payload.existingExecutionId;
 
-                // Check if synchronous execution is enabled for conversational turns (initial LLM call only)
                 AIAgentSettings__c agentSettings = AIAgentSettings__c.getInstance(agentDefinition.DeveloperName__c);
                 if (agentSettings != null && agentSettings.ExecuteInitialLLMCallSynchronously__c == true) {
                     System.debug(LoggingLevel.INFO, logPrefix + 'Executing initial LLM call synchronously');
                     return executeSynchronously(executionId, payload, logPrefix);
                 }
 
-                // Update execution status to processing for async path
                 AgentStateService agentStateSvc = new AgentStateService();
                 agentStateSvc.updateStatus(
                     executionId,
@@ -117,16 +86,12 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
         }
     }
 
-    // ===================================================================================
     // CAPABILITY QUERY METHODS
-    // ===================================================================================
 
     // Note: ConversationalOrchestrator does not override onChildComplete()
     // because it uses ConversationalQueueable/ProcessLLMMessage events instead of callbacks
 
-    // ===================================================================================
     // LLM CUSTOMIZATION HOOKS (override from BaseAgentOrchestrator)
-    // ===================================================================================
 
     /**
      * Injects summarization instructions for multi-step conversational turns.
@@ -193,9 +158,7 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
         return null;
     }
 
-    // ===================================================================================
     // QUEUEABLE JOB EXECUTION
-    // ===================================================================================
 
     /**
      * Executes LLM processing for conversational agents when invoked from a queueable job.
@@ -229,10 +192,10 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting LLM processing for turn: ' + turnIdentifier + ', Exec: ' + executionId);
 
-        try {
-            // Initialize decision logger
-            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(executionId, turnIdentifier, originalUserId);
+        // Initialize decision logger - must be outside try block for finally access
+        IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(executionId, turnIdentifier, originalUserId);
 
+        try {
             // Get user and agent names for dynamic description
             String userName = getUserName(originalUserId);
             String agentName = getAgentName(agentDefinitionId);
@@ -245,58 +208,95 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
             currentUserMessageData.role = AIAgentConstants.ROLE_USER;
             currentUserMessageData.content = userMessage;
 
-            // Instantiate LLM interaction service
-            LLMInteractionService interactionService = new LLMInteractionService(
-                executionId,
-                originalUserId,
-                agentDefinitionId,
-                llmConfigurationId,
-                turnIdentifier,
-                1,
-                currentRecordId,
-                false,
-                decisionLogger
-            );
+            // Multi-LLM Optimization: Enable deferred DML mode and track LLM calls
+            TransactionContext txnCtx = TransactionContext.getInstance();
+            txnCtx.enableDeferredDMLMode();
+            txnCtx.incrementLLMCallCount();
+            txnCtx.capturePreToolLimits();
 
-            // Execute LLM interaction
-            LLMInteractionService.LLMInteractionResult llmResult = interactionService.prepareAndCallLLM(currentUserMessageData);
+            // Execution record was created in a previous transaction (queueable entry point)
+            txnCtx.setHasPreExistingExecution(true);
 
-            if (llmResult == null) {
-                throw new AIAgentException.OrchestrationException('LLMInteractionService returned a null result');
-            }
-
-            // Process LLM result using orchestration service
             OrchestrationService orchestrationSvc = new OrchestrationService();
-            String outcome = orchestrationSvc.processLlmResult(
-                llmResult,
-                executionId,
-                originalUserId,
-                executionUserId,
-                agentDefinitionId,
-                turnIdentifier,
-                1,
-                currentUserMessageData,
-                currentRecordId,
-                decisionLogger
-            );
+            String outcome;
+            Integer currentTurnCount = 1;
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'LLM processing completed successfully. Outcome: ' + outcome);
+            // Multi-LLM loop: Continue making LLM calls while conditions allow
+            do {
+                // Instantiate LLM interaction service for this iteration
+                LLMInteractionService interactionService = new LLMInteractionService(
+                    executionId,
+                    originalUserId,
+                    agentDefinitionId,
+                    llmConfigurationId,
+                    turnIdentifier,
+                    currentTurnCount,
+                    currentRecordId,
+                    false,
+                    decisionLogger
+                );
+
+                // Execute LLM interaction
+                // First call includes user message, subsequent calls don't (follow-up pattern)
+                LLMInteractionService.LLMInteractionResult llmResult = interactionService.prepareAndCallLLM(
+                    currentTurnCount == 1 ? currentUserMessageData : null
+                );
+
+                if (llmResult == null) {
+                    throw new AIAgentException.OrchestrationException('LLMInteractionService returned a null result');
+                }
+
+                // Process LLM result
+                outcome = orchestrationSvc.processLlmResult(
+                    llmResult,
+                    executionId,
+                    originalUserId,
+                    executionUserId,
+                    agentDefinitionId,
+                    turnIdentifier,
+                    currentTurnCount,
+                    currentTurnCount == 1 ? currentUserMessageData : null,
+                    currentRecordId,
+                    decisionLogger
+                );
+
+                System.debug(LoggingLevel.INFO, logPrefix + 'LLM call ' + txnCtx.getLLMCallCount() + ' completed. Outcome: ' + outcome);
+
+                // If immediate follow-up is needed, prepare for next iteration
+                if (outcome == OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP) {
+                    currentTurnCount++;
+                    txnCtx.incrementLLMCallCount();
+                    txnCtx.capturePreToolLimits();
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Multi-LLM optimization: Continuing with immediate follow-up (turn ' + currentTurnCount + ')');
+                }
+            } while (outcome == OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP);
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'LLM processing completed. Final outcome: ' + outcome + ', Total LLM calls: ' + txnCtx.getLLMCallCount()
+            );
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'ERROR: LLM processing failed. Exception: ' + e.getMessage() + '\nStack: ' + e.getStackTraceString());
 
-            // Mark turn as failed
+            // Mark turn as failed (this will commit buffer due to terminal state)
             try {
                 AgentStateService ass = new AgentStateService();
                 ass.failTurn(executionId, turnIdentifier, 'LLM processing failed: ' + e.getMessage(), AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
             } catch (Exception failEx) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'CRITICAL: Failed to update execution state after processing failure: ' + failEx.getMessage());
             }
+        } finally {
+            // Multi-LLM optimization: Commit any remaining buffered DML and decision steps
+            // This handles cases where the loop exited without a terminal state update
+            if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                TransactionContext.getInstance().commitBuffer();
+                TransactionContext.getInstance().disableDeferredDMLMode();
+            }
+            decisionLogger.commitSteps();
         }
     }
 
-    // ===================================================================================
     // RESUME IMPLEMENTATION
-    // ===================================================================================
 
     /**
      * Determines resume point for conversational executions.
@@ -368,10 +368,6 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
             return continueWithLLMCall(executionId, execution, newTurnIdentifier, resumePoint, logPrefix);
         }
     }
-
-    // ===================================================================================
-    // PRIVATE HELPER METHODS
-    // ===================================================================================
 
     /**
      * Retries a failed tool execution.
@@ -512,7 +508,16 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
         agentStateSvc.resumeForFollowUpLlmCall(executionId, newTurnIdentifier, null, logPrefix);
 
         AgentJobEnqueuer enqueuer = new AgentJobEnqueuer();
-        enqueuer.enqueueFollowUp(executionId, execution.User__c, agentDefinition.Id, newTurnIdentifier, resumePoint.turnCount, logPrefix, false);
+        enqueuer.enqueueFollowUp(
+            executionId,
+            execution.User__c,
+            agentDefinition.Id,
+            newTurnIdentifier,
+            resumePoint.turnCount,
+            logPrefix,
+            false,
+            execution.SourceRecordId__c
+        );
 
         return new AgentExecutionService.ExecutionResult(executionId, AIAgentConstants.STATUS_PROCESSING, 'Resuming with LLM call');
     }
@@ -594,15 +599,16 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
 
     /**
      * Executes a conversational turn synchronously without queueable overhead.
+     * Supports multi-LLM optimization when sync tools don't perform DML/callouts.
      */
     private AgentExecutionService.ExecutionResult executeSynchronously(Id executionId, AgentExecutionService.ExecutionPayload payload, String logPrefix) {
-        try {
-            // Initialize decision logger
-            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(executionId, payload.turnIdentifier, payload.userId);
+        // Initialize decision logger - must be outside try block for finally access
+        IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(executionId, payload.turnIdentifier, payload.userId);
 
+        try {
             // Get user and agent names for dynamic description
             String userName = getUserName(payload.userId);
-            String agentName = getAgentName(agentDefinition.Id); // Use actual agent name instead of developer name
+            String agentName = getAgentName(agentDefinition.Id);
 
             // Log user input
             decisionLogger.logUserInputWithContext('User Input Received', payload.userMessage, null, userName, agentName);
@@ -612,42 +618,73 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
             currentUserMessageData.role = AIAgentConstants.ROLE_USER;
             currentUserMessageData.content = payload.userMessage;
 
-            // Instantiate LLM interaction service
-            LLMInteractionService interactionService = new LLMInteractionService(
-                executionId,
-                payload.userId,
-                agentDefinition.Id,
-                agentDefinition.LLMConfiguration__c,
-                payload.turnIdentifier,
-                1,
-                payload.currentRecordId,
-                false,
-                decisionLogger
-            );
+            // Multi-LLM Optimization: Enable deferred DML mode and track LLM calls
+            TransactionContext txnCtx = TransactionContext.getInstance();
+            txnCtx.enableDeferredDMLMode();
+            txnCtx.incrementLLMCallCount();
+            txnCtx.capturePreToolLimits();
 
-            // Execute LLM interaction (callout happens here, before any DML)
-            LLMInteractionService.LLMInteractionResult llmResult = interactionService.prepareAndCallLLM(currentUserMessageData);
+            // Execution record already exists (passed in from caller via existingExecutionId)
+            txnCtx.setHasPreExistingExecution(true);
 
-            if (llmResult == null) {
-                throw new AIAgentException.OrchestrationException('LLMInteractionService returned a null result');
-            }
-
-            // Process LLM result using orchestration service (DML happens here, after callout)
             OrchestrationService orchestrationSvc = new OrchestrationService();
-            String outcome = orchestrationSvc.processLlmResult(
-                llmResult,
-                executionId,
-                payload.userId,
-                payload.userId,
-                agentDefinition.Id,
-                payload.turnIdentifier,
-                1,
-                currentUserMessageData,
-                payload.currentRecordId,
-                decisionLogger
-            );
+            String outcome;
+            Integer currentTurnCount = 1;
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Synchronous execution completed. Outcome: ' + outcome);
+            // Multi-LLM loop: Continue making LLM calls while conditions allow
+            do {
+                // Instantiate LLM interaction service for this iteration
+                LLMInteractionService interactionService = new LLMInteractionService(
+                    executionId,
+                    payload.userId,
+                    agentDefinition.Id,
+                    agentDefinition.LLMConfiguration__c,
+                    payload.turnIdentifier,
+                    currentTurnCount,
+                    payload.currentRecordId,
+                    false,
+                    decisionLogger
+                );
+
+                // Execute LLM interaction
+                // First call includes user message, subsequent calls don't (follow-up pattern)
+                LLMInteractionService.LLMInteractionResult llmResult = interactionService.prepareAndCallLLM(
+                    currentTurnCount == 1 ? currentUserMessageData : null
+                );
+
+                if (llmResult == null) {
+                    throw new AIAgentException.OrchestrationException('LLMInteractionService returned a null result');
+                }
+
+                // Process LLM result
+                outcome = orchestrationSvc.processLlmResult(
+                    llmResult,
+                    executionId,
+                    payload.userId,
+                    payload.userId,
+                    agentDefinition.Id,
+                    payload.turnIdentifier,
+                    currentTurnCount,
+                    currentTurnCount == 1 ? currentUserMessageData : null,
+                    payload.currentRecordId,
+                    decisionLogger
+                );
+
+                System.debug(LoggingLevel.INFO, logPrefix + 'LLM call ' + txnCtx.getLLMCallCount() + ' completed. Outcome: ' + outcome);
+
+                // If immediate follow-up is needed, prepare for next iteration
+                if (outcome == OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP) {
+                    currentTurnCount++;
+                    txnCtx.incrementLLMCallCount();
+                    txnCtx.capturePreToolLimits();
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Multi-LLM optimization: Continuing with immediate follow-up (turn ' + currentTurnCount + ')');
+                }
+            } while (outcome == OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP);
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Synchronous execution completed. Final outcome: ' + outcome + ', Total LLM calls: ' + txnCtx.getLLMCallCount()
+            );
 
             // Determine status based on outcome
             String status = AIAgentConstants.STATUS_IDLE;
@@ -682,6 +719,14 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
             }
 
             return new AgentExecutionService.ExecutionResult(executionId, AIAgentConstants.STATUS_FAILED, 'Execution failed: ' + e.getMessage());
+        } finally {
+            // Multi-LLM optimization: Commit any remaining buffered DML and decision steps
+            // This handles cases where the loop exited without a terminal state update
+            if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                TransactionContext.getInstance().commitBuffer();
+                TransactionContext.getInstance().disableDeferredDMLMode();
+            }
+            decisionLogger.commitSteps();
         }
     }
 

@@ -7,39 +7,28 @@
  */
 
 /**
- * @description
- * Centralized configuration management service for the AI Agent Framework.
- * Provides cached access to custom settings with intelligent fallback to defaults.
+ * @description Centralized configuration management service. Provides cached access to custom settings with intelligent fallback to defaults.
  */
 public inherited sharing class AIAgentFrameworkSettings {
     private static AIAgentFrameworkSettings__c settings;
-
-    // Define hardcoded final defaults directly here. Names reflect settings field names.
-    private static final Integer FINAL_DEFAULT_MaxConversationTurns = 5;
-    private static final Integer FINAL_DEFAULT_MaxQueueableStackDepth = 0; // 0 means use Salesforce defaults
+    private static final Integer FINAL_DEFAULT_MaxConversationTurns = 10;
+    private static final Integer FINAL_DEFAULT_MaxQueueableStackDepth = 0;
     private static final Integer FINAL_DEFAULT_MaxToolRetries = 2;
-    private static final Integer FINAL_DEFAULT_BulkConcurrencyLimit = 5; // Safe default for row locking
-    private static final Integer FINAL_DEFAULT_BulkFailureThreshold = 5; // Stop after 5 failures
+    private static final Integer FINAL_DEFAULT_BulkConcurrencyLimit = 5;
+    private static final Integer FINAL_DEFAULT_BulkFailureThreshold = 5;
+    private static final Integer FINAL_DEFAULT_MaxLLMCallsPerTransaction = 2;
     private static final String FINAL_DEFAULT_HITLApprovalNamedCredential = 'AgentStudioInternalAPI';
     private static final Boolean FINAL_DEFAULT_EnablePIIMasking = false;
     private static final Boolean FINAL_DEFAULT_EnablePromptSafety = false;
     private static final Boolean FINAL_DEFAULT_PIIAuditLogging = false;
     private static final Boolean FINAL_DEFAULT_PromptSafetyAuditLogging = false;
     private static final Boolean FINAL_DEFAULT_EnableDecisionStepLogging = true;
-
-    /**
-     * Gets the singleton instance of the framework settings, applying hardcoded defaults for any missing or invalid values.
-     *
-     * @return The singleton AIAgentFrameworkSettings__c instance with all fields populated (never null).
-     */
     public static AIAgentFrameworkSettings__c getInstance() {
         if (settings == null) {
             settings = AIAgentFrameworkSettings__c.getOrgDefaults();
 
-            // If NO custom setting record exists AT ALL, create an in-memory default
             if (settings == null || settings.Id == null) {
-                settings = new AIAgentFrameworkSettings__c(); // Create empty instance
-                // Explicitly set all values from FINAL defaults if no record exists
+                settings = new AIAgentFrameworkSettings__c();
                 settings.DefaultMaxConversationTurns__c = FINAL_DEFAULT_MaxConversationTurns;
                 settings.MaxQueueableStackDepth__c = FINAL_DEFAULT_MaxQueueableStackDepth;
                 settings.MaxToolRetries__c = FINAL_DEFAULT_MaxToolRetries;
@@ -266,6 +255,25 @@ public inherited sharing class AIAgentFrameworkSettings {
         AIAgentFrameworkSettings__c instance = getInstance();
         // Default to true if the field is null (for backward compatibility)
         return instance.EnableDecisionStepLogging__c != false;
+    }
+
+    /**
+     * Gets the maximum number of LLM calls allowed per transaction for multi-turn optimization.
+     * When a sync tool doesn't perform DML or callouts, the framework can call the LLM again
+     * in the same transaction instead of queueing a follow-up job. This reduces queueable
+     * usage and improves response latency.
+     *
+     * Set to 1 to disable multi-LLM optimization (use single call per transaction).
+     * Default is 2, allowing one additional LLM call when the first tool is safe.
+     *
+     * @return The maximum number of LLM calls allowed per transaction.
+     */
+    public static Integer getMaxLLMCallsPerTransaction() {
+        AIAgentFrameworkSettings__c instance = getInstance();
+        if (instance.MaxLLMCallsPerTransaction__c != null && instance.MaxLLMCallsPerTransaction__c >= 1) {
+            return Integer.valueOf(instance.MaxLLMCallsPerTransaction__c);
+        }
+        return FINAL_DEFAULT_MaxLLMCallsPerTransaction;
     }
 
     /**

@@ -7,17 +7,7 @@
  */
 
 /**
- * @description Unified entry point for all agent execution initiations.
- * Handles service user context switching and delegates to appropriate orchestrators.
- *
- * @example
- * // Simple execution
- * ExecutionPayload payload = new ExecutionPayload(recordId);
- * ExecutionResult result = AgentExecutionService.startExecution('Case_Summarizer', payload);
- *
- * // Conversational with message
- * ExecutionPayload payload = new ExecutionPayload(recordId, 'Summarize this case');
- * ExecutionResult result = AgentExecutionService.startExecution('Customer_Support_Copilot', payload);
+ * @description Unified entry point for agent execution. Handles service user context switching and delegates to orchestrators.
  */
 public class AgentExecutionService {
     private static final String LOG_PREFIX = '[AgentExecutionService] ';
@@ -28,9 +18,6 @@ public class AgentExecutionService {
     @TestVisible
     private static Boolean isMappingCacheInitialized = false;
 
-    /**
-     * Initiates agent execution with service user context switching when required.
-     */
     public static ExecutionResult startExecution(String agentDeveloperName, ExecutionPayload payload) {
         String logPrefix = LOG_PREFIX + '[' + agentDeveloperName + '] ';
 
@@ -60,9 +47,7 @@ public class AgentExecutionService {
     }
 
     /**
-     * @description Flow-compatible entry point for agent execution.
-     * Groups requests by agent and calls startExecution directly.
-     * Orchestrators automatically handle async deferral when DML is detected.
+     * @description Flow-compatible entry point. Groups requests by agent and calls startExecution.
      */
     @InvocableMethod(
         Label='AI Agent: Start Execution'
@@ -75,7 +60,6 @@ public class AgentExecutionService {
             return new List<ExecutionResult>();
         }
 
-        // Group requests by agent name for bulk processing
         Map<String, List<Id>> agentToRecordIds = new Map<String, List<Id>>();
         Map<String, InvocableRequest> agentToSampleRequest = new Map<String, InvocableRequest>();
 
@@ -88,8 +72,6 @@ public class AgentExecutionService {
         }
 
         List<ExecutionResult> results = new List<ExecutionResult>();
-
-        // Queue bulk execution for each agent
         for (String agentName : agentToRecordIds.keySet()) {
             try {
                 InvocableRequest sampleRequest = agentToSampleRequest.get(agentName);
@@ -102,15 +84,11 @@ public class AgentExecutionService {
                 payload.triggerSource = sampleRequest.triggerSource;
                 payload.turnIdentifier = UUID.randomUUID().toString();
 
-                // Call startExecution directly - orchestrators handle async deferral automatically
                 ExecutionResult result = startExecution(agentName, payload);
-
-                // Return the same result for each record (Flow expects 1:1 mapping)
                 for (Integer i = 0; i < recordIds.size(); i++) {
                     results.add(result);
                 }
             } catch (Exception e) {
-                // Return error result for each record in this agent group
                 List<Id> recordIds = agentToRecordIds.get(agentName);
                 for (Integer i = 0; i < recordIds.size(); i++) {
                     results.add(new ExecutionResult('Failed to start execution: ' + e.getMessage()));
@@ -121,9 +99,6 @@ public class AgentExecutionService {
         return results;
     }
 
-    /**
-     * Routes execution through REST API for service user context switching.
-     */
     private static ExecutionResult routeThroughRestApi(AIAgentDefinition__c agentDef, ExecutionPayload payload, String logPrefix) {
         try {
             HttpRequest httpReq = buildLoopbackHttpRequest(agentDef, payload);
@@ -195,16 +170,8 @@ public class AgentExecutionService {
         return httpReq;
     }
 
-    // ===================================================================================
-    // FLOW INTEGRATION
-    // ===================================================================================
-
     /**
      * @description Flow-friendly request wrapper for @InvocableMethod.
-     * Simplified for Flow admins - internal flags handled automatically.
-     *
-     * For record-triggered flows, pass $Record.Id to recordId.
-     * Salesforce automatically bulkifies multiple flow interviews into a single invocable call.
      */
     public class InvocableRequest {
         @InvocableVariable(Label='Agent Name' Description='The developer name of the AI agent to execute (e.g., Case_Processing_Workflow)' Required=true)
@@ -223,10 +190,6 @@ public class AgentExecutionService {
         @InvocableVariable(Label='Trigger Source' Description='Optional identifier for tracking where the execution originated (e.g., "Case Creation Flow")')
         public String triggerSource;
     }
-
-    // ===================================================================================
-    // EXECUTION PAYLOAD AND RESULT
-    // ===================================================================================
 
     /**
      * Execution payload containing all data needed for agent execution.
@@ -272,12 +235,69 @@ public class AgentExecutionService {
             if (userId == null) {
                 userId = UserInfo.getUserId();
             }
+
+            if (sourceRecordId != null) {
+                validateRecordExists(sourceRecordId, 'Source record');
+            }
+
+            if (currentRecordId != null && currentRecordId != sourceRecordId) {
+                validateRecordExists(currentRecordId, 'Current record');
+            }
+
+            if (sourceRecordIds != null && !sourceRecordIds.isEmpty()) {
+                validateRecordsExist(sourceRecordIds, 'Source records');
+            }
+        }
+
+        private void validateRecordExists(Id recordId, String recordType) {
+            try {
+                List<SObject> records = Database.query('SELECT Id FROM ' + recordId.getSObjectType() + ' WHERE Id = :recordId LIMIT 1');
+                if (records.isEmpty()) {
+                    throw new AIAgentException.OrchestrationException(recordType + ' with ID ' + recordId + ' does not exist or is not accessible');
+                }
+            } catch (QueryException e) {
+                throw new AIAgentException.OrchestrationException(
+                    recordType + ' with ID ' + recordId + ' does not exist or is not accessible: ' + e.getMessage()
+                );
+            }
+        }
+
+        private void validateRecordsExist(List<Id> recordIds, String recordType) {
+            if (recordIds.isEmpty())
+                return;
+
+            Map<String, List<Id>> recordsByType = new Map<String, List<Id>>();
+            for (Id recordId : recordIds) {
+                String objectType = String.valueOf(recordId.getSObjectType());
+                if (!recordsByType.containsKey(objectType)) {
+                    recordsByType.put(objectType, new List<Id>());
+                }
+                recordsByType.get(objectType).add(recordId);
+            }
+            for (String objectType : recordsByType.keySet()) {
+                List<Id> typeRecordIds = recordsByType.get(objectType);
+                try {
+                    List<SObject> existingRecords = Database.query('SELECT Id FROM ' + objectType + ' WHERE Id IN :typeRecordIds');
+                    if (existingRecords.size() != typeRecordIds.size()) {
+                        Set<Id> existingIds = new Set<Id>();
+                        for (SObject record : existingRecords) {
+                            existingIds.add(record.Id);
+                        }
+                        List<Id> missingIds = new List<Id>();
+                        for (Id recordId : typeRecordIds) {
+                            if (!existingIds.contains(recordId)) {
+                                missingIds.add(recordId);
+                            }
+                        }
+                        throw new AIAgentException.OrchestrationException(recordType + ' with IDs ' + missingIds + ' do not exist or are not accessible');
+                    }
+                } catch (QueryException e) {
+                    throw new AIAgentException.OrchestrationException(recordType + ' validation failed: ' + e.getMessage());
+                }
+            }
         }
     }
 
-    /**
-     * ExecutionResult encapsulates the result of an execution initiation.
-     */
     public class ExecutionResult {
         @AuraEnabled
         @InvocableVariable(Label='Execution ID' Description='The ID of the created AgentExecution__c record. Use this to track execution progress.')
@@ -312,10 +332,6 @@ public class AgentExecutionService {
         }
     }
 
-    // ===================================================================================
-    // ORCHESTRATOR FACTORY
-    // ===================================================================================
-
     private static void ensureOrchestratorMappingCacheInitialized() {
         if (isMappingCacheInitialized) {
             return;
@@ -340,9 +356,6 @@ public class AgentExecutionService {
         isMappingCacheInitialized = true;
     }
 
-    /**
-     * Creates the appropriate orchestrator for the given agent definition.
-     */
     public static IAgentOrchestrator getOrchestrator(AIAgentDefinition__c agentDef) {
         ensureOrchestratorMappingCacheInitialized();
 

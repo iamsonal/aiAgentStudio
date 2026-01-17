@@ -7,31 +7,10 @@
  */
 
 /**
- * @description
- * NotificationService provides a focused API for sending custom platform notifications to Salesforce users.
- * It encapsulates integration with the Custom Notification framework, handling notification type lookup, message construction,
- * and delivery. The service ensures robust error handling, clear debug output, and graceful handling of missing configuration
- * or delivery failures. Its scope is limited to user-targeted notifications with optional record navigation, and it is designed
- * for easy extension to support additional notification types or delivery strategies in the future.
+ * @description Provides API for sending custom platform notifications to Salesforce users. Handles notification type lookup, message construction, and delivery.
  */
 public class NotificationService {
     private static final String NOTIFICATION_TYPE_API_NAME = 'AI_Agent_Action_Status';
-
-    /**
-     * Sends a custom notification to a specific user.
-     *
-     * Looks up the configured notification type, constructs the notification payload, and attempts delivery to the specified user.
-     * If required parameters are missing or the notification type is not found, the method logs a warning or error and exits gracefully.
-     *
-     * @param recipientId The ID of the User to receive the notification. (Required)
-     * @param title       The title of the notification. (Required)
-     * @param body        The main body/message of the notification. (Required)
-     * @param targetId    The ID of the record to navigate to when the notification is clicked (optional, e.g., AgentExecution__c ID).
-     *
-     * @throws None. All errors are handled internally and surfaced via debug logs.
-     *
-     * Side effects: Emits debug logs for parameter validation, notification type lookup, delivery success, and error conditions.
-     */
     public static void sendUserNotification(Id recipientId, String title, String body, Id targetId) {
         String logPrefix = '[NotificationService] ';
 
@@ -41,7 +20,6 @@ public class NotificationService {
         }
 
         try {
-            // Lookup the custom notification type by API name. Fail gracefully if not found.
             List<CustomNotificationType> notificationTypes = [
                 SELECT Id
                 FROM CustomNotificationType

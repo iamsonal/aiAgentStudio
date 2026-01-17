@@ -7,31 +7,7 @@
  */
 
 /**
- * @description
- * ActionUpdateRecord: High-performance, secure record update action using strongly-typed DTOs.
- *
- * This class provides a highly configurable and secure mechanism for updating Salesforce records.
- * It performs deep parameter validation, type coercion, field-level security (FLS) enforcement, and record lock detection.
- *
- * Parameter Format:
- *   SObject fields are provided in nested recordData object:
- *   {"recordId": "500...", "recordData": {"Priority": "High", "Status": "Closed", "Subject": "Updated"}}
- *
- * Configuration:
- *   - objectApiName (optional): When specified, validates that the recordId matches this object type
- *   - defaultFieldValues (optional): Default field values merged with AI-provided values
- *
- * Security Architecture:
- *   - Proactive FLS checks via TypeCoercionService provide clear, actionable errors for AI agents
- *   - Security.stripInaccessible() serves as final verification and catches edge cases
- *   - Logs discrepancies between manual and native FLS checks for audit and debugging
- *
- * Architecture:
- *   - ArgumentsDTO: Strongly-typed with recordId and nested recordData Map<String, Object>
- *   - ConfigDTO: Optional configuration with objectApiName for type validation
- *   - Uses native JSON.deserialize() for high-performance type conversion
- *   - Leverages TypeCoercionService for FLS checks and SObject field coercion
- *
+ * @description Updates Salesforce records with FLS checks and validation.
  * @ActionLabel Update Record
  * @ActionDescription Updates an existing Salesforce record with field-level security checks
  * @ActionRequiresSObject true
@@ -44,9 +20,6 @@
 public class ActionUpdateRecord extends BaseAgentAction {
     private ConfigDTO config;
 
-    /**
-     * DTO for strongly-typed arguments (AI-provided parameters at runtime)
-     */
     public class ArgumentsDTO {
         /**
          * @FieldLabel Record ID

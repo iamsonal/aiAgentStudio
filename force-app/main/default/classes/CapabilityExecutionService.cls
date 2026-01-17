@@ -7,16 +7,7 @@
  */
 
 /**
- * @description
- * Central service for executing agent capabilities with integrated handler registry and routing.
- * Consolidated from ActionRegistry and CapabilityExecutionRouter to eliminate unnecessary separation
- * between "finding the code" and "running the code".
- *
- * Responsibilities:
- *   - Discovers and caches action handlers from StandardActionHandler__mdt
- *   - Instantiates appropriate IAgentAction implementations based on capability configuration
- *   - Routes execution to handlers for Standard, Apex, and Flow capability types
- *   - Manages error handling and outcome reporting
+ * @description Central service for executing agent capabilities. Discovers handlers, instantiates actions, and routes execution.
  */
 public inherited sharing class CapabilityExecutionService {
     @TestVisible
@@ -24,25 +15,8 @@ public inherited sharing class CapabilityExecutionService {
     @TestVisible
     private static Boolean isCacheInitialized = false;
 
-    /**
-     * Exception for action handler registration, instantiation, or execution errors.
-     */
     public class CapabilityExecutionException extends AIAgentException {
     }
-
-    // ===================================================================================
-    // PUBLIC EXECUTION API
-    // ===================================================================================
-
-    /**
-     * Executes a single agent capability by instantiating and routing to appropriate handler.
-     *
-     * @param capability         Agent capability record (required)
-     * @param llmArgumentsJson   LLM arguments JSON
-     * @param context            Action context (required)
-     * @return                   Action outcome
-     * @throws IllegalArgumentException if capability or context is null
-     */
     public ActionOutcome executeSingleAction(AgentCapability__c capability, String llmArgumentsJson, ActionContext context) {
         String logPrefix =
             '[CapabilityExecutionService] [CapabilityId: ' +
@@ -51,14 +25,12 @@ public inherited sharing class CapabilityExecutionService {
             String.valueOf(context?.executionId) +
             '] ';
 
-        // Validate required parameters
         if (capability == null || context == null) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Missing required input: capability or context is null.');
             throw new IllegalArgumentException('AgentCapability and ActionContext are required.');
         }
 
         try {
-            // Route to the correct execution engine based on implementation type
             switch on capability.ImplementationType__c {
                 when 'Standard', 'Apex', 'Flow' {
                     System.debug(
@@ -66,14 +38,10 @@ public inherited sharing class CapabilityExecutionService {
                         logPrefix + 'Executing ' + capability.ImplementationType__c + ' capability: ' + capability.CapabilityName__c
                     );
 
-                    // Create handler (factory pattern integrated)
                     IAgentAction actionHandler = createActionHandler(capability);
-
-                    // Execute the action handler and capture the outcome
                     ActionOutcome outcome = actionHandler.execute(capability.BackendConfiguration__c, llmArgumentsJson, context);
 
                     if (outcome == null) {
-                        // Defensive: handler should never return null; treat as implementation bug
                         System.debug(LoggingLevel.ERROR, logPrefix + 'Action handler returned null outcome. This indicates a handler implementation bug.');
                         outcome = ActionOutcome.failure(
                             AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT,
@@ -86,7 +54,6 @@ public inherited sharing class CapabilityExecutionService {
                     return outcome;
                 }
                 when else {
-                    // Unsupported implementation type: log and return configuration error
                     String errorMsg =
                         'Unsupported ImplementationType__c: "' +
                         String.valueOf(capability.ImplementationType__c) +
@@ -107,17 +74,6 @@ public inherited sharing class CapabilityExecutionService {
         }
     }
 
-    // ===================================================================================
-    // HANDLER REGISTRY (Consolidated from ActionRegistry)
-    // ===================================================================================
-
-    /**
-     * Creates and returns an IAgentAction handler for the given AgentCapability__c record.
-     *
-     * @param capability The AgentCapability__c record describing the action to instantiate (required)
-     * @return An IAgentAction implementation matching the capability's configuration
-     * @throws CapabilityExecutionException if configuration is invalid, handler cannot be found, or instantiation fails
-     */
     private static IAgentAction createActionHandler(AgentCapability__c capability) {
         if (capability == null)
             throw new CapabilityExecutionException('AgentCapability cannot be null.');
@@ -125,11 +81,10 @@ public inherited sharing class CapabilityExecutionService {
         ensureCacheInitialized();
 
         String implType = capability.ImplementationType__c;
-        String implDetail = capability.ImplementationDetail__c; // For Apex/Flow
-        String stdActionType = capability.StandardActionType__c; // For Standard
+        String implDetail = capability.ImplementationDetail__c;
+        String stdActionType = capability.StandardActionType__c;
         String logIdentifier = ('Standard'.equalsIgnoreCase(implType)) ? stdActionType : implDetail;
 
-        // Validate configuration fields for the selected implementation type
         if (String.isBlank(implType))
             throw new CapabilityExecutionException('Capability (' + capability.Id + ') missing required Implementation Type.');
         if ('Standard'.equalsIgnoreCase(implType) && String.isBlank(stdActionType))
@@ -179,7 +134,7 @@ public inherited sharing class CapabilityExecutionService {
                 }
             }
         } catch (CapabilityExecutionException cee) {
-            throw cee; // Rethrow specific exceptions
+            throw cee;
         } catch (Exception e) {
             System.debug(
                 LoggingLevel.ERROR,
@@ -194,9 +149,6 @@ public inherited sharing class CapabilityExecutionService {
         }
     }
 
-    /**
-     * Ensures handler cache is initialized from StandardActionHandler__mdt records.
-     */
     private static void ensureCacheInitialized() {
         if (isCacheInitialized)
             return;
@@ -236,19 +188,11 @@ public inherited sharing class CapabilityExecutionService {
         isCacheInitialized = true;
     }
 
-    /**
-     * Instantiates the given handler class and validates it implements IAgentAction.
-     *
-     * @param handlerType The Type object for the handler class (must not be null)
-     * @param className The class name (for error reporting)
-     * @return An instance of IAgentAction implemented by the handler class
-     * @throws CapabilityExecutionException if the class is not found or does not implement IAgentAction
-     */
     private static IAgentAction instantiateAndCheckInterface(Type handlerType, String className) {
         if (handlerType == null)
             throw new CapabilityExecutionException('Handler class not found: "' + className + '". Verify the class exists and is accessible.');
 
-        Object instanceObj = handlerType.newInstance(); // May throw TypeException or other instantiation errors
+        Object instanceObj = handlerType.newInstance();
 
         if (!(instanceObj instanceof IAgentAction)) {
             System.debug(LoggingLevel.ERROR, '[CapabilityExecutionService] Handler class "' + className + '" does not implement IAgentAction.');
@@ -258,9 +202,6 @@ public inherited sharing class CapabilityExecutionService {
         return (IAgentAction) instanceObj;
     }
 
-    /**
-     * Clears the handler cache. Intended for use in test contexts only.
-     */
     @TestVisible
     private static void clearCache_TestOnly() {
         standardHandlerCache = null;

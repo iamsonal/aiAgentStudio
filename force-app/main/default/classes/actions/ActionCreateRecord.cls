@@ -7,43 +7,17 @@
  */
 
 /**
- * @description
- * ActionCreateRecord is a robust, high-performance Apex action for creating Salesforce records using strongly-typed DTOs.
- *
- * Responsibilities:
- *   - Uses DTOs for type-safe argument and configuration handling
- *   - Performs proactive FLS checks to provide AI-friendly error messages before DML
- *   - Applies Security.stripInaccessible() as defense-in-depth verification layer
- *   - Handles DML errors with enhanced, context-rich messages for troubleshooting
- *   - Provides detailed debug output for security, field filtering, and performance analysis
- *
- * Security Architecture:
- *   - Proactive FLS checks via TypeCoercionService provide clear, actionable errors for AI agents
- *   - Security.stripInaccessible() serves as final verification and catches edge cases
- *   - Logs discrepancies between manual and native FLS checks for audit and debugging
- *
- * Architecture:
- *   - ArgumentsDTO: Contains Map<String, Object> for dynamic SObject fields
- *   - ConfigDTO: Strongly-typed configuration with objectApiName and defaultFieldValues
- *   - Uses native JSON.deserialize() for high-performance type conversion
- *   - Leverages TypeCoercionService for FLS checks and SObject field coercion
- *
+ * @description Creates Salesforce records with FLS checks and validation.
  * @ActionLabel Create Record
  * @ActionDescription Creates a new Salesforce record with field-level security checks and validation
  * @ActionRequiresSObject true
  * @ActionIsActive true
- * @ActionGuidance
- * <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6;"><div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 16px; border-radius: 8px 8px 0 0; margin: -8px -8px 16px -8px;"><h2 style="margin: 0; font-size: 18px; font-weight: 600;">✨ Create Record</h2><p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">Create new Salesforce records with intelligent defaults and field-level security</p></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">⚙️ Configuration Required</h3><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">Implementation Detail</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">Select the target Salesforce object using the picker (e.g., Account, Contact, Case, Opportunity).<br/><span style="font-size: 12px; font-style: italic;">This determines which object type will be created.</span></td></tr><tr><td style="padding: 8px;"><strong style="color: #495057;">Default Values</strong><br/><span style="font-size: 11px; color: #6c757d;">Optional</span></td><td style="padding: 8px; color: #6c757d;">JSON object with field API names and default values applied to every record created. These are merged with AI-provided values.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{ "RecordTypeId": "012...", "OwnerId": "005..." }</code></td></tr></table></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">📋 Runtime Parameters</h3><p style="margin: 8px 0; font-size: 13px; color: #6c757d;">The AI will provide these parameters when calling this action:</p><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; width: 30%;"><strong style="color: #495057;">recordData</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; color: #6c757d;">JSON object containing field API names and values for the new record. These are merged with your configured default values.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{ "Name": "Acme Corp", "Industry": "Technology" }</code></td></tr></table></div><div style="background: #e7f1ff; border-left: 4px solid #0066cc; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #004085;"><strong>💡 How it works:</strong> AI-provided values in recordData are merged with your configured default values. If the AI provides a field that exists in defaults, the AI value takes precedence.</p></div></div>
- *
  * @extends BaseAgentAction
  */
 public class ActionCreateRecord extends BaseAgentAction {
     private ConfigDTO config;
     private SObjectType targetSObjectType;
 
-    /**
-     * DTO for strongly-typed arguments (AI-provided parameters at runtime)
-     */
     public class ArgumentsDTO {
         /**
          * @FieldLabel Record Data
@@ -54,9 +28,6 @@ public class ActionCreateRecord extends BaseAgentAction {
         public Map<String, Object> recordData;
     }
 
-    /**
-     * DTO for strongly-typed backend configuration (admin-configured)
-     */
     public class ConfigDTO {
         /**
          * @FieldLabel Object API Name
@@ -75,32 +46,15 @@ public class ActionCreateRecord extends BaseAgentAction {
         public Map<String, Object> defaultFieldValues;
     }
 
-    /**
-     * @description
-     * Main entry point for record creation using strongly-typed DTOs.
-     * Deserializes params into ArgumentsDTO, merges with default values, performs security and type validation,
-     * and executes the DML insert. Returns a structured result or failure information.
-     *
-     * @param params Map<String, Object> - Raw parameters (deserialized into ArgumentsDTO for type safety)
-     * @return ActionOutcome<CreateResult> - Contains the new record ID and metadata, or error information
-     *
-     * Side effects: Logs security, FLS, and performance information for audit and troubleshooting
-     */
     public override ActionOutcome executeAction(Map<String, Object> params) {
         Long startTime = System.currentTimeMillis();
 
-        // Two-Pass Hybrid Deserialization: Manually populate DTO from untyped map
         ArgumentsDTO args = new ArgumentsDTO();
         if (params.containsKey('recordData') && params.get('recordData') instanceof Map<String, Object>) {
-            // Standard case: fields are wrapped in recordData object
             args.recordData = (Map<String, Object>) params.get('recordData');
         } else {
-            // Fallback: LLM passed fields directly without recordData wrapper
-            // Use entire params map as recordData for backward compatibility
             args.recordData = params;
         }
-
-        // Merge default and user-supplied field values
         Map<String, Object> finalData = new Map<String, Object>();
         if (config.defaultFieldValues != null) {
             finalData.putAll(config.defaultFieldValues);
@@ -113,7 +67,6 @@ public class ActionCreateRecord extends BaseAgentAction {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'No field data provided for record creation');
         }
 
-        // Validate RecordType if specified
         if (finalData.containsKey('RecordTypeId') && finalData.get('RecordTypeId') != null) {
             ActionOutcome rtValidation = validateRecordTypeAccess(finalData.get('RecordTypeId'));
             if (!rtValidation.isSuccess) {
@@ -121,7 +74,6 @@ public class ActionCreateRecord extends BaseAgentAction {
             }
         }
 
-        // Explicitly check object-level create permission
         try {
             SecurityUtils.checkObjectPermission(this.targetSObjectType, AccessType.CREATABLE);
         } catch (SecurityUtils.ActionSecurityException ase) {
@@ -129,13 +81,11 @@ public class ActionCreateRecord extends BaseAgentAction {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ase.getMessage());
         }
 
-        // Coerce types and check field-level security (FLS)
         Map<String, Object> typedData;
         try {
             typedData = TypeCoercionService.coerceArgumentTypesForSObject(finalData, this.targetSObjectType, AccessType.CREATABLE);
         } catch (TypeCoercionService.TypeCoercionException typeEx) {
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Type coercion failed: ' + typeEx.getMessage());
-            // Extract auto-generated correction guidance to help LLM self-correct format errors
             if (String.isNotBlank(typeEx.correctionGuidance)) {
                 return ActionOutcome.failureWithGuidance(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage(), typeEx.correctionGuidance);
             }
@@ -157,7 +107,6 @@ public class ActionCreateRecord extends BaseAgentAction {
             );
         }
 
-        // Log fields filtered by FLS for audit and troubleshooting
         Set<String> originalFields = finalData.keySet();
         Set<String> allowedFields = typedData.keySet();
         Set<String> removedFields = new Set<String>(originalFields);
@@ -169,17 +118,13 @@ public class ActionCreateRecord extends BaseAgentAction {
             );
         }
 
-        // Populate SObject with validated, allowed fields
         SObject newRecord = this.targetSObjectType.newSObject();
         for (String fieldName : typedData.keySet()) {
             newRecord.put(fieldName, typedData.get(fieldName));
         }
 
-        // Defense-in-depth: Use Security.stripInaccessible() as final verification layer
-        // This ensures Salesforce native FLS enforcement catches any edge cases in manual checks
         SObjectAccessDecision decision = Security.stripInaccessible(AccessType.CREATABLE, new List<SObject>{ newRecord });
 
-        // Log any discrepancies between manual FLS checks and stripInaccessible results
         Map<String, Set<String>> decisionRemovedFields = decision.getRemovedFields();
         if (!decisionRemovedFields.isEmpty() && decisionRemovedFields.containsKey(config.objectApiName)) {
             Set<String> strippedFields = decisionRemovedFields.get(config.objectApiName);
@@ -193,7 +138,6 @@ public class ActionCreateRecord extends BaseAgentAction {
             }
         }
 
-        // Insert the record and handle DML errors
         Database.SaveResult saveResult = Database.insert(decision.getRecords()[0], false);
 
         Long executionTime = System.currentTimeMillis() - startTime;
@@ -202,12 +146,10 @@ public class ActionCreateRecord extends BaseAgentAction {
         if (saveResult.isSuccess()) {
             System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] Successfully created record with ID: ' + saveResult.getId());
 
-            // Query for the Name field to provide more meaningful output
             Map<String, String> nameFieldInfo = queryNameFieldWithLabel(saveResult.getId());
             String nameFieldValue = nameFieldInfo?.get('value');
             String nameFieldLabel = nameFieldInfo?.get('label');
 
-            // Create a more informative success message
             String successMessage = 'Successfully created ' + config.objectApiName + ' record with ID ' + saveResult.getId();
             if (String.isNotBlank(nameFieldValue) && String.isNotBlank(nameFieldLabel)) {
                 successMessage += ' (' + nameFieldLabel + ': ' + nameFieldValue + ')';
@@ -226,32 +168,18 @@ public class ActionCreateRecord extends BaseAgentAction {
         }
     }
 
-    /**
-     * @description
-     * Parses and validates the action configuration JSON using strongly-typed ConfigDTO.
-     * Extracts the target SObject type and any default field values.
-     * Logs the number of default values loaded for transparency.
-     *
-     * @param actionConfigurationJson String - The JSON configuration string
-     * @param logPrefix String - Prefix for log output
-     * @throws ValidationException if required configuration is missing or invalid
-     */
     @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
-        // Parse config using hybrid approach for Map<String, Object> compatibility
         try {
             if (String.isBlank(actionConfigurationJson)) {
                 throw new ValidationException('Configuration JSON is required', null);
             }
 
-            // First deserialize as untyped map to handle Map<String, Object> properly
             Map<String, Object> configMap = (Map<String, Object>) JSON.deserializeUntyped(actionConfigurationJson);
 
-            // Then manually populate ConfigDTO
             this.config = new ConfigDTO();
             this.config.objectApiName = (String) configMap.get('objectApiName');
 
-            // Handle defaultFieldValues
             Object defaultFieldsObj = configMap.get('defaultFieldValues');
             if (defaultFieldsObj instanceof Map<String, Object>) {
                 this.config.defaultFieldValues = (Map<String, Object>) defaultFieldsObj;
@@ -262,7 +190,6 @@ public class ActionCreateRecord extends BaseAgentAction {
             throw new ValidationException('Invalid configuration JSON: ' + e.getMessage(), e);
         }
 
-        // Validate required fields
         if (String.isBlank(config.objectApiName)) {
             throw new ValidationException('objectApiName is required in configuration', 'objectApiName');
         }
@@ -272,7 +199,6 @@ public class ActionCreateRecord extends BaseAgentAction {
             throw new ValidationException('Invalid SObject API Name in configuration: ' + config.objectApiName, 'objectApiName');
         }
 
-        // Initialize defaultFieldValues if null
         if (config.defaultFieldValues == null) {
             config.defaultFieldValues = new Map<String, Object>();
         }
@@ -282,22 +208,8 @@ public class ActionCreateRecord extends BaseAgentAction {
         }
     }
 
-    /**
-     * @description
-     * Queries for the Name field of the newly created record to provide more meaningful output.
-     * Uses the SOQL query pattern provided to find the Name field for any object type.
-    /**
-     * @description
-     * Queries for the Name field of the newly created record to provide more meaningful output.
-     * Uses the SOQL query pattern provided to find the Name field for any object type.
-     * Also retrieves the field label for better context in messages.
-     *
-     * @param recordId Id - The ID of the newly created record
-     * @return Map<String, String> - Contains 'value' and 'label' keys, or null if not found or accessible
-     */
     private Map<String, String> queryNameFieldWithLabel(Id recordId) {
         try {
-            // First, get the Name field API name and label for this object type
             List<String> objectNames = new List<String>{ config.objectApiName };
             List<FieldDefinition> nameFields = [
                 SELECT QualifiedApiName, Label
@@ -314,7 +226,6 @@ public class ActionCreateRecord extends BaseAgentAction {
             String nameFieldApiName = nameFields[0].QualifiedApiName;
             String nameFieldLabel = nameFields[0].Label;
 
-            // Query the record to get the Name field value
             String soql = 'SELECT ' + nameFieldApiName + ' FROM ' + config.objectApiName + ' WHERE Id = :recordId WITH USER_MODE LIMIT 1';
             List<SObject> records = Database.query(soql);
 
@@ -328,14 +239,6 @@ public class ActionCreateRecord extends BaseAgentAction {
         return null;
     }
 
-    /**
-     * @description
-     * Enhances DML error messages with contextual information for better troubleshooting.
-     *
-     * @param error Database.Error - The error from the failed DML operation
-     * @param typedData Map<String, Object> - The field data that was attempted to be inserted
-     * @return String - Enhanced error message with context and field information
-     */
     private String enhanceCreateErrorMessage(Database.Error error, Map<String, Object> typedData) {
         String enhanced = 'Failed to create ' + config.objectApiName + ' record: ' + error.getMessage();
 
@@ -358,17 +261,9 @@ public class ActionCreateRecord extends BaseAgentAction {
         return enhanced;
     }
 
-    /**
-     * @description
-     * Validates that the specified RecordType exists for this object and that the user has access to create records with it.
-     *
-     * @param recordTypeIdObj Object - The RecordTypeId value (could be String or Id).
-     * @return ActionOutcome - Success if RecordType is valid and accessible, failure otherwise.
-     */
     private ActionOutcome validateRecordTypeAccess(Object recordTypeIdObj) {
         Id recordTypeId;
 
-        // Convert to Id if needed
         try {
             if (recordTypeIdObj instanceof Id) {
                 recordTypeId = (Id) recordTypeIdObj;
@@ -389,13 +284,11 @@ public class ActionCreateRecord extends BaseAgentAction {
             );
         }
 
-        // Validate the RecordType ID is for a RecordType object
         String sObjectTypeName = recordTypeId.getSObjectType().getDescribe().getName();
         if (sObjectTypeName != 'RecordType') {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'The provided ID is not a RecordType ID: ' + recordTypeId);
         }
 
-        // Query the RecordType to validate it exists and belongs to this object
         try {
             List<RecordType> recordTypes = [
                 SELECT Id, DeveloperName, Name, IsActive
@@ -429,7 +322,6 @@ public class ActionCreateRecord extends BaseAgentAction {
 
             return ActionOutcome.success();
         } catch (System.QueryException qe) {
-            // This could happen if user doesn't have access to RecordType object or the specific record
             String errorMsg = 'Unable to access RecordType ' + recordTypeId + '. ';
             if (qe.getMessage().containsIgnoreCase('insufficient access') || qe.getMessage().containsIgnoreCase('security')) {
                 errorMsg += 'User may lack permission to access this RecordType.';
@@ -441,18 +333,6 @@ public class ActionCreateRecord extends BaseAgentAction {
         }
     }
 
-    /**
-     * @description
-     * Result wrapper for successful record creation operations. Provides structured data for both user display and LLM processing.
-     *
-     * Fields:
-     *   - recordId: String - The Salesforce record Id of the newly created record.
-     *   - message: String - User-facing message summarizing the result.
-     *   - fieldsSet: List<String> - List of fields that were set on the new record.
-     *   - recordName: String - The value of the Name field for the created record (e.g., Case Number, Account Name).
-     *   - recordNameLabel: String - The label of the Name field (e.g., "Case Number", "Account Name").
-     *   - metadata: Map<String, Object> - Additional context for downstream consumers.
-     */
     public class CreateResult {
         public String recordId;
         public String message; // Framework uses this for user display
