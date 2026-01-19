@@ -276,21 +276,7 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         try {
             IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(fullAction.AgentExecution__c, fullAction.TurnIdentifier__c);
-            decisionLogger.logResumeApprovedFrameworkAction(
-                'Resume Approved Framework Action',
-                'Tool "' + fullAction.ToolName__c + '" was approved and will now be executed',
-                JSON.serialize(
-                    new Map<String, Object>{
-                        'toolName' => fullAction.ToolName__c,
-                        'pendingActionId' => fullAction.Id,
-                        'approvedBy' => fullAction.ResolvedBy__c,
-                        'approvedAt' => fullAction.ResolvedAt__c,
-                        'requestedAt' => fullAction.RequestedAt__c,
-                        'resolutionComment' => fullAction.ResolutionComment__c
-                    }
-                ),
-                0L
-            );
+            decisionLogger.log(IDecisionStepLogger.EventType.APPROVAL_RESOLVED, new List<Object>{ fullAction, true });
             decisionLogger.commitSteps();
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to log approval decision step: ' + e.getMessage());
@@ -404,21 +390,7 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         try {
             IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(fullAction.AgentExecution__c, fullAction.TurnIdentifier__c);
-            decisionLogger.logHandleRejectedFrameworkAction(
-                'Handle Rejected Framework Action',
-                'Tool "' + fullAction.ToolName__c + '" was rejected by approver',
-                JSON.serialize(
-                    new Map<String, Object>{
-                        'toolName' => fullAction.ToolName__c,
-                        'pendingActionId' => fullAction.Id,
-                        'rejectedBy' => fullAction.ResolvedBy__c,
-                        'rejectedAt' => fullAction.ResolvedAt__c,
-                        'requestedAt' => fullAction.RequestedAt__c,
-                        'resolutionComment' => fullAction.ResolutionComment__c
-                    }
-                ),
-                0L
-            );
+            decisionLogger.log(IDecisionStepLogger.EventType.APPROVAL_RESOLVED, new List<Object>{ fullAction, false });
             decisionLogger.commitSteps();
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to log rejection decision step: ' + e.getMessage());

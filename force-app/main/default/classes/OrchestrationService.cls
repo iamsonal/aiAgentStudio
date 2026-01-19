@@ -65,15 +65,7 @@ public inherited sharing class OrchestrationService {
                 String failureCode = llmInteractionResult == null ? AIAgentConstants.ERR_CODE_LLM_CALL_FAILED : llmInteractionResult.failureCode;
                 System.debug(LoggingLevel.ERROR, logPrefix + failureReason + ' (Code: ' + failureCode + ')');
 
-                // Log the error step using the safe serialization method
-                decisionLogger.logError(
-                    'LLM Interaction Failed',
-                    'The LLM interaction failed during processing',
-                    failureCode,
-                    failureReason,
-                    serializeLlmInteractionResultForLogging(llmInteractionResult),
-                    null
-                );
+                decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ llmInteractionResult });
 
                 this.agentStateSvc.failTurn(executionId, turnIdentifier, failureReason, failureCode, logPrefix);
                 return OUTCOME_FAILED;
@@ -110,14 +102,7 @@ public inherited sharing class OrchestrationService {
             String errorMsg = ex.getTypeName() + ': ' + ex.getMessage();
             System.debug(LoggingLevel.ERROR, logPrefix + errorMsg + '\n' + ex.getStackTraceString());
 
-            decisionLogger.logError(
-                'Orchestration Failed',
-                'A critical error occurred during orchestration',
-                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                errorMsg,
-                ex.getStackTraceString(),
-                null
-            );
+            decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ ex });
 
             try {
                 this.agentStateSvc.failTurn(executionId, turnIdentifier, errorMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);

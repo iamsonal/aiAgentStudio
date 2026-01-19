@@ -200,12 +200,7 @@ public inherited sharing class LLMInteractionService {
                         }
                     }
 
-                    this.decisionLogger.logAvailableTools(
-                        'Available Tools for LLM',
-                        'List of tools made available to the LLM for this turn',
-                        JSON.serialize(new Map<String, Object>{ 'toolCount' => toolsPayload.size(), 'toolNames' => toolNames, 'tools' => toolsPayload }),
-                        null
-                    );
+                    this.decisionLogger.log(IDecisionStepLogger.EventType.TOOLS_CONFIGURED, new List<Object>{ toolsPayload });
                 }
 
                 if (TransactionContext.getInstance().isDeferredDMLMode()) {
@@ -249,17 +244,7 @@ public inherited sharing class LLMInteractionService {
                 ThreatAssessment safetyResult = safetyService.checkMessage(currentTurnUserMessage.content);
 
                 if (this.decisionLogger != null) {
-                    this.decisionLogger.logLLMRequest(
-                        'Prompt Safety Check',
-                        'Analyzed user message for jailbreak/injection attempts. Score: ' +
-                            safetyResult.overallScore +
-                            ', Level: ' +
-                            safetyResult.levelName +
-                            ', Action: ' +
-                            safetyResult.recommendedAction,
-                        JSON.serialize(safetyResult.getSummary()),
-                        safetyResult.processingTimeMs
-                    );
+                    this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_CHECK, new List<Object>{ safetyResult });
                 }
 
                 if (safetyResult.shouldBlock()) {
@@ -273,14 +258,7 @@ public inherited sharing class LLMInteractionService {
                     );
 
                     if (this.decisionLogger != null) {
-                        this.decisionLogger.logError(
-                            'Message Blocked',
-                            'User message blocked by prompt safety service due to detected threat',
-                            AIAgentConstants.ERR_CODE_SAFETY_BLOCKED,
-                            safetyResult.getSafeMessage(),
-                            null,
-                            safetyResult.processingTimeMs
-                        );
+                        this.decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ safetyResult });
                     }
 
                     return new LLMInteractionResult(safetyResult.getSafeMessage(), AIAgentConstants.ERR_CODE_SAFETY_BLOCKED, null);
@@ -306,13 +284,7 @@ public inherited sharing class LLMInteractionService {
 
             if (this.decisionLogger != null) {
                 Map<String, Object> requestPayload = new Map<String, Object>{ 'messages' => finalMessagesPayload, 'tools' => toolsPayload };
-
-                String description = 'Prepared complete LLM request payload with ' + toolsPayload.size() + ' available tools';
-                if (maskingService != null) {
-                    description += ' (PII masked)';
-                }
-
-                this.decisionLogger.logLLMRequest('LLM Request Prepared', description, JSON.serialize(requestPayload), null);
+                this.decisionLogger.log(IDecisionStepLogger.EventType.LLM_REQUEST, new List<Object>{ requestPayload });
             }
 
             Long callStartTime = System.currentTimeMillis();
@@ -330,21 +302,7 @@ public inherited sharing class LLMInteractionService {
                 );
 
                 if (this.decisionLogger != null) {
-                    String providerName = extractProviderName(llmConfig.ProviderAdapterClass__c);
-                    Long llmCalloutDuration = llmApiResult.llmCalloutDurationMs != null ? llmApiResult.llmCalloutDurationMs : callDuration;
-
-                    this.decisionLogger.logLLMResponseWithMetrics(
-                        'LLM Response Received',
-                        'Successfully received response from LLM',
-                        JSON.serialize(llmApiResult),
-                        llmCalloutDuration,
-                        llmApiResult.promptTokens,
-                        llmApiResult.completionTokens,
-                        llmApiResult.totalTokens,
-                        llmConfig.DefaultModelIdentifier__c,
-                        providerName,
-                        llmConfig.DefaultTemperature__c
-                    );
+                    this.decisionLogger.log(IDecisionStepLogger.EventType.LLM_RESPONSE, new List<Object>{ llmApiResult, llmConfig });
                 }
 
                 String unmaskedContent = llmApiResult.content;
@@ -389,14 +347,7 @@ public inherited sharing class LLMInteractionService {
                 );
 
                 if (this.decisionLogger != null) {
-                    this.decisionLogger.logError(
-                        'LLM Call Failed',
-                        'Failed to call LLM API',
-                        AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
-                        callEx.getMessage(),
-                        callEx.getStackTraceString(),
-                        callDuration
-                    );
+                    this.decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ callEx });
                 }
 
                 return new LLMInteractionResult('LLM Call Failed: ' + callEx.getMessage(), AIAgentConstants.ERR_CODE_LLM_CALL_FAILED, callEx);
@@ -415,14 +366,7 @@ public inherited sharing class LLMInteractionService {
 
             // Log error if decision logger is available
             if (this.decisionLogger != null) {
-                this.decisionLogger.logError(
-                    'LLM Interaction Setup Failed',
-                    'Critical error during LLM interaction preparation',
-                    AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                    ex.getMessage(),
-                    ex.getStackTraceString(),
-                    null
-                );
+                this.decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ ex });
             }
 
             return new LLMInteractionResult('Interaction Setup Failed: ' + ex.getMessage(), AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex);

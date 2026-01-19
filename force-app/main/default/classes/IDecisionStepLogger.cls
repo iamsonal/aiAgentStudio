@@ -7,356 +7,93 @@
  */
 
 /**
- * @description Interface abstraction for decision step logging with factory and no-op implementation. Allows optional storyboard feature.
+ * @description Interface abstraction for decision step logging.
+ *
+ * Design Philosophy:
+ * - Core package defines WHAT happened (semantic events via EventType)
+ * - Core passes domain objects as-is (the objects it already has)
+ * - Addon decides EVERYTHING about storage: titles, descriptions, JSON structure, field extraction
+ *
+ * This completely decouples the core framework from the storyboard UI implementation.
  */
 public inherited sharing class IDecisionStepLogger {
-    public enum StepType {
-        USER_INPUT,
-        CONTEXT_GATHERING,
-        SYSTEM_PROMPT_CONSTRUCTION,
+    /**
+     * Semantic event types representing what happened during agent execution.
+     * Core package emits these events; addon decides how to represent them.
+     */
+    public enum EventType {
+        // Error events
+        ERROR,
+        // Tool lifecycle events
+        TOOL_RESULT,
+        APPROVAL_REQUESTED,
+        APPROVAL_RESOLVED,
+        // LLM interaction events
         LLM_REQUEST,
         LLM_RESPONSE,
-        TOOL_SELECTION,
-        TOOL_EXECUTION,
-        APPROVAL_REQUIRED,
-        TOOL_RESULT,
-        ERROR,
-        AVAILABLE_TOOLS,
+        SAFETY_CHECK,
+        // Context preparation events
+        SYSTEM_PROMPT_BUILT,
+        CONTEXT_GATHERED,
+        TOOLS_CONFIGURED,
+        // Agent response events
         FINAL_RESPONSE,
-        RESUME_APPROVED_FRAMEWORK_ACTION,
-        HANDLE_REJECTED_FRAMEWORK_ACTION,
-        FUNCTION_RESUMED,
-        WORKFLOW_RESUMED
+        USER_INPUT,
+        // Resume events (manual intervention)
+        AGENT_RESUMED
     }
 
+    /**
+     * Minimal interface - addon owns all storage/display decisions.
+     */
     public interface ILogger {
+        /**
+         * Initialize the logger with execution context.
+         * @param executionId The AgentExecution__c ID
+         * @param turnIdentifier The turn identifier
+         * @param originalUserId The ID of the user who initiated the conversation
+         */
         void initialize(Id executionId, String turnIdentifier, Id originalUserId);
 
-        void setPIIMaskingApplied(Boolean applied);
-        void setPromptSafetyContext(Decimal score, String level);
-        void setRetryAttempt(Integer attempt);
-        void setRateLimitDelay(Long delayMs);
-        void setPayloadSizes(Integer requestSize, Integer responseSize);
-        void setCachedResponse(Boolean cached);
-        void resetAuditContext();
+        /**
+         * Log a semantic event with context objects.
+         *
+         * Core passes domain objects as-is. Addon casts based on EventType and extracts:
+         * - Titles, descriptions (addon decides the wording)
+         * - Field values (addon decides what to extract)
+         * - JSON structure (addon decides the schema)
+         *
+         * @param eventType What type of event occurred
+         * @param context List of domain objects relevant to this event (addon casts as needed)
+         */
+        void log(EventType eventType, List<Object> context);
 
-        void logUserInputWithContext(String title, String userMessage, Long durationMs, String userName, String agentName);
-        void logUserInput(String title, String userMessage, Long durationMs);
-
-        void logContextGathering(String title, String contextDescription, String contextJson, Long durationMs);
-        void logContextGatheringWithFormatting(String title, String contextDescription, String rawContextJson, String formattedContext, Long durationMs);
-        void logSystemPromptConstruction(String title, String promptDescription, String promptContent, Long durationMs);
-
-        void logLLMRequest(String title, String requestDescription, String requestJson, Long durationMs);
-        void logLLMResponse(String title, String responseDescription, String responseJson, Long durationMs);
-        void logLLMResponseWithMetrics(
-            String title,
-            String responseDescription,
-            String responseJson,
-            Long durationMs,
-            Integer promptTokens,
-            Integer completionTokens,
-            Integer totalTokens,
-            String modelIdentifier,
-            String provider,
-            Decimal temperature
-        );
-        void logAvailableTools(String title, String toolsDescription, String toolsJson, Long durationMs);
-
-        void logToolExecution(
-            String title,
-            String executionDescription,
-            String executionJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage
-        );
-        void logToolExecution(
-            String title,
-            String executionDescription,
-            String executionJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage,
-            Id capabilityId
-        );
-        void logToolExecution(
-            String title,
-            String executionDescription,
-            String executionJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage,
-            Id capabilityId,
-            String rationale
-        );
-        void logToolExecutionWithIndex(
-            String title,
-            String executionDescription,
-            String executionJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage,
-            Id capabilityId,
-            String rationale,
-            Integer toolCallIndex
-        );
-
-        void logToolResult(
-            String title,
-            String resultDescription,
-            String resultJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage
-        );
-        void logToolResult(
-            String title,
-            String resultDescription,
-            String resultJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage,
-            Id capabilityId
-        );
-        void logToolResultWithContext(
-            String title,
-            String toolName,
-            String resultJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage,
-            Id capabilityId,
-            String approverName
-        );
-        void logToolResultWithIndex(
-            String title,
-            String resultDescription,
-            String resultJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage,
-            Id capabilityId,
-            Integer toolCallIndex
-        );
-
-        void logApprovalRequired(String title, String description, String approvalDetailsJson, Id capabilityId, Long durationMs);
-        void logApprovalRequiredWithContext(String title, String toolName, String approvalDetailsJson, Id capabilityId, Long durationMs);
-
-        void logFinalResponse(String title, String responseDescription, String responseContent, Long durationMs);
-        void logError(String title, String errorDescription, String errorCode, String errorMessage, String errorDetails, Long durationMs);
-
-        void logResumeApprovedFrameworkAction(String title, String description, String actionDetails, Long durationMs);
-        void logHandleRejectedFrameworkAction(String title, String description, String actionDetails, Long durationMs);
-        void logFunctionResumed(String title, String description, String metadataJson, String detailedMessage, Long durationMs);
-        void logWorkflowResumed(String title, String description, String metadataJson, String detailedMessage, Long durationMs);
-
-        void logStepWithParent(
-            StepType stepType,
-            String title,
-            String description,
-            String contentJson,
-            Long durationMs,
-            Boolean isSuccess,
-            Id parentStepId,
-            String triggeringToolCallId
-        );
-
+        /**
+         * Update the execution ID for all collected (but not yet committed) decision steps.
+         * @param newExecutionId The new execution ID to set
+         */
         void updateExecutionId(Id newExecutionId);
+
+        /**
+         * Commit all collected steps in a single bulk DML operation.
+         */
         void commitSteps();
+
+        /**
+         * Get the ID of the last logged step (for causality tracking).
+         * @return The ID of the last logged step, or null
+         */
         Id getLastLoggedStepId();
-        void registerToolCall(String toolCallId, Id stepId);
     }
 
+    /**
+     * No-operation implementation when decision step logging is disabled or addon not installed.
+     */
     public class NoOp implements ILogger {
         public void initialize(Id executionId, String turnIdentifier, Id originalUserId) {
         }
-
-        public void setPIIMaskingApplied(Boolean applied) {
+        public void log(EventType eventType, List<Object> context) {
         }
-        public void setPromptSafetyContext(Decimal score, String level) {
-        }
-        public void setRetryAttempt(Integer attempt) {
-        }
-        public void setRateLimitDelay(Long delayMs) {
-        }
-        public void setPayloadSizes(Integer requestSize, Integer responseSize) {
-        }
-        public void setCachedResponse(Boolean cached) {
-        }
-        public void resetAuditContext() {
-        }
-
-        public void logUserInputWithContext(String title, String userMessage, Long durationMs, String userName, String agentName) {
-        }
-        public void logUserInput(String title, String userMessage, Long durationMs) {
-        }
-
-        public void logContextGathering(String title, String contextDescription, String contextJson, Long durationMs) {
-        }
-        public void logContextGatheringWithFormatting(
-            String title,
-            String contextDescription,
-            String rawContextJson,
-            String formattedContext,
-            Long durationMs
-        ) {
-        }
-        public void logSystemPromptConstruction(String title, String promptDescription, String promptContent, Long durationMs) {
-        }
-
-        public void logLLMRequest(String title, String requestDescription, String requestJson, Long durationMs) {
-        }
-        public void logLLMResponse(String title, String responseDescription, String responseJson, Long durationMs) {
-        }
-        public void logLLMResponseWithMetrics(
-            String title,
-            String responseDescription,
-            String responseJson,
-            Long durationMs,
-            Integer promptTokens,
-            Integer completionTokens,
-            Integer totalTokens,
-            String modelIdentifier,
-            String provider,
-            Decimal temperature
-        ) {
-        }
-        public void logAvailableTools(String title, String toolsDescription, String toolsJson, Long durationMs) {
-        }
-
-        public void logToolExecution(
-            String title,
-            String executionDescription,
-            String executionJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage
-        ) {
-        }
-        public void logToolExecution(
-            String title,
-            String executionDescription,
-            String executionJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage,
-            Id capabilityId
-        ) {
-        }
-        public void logToolExecution(
-            String title,
-            String executionDescription,
-            String executionJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage,
-            Id capabilityId,
-            String rationale
-        ) {
-        }
-        public void logToolExecutionWithIndex(
-            String title,
-            String executionDescription,
-            String executionJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage,
-            Id capabilityId,
-            String rationale,
-            Integer toolCallIndex
-        ) {
-        }
-
-        public void logToolResult(
-            String title,
-            String resultDescription,
-            String resultJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage
-        ) {
-        }
-        public void logToolResult(
-            String title,
-            String resultDescription,
-            String resultJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage,
-            Id capabilityId
-        ) {
-        }
-        public void logToolResultWithContext(
-            String title,
-            String toolName,
-            String resultJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage,
-            Id capabilityId,
-            String approverName
-        ) {
-        }
-        public void logToolResultWithIndex(
-            String title,
-            String resultDescription,
-            String resultJson,
-            Long durationMs,
-            Boolean isSuccess,
-            String errorCode,
-            String errorMessage,
-            Id capabilityId,
-            Integer toolCallIndex
-        ) {
-        }
-
-        public void logApprovalRequired(String title, String description, String approvalDetailsJson, Id capabilityId, Long durationMs) {
-        }
-        public void logApprovalRequiredWithContext(String title, String toolName, String approvalDetailsJson, Id capabilityId, Long durationMs) {
-        }
-
-        public void logFinalResponse(String title, String responseDescription, String responseContent, Long durationMs) {
-        }
-        public void logError(String title, String errorDescription, String errorCode, String errorMessage, String errorDetails, Long durationMs) {
-        }
-
-        public void logResumeApprovedFrameworkAction(String title, String description, String actionDetails, Long durationMs) {
-        }
-        public void logHandleRejectedFrameworkAction(String title, String description, String actionDetails, Long durationMs) {
-        }
-        public void logFunctionResumed(String title, String description, String metadataJson, String detailedMessage, Long durationMs) {
-        }
-        public void logWorkflowResumed(String title, String description, String metadataJson, String detailedMessage, Long durationMs) {
-        }
-
-        public void logStepWithParent(
-            StepType stepType,
-            String title,
-            String description,
-            String contentJson,
-            Long durationMs,
-            Boolean isSuccess,
-            Id parentStepId,
-            String triggeringToolCallId
-        ) {
-        }
-
         public void updateExecutionId(Id newExecutionId) {
         }
         public void commitSteps() {
@@ -364,11 +101,13 @@ public inherited sharing class IDecisionStepLogger {
         public Id getLastLoggedStepId() {
             return null;
         }
-        public void registerToolCall(String toolCallId, Id stepId) {
-        }
     }
 
+    /**
+     * Factory method to create the appropriate logger implementation.
+     */
     private static final String ADDONS_LOGGER_CLASS = 'AgentDecisionStepLogger';
+
     public static ILogger create(Id executionId, String turnIdentifier, Id originalUserId) {
         if (!AIAgentFrameworkSettings.isDecisionStepLoggingEnabled()) {
             System.debug(LoggingLevel.DEBUG, '[IDecisionStepLogger] Decision step logging is disabled via settings');
@@ -390,6 +129,7 @@ public inherited sharing class IDecisionStepLogger {
 
         return new NoOp();
     }
+
     public static ILogger create(Id executionId, String turnIdentifier) {
         return create(executionId, turnIdentifier, null);
     }

@@ -26,6 +26,8 @@ global with sharing class AIAgentRestService {
             return executeApprovedHITLTool(req, res, requestId, logPrefix);
         } else if (String.isNotBlank(requestUri) && requestUri.endsWith('/hitl/followup')) {
             return executeFollowUpLLMCall(req, res, requestId, logPrefix);
+        } else if (String.isNotBlank(requestUri) && requestUri.endsWith('/resume')) {
+            return executeResumeInServiceContext(req, res, requestId, logPrefix);
         } else {
             return processChatMessage(req, res, requestId, logPrefix);
         }
@@ -218,23 +220,7 @@ global with sharing class AIAgentRestService {
 
             try {
                 IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(execution.Id, toolRequest.turnIdentifier);
-
-                String resultJsonForLogging = OrchestrationService.serializeActionOutcome(outcome, logPrefix);
-                Map<String, Object> resultWithMetadata = (Map<String, Object>) JSON.deserializeUntyped(resultJsonForLogging);
-                resultWithMetadata.put('toolName', capability.CapabilityName__c);
-                String enhancedResultJson = JSON.serialize(resultWithMetadata);
-
-                decisionLogger.logToolResult(
-                    'Tool Result: ' + capability.CapabilityName__c,
-                    'Tool ' + capability.CapabilityName__c + (outcome.isSuccess ? ' executed successfully' : ' execution failed'),
-                    enhancedResultJson,
-                    0L,
-                    outcome.isSuccess,
-                    outcome.errorCode,
-                    outcome.errorMessage,
-                    capability.Id
-                );
-
+                decisionLogger.log(IDecisionStepLogger.EventType.TOOL_RESULT, new List<Object>{ capability, outcome });
                 decisionLogger.commitSteps();
             } catch (Exception e) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to log tool result decision step: ' + e.getMessage());
@@ -333,24 +319,7 @@ global with sharing class AIAgentRestService {
 
         try {
             IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(Id.valueOf(toolRequest.executionId), toolRequest.turnIdentifier);
-
-            Map<String, Object> errorDetails = new Map<String, Object>{
-                'errorCode' => errorCode,
-                'errorMessage' => errorMessage,
-                'toolName' => toolRequest.toolName,
-                'capabilityId' => toolRequest.capabilityId,
-                'pendingActionId' => toolRequest.pendingActionId
-            };
-
-            decisionLogger.logError(
-                'Tool Execution Error',
-                'Error executing tool "' + (String.isNotBlank(toolRequest.toolName) ? toolRequest.toolName : 'Unknown') + '" after approval',
-                errorCode,
-                errorMessage,
-                JSON.serialize(errorDetails),
-                0L
-            );
-
+            decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ toolRequest, errorCode, errorMessage });
             decisionLogger.commitSteps();
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, '[AIAgentRestService] Failed to log resume error to decision steps: ' + e.getMessage());
@@ -444,6 +413,84 @@ global with sharing class AIAgentRestService {
         }
     }
 
+    /**
+     * @description Handles execution resume in service user context.
+     * This endpoint is called via Named Credential when an agent requires service user context
+     * and a manual resume is triggered from the UI.
+     */
+    private static AIAgentResponse executeResumeInServiceContext(RestRequest req, RestResponse res, String requestId, String logPrefix) {
+        System.debug(LoggingLevel.INFO, logPrefix + 'Processing resume request in service user context');
+
+        try {
+            if (req.requestBody == null || req.requestBody.size() == 0) {
+                throw new AIAgentRestException('Request body is required');
+            }
+
+            ResumeRequest resumeRequest = (ResumeRequest) JSON.deserialize(req.requestBody.toString(), ResumeRequest.class);
+
+            if (String.isBlank(resumeRequest.executionId)) {
+                throw new AIAgentRestException('executionId is required');
+            }
+
+            Id executionId = Id.valueOf(resumeRequest.executionId);
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Resuming execution as authenticated user: ' + UserInfo.getUserName() + ' (UserId: ' + UserInfo.getUserId() + ')'
+            );
+
+            // Load execution and validate
+            AgentExecution__c exec = [
+                SELECT Id, ExecutionStatus__c, ExecutionType__c, AIAgentDefinition__c, AIAgentDefinition__r.DeveloperName__c, AIAgentDefinition__r.AgentType__c
+                FROM AgentExecution__c
+                WHERE Id = :executionId
+                LIMIT 1
+            ];
+
+            if (exec.ExecutionStatus__c == 'Completed') {
+                throw new AIAgentRestException('Execution is already completed. Nothing to resume.');
+            }
+
+            // Load agent definition
+            AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinition(exec.AIAgentDefinition__c);
+            if (agentDef == null) {
+                throw new AIAgentRestException('Agent definition not found for execution: ' + executionId);
+            }
+
+            // Get orchestrator for this agent
+            IAgentOrchestrator orchestrator = AgentExecutionService.getOrchestrator(agentDef);
+
+            // Check if execution can be resumed
+            if (!orchestrator.canResume(executionId)) {
+                throw new AIAgentRestException('Execution cannot be resumed from its current state.');
+            }
+
+            // Build resume options
+            BaseAgentOrchestrator.ResumeOptions options = new BaseAgentOrchestrator.ResumeOptions()
+                .withReason(String.isNotBlank(resumeRequest.resumeReason) ? resumeRequest.resumeReason : 'Resume via service user context');
+
+            if (resumeRequest.retryFailedTool != null) {
+                options.withRetryFailedTool(resumeRequest.retryFailedTool);
+            }
+
+            // Execute resume
+            AgentExecutionService.ExecutionResult result = orchestrator.resume(executionId, options);
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Resume completed. Success: ' + result.success + ', Message: ' + result.message);
+
+            res.statusCode = 200;
+            return new AIAgentResponse(result.success, result.message, result.errorMessage, requestId);
+        } catch (AIAgentRestException e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage());
+            res.statusCode = 400;
+            return new AIAgentResponse(false, null, e.getMessage(), requestId);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage() + '\n' + e.getStackTraceString());
+            res.statusCode = 500;
+            return new AIAgentResponse(false, null, 'Internal server error: ' + e.getMessage(), requestId);
+        }
+    }
+
     private static String generateRequestId() {
         return String.valueOf(Crypto.getRandomLong()).substring(1, 9);
     }
@@ -490,6 +537,12 @@ global with sharing class AIAgentRestService {
         public String turnIdentifier { get; set; }
         public Decimal turnCount { get; set; }
         public String sourceRecordId { get; set; }
+    }
+
+    global class ResumeRequest {
+        public String executionId { get; set; }
+        public String resumeReason { get; set; }
+        public Boolean retryFailedTool { get; set; }
     }
 
     public class AIAgentRestException extends Exception {

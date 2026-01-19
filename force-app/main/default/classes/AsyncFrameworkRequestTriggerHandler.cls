@@ -163,7 +163,7 @@ public class AsyncFrameworkRequestTriggerHandler {
             // Get user name and agent name for enhanced logging
             String userName = getUserName(originalUserId);
             String agentName = AIAgentConfigService.getAgentName(agentDefinitionId);
-            decisionLogger.logUserInputWithContext('User Input Received (via Platform Event)', userMessage, null, userName, agentName);
+            decisionLogger.log(IDecisionStepLogger.EventType.USER_INPUT, new List<Object>{ userMessage, userName, agentName });
 
             // Instantiate LLMInteractionService with the execution user context and decision logger
             LLMInteractionService interactionService = new LLMInteractionService(

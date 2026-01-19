@@ -7,19 +7,21 @@
  */
 
 /**
- * @description Unified queueable job for HITL operations that require service user context.
+ * @description Unified queueable job for operations that require service user context.
  * Routes through REST API via Named Credential to switch user context.
  *
- * Supports two operation modes:
+ * Supports three operation modes:
  * - EXECUTE_TOOL: Execute an approved HITL tool and optionally queue follow-up LLM
  * - FOLLOWUP_ONLY: Queue follow-up LLM call without tool execution (for rejection/decline/expiration)
+ * - RESUME: Resume a failed/stuck execution in service user context
  */
 public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts {
     private static final String LOG_PREFIX = '[HITLServiceQueue] ';
 
     public enum OperationType {
         EXECUTE_TOOL,
-        FOLLOWUP_ONLY
+        FOLLOWUP_ONLY,
+        RESUME
     }
 
     private OperationType operationType;
@@ -33,6 +35,10 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
     private String turnIdentifier;
     private Integer turnCount;
     private Id sourceRecordId;
+
+    // For RESUME mode
+    private String resumeReason;
+    private Boolean retryFailedTool;
 
     /**
      * Constructor for EXECUTE_TOOL mode - executes approved tool via REST API
@@ -61,13 +67,29 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
         this.sourceRecordId = sourceRecordId;
     }
 
+    /**
+     * Constructor for RESUME mode - resumes execution in service user context
+     * Used when manual resume is triggered and agent requires service user context
+     * @param executionId The agent execution ID to resume
+     * @param resumeReason The reason for resuming (for logging)
+     * @param retryFailedTool Whether to retry the last failed tool (null = auto-detect)
+     */
+    public HITLServiceQueueable(Id executionId, String resumeReason, Boolean retryFailedTool) {
+        this.operationType = HITLServiceQueueable.OperationType.RESUME;
+        this.executionId = executionId;
+        this.resumeReason = resumeReason;
+        this.retryFailedTool = retryFailedTool;
+    }
+
     public void execute(QueueableContext context) {
         String logPrefix = LOG_PREFIX + '[JobId:' + context.getJobId() + '] ';
 
         if (operationType == HITLServiceQueueable.OperationType.EXECUTE_TOOL) {
             executeToolViaRestApi(logPrefix);
-        } else {
+        } else if (operationType == HITLServiceQueueable.OperationType.FOLLOWUP_ONLY) {
             executeFollowUpViaRestApi(logPrefix);
+        } else if (operationType == HITLServiceQueueable.OperationType.RESUME) {
+            executeResumeViaRestApi(logPrefix);
         }
     }
 
@@ -224,6 +246,65 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
     }
 
     // ==================================================================================
+    // RESUME MODE
+    // ==================================================================================
+
+    private void executeResumeViaRestApi(String logPrefix) {
+        System.debug(LoggingLevel.INFO, logPrefix + 'Starting resume via REST API for execution: ' + executionId);
+
+        try {
+            HttpRequest httpReq = buildResumeRequest(logPrefix);
+            HttpCalloutService.CalloutResult result = executeHttpRequest(httpReq, logPrefix);
+
+            if (result.response.getStatusCode() == 200) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Resume completed successfully via REST API');
+
+                // Parse response to log result
+                Map<String, Object> responseData = (Map<String, Object>) JSON.deserializeUntyped(result.response.getBody());
+                Boolean success = (Boolean) responseData.get('success');
+                String message = (String) responseData.get('message');
+
+                if (success == true) {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Resume result: ' + message);
+                } else {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Resume completed with warning: ' + message);
+                }
+            } else {
+                String errorMsg = 'HTTP ' + result.response.getStatusCode() + ': ' + result.response.getBody();
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Resume failed: ' + errorMsg);
+
+                logHttpError(executionId, null, null, result.response.getStatusCode(), result.response.getBody(), logPrefix);
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error executing resume via REST API: ' + e.getMessage() + '\n' + e.getStackTraceString());
+            logExecutionError(executionId, null, null, e, logPrefix);
+        }
+    }
+
+    private HttpRequest buildResumeRequest(String logPrefix) {
+        String namedCredential = AIAgentFrameworkSettings.getHITLApprovalNamedCredential();
+        String endpoint = 'callout:' + namedCredential + '/services/apexrest/ai/agent/resume';
+
+        System.debug(LoggingLevel.INFO, logPrefix + 'Using Named Credential for resume: ' + namedCredential);
+
+        HttpRequest httpReq = new HttpRequest();
+        httpReq.setEndpoint(endpoint);
+        httpReq.setMethod('POST');
+        httpReq.setHeader('Content-Type', 'application/json');
+        httpReq.setTimeout(120000);
+
+        Map<String, Object> requestBody = new Map<String, Object>{
+            'executionId' => String.valueOf(this.executionId),
+            'resumeReason' => this.resumeReason,
+            'retryFailedTool' => this.retryFailedTool
+        };
+
+        httpReq.setBody(JSON.serialize(requestBody));
+        System.debug(LoggingLevel.INFO, logPrefix + 'HTTP request built for resume');
+        return httpReq;
+    }
+
+    // ==================================================================================
     // SHARED UTILITIES
     // ==================================================================================
 
@@ -240,22 +321,7 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
     private void logHttpError(Id execId, String turnId, String toolName, Integer statusCode, String responseBody, String logPrefix) {
         try {
             IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(execId, turnId);
-
-            Map<String, Object> errorDetails = new Map<String, Object>{
-                'errorCode' => 'HTTP_ERROR',
-                'httpStatusCode' => statusCode,
-                'responseBody' => responseBody,
-                'toolName' => toolName,
-                'operationType' => String.valueOf(this.operationType)
-            };
-
-            String title = toolName != null ? 'Tool Execution HTTP Error' : 'Follow-up LLM HTTP Error';
-            String description = toolName != null
-                ? 'HTTP ' + statusCode + ' error executing tool "' + toolName + '" after approval'
-                : 'HTTP ' + statusCode + ' error triggering follow-up LLM call';
-
-            decisionLogger.logError(title, description, 'HTTP_ERROR', 'HTTP ' + statusCode + ': ' + responseBody, JSON.serialize(errorDetails), 0L);
-
+            decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ statusCode, responseBody, toolName });
             decisionLogger.commitSteps();
             System.debug(LoggingLevel.INFO, logPrefix + 'HTTP error logged to decision steps');
         } catch (Exception logEx) {
@@ -266,32 +332,7 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
     private void logExecutionError(Id execId, String turnId, String toolName, Exception e, String logPrefix) {
         try {
             IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(execId, turnId);
-
-            String errorCode = 'EXECUTION_ERROR';
-            if (e instanceof AIAgentException.NonRetriableHttpException) {
-                errorCode = 'CALLOUT_ERROR';
-            } else if (e instanceof System.CalloutException) {
-                errorCode = 'CALLOUT_ERROR';
-            } else if (e instanceof HITLGatewayService.HITLProcessingException) {
-                errorCode = 'HITL_PROCESSING_ERROR';
-            }
-
-            Map<String, Object> errorDetails = new Map<String, Object>{
-                'errorCode' => errorCode,
-                'errorMessage' => e.getMessage(),
-                'errorType' => e.getTypeName(),
-                'stackTrace' => e.getStackTraceString(),
-                'toolName' => toolName,
-                'operationType' => String.valueOf(this.operationType)
-            };
-
-            String title = toolName != null ? 'Tool Execution Error' : 'Follow-up LLM Error';
-            String description = toolName != null
-                ? 'Error executing tool "' + toolName + '" after approval'
-                : 'Error triggering follow-up LLM call after HITL resolution';
-
-            decisionLogger.logError(title, description, errorCode, e.getMessage(), JSON.serialize(errorDetails), 0L);
-
+            decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ e, toolName });
             decisionLogger.commitSteps();
             System.debug(LoggingLevel.INFO, logPrefix + 'Error logged to decision steps');
         } catch (Exception logEx) {
