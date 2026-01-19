@@ -288,42 +288,16 @@ public with sharing class PendingHITLActionTriggerHandler {
         }
 
         AgentExecution__c execution = [
-            SELECT
-                Id,
-                User__c,
-                ServiceUser__c,
-                AIAgentDefinition__c,
-                CurrentTurnIdentifier__c,
-                AIAgentDefinition__r.RequiresServiceUserContext__c,
-                AIAgentDefinition__r.DeveloperName__c,
-                AIAgentDefinition__r.AgentType__c
+            SELECT Id, AIAgentDefinition__r.AgentType__c
             FROM AgentExecution__c
             WHERE Id = :fullAction.AgentExecution__c
             LIMIT 1
         ];
 
-        Boolean requiresServiceUserContext = execution.AIAgentDefinition__r.RequiresServiceUserContext__c == true;
-        Id targetUserId = requiresServiceUserContext ? execution.ServiceUser__c : execution.User__c;
-
-        if (targetUserId == null) {
-            String userType = requiresServiceUserContext ? 'service user' : 'original user';
-            System.debug(LoggingLevel.ERROR, logPrefix + 'ERROR: No ' + userType + ' available for tool execution. Cannot proceed.');
-
-            if (execution.User__c != null) {
-                NotificationService.sendUserNotification(
-                    execution.User__c,
-                    'Action Failed: ' + fullAction.ToolName__c,
-                    'Tool execution failed because no ' + userType + ' context is available.',
-                    fullAction.AgentExecution__c
-                );
-            }
-            return;
-        }
-
+        // HITL approved tools execute via Named Credential which handles service user authentication
         Boolean needsFollowUp = (execution.AIAgentDefinition__r.AgentType__c != 'Conversational');
 
-        String contextType = requiresServiceUserContext ? 'service user' : 'original user';
-        System.debug(LoggingLevel.INFO, logPrefix + 'Enqueueing tool execution via REST API as ' + contextType + ': ' + targetUserId);
+        System.debug(LoggingLevel.INFO, logPrefix + 'Enqueueing tool execution via REST API (Named Credential handles auth)');
         System.debug(
             LoggingLevel.DEBUG,
             logPrefix + 'Follow-up LLM call needed: ' + needsFollowUp + ' (AgentType: ' + execution.AIAgentDefinition__r.AgentType__c + ')'
@@ -331,7 +305,7 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         System.enqueueJob(new HITLServiceQueueable(fullAction.Id, needsFollowUp));
 
-        System.debug(LoggingLevel.INFO, logPrefix + 'Tool execution queued. Queueable will route through REST API to execute as ' + contextType + '.');
+        System.debug(LoggingLevel.INFO, logPrefix + 'Tool execution queued via HITLServiceQueueable');
     }
 
     private static void resumeFlowWithDecline(PendingHITLAction__c action, String logPrefix) {
@@ -372,7 +346,7 @@ public with sharing class PendingHITLActionTriggerHandler {
         }
 
         AgentExecution__c execution = [
-            SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c, SourceRecordId__c, AIAgentDefinition__r.RequiresServiceUserContext__c
+            SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c, SourceRecordId__c
             FROM AgentExecution__c
             WHERE Id = :fullAction.AgentExecution__c
             LIMIT 1
@@ -427,7 +401,7 @@ public with sharing class PendingHITLActionTriggerHandler {
         }
 
         AgentExecution__c execution = [
-            SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c, SourceRecordId__c, AIAgentDefinition__r.RequiresServiceUserContext__c
+            SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c, SourceRecordId__c
             FROM AgentExecution__c
             WHERE Id = :fullAction.AgentExecution__c
             LIMIT 1
@@ -473,7 +447,7 @@ public with sharing class PendingHITLActionTriggerHandler {
         }
 
         AgentExecution__c execution = [
-            SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c, SourceRecordId__c, AIAgentDefinition__r.RequiresServiceUserContext__c
+            SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c, SourceRecordId__c
             FROM AgentExecution__c
             WHERE Id = :fullAction.AgentExecution__c
             LIMIT 1

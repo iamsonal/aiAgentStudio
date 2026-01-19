@@ -645,29 +645,81 @@ public with sharing class HITLGatewayService {
 
     private static String generateApprovalPrompt(HITLContext context) {
         String toolName = context.capability.CapabilityName__c;
-        String description = context.capability.Description__c;
 
-        String prompt = 'AI Agent action requires approval.\n\n';
-        prompt += 'Action: ' + toolName + '\n';
-
-        if (String.isNotBlank(description)) {
-            prompt += 'Description: ' + description + '\n';
+        // Extract business-relevant parameters
+        Map<String, Object> args = new Map<String, Object>();
+        try {
+            args = (Map<String, Object>) JSON.deserializeUntyped(context.toolArguments);
+        } catch (Exception e) {
+            // Fallback to empty map
         }
 
-        // Include LLM reasoning for conditional approvals
+        // Build concise prompt
+        String prompt = '## ⚠️ Approval Required\n\n';
+
+        // What's being requested (extract from recordData if available)
+        if (args.containsKey('recordData')) {
+            try {
+                Map<String, Object> recordData = (Map<String, Object>) args.get('recordData');
+                String subject = (String) recordData.get('Subject');
+                if (String.isNotBlank(subject)) {
+                    prompt += '**' + subject + '**\n\n';
+                }
+            } catch (Exception e) {
+                prompt += '**' + formatToolName(toolName) + '**\n\n';
+            }
+        } else {
+            prompt += '**' + formatToolName(toolName) + '**\n\n';
+        }
+
+        // Why approval is needed
         if (context.isConditionalApproval && String.isNotBlank(context.llmApprovalReason)) {
-            prompt += '\n═══════════════════════════════════════\n';
-            prompt += 'AI ANALYSIS:\n';
-            prompt += context.llmApprovalReason + '\n';
-            prompt += '═══════════════════════════════════════\n';
+            prompt += context.llmApprovalReason + '\n\n';
         }
 
-        String formattedArgs = formatArgumentsForDisplay(context.toolArguments);
-        if (String.isNotBlank(formattedArgs)) {
-            prompt += '\nParameters:\n' + formattedArgs;
+        // Key details (compact)
+        String details = extractKeyDetails(args);
+        if (String.isNotBlank(details)) {
+            prompt += details;
         }
 
         return prompt;
+    }
+
+    private static String extractKeyDetails(Map<String, Object> args) {
+        String details = '';
+
+        if (args.containsKey('recordData')) {
+            try {
+                Map<String, Object> recordData = (Map<String, Object>) args.get('recordData');
+                String activityDate = (String) recordData.get('ActivityDate');
+                String priority = (String) recordData.get('Priority');
+
+                List<String> items = new List<String>();
+                if (String.isNotBlank(activityDate)) {
+                    items.add('Due: ' + activityDate);
+                }
+                if (String.isNotBlank(priority)) {
+                    items.add('Priority: ' + priority);
+                }
+
+                if (!items.isEmpty()) {
+                    details = String.join(items, ' • ') + '\n';
+                }
+            } catch (Exception e) {
+                // Fallback
+            }
+        }
+
+        return details;
+    }
+
+    private static String formatToolName(String toolName) {
+        // Convert snake_case to Title Case
+        if (String.isBlank(toolName)) {
+            return 'Unknown Action';
+        }
+        return toolName.replace('_', ' ').capitalize();
     }
 
     private static String formatArgumentsForDisplay(String argumentsJson) {
