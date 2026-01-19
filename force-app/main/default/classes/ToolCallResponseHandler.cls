@@ -178,6 +178,24 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
             createToolCallExecutionSteps(context, toolRequests, decisionLogger, logPrefix);
 
+            // IMPORTANT: Execute sync tools FIRST, even if there are approval tools.
+            // This ensures non-HITL tools complete their execution before we pause for approval.
+            // When HITL resumes, all tool results (sync + HITL) will be aggregated and sent to LLM.
+            List<ToolExecutionResult> syncResults = new List<ToolExecutionResult>();
+            if (!syncTools.isEmpty()) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Executing ' + syncTools.size() + ' sync tool(s) before handling approval tools');
+                syncResults = executeSynchronousTools(context, syncTools, decisionLogger, logPrefix);
+                createToolResultExecutionSteps(context, syncResults, decisionLogger, logPrefix);
+            }
+
+            // Queue async tools (they'll run independently)
+            if (!asyncTools.isEmpty()) {
+                queueAsyncTools(context, asyncTools, decisionLogger, logPrefix);
+            }
+
+            // Now handle approval tools - pause execution until approved
+            // The sync tool results are already persisted in ExecutionStep__c records
+            // and will be retrieved when HITL resumes to aggregate all results for LLM
             if (!approvalTools.isEmpty()) {
                 return handleApprovalRequiredTools(
                     context,
@@ -188,16 +206,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     logPrefix,
                     decisionLogger
                 );
-            }
-
-            List<ToolExecutionResult> syncResults = new List<ToolExecutionResult>();
-            if (!syncTools.isEmpty()) {
-                syncResults = executeSynchronousTools(context, syncTools, decisionLogger, logPrefix);
-                createToolResultExecutionSteps(context, syncResults, decisionLogger, logPrefix);
-            }
-
-            if (!asyncTools.isEmpty()) {
-                queueAsyncTools(context, asyncTools, decisionLogger, logPrefix);
             }
 
             return determineNextOrchestrationStep(context, syncResults, asyncTools, logPrefix);

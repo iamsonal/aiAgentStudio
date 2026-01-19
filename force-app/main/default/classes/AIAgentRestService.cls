@@ -24,6 +24,8 @@ global with sharing class AIAgentRestService {
 
         if (String.isNotBlank(requestUri) && requestUri.endsWith('/hitl/execute')) {
             return executeApprovedHITLTool(req, res, requestId, logPrefix);
+        } else if (String.isNotBlank(requestUri) && requestUri.endsWith('/hitl/followup')) {
+            return executeFollowUpLLMCall(req, res, requestId, logPrefix);
         } else {
             return processChatMessage(req, res, requestId, logPrefix);
         }
@@ -192,7 +194,7 @@ global with sharing class AIAgentRestService {
             }
 
             AgentExecution__c execution = [
-                SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c
+                SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c, SourceRecordId__c
                 FROM AgentExecution__c
                 WHERE Id = :toolRequest.executionId
                 LIMIT 1
@@ -378,6 +380,70 @@ global with sharing class AIAgentRestService {
         }
     }
 
+    /**
+     * @description Handles follow-up LLM calls after HITL rejection/decline/expiration.
+     * This endpoint is called via Named Credential to ensure the follow-up runs in service user context.
+     */
+    private static AIAgentResponse executeFollowUpLLMCall(RestRequest req, RestResponse res, String requestId, String logPrefix) {
+        System.debug(LoggingLevel.INFO, logPrefix + 'Processing HITL follow-up LLM request');
+
+        try {
+            if (req.requestBody == null || req.requestBody.size() == 0) {
+                throw new AIAgentRestException('Request body is required');
+            }
+
+            HITLFollowUpRequest followUpRequest = (HITLFollowUpRequest) JSON.deserialize(req.requestBody.toString(), HITLFollowUpRequest.class);
+
+            if (String.isBlank(followUpRequest.executionId)) {
+                throw new AIAgentRestException('executionId is required');
+            }
+            if (String.isBlank(followUpRequest.turnIdentifier)) {
+                throw new AIAgentRestException('turnIdentifier is required');
+            }
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Queueing follow-up LLM as authenticated user: ' + UserInfo.getUserName() + ' (UserId: ' + UserInfo.getUserId() + ')'
+            );
+
+            AgentExecution__c execution = [
+                SELECT Id, User__c, AIAgentDefinition__c, SourceRecordId__c
+                FROM AgentExecution__c
+                WHERE Id = :followUpRequest.executionId
+                LIMIT 1
+            ];
+
+            // Queue the follow-up LLM call - it will run as the current user (service user via Named Credential)
+            AgentStateService stateService = new AgentStateService();
+            stateService.resumeForFollowUpLlmCall(execution.Id, followUpRequest.turnIdentifier, null, logPrefix);
+
+            AgentJobEnqueuer enqueuer = new AgentJobEnqueuer();
+            enqueuer.enqueueFollowUp(
+                execution.Id,
+                execution.User__c,
+                execution.AIAgentDefinition__c,
+                followUpRequest.turnIdentifier,
+                (followUpRequest.turnCount != null ? Integer.valueOf(followUpRequest.turnCount) : 1) + 1,
+                logPrefix,
+                false,
+                execution.SourceRecordId__c
+            );
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up LLM call queued successfully');
+
+            res.statusCode = 200;
+            return new AIAgentResponse(true, 'QUEUED_FOLLOWUP', null, requestId);
+        } catch (AIAgentRestException e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage());
+            res.statusCode = 400;
+            return new AIAgentResponse(false, null, e.getMessage(), requestId);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage() + '\n' + e.getStackTraceString());
+            res.statusCode = 500;
+            return new AIAgentResponse(false, null, 'Internal server error: ' + e.getMessage(), requestId);
+        }
+    }
+
     private static String generateRequestId() {
         return String.valueOf(Crypto.getRandomLong()).substring(1, 9);
     }
@@ -417,6 +483,13 @@ global with sharing class AIAgentRestService {
         public String sourceRecordId { get; set; }
         public String requestingUserId { get; set; }
         public Boolean needsFollowUp { get; set; }
+    }
+
+    global class HITLFollowUpRequest {
+        public String executionId { get; set; }
+        public String turnIdentifier { get; set; }
+        public Decimal turnCount { get; set; }
+        public String sourceRecordId { get; set; }
     }
 
     public class AIAgentRestException extends Exception {

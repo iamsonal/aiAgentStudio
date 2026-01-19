@@ -388,8 +388,14 @@ public inherited sharing class OrchestrationService {
             System.debug(LoggingLevel.INFO, logPrefix + 'Async tool counter decremented: ' + currentCount + ' -> ' + newCount);
 
             if (newCount == 0 && currentCount > 0) {
-                System.debug(LoggingLevel.INFO, logPrefix + 'All async tools have completed. Triggering final follow-up LLM call.');
-                triggerFinalFollowUpLLMCallInternal(execution, turnIdentifier, currentTurnCount, logPrefix);
+                // Check if there are pending HITL actions before triggering LLM
+                // If HITL is pending, defer the LLM call - HITL completion will trigger it
+                if (HITLGatewayService.hasPendingActions(executionId)) {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'All async tools completed but HITL action(s) pending. Deferring LLM call to HITL completion.');
+                } else {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'All async tools have completed. Triggering final follow-up LLM call.');
+                    triggerFinalFollowUpLLMCallInternal(execution, turnIdentifier, currentTurnCount, logPrefix);
+                }
             } else if (newCount > 0) {
                 System.debug(LoggingLevel.INFO, logPrefix + 'Still waiting for ' + newCount + ' more async tool(s) to complete.');
             }
@@ -431,8 +437,13 @@ public inherited sharing class OrchestrationService {
             System.debug(LoggingLevel.INFO, logPrefix + 'Counter decremented for queue failure: ' + currentCount + ' -> ' + newCount);
 
             if (newCount == 0 && currentCount > 0) {
-                System.debug(LoggingLevel.INFO, logPrefix + 'All async tools failed to queue. Triggering follow-up for error handling.');
-                triggerFinalFollowUpLLMCallInternal(execution, turnIdentifier, currentTurnCount, logPrefix);
+                // Check if there are pending HITL actions before triggering LLM
+                if (HITLGatewayService.hasPendingActions(executionId)) {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'All async tools failed/completed but HITL action(s) pending. Deferring LLM call.');
+                } else {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'All async tools failed to queue. Triggering follow-up for error handling.');
+                    triggerFinalFollowUpLLMCallInternal(execution, turnIdentifier, currentTurnCount, logPrefix);
+                }
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error decrementing counter: ' + e.getMessage());
