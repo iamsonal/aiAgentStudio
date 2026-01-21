@@ -178,6 +178,24 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
             createToolCallExecutionSteps(context, toolRequests, decisionLogger, logPrefix);
 
+            // IMPORTANT: Execute sync tools FIRST, even if there are approval tools.
+            // This ensures non-HITL tools complete their execution before we pause for approval.
+            // When HITL resumes, all tool results (sync + HITL) will be aggregated and sent to LLM.
+            List<ToolExecutionResult> syncResults = new List<ToolExecutionResult>();
+            if (!syncTools.isEmpty()) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Executing ' + syncTools.size() + ' sync tool(s) before handling approval tools');
+                syncResults = executeSynchronousTools(context, syncTools, decisionLogger, logPrefix);
+                createToolResultExecutionSteps(context, syncResults, decisionLogger, logPrefix);
+            }
+
+            // Queue async tools (they'll run independently)
+            if (!asyncTools.isEmpty()) {
+                queueAsyncTools(context, asyncTools, decisionLogger, logPrefix);
+            }
+
+            // Now handle approval tools - pause execution until approved
+            // The sync tool results are already persisted in ExecutionStep__c records
+            // and will be retrieved when HITL resumes to aggregate all results for LLM
             if (!approvalTools.isEmpty()) {
                 return handleApprovalRequiredTools(
                     context,
@@ -188,16 +206,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     logPrefix,
                     decisionLogger
                 );
-            }
-
-            List<ToolExecutionResult> syncResults = new List<ToolExecutionResult>();
-            if (!syncTools.isEmpty()) {
-                syncResults = executeSynchronousTools(context, syncTools, decisionLogger, logPrefix);
-                createToolResultExecutionSteps(context, syncResults, decisionLogger, logPrefix);
-            }
-
-            if (!asyncTools.isEmpty()) {
-                queueAsyncTools(context, asyncTools, decisionLogger, logPrefix);
             }
 
             return determineNextOrchestrationStep(context, syncResults, asyncTools, logPrefix);
@@ -582,14 +590,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             // Configuration error - fail the turn
             String errMsg = 'HITL configuration error: ' + decision.configurationError;
             context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, errMsg, AIAgentConstants.ERR_CODE_CONFIG_ERROR, logPrefix);
-            decisionLogger.logError(
-                'HITL Configuration Error',
-                'Invalid HITL configuration for tool: ' + approvalTool.toolName,
-                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
-                errMsg,
-                null,
-                null
-            );
+            decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ decision, approvalTool });
             return OrchestrationService.OUTCOME_FAILED;
         }
 
@@ -599,36 +600,13 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         if (!hitlResult.success) {
             String errMsg = 'Failed to initiate approval: ' + hitlResult.errorMessage;
             context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, errMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
-            decisionLogger.logError(
-                'Approval Initiation Failed',
-                'Failed to create approval request for tool: ' + approvalTool.toolName,
-                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                errMsg,
-                null,
-                null
-            );
+            decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ hitlResult, approvalTool });
             return OrchestrationService.OUTCOME_FAILED;
         }
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Approval request created: ' + hitlResult.pendingActionId);
 
-        // Log the approval requirement as a decision step
-        decisionLogger.logApprovalRequiredWithContext(
-            'Approval Required',
-            approvalTool.toolName,
-            JSON.serialize(
-                new Map<String, Object>{
-                    'toolName' => approvalTool.toolName,
-                    'hitlMode' => decision.hitlMode,
-                    'pendingActionId' => hitlResult.pendingActionId,
-                    'approvalPrompt' => hitlResult.confirmationPrompt,
-                    'expiresAt' => hitlResult.expiresAt,
-                    'status' => 'pending_approval'
-                }
-            ),
-            approvalTool.capability.Id,
-            0L
-        );
+        decisionLogger.log(IDecisionStepLogger.EventType.APPROVAL_REQUESTED, new List<Object>{ approvalTool, decision, hitlResult });
 
         // Create placeholder tool result immediately to maintain proper OpenAI message sequence
         String placeholderResult = JSON.serialize(
@@ -812,30 +790,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     logPrefix + 'Executed sync tool ' + toolRequest.toolName + ' in ' + processingTime + 'ms (success=' + outcome.isSuccess + ')'
                 );
 
-                // Log the tool execution result with matching tool call index
                 if (decisionLogger != null) {
-                    // Add execution metadata to the result for decision step logging
-                    String resultJsonForStorage = JSON.serialize(outcome);
-                    Map<String, Object> resultWithMetadata = (Map<String, Object>) JSON.deserializeUntyped(resultJsonForStorage);
-                    resultWithMetadata.put('isAsyncToolExecution', false);
-                    resultWithMetadata.put('toolName', toolRequest.toolName);
-                    resultWithMetadata.put('toolCallId', toolRequest.toolCallId);
-                    String enhancedResultJson = JSON.serialize(resultWithMetadata);
-
-                    // Use executionOrder - 1 to match the 0-based tool call index
-                    Integer toolCallIndex = toolRequest.executionOrder - 1;
-
-                    decisionLogger.logToolResultWithIndex(
-                        'Tool Result: ' + toolRequest.toolName,
-                        'Tool ' + toolRequest.toolName + (outcome.isSuccess ? ' completed successfully' : ' failed'),
-                        enhancedResultJson,
-                        processingTime,
-                        outcome.isSuccess,
-                        outcome.errorCode,
-                        outcome.errorMessage,
-                        toolRequest.capability.Id,
-                        toolCallIndex
-                    );
+                    decisionLogger.log(IDecisionStepLogger.EventType.TOOL_RESULT, new List<Object>{ toolRequest, outcome, processingTime });
                 }
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Error executing sync tool ' + toolRequest.toolName + ': ' + e.getMessage());
@@ -1018,14 +974,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     errorDetails = String.join(toolErrorPairs, '; ');
                 }
 
-                decisionLogger.logError(
-                    'Async Tool Queue Partial Failure',
-                    errorDescription,
-                    AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
-                    errorDetails,
-                    null,
-                    null
-                );
+                decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ failedTools, failureReasons });
             }
         }
     }
@@ -1115,41 +1064,14 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                             failureCount +
                             ' successive failures';
 
-                        // Log a step to record this MaxToolRetries failure for UI display
-                        context.decisionLogger.logError(
-                            'Tool Retry Limit Exceeded',
-                            failureReason,
-                            'MAX_TOOL_RETRIES_EXCEEDED',
-                            'Execution halted due to tool retry limit: ' + result.outcome.errorMessage,
-                            JSON.serialize(
-                                new Map<String, Object>{
-                                    'toolName' => capability.CapabilityName__c,
-                                    'maxRetries' => maxRetries,
-                                    'failureCount' => failureCount,
-                                    'lastErrorCode' => result.outcome.errorCode,
-                                    'lastErrorMessage' => result.outcome.errorMessage
-                                }
-                            ),
-                            null
+                        context.decisionLogger.log(
+                            IDecisionStepLogger.EventType.ERROR,
+                            new List<Object>{ capability, result.outcome, maxRetries, failureCount }
                         );
                     } else {
                         failureReason = 'Tool execution stopped due to error prevention policy';
 
-                        // Log a step to record this fail-fast policy failure for UI display
-                        context.decisionLogger.logError(
-                            'Tool Execution Stopped',
-                            'Tool "' + capability.CapabilityName__c + '" execution was stopped due to fail-fast policy',
-                            'FAIL_FAST_POLICY',
-                            'Execution halted due to error prevention policy: ' + result.outcome.errorMessage,
-                            JSON.serialize(
-                                new Map<String, Object>{
-                                    'toolName' => capability.CapabilityName__c,
-                                    'errorCode' => result.outcome.errorCode,
-                                    'errorMessage' => result.outcome.errorMessage
-                                }
-                            ),
-                            null
-                        );
+                        context.decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ capability, result.outcome });
                     }
                     context.agentStateSvc.failTurn(
                         context.executionId,

@@ -127,16 +127,7 @@ public class AsyncActionEngine implements Queueable, Database.AllowsCallouts {
 
             Id newRecordContextId = OrchestrationService.extractRecordIdFromOutcome(outcome);
 
-            decisionLogger.logToolResult(
-                'Tool Result: ' + this.capability.CapabilityName__c,
-                'Tool ' + this.capability.CapabilityName__c + (outcome.isSuccess ? ' completed successfully' : ' failed'),
-                enhancedResultJson,
-                actionDuration,
-                outcome.isSuccess,
-                outcome.errorCode,
-                outcome.errorMessage,
-                this.capability.Id
-            );
+            decisionLogger.log(IDecisionStepLogger.EventType.TOOL_RESULT, new List<Object>{ this.capability, outcome, actionDuration });
 
             // Save the tool result using ExecutionStep__c
             ExecutionStepService executionStepService = new ExecutionStepService();
@@ -221,20 +212,7 @@ public class AsyncActionEngine implements Queueable, Database.AllowsCallouts {
                     errorTitle = 'Tool Execution Stopped';
                 }
 
-                decisionLogger.logError(
-                    errorTitle,
-                    failureReason + ': ' + outcome.errorMessage,
-                    errorCode,
-                    outcome.errorMessage,
-                    '{"reason":"' +
-                        (isToolTerminatingMode ? 'tool_terminating_mode' : (failureCount >= maxRetries ? 'max_retries_exceeded' : 'fail_fast_policy')) +
-                        '","capability":"' +
-                        this.capability.CapabilityName__c +
-                        '","toolName":"' +
-                        this.capability.CapabilityName__c +
-                        '"}',
-                    0
-                );
+                decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ this.capability, outcome });
 
                 agentStateSvc.failTurn(
                     this.executionId,

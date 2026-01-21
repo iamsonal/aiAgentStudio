@@ -276,21 +276,7 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         try {
             IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(fullAction.AgentExecution__c, fullAction.TurnIdentifier__c);
-            decisionLogger.logResumeApprovedFrameworkAction(
-                'Resume Approved Framework Action',
-                'Tool "' + fullAction.ToolName__c + '" was approved and will now be executed',
-                JSON.serialize(
-                    new Map<String, Object>{
-                        'toolName' => fullAction.ToolName__c,
-                        'pendingActionId' => fullAction.Id,
-                        'approvedBy' => fullAction.ResolvedBy__c,
-                        'approvedAt' => fullAction.ResolvedAt__c,
-                        'requestedAt' => fullAction.RequestedAt__c,
-                        'resolutionComment' => fullAction.ResolutionComment__c
-                    }
-                ),
-                0L
-            );
+            decisionLogger.log(IDecisionStepLogger.EventType.APPROVAL_RESOLVED, new List<Object>{ fullAction, true });
             decisionLogger.commitSteps();
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to log approval decision step: ' + e.getMessage());
@@ -302,50 +288,24 @@ public with sharing class PendingHITLActionTriggerHandler {
         }
 
         AgentExecution__c execution = [
-            SELECT
-                Id,
-                User__c,
-                ServiceUser__c,
-                AIAgentDefinition__c,
-                CurrentTurnIdentifier__c,
-                AIAgentDefinition__r.RequiresServiceUserContext__c,
-                AIAgentDefinition__r.DeveloperName__c,
-                AIAgentDefinition__r.AgentType__c
+            SELECT Id, AIAgentDefinition__r.AgentType__c
             FROM AgentExecution__c
             WHERE Id = :fullAction.AgentExecution__c
             LIMIT 1
         ];
 
-        Boolean requiresServiceUserContext = execution.AIAgentDefinition__r.RequiresServiceUserContext__c == true;
-        Id targetUserId = requiresServiceUserContext ? execution.ServiceUser__c : execution.User__c;
-
-        if (targetUserId == null) {
-            String userType = requiresServiceUserContext ? 'service user' : 'original user';
-            System.debug(LoggingLevel.ERROR, logPrefix + 'ERROR: No ' + userType + ' available for tool execution. Cannot proceed.');
-
-            if (execution.User__c != null) {
-                NotificationService.sendUserNotification(
-                    execution.User__c,
-                    'Action Failed: ' + fullAction.ToolName__c,
-                    'Tool execution failed because no ' + userType + ' context is available.',
-                    fullAction.AgentExecution__c
-                );
-            }
-            return;
-        }
-
+        // HITL approved tools execute via Named Credential which handles service user authentication
         Boolean needsFollowUp = (execution.AIAgentDefinition__r.AgentType__c != 'Conversational');
 
-        String contextType = requiresServiceUserContext ? 'service user' : 'original user';
-        System.debug(LoggingLevel.INFO, logPrefix + 'Enqueueing tool execution via REST API as ' + contextType + ': ' + targetUserId);
+        System.debug(LoggingLevel.INFO, logPrefix + 'Enqueueing tool execution via REST API (Named Credential handles auth)');
         System.debug(
             LoggingLevel.DEBUG,
             logPrefix + 'Follow-up LLM call needed: ' + needsFollowUp + ' (AgentType: ' + execution.AIAgentDefinition__r.AgentType__c + ')'
         );
 
-        System.enqueueJob(new HITLToolExecutionQueueable(fullAction.Id, needsFollowUp));
+        System.enqueueJob(new HITLServiceQueueable(fullAction.Id, needsFollowUp));
 
-        System.debug(LoggingLevel.INFO, logPrefix + 'Tool execution queued. Queueable will route through REST API to execute as ' + contextType + '.');
+        System.debug(LoggingLevel.INFO, logPrefix + 'Tool execution queued via HITLServiceQueueable');
     }
 
     private static void resumeFlowWithDecline(PendingHITLAction__c action, String logPrefix) {
@@ -365,7 +325,9 @@ public with sharing class PendingHITLActionTriggerHandler {
         );
 
         ExecutionStepService stepService = new ExecutionStepService();
-        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, declineMessage, 0L, true);
+        // IMPORTANT: Decline is NOT an error - it's a valid user decision
+        // The LLM should adapt rather than retry
+        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, declineMessage, 0L, false);
 
         if (updatedStepId == null) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Could not find existing tool result step to update, creating new one');
@@ -379,12 +341,12 @@ public with sharing class PendingHITLActionTriggerHandler {
                 0L,
                 false,
                 fullAction.AIAgentCapability__c,
-                true
+                false // IsError = false: decline is a valid outcome, not an error
             );
         }
 
         AgentExecution__c execution = [
-            SELECT Id, User__c, AIAgentDefinition__c
+            SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c, SourceRecordId__c
             FROM AgentExecution__c
             WHERE Id = :fullAction.AgentExecution__c
             LIMIT 1
@@ -402,21 +364,7 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         try {
             IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(fullAction.AgentExecution__c, fullAction.TurnIdentifier__c);
-            decisionLogger.logHandleRejectedFrameworkAction(
-                'Handle Rejected Framework Action',
-                'Tool "' + fullAction.ToolName__c + '" was rejected by approver',
-                JSON.serialize(
-                    new Map<String, Object>{
-                        'toolName' => fullAction.ToolName__c,
-                        'pendingActionId' => fullAction.Id,
-                        'rejectedBy' => fullAction.ResolvedBy__c,
-                        'rejectedAt' => fullAction.ResolvedAt__c,
-                        'requestedAt' => fullAction.RequestedAt__c,
-                        'resolutionComment' => fullAction.ResolutionComment__c
-                    }
-                ),
-                0L
-            );
+            decisionLogger.log(IDecisionStepLogger.EventType.APPROVAL_RESOLVED, new List<Object>{ fullAction, false });
             decisionLogger.commitSteps();
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to log rejection decision step: ' + e.getMessage());
@@ -432,7 +380,9 @@ public with sharing class PendingHITLActionTriggerHandler {
         );
 
         ExecutionStepService stepService = new ExecutionStepService();
-        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, rejectionMessage, 0L, true);
+        // IMPORTANT: Rejection is NOT an error - it's a valid user decision
+        // The LLM should adapt (e.g., choose a different action) rather than retry
+        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, rejectionMessage, 0L, false);
 
         if (updatedStepId == null) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Could not find existing tool result step to update, creating new one');
@@ -446,12 +396,12 @@ public with sharing class PendingHITLActionTriggerHandler {
                 0L,
                 false,
                 fullAction.AIAgentCapability__c,
-                true
+                false // IsError = false: rejection is a valid outcome, not an error
             );
         }
 
         AgentExecution__c execution = [
-            SELECT Id, User__c, AIAgentDefinition__c
+            SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c, SourceRecordId__c
             FROM AgentExecution__c
             WHERE Id = :fullAction.AgentExecution__c
             LIMIT 1
@@ -476,7 +426,9 @@ public with sharing class PendingHITLActionTriggerHandler {
         );
 
         ExecutionStepService stepService = new ExecutionStepService();
-        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, expirationMessage, 0L, true);
+        // IMPORTANT: Expiration is NOT an error - it's a timeout, a valid outcome
+        // The LLM should handle this gracefully and adapt
+        Id updatedStepId = stepService.updateToolResultStep(fullAction.AgentExecution__c, fullAction.ToolCallId__c, expirationMessage, 0L, false);
 
         if (updatedStepId == null) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Could not find existing tool result step to update, creating new one');
@@ -490,12 +442,12 @@ public with sharing class PendingHITLActionTriggerHandler {
                 0L,
                 false,
                 fullAction.AIAgentCapability__c,
-                true
+                false // IsError = false: expiration is a timeout, not an error
             );
         }
 
         AgentExecution__c execution = [
-            SELECT Id, User__c, AIAgentDefinition__c
+            SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c, SourceRecordId__c
             FROM AgentExecution__c
             WHERE Id = :fullAction.AgentExecution__c
             LIMIT 1
@@ -508,6 +460,24 @@ public with sharing class PendingHITLActionTriggerHandler {
         System.debug(LoggingLevel.INFO, logPrefix + 'Checking if follow-up LLM call needed for execution: ' + execution.Id);
 
         try {
+            // Check for pending async tools - if any are still running, defer LLM call to async completion
+            AgentExecution__c execWithAsyncCount = [
+                SELECT Id, PendingAsyncToolCount__c
+                FROM AgentExecution__c
+                WHERE Id = :execution.Id
+                LIMIT 1
+            ];
+
+            Integer pendingAsyncCount = execWithAsyncCount.PendingAsyncToolCount__c != null ? execWithAsyncCount.PendingAsyncToolCount__c.intValue() : 0;
+
+            if (pendingAsyncCount > 0) {
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix + 'HITL resolved but ' + pendingAsyncCount + ' async tool(s) still pending. Deferring LLM call to async completion.'
+                );
+                return;
+            }
+
             AIAgentDefinition__c agentDef = [
                 SELECT AgentType__c
                 FROM AIAgentDefinition__c
@@ -522,19 +492,18 @@ public with sharing class PendingHITLActionTriggerHandler {
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Queueing follow-up LLM call for ' + agentDef.AgentType__c + ' agent');
 
-            AgentStateService stateService = new AgentStateService();
-            stateService.resumeForFollowUpLlmCall(execution.Id, action.TurnIdentifier__c, null, logPrefix);
-
-            AgentJobEnqueuer enqueuer = new AgentJobEnqueuer();
-            enqueuer.enqueueFollowUp(
-                execution.Id,
-                execution.User__c,
-                execution.AIAgentDefinition__c,
-                action.TurnIdentifier__c,
-                (action.TurnCount__c != null ? action.TurnCount__c.intValue() : 1) + 1,
-                logPrefix,
-                false,
-                execution.SourceRecordId__c
+            // IMPORTANT: Always route follow-up LLM through REST API (via HITLServiceQueueable)
+            // to maintain consistency with approval flow which always uses REST API for tool execution.
+            // This ensures the Named Credential authenticates as the service user, providing
+            // proper context for any subsequent tool calls the LLM may request.
+            System.debug(LoggingLevel.INFO, logPrefix + 'Using HITLServiceQueueable to route follow-up LLM via REST API');
+            System.enqueueJob(
+                new HITLServiceQueueable(
+                    execution.Id,
+                    action.TurnIdentifier__c,
+                    action.TurnCount__c != null ? action.TurnCount__c.intValue() : 1,
+                    execution.SourceRecordId__c
+                )
             );
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up LLM call queued successfully');

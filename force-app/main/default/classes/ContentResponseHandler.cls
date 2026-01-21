@@ -35,15 +35,7 @@ public class ContentResponseHandler implements ILLMResponseHandler {
         if (String.isBlank(assistantData?.content)) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Validation failed: LLM response content is empty.');
 
-            // Log the error step
-            decisionLogger.logError(
-                'Empty LLM Response',
-                'LLM returned empty successful response',
-                AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
-                'LLM returned empty successful response',
-                null,
-                null
-            );
+            decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ assistantData });
 
             context.agentStateSvc.failTurn(
                 context.executionId,

@@ -145,8 +145,7 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
                 context.currentTurnCount
             );
 
-            // Log the final response in decision steps
-            context.decisionLogger.logFinalResponse('Final Response', 'Agent informed user about pending approval', assistantMessage, null);
+            context.decisionLogger.log(IDecisionStepLogger.EventType.FINAL_RESPONSE, new List<Object>{ assistantMessage });
 
             // Complete the turn successfully - user can continue chatting
             context.agentStateSvc.completeTurnSuccessfully(context.executionId, context.turnIdentifier, assistantMessageId, logPrefix);
@@ -200,8 +199,7 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
             String userName = getUserName(originalUserId);
             String agentName = getAgentName(agentDefinitionId);
 
-            // Log user input
-            decisionLogger.logUserInputWithContext('User Input Received', userMessage, null, userName, agentName);
+            decisionLogger.log(IDecisionStepLogger.EventType.USER_INPUT, new List<Object>{ userMessage, userName, agentName });
 
             // Prepare user message data
             LLMInteractionService.MessageData currentUserMessageData = new LLMInteractionService.MessageData();
@@ -610,8 +608,7 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
             String userName = getUserName(payload.userId);
             String agentName = getAgentName(agentDefinition.Id);
 
-            // Log user input
-            decisionLogger.logUserInputWithContext('User Input Received', payload.userMessage, null, userName, agentName);
+            decisionLogger.log(IDecisionStepLogger.EventType.USER_INPUT, new List<Object>{ payload.userMessage, userName, agentName });
 
             // Prepare user message data
             LLMInteractionService.MessageData currentUserMessageData = new LLMInteractionService.MessageData();

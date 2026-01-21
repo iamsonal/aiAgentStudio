@@ -101,12 +101,7 @@ public inherited sharing class SystemPromptBuilder {
 
             String systemPromptComponents = String.join(loggablePromptParts, '\n\n');
 
-            this.decisionLogger.logSystemPromptConstruction(
-                'System Prompt Constructed',
-                'Built complete system prompt for LLM interaction',
-                systemPromptComponents,
-                null
-            );
+            this.decisionLogger.log(IDecisionStepLogger.EventType.SYSTEM_PROMPT_BUILT, new List<Object>{ systemPromptComponents });
         }
 
         String composedPrompt = String.join(promptParts, '\n\n');
@@ -159,12 +154,9 @@ public inherited sharing class SystemPromptBuilder {
                         String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix, formatStrategy, formatOptions);
 
                         if (this.decisionLogger != null) {
-                            this.decisionLogger.logContextGatheringWithFormatting(
-                                'Context Data Gathered',
-                                'Context data resolved and formatted for LLM',
-                                JSON.serialize(resolvedContext.recordsToLoad),
-                                formattedRecords,
-                                null
+                            this.decisionLogger.log(
+                                IDecisionStepLogger.EventType.CONTEXT_GATHERED,
+                                new List<Object>{ resolvedContext.recordsToLoad, formattedRecords }
                             );
                         }
 

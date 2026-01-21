@@ -246,7 +246,7 @@ public abstract class BaseAgentOrchestrator implements IAgentOrchestrator {
                 description += '. Continuing with LLM call';
             }
 
-            decisionLogger.logContextGathering('Execution Resumed', description, JSON.serialize(resumeMetadata), null);
+            decisionLogger.log(IDecisionStepLogger.EventType.AGENT_RESUMED, new List<Object>{ 'agent', description });
 
             decisionLogger.commitSteps();
         } catch (Exception e) {

@@ -65,15 +65,7 @@ public inherited sharing class OrchestrationService {
                 String failureCode = llmInteractionResult == null ? AIAgentConstants.ERR_CODE_LLM_CALL_FAILED : llmInteractionResult.failureCode;
                 System.debug(LoggingLevel.ERROR, logPrefix + failureReason + ' (Code: ' + failureCode + ')');
 
-                // Log the error step using the safe serialization method
-                decisionLogger.logError(
-                    'LLM Interaction Failed',
-                    'The LLM interaction failed during processing',
-                    failureCode,
-                    failureReason,
-                    serializeLlmInteractionResultForLogging(llmInteractionResult),
-                    null
-                );
+                decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ llmInteractionResult });
 
                 this.agentStateSvc.failTurn(executionId, turnIdentifier, failureReason, failureCode, logPrefix);
                 return OUTCOME_FAILED;
@@ -110,14 +102,7 @@ public inherited sharing class OrchestrationService {
             String errorMsg = ex.getTypeName() + ': ' + ex.getMessage();
             System.debug(LoggingLevel.ERROR, logPrefix + errorMsg + '\n' + ex.getStackTraceString());
 
-            decisionLogger.logError(
-                'Orchestration Failed',
-                'A critical error occurred during orchestration',
-                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                errorMsg,
-                ex.getStackTraceString(),
-                null
-            );
+            decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ ex });
 
             try {
                 this.agentStateSvc.failTurn(executionId, turnIdentifier, errorMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
@@ -320,7 +305,8 @@ public inherited sharing class OrchestrationService {
         }
 
         try {
-            List<ExecutionStep__c> steps = [
+            // Get persisted records from database
+            List<ExecutionStep__c> persistedSteps = [
                 SELECT Id, StepType__c, ToolName__c, IsError__c, Timestamp__c, ToolCallId__c
                 FROM ExecutionStep__c
                 WHERE AgentExecution__c = :executionId AND StepType__c IN ('ToolCall', 'ToolResult') AND ToolName__c = :toolName
@@ -328,13 +314,31 @@ public inherited sharing class OrchestrationService {
                 LIMIT 100
             ];
 
-            if (steps.isEmpty()) {
+            // CRITICAL FIX: Also get buffered steps not yet committed to database.
+            // In multi-LLM optimization mode, tool results are buffered in TransactionContext
+            // and only committed at the end. Without this, retry counting doesn't see
+            // failures from earlier cycles in the same transaction.
+            List<ExecutionStep__c> bufferedSteps = new List<ExecutionStep__c>();
+            for (ExecutionStep__c step : TransactionContext.getInstance().getBufferedExecutionSteps(executionId)) {
+                if (step.ToolName__c == toolName && (step.StepType__c == 'ToolCall' || step.StepType__c == 'ToolResult')) {
+                    bufferedSteps.add(step);
+                }
+            }
+
+            // Merge: buffered steps are newer (not yet persisted), so they come first
+            List<ExecutionStep__c> allSteps = new List<ExecutionStep__c>();
+            // Sort buffered steps by timestamp DESC (newest first)
+            bufferedSteps.sort(new ExecutionStepTimestampComparator());
+            allSteps.addAll(bufferedSteps);
+            allSteps.addAll(persistedSteps);
+
+            if (allSteps.isEmpty()) {
                 return 0;
             }
 
             Integer failureCount = 0;
 
-            for (ExecutionStep__c step : steps) {
+            for (ExecutionStep__c step : allSteps) {
                 if (step.StepType__c == 'ToolResult') {
                     if (step.IsError__c == true) {
                         failureCount++;
@@ -344,11 +348,50 @@ public inherited sharing class OrchestrationService {
                 }
             }
 
-            System.debug(LoggingLevel.DEBUG, logPrefix + 'Tool "' + toolName + '" has ' + failureCount + ' successive failure(s) in execution ' + executionId);
+            System.debug(
+                LoggingLevel.DEBUG,
+                logPrefix +
+                    'Tool "' +
+                    toolName +
+                    '" has ' +
+                    failureCount +
+                    ' successive failure(s) in execution ' +
+                    executionId +
+                    ' (persisted: ' +
+                    persistedSteps.size() +
+                    ', buffered: ' +
+                    bufferedSteps.size() +
+                    ')'
+            );
 
             return failureCount;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error counting tool failures: ' + e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * @description Comparator class to sort ExecutionStep__c records by Timestamp__c descending (newest first).
+     */
+    private class ExecutionStepTimestampComparator implements Comparator<ExecutionStep__c> {
+        public Integer compare(ExecutionStep__c a, ExecutionStep__c b) {
+            // Null safety
+            if (a.Timestamp__c == null && b.Timestamp__c == null) {
+                return 0;
+            }
+            if (a.Timestamp__c == null) {
+                return 1; // null goes last
+            }
+            if (b.Timestamp__c == null) {
+                return -1;
+            }
+            // Descending order (newest first)
+            if (a.Timestamp__c > b.Timestamp__c) {
+                return -1;
+            } else if (a.Timestamp__c < b.Timestamp__c) {
+                return 1;
+            }
             return 0;
         }
     }
@@ -388,8 +431,14 @@ public inherited sharing class OrchestrationService {
             System.debug(LoggingLevel.INFO, logPrefix + 'Async tool counter decremented: ' + currentCount + ' -> ' + newCount);
 
             if (newCount == 0 && currentCount > 0) {
-                System.debug(LoggingLevel.INFO, logPrefix + 'All async tools have completed. Triggering final follow-up LLM call.');
-                triggerFinalFollowUpLLMCallInternal(execution, turnIdentifier, currentTurnCount, logPrefix);
+                // Check if there are pending HITL actions before triggering LLM
+                // If HITL is pending, defer the LLM call - HITL completion will trigger it
+                if (HITLGatewayService.hasPendingActions(executionId)) {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'All async tools completed but HITL action(s) pending. Deferring LLM call to HITL completion.');
+                } else {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'All async tools have completed. Triggering final follow-up LLM call.');
+                    triggerFinalFollowUpLLMCallInternal(execution, turnIdentifier, currentTurnCount, logPrefix);
+                }
             } else if (newCount > 0) {
                 System.debug(LoggingLevel.INFO, logPrefix + 'Still waiting for ' + newCount + ' more async tool(s) to complete.');
             }
@@ -431,8 +480,13 @@ public inherited sharing class OrchestrationService {
             System.debug(LoggingLevel.INFO, logPrefix + 'Counter decremented for queue failure: ' + currentCount + ' -> ' + newCount);
 
             if (newCount == 0 && currentCount > 0) {
-                System.debug(LoggingLevel.INFO, logPrefix + 'All async tools failed to queue. Triggering follow-up for error handling.');
-                triggerFinalFollowUpLLMCallInternal(execution, turnIdentifier, currentTurnCount, logPrefix);
+                // Check if there are pending HITL actions before triggering LLM
+                if (HITLGatewayService.hasPendingActions(executionId)) {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'All async tools failed/completed but HITL action(s) pending. Deferring LLM call.');
+                } else {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'All async tools failed to queue. Triggering follow-up for error handling.');
+                    triggerFinalFollowUpLLMCallInternal(execution, turnIdentifier, currentTurnCount, logPrefix);
+                }
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error decrementing counter: ' + e.getMessage());
