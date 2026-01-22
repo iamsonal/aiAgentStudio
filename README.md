@@ -22,6 +22,14 @@ Build intelligent AI agents powered by Large Language Models that seamlessly int
 
 ---
 
+## 🎥 Watch It In Action
+
+**[Function Agents Demo →](https://youtu.be/-y9qDDPal0U)**
+
+See how Function Agents orchestrate Account-Based Marketing campaigns with intelligent filtering, human-in-the-loop approvals, and error recovery.
+
+---
+
 ## �  Documentation
 
 **[View Full Documentation →](https://iamsonal.github.io/aiAgentStudio/)**
