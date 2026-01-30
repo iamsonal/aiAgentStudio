@@ -173,6 +173,11 @@ public inherited sharing class LLMFormattingService {
                     injectConditionalApprovalParameters(paramSchema, capabilityName, debugPrefix);
                 }
 
+                // Inject confidence parameter if TrackConfidence is enabled
+                if (cap.TrackConfidence__c == true) {
+                    injectConfidenceParameter(paramSchema, capabilityName, debugPrefix);
+                }
+
                 Map<String, Object> functionDef = new Map<String, Object>{
                     'name' => capabilityName,
                     'description' => capabilityDesc,
@@ -282,6 +287,47 @@ public inherited sharing class LLMFormattingService {
             LoggingLevel.DEBUG,
             debugPrefix + 'Injected conditional approval parameters (_requiresApproval, _approvalReason) for capability: ' + capabilityName
         );
+    }
+
+    /**
+     * @description Injects _confidence parameter when TrackConfidence is enabled on capability
+     * @param paramSchema The parameter schema to inject into
+     * @param capabilityName Name of the capability (for logging)
+     * @param debugPrefix Debug prefix for logging
+     */
+    private static void injectConfidenceParameter(Map<String, Object> paramSchema, String capabilityName, String debugPrefix) {
+        if (paramSchema == null) {
+            return;
+        }
+
+        Map<String, Object> properties = (Map<String, Object>) paramSchema.get('properties');
+        if (properties == null) {
+            properties = new Map<String, Object>();
+            paramSchema.put('properties', properties);
+        }
+
+        // Add _confidence parameter
+        Map<String, Object> confidenceDef = new Map<String, Object>{
+            'type' => 'number',
+            'minimum' => 0,
+            'maximum' => 100,
+            'description' => 'REQUIRED: Your confidence score for this action (0-100). Consider: Do you have all needed data? Are the parameters clear and valid? Is this the right tool for the task? Are there any ambiguities? Rate your certainty: 90-100 (very confident, all clear), 70-89 (confident, minor gaps), 50-69 (uncertain, missing data), below 50 (not confident, should clarify).'
+        };
+        properties.put('_confidence', confidenceDef);
+
+        // Add to required fields
+        List<Object> requiredFields = (List<Object>) paramSchema.get('required');
+        if (requiredFields != null) {
+            if (!requiredFields.contains('_confidence')) {
+                List<Object> newRequiredFields = new List<Object>{ '_confidence' };
+                newRequiredFields.addAll(requiredFields);
+                paramSchema.put('required', newRequiredFields);
+            }
+        } else {
+            paramSchema.put('required', new List<String>{ '_confidence' });
+        }
+
+        System.debug(LoggingLevel.DEBUG, debugPrefix + 'Injected _confidence parameter for capability: ' + capabilityName);
     }
 
     public static Map<String, String> extractAndStripRationale(String toolArguments, String debugPrefix) {

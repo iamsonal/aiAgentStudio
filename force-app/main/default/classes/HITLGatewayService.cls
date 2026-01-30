@@ -737,6 +737,7 @@ public with sharing class HITLGatewayService {
             args.remove('_requiresApproval');
             args.remove('_approvalReason');
             args.remove('_rationale'); // Also hide rationale
+            args.remove('_confidence'); // Hide confidence score
 
             if (args.isEmpty()) {
                 return '';

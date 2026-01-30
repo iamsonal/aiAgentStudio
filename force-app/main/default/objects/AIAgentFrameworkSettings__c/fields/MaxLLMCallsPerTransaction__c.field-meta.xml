@@ -2,9 +2,9 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>MaxLLMCallsPerTransaction__c</fullName>
     <defaultValue>2</defaultValue>
-    <description>Maximum number of LLM calls allowed per transaction for multi-turn optimization. When a sync tool doesn&apos;t perform DML or callouts, the framework can call the LLM again in the same transaction instead of queueing a follow-up job. This reduces queueable usage and improves response latency. Set to 1 to disable multi-LLM optimization.</description>
+    <description>Maximum LLM calls per transaction for multi-turn optimization. When tools don't perform DML/callouts, multiple LLM calls run in same transaction. Reduces queueable usage and latency. Set to 1 to disable.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Max LLM calls per transaction. Set to 1 to disable multi-LLM optimization. Default is 2, allowing one additional LLM call when the first tool is safe.</inlineHelpText>
+    <inlineHelpText>Max LLM calls per transaction. Allows multiple turns without queueing when tools are safe. Set to 1 to disable optimization. Default: 2.</inlineHelpText>
     <label>Max LLM Calls Per Transaction</label>
     <precision>2</precision>
     <required>false</required>

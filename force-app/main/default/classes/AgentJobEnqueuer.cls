@@ -375,25 +375,18 @@ public inherited sharing class AgentJobEnqueuer {
     }
 
     /**
-     * Creates AsyncOptions for queueable job enqueueing if configured.
-     * Returns null if MaxQueueableStackDepth is 0 (use Salesforce defaults).
-     * This is primarily for scratch/developer orgs which have a 5-job chain limit.
+     * Creates AsyncOptions for queueable job enqueueing.
+     * Automatically derives MaximumQueueableStackDepth from MaxProcessingCycles + buffer
+     * to ensure the platform limit never interferes with the business limit.
      *
      * IMPORTANT: AsyncOptions can only be set on the FIRST job in a chain.
      * You cannot reset MaximumQueueableStackDepth from within a running queueable.
      * This method checks if max stack depth was already configured in the parent chain.
      *
      * @param logPrefix A logging prefix for debug output.
-     * @return AsyncOptions with configured stack depth, or null to use defaults.
+     * @return AsyncOptions with configured stack depth, or null if already set in parent chain.
      */
     private AsyncOptions getAsyncOptions(String logPrefix) {
-        Integer maxStackDepth = AIAgentFrameworkSettings.getMaxQueueableStackDepth();
-
-        if (maxStackDepth == null || maxStackDepth <= 0) {
-            // Use Salesforce defaults (recommended for production/sandbox)
-            return null;
-        }
-
         // Check if MaxStackDepth was already configured in parent chain
         // AsyncInfo.hasMaxStackDepth() returns true if AsyncOptions was set on a parent job
         if (AsyncInfo.hasMaxStackDepth()) {
@@ -407,6 +400,11 @@ public inherited sharing class AgentJobEnqueuer {
             return null;
         }
 
+        // Automatically derive stack depth from MaxProcessingCycles + buffer
+        // This ensures the platform limit is always higher than the business limit
+        Integer maxProcessingCycles = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
+        Integer maxStackDepth = maxProcessingCycles + 2; // Buffer for safety
+
         // Set AsyncOptions for the first job in the chain
         AsyncOptions asyncOptions = new AsyncOptions();
         asyncOptions.MaximumQueueableStackDepth = maxStackDepth;
@@ -416,7 +414,9 @@ public inherited sharing class AgentJobEnqueuer {
             logPrefix +
                 '[AgentJobEnqueuer] Setting AsyncOptions with MaximumQueueableStackDepth=' +
                 maxStackDepth +
-                ' (first job in chain for scratch/developer org)'
+                ' (derived from MaxProcessingCycles=' +
+                maxProcessingCycles +
+                ' + 2 buffer)'
         );
 
         return asyncOptions;

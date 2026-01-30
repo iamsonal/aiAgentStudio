@@ -2,9 +2,9 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>BulkFailureThreshold__c</fullName>
     <defaultValue>5</defaultValue>
-    <description>Maximum number of failed records allowed in a bulk execution before stopping further processing. Set to 0 to disable failure threshold (process all records regardless of failures). Default: 5.</description>
+    <description>Maximum failed records allowed in bulk execution before stopping. Set to 0 to process all records regardless of failures. Prevents wasted resources on failing batches.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Maximum number of failed records allowed in a bulk execution before stopping further processing. Set to 0 to disable failure threshold (process all records regardless of failures).</inlineHelpText>
+    <inlineHelpText>Stops bulk execution after N failures. Set to 0 to disable (process all records). Default: 5.</inlineHelpText>
     <label>Bulk Failure Threshold</label>
     <precision>18</precision>
     <required>false</required>

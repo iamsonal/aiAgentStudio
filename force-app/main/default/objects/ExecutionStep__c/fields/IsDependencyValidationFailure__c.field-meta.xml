@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsDependencyValidationFailure__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Indicates whether this tool result step was blocked due to dependency validation failure rather than actual tool execution failure. Used to distinguish between real errors (which may trigger hallucination recovery) and dependency order violations (which should not trigger hallucination recovery).</description>
+    <inlineHelpText>True if the tool was blocked because its dependencies were not satisfied, false for normal tool execution results.</inlineHelpText>
+    <label>Is Dependency Validation Failure</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

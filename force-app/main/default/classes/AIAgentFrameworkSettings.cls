@@ -12,11 +12,11 @@
 public inherited sharing class AIAgentFrameworkSettings {
     private static AIAgentFrameworkSettings__c settings;
     private static final Integer FINAL_DEFAULT_MaxConversationTurns = 10;
-    private static final Integer FINAL_DEFAULT_MaxQueueableStackDepth = 0;
     private static final Integer FINAL_DEFAULT_MaxToolRetries = 2;
     private static final Integer FINAL_DEFAULT_BulkConcurrencyLimit = 5;
     private static final Integer FINAL_DEFAULT_BulkFailureThreshold = 5;
     private static final Integer FINAL_DEFAULT_MaxLLMCallsPerTransaction = 2;
+    private static final Integer FINAL_DEFAULT_MaxDependencyViolations = 3;
     private static final String FINAL_DEFAULT_HITLApprovalNamedCredential = 'AgentStudioInternalAPI';
     private static final Boolean FINAL_DEFAULT_EnablePIIMasking = false;
     private static final Boolean FINAL_DEFAULT_EnablePromptSafety = false;
@@ -30,7 +30,6 @@ public inherited sharing class AIAgentFrameworkSettings {
             if (settings == null || settings.Id == null) {
                 settings = new AIAgentFrameworkSettings__c();
                 settings.DefaultMaxConversationTurns__c = FINAL_DEFAULT_MaxConversationTurns;
-                settings.MaxQueueableStackDepth__c = FINAL_DEFAULT_MaxQueueableStackDepth;
                 settings.MaxToolRetries__c = FINAL_DEFAULT_MaxToolRetries;
                 settings.BulkConcurrencyLimit__c = FINAL_DEFAULT_BulkConcurrencyLimit;
                 settings.BulkFailureThreshold__c = FINAL_DEFAULT_BulkFailureThreshold;
@@ -45,9 +44,6 @@ public inherited sharing class AIAgentFrameworkSettings {
                 // Record exists, fill in missing individual fields with FINAL defaults
                 if (settings.DefaultMaxConversationTurns__c == null || settings.DefaultMaxConversationTurns__c < 0) {
                     settings.DefaultMaxConversationTurns__c = FINAL_DEFAULT_MaxConversationTurns;
-                }
-                if (settings.MaxQueueableStackDepth__c == null || settings.MaxQueueableStackDepth__c < 0) {
-                    settings.MaxQueueableStackDepth__c = FINAL_DEFAULT_MaxQueueableStackDepth;
                 }
                 if (settings.MaxToolRetries__c == null || settings.MaxToolRetries__c < 0) {
                     settings.MaxToolRetries__c = FINAL_DEFAULT_MaxToolRetries;
@@ -93,17 +89,6 @@ public inherited sharing class AIAgentFrameworkSettings {
         }
         // Fall back to org-wide default
         return getDefaultMaxConversationTurns();
-    }
-
-    /**
-     * Gets the configured maximum queueable stack depth for chained jobs.
-     * Returns 0 to use Salesforce defaults (recommended for production/sandbox).
-     * Set to 50+ for scratch/developer orgs to override the 5-job limit.
-     *
-     * @return The maximum queueable stack depth (0 = use defaults).
-     */
-    public static Integer getMaxQueueableStackDepth() {
-        return Integer.valueOf(getInstance().MaxQueueableStackDepth__c);
     }
 
     /**
@@ -274,6 +259,20 @@ public inherited sharing class AIAgentFrameworkSettings {
             return Integer.valueOf(instance.MaxLLMCallsPerTransaction__c);
         }
         return FINAL_DEFAULT_MaxLLMCallsPerTransaction;
+    }
+
+    /**
+     * Gets the maximum number of dependency validation failures allowed per execution
+     * before the agent is stopped with an error. Acts as a circuit breaker to prevent
+     * infinite loops when the LLM repeatedly violates tool dependencies.
+     *
+     * Default is 3 - if the LLM violates dependencies 3 times, execution fails.
+     *
+     * @return The maximum dependency violations allowed before execution fails.
+     */
+    public static Integer getMaxDependencyViolations() {
+        // Currently using hardcoded default - could be added to custom setting if needed
+        return FINAL_DEFAULT_MaxDependencyViolations;
     }
 
     /**
