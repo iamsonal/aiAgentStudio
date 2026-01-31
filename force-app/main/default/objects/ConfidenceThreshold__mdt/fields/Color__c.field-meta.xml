@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Color__c</fullName>
+    <description>CSS color class or hex code for UI display (e.g., "success", "warning", "danger", or "#4caf50").</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Color for badge display. Use Salesforce SLDS color tokens (success, warning, error) or hex codes (#4caf50).</inlineHelpText>
+    <label>Color</label>
+    <length>50</length>
+    <required>true</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

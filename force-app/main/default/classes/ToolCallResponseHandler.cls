@@ -22,9 +22,10 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         public String hitlMode;
         public Integer executionOrder;
         public String rationale;
+        public Decimal confidence;
 
         public ToolCallRequest(String toolCallId, String toolName, String toolArguments, AgentCapability__c capability, Integer executionOrder) {
-            this(toolCallId, toolName, toolArguments, capability, executionOrder, null);
+            this(toolCallId, toolName, toolArguments, capability, executionOrder, null, null);
         }
 
         public ToolCallRequest(
@@ -35,6 +36,18 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             Integer executionOrder,
             String rationale
         ) {
+            this(toolCallId, toolName, toolArguments, capability, executionOrder, rationale, null);
+        }
+
+        public ToolCallRequest(
+            String toolCallId,
+            String toolName,
+            String toolArguments,
+            AgentCapability__c capability,
+            Integer executionOrder,
+            String rationale,
+            Decimal confidence
+        ) {
             this.toolCallId = toolCallId;
             this.toolName = toolName;
             this.toolArguments = toolArguments;
@@ -42,6 +55,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             this.isAsync = capability.RunAsynchronously__c == true;
             this.executionOrder = executionOrder;
             this.rationale = rationale;
+            this.confidence = confidence;
 
             this.hitlMode = String.isNotBlank(capability.HITLMode__c) ? capability.HITLMode__c : null;
 
@@ -264,6 +278,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     continue;
                 }
 
+                // Extract confidence BEFORE stripping internal parameters
+                Decimal confidence = ExecutionStepService.extractConfidenceScore(toolArguments);
+
                 String extractedRationale = null;
                 String cleanedArguments = toolArguments;
 
@@ -283,7 +300,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     );
                 }
 
-                ToolCallRequest toolRequest = new ToolCallRequest(toolCallId, toolName, cleanedArguments, capability, i + 1, extractedRationale);
+                ToolCallRequest toolRequest = new ToolCallRequest(toolCallId, toolName, cleanedArguments, capability, i + 1, extractedRationale, confidence);
                 toolRequests.add(toolRequest);
 
                 System.debug(
@@ -512,7 +529,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     context.llmResult.providerResult.modelIdentifier,
                     context.llmResult.providerResult.llmCalloutDurationMs,
                     toolRequest.capability.Id,
-                    toolRequest.rationale
+                    toolRequest.rationale,
+                    toolRequest.confidence
                 );
 
                 // Note: Tool Execution decision step logging removed
@@ -1246,6 +1264,10 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             try {
                 String resultJsonForStorage = OrchestrationService.serializeActionOutcome(result.outcome, logPrefix);
 
+                // For dependency validation failures, IsError__c should be false
+                // These are not real execution errors - they're blocked attempts
+                Boolean isError = !result.outcome.isSuccess && !result.isDependencyValidationFailure;
+
                 executionStepService.createToolResultStep(
                     context.executionId,
                     result.toolCallId,
@@ -1256,7 +1278,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     result.processingTime,
                     false,
                     result.capabilityId,
-                    !result.outcome.isSuccess, // isError = !isSuccess
+                    isError, // isError = real failure only, not dependency blocks
                     false, // isResumed
                     result.isDependencyValidationFailure // Pass the dependency validation failure flag
                 );

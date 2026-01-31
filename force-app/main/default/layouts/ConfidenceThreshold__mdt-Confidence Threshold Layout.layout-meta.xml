@@ -2,47 +2,43 @@
 <Layout xmlns="http://soap.sforce.com/2006/04/metadata">
     <layoutSections>
         <customLabel>false</customLabel>
-        <detailHeading>false</detailHeading>
+        <detailHeading>true</detailHeading>
         <editHeading>true</editHeading>
         <label>Information</label>
         <layoutColumns>
             <layoutItems>
-                <behavior>Readonly</behavior>
-                <field>Name</field>
+                <behavior>Required</behavior>
+                <field>MasterLabel</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Required</behavior>
-                <field>AIAgentDefinition__c</field>
+                <field>DeveloperName</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Required</behavior>
-                <field>ExecutionType__c</field>
+                <field>Category__c</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Required</behavior>
-                <field>ExecutionStatus__c</field>
+                <field>MinScore__c</field>
             </layoutItems>
             <layoutItems>
-                <behavior>Edit</behavior>
-                <field>ProcessingStatus__c</field>
+                <behavior>Required</behavior>
+                <field>SortOrder__c</field>
             </layoutItems>
         </layoutColumns>
         <layoutColumns>
             <layoutItems>
                 <behavior>Edit</behavior>
-                <field>User__c</field>
+                <field>IsProtected</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
-                <field>TriggerSource__c</field>
+                <field>NamespacePrefix</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
-                <field>SourceRecordId__c</field>
-            </layoutItems>
-            <layoutItems>
-                <behavior>Readonly</behavior>
-                <field>ErrorMessage__c</field>
+                <field>IsActive__c</field>
             </layoutItems>
         </layoutColumns>
         <style>TwoColumnsTopToBottom</style>
@@ -51,60 +47,38 @@
         <customLabel>true</customLabel>
         <detailHeading>true</detailHeading>
         <editHeading>true</editHeading>
-        <label>Timeline</label>
+        <label>Display Configuration</label>
         <layoutColumns>
             <layoutItems>
-                <behavior>Readonly</behavior>
-                <field>StartTime__c</field>
-            </layoutItems>
-            <layoutItems>
-                <behavior>Readonly</behavior>
-                <field>EndTime__c</field>
+                <behavior>Required</behavior>
+                <field>DisplayLabel__c</field>
             </layoutItems>
         </layoutColumns>
         <layoutColumns>
             <layoutItems>
-                <behavior>Readonly</behavior>
-                <field>LastActivityTime__c</field>
+                <behavior>Required</behavior>
+                <field>Color__c</field>
             </layoutItems>
         </layoutColumns>
-        <style>TwoColumnsTopToBottom</style>
+        <style>TwoColumnsLeftToRight</style>
     </layoutSections>
     <layoutSections>
         <customLabel>true</customLabel>
         <detailHeading>true</detailHeading>
         <editHeading>true</editHeading>
-        <label>Context</label>
-        <layoutColumns>
-            <layoutItems>
-                <behavior>Readonly</behavior>
-                <field>ConversationSummary__c</field>
-            </layoutItems>
-            <layoutItems>
-                <behavior>Readonly</behavior>
-                <field>TriggerPayload__c</field>
-            </layoutItems>
-        </layoutColumns>
+        <label>LLM Prompt Configuration</label>
         <layoutColumns>
             <layoutItems>
                 <behavior>Edit</behavior>
-                <field>ParentExecution__c</field>
-            </layoutItems>
-            <layoutItems>
-                <behavior>Readonly</behavior>
-                <field>PendingAsyncToolCount__c</field>
-            </layoutItems>
-            <layoutItems>
-                <behavior>Readonly</behavior>
-                <field>AsyncToolTurnIdentifier__c</field>
+                <field>LLMGuidance__c</field>
             </layoutItems>
         </layoutColumns>
-        <style>TwoColumnsTopToBottom</style>
+        <style>OneColumn</style>
     </layoutSections>
     <layoutSections>
         <customLabel>false</customLabel>
-        <detailHeading>false</detailHeading>
-        <editHeading>true</editHeading>
+        <detailHeading>true</detailHeading>
+        <editHeading>false</editHeading>
         <label>System Information</label>
         <layoutColumns>
             <layoutItems>
@@ -122,26 +96,23 @@
     </layoutSections>
     <layoutSections>
         <customLabel>true</customLabel>
-        <detailHeading>false</detailHeading>
-        <editHeading>true</editHeading>
+        <detailHeading>true</detailHeading>
+        <editHeading>false</editHeading>
         <label>Custom Links</label>
         <layoutColumns/>
         <layoutColumns/>
         <layoutColumns/>
         <style>CustomLinks</style>
     </layoutSections>
-    <miniLayout>
-        <fields>AIAgentDefinition__c</fields>
-        <fields>ExecutionStatus__c</fields>
-        <fields>ExecutionType__c</fields>
-        <fields>ProcessingStatus__c</fields>
-        <fields>User__c</fields>
-        <fields>StartTime__c</fields>
-        <fields>TriggerSource__c</fields>
-    </miniLayout>
     <showEmailCheckbox>false</showEmailCheckbox>
     <showHighlightsPanel>false</showHighlightsPanel>
     <showInteractionLogPanel>false</showInteractionLogPanel>
     <showRunAssignmentRulesCheckbox>false</showRunAssignmentRulesCheckbox>
     <showSubmitAndAttachButton>false</showSubmitAndAttachButton>
+    <summaryLayout>
+        <masterLabel>00hDS00000GLl7H</masterLabel>
+        <sizeX>4</sizeX>
+        <sizeY>0</sizeY>
+        <summaryLayoutStyle>Default</summaryLayoutStyle>
+    </summaryLayout>
 </Layout>

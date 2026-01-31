@@ -216,14 +216,46 @@ public inherited sharing class ExecutionStepService {
         Id capabilityId,
         String toolRationale
     ) {
+        // Overload for backward compatibility - extract confidence from arguments
+        return createToolCallStep(
+            executionId,
+            toolCallId,
+            toolName,
+            toolArguments,
+            turnIdentifier,
+            turnCount,
+            promptTokens,
+            completionTokens,
+            totalTokens,
+            modelIdentifier,
+            llmCalloutDurationMs,
+            capabilityId,
+            toolRationale,
+            extractConfidenceScore(toolArguments)
+        );
+    }
+
+    public Id createToolCallStep(
+        Id executionId,
+        String toolCallId,
+        String toolName,
+        String toolArguments,
+        String turnIdentifier,
+        Integer turnCount,
+        Integer promptTokens,
+        Integer completionTokens,
+        Integer totalTokens,
+        String modelIdentifier,
+        Long llmCalloutDurationMs,
+        Id capabilityId,
+        String toolRationale,
+        Decimal confidence
+    ) {
         String logPrefix = LOG_PREFIX + '[createToolCallStep] ';
 
         try {
             // Calculate estimated cost if we have token and model information
             Decimal estimatedCost = calculateCost(modelIdentifier, promptTokens, completionTokens);
-
-            // Extract confidence score from tool arguments if present
-            Decimal confidence = extractConfidenceScore(toolArguments);
 
             ExecutionStep__c step = new ExecutionStep__c(
                 AgentExecution__c = executionId,

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Very Confident</label>
+    <protected>false</protected>
+    <values>
+        <field>Category__c</field>
+        <value xsi:type="xsd:string">VeryConfident</value>
+    </values>
+    <values>
+        <field>Color__c</field>
+        <value xsi:type="xsd:string">#1d8348</value>
+    </values>
+    <values>
+        <field>DisplayLabel__c</field>
+        <value xsi:type="xsd:string">Very Confident</value>
+    </values>
+    <values>
+        <field>IsActive__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>LLMGuidance__c</field>
+        <value xsi:type="xsd:string">very confident, all clear</value>
+    </values>
+    <values>
+        <field>MinScore__c</field>
+        <value xsi:type="xsd:double">90.0</value>
+    </values>
+    <values>
+        <field>SortOrder__c</field>
+        <value xsi:type="xsd:double">1.0</value>
+    </values>
+</CustomMetadata>
