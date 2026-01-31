@@ -387,6 +387,40 @@ public inherited sharing class AgentJobEnqueuer {
      * @return AsyncOptions with configured stack depth, or null if already set in parent chain.
      */
     private AsyncOptions getAsyncOptions(String logPrefix) {
+        // TEST CONTEXT GUARD: hasMaxStackDepth() throws error in tests
+        // "hasMaxStackDepth is not allowed outside a Queueable of Finalizer execution"
+        if (Test.isRunningTest()) {
+            Integer maxProcessingCycles = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
+            Integer maxStackDepth = maxProcessingCycles + 2; // Buffer for safety
+            
+            AsyncOptions asyncOptions = new AsyncOptions();
+            asyncOptions.MaximumQueueableStackDepth = maxStackDepth;
+            
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix +
+                    '[AgentJobEnqueuer] TEST MODE: Setting AsyncOptions with MaximumQueueableStackDepth=' +
+                    maxStackDepth +
+                    ' (derived from MaxProcessingCycles=' +
+                    maxProcessingCycles +
+                    ' + 2 buffer)'
+            );
+            
+            return asyncOptions;
+        }
+        
+        // Check if AsyncOptions should be used (based on custom setting)
+        // Orgs with 50-chain limit (production/sandbox) don't need AsyncOptions
+        // Orgs with 5-chain limit (scratch/developer/trial) need AsyncOptions to extend the limit
+        if (!AIAgentFrameworkSettings.shouldExtendQueueableChainLimit()) {
+            System.debug(
+                LoggingLevel.DEBUG,
+                logPrefix +
+                    '[AgentJobEnqueuer] ExtendQueueableChainLimit disabled - AsyncOptions not needed (org has 50-chain limit)'
+            );
+            return null;
+        }
+        
         // Check if MaxStackDepth was already configured in parent chain
         // AsyncInfo.hasMaxStackDepth() returns true if AsyncOptions was set on a parent job
         if (AsyncInfo.hasMaxStackDepth()) {
@@ -412,7 +446,7 @@ public inherited sharing class AgentJobEnqueuer {
         System.debug(
             LoggingLevel.INFO,
             logPrefix +
-                '[AgentJobEnqueuer] Setting AsyncOptions with MaximumQueueableStackDepth=' +
+                '[AgentJobEnqueuer] ExtendQueueableChainLimit enabled - Setting AsyncOptions with MaximumQueueableStackDepth=' +
                 maxStackDepth +
                 ' (derived from MaxProcessingCycles=' +
                 maxProcessingCycles +

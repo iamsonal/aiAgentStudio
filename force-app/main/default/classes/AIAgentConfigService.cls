@@ -51,6 +51,7 @@ public inherited sharing class AIAgentConfigService {
         'ToolDependencyGraphWarnings__c',
         'AsyncDispatchType__c',
         'SummarizerAgent__c',
+        'EnableNextStepSuggestion__c',
         'SummarizerAgent__r.DeveloperName__c',
         'SummarizerAgent__r.LLMConfiguration__c',
         'SummarizerAgent__r.InstructionsPrompt__c',

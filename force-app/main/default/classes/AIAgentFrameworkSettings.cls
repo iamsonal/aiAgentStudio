@@ -23,6 +23,7 @@ public inherited sharing class AIAgentFrameworkSettings {
     private static final Boolean FINAL_DEFAULT_PIIAuditLogging = false;
     private static final Boolean FINAL_DEFAULT_PromptSafetyAuditLogging = false;
     private static final Boolean FINAL_DEFAULT_EnableDecisionStepLogging = true;
+    private static final Boolean FINAL_DEFAULT_ExtendQueueableChainLimit = false;
     public static AIAgentFrameworkSettings__c getInstance() {
         if (settings == null) {
             settings = AIAgentFrameworkSettings__c.getOrgDefaults();
@@ -39,6 +40,7 @@ public inherited sharing class AIAgentFrameworkSettings {
                 settings.PIIAuditLogging__c = FINAL_DEFAULT_PIIAuditLogging;
                 settings.PromptSafetyAuditLogging__c = FINAL_DEFAULT_PromptSafetyAuditLogging;
                 settings.EnableDecisionStepLogging__c = FINAL_DEFAULT_EnableDecisionStepLogging;
+                settings.ExtendQueueableChainLimit__c = FINAL_DEFAULT_ExtendQueueableChainLimit;
                 System.debug(LoggingLevel.WARN, '[AIAgentFrameworkSettings] No Custom Setting record found - using hardcoded default values for all settings');
             } else {
                 // Record exists, fill in missing individual fields with FINAL defaults
@@ -273,6 +275,19 @@ public inherited sharing class AIAgentFrameworkSettings {
     public static Integer getMaxDependencyViolations() {
         // Currently using hardcoded default - could be added to custom setting if needed
         return FINAL_DEFAULT_MaxDependencyViolations;
+    }
+
+    /**
+     * Determines if AsyncOptions should be used to extend queueable chain limits.
+     * Enable this setting in orgs with 5-chain limits (scratch/developer/trial orgs).
+     * Disable in orgs with 50-chain limits (production/sandbox orgs).
+     *
+     * Default is FALSE (assumes production/sandbox with 50-chain limit).
+     *
+     * @return TRUE if AsyncOptions should be configured, FALSE otherwise.
+     */
+    public static Boolean shouldExtendQueueableChainLimit() {
+        return getInstance().ExtendQueueableChainLimit__c == true;
     }
 
     /**

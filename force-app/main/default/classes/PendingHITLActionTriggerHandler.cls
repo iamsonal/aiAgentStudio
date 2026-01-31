@@ -240,7 +240,7 @@ public with sharing class PendingHITLActionTriggerHandler {
                     if (String.isNotBlank(action.ResolutionComment__c)) {
                         message += ' Reason: ' + action.ResolutionComment__c;
                     }
-                    NotificationService.sendUserNotification(
+                    HITLGatewayService.sendUserNotification(
                         action.RequestingUser__c,
                         'Action Rejected: ' + action.ToolName__c,
                         message,
@@ -516,7 +516,7 @@ public with sharing class PendingHITLActionTriggerHandler {
     private static void notifyUserOfError(PendingHITLAction__c action, String errorMessage) {
         if (action.RequestingUser__c != null && shouldSendNotification(action, HITLGatewayService.NOTIFICATION_TYPE_ERROR)) {
             try {
-                NotificationService.sendUserNotification(
+                HITLGatewayService.sendUserNotification(
                     action.RequestingUser__c,
                     'Error Processing Action: ' + action.ToolName__c,
                     errorMessage,

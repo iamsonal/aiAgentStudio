@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExtendQueueableChainLimit__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Enables AsyncOptions to extend queueable chain limit beyond the default 5-chain limit in certain org types. Set to TRUE if your org has the 5-chain limit.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Enable if your org has a 5-chain queueable limit. Extends chain depth for long-running agent conversations.</inlineHelpText>
+    <label>Extend Queueable Chain Limit</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>
