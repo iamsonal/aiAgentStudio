@@ -23,9 +23,10 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         public Integer executionOrder;
         public String rationale;
         public Decimal confidence;
+        public String nextStepSuggestion;
 
         public ToolCallRequest(String toolCallId, String toolName, String toolArguments, AgentCapability__c capability, Integer executionOrder) {
-            this(toolCallId, toolName, toolArguments, capability, executionOrder, null, null);
+            this(toolCallId, toolName, toolArguments, capability, executionOrder, null, null, null);
         }
 
         public ToolCallRequest(
@@ -36,7 +37,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             Integer executionOrder,
             String rationale
         ) {
-            this(toolCallId, toolName, toolArguments, capability, executionOrder, rationale, null);
+            this(toolCallId, toolName, toolArguments, capability, executionOrder, rationale, null, null);
         }
 
         public ToolCallRequest(
@@ -48,6 +49,19 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             String rationale,
             Decimal confidence
         ) {
+            this(toolCallId, toolName, toolArguments, capability, executionOrder, rationale, confidence, null);
+        }
+
+        public ToolCallRequest(
+            String toolCallId,
+            String toolName,
+            String toolArguments,
+            AgentCapability__c capability,
+            Integer executionOrder,
+            String rationale,
+            Decimal confidence,
+            String nextStepSuggestion
+        ) {
             this.toolCallId = toolCallId;
             this.toolName = toolName;
             this.toolArguments = toolArguments;
@@ -56,6 +70,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             this.executionOrder = executionOrder;
             this.rationale = rationale;
             this.confidence = confidence;
+            this.nextStepSuggestion = nextStepSuggestion;
 
             this.hitlMode = String.isNotBlank(capability.HITLMode__c) ? capability.HITLMode__c : null;
 
@@ -278,8 +293,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     continue;
                 }
 
-                // Extract confidence BEFORE stripping internal parameters
+                // Extract confidence and nextStepSuggestion BEFORE stripping internal parameters
                 Decimal confidence = ExecutionStepService.extractConfidenceScore(toolArguments);
+                String nextStepSuggestion = ExecutionStepService.extractNextStepSuggestion(toolArguments);
 
                 String extractedRationale = null;
                 String cleanedArguments = toolArguments;
@@ -300,7 +316,18 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     );
                 }
 
-                ToolCallRequest toolRequest = new ToolCallRequest(toolCallId, toolName, cleanedArguments, capability, i + 1, extractedRationale, confidence);
+                if (String.isNotBlank(nextStepSuggestion)) {
+                    System.debug(
+                        LoggingLevel.INFO,
+                        logPrefix +
+                            'Extracted next step suggestion for tool ' +
+                            toolName +
+                            ': ' +
+                            nextStepSuggestion
+                    );
+                }
+
+                ToolCallRequest toolRequest = new ToolCallRequest(toolCallId, toolName, cleanedArguments, capability, i + 1, extractedRationale, confidence, nextStepSuggestion);
                 toolRequests.add(toolRequest);
 
                 System.debug(
@@ -530,7 +557,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     context.llmResult.providerResult.llmCalloutDurationMs,
                     toolRequest.capability.Id,
                     toolRequest.rationale,
-                    toolRequest.confidence
+                    toolRequest.confidence,
+                    toolRequest.nextStepSuggestion
                 );
 
                 // Note: Tool Execution decision step logging removed

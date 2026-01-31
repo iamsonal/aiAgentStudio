@@ -216,7 +216,7 @@ public inherited sharing class ExecutionStepService {
         Id capabilityId,
         String toolRationale
     ) {
-        // Overload for backward compatibility - extract confidence from arguments
+        // Overload for backward compatibility - extract confidence and nextStepSuggestion from arguments
         return createToolCallStep(
             executionId,
             toolCallId,
@@ -231,7 +231,8 @@ public inherited sharing class ExecutionStepService {
             llmCalloutDurationMs,
             capabilityId,
             toolRationale,
-            extractConfidenceScore(toolArguments)
+            extractConfidenceScore(toolArguments),
+            extractNextStepSuggestion(toolArguments)
         );
     }
 
@@ -249,7 +250,8 @@ public inherited sharing class ExecutionStepService {
         Long llmCalloutDurationMs,
         Id capabilityId,
         String toolRationale,
-        Decimal confidence
+        Decimal confidence,
+        String nextStepSuggestion
     ) {
         String logPrefix = LOG_PREFIX + '[createToolCallStep] ';
 
@@ -281,7 +283,8 @@ public inherited sharing class ExecutionStepService {
                 IsAsyncToolExecution__c = false,
                 AIAgentCapability__c = capabilityId,
                 ToolRationale__c = toolRationale,
-                Confidence__c = confidence
+                Confidence__c = confidence,
+                NextStepSuggestion__c = nextStepSuggestion
             );
 
             if (TransactionContext.getInstance().isDeferredDMLMode()) {
@@ -1128,6 +1131,50 @@ public inherited sharing class ExecutionStepService {
             return null;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error extracting confidence: ' + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * @description Extracts _nextStepSuggestion from tool arguments JSON
+     * @param toolArguments JSON string containing tool arguments
+     * @return String Next step suggestion, or null if not present or invalid
+     */
+    public static String extractNextStepSuggestion(String toolArguments) {
+        String logPrefix = LOG_PREFIX + '[extractNextStepSuggestion] ';
+
+        if (String.isBlank(toolArguments)) {
+            return null;
+        }
+
+        try {
+            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(toolArguments);
+
+            if (!args.containsKey('_nextStepSuggestion')) {
+                return null;
+            }
+
+            Object suggestionValue = args.get('_nextStepSuggestion');
+            if (suggestionValue == null) {
+                return null;
+            }
+
+            // Convert to string and validate length
+            String suggestion = String.valueOf(suggestionValue).trim();
+
+            if (String.isBlank(suggestion)) {
+                return null;
+            }
+
+            // Truncate if exceeds 255 characters (field limit)
+            if (suggestion.length() > 255) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Next step suggestion exceeds 255 chars, truncating: ' + suggestion);
+                suggestion = suggestion.substring(0, 255);
+            }
+
+            return suggestion;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error extracting next step suggestion: ' + e.getMessage());
             return null;
         }
     }

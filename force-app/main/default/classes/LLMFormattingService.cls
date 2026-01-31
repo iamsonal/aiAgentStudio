@@ -18,7 +18,8 @@ public inherited sharing class LLMFormattingService {
 
     public static final String TOOL_RATIONALE_PARAM_NAME = '_rationale';
     public static final String TOOL_CONFIDENCE_PARAM_NAME = '_confidence';
-    
+    public static final String TOOL_NEXT_STEP_SUGGESTION_PARAM_NAME = '_nextStepSuggestion';
+
     // Cache for confidence thresholds - loaded once per transaction
     private static List<ConfidenceThreshold__mdt> cachedConfidenceThresholds;
 
@@ -104,6 +105,14 @@ public inherited sharing class LLMFormattingService {
             System.debug(LoggingLevel.INFO, debugPrefix + 'Tool reasoning enabled - will inject _rationale parameter into all tools.');
         }
 
+        Boolean enableNextStepSuggestion = agentConfig?.EnableNextStepSuggestion__c == true;
+        if (enableNextStepSuggestion) {
+            System.debug(
+                LoggingLevel.INFO,
+                debugPrefix + 'Next step suggestion enabled (experimental) - will inject _nextStepSuggestion parameter into all tools.'
+            );
+        }
+
         try {
             List<AgentCapability__c> allCapabilities = AIAgentConfigService.getCapabilitiesByAgentId(agentDefinitionId);
 
@@ -180,6 +189,11 @@ public inherited sharing class LLMFormattingService {
                 // Inject confidence parameter if TrackConfidence is enabled
                 if (cap.TrackConfidence__c == true) {
                     injectConfidenceParameter(paramSchema, capabilityName, debugPrefix);
+                }
+
+                // Inject next step suggestion parameter if enabled on agent definition (experimental)
+                if (enableNextStepSuggestion) {
+                    injectNextStepSuggestionParameter(paramSchema, capabilityName, debugPrefix);
                 }
 
                 Map<String, Object> functionDef = new Map<String, Object>{
@@ -312,13 +326,15 @@ public inherited sharing class LLMFormattingService {
 
         // Build dynamic guidance from custom metadata
         String thresholdGuidance = getConfidenceLLMGuidance();
-        
+
         // Add _confidence parameter with dynamic threshold guidance
         Map<String, Object> confidenceDef = new Map<String, Object>{
             'type' => 'number',
             'minimum' => 0,
             'maximum' => 100,
-            'description' => 'REQUIRED: Your confidence score for this action (0-100). Consider: Do you have all needed data? Are the parameters clear and valid? Is this the right tool for the task? Are there any ambiguities? Rate your certainty: ' + thresholdGuidance + '.'
+            'description' => 'REQUIRED: Your confidence score for this action (0-100). Consider: Do you have all needed data? Are the parameters clear and valid? Is this the right tool for the task? Are there any ambiguities? Rate your certainty: ' +
+            thresholdGuidance +
+            '.'
         };
         properties.put('_confidence', confidenceDef);
 
@@ -335,6 +351,34 @@ public inherited sharing class LLMFormattingService {
         }
 
         System.debug(LoggingLevel.DEBUG, debugPrefix + 'Injected _confidence parameter for capability: ' + capabilityName);
+    }
+
+    /**
+     * @description Injects _nextStepSuggestion parameter when EnableNextStepSuggestion is enabled on agent definition
+     * @param paramSchema The parameter schema to inject into
+     * @param capabilityName Name of the capability (for logging)
+     * @param debugPrefix Debug prefix for logging
+     */
+    private static void injectNextStepSuggestionParameter(Map<String, Object> paramSchema, String capabilityName, String debugPrefix) {
+        if (paramSchema == null) {
+            return;
+        }
+
+        Map<String, Object> properties = (Map<String, Object>) paramSchema.get('properties');
+        if (properties == null) {
+            properties = new Map<String, Object>();
+            paramSchema.put('properties', properties);
+        }
+
+        // Add _nextStepSuggestion parameter
+        Map<String, Object> nextStepDef = new Map<String, Object>{
+            'type' => 'string',
+            'maxLength' => 255,
+            'description' => 'OPTIONAL: Suggest the next logical action in 5-10 words (e.g., "Schedule follow-up call" or "Send welcome email"). You may reference a tool name or describe a general business action. This is experimental and used for analytics only.'
+        };
+        properties.put(TOOL_NEXT_STEP_SUGGESTION_PARAM_NAME, nextStepDef);
+
+        System.debug(LoggingLevel.DEBUG, debugPrefix + 'Injected _nextStepSuggestion parameter for capability: ' + capabilityName);
     }
 
     public static Map<String, String> extractAndStripRationale(String toolArguments, String debugPrefix) {
@@ -364,6 +408,13 @@ public inherited sharing class LLMFormattingService {
                 argsMap.remove(TOOL_CONFIDENCE_PARAM_NAME);
                 modified = true;
                 System.debug(LoggingLevel.DEBUG, (debugPrefix ?? '[LLMFormattingService] ') + 'Stripped _confidence from tool arguments.');
+            }
+
+            // Strip _nextStepSuggestion (already extracted elsewhere via ExecutionStepService.extractNextStepSuggestion)
+            if (argsMap.containsKey(TOOL_NEXT_STEP_SUGGESTION_PARAM_NAME)) {
+                argsMap.remove(TOOL_NEXT_STEP_SUGGESTION_PARAM_NAME);
+                modified = true;
+                System.debug(LoggingLevel.DEBUG, (debugPrefix ?? '[LLMFormattingService] ') + 'Stripped _nextStepSuggestion from tool arguments.');
             }
 
             // Only re-serialize if we actually modified the map
@@ -740,27 +791,26 @@ public inherited sharing class LLMFormattingService {
             }
         }
     }
-    
+
     // ========================================================================
     // CONFIDENCE THRESHOLD MANAGEMENT
     // ========================================================================
-    
+
     /**
      * Get all active confidence thresholds from custom metadata, ordered by MinScore descending
      */
     private static List<ConfidenceThreshold__mdt> getConfidenceThresholds() {
         if (cachedConfidenceThresholds == null) {
             cachedConfidenceThresholds = [
-                SELECT Category__c, MinScore__c, DisplayLabel__c, Color__c, 
-                       LLMGuidance__c, SortOrder__c
+                SELECT Category__c, MinScore__c, DisplayLabel__c, Color__c, LLMGuidance__c, SortOrder__c
                 FROM ConfidenceThreshold__mdt
-                WHERE IsActive__c = true
+                WHERE IsActive__c = TRUE
                 ORDER BY MinScore__c DESC
             ];
         }
         return cachedConfidenceThresholds;
     }
-    
+
     /**
      * Build LLM guidance string from confidence thresholds
      * Used to dynamically generate _confidence parameter description
@@ -768,17 +818,17 @@ public inherited sharing class LLMFormattingService {
      */
     private static String getConfidenceLLMGuidance() {
         List<ConfidenceThreshold__mdt> thresholds = getConfidenceThresholds();
-        
+
         if (thresholds.isEmpty()) {
             // Fallback if no custom metadata configured
             return '90-100 (very confident, all clear), 70-89 (confident, minor gaps), 50-69 (uncertain, missing data), below 50 (not confident, should clarify)';
         }
-        
+
         List<String> guidanceParts = new List<String>();
-        
+
         for (Integer i = 0; i < thresholds.size(); i++) {
             ConfidenceThreshold__mdt current = thresholds[i];
-            
+
             // Determine range for this threshold
             String range;
             if (i == 0) {
@@ -790,17 +840,15 @@ public inherited sharing class LLMFormattingService {
                 Decimal upperBound = next.MinScore__c - 1;
                 range = String.valueOf(current.MinScore__c.intValue()) + '-' + String.valueOf(upperBound.intValue());
             }
-            
+
             // Add guidance if available
-            String guidance = String.isNotBlank(current.LLMGuidance__c) 
-                ? current.LLMGuidance__c 
-                : current.DisplayLabel__c.toLowerCase();
+            String guidance = String.isNotBlank(current.LLMGuidance__c) ? current.LLMGuidance__c : current.DisplayLabel__c.toLowerCase();
             guidanceParts.add(range + ' (' + guidance + ')');
         }
-        
+
         return String.join(guidanceParts, ', ');
     }
-    
+
     /**
      * Get confidence thresholds for frontend consumption
      * Returns all thresholds as JSON-serializable data for LWC
@@ -808,22 +856,24 @@ public inherited sharing class LLMFormattingService {
     @AuraEnabled(cacheable=true)
     public static List<Map<String, Object>> getConfidenceThresholdsForUI() {
         List<Map<String, Object>> result = new List<Map<String, Object>>();
-        
+
         List<ConfidenceThreshold__mdt> thresholds = getConfidenceThresholds();
-        
+
         for (ConfidenceThreshold__mdt threshold : thresholds) {
-            result.add(new Map<String, Object>{
-                'category' => threshold.Category__c,
-                'minScore' => threshold.MinScore__c,
-                'displayLabel' => threshold.DisplayLabel__c,
-                'color' => threshold.Color__c,
-                'sortOrder' => Integer.valueOf(threshold.SortOrder__c)
-            });
+            result.add(
+                new Map<String, Object>{
+                    'category' => threshold.Category__c,
+                    'minScore' => threshold.MinScore__c,
+                    'displayLabel' => threshold.DisplayLabel__c,
+                    'color' => threshold.Color__c,
+                    'sortOrder' => Integer.valueOf(threshold.SortOrder__c)
+                }
+            );
         }
-        
+
         return result;
     }
-    
+
     /**
      * Get confidence category for a given score
      * @param confidence Score from 0-100
@@ -833,20 +883,20 @@ public inherited sharing class LLMFormattingService {
         if (confidence == null) {
             return null;
         }
-        
+
         List<ConfidenceThreshold__mdt> thresholds = getConfidenceThresholds();
-        
+
         // Thresholds are ordered by MinScore DESC, so first match wins
         for (ConfidenceThreshold__mdt threshold : thresholds) {
             if (confidence >= threshold.MinScore__c) {
                 return threshold.Category__c;
             }
         }
-        
+
         // Fallback - shouldn't happen if thresholds include 0
         return null;
     }
-    
+
     /**
      * Get display label for a confidence score
      * @param confidence Score from 0-100
@@ -856,16 +906,15 @@ public inherited sharing class LLMFormattingService {
         if (confidence == null) {
             return null;
         }
-        
+
         List<ConfidenceThreshold__mdt> thresholds = getConfidenceThresholds();
-        
+
         for (ConfidenceThreshold__mdt threshold : thresholds) {
             if (confidence >= threshold.MinScore__c) {
                 return threshold.DisplayLabel__c;
             }
         }
-        
+
         return null;
     }
 }
-

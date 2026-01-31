@@ -74,6 +74,10 @@
             </layoutItems>
             <layoutItems>
                 <behavior>Readonly</behavior>
+                <field>NextStepSuggestion__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
                 <field>IsError__c</field>
             </layoutItems>
             <layoutItems>
