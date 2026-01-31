@@ -289,7 +289,7 @@ global with sharing class AIAgentRestService {
                     body += '\n\nApprover comment: ' + approverComment;
                 }
 
-                NotificationService.sendUserNotification(Id.valueOf(toolRequest.requestingUserId), title, body, execution.Id);
+                HITLGatewayService.sendUserNotification(Id.valueOf(toolRequest.requestingUserId), title, body, execution.Id);
             }
 
             res.statusCode = 200;

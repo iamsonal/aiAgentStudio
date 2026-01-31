@@ -93,11 +93,14 @@ public class ContentResponseHandler implements ILLMResponseHandler {
             logCompletionCapabilityResult(context, completionOutcome, completionOutcome.data, logPrefix);
         }
 
-        // Commit the turn context to the ledger for traceability
-        try {
-            context.contextManagerSvc.commitExecutionTurnContext(context.executionId, context.currentTurnCount, context.currentPageRecordId, null);
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Context ledger update failed: ' + e.getMessage());
+        // Commit the turn context to the ledger (Conversational agents only)
+        // Skip for Function/Workflow agents which don't need multi-turn context tracking
+        if (context.agentStateSvc.isContextTrackingEnabled(context.executionId)) {
+            try {
+                context.contextManagerSvc.commitExecutionTurnContext(context.executionId, context.currentTurnCount, context.currentPageRecordId, null);
+            } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Context ledger update failed: ' + e.getMessage());
+            }
         }
 
         // Invoke memory management completion hook if configured
@@ -337,7 +340,8 @@ public class ContentResponseHandler implements ILLMResponseHandler {
                 null, // llmCalloutDurationMs
                 false, // isInternal
                 null, // isAsyncToolExecution
-                null // capabilityId
+                null, // capabilityId
+                null // confidence
             );
 
             System.debug(LoggingLevel.INFO, resultLogPrefix + 'Logged completion capability result');

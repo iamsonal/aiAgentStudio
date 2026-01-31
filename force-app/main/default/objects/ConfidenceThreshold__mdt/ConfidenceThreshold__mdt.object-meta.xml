@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>Confidence Threshold</label>
+    <pluralLabel>Confidence Thresholds</pluralLabel>
+    <visibility>Public</visibility>
+    <description>Defines confidence score thresholds and categories for AI agent actions. These thresholds determine how confidence scores (0-100) are categorized and displayed in the storyboard UI. Admins can customize these values to align with organizational risk tolerance and decision-making standards.</description>
+</CustomObject>

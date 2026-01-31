@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EnableDependencyValidation__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When enabled, the agent will validate tool execution order against the configured Tool Dependency Graph before executing tools. Tools that violate dependencies will be blocked with guidance for the LLM to retry in the correct order.</description>
+    <inlineHelpText>Enable this to enforce tool execution order based on the dependency graph. Tools called in the wrong order will be blocked, and the LLM will receive guidance to call them in the correct sequence.</inlineHelpText>
+    <label>Enable Dependency Validation</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

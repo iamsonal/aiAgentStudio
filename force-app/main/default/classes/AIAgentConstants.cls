@@ -43,6 +43,7 @@ public inherited sharing class AIAgentConstants {
     public static final String ERR_CODE_TOOL_RECOVERY_VIOLATION = 'TOOL_RECOVERY_VIOLATION';
     public static final String ERR_CODE_SAFETY_BLOCKED = 'SAFETY_BLOCKED';
     public static final String ERR_CODE_SAFETY_FLAGGED = 'SAFETY_FLAGGED';
+    public static final String ERR_CODE_DEPENDENCY_VALIDATION = 'DEPENDENCY_VALIDATION_ERROR';
 
     public static final String NEXT_EXPECTED_NONE = 'None';
 }

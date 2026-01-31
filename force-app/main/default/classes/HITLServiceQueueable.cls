@@ -125,7 +125,7 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
                 );
 
                 if (action.RequestingUser__c != null && shouldSendNotification(action, HITLGatewayService.NOTIFICATION_TYPE_ERROR)) {
-                    NotificationService.sendUserNotification(
+                    HITLGatewayService.sendUserNotification(
                         action.RequestingUser__c,
                         'Tool Execution Failed: ' + action.ToolName__c,
                         'Failed to execute approved action in service user context: ' + errorMsg,
@@ -184,7 +184,7 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
         try {
             PendingHITLAction__c action = HITLGatewayService.getPendingAction(pendingActionId);
             if (action?.RequestingUser__c != null && shouldSendNotification(action, HITLGatewayService.NOTIFICATION_TYPE_ERROR)) {
-                NotificationService.sendUserNotification(
+                HITLGatewayService.sendUserNotification(
                     action.RequestingUser__c,
                     'Tool Execution Error: ' + (action.ToolName__c ?? 'Unknown'),
                     'Error executing approved action: ' + e.getMessage(),

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>TrackConfidence__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When enabled, the LLM will include a confidence score (0-100) for each tool call. This allows tracking of AI certainty and identification of uncertain actions that may need human review. The confidence score is extracted from the _confidence parameter and stored in ExecutionStep records.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Enable to have the AI report its confidence level (0-100) for each action. Use this to identify uncertain actions and analyze AI decision quality over time.</inlineHelpText>
+    <label>Track Confidence</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

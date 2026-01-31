@@ -35,7 +35,8 @@ public inherited sharing class ExecutionStepService {
             null,
             false,
             null,
-            null // capabilityId
+            null, // capabilityId
+            null // confidence
         );
     }
 
@@ -59,7 +60,8 @@ public inherited sharing class ExecutionStepService {
         Long llmCalloutDurationMs,
         Boolean isInternal,
         Boolean isAsyncToolExecution,
-        Id capabilityId
+        Id capabilityId,
+        Decimal confidence
     ) {
         String logPrefix = LOG_PREFIX + '[createStep] ';
 
@@ -89,7 +91,8 @@ public inherited sharing class ExecutionStepService {
                 EstimatedCostUSD__c = estimatedCost,
                 IsInternal__c = isInternal != null ? isInternal : false,
                 IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false,
-                AIAgentCapability__c = capabilityId
+                AIAgentCapability__c = capabilityId,
+                Confidence__c = confidence
             );
 
             if (TransactionContext.getInstance().isDeferredDMLMode()) {
@@ -162,7 +165,8 @@ public inherited sharing class ExecutionStepService {
             llmCalloutDurationMs,
             false, // isInternal
             null, // isAsyncToolExecution
-            null // capabilityId
+            null, // capabilityId
+            null // confidence
         );
     }
 
@@ -212,6 +216,43 @@ public inherited sharing class ExecutionStepService {
         Id capabilityId,
         String toolRationale
     ) {
+        // Overload for backward compatibility - extract confidence and nextStepSuggestion from arguments
+        return createToolCallStep(
+            executionId,
+            toolCallId,
+            toolName,
+            toolArguments,
+            turnIdentifier,
+            turnCount,
+            promptTokens,
+            completionTokens,
+            totalTokens,
+            modelIdentifier,
+            llmCalloutDurationMs,
+            capabilityId,
+            toolRationale,
+            extractConfidenceScore(toolArguments),
+            extractNextStepSuggestion(toolArguments)
+        );
+    }
+
+    public Id createToolCallStep(
+        Id executionId,
+        String toolCallId,
+        String toolName,
+        String toolArguments,
+        String turnIdentifier,
+        Integer turnCount,
+        Integer promptTokens,
+        Integer completionTokens,
+        Integer totalTokens,
+        String modelIdentifier,
+        Long llmCalloutDurationMs,
+        Id capabilityId,
+        String toolRationale,
+        Decimal confidence,
+        String nextStepSuggestion
+    ) {
         String logPrefix = LOG_PREFIX + '[createToolCallStep] ';
 
         try {
@@ -241,7 +282,9 @@ public inherited sharing class ExecutionStepService {
                 IsInternal__c = false,
                 IsAsyncToolExecution__c = false,
                 AIAgentCapability__c = capabilityId,
-                ToolRationale__c = toolRationale
+                ToolRationale__c = toolRationale,
+                Confidence__c = confidence,
+                NextStepSuggestion__c = nextStepSuggestion
             );
 
             if (TransactionContext.getInstance().isDeferredDMLMode()) {
@@ -566,6 +609,104 @@ public inherited sharing class ExecutionStepService {
         }
     }
 
+    /**
+     * @description Creates a tool result step with dependency validation failure flag.
+     * Used when a tool is blocked due to missing dependencies (not a real execution error).
+     */
+    public Id createToolResultStep(
+        Id executionId,
+        String toolCallId,
+        String toolName,
+        String toolResult,
+        String turnIdentifier,
+        Integer turnCount,
+        Long processingDuration,
+        Boolean isAsyncToolExecution,
+        Id capabilityId,
+        Boolean isError,
+        Boolean isResumed,
+        Boolean isDependencyValidationFailure
+    ) {
+        String logPrefix = LOG_PREFIX + '[createToolResultStep] ';
+
+        try {
+            Map<String, Object> metadata = new Map<String, Object>();
+            if (processingDuration != null) {
+                metadata.put('processingDuration', processingDuration);
+            }
+            if (isAsyncToolExecution != null) {
+                metadata.put('isAsyncToolExecution', isAsyncToolExecution);
+            }
+            if (isDependencyValidationFailure == true) {
+                metadata.put('isDependencyValidationFailure', true);
+            }
+
+            ExecutionStep__c step = new ExecutionStep__c(
+                AgentExecution__c = executionId,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                Content__c = null,
+                ContentType__c = 'JSON',
+                Timestamp__c = Datetime.now(),
+                TurnIdentifier__c = turnIdentifier,
+                TurnCount__c = turnCount,
+                ToolCallId__c = toolCallId,
+                ToolName__c = toolName,
+                ToolResult__c = toolResult,
+                HasResult__c = String.isNotBlank(toolResult),
+                IsError__c = isError != null ? isError : false,
+                ProcessingDuration__c = processingDuration,
+                IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false,
+                StepMetadata__c = !metadata.isEmpty() ? JSON.serialize(metadata) : null,
+                PromptTokens__c = null,
+                CompletionTokens__c = null,
+                TotalTokens__c = null,
+                ModelIdentifier__c = null,
+                LLMCalloutDurationMs__c = null,
+                AIAgentCapability__c = capabilityId,
+                IsResumed__c = isResumed != null ? isResumed : false,
+                IsDependencyValidationFailure__c = isDependencyValidationFailure != null ? isDependencyValidationFailure : false
+            );
+
+            // Multi-LLM optimization: Check if deferred DML mode is enabled
+            if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                TransactionContext.getInstance().bufferInsert(step);
+                System.debug(
+                    LoggingLevel.DEBUG,
+                    logPrefix +
+                        'Buffered tool result step for deferred insert. Tool: ' +
+                        toolName +
+                        ' isDependencyFailure: ' +
+                        (isDependencyValidationFailure == true)
+                );
+                return null;
+            }
+
+            insert step;
+
+            System.debug(
+                LoggingLevel.DEBUG,
+                logPrefix +
+                    'Created tool result step: ' +
+                    step.Id +
+                    ' for tool: ' +
+                    toolName +
+                    ' (async=' +
+                    isAsyncToolExecution +
+                    ', isError=' +
+                    step.IsError__c +
+                    ', isDependencyFailure=' +
+                    (isDependencyValidationFailure == true) +
+                    ')'
+            );
+
+            return step.Id;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create tool result step: ' + e.getMessage());
+            throw new ExecutionStepException('Failed to create tool result step: ' + e.getMessage());
+        }
+    }
+
     public Id updateToolResultStep(Id executionId, String toolCallId, String toolResult, Long processingDuration) {
         return updateToolResultStep(executionId, toolCallId, toolResult, processingDuration, false);
     }
@@ -646,7 +787,8 @@ public inherited sharing class ExecutionStepService {
             null,
             false,
             null,
-            null
+            null,
+            null // confidence
         );
     }
 
@@ -934,5 +1076,106 @@ public inherited sharing class ExecutionStepService {
      */
     private static Decimal calculateCost(String modelIdentifier, Integer promptTokens, Integer completionTokens) {
         return AIAgentConfigService.calculateLLMCost(modelIdentifier, promptTokens, completionTokens);
+    }
+
+    /**
+     * @description Extracts confidence score from tool arguments JSON
+     * @param toolArguments JSON string containing tool arguments
+     * @return Confidence score (0-100) or null if not present
+     */
+    public static Decimal extractConfidenceScore(String toolArguments) {
+        String logPrefix = LOG_PREFIX + '[extractConfidence] ';
+
+        if (String.isBlank(toolArguments)) {
+            return null;
+        }
+
+        try {
+            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(toolArguments);
+
+            if (!args.containsKey('_confidence')) {
+                return null;
+            }
+
+            Object confidenceValue = args.get('_confidence');
+            if (confidenceValue == null) {
+                return null;
+            }
+
+            // Handle both Number and String types
+            if (confidenceValue instanceof Decimal || confidenceValue instanceof Integer || confidenceValue instanceof Double) {
+                Decimal confidence = Decimal.valueOf(String.valueOf(confidenceValue));
+                // Validate range
+                if (confidence < 0 || confidence > 100) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Confidence value out of range (0-100): ' + confidence);
+                    return null;
+                }
+                return confidence;
+            }
+
+            if (confidenceValue instanceof String) {
+                try {
+                    Decimal confidence = Decimal.valueOf((String) confidenceValue);
+                    if (confidence < 0 || confidence > 100) {
+                        System.debug(LoggingLevel.WARN, logPrefix + 'Confidence value out of range (0-100): ' + confidence);
+                        return null;
+                    }
+                    return confidence;
+                } catch (Exception e) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Could not parse string confidence value: ' + confidenceValue);
+                    return null;
+                }
+            }
+
+            System.debug(LoggingLevel.WARN, logPrefix + 'Unexpected confidence type: ' + confidenceValue);
+            return null;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error extracting confidence: ' + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * @description Extracts _nextStepSuggestion from tool arguments JSON
+     * @param toolArguments JSON string containing tool arguments
+     * @return String Next step suggestion, or null if not present or invalid
+     */
+    public static String extractNextStepSuggestion(String toolArguments) {
+        String logPrefix = LOG_PREFIX + '[extractNextStepSuggestion] ';
+
+        if (String.isBlank(toolArguments)) {
+            return null;
+        }
+
+        try {
+            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(toolArguments);
+
+            if (!args.containsKey('_nextStepSuggestion')) {
+                return null;
+            }
+
+            Object suggestionValue = args.get('_nextStepSuggestion');
+            if (suggestionValue == null) {
+                return null;
+            }
+
+            // Convert to string and validate length
+            String suggestion = String.valueOf(suggestionValue).trim();
+
+            if (String.isBlank(suggestion)) {
+                return null;
+            }
+
+            // Truncate if exceeds 255 characters (field limit)
+            if (suggestion.length() > 255) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Next step suggestion exceeds 255 chars, truncating: ' + suggestion);
+                suggestion = suggestion.substring(0, 255);
+            }
+
+            return suggestion;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error extracting next step suggestion: ' + e.getMessage());
+            return null;
+        }
     }
 }

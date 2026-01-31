@@ -4,11 +4,11 @@
     <description>Error message if the step failed. Used for troubleshooting and reporting failure patterns.</description>
     <inlineHelpText>Error message if this step failed.</inlineHelpText>
     <label>Error Message</label>
-    <length>255</length>
+    <length>32768</length>
     <required>false</required>
     <trackHistory>false</trackHistory>
     <trackTrending>false</trackTrending>
-    <type>Text</type>
-    <unique>false</unique>
+    <type>LongTextArea</type>
+    <visibleLines>5</visibleLines>
 </CustomField>
 

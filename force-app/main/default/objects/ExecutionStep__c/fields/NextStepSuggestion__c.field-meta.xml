@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>NextStepSuggestion__c</fullName>
+    <description>Experimental: AI's suggestion for the next logical step after this tool execution. Populated for ToolCall step types when EnableNextStepSuggestion__c is enabled on the agent definition. Used for analytics and future workflow optimization.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Experimental: AI's suggestion for the next logical step. Used for analytics and future workflow optimization.</inlineHelpText>
+    <label>Next Step Suggestion</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

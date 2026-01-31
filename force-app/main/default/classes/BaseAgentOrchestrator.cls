@@ -258,7 +258,7 @@ public abstract class BaseAgentOrchestrator implements IAgentOrchestrator {
     }
     protected Map<String, Object> findLastFailedTool(Id executionId, String logPrefix) {
         List<ExecutionStep__c> steps = [
-            SELECT Id, StepType__c, ToolName__c, ToolCallId__c, ToolResult__c, IsError__c, ToolArguments__c
+            SELECT Id, StepType__c, ToolName__c, ToolCallId__c, ToolResult__c, IsError__c, ToolArguments__c, IsDependencyValidationFailure__c
             FROM ExecutionStep__c
             WHERE AgentExecution__c = :executionId
             ORDER BY Timestamp__c DESC, Id DESC
@@ -267,7 +267,15 @@ public abstract class BaseAgentOrchestrator implements IAgentOrchestrator {
 
         ExecutionStep__c lastFailedToolResult = null;
         for (ExecutionStep__c step : steps) {
-            if (step.StepType__c == 'ToolResult' && step.IsError__c == true && String.isNotBlank(step.ToolCallId__c)) {
+            // Find failed tool result - EXCLUDE dependency validation failures
+            // Dependency failures are not real tool execution errors - they're blocked attempts
+            // Retrying a blocked tool will fail again unless dependencies are satisfied
+            if (
+                step.StepType__c == 'ToolResult' &&
+                step.IsError__c == true &&
+                step.IsDependencyValidationFailure__c == false &&
+                String.isNotBlank(step.ToolCallId__c)
+            ) {
                 lastFailedToolResult = step;
                 break;
             }

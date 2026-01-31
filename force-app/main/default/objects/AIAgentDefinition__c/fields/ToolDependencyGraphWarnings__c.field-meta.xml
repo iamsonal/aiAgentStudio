@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ToolDependencyGraphWarnings__c</fullName>
+    <description>JSON array of warnings detected during dependency graph validation. Includes issues like sync tools depending on async tools, circular dependencies, or graph staleness. Populated automatically when the graph is generated or validated.</description>
+    <inlineHelpText>Warnings about potential issues with the dependency graph configuration. Review and resolve these before enabling dependency validation.</inlineHelpText>
+    <label>Tool Dependency Graph Warnings</label>
+    <length>32768</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>4</visibleLines>
+</CustomField>

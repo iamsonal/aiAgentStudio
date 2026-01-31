@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Confidence__c</fullName>
+    <description>AI model's confidence score for this execution step (0-100). Higher values indicate greater certainty in the action taken. Extracted from the LLM's _confidence parameter when TrackConfidence is enabled on the capability. Use this to analyze AI decision quality, identify uncertain actions, and track confidence patterns over time.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>AI confidence level: 90-100 (Very confident), 70-89 (Confident), 50-69 (Uncertain), Below 50 (Not confident). Blank means confidence tracking was not enabled.</inlineHelpText>
+    <label>Confidence Score</label>
+    <precision>5</precision>
+    <required>false</required>
+    <scale>2</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

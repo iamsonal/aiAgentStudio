@@ -17,6 +17,7 @@ public inherited sharing class TransactionContext {
     private Integer calloutCountBeforeTool;
     private List<SObject> insertBuffer;
     private Boolean hasPreExistingExecution;
+    private Map<Id, Set<String>> executedToolsByExecution;
 
     private TransactionContext() {
         this.deferredDMLMode = false;
@@ -25,6 +26,7 @@ public inherited sharing class TransactionContext {
         this.calloutCountBeforeTool = 0;
         this.insertBuffer = new List<SObject>();
         this.hasPreExistingExecution = false;
+        this.executedToolsByExecution = new Map<Id, Set<String>>();
     }
 
     /**
@@ -227,6 +229,40 @@ public inherited sharing class TransactionContext {
         return result;
     }
 
+    // TOOL EXECUTION TRACKING (for dependency validation)
+
+    /**
+     * Tracks a tool as executed for a given execution within this transaction.
+     * Used for same-transaction dependency validation before steps are persisted to DB.
+     *
+     * @param executionId The AgentExecution__c ID
+     * @param toolName The name of the tool that was executed successfully
+     */
+    public void trackExecutedTool(Id executionId, String toolName) {
+        if (executionId == null || String.isBlank(toolName)) {
+            return;
+        }
+        if (!this.executedToolsByExecution.containsKey(executionId)) {
+            this.executedToolsByExecution.put(executionId, new Set<String>());
+        }
+        this.executedToolsByExecution.get(executionId).add(toolName);
+        System.debug(LoggingLevel.DEBUG, '[TransactionContext] Tracked executed tool: ' + toolName + ' for execution: ' + executionId);
+    }
+
+    /**
+     * Gets the set of tools executed in this transaction for a given execution.
+     * Used for dependency validation to include tools that haven't been persisted yet.
+     *
+     * @param executionId The AgentExecution__c ID
+     * @return Set of tool names executed in this transaction, or null if none
+     */
+    public Set<String> getExecutedTools(Id executionId) {
+        if (executionId == null) {
+            return null;
+        }
+        return this.executedToolsByExecution.get(executionId);
+    }
+
     // LIFECYCLE MANAGEMENT
 
     /**
@@ -240,6 +276,7 @@ public inherited sharing class TransactionContext {
         this.calloutCountBeforeTool = 0;
         this.insertBuffer.clear();
         this.hasPreExistingExecution = false;
+        this.executedToolsByExecution.clear();
         System.debug(LoggingLevel.DEBUG, '[TransactionContext] Context reset to initial state');
     }
 

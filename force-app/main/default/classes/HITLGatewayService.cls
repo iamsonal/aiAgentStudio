@@ -737,6 +737,8 @@ public with sharing class HITLGatewayService {
             args.remove('_requiresApproval');
             args.remove('_approvalReason');
             args.remove('_rationale'); // Also hide rationale
+            args.remove('_confidence'); // Hide confidence score
+            args.remove('_nextStepSuggestion'); // Hide next step suggestion
 
             if (args.isEmpty()) {
                 return '';
@@ -754,6 +756,54 @@ public with sharing class HITLGatewayService {
             return String.join(lines, '\n');
         } catch (Exception e) {
             return argumentsJson.length() > 500 ? argumentsJson.substring(0, 500) + '...' : argumentsJson;
+        }
+    }
+
+    /**
+     * @description Sends custom platform notification to a Salesforce user
+     * @param recipientId User ID to send notification to
+     * @param title Notification title
+     * @param body Notification body text
+     * @param targetId Optional record ID to associate with notification (e.g., AgentExecution__c ID)
+     */
+    public static void sendUserNotification(Id recipientId, String title, String body, Id targetId) {
+        String logPrefix = LOG_PREFIX + '[sendNotification] ';
+        final String NOTIFICATION_TYPE_API_NAME = 'AI_Agent_Action_Status';
+
+        if (recipientId == null || String.isBlank(title) || String.isBlank(body)) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Notification not sent: missing required parameter(s) (recipientId, title, or body).');
+            return;
+        }
+
+        try {
+            List<CustomNotificationType> notificationTypes = [
+                SELECT Id
+                FROM CustomNotificationType
+                WHERE DeveloperName = :NOTIFICATION_TYPE_API_NAME
+                LIMIT 1
+            ];
+            if (notificationTypes.isEmpty()) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Notification not sent: Custom notification type not found (' + NOTIFICATION_TYPE_API_NAME + ').');
+                return;
+            }
+
+            // Construct and send the notification
+            Messaging.CustomNotification notification = new Messaging.CustomNotification();
+            notification.setTitle(title);
+            notification.setBody(body);
+            notification.setSenderId(UserInfo.getUserId());
+            notification.setNotificationTypeId(notificationTypes[0].Id);
+            if (targetId != null) {
+                notification.setTargetId(targetId);
+            }
+            Set<String> recipients = new Set<String>{ recipientId };
+            notification.send(recipients);
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Notification sent to user ' + recipientId + ' (type: ' + NOTIFICATION_TYPE_API_NAME + ', title: "' + title + '").'
+            );
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Notification delivery failed for user ' + recipientId + ': ' + e.getMessage());
         }
     }
 }
