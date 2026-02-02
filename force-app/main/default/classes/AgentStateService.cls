@@ -352,6 +352,30 @@ public inherited sharing class AgentStateService {
             return;
         }
 
+        // If stepId is null (due to deferred DML mode), query for it using turnIdentifier
+        // This ensures the platform event contains the correct step ID for UI retrieval
+        if (isSuccess && finalAssistantMessageId == null && String.isNotBlank(turnIdentifier)) {
+            try {
+                List<ExecutionStep__c> steps = [
+                    SELECT Id
+                    FROM ExecutionStep__c
+                    WHERE
+                        AgentExecution__c = :executionId
+                        AND TurnIdentifier__c = :turnIdentifier
+                        AND StepType__c = 'AgentResponse'
+                        AND StepRole__c = 'Assistant'
+                    ORDER BY CreatedDate DESC
+                    LIMIT 1
+                ];
+                if (!steps.isEmpty()) {
+                    finalAssistantMessageId = steps[0].Id;
+                    System.debug(LoggingLevel.DEBUG, logPrefix + 'Resolved stepId from deferred DML: ' + finalAssistantMessageId);
+                }
+            } catch (Exception qe) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Warning: Unable to resolve step ID for deferred DML: ' + qe.getMessage());
+            }
+        }
+
         System.debug(LoggingLevel.INFO, logPrefix + 'Publishing AgentResponse__e event: success=' + isSuccess + ', stepId=' + finalAssistantMessageId);
 
         String finalMessageContent = null;

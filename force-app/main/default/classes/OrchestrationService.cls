@@ -239,6 +239,7 @@ public inherited sharing class OrchestrationService {
 
     /**
      * @description Determines if execution should fail immediately on tool error. Three-tier hierarchy: Capability.FailFastOnError__c, MaxToolRetries__c, or autonomous recovery.
+     * Note: For Conversational and Email agents, MaxToolRetries is turn-scoped (resets each turn) to allow fresh attempts with new user messages.
      */
     public static Boolean shouldFailFast(
         AgentCapability__c capability,
@@ -259,7 +260,8 @@ public inherited sharing class OrchestrationService {
             return true;
         }
 
-        if (executionId != null && agentDefinition.AgentType__c != 'Conversational') {
+        // Tier 3: MaxToolRetries check - skip for Conversational and Email agents (allow LLM recovery)
+        if (executionId != null && agentDefinition.AgentType__c != 'Conversational' && agentDefinition.AgentType__c != 'Email') {
             Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
             Integer failureCount = countSuccessiveToolFailures(executionId, capability.CapabilityName__c, logPrefix);
 

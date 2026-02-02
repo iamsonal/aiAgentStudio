@@ -36,8 +36,7 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
                 validateExecutionAccess(payload.existingExecutionId, payload.userId);
                 executionId = payload.existingExecutionId;
 
-                AIAgentSettings__c agentSettings = AIAgentSettings__c.getInstance(agentDefinition.DeveloperName__c);
-                if (agentSettings != null && agentSettings.ExecuteInitialLLMCallSynchronously__c == true) {
+                if (agentDefinition.ExecuteInitialLLMCallSynchronously__c == true) {
                     System.debug(LoggingLevel.INFO, logPrefix + 'Executing initial LLM call synchronously');
                     return executeSynchronously(executionId, payload, logPrefix);
                 }

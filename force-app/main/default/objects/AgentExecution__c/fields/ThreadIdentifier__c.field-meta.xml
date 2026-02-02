@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ThreadIdentifier__c</fullName>
+    <description>Email thread identifier used to maintain execution continuity across email threads. When a new email arrives in the same thread, the orchestrator finds the existing execution using this field instead of creating a new one.</description>
+    <externalId>true</externalId>
+    <inlineHelpText>Links this execution to an email thread for multi-turn email conversations.</inlineHelpText>
+    <label>Thread Identifier</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

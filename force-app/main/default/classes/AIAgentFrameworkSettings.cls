@@ -75,18 +75,23 @@ public inherited sharing class AIAgentFrameworkSettings {
     }
 
     /**
-     * Gets the maximum processing cycles for an agent, using per-agent override from AIAgentSettings__c if set,
+     * Gets the maximum processing cycles for an agent, using per-agent override from AIAgentDefinition__c if set,
      * otherwise falling back to the org-wide default.
      *
-     * @param agentDeveloperName The developer name of the agent (used to lookup AIAgentSettings__c record)
+     * @param agentDeveloperName The developer name of the agent (used to lookup AIAgentDefinition__c record)
      * @return The maximum number of processing cycles for the agent, or org-wide default if agent override is not set.
      */
     public static Integer getMaxProcessingCycles(String agentDeveloperName) {
-        // Check if agent has per-agent override in custom setting
+        // Check if agent has per-agent override in agent definition
         if (String.isNotBlank(agentDeveloperName)) {
-            AIAgentSettings__c agentSettings = AIAgentSettings__c.getInstance(agentDeveloperName);
-            if (agentSettings != null && agentSettings.MaxProcessingCycles__c != null && agentSettings.MaxProcessingCycles__c > 0) {
-                return Integer.valueOf(agentSettings.MaxProcessingCycles__c);
+            List<AIAgentDefinition__c> agents = [
+                SELECT MaxProcessingCycles__c
+                FROM AIAgentDefinition__c
+                WHERE DeveloperName__c = :agentDeveloperName
+                LIMIT 1
+            ];
+            if (!agents.isEmpty() && agents[0].MaxProcessingCycles__c != null && agents[0].MaxProcessingCycles__c > 0) {
+                return Integer.valueOf(agents[0].MaxProcessingCycles__c);
             }
         }
         // Fall back to org-wide default

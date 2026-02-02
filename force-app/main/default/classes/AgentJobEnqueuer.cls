@@ -392,10 +392,10 @@ public inherited sharing class AgentJobEnqueuer {
         if (Test.isRunningTest()) {
             Integer maxProcessingCycles = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
             Integer maxStackDepth = maxProcessingCycles + 2; // Buffer for safety
-            
+
             AsyncOptions asyncOptions = new AsyncOptions();
             asyncOptions.MaximumQueueableStackDepth = maxStackDepth;
-            
+
             System.debug(
                 LoggingLevel.INFO,
                 logPrefix +
@@ -405,22 +405,21 @@ public inherited sharing class AgentJobEnqueuer {
                     maxProcessingCycles +
                     ' + 2 buffer)'
             );
-            
+
             return asyncOptions;
         }
-        
+
         // Check if AsyncOptions should be used (based on custom setting)
         // Orgs with 50-chain limit (production/sandbox) don't need AsyncOptions
         // Orgs with 5-chain limit (scratch/developer/trial) need AsyncOptions to extend the limit
         if (!AIAgentFrameworkSettings.shouldExtendQueueableChainLimit()) {
             System.debug(
                 LoggingLevel.DEBUG,
-                logPrefix +
-                    '[AgentJobEnqueuer] ExtendQueueableChainLimit disabled - AsyncOptions not needed (org has 50-chain limit)'
+                logPrefix + '[AgentJobEnqueuer] ExtendQueueableChainLimit disabled - AsyncOptions not needed (org has 50-chain limit)'
             );
             return null;
         }
-        
+
         // Check if MaxStackDepth was already configured in parent chain
         // AsyncInfo.hasMaxStackDepth() returns true if AsyncOptions was set on a parent job
         if (AsyncInfo.hasMaxStackDepth()) {

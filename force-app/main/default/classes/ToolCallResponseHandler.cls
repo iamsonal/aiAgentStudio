@@ -317,17 +317,19 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 }
 
                 if (String.isNotBlank(nextStepSuggestion)) {
-                    System.debug(
-                        LoggingLevel.INFO,
-                        logPrefix +
-                            'Extracted next step suggestion for tool ' +
-                            toolName +
-                            ': ' +
-                            nextStepSuggestion
-                    );
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Extracted next step suggestion for tool ' + toolName + ': ' + nextStepSuggestion);
                 }
 
-                ToolCallRequest toolRequest = new ToolCallRequest(toolCallId, toolName, cleanedArguments, capability, i + 1, extractedRationale, confidence, nextStepSuggestion);
+                ToolCallRequest toolRequest = new ToolCallRequest(
+                    toolCallId,
+                    toolName,
+                    cleanedArguments,
+                    capability,
+                    i + 1,
+                    extractedRationale,
+                    confidence,
+                    nextStepSuggestion
+                );
                 toolRequests.add(toolRequest);
 
                 System.debug(

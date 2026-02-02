@@ -52,6 +52,8 @@ public inherited sharing class AIAgentConfigService {
         'AsyncDispatchType__c',
         'SummarizerAgent__c',
         'EnableNextStepSuggestion__c',
+        'MaxProcessingCycles__c',
+        'ExecuteInitialLLMCallSynchronously__c',
         'SummarizerAgent__r.DeveloperName__c',
         'SummarizerAgent__r.LLMConfiguration__c',
         'SummarizerAgent__r.InstructionsPrompt__c',
