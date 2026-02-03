@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>60.0</apiVersion>
+    
+    <!-- ASSIGNMENTS (grouped together) -->
+    <assignments>
+        <name>Set_Campaign_Id</name>
+        <label>Set Campaign Id</label>
+        <locationX>176</locationX>
+        <locationY>242</locationY>
+        <assignmentItems>
+            <assignToReference>campaignId</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>Create_Campaign</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Check_If_Members_Provided</targetReference>
+        </connector>
+    </assignments>
+    
+    <assignments>
+        <name>Increment_Members_Added</name>
+        <label>Increment Members Added</label>
+        <locationX>50</locationX>
+        <locationY>782</locationY>
+        <assignmentItems>
+            <assignToReference>membersAdded</assignToReference>
+            <operator>Add</operator>
+            <value>
+                <numberValue>1.0</numberValue>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Loop_Through_Accounts</targetReference>
+        </connector>
+    </assignments>
+    
+    <assignments>
+        <name>Set_Success_With_Members</name>
+        <label>Set Success With Members</label>
+        <locationX>50</locationX>
+        <locationY>890</locationY>
+        <assignmentItems>
+            <assignToReference>successMessage</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxSuccessWithMembers</elementReference>
+            </value>
+        </assignmentItems>
+    </assignments>
+    
+    <assignments>
+        <name>Set_Success_No_Members</name>
+        <label>Set Success No Members</label>
+        <locationX>302</locationX>
+        <locationY>458</locationY>
+        <assignmentItems>
+            <assignToReference>successMessage</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxSuccessNoMembers</elementReference>
+            </value>
+        </assignmentItems>
+    </assignments>
+    
+    <!-- DECISIONS (grouped together) -->
+    <decisions>
+        <name>Check_If_Members_Provided</name>
+        <label>Check If Members Provided</label>
+        <locationX>176</locationX>
+        <locationY>350</locationY>
+        <defaultConnector>
+            <targetReference>Set_Success_No_Members</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No Members</defaultConnectorLabel>
+        <rules>
+            <name>Members_Provided</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>accountIds</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Loop_Through_Accounts</targetReference>
+            </connector>
+            <label>Members Provided</label>
+        </rules>
+    </decisions>
+    
+    <decisions>
+        <name>Check_Contact_Found</name>
+        <label>Check Contact Found</label>
+        <locationX>50</locationX>
+        <locationY>566</locationY>
+        <defaultConnector>
+            <targetReference>Loop_Through_Accounts</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No Contact Found</defaultConnectorLabel>
+        <rules>
+            <name>Contact_Found</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>Get_Primary_Contact_For_Account</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Create_Campaign_Member</targetReference>
+            </connector>
+            <label>Contact Found</label>
+        </rules>
+    </decisions>
+    
+    <description>Creates a new Campaign and adds specified Account IDs as Campaign Members with appropriate status. Used by AI agents to create targeted marketing campaigns.</description>
+    
+    <!-- FORMULAS (grouped together) -->
+    <formulas>
+        <name>fxSuccessWithMembers</name>
+        <dataType>String</dataType>
+        <expression>"Campaign created successfully: " &amp; {!campaignName} &amp; 
+" (ID: " &amp; {!campaignId} &amp; "). " &amp;
+TEXT({!membersAdded}) &amp; " campaign members added with status: " &amp; {!memberStatus}</expression>
+    </formulas>
+    
+    <formulas>
+        <name>fxSuccessNoMembers</name>
+        <dataType>String</dataType>
+        <expression>"Campaign created successfully: " &amp; {!campaignName} &amp; 
+" (ID: " &amp; {!campaignId} &amp; "). No members were added."</expression>
+    </formulas>
+    
+    <label>Create Campaign With Members</label>
+    
+    <!-- LOOPS (grouped together) -->
+    <loops>
+        <name>Loop_Through_Accounts</name>
+        <label>Loop Through Accounts</label>
+        <locationX>50</locationX>
+        <locationY>458</locationY>
+        <collectionReference>accountIds</collectionReference>
+        <iterationOrder>Asc</iterationOrder>
+        <nextValueConnector>
+            <targetReference>Get_Primary_Contact_For_Account</targetReference>
+        </nextValueConnector>
+        <noMoreValuesConnector>
+            <targetReference>Set_Success_With_Members</targetReference>
+        </noMoreValuesConnector>
+    </loops>
+    
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>AutoLaunchedFlow</processType>
+    
+    <!-- RECORD CREATES (grouped together) -->
+    <recordCreates>
+        <name>Create_Campaign</name>
+        <label>Create Campaign</label>
+        <locationX>176</locationX>
+        <locationY>134</locationY>
+        <connector>
+            <targetReference>Set_Campaign_Id</targetReference>
+        </connector>
+        <inputAssignments>
+            <field>Name</field>
+            <value>
+                <elementReference>campaignName</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>Type</field>
+            <value>
+                <elementReference>campaignType</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>Status</field>
+            <value>
+                <elementReference>campaignStatus</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>Description</field>
+            <value>
+                <elementReference>description</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>IsActive</field>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>StartDate</field>
+            <value>
+                <elementReference>$Flow.CurrentDate</elementReference>
+            </value>
+        </inputAssignments>
+        <object>Campaign</object>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordCreates>
+    
+    <recordCreates>
+        <name>Create_Campaign_Member</name>
+        <label>Create Campaign Member</label>
+        <locationX>50</locationX>
+        <locationY>674</locationY>
+        <connector>
+            <targetReference>Increment_Members_Added</targetReference>
+        </connector>
+        <inputAssignments>
+            <field>CampaignId</field>
+            <value>
+                <elementReference>campaignId</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>ContactId</field>
+            <value>
+                <elementReference>Get_Primary_Contact_For_Account.Id</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>Status</field>
+            <value>
+                <elementReference>memberStatus</elementReference>
+            </value>
+        </inputAssignments>
+        <object>CampaignMember</object>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordCreates>
+    
+    <!-- RECORD LOOKUPS (grouped together) -->
+    <recordLookups>
+        <name>Get_Primary_Contact_For_Account</name>
+        <label>Get Primary Contact For Account</label>
+        <locationX>50</locationX>
+        <locationY>458</locationY>
+        <assignNullValuesIfNoRecordsFound>true</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>Check_Contact_Found</targetReference>
+        </connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>AccountId</field>
+            <operator>EqualTo</operator>
+            <value>
+                <elementReference>Loop_Through_Accounts</elementReference>
+            </value>
+        </filters>
+        <getFirstRecordOnly>true</getFirstRecordOnly>
+        <object>Contact</object>
+        <sortField>CreatedDate</sortField>
+        <sortOrder>Asc</sortOrder>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+    
+    <start>
+        <locationX>50</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Create_Campaign</targetReference>
+        </connector>
+    </start>
+    <status>Active</status>
+    
+    <!-- INPUT VARIABLES -->
+    <variables>
+        <name>campaignName</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>true</isInput>
+        <isOutput>false</isOutput>
+        <description>Campaign name - use format "Q1 2026 AI Analytics Launch - [Segment]"</description>
+    </variables>
+    
+    <variables>
+        <name>campaignType</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>true</isInput>
+        <isOutput>false</isOutput>
+        <description>Type of campaign. Default is "Email". Other options: Webinar, Conference, Direct Mail</description>
+        <value>
+            <stringValue>Email</stringValue>
+        </value>
+    </variables>
+    
+    <variables>
+        <name>campaignStatus</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>true</isInput>
+        <isOutput>false</isOutput>
+        <description>Campaign status. Default is "Planned". Options: Planned, In Progress, Completed, Aborted</description>
+        <value>
+            <stringValue>Planned</stringValue>
+        </value>
+    </variables>
+    
+    <variables>
+        <name>description</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>true</isInput>
+        <isOutput>false</isOutput>
+        <description>Campaign description including target criteria and goals</description>
+    </variables>
+    
+    <variables>
+        <name>accountIds</name>
+        <dataType>String</dataType>
+        <isCollection>true</isCollection>
+        <isInput>true</isInput>
+        <isOutput>false</isOutput>
+        <description>Array of 18-character Account IDs with score >= 70 to add as campaign members</description>
+    </variables>
+    
+    <variables>
+        <name>memberStatus</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>true</isInput>
+        <isOutput>false</isOutput>
+        <description>Status for campaign members. Use "Sent" for hot leads, "Planned" for warm leads</description>
+        <value>
+            <stringValue>Planned</stringValue>
+        </value>
+    </variables>
+    
+    <!-- OUTPUT VARIABLES -->
+    <variables>
+        <name>campaignId</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>true</isOutput>
+        <description>18-character ID of the created Campaign record</description>
+    </variables>
+    
+    <variables>
+        <name>membersAdded</name>
+        <dataType>Number</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>true</isOutput>
+        <scale>0</scale>
+        <description>Number of CampaignMember records successfully created</description>
+        <value>
+            <numberValue>0.0</numberValue>
+        </value>
+    </variables>
+    
+    <variables>
+        <name>successMessage</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>true</isOutput>
+        <description>Human-readable success message with campaign details and member count</description>
+    </variables>
+</Flow>

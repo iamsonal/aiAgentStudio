@@ -12,17 +12,18 @@
 public inherited sharing class AIAgentFrameworkSettings {
     private static AIAgentFrameworkSettings__c settings;
     private static final Integer FINAL_DEFAULT_MaxConversationTurns = 10;
-    private static final Integer FINAL_DEFAULT_MaxQueueableStackDepth = 0;
     private static final Integer FINAL_DEFAULT_MaxToolRetries = 2;
     private static final Integer FINAL_DEFAULT_BulkConcurrencyLimit = 5;
     private static final Integer FINAL_DEFAULT_BulkFailureThreshold = 5;
     private static final Integer FINAL_DEFAULT_MaxLLMCallsPerTransaction = 2;
+    private static final Integer FINAL_DEFAULT_MaxDependencyViolations = 3;
     private static final String FINAL_DEFAULT_HITLApprovalNamedCredential = 'AgentStudioInternalAPI';
     private static final Boolean FINAL_DEFAULT_EnablePIIMasking = false;
     private static final Boolean FINAL_DEFAULT_EnablePromptSafety = false;
     private static final Boolean FINAL_DEFAULT_PIIAuditLogging = false;
     private static final Boolean FINAL_DEFAULT_PromptSafetyAuditLogging = false;
     private static final Boolean FINAL_DEFAULT_EnableDecisionStepLogging = true;
+    private static final Boolean FINAL_DEFAULT_ExtendQueueableChainLimit = false;
     public static AIAgentFrameworkSettings__c getInstance() {
         if (settings == null) {
             settings = AIAgentFrameworkSettings__c.getOrgDefaults();
@@ -30,7 +31,6 @@ public inherited sharing class AIAgentFrameworkSettings {
             if (settings == null || settings.Id == null) {
                 settings = new AIAgentFrameworkSettings__c();
                 settings.DefaultMaxConversationTurns__c = FINAL_DEFAULT_MaxConversationTurns;
-                settings.MaxQueueableStackDepth__c = FINAL_DEFAULT_MaxQueueableStackDepth;
                 settings.MaxToolRetries__c = FINAL_DEFAULT_MaxToolRetries;
                 settings.BulkConcurrencyLimit__c = FINAL_DEFAULT_BulkConcurrencyLimit;
                 settings.BulkFailureThreshold__c = FINAL_DEFAULT_BulkFailureThreshold;
@@ -40,14 +40,12 @@ public inherited sharing class AIAgentFrameworkSettings {
                 settings.PIIAuditLogging__c = FINAL_DEFAULT_PIIAuditLogging;
                 settings.PromptSafetyAuditLogging__c = FINAL_DEFAULT_PromptSafetyAuditLogging;
                 settings.EnableDecisionStepLogging__c = FINAL_DEFAULT_EnableDecisionStepLogging;
+                settings.ExtendQueueableChainLimit__c = FINAL_DEFAULT_ExtendQueueableChainLimit;
                 System.debug(LoggingLevel.WARN, '[AIAgentFrameworkSettings] No Custom Setting record found - using hardcoded default values for all settings');
             } else {
                 // Record exists, fill in missing individual fields with FINAL defaults
                 if (settings.DefaultMaxConversationTurns__c == null || settings.DefaultMaxConversationTurns__c < 0) {
                     settings.DefaultMaxConversationTurns__c = FINAL_DEFAULT_MaxConversationTurns;
-                }
-                if (settings.MaxQueueableStackDepth__c == null || settings.MaxQueueableStackDepth__c < 0) {
-                    settings.MaxQueueableStackDepth__c = FINAL_DEFAULT_MaxQueueableStackDepth;
                 }
                 if (settings.MaxToolRetries__c == null || settings.MaxToolRetries__c < 0) {
                     settings.MaxToolRetries__c = FINAL_DEFAULT_MaxToolRetries;
@@ -77,33 +75,27 @@ public inherited sharing class AIAgentFrameworkSettings {
     }
 
     /**
-     * Gets the maximum processing cycles for an agent, using per-agent override from AIAgentSettings__c if set,
+     * Gets the maximum processing cycles for an agent, using per-agent override from AIAgentDefinition__c if set,
      * otherwise falling back to the org-wide default.
      *
-     * @param agentDeveloperName The developer name of the agent (used to lookup AIAgentSettings__c record)
+     * @param agentDeveloperName The developer name of the agent (used to lookup AIAgentDefinition__c record)
      * @return The maximum number of processing cycles for the agent, or org-wide default if agent override is not set.
      */
     public static Integer getMaxProcessingCycles(String agentDeveloperName) {
-        // Check if agent has per-agent override in custom setting
+        // Check if agent has per-agent override in agent definition
         if (String.isNotBlank(agentDeveloperName)) {
-            AIAgentSettings__c agentSettings = AIAgentSettings__c.getInstance(agentDeveloperName);
-            if (agentSettings != null && agentSettings.MaxProcessingCycles__c != null && agentSettings.MaxProcessingCycles__c > 0) {
-                return Integer.valueOf(agentSettings.MaxProcessingCycles__c);
+            List<AIAgentDefinition__c> agents = [
+                SELECT MaxProcessingCycles__c
+                FROM AIAgentDefinition__c
+                WHERE DeveloperName__c = :agentDeveloperName
+                LIMIT 1
+            ];
+            if (!agents.isEmpty() && agents[0].MaxProcessingCycles__c != null && agents[0].MaxProcessingCycles__c > 0) {
+                return Integer.valueOf(agents[0].MaxProcessingCycles__c);
             }
         }
         // Fall back to org-wide default
         return getDefaultMaxConversationTurns();
-    }
-
-    /**
-     * Gets the configured maximum queueable stack depth for chained jobs.
-     * Returns 0 to use Salesforce defaults (recommended for production/sandbox).
-     * Set to 50+ for scratch/developer orgs to override the 5-job limit.
-     *
-     * @return The maximum queueable stack depth (0 = use defaults).
-     */
-    public static Integer getMaxQueueableStackDepth() {
-        return Integer.valueOf(getInstance().MaxQueueableStackDepth__c);
     }
 
     /**
@@ -274,6 +266,33 @@ public inherited sharing class AIAgentFrameworkSettings {
             return Integer.valueOf(instance.MaxLLMCallsPerTransaction__c);
         }
         return FINAL_DEFAULT_MaxLLMCallsPerTransaction;
+    }
+
+    /**
+     * Gets the maximum number of dependency validation failures allowed per execution
+     * before the agent is stopped with an error. Acts as a circuit breaker to prevent
+     * infinite loops when the LLM repeatedly violates tool dependencies.
+     *
+     * Default is 3 - if the LLM violates dependencies 3 times, execution fails.
+     *
+     * @return The maximum dependency violations allowed before execution fails.
+     */
+    public static Integer getMaxDependencyViolations() {
+        // Currently using hardcoded default - could be added to custom setting if needed
+        return FINAL_DEFAULT_MaxDependencyViolations;
+    }
+
+    /**
+     * Determines if AsyncOptions should be used to extend queueable chain limits.
+     * Enable this setting in orgs with 5-chain limits (scratch/developer/trial orgs).
+     * Disable in orgs with 50-chain limits (production/sandbox orgs).
+     *
+     * Default is FALSE (assumes production/sandbox with 50-chain limit).
+     *
+     * @return TRUE if AsyncOptions should be configured, FALSE otherwise.
+     */
+    public static Boolean shouldExtendQueueableChainLimit() {
+        return getInstance().ExtendQueueableChainLimit__c == true;
     }
 
     /**

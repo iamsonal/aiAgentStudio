@@ -46,8 +46,14 @@ public inherited sharing class AIAgentConfigService {
         'EnableParallelToolCalling__c',
         'EnableToolReasoning__c',
         'RequiresServiceUserContext__c',
+        'EnableDependencyValidation__c',
+        'ToolDependencyGraph__c',
+        'ToolDependencyGraphWarnings__c',
         'AsyncDispatchType__c',
         'SummarizerAgent__c',
+        'EnableNextStepSuggestion__c',
+        'MaxProcessingCycles__c',
+        'ExecuteInitialLLMCallSynchronously__c',
         'SummarizerAgent__r.DeveloperName__c',
         'SummarizerAgent__r.LLMConfiguration__c',
         'SummarizerAgent__r.InstructionsPrompt__c',
@@ -84,6 +90,7 @@ public inherited sharing class AIAgentConfigService {
         'RunAsynchronously__c',
         'HITLMode__c', // Unified HITL mode field (blank=no HITL, Confirmation, Approval, ConfirmationThenApproval)
         'HITLNotificationPreference__c', // Controls when to send notifications for HITL actions
+        'TrackConfidence__c', // Enable AI confidence score tracking (0-100) for this capability
         'FailFastOnError__c',
         'ExposureLevel__c'
     };

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MinScore__c</fullName>
+    <description>Minimum confidence score (0-100) for this category. Actions with scores >= this value fall into this category.</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Minimum score threshold (0-100). Actions with confidence >= this value belong to this category.</inlineHelpText>
+    <label>Minimum Score</label>
+    <precision>5</precision>
+    <required>true</required>
+    <scale>2</scale>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

@@ -2,9 +2,8 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ExecuteInitialLLMCallSynchronously__c</fullName>
     <label>Execute Initial LLM Call Synchronously</label>
-    <description>When enabled, the first LLM call in a conversational turn will execute synchronously without queueable overhead for faster response times. Note: Only applies to subsequent messages in an existing conversation (not the first message) due to Salesforce DML/callout constraints. Subsequent tool actions and follow-up LLM calls still execute asynchronously as needed.</description>
+    <description>When enabled, the first LLM call in a conversational turn will execute synchronously without queueable overhead for faster response times. Note: Only applies to subsequent messages in an existing conversation (not the first message) due to Salesforce DML/callout constraints. Subsequent tool actions and follow-up LLM calls still execute asynchronously as needed. Only applicable to Conversational agents.</description>
     <inlineHelpText>Enable for fast LLMs to get immediate responses (~2-5s improvement). Only works for continuing conversations where AgentExecution__c already exists (no DML needed). Subject to synchronous limits (10s CPU, 6MB heap). Leave unchecked to use queueables with 60s CPU and 12MB heap limits. Recommended: true for most agents.</inlineHelpText>
     <defaultValue>true</defaultValue>
     <type>Checkbox</type>
 </CustomField>
-

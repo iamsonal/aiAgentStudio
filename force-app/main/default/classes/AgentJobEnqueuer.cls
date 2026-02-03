@@ -375,22 +375,48 @@ public inherited sharing class AgentJobEnqueuer {
     }
 
     /**
-     * Creates AsyncOptions for queueable job enqueueing if configured.
-     * Returns null if MaxQueueableStackDepth is 0 (use Salesforce defaults).
-     * This is primarily for scratch/developer orgs which have a 5-job chain limit.
+     * Creates AsyncOptions for queueable job enqueueing.
+     * Automatically derives MaximumQueueableStackDepth from MaxProcessingCycles + buffer
+     * to ensure the platform limit never interferes with the business limit.
      *
      * IMPORTANT: AsyncOptions can only be set on the FIRST job in a chain.
      * You cannot reset MaximumQueueableStackDepth from within a running queueable.
      * This method checks if max stack depth was already configured in the parent chain.
      *
      * @param logPrefix A logging prefix for debug output.
-     * @return AsyncOptions with configured stack depth, or null to use defaults.
+     * @return AsyncOptions with configured stack depth, or null if already set in parent chain.
      */
     private AsyncOptions getAsyncOptions(String logPrefix) {
-        Integer maxStackDepth = AIAgentFrameworkSettings.getMaxQueueableStackDepth();
+        // TEST CONTEXT GUARD: hasMaxStackDepth() throws error in tests
+        // "hasMaxStackDepth is not allowed outside a Queueable of Finalizer execution"
+        if (Test.isRunningTest()) {
+            Integer maxProcessingCycles = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
+            Integer maxStackDepth = maxProcessingCycles + 2; // Buffer for safety
 
-        if (maxStackDepth == null || maxStackDepth <= 0) {
-            // Use Salesforce defaults (recommended for production/sandbox)
+            AsyncOptions asyncOptions = new AsyncOptions();
+            asyncOptions.MaximumQueueableStackDepth = maxStackDepth;
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix +
+                    '[AgentJobEnqueuer] TEST MODE: Setting AsyncOptions with MaximumQueueableStackDepth=' +
+                    maxStackDepth +
+                    ' (derived from MaxProcessingCycles=' +
+                    maxProcessingCycles +
+                    ' + 2 buffer)'
+            );
+
+            return asyncOptions;
+        }
+
+        // Check if AsyncOptions should be used (based on custom setting)
+        // Orgs with 50-chain limit (production/sandbox) don't need AsyncOptions
+        // Orgs with 5-chain limit (scratch/developer/trial) need AsyncOptions to extend the limit
+        if (!AIAgentFrameworkSettings.shouldExtendQueueableChainLimit()) {
+            System.debug(
+                LoggingLevel.DEBUG,
+                logPrefix + '[AgentJobEnqueuer] ExtendQueueableChainLimit disabled - AsyncOptions not needed (org has 50-chain limit)'
+            );
             return null;
         }
 
@@ -407,6 +433,11 @@ public inherited sharing class AgentJobEnqueuer {
             return null;
         }
 
+        // Automatically derive stack depth from MaxProcessingCycles + buffer
+        // This ensures the platform limit is always higher than the business limit
+        Integer maxProcessingCycles = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
+        Integer maxStackDepth = maxProcessingCycles + 2; // Buffer for safety
+
         // Set AsyncOptions for the first job in the chain
         AsyncOptions asyncOptions = new AsyncOptions();
         asyncOptions.MaximumQueueableStackDepth = maxStackDepth;
@@ -414,9 +445,11 @@ public inherited sharing class AgentJobEnqueuer {
         System.debug(
             LoggingLevel.INFO,
             logPrefix +
-                '[AgentJobEnqueuer] Setting AsyncOptions with MaximumQueueableStackDepth=' +
+                '[AgentJobEnqueuer] ExtendQueueableChainLimit enabled - Setting AsyncOptions with MaximumQueueableStackDepth=' +
                 maxStackDepth +
-                ' (first job in chain for scratch/developer org)'
+                ' (derived from MaxProcessingCycles=' +
+                maxProcessingCycles +
+                ' + 2 buffer)'
         );
 
         return asyncOptions;

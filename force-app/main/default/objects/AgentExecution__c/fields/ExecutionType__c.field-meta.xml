@@ -27,6 +27,11 @@
                 <default>false</default>
                 <label>Workflow</label>
             </value>
+            <value>
+                <fullName>Email</fullName>
+                <default>false</default>
+                <label>Email</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

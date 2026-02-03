@@ -52,7 +52,11 @@
                 <default>false</default>
                 <label>Test</label>
             </value>
+            <value>
+                <fullName>Email</fullName>
+                <default>false</default>
+                <label>Email</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>
-

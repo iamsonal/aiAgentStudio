@@ -2,9 +2,9 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>MaxToolRetries__c</fullName>
     <defaultValue>2</defaultValue>
-    <description>Maximum number of successive failures allowed for a tool before the execution is automatically failed. For example, if set to 2, the tool is allowed 1 failure and will fail on the 2nd failure. Prevents infinite retry loops when a tool keeps failing with the same error. Only applies to non-Conversational agents (Function/Workflow). Conversational agents let the LLM decide how to handle errors.</description>
+    <description>Maximum consecutive failures for a single tool before stopping execution. Prevents infinite retry loops. Applies to Function/Workflow agents only. Conversational agents let the LLM handle retries.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Maximum successive failed attempts per tool before execution failure (Function/Workflow agents only). Conversational agents let the LLM handle retries.</inlineHelpText>
+    <inlineHelpText>Max consecutive tool failures before execution stops. Prevents infinite loops. Function/Workflow agents only. Default: 2.</inlineHelpText>
     <label>Maximum Tool Retries</label>
     <precision>3</precision>
     <required>false</required>

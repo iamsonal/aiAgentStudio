@@ -22,9 +22,11 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         public String hitlMode;
         public Integer executionOrder;
         public String rationale;
+        public Decimal confidence;
+        public String nextStepSuggestion;
 
         public ToolCallRequest(String toolCallId, String toolName, String toolArguments, AgentCapability__c capability, Integer executionOrder) {
-            this(toolCallId, toolName, toolArguments, capability, executionOrder, null);
+            this(toolCallId, toolName, toolArguments, capability, executionOrder, null, null, null);
         }
 
         public ToolCallRequest(
@@ -35,6 +37,31 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             Integer executionOrder,
             String rationale
         ) {
+            this(toolCallId, toolName, toolArguments, capability, executionOrder, rationale, null, null);
+        }
+
+        public ToolCallRequest(
+            String toolCallId,
+            String toolName,
+            String toolArguments,
+            AgentCapability__c capability,
+            Integer executionOrder,
+            String rationale,
+            Decimal confidence
+        ) {
+            this(toolCallId, toolName, toolArguments, capability, executionOrder, rationale, confidence, null);
+        }
+
+        public ToolCallRequest(
+            String toolCallId,
+            String toolName,
+            String toolArguments,
+            AgentCapability__c capability,
+            Integer executionOrder,
+            String rationale,
+            Decimal confidence,
+            String nextStepSuggestion
+        ) {
             this.toolCallId = toolCallId;
             this.toolName = toolName;
             this.toolArguments = toolArguments;
@@ -42,6 +69,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             this.isAsync = capability.RunAsynchronously__c == true;
             this.executionOrder = executionOrder;
             this.rationale = rationale;
+            this.confidence = confidence;
+            this.nextStepSuggestion = nextStepSuggestion;
 
             this.hitlMode = String.isNotBlank(capability.HITLMode__c) ? capability.HITLMode__c : null;
 
@@ -75,6 +104,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         public Boolean isAsync;
         public Integer executionOrder;
         public Id capabilityId;
+        public Boolean isDependencyValidationFailure;
 
         public ToolExecutionResult(
             String toolCallId,
@@ -85,6 +115,19 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             Integer executionOrder,
             Id capabilityId
         ) {
+            this(toolCallId, toolName, outcome, processingTime, isAsync, executionOrder, capabilityId, false);
+        }
+
+        public ToolExecutionResult(
+            String toolCallId,
+            String toolName,
+            ActionOutcome outcome,
+            Long processingTime,
+            Boolean isAsync,
+            Integer executionOrder,
+            Id capabilityId,
+            Boolean isDependencyValidationFailure
+        ) {
             this.toolCallId = toolCallId;
             this.toolName = toolName;
             this.outcome = outcome;
@@ -92,6 +135,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             this.isAsync = isAsync;
             this.executionOrder = executionOrder;
             this.capabilityId = capabilityId;
+            this.isDependencyValidationFailure = isDependencyValidationFailure != null ? isDependencyValidationFailure : false;
         }
     }
 
@@ -249,6 +293,10 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     continue;
                 }
 
+                // Extract confidence and nextStepSuggestion BEFORE stripping internal parameters
+                Decimal confidence = ExecutionStepService.extractConfidenceScore(toolArguments);
+                String nextStepSuggestion = ExecutionStepService.extractNextStepSuggestion(toolArguments);
+
                 String extractedRationale = null;
                 String cleanedArguments = toolArguments;
 
@@ -268,7 +316,20 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     );
                 }
 
-                ToolCallRequest toolRequest = new ToolCallRequest(toolCallId, toolName, cleanedArguments, capability, i + 1, extractedRationale);
+                if (String.isNotBlank(nextStepSuggestion)) {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Extracted next step suggestion for tool ' + toolName + ': ' + nextStepSuggestion);
+                }
+
+                ToolCallRequest toolRequest = new ToolCallRequest(
+                    toolCallId,
+                    toolName,
+                    cleanedArguments,
+                    capability,
+                    i + 1,
+                    extractedRationale,
+                    confidence,
+                    nextStepSuggestion
+                );
                 toolRequests.add(toolRequest);
 
                 System.debug(
@@ -497,7 +558,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     context.llmResult.providerResult.modelIdentifier,
                     context.llmResult.providerResult.llmCalloutDurationMs,
                     toolRequest.capability.Id,
-                    toolRequest.rationale
+                    toolRequest.rationale,
+                    toolRequest.confidence,
+                    toolRequest.nextStepSuggestion
                 );
 
                 // Note: Tool Execution decision step logging removed
@@ -734,7 +797,20 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     // SYNCHRONOUS EXECUTION
 
     /**
-     * Executes all synchronous tools immediately in the same transaction
+     * Result of pre-flight validation and reordering for tool dependencies.
+     */
+    private class PreflightValidationResult {
+        public Boolean hasBlockedTools = false;
+        public List<ToolExecutionResult> blockedResults = new List<ToolExecutionResult>();
+        public List<ToolCallRequest> reorderedTools = new List<ToolCallRequest>();
+        public Boolean wasReordered = false;
+    }
+
+    /**
+     * Executes all synchronous tools immediately in the same transaction.
+     * Uses PRE-FLIGHT validation: validates ALL tools BEFORE executing ANY.
+     * This ensures no DML occurs if validation fails, keeping the transaction clean
+     * for the follow-up LLM call to be queued.
      */
     private List<ToolExecutionResult> executeSynchronousTools(
         OrchestrationContext context,
@@ -746,12 +822,178 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Executing ' + syncTools.size() + ' synchronous tool(s)');
 
+        // Load agent definition for dependency validation
+        AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinition(context.agentDefinitionId);
+        Boolean isDependencyValidationEnabled = agentDef.EnableDependencyValidation__c == true;
+        String dependencyGraph = agentDef.ToolDependencyGraph__c;
+
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'Dependency validation enabled: ' + isDependencyValidationEnabled);
+
+        // Track executed tools for dependency validation (across this execution session)
+        Set<String> executedTools = getExecutedToolsForExecution(context.executionId);
+
+        // PRE-FLIGHT VALIDATION & REORDERING
+        if (isDependencyValidationEnabled && String.isNotBlank(dependencyGraph)) {
+            PreflightValidationResult preflightResult = performPreflightValidation(syncTools, executedTools, dependencyGraph, decisionLogger, logPrefix);
+
+            // Use the reordered/filtered tools for execution
+            syncTools = preflightResult.reorderedTools;
+
+            // Add blocked results to return list (if any)
+            if (preflightResult.hasBlockedTools) {
+                syncResults.addAll(preflightResult.blockedResults);
+
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix +
+                        'Pre-flight validation blocked ' +
+                        preflightResult.blockedResults.size() +
+                        ' tool(s). Executing ' +
+                        syncTools.size() +
+                        ' allowed tool(s).'
+                );
+
+                // CIRCUIT BREAKER: Check if max dependency violations exceeded
+                Integer existingViolations = countDependencyViolations(context.executionId);
+                Integer newViolations = preflightResult.blockedResults.size();
+                Integer totalViolations = existingViolations + newViolations;
+                Integer maxViolations = AIAgentFrameworkSettings.getMaxDependencyViolations();
+
+                System.debug(
+                    LoggingLevel.DEBUG,
+                    logPrefix +
+                        'Dependency violations: existing=' +
+                        existingViolations +
+                        ', new=' +
+                        newViolations +
+                        ', total=' +
+                        totalViolations +
+                        ', max=' +
+                        maxViolations
+                );
+
+                if (totalViolations >= maxViolations) {
+                    System.debug(
+                        LoggingLevel.ERROR,
+                        logPrefix +
+                            'CIRCUIT BREAKER: Max dependency violations (' +
+                            maxViolations +
+                            ') exceeded. Total violations: ' +
+                            totalViolations +
+                            '. Failing execution immediately.'
+                    );
+
+                    // Create an error step for auditing (not a tool result - just for logs)
+                    try {
+                        String errorMessage =
+                            'Circuit breaker triggered: Maximum dependency violations (' +
+                            totalViolations +
+                            '/' +
+                            maxViolations +
+                            ') exceeded. ' +
+                            'The LLM repeatedly violated dependency rules. This may indicate:\n' +
+                            '1) Dependency graph is incorrectly configured\n' +
+                            '2) Agent instructions are unclear\n' +
+                            '3) LLM does not understand the error guidance\n\n' +
+                            'ACTION: Review the dependency graph and agent instructions, then resume execution. ' +
+                            'On resume, the execution will continue with only the successfully executed tools.';
+
+                        ExecutionStepService stepService = new ExecutionStepService();
+                        stepService.createErrorStep(
+                            context.executionId,
+                            errorMessage,
+                            AIAgentConstants.ERR_CODE_DEPENDENCY_VALIDATION,
+                            context.turnIdentifier,
+                            context.currentTurnCount
+                        );
+                    } catch (Exception e) {
+                        System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create circuit breaker error step: ' + e.getMessage());
+                    }
+
+                    // Fail execution immediately - DO NOT queue follow-up
+                    // This prevents the invalid tool_call_id error with OpenAI
+                    String failureMessage =
+                        'Circuit breaker: Maximum dependency violations (' +
+                        totalViolations +
+                        '/' +
+                        maxViolations +
+                        ') exceeded. Review dependency graph and resume to retry.';
+
+                    AgentStateService stateService = new AgentStateService();
+                    stateService.failTurn(
+                        context.executionId,
+                        context.turnIdentifier,
+                        failureMessage,
+                        AIAgentConstants.ERR_CODE_DEPENDENCY_VALIDATION,
+                        logPrefix
+                    );
+
+                    // Return empty - execution stops here, no follow-up LLM call
+                    return new List<ToolExecutionResult>();
+                }
+
+                // If ALL tools blocked, return immediately - no DML has occurred
+                if (syncTools.isEmpty()) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'All tools blocked. Returning errors without executing any tools.');
+                    return syncResults;
+                }
+            }
+
+            // Log reordering if it occurred
+            if (preflightResult.wasReordered && !preflightResult.hasBlockedTools) {
+                List<String> toolNames = new List<String>();
+                for (ToolCallRequest t : syncTools) {
+                    toolNames.add(t.toolName);
+                }
+                System.debug(LoggingLevel.INFO, logPrefix + 'Tools reordered based on dependencies: ' + String.join(toolNames, ' -> '));
+            }
+        }
+
+        // Track which dependencies have successfully executed (for success state tracking)
+        Set<String> satisfiedDependencies = new Set<String>(executedTools);
+
+        // Execute tools with SUCCESS STATE TRACKING
         for (ToolCallRequest toolRequest : syncTools) {
+            // Re-validate dependencies before execution if enabled
+            // This catches cases where a dependency in the batch failed
+            if (isDependencyValidationEnabled && String.isNotBlank(dependencyGraph)) {
+                ToolDependencyValidator.ValidationResult validationResult = ToolDependencyValidator.validate(
+                    toolRequest.toolName,
+                    satisfiedDependencies,
+                    dependencyGraph
+                );
+
+                if (!validationResult.allowed) {
+                    // Dependency failed at runtime - block this tool
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Tool "' + toolRequest.toolName + '" blocked at execution time - dependency not satisfied');
+
+                    ActionOutcome blockedOutcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_DEPENDENCY_VALIDATION, validationResult.guidanceForLLM);
+
+                    ToolExecutionResult blockedResult = new ToolExecutionResult(
+                        toolRequest.toolCallId,
+                        toolRequest.toolName,
+                        blockedOutcome,
+                        0L,
+                        false,
+                        toolRequest.executionOrder,
+                        toolRequest.capability.Id,
+                        true // isDependencyValidationFailure
+                    );
+
+                    syncResults.add(blockedResult);
+
+                    if (decisionLogger != null) {
+                        decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ toolRequest, blockedOutcome, 0L });
+                    }
+
+                    continue; // Skip execution
+                }
+            }
+
             try {
                 Long startTime = System.currentTimeMillis();
 
                 // Multi-LLM optimization: Capture Limits before tool execution
-                // This allows us to detect if the tool performed DML or callouts
                 TransactionContext.getInstance().capturePreToolLimits();
 
                 // Build action execution context
@@ -772,6 +1014,12 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 ActionOutcome outcome = context.actionExecSvc.executeSingleAction(toolRequest.capability, toolRequest.toolArguments, actionContext);
 
                 Long processingTime = System.currentTimeMillis() - startTime;
+
+                // Only add to satisfied dependencies if SUCCESSFUL
+                if (outcome.isSuccess) {
+                    satisfiedDependencies.add(toolRequest.toolName);
+                    trackExecutedTool(context.executionId, toolRequest.toolName);
+                }
 
                 ToolExecutionResult result = new ToolExecutionResult(
                     toolRequest.toolCallId,
@@ -819,6 +1067,219 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     }
 
     /**
+     * Validates ALL tools in the batch BEFORE executing any.
+     * Attempts to intelligently reorder tools based on dependency graph.
+     * Only blocks tools whose dependencies are completely missing from the batch.
+     */
+    private PreflightValidationResult performPreflightValidation(
+        List<ToolCallRequest> tools,
+        Set<String> executedTools,
+        String dependencyGraph,
+        IDecisionStepLogger.ILogger decisionLogger,
+        String logPrefix
+    ) {
+        PreflightValidationResult result = new PreflightValidationResult();
+
+        // Parse dependency graph
+        ToolDependencyValidator.DependencyGraph graph = ToolDependencyValidator.parseGraph(dependencyGraph);
+
+        // Build set of tool names in current batch
+        Set<String> toolsInBatch = new Set<String>();
+        Map<String, ToolCallRequest> toolNameToRequest = new Map<String, ToolCallRequest>();
+        for (ToolCallRequest tool : tools) {
+            toolsInBatch.add(tool.toolName);
+            toolNameToRequest.put(tool.toolName, tool);
+        }
+
+        // Attempt topological sort to reorder tools
+        List<String> sortedToolNames = ToolDependencyValidator.topologicalSort(toolsInBatch, graph, executedTools);
+
+        // Check if reordering was successful (all tools can execute)
+        if (sortedToolNames.size() == toolsInBatch.size()) {
+            // Successfully sorted - check if order changed
+            result.wasReordered = !isOriginalOrder(tools, sortedToolNames);
+
+            Integer newOrder = 0;
+            for (String toolName : sortedToolNames) {
+                ToolCallRequest tool = toolNameToRequest.get(toolName);
+                if (tool != null) {
+                    tool.executionOrder = newOrder++;
+                    result.reorderedTools.add(tool);
+                }
+            }
+
+            if (result.wasReordered) {
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix +
+                        'Pre-flight: Reordered ' +
+                        result.reorderedTools.size() +
+                        ' tool(s) based on dependencies. Order: ' +
+                        String.join(sortedToolNames, ' -> ')
+                );
+            }
+        } else {
+            // Some tools have missing dependencies - separate allowed from blocked
+            Set<String> allowedToolNames = new Set<String>(sortedToolNames);
+
+            for (ToolCallRequest toolRequest : tools) {
+                if (allowedToolNames.contains(toolRequest.toolName)) {
+                    result.reorderedTools.add(toolRequest);
+                } else {
+                    // Tool is blocked
+                    result.hasBlockedTools = true;
+
+                    ToolDependencyValidator.ValidationResult validationResult = ToolDependencyValidator.validate(
+                        toolRequest.toolName,
+                        executedTools,
+                        dependencyGraph
+                    );
+
+                    System.debug(
+                        LoggingLevel.WARN,
+                        logPrefix +
+                            'Pre-flight: Tool "' +
+                            toolRequest.toolName +
+                            '" blocked. Missing dependencies: ' +
+                            String.join(validationResult.missingDependencies, ', ')
+                    );
+
+                    ActionOutcome blockedOutcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_DEPENDENCY_VALIDATION, validationResult.guidanceForLLM);
+
+                    ToolExecutionResult blockedResult = new ToolExecutionResult(
+                        toolRequest.toolCallId,
+                        toolRequest.toolName,
+                        blockedOutcome,
+                        0L,
+                        false,
+                        toolRequest.executionOrder,
+                        toolRequest.capability.Id,
+                        true // isDependencyValidationFailure
+                    );
+
+                    result.blockedResults.add(blockedResult);
+
+                    if (decisionLogger != null) {
+                        decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ toolRequest, blockedOutcome, 0L });
+                    }
+                }
+            }
+
+            // Reorder the allowed tools
+            if (!result.reorderedTools.isEmpty()) {
+                result.reorderedTools = reorderToolsByDependencies(result.reorderedTools, sortedToolNames);
+                result.wasReordered = true;
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Reorders tools based on sorted names and updates executionOrder.
+     */
+    private List<ToolCallRequest> reorderToolsByDependencies(List<ToolCallRequest> tools, List<String> sortedNames) {
+        Map<String, ToolCallRequest> nameToTool = new Map<String, ToolCallRequest>();
+        for (ToolCallRequest tool : tools) {
+            nameToTool.put(tool.toolName, tool);
+        }
+
+        List<ToolCallRequest> reordered = new List<ToolCallRequest>();
+        Integer newOrder = 0;
+        for (String name : sortedNames) {
+            ToolCallRequest tool = nameToTool.get(name);
+            if (tool != null) {
+                tool.executionOrder = newOrder++;
+                reordered.add(tool);
+            }
+        }
+
+        return reordered;
+    }
+
+    /**
+     * Checks if the sorted order matches the original order.
+     */
+    private Boolean isOriginalOrder(List<ToolCallRequest> original, List<String> sorted) {
+        if (original.size() != sorted.size()) {
+            return false;
+        }
+
+        for (Integer i = 0; i < original.size(); i++) {
+            if (original[i].toolName != sorted[i]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Gets the set of tools already executed in this execution session.
+     * Retrieves from ExecutionStep__c records for cross-turn persistence.
+     */
+    private Set<String> getExecutedToolsForExecution(Id executionId) {
+        Set<String> executed = new Set<String>();
+
+        if (executionId == null) {
+            return executed;
+        }
+
+        // Query successful tool result steps for this execution
+        // CRITICAL: Include tools regardless of IsError__c, but exclude dependency validation failures
+        // Dependency failures are NOT real executions - they're blocked attempts
+        List<ExecutionStep__c> toolSteps = [
+            SELECT ToolName__c
+            FROM ExecutionStep__c
+            WHERE
+                AgentExecution__c = :executionId
+                AND StepType__c = 'ToolResult'
+                AND IsError__c = FALSE
+                AND IsDependencyValidationFailure__c = FALSE
+                AND ToolName__c != NULL
+        ];
+
+        for (ExecutionStep__c step : toolSteps) {
+            executed.add(step.ToolName__c);
+        }
+
+        // Also include any tools tracked in this transaction
+        Set<String> transactionTools = TransactionContext.getInstance().getExecutedTools(executionId);
+        if (transactionTools != null) {
+            executed.addAll(transactionTools);
+        }
+
+        return executed;
+    }
+
+    /**
+     * Tracks a tool as executed in this transaction.
+     * Used for same-transaction dependency validation before steps are persisted.
+     */
+    private void trackExecutedTool(Id executionId, String toolName) {
+        TransactionContext.getInstance().trackExecutedTool(executionId, toolName);
+    }
+
+    /**
+     * Counts the number of dependency validation failures for an execution.
+     * Used by the circuit breaker to prevent infinite loops when LLM repeatedly violates dependencies.
+     */
+    private Integer countDependencyViolations(Id executionId) {
+        if (executionId == null) {
+            return 0;
+        }
+
+        // Count from persisted ExecutionStep__c records
+        Integer count = [
+            SELECT COUNT()
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :executionId AND StepType__c = 'ToolResult' AND IsDependencyValidationFailure__c = TRUE
+        ];
+
+        return count;
+    }
+
+    /**
      * Creates execution step records for synchronous tool results
      */
     private void createToolResultExecutionSteps(
@@ -833,6 +1294,10 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             try {
                 String resultJsonForStorage = OrchestrationService.serializeActionOutcome(result.outcome, logPrefix);
 
+                // For dependency validation failures, IsError__c should be false
+                // These are not real execution errors - they're blocked attempts
+                Boolean isError = !result.outcome.isSuccess && !result.isDependencyValidationFailure;
+
                 executionStepService.createToolResultStep(
                     context.executionId,
                     result.toolCallId,
@@ -843,7 +1308,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     result.processingTime,
                     false,
                     result.capabilityId,
-                    !result.outcome.isSuccess // isError = !isSuccess
+                    isError, // isError = real failure only, not dependency blocks
+                    false, // isResumed
+                    result.isDependencyValidationFailure // Pass the dependency validation failure flag
                 );
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create execution step for sync tool result ' + result.toolName + ': ' + e.getMessage());
@@ -1046,6 +1513,12 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         // Now check fail-fast policy without additional SOQL queries
         Boolean shouldHalt = false;
         for (ToolExecutionResult result : syncResults) {
+            // CRITICAL: Skip dependency validation failures - they're not real execution errors
+            // Dependency failures are guardrails that guide the LLM, not errors that should halt execution
+            if (result.isDependencyValidationFailure) {
+                continue;
+            }
+
             if (!result.outcome.isSuccess) {
                 AgentCapability__c capability = failedCapabilities.get(result.toolName);
                 if (capability != null && OrchestrationService.shouldFailFast(capability, agentDef, result.outcome, context.executionId, logPrefix)) {
@@ -1089,12 +1562,12 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             return OrchestrationService.OUTCOME_FAILED;
         }
 
-        // Commit page context to ledger
-        // Skip when in deferred DML mode (function/workflow agents) since:
+        // Commit page context to ledger (Conversational agents only)
+        // Skip for Function/Workflow agents since:
         // 1. Context was already resolved upfront from the recordId
-        // 2. The DML would prevent multi-LLM optimization
-        // 3. Function agents don't need multi-turn context tracking
-        if (context.currentPageRecordId != null && !TransactionContext.getInstance().isDeferredDMLMode()) {
+        // 2. Function agents don't need multi-turn context tracking
+        // 3. Reduces unnecessary DML for stateless execution patterns
+        if (context.currentPageRecordId != null && context.agentStateSvc.isContextTrackingEnabled(context.executionId)) {
             try {
                 context.contextManagerSvc.commitExecutionTurnContext(context.executionId, context.currentTurnCount, context.currentPageRecordId, null);
             } catch (Exception e) {

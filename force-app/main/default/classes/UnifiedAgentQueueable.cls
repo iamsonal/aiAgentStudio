@@ -16,6 +16,7 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
     public static final String JOB_TYPE_FUNCTION = 'Function';
     public static final String JOB_TYPE_WORKFLOW_CHILD = 'WorkflowChild';
     public static final String JOB_TYPE_CONVERSATIONAL = 'Conversational';
+    public static final String JOB_TYPE_EMAIL = 'Email';
     public UnifiedAgentQueueable(String jobType, Map<String, Object> payload) {
         if (String.isBlank(jobType)) {
             throw new UnifiedQueueableException('Job type is required for UnifiedAgentQueueable');
@@ -25,7 +26,7 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
             throw new UnifiedQueueableException('Payload is required for UnifiedAgentQueueable');
         }
 
-        Set<String> validJobTypes = new Set<String>{ JOB_TYPE_FUNCTION, JOB_TYPE_WORKFLOW_CHILD, JOB_TYPE_CONVERSATIONAL };
+        Set<String> validJobTypes = new Set<String>{ JOB_TYPE_FUNCTION, JOB_TYPE_WORKFLOW_CHILD, JOB_TYPE_CONVERSATIONAL, JOB_TYPE_EMAIL };
         if (!validJobTypes.contains(jobType)) {
             throw new UnifiedQueueableException('Invalid job type: ' + jobType + '. Must be one of: ' + String.join(new List<String>(validJobTypes), ', '));
         }
@@ -61,7 +62,7 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
 
             if (jobType == JOB_TYPE_WORKFLOW_CHILD) {
                 executionIdToUpdate = (Id) payload.get('childExecutionId');
-            } else if (jobType == JOB_TYPE_CONVERSATIONAL) {
+            } else if (jobType == JOB_TYPE_CONVERSATIONAL || jobType == JOB_TYPE_EMAIL) {
                 executionIdToUpdate = (Id) payload.get('executionId');
             }
 
@@ -105,7 +106,7 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
     private Id getAgentDefinitionId(String logPrefix) {
         Id agentDefinitionId = null;
 
-        if (jobType == JOB_TYPE_CONVERSATIONAL) {
+        if (jobType == JOB_TYPE_CONVERSATIONAL || jobType == JOB_TYPE_EMAIL) {
             agentDefinitionId = (Id) payload.get('agentDefinitionId');
         } else if (jobType == JOB_TYPE_WORKFLOW_CHILD) {
             Id parentExecutionId = (Id) payload.get('parentExecutionId');

@@ -2,9 +2,9 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>BulkConcurrencyLimit__c</fullName>
     <defaultValue>5</defaultValue>
-    <description>Maximum number of parallel workers for bulk execution operations. This soft limit prevents database row-locking contention and API rate limiting while allowing administrators to control concurrency safely. The system uses a hybrid cap calculation: min(BulkConcurrencyLimit, available queueable slots, actual records to process).</description>
+    <description>Maximum parallel workers for bulk execution operations. Balances throughput vs database contention. System uses min(limit, available slots, records). Higher = faster but more row-locking risk.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Controls bulk execution concurrency. Higher values increase throughput but may cause row-locking issues. Lower values are safer but may reduce performance. Recommended: 5-15 for most orgs.</inlineHelpText>
+    <inlineHelpText>Controls bulk execution parallelism. Higher = faster but may cause row locks. Lower = safer but slower. Recommended: 5-15. Default: 5.</inlineHelpText>
     <label>Bulk Concurrency Limit</label>
     <precision>3</precision>
     <required>false</required>

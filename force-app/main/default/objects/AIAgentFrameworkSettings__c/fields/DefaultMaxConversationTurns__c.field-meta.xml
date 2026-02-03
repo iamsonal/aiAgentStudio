@@ -2,9 +2,9 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>DefaultMaxConversationTurns__c</fullName>
     <defaultValue>5</defaultValue>
-    <description>The default limit on how many back-and-forth cycles (agent thinks -&gt; agent acts) are allowed for processing a single user message.</description>
+    <description>Maximum number of LLM reasoning cycles (think → act) per agent execution. Prevents infinite loops and controls AI costs. Can be overridden per agent in AIAgentDefinition__c.MaxProcessingCycles__c field.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Prevents excessive processing for one user input. If an agent needs more steps (e.g., call model, use tool, call model again), each counts as a cycle.</inlineHelpText>
+    <inlineHelpText>Limits agent processing cycles. Each cycle = 1 LLM call + tool execution. Stops runaway executions and controls costs. Default: 5.</inlineHelpText>
     <label>Default Maximum Processing Cycles</label>
     <precision>3</precision>
     <required>false</required>

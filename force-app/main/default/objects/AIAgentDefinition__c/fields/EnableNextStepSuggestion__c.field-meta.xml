@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EnableNextStepSuggestion__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Experimental: When enabled, the LLM suggests the next logical step after each tool execution. Suggestions are stored in ExecutionStep__c for analytics and future workflow optimization. This feature does not auto-execute actions.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Experimental: Ask AI to suggest the next logical step after each tool execution. Data is stored for analytics only.</inlineHelpText>
+    <label>Next Step Suggestions (Experimental)</label>
+    <type>Checkbox</type>
+</CustomField>

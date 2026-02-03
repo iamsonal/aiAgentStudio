@@ -12,7 +12,60 @@
 public inherited sharing class AgentStateService {
     private static final String LOG_PREFIX = '[AgentStateService] ';
 
+    // Cache for execution type to avoid repeated queries
+    private Map<Id, String> executionTypeCache = new Map<Id, String>();
+
     public class AgentStateException extends AIAgentException {
+    }
+
+    /**
+     * @description Returns the execution type for a given execution ID.
+     * Caches the result to avoid repeated SOQL queries within the same transaction.
+     *
+     * @param executionId The AgentExecution__c ID
+     * @return String execution type ('Conversational', 'Function', or 'Workflow')
+     */
+    public String getExecutionType(Id executionId) {
+        if (executionId == null) {
+            return null;
+        }
+
+        // Return from cache if available
+        if (executionTypeCache.containsKey(executionId)) {
+            return executionTypeCache.get(executionId);
+        }
+
+        // Query and cache
+        try {
+            List<AgentExecution__c> executions = [
+                SELECT ExecutionType__c
+                FROM AgentExecution__c
+                WHERE Id = :executionId
+                LIMIT 1
+            ];
+
+            if (!executions.isEmpty()) {
+                String execType = executions[0].ExecutionType__c;
+                executionTypeCache.put(executionId, execType);
+                return execType;
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Failed to get execution type: ' + e.getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * @description Checks if context tracking should be enabled for the given execution.
+     * Context tracking is only enabled for Conversational agents which need multi-turn memory.
+     *
+     * @param executionId The AgentExecution__c ID
+     * @return Boolean true if context tracking should be enabled
+     */
+    public Boolean isContextTrackingEnabled(Id executionId) {
+        String execType = getExecutionType(executionId);
+        return execType == 'Conversational';
     }
     public Id createExecution(
         String executionType,
@@ -83,6 +136,11 @@ public inherited sharing class AgentStateService {
             }
 
             AgentExecution__c execution = executions[0];
+
+            // Cache the execution type to avoid future queries
+            if (String.isNotBlank(execution.ExecutionType__c)) {
+                executionTypeCache.put(executionId, execution.ExecutionType__c);
+            }
 
             // Check for stale execution if turn identifier provided
             if (String.isNotBlank(expectedTurnIdentifier) && !expectedTurnIdentifier.equals(execution.CurrentTurnIdentifier__c)) {
@@ -294,6 +352,30 @@ public inherited sharing class AgentStateService {
             return;
         }
 
+        // If stepId is null (due to deferred DML mode), query for it using turnIdentifier
+        // This ensures the platform event contains the correct step ID for UI retrieval
+        if (isSuccess && finalAssistantMessageId == null && String.isNotBlank(turnIdentifier)) {
+            try {
+                List<ExecutionStep__c> steps = [
+                    SELECT Id
+                    FROM ExecutionStep__c
+                    WHERE
+                        AgentExecution__c = :executionId
+                        AND TurnIdentifier__c = :turnIdentifier
+                        AND StepType__c = 'AgentResponse'
+                        AND StepRole__c = 'Assistant'
+                    ORDER BY CreatedDate DESC
+                    LIMIT 1
+                ];
+                if (!steps.isEmpty()) {
+                    finalAssistantMessageId = steps[0].Id;
+                    System.debug(LoggingLevel.DEBUG, logPrefix + 'Resolved stepId from deferred DML: ' + finalAssistantMessageId);
+                }
+            } catch (Exception qe) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Warning: Unable to resolve step ID for deferred DML: ' + qe.getMessage());
+            }
+        }
+
         System.debug(LoggingLevel.INFO, logPrefix + 'Publishing AgentResponse__e event: success=' + isSuccess + ', stepId=' + finalAssistantMessageId);
 
         String finalMessageContent = null;
@@ -341,30 +423,17 @@ public inherited sharing class AgentStateService {
      */
     @TestVisible
     private Boolean shouldPublishEventsForExecution(Id executionId, String logPrefix) {
-        try {
-            List<AgentExecution__c> executions = [
-                SELECT ExecutionType__c
-                FROM AgentExecution__c
-                WHERE Id = :executionId
-                LIMIT 1
-            ];
+        String executionType = getExecutionType(executionId);
 
-            if (executions.isEmpty()) {
-                System.debug(LoggingLevel.WARN, logPrefix + 'Execution record not found for event publishing check, defaulting to no event');
-                return false;
-            }
-
-            String executionType = executions[0].ExecutionType__c;
-            Boolean shouldPublish = (executionType == 'Conversational');
-
-            System.debug(LoggingLevel.INFO, logPrefix + 'Event publishing decision: ExecutionType=' + executionType + ', ShouldPublish=' + shouldPublish);
-
-            return shouldPublish;
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Error checking execution type for event publishing: ' + e.getMessage());
-            // Fail-safe: don't publish if we can't determine type
+        if (executionType == null) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Execution type not found, defaulting to no event');
             return false;
         }
+
+        Boolean shouldPublish = (executionType == 'Conversational');
+        System.debug(LoggingLevel.INFO, logPrefix + 'Event publishing decision: ExecutionType=' + executionType + ', ShouldPublish=' + shouldPublish);
+
+        return shouldPublish;
     }
 
     // UTILITY METHODS
