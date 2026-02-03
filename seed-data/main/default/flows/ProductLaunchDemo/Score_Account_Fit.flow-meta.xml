@@ -1,0 +1,689 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>60.0</apiVersion>
+    
+    <!-- ASSIGNMENTS (grouped together) -->
+    <assignments>
+        <name>Industry_High_Score</name>
+        <label>Industry High Score</label>
+        <locationX>50</locationX>
+        <locationY>350</locationY>
+        <assignmentItems>
+            <assignToReference>industryScore</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <numberValue>40.0</numberValue>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Score_Company_Size</targetReference>
+        </connector>
+    </assignments>
+    
+    <assignments>
+        <name>Industry_Medium_Score</name>
+        <label>Industry Medium Score</label>
+        <locationX>176</locationX>
+        <locationY>350</locationY>
+        <assignmentItems>
+            <assignToReference>industryScore</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <numberValue>25.0</numberValue>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Score_Company_Size</targetReference>
+        </connector>
+    </assignments>
+    
+    <assignments>
+        <name>Industry_Low_Score</name>
+        <label>Industry Low Score</label>
+        <locationX>302</locationX>
+        <locationY>350</locationY>
+        <assignmentItems>
+            <assignToReference>industryScore</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <numberValue>10.0</numberValue>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Score_Company_Size</targetReference>
+        </connector>
+    </assignments>
+    
+    <assignments>
+        <name>Size_High_Score</name>
+        <label>Size High Score</label>
+        <locationX>50</locationX>
+        <locationY>566</locationY>
+        <assignmentItems>
+            <assignToReference>sizeScore</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <numberValue>30.0</numberValue>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Score_Revenue</targetReference>
+        </connector>
+    </assignments>
+    
+    <assignments>
+        <name>Size_Medium_Score</name>
+        <label>Size Medium Score</label>
+        <locationX>176</locationX>
+        <locationY>566</locationY>
+        <assignmentItems>
+            <assignToReference>sizeScore</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <numberValue>15.0</numberValue>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Score_Revenue</targetReference>
+        </connector>
+    </assignments>
+    
+    <assignments>
+        <name>Size_Low_Score</name>
+        <label>Size Low Score</label>
+        <locationX>302</locationX>
+        <locationY>566</locationY>
+        <assignmentItems>
+            <assignToReference>sizeScore</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <numberValue>5.0</numberValue>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Score_Revenue</targetReference>
+        </connector>
+    </assignments>
+    
+    <assignments>
+        <name>Revenue_High_Score</name>
+        <label>Revenue High Score</label>
+        <locationX>50</locationX>
+        <locationY>782</locationY>
+        <assignmentItems>
+            <assignToReference>revenueScore</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <numberValue>30.0</numberValue>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Calculate_Total_Score</targetReference>
+        </connector>
+    </assignments>
+    
+    <assignments>
+        <name>Revenue_Medium_Score</name>
+        <label>Revenue Medium Score</label>
+        <locationX>176</locationX>
+        <locationY>782</locationY>
+        <assignmentItems>
+            <assignToReference>revenueScore</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <numberValue>15.0</numberValue>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Calculate_Total_Score</targetReference>
+        </connector>
+    </assignments>
+    
+    <assignments>
+        <name>Revenue_Low_Score</name>
+        <label>Revenue Low Score</label>
+        <locationX>302</locationX>
+        <locationY>782</locationY>
+        <assignmentItems>
+            <assignToReference>revenueScore</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <numberValue>5.0</numberValue>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Calculate_Total_Score</targetReference>
+        </connector>
+    </assignments>
+    
+    <assignments>
+        <name>Calculate_Total_Score</name>
+        <label>Calculate Total Score</label>
+        <locationX>176</locationX>
+        <locationY>890</locationY>
+        <assignmentItems>
+            <assignToReference>score</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxTotalScore</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Determine_Fit_Level</targetReference>
+        </connector>
+    </assignments>
+    
+    <assignments>
+        <name>Set_Excellent_Fit</name>
+        <label>Set Excellent Fit</label>
+        <locationX>50</locationX>
+        <locationY>1106</locationY>
+        <assignmentItems>
+            <assignToReference>fitLevel</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Excellent</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>reasoning</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxExcellentReasoning</elementReference>
+            </value>
+        </assignmentItems>
+    </assignments>
+    
+    <assignments>
+        <name>Set_Good_Fit</name>
+        <label>Set Good Fit</label>
+        <locationX>176</locationX>
+        <locationY>1106</locationY>
+        <assignmentItems>
+            <assignToReference>fitLevel</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Good</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>reasoning</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxGoodReasoning</elementReference>
+            </value>
+        </assignmentItems>
+    </assignments>
+    
+    <assignments>
+        <name>Set_Fair_Fit</name>
+        <label>Set Fair Fit</label>
+        <locationX>302</locationX>
+        <locationY>1106</locationY>
+        <assignmentItems>
+            <assignToReference>fitLevel</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Fair</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>reasoning</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxFairReasoning</elementReference>
+            </value>
+        </assignmentItems>
+    </assignments>
+    
+    <assignments>
+        <name>Set_Poor_Fit</name>
+        <label>Set Poor Fit</label>
+        <locationX>428</locationX>
+        <locationY>1106</locationY>
+        <assignmentItems>
+            <assignToReference>fitLevel</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Poor</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>reasoning</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxPoorReasoning</elementReference>
+            </value>
+        </assignmentItems>
+    </assignments>
+    
+    <!-- DECISIONS (grouped together) -->
+    <decisions>
+        <name>Score_Industry</name>
+        <label>Score Industry</label>
+        <locationX>176</locationX>
+        <locationY>242</locationY>
+        <defaultConnector>
+            <targetReference>Industry_Low_Score</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>Other Industries</defaultConnectorLabel>
+        <rules>
+            <name>Technology_High_Fit</name>
+            <conditionLogic>or</conditionLogic>
+            <conditions>
+                <leftValueReference>industry</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>Technology</stringValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>industry</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>Software</stringValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Industry_High_Score</targetReference>
+            </connector>
+            <label>Technology (High Fit)</label>
+        </rules>
+        <rules>
+            <name>Finance_Healthcare_Medium_Fit</name>
+            <conditionLogic>or</conditionLogic>
+            <conditions>
+                <leftValueReference>industry</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>Finance</stringValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>industry</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>Financial Services</stringValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>industry</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>Healthcare</stringValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>industry</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>Banking</stringValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Industry_Medium_Score</targetReference>
+            </connector>
+            <label>Finance/Healthcare (Medium Fit)</label>
+        </rules>
+    </decisions>
+    
+    <decisions>
+        <name>Score_Company_Size</name>
+        <label>Score Company Size</label>
+        <locationX>176</locationX>
+        <locationY>458</locationY>
+        <defaultConnector>
+            <targetReference>Size_Low_Score</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>Other Sizes</defaultConnectorLabel>
+        <rules>
+            <name>Optimal_Size_50_500</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>employeeCount</leftValueReference>
+                <operator>GreaterThanOrEqualTo</operator>
+                <rightValue>
+                    <numberValue>50.0</numberValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>employeeCount</leftValueReference>
+                <operator>LessThanOrEqualTo</operator>
+                <rightValue>
+                    <numberValue>500.0</numberValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Size_High_Score</targetReference>
+            </connector>
+            <label>Optimal Size (50-500)</label>
+        </rules>
+        <rules>
+            <name>Medium_Size</name>
+            <conditionLogic>or</conditionLogic>
+            <conditions>
+                <leftValueReference>employeeCount</leftValueReference>
+                <operator>GreaterThan</operator>
+                <rightValue>
+                    <numberValue>500.0</numberValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>employeeCount</leftValueReference>
+                <operator>LessThan</operator>
+                <rightValue>
+                    <numberValue>50.0</numberValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Size_Medium_Score</targetReference>
+            </connector>
+            <label>Medium Size</label>
+        </rules>
+    </decisions>
+    
+    <decisions>
+        <name>Score_Revenue</name>
+        <label>Score Revenue</label>
+        <locationX>176</locationX>
+        <locationY>674</locationY>
+        <defaultConnector>
+            <targetReference>Revenue_Low_Score</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>Low Revenue</defaultConnectorLabel>
+        <rules>
+            <name>High_Revenue</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>annualRevenue</leftValueReference>
+                <operator>GreaterThanOrEqualTo</operator>
+                <rightValue>
+                    <numberValue>10000000.0</numberValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>annualRevenue</leftValueReference>
+                <operator>LessThan</operator>
+                <rightValue>
+                    <numberValue>100000000.0</numberValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Revenue_High_Score</targetReference>
+            </connector>
+            <label>High Revenue ($10M-$100M)</label>
+        </rules>
+        <rules>
+            <name>Medium_Revenue</name>
+            <conditionLogic>or</conditionLogic>
+            <conditions>
+                <leftValueReference>annualRevenue</leftValueReference>
+                <operator>GreaterThanOrEqualTo</operator>
+                <rightValue>
+                    <numberValue>100000000.0</numberValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>annualRevenue</leftValueReference>
+                <operator>LessThan</operator>
+                <rightValue>
+                    <numberValue>10000000.0</numberValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Revenue_Medium_Score</targetReference>
+            </connector>
+            <label>Medium Revenue</label>
+        </rules>
+    </decisions>
+    
+    <decisions>
+        <name>Determine_Fit_Level</name>
+        <label>Determine Fit Level</label>
+        <locationX>176</locationX>
+        <locationY>998</locationY>
+        <defaultConnector>
+            <targetReference>Set_Poor_Fit</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>Poor Fit</defaultConnectorLabel>
+        <rules>
+            <name>Excellent_Fit</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>score</leftValueReference>
+                <operator>GreaterThanOrEqualTo</operator>
+                <rightValue>
+                    <numberValue>80.0</numberValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Set_Excellent_Fit</targetReference>
+            </connector>
+            <label>Excellent Fit (&gt;= 80)</label>
+        </rules>
+        <rules>
+            <name>Good_Fit</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>score</leftValueReference>
+                <operator>GreaterThanOrEqualTo</operator>
+                <rightValue>
+                    <numberValue>60.0</numberValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>score</leftValueReference>
+                <operator>LessThan</operator>
+                <rightValue>
+                    <numberValue>80.0</numberValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Set_Good_Fit</targetReference>
+            </connector>
+            <label>Good Fit (60-79)</label>
+        </rules>
+        <rules>
+            <name>Fair_Fit</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>score</leftValueReference>
+                <operator>GreaterThanOrEqualTo</operator>
+                <rightValue>
+                    <numberValue>40.0</numberValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>score</leftValueReference>
+                <operator>LessThan</operator>
+                <rightValue>
+                    <numberValue>60.0</numberValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Set_Fair_Fit</targetReference>
+            </connector>
+            <label>Fair Fit (40-59)</label>
+        </rules>
+    </decisions>
+    
+    <description>Scores an Account's fit for the AI Analytics Platform product based on industry match, company size (50-500 employees ideal), and revenue potential. Returns score 0-100 where 70+ is high priority, 50-69 is medium priority, and below 50 should be excluded from campaign.</description>
+    
+    <!-- FORMULAS (grouped together) -->
+    <formulas>
+        <name>fxTotalScore</name>
+        <dataType>Number</dataType>
+        <expression>{!industryScore} + {!sizeScore} + {!revenueScore}</expression>
+        <scale>0</scale>
+    </formulas>
+    
+    <formulas>
+        <name>fxExcellentReasoning</name>
+        <dataType>String</dataType>
+        <expression>"Excellent fit (Score: " &amp; TEXT({!score}) &amp; "/100). " &amp;
+"Industry: " &amp; {!industry} &amp; " (+" &amp; TEXT({!industryScore}) &amp; " points). " &amp;
+"Company size: " &amp; TEXT({!employeeCount}) &amp; " employees (+" &amp; TEXT({!sizeScore}) &amp; " points). " &amp;
+"Annual revenue: $" &amp; TEXT({!annualRevenue}) &amp; " (+" &amp; TEXT({!revenueScore}) &amp; " points). " &amp;
+"Strong match across all criteria - high priority for campaign."</expression>
+    </formulas>
+    
+    <formulas>
+        <name>fxGoodReasoning</name>
+        <dataType>String</dataType>
+        <expression>"Good fit (Score: " &amp; TEXT({!score}) &amp; "/100). " &amp;
+"Industry: " &amp; {!industry} &amp; " (+" &amp; TEXT({!industryScore}) &amp; " points). " &amp;
+"Company size: " &amp; TEXT({!employeeCount}) &amp; " employees (+" &amp; TEXT({!sizeScore}) &amp; " points). " &amp;
+"Annual revenue: $" &amp; TEXT({!annualRevenue}) &amp; " (+" &amp; TEXT({!revenueScore}) &amp; " points). " &amp;
+"Solid fit with some areas of alignment - suitable for campaign."</expression>
+    </formulas>
+    
+    <formulas>
+        <name>fxFairReasoning</name>
+        <dataType>String</dataType>
+        <expression>"Fair fit (Score: " &amp; TEXT({!score}) &amp; "/100). " &amp;
+"Industry: " &amp; {!industry} &amp; " (+" &amp; TEXT({!industryScore}) &amp; " points). " &amp;
+"Company size: " &amp; TEXT({!employeeCount}) &amp; " employees (+" &amp; TEXT({!sizeScore}) &amp; " points). " &amp;
+"Annual revenue: $" &amp; TEXT({!annualRevenue}) &amp; " (+" &amp; TEXT({!revenueScore}) &amp; " points). " &amp;
+"Moderate fit - consider for campaign depending on capacity."</expression>
+    </formulas>
+    
+    <formulas>
+        <name>fxPoorReasoning</name>
+        <dataType>String</dataType>
+        <expression>"Poor fit (Score: " &amp; TEXT({!score}) &amp; "/100). " &amp;
+"Industry: " &amp; {!industry} &amp; " (+" &amp; TEXT({!industryScore}) &amp; " points). " &amp;
+"Company size: " &amp; TEXT({!employeeCount}) &amp; " employees (+" &amp; TEXT({!sizeScore}) &amp; " points). " &amp;
+"Annual revenue: $" &amp; TEXT({!annualRevenue}) &amp; " (+" &amp; TEXT({!revenueScore}) &amp; " points). " &amp;
+"Weak alignment - not recommended for this campaign."</expression>
+    </formulas>
+    
+    <label>Score Account Fit</label>
+    
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>AutoLaunchedFlow</processType>
+    
+    <start>
+        <locationX>50</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Score_Industry</targetReference>
+        </connector>
+    </start>
+    <status>Active</status>
+    
+    <!-- INPUT VARIABLES -->
+    <variables>
+        <name>accountId</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>true</isInput>
+        <isOutput>false</isOutput>
+        <description>18-character Account ID to score for product fit</description>
+    </variables>
+    
+    <variables>
+        <name>industry</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>true</isInput>
+        <isOutput>false</isOutput>
+        <description>Account industry from context. Technology/Software scores highest (40 pts), Finance/Healthcare medium (25 pts), others low (10 pts)</description>
+    </variables>
+    
+    <variables>
+        <name>employeeCount</name>
+        <dataType>Number</dataType>
+        <isCollection>false</isCollection>
+        <isInput>true</isInput>
+        <isOutput>false</isOutput>
+        <scale>0</scale>
+        <description>Number of employees from context. 50-500 is optimal (30 pts), outside range scores lower (5-15 pts)</description>
+    </variables>
+    
+    <variables>
+        <name>annualRevenue</name>
+        <dataType>Number</dataType>
+        <isCollection>false</isCollection>
+        <isInput>true</isInput>
+        <isOutput>false</isOutput>
+        <scale>2</scale>
+        <description>Annual revenue from context in dollars. $10M-$100M is optimal (30 pts), outside range scores lower (5-15 pts)</description>
+    </variables>
+    
+    <!-- OUTPUT VARIABLES -->
+    <variables>
+        <name>score</name>
+        <dataType>Number</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>true</isOutput>
+        <scale>0</scale>
+        <description>Fit score (0-100). 70+ is high priority, 50-69 is medium priority, below 50 should be excluded</description>
+    </variables>
+    
+    <variables>
+        <name>fitLevel</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>true</isOutput>
+        <description>Fit level classification: Excellent (80+), Good (60-79), Fair (40-59), or Poor (below 40)</description>
+    </variables>
+    
+    <variables>
+        <name>reasoning</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>true</isOutput>
+        <description>Detailed reasoning for the score with breakdown by industry, size, and revenue criteria</description>
+    </variables>
+    
+    <!-- INTERNAL VARIABLES -->
+    <variables>
+        <name>industryScore</name>
+        <dataType>Number</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <scale>0</scale>
+        <value>
+            <numberValue>0.0</numberValue>
+        </value>
+    </variables>
+    
+    <variables>
+        <name>sizeScore</name>
+        <dataType>Number</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <scale>0</scale>
+        <value>
+            <numberValue>0.0</numberValue>
+        </value>
+    </variables>
+    
+    <variables>
+        <name>revenueScore</name>
+        <dataType>Number</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <scale>0</scale>
+        <value>
+            <numberValue>0.0</numberValue>
+        </value>
+    </variables>
+</Flow>
