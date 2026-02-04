@@ -62,8 +62,10 @@ target/
 /.cci/
 /.idea/
 
-aiAgentStudioAddons/
+# aiAgentStudioAddons/
 xtras/
 
 *.sh
 
+
+**/graphql.config.yml
