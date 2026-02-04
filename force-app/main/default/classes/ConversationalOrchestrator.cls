@@ -36,8 +36,8 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
                 validateExecutionAccess(payload.existingExecutionId, payload.userId);
                 executionId = payload.existingExecutionId;
 
-                if (agentDefinition.ExecuteInitialLLMCallSynchronously__c == true) {
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Executing initial LLM call synchronously');
+                if (shouldExecuteSynchronously(payload, logPrefix)) {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Executing initial LLM call synchronously (callout-safe)');
                     return executeSynchronously(executionId, payload, logPrefix);
                 }
 
@@ -83,6 +83,33 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error initiating conversational execution: ' + e.getMessage());
             throw new AIAgentException.OrchestrationException('Failed to start conversational execution: ' + e.getMessage());
         }
+    }
+
+    /**
+     * @description Determines whether the initial LLM call can run inline.
+     * Defaults to synchronous only when the current transaction can make callouts
+     * and the agent does not require service user context routing.
+     */
+    private Boolean shouldExecuteSynchronously(AgentExecutionService.ExecutionPayload payload, String logPrefix) {
+        if (agentDefinition.RequiresServiceUserContext__c == true) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Service user context required - skipping synchronous execution');
+            return false;
+        }
+
+        if (!canMakeCalloutNow()) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Callout not allowed in this transaction - routing async');
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @description Checks if the current transaction can safely make callouts.
+     * Callouts are disallowed after DML or email operations.
+     */
+    private Boolean canMakeCalloutNow() {
+        return Limits.getDMLStatements() == 0 && Limits.getDMLRows() == 0 && Limits.getEmailInvocations() == 0;
     }
 
     // CAPABILITY QUERY METHODS
@@ -209,7 +236,7 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
             TransactionContext txnCtx = TransactionContext.getInstance();
             txnCtx.enableDeferredDMLMode();
             txnCtx.incrementLLMCallCount();
-            txnCtx.capturePreToolLimits();
+            txnCtx.resetTurnSafetyTracking(); // Reset sticky flag and capture baselines at turn start
 
             // Execution record was created in a previous transaction (queueable entry point)
             txnCtx.setHasPreExistingExecution(true);
@@ -263,7 +290,7 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
                 if (outcome == OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP) {
                     currentTurnCount++;
                     txnCtx.incrementLLMCallCount();
-                    txnCtx.capturePreToolLimits();
+                    txnCtx.resetTurnSafetyTracking(); // Reset sticky flag for new turn
                     System.debug(LoggingLevel.INFO, logPrefix + 'Multi-LLM optimization: Continuing with immediate follow-up (turn ' + currentTurnCount + ')');
                 }
             } while (outcome == OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP);
@@ -618,7 +645,7 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
             TransactionContext txnCtx = TransactionContext.getInstance();
             txnCtx.enableDeferredDMLMode();
             txnCtx.incrementLLMCallCount();
-            txnCtx.capturePreToolLimits();
+            txnCtx.resetTurnSafetyTracking(); // Reset sticky flag and capture baselines at turn start
 
             // Execution record already exists (passed in from caller via existingExecutionId)
             txnCtx.setHasPreExistingExecution(true);
@@ -672,7 +699,7 @@ public class ConversationalOrchestrator extends BaseAgentOrchestrator {
                 if (outcome == OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP) {
                     currentTurnCount++;
                     txnCtx.incrementLLMCallCount();
-                    txnCtx.capturePreToolLimits();
+                    txnCtx.resetTurnSafetyTracking(); // Reset sticky flag for new turn
                     System.debug(LoggingLevel.INFO, logPrefix + 'Multi-LLM optimization: Continuing with immediate follow-up (turn ' + currentTurnCount + ')');
                 }
             } while (outcome == OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP);

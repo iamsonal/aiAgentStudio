@@ -164,23 +164,6 @@
                 <identifier>RecordMaxProcessingCycles_cField</identifier>
             </fieldInstance>
         </itemInstances>
-        <itemInstances>
-            <fieldInstance>
-                <fieldInstanceProperties>
-                    <name>uiBehavior</name>
-                    <value>none</value>
-                </fieldInstanceProperties>
-                <fieldItem>Record.ExecuteInitialLLMCallSynchronously__c</fieldItem>
-                <identifier>RecordExecuteInitialLLMCallSynchronously_cField</identifier>
-                <visibilityRule>
-                    <criteria>
-                        <leftValue>{!Record.AgentType__c}</leftValue>
-                        <operator>EQUAL</operator>
-                        <rightValue>Conversational</rightValue>
-                    </criteria>
-                </visibilityRule>
-            </fieldInstance>
-        </itemInstances>
         <name>Facet-1e809c63-1850-4616-8fc7-2cf1297f7c18</name>
         <type>Facet</type>
     </flexiPageRegions>

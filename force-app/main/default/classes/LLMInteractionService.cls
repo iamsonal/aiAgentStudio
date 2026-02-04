@@ -257,11 +257,33 @@ public inherited sharing class LLMInteractionService {
                             safetyResult.getIndicatorCount()
                     );
 
+                    // Log as SAFETY_BLOCKED (not ERROR) - this is expected behavior, not a failure
                     if (this.decisionLogger != null) {
-                        this.decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ safetyResult });
+                        this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_BLOCKED, new List<Object>{ safetyResult });
                     }
 
-                    return new LLMInteractionResult(safetyResult.getSafeMessage(), AIAgentConstants.ERR_CODE_SAFETY_BLOCKED, null);
+                    // Return a SUCCESS result with safe response instead of failure
+                    // This allows ContentResponseHandler to process it as a normal content response
+                    // and complete the turn gracefully instead of failing
+                    String safeMessage = safetyResult.getSafeMessage();
+                    ProviderResult safetyProviderResult = new ProviderResult(
+                        safeMessage, // content
+                        0, // promptTokens (no LLM call made)
+                        0, // completionTokens
+                        0, // totalTokens
+                        null, // requestedActions (no tool calls)
+                        null, // rawToolCallsJson
+                        null, // rawAssistantMessageWithActionsJson
+                        'safety-layer', // modelIdentifier
+                        0 // llmCalloutDurationMs
+                    );
+
+                    MessageData safetyMessageData = new MessageData();
+                    safetyMessageData.role = AIAgentConstants.ROLE_ASSISTANT;
+                    safetyMessageData.content = safeMessage;
+
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Returning safe response to user: ' + safeMessage.left(100));
+                    return new LLMInteractionResult(safetyProviderResult, safetyMessageData);
                 }
 
                 if (safetyResult.hasSanitizedContent()) {

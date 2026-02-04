@@ -77,8 +77,7 @@ public with sharing class AgentTestDataFactory {
             update ordersToDeactivate;
         }
 
-//        delete [SELECT Id FROM BulkExecution__c];
-        delete [SELECT Id FROM AgentDecisionStep__c];
+//        delete [SELECT Id FROM AgentDecisionStep__c];
         delete [SELECT Id FROM ExecutionStep__c];
         delete [SELECT Id FROM AgentExecution__c];
         delete [SELECT Id FROM AgentWorkflowStep__c];

@@ -71,9 +71,8 @@ global with sharing class AIAgentRestService {
         try {
             AIAgentRequest requestData = (AIAgentRequest) JSON.deserialize(requestBody, AIAgentRequest.class);
 
-            if (String.isBlank(requestData.sessionId)) {
-                throw new AIAgentRestException('sessionId is required');
-            }
+            // sessionId is now OPTIONAL - allows creating new executions in service user context
+            // When blank, a new execution will be created by the service user
             if (String.isBlank(requestData.originalUserId)) {
                 throw new AIAgentRestException('originalUserId is required');
             }
@@ -83,19 +82,32 @@ global with sharing class AIAgentRestService {
             if (String.isBlank(requestData.turnIdentifier)) {
                 throw new AIAgentRestException('turnIdentifier is required');
             }
-            if (String.isBlank(requestData.userMessage)) {
-                throw new AIAgentRestException('userMessage is required');
-            }
+            // userMessage is now optional for non-conversational agents
+            // (Function/Workflow agents may not need a user message)
 
-            validateId(requestData.sessionId, 'sessionId');
+            // Validate ID formats
+            if (String.isNotBlank(requestData.sessionId)) {
+                validateId(requestData.sessionId, 'sessionId');
+            }
             validateId(requestData.originalUserId, 'originalUserId');
             validateId(requestData.agentDefinitionId, 'agentDefinitionId');
 
             if (String.isNotBlank(requestData.currentRecordId)) {
                 validateId(requestData.currentRecordId, 'currentRecordId');
             }
+            if (String.isNotBlank(requestData.sourceRecordId)) {
+                validateId(requestData.sourceRecordId, 'sourceRecordId');
+            }
+            // Validate sourceRecordIds if provided
+            if (requestData.sourceRecordIds != null) {
+                for (Integer i = 0; i < requestData.sourceRecordIds.size(); i++) {
+                    if (String.isNotBlank(requestData.sourceRecordIds[i])) {
+                        validateId(requestData.sourceRecordIds[i], 'sourceRecordIds[' + i + ']');
+                    }
+                }
+            }
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Request validation completed successfully');
+            System.debug(LoggingLevel.INFO, logPrefix + 'Request validation completed successfully. New execution: ' + String.isBlank(requestData.sessionId));
             return requestData;
         } catch (JSONException e) {
             throw new AIAgentRestException('Invalid JSON format: ' + e.getMessage());
@@ -111,10 +123,12 @@ global with sharing class AIAgentRestService {
     }
 
     private static String processMessageInContext(AIAgentRequest requestData, String logPrefix) {
-        Id sessionId = Id.valueOf(requestData.sessionId);
+        // sessionId is now optional - null means create new execution
+        Id sessionId = String.isNotBlank(requestData.sessionId) ? Id.valueOf(requestData.sessionId) : null;
         Id originalUserId = Id.valueOf(requestData.originalUserId);
         Id agentDefinitionId = Id.valueOf(requestData.agentDefinitionId);
         Id currentRecordId = String.isNotBlank(requestData.currentRecordId) ? Id.valueOf(requestData.currentRecordId) : null;
+        Id sourceRecordId = String.isNotBlank(requestData.sourceRecordId) ? Id.valueOf(requestData.sourceRecordId) : null;
 
         try {
             AIAgentDefinition__c agentDefinition = AIAgentConfigService.getAgentDefinition(agentDefinitionId);
@@ -125,14 +139,33 @@ global with sharing class AIAgentRestService {
             AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
             payload.userId = originalUserId;
             payload.serviceUserId = UserInfo.getUserId();
-            payload.triggerSource = 'Chat';
+            payload.triggerSource = String.isNotBlank(requestData.triggerSource) ? requestData.triggerSource : 'API';
             payload.userMessage = requestData.userMessage;
             payload.currentRecordId = currentRecordId;
             payload.turnIdentifier = requestData.turnIdentifier;
-            payload.existingExecutionId = sessionId;
+            payload.existingExecutionId = sessionId; // May be null for new executions
             payload.isInServiceUserContext = true;
+            payload.sourceRecordId = sourceRecordId;
+            payload.batchId = requestData.batchId;
+            payload.priority = requestData.priority;
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Delegating to AgentExecutionService as service user: ' + UserInfo.getUserName());
+            // Handle sourceRecordIds array
+            if (requestData.sourceRecordIds != null && !requestData.sourceRecordIds.isEmpty()) {
+                payload.sourceRecordIds = new List<Id>();
+                for (String idStr : requestData.sourceRecordIds) {
+                    if (String.isNotBlank(idStr)) {
+                        payload.sourceRecordIds.add(Id.valueOf(idStr));
+                    }
+                }
+            }
+
+            // Handle triggerPayload (stored as JSON string)
+            // Note: triggerPayload is passed through as-is; orchestrators will deserialize as needed
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Delegating to AgentExecutionService as service user: ' + UserInfo.getUserName() + '. New execution: ' + (sessionId == null)
+            );
 
             AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution(agentDefinition.DeveloperName__c, payload);
 
@@ -147,17 +180,20 @@ global with sharing class AIAgentRestService {
         } catch (AIAgentException.OrchestrationException e) {
             throw new AIAgentRestException('Orchestration error: ' + e.getMessage());
         } catch (Exception e) {
-            try {
-                AgentStateService ass = new AgentStateService();
-                ass.failTurn(
-                    sessionId,
-                    requestData.turnIdentifier,
-                    'REST processing failed: ' + e.getMessage(),
-                    AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                    logPrefix
-                );
-            } catch (Exception failEx) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'CRITICAL: Failed to update session state after processing failure: ' + failEx.getMessage());
+            // Only try to fail the turn if we have an existing execution
+            if (sessionId != null) {
+                try {
+                    AgentStateService ass = new AgentStateService();
+                    ass.failTurn(
+                        sessionId,
+                        requestData.turnIdentifier,
+                        'REST processing failed: ' + e.getMessage(),
+                        AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+                        logPrefix
+                    );
+                } catch (Exception failEx) {
+                    System.debug(LoggingLevel.ERROR, logPrefix + 'CRITICAL: Failed to update session state after processing failure: ' + failEx.getMessage());
+                }
             }
 
             throw e;
@@ -496,12 +532,19 @@ global with sharing class AIAgentRestService {
     }
 
     global class AIAgentRequest {
-        public String sessionId { get; set; }
+        public String sessionId { get; set; } // Optional for new executions
         public String originalUserId { get; set; }
         public String agentDefinitionId { get; set; }
         public String turnIdentifier { get; set; }
         public String userMessage { get; set; }
         public String currentRecordId { get; set; }
+        // Additional fields for full context support (new in service user routing)
+        public String sourceRecordId { get; set; }
+        public List<String> sourceRecordIds { get; set; }
+        public String triggerPayload { get; set; }
+        public String triggerSource { get; set; }
+        public String batchId { get; set; }
+        public Integer priority { get; set; }
     }
 
     global class AIAgentResponse {

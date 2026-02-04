@@ -15,18 +15,29 @@ public inherited sharing class TransactionContext {
     private Integer llmCallCount;
     private Integer dmlCountBeforeTool;
     private Integer calloutCountBeforeTool;
+    private Integer emailCountBeforeTool;
     private List<SObject> insertBuffer;
     private Boolean hasPreExistingExecution;
     private Map<Id, Set<String>> executedToolsByExecution;
+
+    /**
+     * Sticky flag that tracks if ANY tool in this turn performed DML or callouts.
+     * Once set to true, remains true until explicitly reset via resetTurnSafetyTracking().
+     * This prevents the bug where checking only the last tool's operations would
+     * incorrectly allow a follow-up LLM call after earlier tools performed DML.
+     */
+    private Boolean unsafeOperationsOccurredThisTurn;
 
     private TransactionContext() {
         this.deferredDMLMode = false;
         this.llmCallCount = 0;
         this.dmlCountBeforeTool = 0;
         this.calloutCountBeforeTool = 0;
+        this.emailCountBeforeTool = 0;
         this.insertBuffer = new List<SObject>();
         this.hasPreExistingExecution = false;
         this.executedToolsByExecution = new Map<Id, Set<String>>();
+        this.unsafeOperationsOccurredThisTurn = false;
     }
 
     /**
@@ -109,23 +120,68 @@ public inherited sharing class TransactionContext {
         return this.hasPreExistingExecution;
     }
 
+    /**
+     * Captures current DML and callout counts as baselines for tool safety detection.
+     * Called before individual tool executions to track per-tool operations.
+     *
+     * Note: This method does NOT reset the unsafeOperationsOccurredThisTurn flag.
+     * That flag is sticky and only resets via resetTurnSafetyTracking() at turn start.
+     */
     public void capturePreToolLimits() {
         this.dmlCountBeforeTool = Limits.getDMLStatements();
         this.calloutCountBeforeTool = Limits.getCallouts();
+        this.emailCountBeforeTool = Limits.getEmailInvocations();
         System.debug(
             LoggingLevel.DEBUG,
-            '[TransactionContext] Captured pre-tool limits - DML: ' + this.dmlCountBeforeTool + ', Callouts: ' + this.calloutCountBeforeTool
+            '[TransactionContext] Captured pre-tool limits - DML: ' +
+                this.dmlCountBeforeTool +
+                ', Callouts: ' +
+                this.calloutCountBeforeTool +
+                ', Emails: ' +
+                this.emailCountBeforeTool
         );
     }
 
+    /**
+     * Resets turn safety tracking for a new turn/iteration.
+     * Should be called by orchestrators at the START of each LLM turn, BEFORE any tools execute.
+     * This clears the sticky unsafeOperationsOccurredThisTurn flag and captures fresh baselines.
+     */
+    public void resetTurnSafetyTracking() {
+        this.unsafeOperationsOccurredThisTurn = false;
+        this.dmlCountBeforeTool = Limits.getDMLStatements();
+        this.calloutCountBeforeTool = Limits.getCallouts();
+        this.emailCountBeforeTool = Limits.getEmailInvocations();
+        System.debug(
+            LoggingLevel.DEBUG,
+            '[TransactionContext] Turn safety tracking reset - DML baseline: ' +
+                this.dmlCountBeforeTool +
+                ', Callout baseline: ' +
+                this.calloutCountBeforeTool +
+                ', Email baseline: ' +
+                this.emailCountBeforeTool
+        );
+    }
+
+    /**
+     * Checks if the most recently executed tool performed DML or callouts.
+     * If unsafe operations are detected, sets the sticky unsafeOperationsOccurredThisTurn flag.
+     *
+     * @return True if the tool performed DML or callouts, false otherwise.
+     */
     public Boolean toolPerformedDMLOrCallout() {
         Integer currentDML = Limits.getDMLStatements();
         Integer currentCallouts = Limits.getCallouts();
+        Integer currentEmails = Limits.getEmailInvocations();
 
         Boolean performedDML = currentDML > this.dmlCountBeforeTool;
         Boolean performedCallout = currentCallouts > this.calloutCountBeforeTool;
+        Boolean performedEmail = currentEmails > this.emailCountBeforeTool;
 
-        if (performedDML || performedCallout) {
+        if (performedDML || performedCallout || performedEmail) {
+            // Set sticky flag - once unsafe, the entire turn is unsafe
+            this.unsafeOperationsOccurredThisTurn = true;
+
             System.debug(
                 LoggingLevel.INFO,
                 '[TransactionContext] Tool performed unsafe operations - DML: ' +
@@ -136,13 +192,43 @@ public inherited sharing class TransactionContext {
                     performedCallout +
                     ' (' +
                     (currentCallouts - this.calloutCountBeforeTool) +
-                    ' calls)'
+                    ' calls), Email: ' +
+                    performedEmail +
+                    ' (' +
+                    (currentEmails - this.emailCountBeforeTool) +
+                    ' sends). Sticky flag set.'
             );
         } else {
-            System.debug(LoggingLevel.DEBUG, '[TransactionContext] Tool is safe (no DML or callouts detected)');
+            System.debug(LoggingLevel.DEBUG, '[TransactionContext] Tool is safe (no DML, callouts, or emails detected)');
         }
 
-        return performedDML || performedCallout;
+        return performedDML || performedCallout || performedEmail;
+    }
+
+    /**
+     * Marks the current turn as unsafe for immediate follow-up, regardless of limits.
+     * Use when a tool performs operations that Salesforce treats as uncommitted work.
+     *
+     * @param reason Human-readable reason for logging
+     */
+    public void markUnsafeOperation(String reason) {
+        this.unsafeOperationsOccurredThisTurn = true;
+        System.debug(LoggingLevel.INFO, '[TransactionContext] Unsafe operation flagged manually' + (String.isNotBlank(reason) ? (': ' + reason) : ''));
+    }
+
+    /**
+     * Returns whether ANY tool in this turn has performed unsafe operations (DML or callouts).
+     * This is a sticky flag - once true, remains true until resetTurnSafetyTracking() is called.
+     *
+     * @return True if any tool this turn performed DML or callouts.
+     */
+    public Boolean hasUnsafeOperationsThisTurn() {
+        return this.unsafeOperationsOccurredThisTurn;
+    }
+
+    @TestVisible
+    private void setUnsafeOperationsForTest(Boolean isUnsafe) {
+        this.unsafeOperationsOccurredThisTurn = isUnsafe == true;
     }
 
     /**
@@ -150,8 +236,12 @@ public inherited sharing class TransactionContext {
      * Returns true if:
      * 1. Deferred DML mode is enabled
      * 2. A pre-existing execution record was provided (not created in this transaction)
-     * 3. The tool did not perform DML or callouts
+     * 3. NO tool in this turn performed DML or callouts (sticky flag check)
      * 4. We haven't reached the max LLM calls limit
+     *
+     * IMPORTANT: Uses the sticky hasUnsafeOperationsThisTurn flag, which tracks if ANY
+     * tool in this turn performed unsafe operations, not just the last tool. This prevents
+     * the bug where Tool A performs DML, Tool B doesn't, and we incorrectly allow follow-up.
      *
      * @return True if another immediate LLM call is allowed, false otherwise.
      */
@@ -166,8 +256,9 @@ public inherited sharing class TransactionContext {
             return false;
         }
 
-        if (toolPerformedDMLOrCallout()) {
-            System.debug(LoggingLevel.DEBUG, '[TransactionContext] Cannot continue: tool performed DML or callout');
+        // Use sticky flag instead of fresh check - this ensures we catch DML from ANY tool in this turn
+        if (this.unsafeOperationsOccurredThisTurn) {
+            System.debug(LoggingLevel.DEBUG, '[TransactionContext] Cannot continue: unsafe operations occurred this turn (DML or callout)');
             return false;
         }
 
@@ -277,6 +368,7 @@ public inherited sharing class TransactionContext {
         this.insertBuffer.clear();
         this.hasPreExistingExecution = false;
         this.executedToolsByExecution.clear();
+        this.unsafeOperationsOccurredThisTurn = false;
         System.debug(LoggingLevel.DEBUG, '[TransactionContext] Context reset to initial state');
     }
 

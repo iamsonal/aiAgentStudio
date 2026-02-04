@@ -267,10 +267,10 @@ public inherited sharing class AgentStateService {
         String errorDetailForState = String.isNotBlank(errorCode) ? '[' + errorCode + '] ' + errorMessage : errorMessage;
         System.debug(LoggingLevel.ERROR, logPrefix + 'AgentStateService: FAILED state for Turn=' + turnIdentifier + '. Error=' + errorDetailForState);
 
-        updateStatus(executionId, 'Failed', AIAgentConstants.STATUS_FAILED, turnIdentifier, errorDetailForState?.abbreviate(255));
+        updateStatus(executionId, 'Failed', AIAgentConstants.STATUS_FAILED, turnIdentifier, errorDetailForState);
 
         // Publish AgentResponse__e event for UI notification of failure
-        publishAgentResponseEvent(executionId, false, null, errorMessage?.abbreviate(255), turnIdentifier, logPrefix);
+        publishAgentResponseEvent(executionId, false, null, errorMessage, turnIdentifier, logPrefix);
     }
 
     // STATUS UPDATE (Public for direct callers)
@@ -314,7 +314,7 @@ public inherited sharing class AgentStateService {
 
             // Set error message when execution fails
             if (executionStatus == 'Failed' && String.isNotBlank(statusMessage)) {
-                execution.ErrorMessage__c = statusMessage.abbreviate(255);
+                execution.ErrorMessage__c = statusMessage;
             }
 
             update execution;

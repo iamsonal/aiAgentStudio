@@ -96,7 +96,7 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
             TransactionContext txnCtx = TransactionContext.getInstance();
             txnCtx.enableDeferredDMLMode();
             txnCtx.incrementLLMCallCount();
-            txnCtx.capturePreToolLimits();
+            txnCtx.resetTurnSafetyTracking(); // Reset sticky flag and capture baselines at turn start
 
             // Execution record was created in a previous transaction (this is a queueable follow-up)
             txnCtx.setHasPreExistingExecution(true);
@@ -140,7 +140,7 @@ public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
                 if (outcome == OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP) {
                     currentTurnCount++;
                     txnCtx.incrementLLMCallCount();
-                    txnCtx.capturePreToolLimits();
+                    txnCtx.resetTurnSafetyTracking(); // Reset sticky flag for new turn
                     System.debug(LoggingLevel.INFO, logPrefix + 'Multi-LLM optimization: Continuing with immediate follow-up (turn ' + currentTurnCount + ')');
                 }
             } while (outcome == OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP);

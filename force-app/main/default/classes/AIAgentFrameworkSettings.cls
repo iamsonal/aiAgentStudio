@@ -17,7 +17,6 @@ public inherited sharing class AIAgentFrameworkSettings {
     private static final Integer FINAL_DEFAULT_BulkFailureThreshold = 5;
     private static final Integer FINAL_DEFAULT_MaxLLMCallsPerTransaction = 2;
     private static final Integer FINAL_DEFAULT_MaxDependencyViolations = 3;
-    private static final String FINAL_DEFAULT_HITLApprovalNamedCredential = 'AgentStudioInternalAPI';
     private static final Boolean FINAL_DEFAULT_EnablePIIMasking = false;
     private static final Boolean FINAL_DEFAULT_EnablePromptSafety = false;
     private static final Boolean FINAL_DEFAULT_PIIAuditLogging = false;
@@ -34,7 +33,6 @@ public inherited sharing class AIAgentFrameworkSettings {
                 settings.MaxToolRetries__c = FINAL_DEFAULT_MaxToolRetries;
                 settings.BulkConcurrencyLimit__c = FINAL_DEFAULT_BulkConcurrencyLimit;
                 settings.BulkFailureThreshold__c = FINAL_DEFAULT_BulkFailureThreshold;
-                settings.HITLApprovalNamedCredential__c = FINAL_DEFAULT_HITLApprovalNamedCredential;
                 settings.EnablePIIMasking__c = FINAL_DEFAULT_EnablePIIMasking;
                 settings.EnablePromptSafety__c = FINAL_DEFAULT_EnablePromptSafety;
                 settings.PIIAuditLogging__c = FINAL_DEFAULT_PIIAuditLogging;
@@ -55,9 +53,6 @@ public inherited sharing class AIAgentFrameworkSettings {
                 }
                 if (settings.BulkFailureThreshold__c == null || settings.BulkFailureThreshold__c < 0) {
                     settings.BulkFailureThreshold__c = FINAL_DEFAULT_BulkFailureThreshold;
-                }
-                if (String.isBlank(settings.HITLApprovalNamedCredential__c)) {
-                    settings.HITLApprovalNamedCredential__c = FINAL_DEFAULT_HITLApprovalNamedCredential;
                 }
             }
             System.debug(LoggingLevel.INFO, '[AIAgentFrameworkSettings] Framework settings successfully initialized and cached');
@@ -104,8 +99,21 @@ public inherited sharing class AIAgentFrameworkSettings {
      *
      * @return The Named Credential API name for HITL approval executions.
      */
+    /**
+     * @deprecated Service user routing is now configured per-agent via AIAgentDefinition__c.ServiceUserNamedCredential__c
+     */
+    public static String getServiceUserNamedCredential() {
+        throw new AIAgentException.OrchestrationException(
+            'getServiceUserNamedCredential() is deprecated. Service user Named Credential is now configured ' +
+            'per-agent in AIAgentDefinition__c.ServiceUserNamedCredential__c field.'
+        );
+    }
+
+    /**
+     * @deprecated Use per-agent ServiceUserNamedCredential__c instead. HITL now uses agent-level credential configuration.
+     */
     public static String getHITLApprovalNamedCredential() {
-        return getInstance().HITLApprovalNamedCredential__c;
+        return getServiceUserNamedCredential();
     }
 
     /**

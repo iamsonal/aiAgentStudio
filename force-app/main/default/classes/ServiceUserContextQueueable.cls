@@ -1,0 +1,174 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2025 Sonal
+ */
+
+/**
+ * @description Queueable job that routes agent execution to service user context via REST API.
+ * Used when HTTP callout cannot be made directly (e.g., DML has already occurred in the transaction).
+ *
+ * This class solves the "callout after DML" problem by deferring the REST callout to a fresh
+ * transaction where no DML has occurred yet. The REST endpoint then executes in the service
+ * user context with elevated permissions.
+ *
+ * Usage:
+ * - When AgentExecutionService detects prior DML and RequiresServiceUserContext = true
+ * - Optionally creates a stub execution record for immediate tracking
+ * - Enqueues this job to perform the actual REST callout
+ */
+public class ServiceUserContextQueueable implements Queueable, Database.AllowsCallouts {
+    private static final String LOG_PREFIX = '[ServiceUserCtxQueue] ';
+
+    private Id stubExecutionId; // May be null if caller couldn't create
+    private Id agentDefinitionId;
+    private AgentExecutionService.ExecutionPayload payload;
+
+    /**
+     * @description Constructor
+     * @param stubExecutionId Optional ID of stub execution created by caller (may be null)
+     * @param agentDefinitionId The agent definition ID
+     * @param payload The execution payload with all context
+     */
+    public ServiceUserContextQueueable(Id stubExecutionId, Id agentDefinitionId, AgentExecutionService.ExecutionPayload payload) {
+        this.stubExecutionId = stubExecutionId;
+        this.agentDefinitionId = agentDefinitionId;
+        this.payload = payload;
+    }
+
+    public void execute(QueueableContext context) {
+        String logPrefix = LOG_PREFIX + '[Agent:' + agentDefinitionId + '] ';
+
+        try {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Executing service user context routing via REST API');
+
+            HttpRequest httpReq = buildHttpRequest();
+            HttpCalloutService.CalloutConfig config = HttpCalloutService.createConfig(logPrefix);
+            HttpCalloutService.CalloutResult result = HttpCalloutService.execute(httpReq, config);
+
+            HttpResponse httpRes = result.response;
+            Integer statusCode = httpRes.getStatusCode();
+            String responseBody = httpRes.getBody();
+
+            if (statusCode == 200) {
+                AIAgentRestService.AIAgentResponse restResponse = (AIAgentRestService.AIAgentResponse) JSON.deserialize(
+                    responseBody,
+                    AIAgentRestService.AIAgentResponse.class
+                );
+                if (restResponse.success) {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Service user context routing successful. Outcome: ' + restResponse.outcome);
+                } else {
+                    handleFailure(logPrefix, 'REST API returned failure: ' + restResponse.error);
+                }
+            } else {
+                String errorMessage = extractErrorMessage(responseBody, statusCode);
+                handleFailure(logPrefix, 'HTTP ' + statusCode + ': ' + errorMessage);
+            }
+        } catch (Exception e) {
+            handleFailure(logPrefix, 'Exception during service user context routing: ' + e.getMessage() + '\n' + e.getStackTraceString());
+        }
+    }
+
+    private HttpRequest buildHttpRequest() {
+        HttpRequest httpReq = new HttpRequest();
+
+        // Query agent definition for named credential (required field)
+        AIAgentDefinition__c agentDef = [
+            SELECT ServiceUserNamedCredential__c, DeveloperName__c
+            FROM AIAgentDefinition__c
+            WHERE Id = :agentDefinitionId
+            LIMIT 1
+        ];
+
+        if (String.isBlank(agentDef.ServiceUserNamedCredential__c)) {
+            throw new AIAgentException.OrchestrationException(
+                'ServiceUserNamedCredential__c is not configured on AIAgentDefinition__c: ' +
+                    agentDef.DeveloperName__c +
+                    '. ' +
+                    'This field is REQUIRED when RequiresServiceUserContext__c is enabled.'
+            );
+        }
+
+        httpReq.setEndpoint('callout:' + agentDef.ServiceUserNamedCredential__c + '/services/apexrest/ai/agent/process/');
+        httpReq.setMethod('POST');
+        httpReq.setHeader('Content-Type', 'application/json');
+
+        // Build full payload map
+        Map<String, Object> requestBody = new Map<String, Object>{
+            // Use stub execution ID if we created one, otherwise let service user create new
+            'sessionId' => stubExecutionId != null
+                ? String.valueOf(stubExecutionId)
+                : (payload.existingExecutionId != null ? String.valueOf(payload.existingExecutionId) : null),
+            'originalUserId' => String.valueOf(payload.userId),
+            'agentDefinitionId' => String.valueOf(agentDefinitionId),
+            'turnIdentifier' => payload.turnIdentifier,
+            'userMessage' => payload.userMessage,
+            'currentRecordId' => payload.currentRecordId != null ? String.valueOf(payload.currentRecordId) : null,
+            'sourceRecordId' => payload.sourceRecordId != null ? String.valueOf(payload.sourceRecordId) : null,
+            'triggerSource' => payload.triggerSource,
+            'batchId' => payload.batchId,
+            'priority' => payload.priority
+        };
+
+        // Convert sourceRecordIds to string list
+        if (payload.sourceRecordIds != null && !payload.sourceRecordIds.isEmpty()) {
+            List<String> sourceRecordIdStrings = new List<String>();
+            for (Id recordId : payload.sourceRecordIds) {
+                sourceRecordIdStrings.add(String.valueOf(recordId));
+            }
+            requestBody.put('sourceRecordIds', sourceRecordIdStrings);
+        }
+
+        httpReq.setBody(JSON.serialize(requestBody));
+        return httpReq;
+    }
+
+    private String extractErrorMessage(String responseBody, Integer statusCode) {
+        if (String.isBlank(responseBody)) {
+            return 'HTTP ' + statusCode;
+        }
+        try {
+            AIAgentRestService.AIAgentResponse errorResponse = (AIAgentRestService.AIAgentResponse) JSON.deserialize(
+                responseBody,
+                AIAgentRestService.AIAgentResponse.class
+            );
+            return errorResponse.error ?? 'HTTP ' + statusCode;
+        } catch (Exception e) {
+            return responseBody.length() > 200 ? responseBody.substring(0, 200) + '...' : responseBody;
+        }
+    }
+
+    private void handleFailure(String logPrefix, String errorMessage) {
+        System.debug(LoggingLevel.ERROR, logPrefix + 'FAILURE: ' + errorMessage);
+
+        // If we have a stub execution (single-record case), mark it as failed
+        if (stubExecutionId != null) {
+            try {
+                AgentStateService stateService = new AgentStateService();
+                stateService.failTurn(
+                    stubExecutionId,
+                    payload.turnIdentifier,
+                    'Service user context routing failed: ' + errorMessage,
+                    AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+                    logPrefix
+                );
+            } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'CRITICAL: Could not update stub execution with failure: ' + e.getMessage());
+            }
+        } else {
+            // No tracking record available - error only visible in logs
+            System.debug(
+                LoggingLevel.ERROR,
+                logPrefix +
+                    'No tracking record to update. ' +
+                    'Original user: ' +
+                    payload.userId +
+                    ', Agent: ' +
+                    agentDefinitionId +
+                    '. Error will only be visible in logs.'
+            );
+        }
+    }
+}

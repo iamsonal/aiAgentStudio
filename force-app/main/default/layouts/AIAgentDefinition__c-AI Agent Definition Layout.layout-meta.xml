@@ -58,10 +58,6 @@
                 <behavior>Edit</behavior>
                 <field>MaxProcessingCycles__c</field>
             </layoutItems>
-            <layoutItems>
-                <behavior>Edit</behavior>
-                <field>ExecuteInitialLLMCallSynchronously__c</field>
-            </layoutItems>
         </layoutColumns>
         <layoutColumns>
             <layoutItems>

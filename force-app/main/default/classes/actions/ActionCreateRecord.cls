@@ -14,9 +14,20 @@
  * @ActionIsActive true
  * @extends BaseAgentAction
  */
-public class ActionCreateRecord extends BaseAgentAction {
+public with sharing class ActionCreateRecord extends BaseAgentAction {
     private ConfigDTO config;
     private SObjectType targetSObjectType;
+    private static Map<String, NameFieldInfo> nameFieldInfoCache = new Map<String, NameFieldInfo>();
+
+    private class NameFieldInfo {
+        public String apiName;
+        public String label;
+
+        public NameFieldInfo(String apiName, String label) {
+            this.apiName = apiName;
+            this.label = label;
+        }
+    }
 
     public class ArgumentsDTO {
         /**
@@ -138,7 +149,7 @@ public class ActionCreateRecord extends BaseAgentAction {
             }
         }
 
-        Database.SaveResult saveResult = Database.insert(decision.getRecords()[0], false);
+        Database.SaveResult saveResult = Database.insert(decision.getRecords()[0], false, AccessLevel.USER_MODE);
 
         Long executionTime = System.currentTimeMillis() - startTime;
         System.debug(LoggingLevel.INFO, '[ActionCreateRecord] Record creation for ' + config.objectApiName + ' completed in ' + executionTime + ' ms.');
@@ -210,21 +221,41 @@ public class ActionCreateRecord extends BaseAgentAction {
 
     private Map<String, String> queryNameFieldWithLabel(Id recordId) {
         try {
-            List<String> objectNames = new List<String>{ config.objectApiName };
-            List<FieldDefinition> nameFields = [
-                SELECT QualifiedApiName, Label
-                FROM FieldDefinition
-                WHERE EntityDefinition.QualifiedApiName IN :objectNames AND IsNameField = TRUE
-                LIMIT 1
-            ];
+            String cacheKey = String.isNotBlank(config.objectApiName) ? config.objectApiName.toLowerCase() : null;
+            String nameFieldApiName;
+            String nameFieldLabel;
 
-            if (nameFields.isEmpty()) {
-                System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] No Name field found for object: ' + config.objectApiName);
-                return null;
+            if (cacheKey != null && nameFieldInfoCache.containsKey(cacheKey)) {
+                NameFieldInfo cachedInfo = nameFieldInfoCache.get(cacheKey);
+                if (cachedInfo == null) {
+                    System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] Name field cache hit (null) for object: ' + config.objectApiName);
+                    return null;
+                }
+                nameFieldApiName = cachedInfo.apiName;
+                nameFieldLabel = cachedInfo.label;
+            } else {
+                List<String> objectNames = new List<String>{ config.objectApiName };
+                List<FieldDefinition> nameFields = [
+                    SELECT QualifiedApiName, Label
+                    FROM FieldDefinition
+                    WHERE EntityDefinition.QualifiedApiName IN :objectNames AND IsNameField = TRUE
+                    LIMIT 1
+                ];
+
+                if (nameFields.isEmpty()) {
+                    System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] No Name field found for object: ' + config.objectApiName);
+                    if (cacheKey != null) {
+                        nameFieldInfoCache.put(cacheKey, null);
+                    }
+                    return null;
+                }
+
+                nameFieldApiName = nameFields[0].QualifiedApiName;
+                nameFieldLabel = nameFields[0].Label;
+                if (cacheKey != null) {
+                    nameFieldInfoCache.put(cacheKey, new NameFieldInfo(nameFieldApiName, nameFieldLabel));
+                }
             }
-
-            String nameFieldApiName = nameFields[0].QualifiedApiName;
-            String nameFieldLabel = nameFields[0].Label;
 
             String soql = 'SELECT ' + nameFieldApiName + ' FROM ' + config.objectApiName + ' WHERE Id = :recordId WITH USER_MODE LIMIT 1';
             List<SObject> records = Database.query(soql);

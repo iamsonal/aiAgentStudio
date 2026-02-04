@@ -406,7 +406,7 @@ public inherited sharing class OrchestrationService {
             System.debug(LoggingLevel.INFO, logPrefix + 'Async tool completed: ' + completedToolCallId + '. Atomically decrementing counter.');
 
             AgentExecution__c execution = [
-                SELECT Id, PendingAsyncToolCount__c, AsyncToolTurnIdentifier__c, AIAgentDefinition__c, User__c
+                SELECT Id, PendingAsyncToolCount__c, AsyncToolTurnIdentifier__c, AIAgentDefinition__c, User__c, SourceRecordId__c
                 FROM AgentExecution__c
                 WHERE Id = :executionId
                 FOR UPDATE
@@ -463,7 +463,7 @@ public inherited sharing class OrchestrationService {
             System.debug(LoggingLevel.INFO, logPrefix + 'Decrementing counter for failed queue: ' + failedToolCallId);
 
             AgentExecution__c execution = [
-                SELECT Id, PendingAsyncToolCount__c, AsyncToolTurnIdentifier__c, AIAgentDefinition__c, User__c
+                SELECT Id, PendingAsyncToolCount__c, AsyncToolTurnIdentifier__c, AIAgentDefinition__c, User__c, SourceRecordId__c
                 FROM AgentExecution__c
                 WHERE Id = :executionId
                 FOR UPDATE

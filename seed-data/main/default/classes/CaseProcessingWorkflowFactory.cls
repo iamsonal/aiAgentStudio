@@ -548,7 +548,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 Status = 'New',
                 Priority = 'Medium',
                 Origin = 'Phone',
-                Type = 'Problem'
+                Type = 'Electronic'
             ),
             new Case(
                 AccountId = accounts[0].Id,
@@ -557,7 +557,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 Status = 'New',
                 Priority = 'High',
                 Origin = 'Email',
-                Type = 'Problem'
+                Type = 'Electronic'
             ),
             new Case(
                 AccountId = accounts[1].Id,
@@ -566,7 +566,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 Status = 'New',
                 Priority = 'Medium',
                 Origin = 'Web',
-                Type = 'Question'
+                Type = 'Other'
             ),
             new Case(
                 AccountId = accounts[2].Id,
@@ -575,7 +575,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 Status = 'New',
                 Priority = 'Low',
                 Origin = 'Email',
-                Type = 'Question'
+                Type = 'Other'
             ),
             new Case(
                 AccountId = accounts[2].Id,
@@ -673,16 +673,16 @@ public with sharing class CaseProcessingWorkflowFactory {
             ContextFormatStrategy__c = 'Structured Text',
             IdentityPrompt__c = 'You are a Case Triage Specialist for a support organization. You analyze incoming cases, classify them accurately, detect spam, route to the correct queue, and suggest relevant knowledge articles.',
             InstructionsPrompt__c = 'Analyze the case using the provided context (Case, Account, Contact, Entitlement).\n\n' +
-                '**1. SPAM DETECTION:** Check for spam indicators: gibberish, phishing, test submissions, promotional content. If spam → mark as "Closed" with Reason="Spam".\n\n' +
+                '**1. SPAM DETECTION:** Check for spam indicators: gibberish, phishing, test submissions, promotional content. If spam → mark as "Closed" with Reason="Other".\n\n' +
                 '**2. CLASSIFICATION:**\n' +
-                '- Type: Problem (bugs, errors), Question (how-to), Feature Request, Technical (general technical issues)\n' +
-                '- Category (use Reason field): Technical-SAP, Technical-Platform, Technical-API, Billing-Invoice, Billing-Payment, Product-Feature, Product-Question\n\n' +
+                '- Type: Mechanical, Electrical, Electronic, Structural, Other\n' +
+                '- Reason: Installation, Equipment Complexity, Performance, Breakdown, Equipment Design, Feedback, Other\n\n' +
                 '**3. URGENCY SCORING (Priority field - High/Medium/Low):**\n' +
                 '- High: "system down", "revenue impact", "data loss", ">50 users affected", "broken", "not working", "urgent", Premium customer SLA\n' +
                 '- Medium: Standard issues with workarounds, moderate impact\n' +
                 '- Low: Questions, minor issues, general inquiries\n\n' +
                 '**4. ROUTING:**\n' +
-                '- Technical issues → Engineering_Support_Queue\n' +
+                '- Technical issues (Mechanical/Electrical/Electronic) → Engineering_Support_Queue\n' +
                 '- Billing/invoicing → Finance_Support_Queue\n' +
                 '- Product questions/features → Product_Support_Queue\n\n' +
                 '**5. KNOWLEDGE SEARCH:** Search for relevant KB articles (2-4 keywords from Subject). Attach top 2-3 articles.\n\n' +
@@ -709,12 +709,12 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'classify_and_update_case',
                 'Updates Case classification fields based on triage analysis.\n\n' +
                     '**Fields to update:**\n' +
-                    '- Type: Flexible string field (e.g., "Problem", "Question", "Feature Request", "Technical")\n' +
-                    '- Priority: High, Medium, Low (standard Salesforce values)\n' +
-                    '- Status: New, Working, Escalated, Closed (standard Salesforce values)\n' +
-                    '- Reason: Flexible string field for categorization (e.g., "Technical-SAP", "Billing-Invoice")\n\n' +
+                    '- Type: Mechanical, Electrical, Electronic, Structural, Other\n' +
+                    '- Priority: High, Medium, Low\n' +
+                    '- Status: New, Working, Escalated, Closed\n' +
+                    '- Reason: Installation, Equipment Complexity, Performance, Breakdown, Equipment Design, Feedback, Other\n\n' +
                     '**When to use:** After analyzing case description and context. Use this to set classification before routing.',
-                '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"Case ID from context. MUST start with 500.","pattern":"^500[a-zA-Z0-9]{15}$"},"recordData":{"type":"object","properties":{"Type":{"type":"string","description":"Case type/category (flexible text)"},"Priority":{"type":"string","enum":["High","Medium","Low"],"description":"Priority level"},"Status":{"type":"string","enum":["New","Working","Escalated","Closed"],"description":"Case status"},"Reason":{"type":"string","maxLength":255,"description":"Category reason like Technical-SAP, Billing-Invoice"}},"additionalProperties":false}},"required":["recordId","recordData"]}',
+                '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"Case ID from context. MUST start with 500."},"recordData":{"type":"object","properties":{"Type":{"type":"string","description":"Type","enum":["Mechanical","Electrical","Electronic","Structural","Other"]},"Priority":{"type":"string","description":"Priority","enum":["High","Medium","Low"]},"Status":{"type":"string","description":"Status","enum":["New","Working","Escalated","Closed"]},"Reason":{"type":"string","description":"Case Reason","enum":["Installation","Equipment Complexity","Performance","Breakdown","Equipment Design","Feedback","Other"]}}}},"required":["recordId","recordData"]}',
                 'Standard',
                 'UpdateRecord',
                 null,
@@ -744,17 +744,17 @@ public with sharing class CaseProcessingWorkflowFactory {
                 agent.Id,
                 'assign_to_queue',
                 'Routes case to appropriate support queue based on classification.\n\n' +
-                    '**Available Queues (use OwnerId from queue lookup):**\n' +
-                    '- Engineering_Support_Queue (00Gxxx) - Technical issues, bugs, integrations, errors\n' +
-                    '- Finance_Support_Queue (00Gxxx) - Billing, invoicing, payments, credits\n' +
-                    '- Product_Support_Queue (00Gxxx) - Product questions, features, how-to\n\n' +
+                    '**Available Queues:**\n' +
+                    '- Engineering_Support_Queue - Technical issues, bugs, integrations, errors\n' +
+                    '- Finance_Support_Queue - Billing, invoicing, payments, credits\n' +
+                    '- Product_Support_Queue - Product questions, features, how-to\n\n' +
                     '**Workflow:** Classify case first, then route to correct queue.\n\n' +
-                    '**Note:** Queue IDs start with "00G". You must provide the correct queue ID.',
-                '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"Case ID. MUST start with 500.","pattern":"^500[a-zA-Z0-9]{15}$"},"recordData":{"type":"object","properties":{"OwnerId":{"type":"string","format":"salesforce-id","description":"Queue ID to route to. MUST start with 00G. Engineering, Finance, or Product queue.","pattern":"^00G[a-zA-Z0-9]{15}$"}},"required":["OwnerId"]}},"required":["recordId","recordData"]}',
-                'Standard',
-                'UpdateRecord',
+                    '**Note:** Provide the queue DeveloperName, not the ID. The system will look up the queue ID automatically.',
+                '{"type":"object","properties":{"caseId":{"type":"string","format":"salesforce-id","description":"Case ID. MUST start with 500."},"queueDeveloperName":{"type":"string","description":"Queue developer name","enum":["Engineering_Support_Queue","Finance_Support_Queue","Product_Support_Queue"]}},"required":["caseId","queueDeveloperName"]}',
+                'Apex',
                 null,
-                '{"objectApiName":"Case"}',
+                'ActionCaseProcessing',
+                '{"operation":"assign_to_queue"}',
                 null,
                 false,
                 'External'
@@ -816,15 +816,15 @@ public with sharing class CaseProcessingWorkflowFactory {
             ContextFormatStrategy__c = 'Structured Text',
             IdentityPrompt__c = 'You are a Case Assignment Specialist. You match cases to the best-fit support representative based on expertise, workload, and customer history, then notify all parties.',
             InstructionsPrompt__c = 'Assign the case to the best rep using available context.\n\n' +
-                '**1. GATHER CONTEXT:**\n' +
-                '- Get queue members: `get_queue_members` (case is already routed to a queue)\n' +
-                '- Check workload: `get_user_workload` (avoid overloading)\n' +
-                '- Review history: `get_account_case_history` (prefer continuity)\n\n' +
+                '**IMPORTANT WORKFLOW - Follow this exact sequence:**\n\n' +
+                '**1. GATHER CONTEXT (in this order):**\n' +
+                '- First, get queue members: `get_queue_members` (case is already routed to a queue - extract queue name from Case.Owner)\n' +
+                '- Then, check workload: `get_user_workload` (pass userIds from get_queue_members response - avoid overloading)\n' +
+                '- Optionally, review history: `get_account_case_history` (prefer continuity if same account had cases before)\n\n' +
                 '**2. SELECT BEST REP:**\n' +
-                '- Match skills to case category (SAP expert for SAP issues)\n' +
-                '- Balance workload (choose rep with fewer open cases)\n' +
-                '- Prefer rep who handled previous cases for this account (if applicable)\n' +
-                '- Consider SLA tier (Premium customers → senior reps)\n\n' +
+                '- Balance workload (choose rep with fewest open cases from get_user_workload)\n' +
+                '- Prefer rep who handled previous cases for this account (if applicable from history)\n' +
+                '- Consider SLA tier from context (Premium customers → more experienced reps if identifiable)\n\n' +
                 '**3. ASSIGN:**\n' +
                 '- Update case owner: `assign_case_to_user`\n' +
                 '- Set Status to "Working"\n\n' +
@@ -832,7 +832,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 '- Alert rep: `send_rep_notification` (in-app, includes case summary, priority, SLA)\n' +
                 '- Acknowledge customer: `send_customer_acknowledgment` (email: "Your case is assigned to [Rep], expected response within [SLA]")\n\n' +
                 '**5. CREATE FOLLOW-UP:**\n' +
-                '- For urgent cases (High priority + Premium SLA): `create_followup_task` due before SLA deadline'
+                '- For urgent cases (High priority): `create_followup_task` due before SLA deadline'
         );
         insert agent;
 
@@ -869,11 +869,18 @@ public with sharing class CaseProcessingWorkflowFactory {
             createCapability(
                 agent.Id,
                 'get_user_workload',
-                'Retrieves current workload for specified users (open case counts, critical case counts).\n\n' +
-                    '**Returns:** For each user: open cases, critical cases, workload score (0-100, higher = busier).\n\n' +
-                    '**Purpose:** Avoid overloading reps. Choose rep with lower workload score.\n\n' +
-                    '**Workflow:** Call after `get_queue_members` to check workload for candidate reps.',
-                '{"type":"object","properties":{"userIds":{"type":"array","items":{"type":"string","format":"salesforce-id","pattern":"^005[a-zA-Z0-9]{15}$"},"description":"List of User IDs to check workload for (from get_queue_members)","minItems":1}},"required":["userIds"]}',
+                'Retrieves current workload for specified users (open case counts).\n\n' +
+                    '**Returns:** For each user: open cases count.\n\n' +
+                    '**Purpose:** Avoid overloading reps. Choose rep with lowest open case count.\n\n' +
+                    '**CRITICAL WORKFLOW - YOU MUST FOLLOW THIS SEQUENCE:**\n' +
+                    '1. First call get_queue_members (e.g., {"queueDeveloperName": "Engineering_Support_Queue"})\n' +
+                    '2. Extract userIds from the response: look for response.members array, each member has a userId field\n' +
+                    '3. Then call THIS tool with those userIds: {"userIds": ["005xxx...", "005yyy..."]}\n\n' +
+                    '**Example workflow:**\n' +
+                    'Step 1: get_queue_members returns {"members": [{"userId": "005ABC", "name": "John"}, {"userId": "005XYZ", "name": "Jane"}]}\n' +
+                    'Step 2: Extract ["005ABC", "005XYZ"]\n' +
+                    'Step 3: Call get_user_workload with {"userIds": ["005ABC", "005XYZ"]}',
+                '{"type":"object","properties":{"userIds":{"type":"array","items":{"type":"string","format":"salesforce-id","pattern":"^005[a-zA-Z0-9]{15}$"},"description":"Array of User IDs from get_queue_members response. Extract from response.members[].userId. MUST have at least 1 ID.","minItems":1,"examples":[["005DL00000J5jrnYAB","005DL00000J5jroYAB"]]}},"required":["userIds"]}',
                 'Apex',
                 null,
                 'ActionCaseProcessing',
@@ -1009,11 +1016,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 '- Alert Customer Success Manager / Account Executive: `notify_account_team`\n' +
                 '- Purpose: Keep account owner aware of high-priority customer issues\n' +
                 '- Use for: $1M+ accounts, relationship risk, potential churn\n\n' +
-                '**4. EXECUTIVE VISIBILITY:**\n' +
-                '- Post to Executive Support Chatter group: `post_to_executive_support_channel`\n' +
-                '- For: System outages, >$5M accounts, multi-customer impact\n' +
-                '- Include: Customer name, issue summary, business impact, assigned rep\n\n' +
-                '**5. PROACTIVE OUTREACH:**\n' +
+                '**4. PROACTIVE OUTREACH:**\n' +
                 '- Recommend executive call/meeting: `recommend_proactive_outreach`\n' +
                 '- For: VIP accounts with high-priority issues, relationship salvage, major incidents\n' +
                 '- Creates recommendation task for Account Manager'
@@ -1065,25 +1068,6 @@ public with sharing class CaseProcessingWorkflowFactory {
                 null,
                 'ActionCaseProcessing',
                 '{"operation":"notify_account_team"}',
-                null,
-                false,
-                'External'
-            ),
-            createCapability(
-                agent.Id,
-                'post_to_executive_support_channel',
-                'Posts alert to Executive Support Chatter group for leadership visibility.\n\n' +
-                    '**Use for:**\n' +
-                    '- System-wide outages affecting multiple customers\n' +
-                    '- $5M+ account issues\n' +
-                    '- Major security incidents\n' +
-                    '- Situations requiring cross-functional coordination\n\n' +
-                    '**Content:** @mentions Support Manager, includes customer, issue, business impact, assigned rep.',
-                '{"type":"object","properties":{"messageText":{"type":"string","maxLength":1000,"description":"Chatter post content with @mentions"},"topics":{"type":"array","items":{"type":"string"},"description":"Hashtags like #critical #escalation","examples":[["critical","escalation"]]}},"required":["messageText"]}',
-                'Standard',
-                'PostChatter',
-                null,
-                '{"feedType":"Group","targetId":"[Executive_Support_Group_Id]"}',
                 null,
                 false,
                 'External'

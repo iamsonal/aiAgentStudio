@@ -17,7 +17,7 @@
  *
  * @extends BaseAgentAction
  */
-public class ActionUpdateRecord extends BaseAgentAction {
+public with sharing class ActionUpdateRecord extends BaseAgentAction {
     private ConfigDTO config;
 
     public class ArgumentsDTO {
@@ -228,7 +228,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
         }
 
         // Perform DML update with enhanced error handling and context
-        Database.SaveResult saveResult = Database.update(decision.getRecords()[0], false);
+        Database.SaveResult saveResult = Database.update(decision.getRecords()[0], false, AccessLevel.USER_MODE);
 
         Long executionTime = System.currentTimeMillis() - startTime;
         System.debug(

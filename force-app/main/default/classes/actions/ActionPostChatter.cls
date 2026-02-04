@@ -17,7 +17,7 @@
  *
  * @extends BaseAgentAction
  */
-public class ActionPostChatter extends BaseAgentAction {
+public with sharing class ActionPostChatter extends BaseAgentAction {
     private static final String FEED_TYPE_USER = 'User';
     private static final String FEED_TYPE_GROUP = 'Group';
     private static final String FEED_TYPE_RECORD = 'Record';

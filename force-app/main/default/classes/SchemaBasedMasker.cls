@@ -49,38 +49,30 @@ public inherited sharing class SchemaBasedMasker {
     private static final Set<String> DEFAULT_SENSITIVE_CLASSIFICATIONS = new Set<String>{ 'Confidential', 'Restricted' };
 
     // Fallback field name patterns for when classification isn't set.
-    // These are checked using String.contains() against lowercased field names.
+    // Uses regex word boundaries to prevent false positives.
     //
-    // WARNING: Be careful when adding new patterns:
-    // - Use patterns that are 3+ characters and unlikely to appear as substrings in unrelated field names
-    // - GOOD: 'ssn', 'taxid', 'creditcard' - specific and unlikely false positives
-    // - BAD: 'id', 'key', 'pwd' - too short, would match 'valid', 'keyboard', 'crowded'
-    // - Test new patterns against your org's schema to verify no false positives
-    // - Example false positive risk: 'ssn' is safe (unlikely substring), but 'ss' would match 'address'
-    private static final Set<String> FALLBACK_SENSITIVE_PATTERNS = new Set<String>{
-        'ssn',
-        'socialsecurity',
-        'social_security',
-        'taxid',
-        'tax_id',
-        'ein',
-        'itin',
-        'creditcard',
-        'credit_card',
-        'cardnumber',
-        'card_number',
-        'bankaccount',
-        'bank_account',
-        'routingnumber',
-        'routing_number',
-        'driverslicense',
-        'drivers_license',
-        'passport',
-        'dateofbirth',
-        'date_of_birth',
-        'dob',
-        'birthdate'
-    };
+    // Pattern Matching Strategy:
+    // - Uses word boundaries (\\b) to match whole words or underscore-separated segments
+    // - Prevents false matches like 'ssn' matching 'Classness__c' or 'dob' matching 'Adobe_Sign_Id__c'
+    // - Case-insensitive matching via (?i) flag in regex
+    //
+    // Example Patterns:
+    // - '\\bssn\\b' matches 'SSN__c', 'Contact_SSN__c' but NOT 'Classness__c'
+    // - '\\bdob\\b' matches 'DOB__c', 'Customer_DOB__c' but NOT 'Adobe_Id__c'
+    // - '\\bein\\b' matches 'EIN__c', 'Tax_EIN__c' but NOT 'Protein__c'
+    private static Map<String, Pattern> fallbackSensitivePatterns;
+
+    static {
+        // Initialize regex patterns with word boundaries and case-insensitive flag (?i)
+        fallbackSensitivePatterns = new Map<String, Pattern>{
+            'ssn' => Pattern.compile('(?i)\\b(ssn|socialsecurity|social_security)\\b'),
+            'tax' => Pattern.compile('(?i)\\b(taxid|tax_id|ein|itin)\\b'),
+            'credit' => Pattern.compile('(?i)\\b(creditcard|credit_card|cardnumber|card_number)\\b'),
+            'bank' => Pattern.compile('(?i)\\b(bankaccount|bank_account|routingnumber|routing_number)\\b'),
+            'license' => Pattern.compile('(?i)\\b(driverslicense|drivers_license|passport)\\b'),
+            'birth' => Pattern.compile('(?i)\\b(dateofbirth|date_of_birth|dob|birthdate)\\b')
+        };
+    }
 
     // Whether to use fallback pattern matching
     private Boolean useFallbackPatterns;
@@ -332,16 +324,18 @@ public inherited sharing class SchemaBasedMasker {
     }
 
     /**
-     * @description Checks if a field name matches any fallback sensitive patterns.
+     * @description Checks if a field name matches any fallback sensitive patterns using regex word boundaries.
+     * This prevents false positives like 'ssn' matching 'Classness__c' or 'dob' matching 'Adobe_Sign_Id__c'.
      */
     private Boolean matchesFallbackPattern(String fieldName) {
         if (String.isBlank(fieldName)) {
             return false;
         }
 
-        String lowerFieldName = fieldName.toLowerCase();
-        for (String pattern : FALLBACK_SENSITIVE_PATTERNS) {
-            if (lowerFieldName.contains(pattern)) {
+        // Check each pattern category
+        for (Pattern p : fallbackSensitivePatterns.values()) {
+            Matcher m = p.matcher(fieldName);
+            if (m.find()) {
                 return true;
             }
         }

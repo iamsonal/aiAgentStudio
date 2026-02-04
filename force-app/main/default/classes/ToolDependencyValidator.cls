@@ -477,31 +477,44 @@ public inherited sharing class ToolDependencyValidator {
         // Check anyOf dependencies (at least one must be satisfied)
         if (!reqs.anyOf.isEmpty()) {
             Boolean anyMet = false;
-            String satisfiedDep = null;
 
+            // Strategy: Prefer already-satisfied dependencies first, then try batch candidates
+            // This prevents blocking when one anyOf option is in batch but blocked
+
+            // Check if any dependency is already satisfied
             for (String dep : reqs.anyOf) {
-                if (alreadyExecuted.contains(dep) || toolsInBatch.contains(dep)) {
+                if (alreadyExecuted.contains(dep)) {
                     anyMet = true;
+                    break; // Already satisfied, no need to visit
+                }
+            }
+
+            // If not already satisfied, try to visit candidates in the batch
+            if (!anyMet) {
+                for (String dep : reqs.anyOf) {
                     if (toolsInBatch.contains(dep) && !visited.contains(dep)) {
-                        satisfiedDep = dep;
+                        // Try to visit this candidate
+                        Boolean canVisit = topologicalSortVisit(dep, graph, toolsInBatch, visited, visiting, result, alreadyExecuted);
+                        if (canVisit) {
+                            anyMet = true;
+                            break; // Found a satisfiable path
+                        }
+                        // If this candidate can't be visited, try next anyOf option
+                    } else if (toolsInBatch.contains(dep) && visited.contains(dep)) {
+                        // Already visited in this batch
+                        anyMet = true;
+                        break;
                     }
-                    break;
                 }
             }
 
             if (!anyMet) {
-                System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Tool "' + toolName + '" blocked - missing anyOf dependencies: ' + String.join(reqs.anyOf, ', '));
+                System.debug(
+                    LoggingLevel.DEBUG,
+                    LOG_PREFIX + 'Tool "' + toolName + '" blocked - no satisfiable anyOf dependency found: ' + String.join(reqs.anyOf, ', ')
+                );
                 visiting.remove(toolName);
                 return false;
-            }
-
-            // If the satisfied dependency is in batch and not visited, visit it first
-            if (satisfiedDep != null) {
-                Boolean canVisit = topologicalSortVisit(satisfiedDep, graph, toolsInBatch, visited, visiting, result, alreadyExecuted);
-                if (!canVisit) {
-                    visiting.remove(toolName);
-                    return false;
-                }
             }
         }
 
