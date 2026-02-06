@@ -245,6 +245,6 @@ public class PIIMaskingSession {
      */
     public static String getTokenPattern() {
         // Matches tokens like [SSN:001], [CC:002], [EMAIL:003], etc.
-        return '\\[[A-Z_]+:\\d{3,}\\]';
+        return '\\[[A-Z0-9_]+:\\d{3,}\\]';
     }
 }

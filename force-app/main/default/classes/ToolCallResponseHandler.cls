@@ -17,6 +17,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         public String toolCallId;
         public String toolName;
         public String toolArguments;
+        public String rawToolArguments;
         public AgentCapability__c capability;
         public Boolean isAsync;
         public String hitlMode;
@@ -24,6 +25,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         public String rationale;
         public Decimal confidence;
         public String nextStepSuggestion;
+        public Boolean requiresApproval;
+        public String approvalReason;
+        public Boolean hasParsedArguments;
 
         public ToolCallRequest(String toolCallId, String toolName, String toolArguments, AgentCapability__c capability, Integer executionOrder) {
             this(toolCallId, toolName, toolArguments, capability, executionOrder, null, null, null);
@@ -71,6 +75,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             this.rationale = rationale;
             this.confidence = confidence;
             this.nextStepSuggestion = nextStepSuggestion;
+            this.hasParsedArguments = false;
 
             this.hitlMode = String.isNotBlank(capability.HITLMode__c) ? capability.HITLMode__c : null;
 
@@ -142,6 +147,17 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     private class ToolCallParseResult {
         public List<ToolCallRequest> validRequests = new List<ToolCallRequest>();
         public List<InvalidToolCall> invalidRequests = new List<InvalidToolCall>();
+    }
+
+    private class ParsedToolArguments {
+        public String rawArguments;
+        public String cleanedArguments;
+        public String rationale;
+        public Decimal confidence;
+        public String nextStepSuggestion;
+        public Boolean requiresApproval;
+        public String approvalReason;
+        public Boolean parsedSuccessfully;
     }
 
     private class InvalidToolCall {
@@ -298,6 +314,29 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         String logPrefix
     ) {
         ToolCallParseResult parseResult = new ToolCallParseResult();
+        Map<String, AgentCapability__c> capabilitiesByLowerName = new Map<String, AgentCapability__c>();
+
+        // Bulk-load capabilities to avoid N+1 lookups
+        try {
+            Set<String> capabilityNames = new Set<String>();
+            for (Map<String, String> action : requestedActions) {
+                String toolName = action != null ? action.get('name') : null;
+                if (String.isNotBlank(toolName)) {
+                    capabilityNames.add(toolName);
+                }
+            }
+
+            if (!capabilityNames.isEmpty()) {
+                Map<String, AgentCapability__c> capabilitiesByName = AIAgentConfigService.getCapabilitiesByNames(context.agentDefinitionId, capabilityNames);
+                for (String nameKey : capabilitiesByName.keySet()) {
+                    if (String.isNotBlank(nameKey) && capabilitiesByName.get(nameKey) != null) {
+                        capabilitiesByLowerName.put(nameKey.toLowerCase(), capabilitiesByName.get(nameKey));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Bulk capability lookup failed; falling back to missing tool handling. ' + e.getMessage());
+        }
 
         for (Integer i = 0; i < requestedActions.size(); i++) {
             Map<String, String> actionMap = requestedActions[i];
@@ -314,53 +353,46 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     continue;
                 }
 
-                AgentCapability__c capability;
-                try {
-                    capability = AIAgentConfigService.getCapability(context.agentDefinitionId, toolName);
-                } catch (Exception e) {
+                AgentCapability__c capability = capabilitiesByLowerName.get(toolName.toLowerCase());
+                if (capability == null) {
                     String errorMessage = 'Tool "' + toolName + '" is not configured for this agent.';
                     System.debug(LoggingLevel.WARN, logPrefix + errorMessage);
                     parseResult.invalidRequests.add(new InvalidToolCall(toolCallId, toolName, toolArguments, errorMessage, false));
                     continue;
                 }
 
-                // Extract confidence and nextStepSuggestion BEFORE stripping internal parameters
-                Decimal confidence = ExecutionStepService.extractConfidenceScore(toolArguments);
-                String nextStepSuggestion = ExecutionStepService.extractNextStepSuggestion(toolArguments);
+                ParsedToolArguments parsedArgs = parseToolArguments(toolArguments, logPrefix);
 
-                String extractedRationale = null;
-                String cleanedArguments = toolArguments;
-
-                Map<String, String> rationaleResult = LLMFormattingService.extractAndStripRationale(toolArguments, logPrefix);
-                extractedRationale = rationaleResult.get('rationale');
-                cleanedArguments = rationaleResult.get('cleanedArguments');
-
-                if (String.isNotBlank(extractedRationale)) {
+                if (String.isNotBlank(parsedArgs.rationale)) {
                     System.debug(
                         LoggingLevel.INFO,
                         logPrefix +
                             'Extracted rationale for tool ' +
                             toolName +
                             ': ' +
-                            extractedRationale.left(100) +
-                            (extractedRationale.length() > 100 ? '...' : '')
+                            parsedArgs.rationale.left(100) +
+                            (parsedArgs.rationale.length() > 100 ? '...' : '')
                     );
                 }
 
-                if (String.isNotBlank(nextStepSuggestion)) {
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Extracted next step suggestion for tool ' + toolName + ': ' + nextStepSuggestion);
+                if (String.isNotBlank(parsedArgs.nextStepSuggestion)) {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Extracted next step suggestion for tool ' + toolName + ': ' + parsedArgs.nextStepSuggestion);
                 }
 
                 ToolCallRequest toolRequest = new ToolCallRequest(
                     toolCallId,
                     toolName,
-                    cleanedArguments,
+                    parsedArgs.cleanedArguments,
                     capability,
                     i + 1,
-                    extractedRationale,
-                    confidence,
-                    nextStepSuggestion
+                    parsedArgs.rationale,
+                    parsedArgs.confidence,
+                    parsedArgs.nextStepSuggestion
                 );
+                toolRequest.rawToolArguments = parsedArgs.rawArguments;
+                toolRequest.requiresApproval = parsedArgs.requiresApproval;
+                toolRequest.approvalReason = parsedArgs.approvalReason;
+                toolRequest.hasParsedArguments = parsedArgs.parsedSuccessfully;
                 parseResult.validRequests.add(toolRequest);
 
                 System.debug(
@@ -375,7 +407,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                         ', hitlMode=' +
                         toolRequest.hitlMode +
                         ', hasRationale=' +
-                        String.isNotBlank(extractedRationale) +
+                        String.isNotBlank(parsedArgs.rationale) +
                         ')'
                 );
             } catch (Exception e) {
@@ -425,6 +457,88 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
 
         return parseResult;
+    }
+
+    private ParsedToolArguments parseToolArguments(String toolArguments, String logPrefix) {
+        ParsedToolArguments result = new ParsedToolArguments();
+        result.rawArguments = toolArguments;
+        result.cleanedArguments = toolArguments;
+        result.parsedSuccessfully = false;
+
+        if (String.isBlank(toolArguments)) {
+            return result;
+        }
+
+        try {
+            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(toolArguments);
+
+            if (args.containsKey('_rationale')) {
+                Object rationaleValue = args.get('_rationale');
+                if (rationaleValue != null) {
+                    result.rationale = String.valueOf(rationaleValue);
+                }
+            }
+
+            if (args.containsKey('_confidence')) {
+                Object confidenceValue = args.get('_confidence');
+                if (confidenceValue != null) {
+                    try {
+                        Decimal confidence = Decimal.valueOf(String.valueOf(confidenceValue));
+                        if (confidence >= 0 && confidence <= 100) {
+                            result.confidence = confidence;
+                        } else {
+                            System.debug(LoggingLevel.WARN, logPrefix + 'Confidence value out of range (0-100): ' + confidence);
+                        }
+                    } catch (Exception e) {
+                        System.debug(LoggingLevel.WARN, logPrefix + 'Could not parse confidence value: ' + confidenceValue);
+                    }
+                }
+            }
+
+            if (args.containsKey('_nextStepSuggestion')) {
+                Object suggestionValue = args.get('_nextStepSuggestion');
+                if (suggestionValue != null) {
+                    String suggestion = String.valueOf(suggestionValue).trim();
+                    if (String.isNotBlank(suggestion)) {
+                        if (suggestion.length() > 255) {
+                            System.debug(LoggingLevel.WARN, logPrefix + 'Next step suggestion exceeds 255 chars, truncating: ' + suggestion);
+                            suggestion = suggestion.substring(0, 255);
+                        }
+                        result.nextStepSuggestion = suggestion;
+                    }
+                }
+            }
+
+            if (args.containsKey('_requiresApproval')) {
+                Object requiresApproval = args.get('_requiresApproval');
+                if (requiresApproval instanceof Boolean) {
+                    result.requiresApproval = (Boolean) requiresApproval;
+                } else if (requiresApproval instanceof String) {
+                    String strValue = ((String) requiresApproval).toLowerCase();
+                    result.requiresApproval = (strValue == 'true' || strValue == '1' || strValue == 'yes');
+                }
+            }
+
+            if (args.containsKey('_approvalReason')) {
+                Object approvalReason = args.get('_approvalReason');
+                if (approvalReason != null) {
+                    result.approvalReason = String.valueOf(approvalReason);
+                }
+            }
+
+            args.remove('_requiresApproval');
+            args.remove('_approvalReason');
+            args.remove('_rationale');
+            args.remove('_confidence');
+            args.remove('_nextStepSuggestion');
+
+            result.cleanedArguments = JSON.serialize(args);
+            result.parsedSuccessfully = true;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to parse tool arguments: ' + e.getMessage());
+        }
+
+        return result;
     }
 
     // TOOL GROUPING
@@ -502,12 +616,17 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
      */
     @TestVisible
     private static Boolean checkLLMApprovalRequest(ToolCallRequest tool) {
-        if (String.isBlank(tool.toolArguments)) {
+        if (tool != null && tool.requiresApproval != null) {
+            return tool.requiresApproval;
+        }
+
+        String argsSource = tool != null && String.isNotBlank(tool.rawToolArguments) ? tool.rawToolArguments : (tool != null ? tool.toolArguments : null);
+        if (String.isBlank(argsSource)) {
             return false;
         }
 
         try {
-            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(tool.toolArguments);
+            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(argsSource);
 
             if (!args.containsKey('_requiresApproval')) {
                 return false;
@@ -544,12 +663,17 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
      * @return The approval reason string, or null if not present
      */
     private static String extractApprovalReason(ToolCallRequest tool) {
-        if (String.isBlank(tool.toolArguments)) {
+        if (tool != null && String.isNotBlank(tool.approvalReason)) {
+            return tool.approvalReason;
+        }
+
+        String argsSource = tool != null && String.isNotBlank(tool.rawToolArguments) ? tool.rawToolArguments : (tool != null ? tool.toolArguments : null);
+        if (String.isBlank(argsSource)) {
             return null;
         }
 
         try {
-            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(tool.toolArguments);
+            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(argsSource);
 
             if (args.containsKey('_approvalReason')) {
                 return String.valueOf(args.get('_approvalReason'));
@@ -1200,9 +1324,10 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     'SyncTool'
                 );
 
-                // Strip framework-internal parameters before execution
-                // These are used for conditional approval logic but should not be passed to the actual tool
-                String cleanedArguments = stripInternalParameters(toolRequest.toolArguments);
+                // Strip framework-internal parameters before execution if we couldn't parse earlier
+                String cleanedArguments = toolRequest.hasParsedArguments == true
+                    ? toolRequest.toolArguments
+                    : stripInternalParameters(toolRequest.toolArguments);
 
                 // Execute the tool
                 ActionOutcome outcome = context.actionExecSvc.executeSingleAction(toolRequest.capability, cleanedArguments, actionContext);
@@ -1285,136 +1410,180 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         ToolDependencyValidator.DependencyGraph graph = ToolDependencyValidator.parseGraph(dependencyGraph);
 
         // Build set of tool names in current batch (for dependency validation)
-        // AND preserve all tool requests (handles duplicate tool names with different arguments)
         Set<String> toolsInBatch = new Set<String>();
-        Map<String, List<ToolCallRequest>> toolNameToRequests = new Map<String, List<ToolCallRequest>>();
         for (ToolCallRequest tool : tools) {
-            toolsInBatch.add(tool.toolName);
-            if (!toolNameToRequests.containsKey(tool.toolName)) {
-                toolNameToRequests.put(tool.toolName, new List<ToolCallRequest>());
+            if (!toolsInBatch.contains(tool.toolName)) {
+                toolsInBatch.add(tool.toolName);
             }
-            toolNameToRequests.get(tool.toolName).add(tool);
         }
 
-        // Attempt topological sort to reorder tools
-        List<String> sortedToolNames = ToolDependencyValidator.topologicalSort(toolsInBatch, graph, executedTools);
+        Set<String> executedOrInBatch = new Set<String>(executedTools);
+        executedOrInBatch.addAll(toolsInBatch);
 
-        // Check if reordering was successful (all tools can execute)
-        if (sortedToolNames.size() == toolsInBatch.size()) {
-            // Successfully sorted - check if order changed
-            result.wasReordered = !isOriginalOrder(tools, sortedToolNames);
+        List<ToolCallRequest> allowedRequests = new List<ToolCallRequest>();
+        for (ToolCallRequest toolRequest : tools) {
+            ToolDependencyValidator.DependencyRequirements reqs = graph.getDependenciesFor(toolRequest.toolName);
 
-            Integer newOrder = 0;
-            for (String toolName : sortedToolNames) {
-                List<ToolCallRequest> toolRequests = toolNameToRequests.get(toolName);
-                if (toolRequests != null) {
-                    // Add all tool requests for this tool name (handles duplicates)
-                    for (ToolCallRequest tool : toolRequests) {
-                        tool.executionOrder = newOrder++;
-                        result.reorderedTools.add(tool);
-                    }
+            List<String> missingAllOf = new List<String>();
+            for (String dep : reqs.allOf) {
+                if (!executedOrInBatch.contains(dep)) {
+                    missingAllOf.add(dep);
                 }
             }
 
-            if (result.wasReordered) {
-                System.debug(
-                    LoggingLevel.INFO,
-                    logPrefix +
-                        'Pre-flight: Reordered ' +
-                        result.reorderedTools.size() +
-                        ' tool(s) based on dependencies. Order: ' +
-                        String.join(sortedToolNames, ' -> ')
+            List<String> missingAnyOfGroups = new List<String>();
+            if (!reqs.anyOf.isEmpty()) {
+                Boolean anyMet = false;
+                for (String dep : reqs.anyOf) {
+                    if (executedOrInBatch.contains(dep)) {
+                        anyMet = true;
+                        break;
+                    }
+                }
+                if (!anyMet) {
+                    missingAnyOfGroups.add('[Any of: ' + String.join(reqs.anyOf, ', ') + ']');
+                }
+            }
+
+            if (missingAllOf.isEmpty() && missingAnyOfGroups.isEmpty()) {
+                allowedRequests.add(toolRequest);
+            } else {
+                result.hasBlockedTools = true;
+                ToolDependencyValidator.ValidationResult validationResult = ToolDependencyValidator.createBlockedResult(
+                    toolRequest.toolName,
+                    missingAllOf,
+                    missingAnyOfGroups,
+                    executedTools
                 );
-            }
-        } else {
-            // Some tools have missing dependencies - separate allowed from blocked
-            Set<String> allowedToolNames = new Set<String>(sortedToolNames);
 
-            for (ToolCallRequest toolRequest : tools) {
-                if (allowedToolNames.contains(toolRequest.toolName)) {
-                    result.reorderedTools.add(toolRequest);
-                } else {
-                    // Tool is blocked
-                    result.hasBlockedTools = true;
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix +
+                        'Pre-flight: Tool "' +
+                        toolRequest.toolName +
+                        '" blocked. Missing dependencies: ' +
+                        String.join(validationResult.missingDependencies, ', ')
+                );
 
-                    ToolDependencyValidator.ValidationResult validationResult = ToolDependencyValidator.validate(
-                        toolRequest.toolName,
-                        executedTools,
-                        dependencyGraph
-                    );
+                ActionOutcome blockedOutcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_DEPENDENCY_VALIDATION, validationResult.guidanceForLLM);
 
-                    System.debug(
-                        LoggingLevel.WARN,
-                        logPrefix +
-                            'Pre-flight: Tool "' +
-                            toolRequest.toolName +
-                            '" blocked. Missing dependencies: ' +
-                            String.join(validationResult.missingDependencies, ', ')
-                    );
+                ToolExecutionResult blockedResult = new ToolExecutionResult(
+                    toolRequest.toolCallId,
+                    toolRequest.toolName,
+                    blockedOutcome,
+                    0L,
+                    false,
+                    toolRequest.executionOrder,
+                    toolRequest.capability.Id,
+                    true // isDependencyValidationFailure
+                );
 
-                    ActionOutcome blockedOutcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_DEPENDENCY_VALIDATION, validationResult.guidanceForLLM);
+                result.blockedResults.add(blockedResult);
 
-                    ToolExecutionResult blockedResult = new ToolExecutionResult(
-                        toolRequest.toolCallId,
-                        toolRequest.toolName,
-                        blockedOutcome,
-                        0L,
-                        false,
-                        toolRequest.executionOrder,
-                        toolRequest.capability.Id,
-                        true // isDependencyValidationFailure
-                    );
-
-                    result.blockedResults.add(blockedResult);
-
-                    if (decisionLogger != null) {
-                        decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ toolRequest, blockedOutcome, 0L });
-                    }
+                if (decisionLogger != null) {
+                    decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ toolRequest, blockedOutcome, 0L });
                 }
             }
+        }
 
-            // Reorder the allowed tools
-            if (!result.reorderedTools.isEmpty()) {
-                result.reorderedTools = reorderToolsByDependencies(result.reorderedTools, sortedToolNames);
-                result.wasReordered = true;
+        result.reorderedTools = orderToolsByDependencies(allowedRequests, executedTools, graph, logPrefix);
+        result.wasReordered = !isOriginalOrder(allowedRequests, result.reorderedTools);
+
+        if (result.wasReordered) {
+            List<String> toolNames = new List<String>();
+            for (ToolCallRequest t : result.reorderedTools) {
+                toolNames.add(t.toolName);
             }
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Pre-flight: Reordered ' + result.reorderedTools.size() + ' tool(s) based on dependencies. Order: ' + String.join(toolNames, ' -> ')
+            );
         }
 
         return result;
     }
 
     /**
-     * Reorders tools based on sorted names and updates executionOrder.
+     * Orders tools based on dependency readiness while preserving original ordering where possible.
      */
-    private List<ToolCallRequest> reorderToolsByDependencies(List<ToolCallRequest> tools, List<String> sortedNames) {
-        Map<String, ToolCallRequest> nameToTool = new Map<String, ToolCallRequest>();
-        for (ToolCallRequest tool : tools) {
-            nameToTool.put(tool.toolName, tool);
-        }
+    private List<ToolCallRequest> orderToolsByDependencies(
+        List<ToolCallRequest> tools,
+        Set<String> executedTools,
+        ToolDependencyValidator.DependencyGraph graph,
+        String logPrefix
+    ) {
+        List<ToolCallRequest> remaining = new List<ToolCallRequest>();
+        remaining.addAll(tools);
 
-        List<ToolCallRequest> reordered = new List<ToolCallRequest>();
-        Integer newOrder = 0;
-        for (String name : sortedNames) {
-            ToolCallRequest tool = nameToTool.get(name);
-            if (tool != null) {
-                tool.executionOrder = newOrder++;
-                reordered.add(tool);
+        List<ToolCallRequest> ordered = new List<ToolCallRequest>();
+        Set<String> satisfied = new Set<String>(executedTools);
+        Boolean progress = true;
+
+        while (!remaining.isEmpty() && progress) {
+            progress = false;
+            for (Integer i = 0; i < remaining.size(); i++) {
+                ToolCallRequest candidate = remaining[i];
+                ToolDependencyValidator.DependencyRequirements reqs = graph.getDependenciesFor(candidate.toolName);
+                if (areDependenciesSatisfied(reqs, satisfied)) {
+                    ordered.add(candidate);
+                    satisfied.add(candidate.toolName);
+                    remaining.remove(i);
+                    i--;
+                    progress = true;
+                }
             }
         }
 
-        return reordered;
+        if (!remaining.isEmpty()) {
+            System.debug(
+                LoggingLevel.WARN,
+                logPrefix +
+                'Pre-flight: Unable to fully satisfy dependency ordering (possible cycle or missing prerequisites). Executing remaining tools in original order.'
+            );
+            ordered.addAll(remaining);
+        }
+
+        Integer newOrder = 0;
+        for (ToolCallRequest tool : ordered) {
+            tool.executionOrder = newOrder++;
+        }
+
+        return ordered;
     }
 
     /**
      * Checks if the sorted order matches the original order.
      */
-    private Boolean isOriginalOrder(List<ToolCallRequest> original, List<String> sorted) {
-        if (original.size() != sorted.size()) {
+    private Boolean isOriginalOrder(List<ToolCallRequest> original, List<ToolCallRequest> reordered) {
+        if (original.size() != reordered.size()) {
             return false;
         }
 
         for (Integer i = 0; i < original.size(); i++) {
-            if (original[i].toolName != sorted[i]) {
+            if (original[i].toolCallId != reordered[i].toolCallId) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private Boolean areDependenciesSatisfied(ToolDependencyValidator.DependencyRequirements reqs, Set<String> satisfied) {
+        for (String dep : reqs.allOf) {
+            if (!satisfied.contains(dep)) {
+                return false;
+            }
+        }
+
+        if (!reqs.anyOf.isEmpty()) {
+            Boolean anyMet = false;
+            for (String dep : reqs.anyOf) {
+                if (satisfied.contains(dep)) {
+                    anyMet = true;
+                    break;
+                }
+            }
+            if (!anyMet) {
                 return false;
             }
         }
@@ -1523,6 +1692,13 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             FROM ExecutionStep__c
             WHERE AgentExecution__c = :executionId AND StepType__c = 'ToolResult' AND IsDependencyValidationFailure__c = TRUE
         ];
+
+        // Include buffered steps in deferred DML mode
+        for (ExecutionStep__c step : TransactionContext.getInstance().getBufferedExecutionSteps(executionId)) {
+            if (step.StepType__c == 'ToolResult' && step.IsDependencyValidationFailure__c == true) {
+                count++;
+            }
+        }
 
         return count;
     }

@@ -297,6 +297,44 @@ public inherited sharing class AgentStateService {
                 TransactionContext.getInstance().disableDeferredDMLMode();
             }
 
+            // Guard against stale workers overwriting newer turns.
+            if (String.isNotBlank(turnIdentifier)) {
+                List<AgentExecution__c> currentExecutions = [
+                    SELECT Id, CurrentTurnIdentifier__c
+                    FROM AgentExecution__c
+                    WHERE Id = :executionId AND (CurrentTurnIdentifier__c = :turnIdentifier OR CurrentTurnIdentifier__c = NULL)
+                    LIMIT 1
+                    FOR UPDATE
+                ];
+
+                if (currentExecutions.isEmpty()) {
+                    String currentTurn = null;
+                    try {
+                        List<AgentExecution__c> lookup = [
+                            SELECT Id, CurrentTurnIdentifier__c
+                            FROM AgentExecution__c
+                            WHERE Id = :executionId
+                            LIMIT 1
+                        ];
+                        if (!lookup.isEmpty()) {
+                            currentTurn = lookup[0].CurrentTurnIdentifier__c;
+                        }
+                    } catch (Exception e) {
+                        System.debug(LoggingLevel.WARN, logPrefix + 'Unable to read current turn for debug: ' + e.getMessage());
+                    }
+                    System.debug(
+                        LoggingLevel.WARN,
+                        logPrefix +
+                            'Stale status update skipped for execution ' +
+                            executionId +
+                            '. Turn mismatch for provided turn=' +
+                            turnIdentifier +
+                            (currentTurn != null ? (', current turn=' + currentTurn) : '')
+                    );
+                    return;
+                }
+            }
+
             AgentExecution__c execution = new AgentExecution__c(Id = executionId, ExecutionStatus__c = executionStatus, LastActivityTime__c = Datetime.now());
 
             if (String.isNotBlank(processingStatus)) {

@@ -425,17 +425,22 @@ public class AgentExecutionService {
             if (userId == null) {
                 userId = UserInfo.getUserId();
             }
+            Set<Id> recordIds = new Set<Id>();
 
             if (sourceRecordId != null) {
-                validateRecordExists(sourceRecordId, 'Source record');
+                recordIds.add(sourceRecordId);
             }
 
             if (currentRecordId != null && currentRecordId != sourceRecordId) {
-                validateRecordExists(currentRecordId, 'Current record');
+                recordIds.add(currentRecordId);
             }
 
             if (sourceRecordIds != null && !sourceRecordIds.isEmpty()) {
-                validateRecordsExist(sourceRecordIds, 'Source records');
+                recordIds.addAll(sourceRecordIds);
+            }
+
+            if (!recordIds.isEmpty()) {
+                validateRecordsExist(new List<Id>(recordIds), 'Record');
             }
         }
 

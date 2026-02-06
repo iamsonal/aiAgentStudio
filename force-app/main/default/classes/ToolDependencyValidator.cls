@@ -374,18 +374,31 @@ public inherited sharing class ToolDependencyValidator {
             return '';
         }
 
-        // Sort capability names for consistent hashing
-        List<String> capNames = new List<String>();
+        // Build stable signature list for consistent hashing
+        List<String> capSignatures = new List<String>();
         for (AgentCapability__c cap : capabilities) {
             // Only include enabled capabilities
             if (cap.ExposureLevel__c != 'Disabled') {
-                capNames.add(cap.CapabilityName__c);
+                String signature = String.join(
+                    new List<String>{
+                        String.valueOf(cap.CapabilityName__c),
+                        String.valueOf(cap.ExposureLevel__c),
+                        String.valueOf(cap.RunAsynchronously__c),
+                        String.valueOf(cap.HITLMode__c),
+                        String.valueOf(cap.ImplementationType__c),
+                        String.valueOf(cap.StandardActionType__c),
+                        String.valueOf(cap.ImplementationDetail__c),
+                        String.valueOf(cap.Parameters__c)
+                    },
+                    '|'
+                );
+                capSignatures.add(signature);
             }
         }
-        capNames.sort();
+        capSignatures.sort();
 
-        // Create hash from sorted names
-        String combined = String.join(capNames, '|');
+        // Create hash from sorted signatures
+        String combined = String.join(capSignatures, '||');
         Blob hashBlob = Crypto.generateDigest('SHA-256', Blob.valueOf(combined));
         return EncodingUtil.convertToHex(hashBlob).left(32);
     }
@@ -418,7 +431,10 @@ public inherited sharing class ToolDependencyValidator {
         Set<String> visited = new Set<String>(alreadyExecuted);
         Set<String> visiting = new Set<String>();
 
-        for (String toolName : toolNames) {
+        List<String> orderedToolNames = new List<String>(toolNames);
+        orderedToolNames.sort();
+
+        for (String toolName : orderedToolNames) {
             if (!visited.contains(toolName)) {
                 topologicalSortVisit(toolName, graph, toolNames, visited, visiting, result, alreadyExecuted);
             }
