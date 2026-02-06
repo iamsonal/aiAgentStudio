@@ -262,6 +262,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             if (!syncTools.isEmpty()) {
                 System.debug(LoggingLevel.INFO, logPrefix + 'Executing ' + syncTools.size() + ' sync tool(s) before handling approval tools');
                 syncResults = executeSynchronousTools(context, syncTools, decisionLogger, logPrefix);
+                if (syncResults == null) {
+                    return OrchestrationService.OUTCOME_FAILED;
+                }
                 createToolResultExecutionSteps(context, syncResults, decisionLogger, logPrefix);
             }
 
@@ -1242,8 +1245,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                         logPrefix
                     );
 
-                    // Return empty - execution stops here, no follow-up LLM call
-                    return new List<ToolExecutionResult>();
+                    // Return null - execution stops here, no follow-up LLM call
+                    return null;
                 }
 
                 // If ALL tools blocked, return immediately - no DML has occurred

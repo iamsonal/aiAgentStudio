@@ -139,7 +139,7 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
     }
 
     private HttpRequest buildToolExecutionRequest(PendingHITLAction__c action, String logPrefix) {
-        String namedCredential = AIAgentFrameworkSettings.getHITLApprovalNamedCredential();
+        String namedCredential = getServiceUserNamedCredential(action.AgentExecution__c, logPrefix);
         String endpoint = 'callout:' + namedCredential + '/services/apexrest/ai/agent/hitl/execute';
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Using Named Credential for HITL execution: ' + namedCredential);
@@ -222,7 +222,7 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
     }
 
     private HttpRequest buildFollowUpRequest(String logPrefix) {
-        String namedCredential = AIAgentFrameworkSettings.getHITLApprovalNamedCredential();
+        String namedCredential = getServiceUserNamedCredential(this.executionId, logPrefix);
         String endpoint = 'callout:' + namedCredential + '/services/apexrest/ai/agent/hitl/followup';
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Using Named Credential for follow-up LLM: ' + namedCredential);
@@ -282,7 +282,7 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
     }
 
     private HttpRequest buildResumeRequest(String logPrefix) {
-        String namedCredential = AIAgentFrameworkSettings.getHITLApprovalNamedCredential();
+        String namedCredential = getServiceUserNamedCredential(this.executionId, logPrefix);
         String endpoint = 'callout:' + namedCredential + '/services/apexrest/ai/agent/resume';
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Using Named Credential for resume: ' + namedCredential);
@@ -313,6 +313,28 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
         return HttpCalloutService.execute(httpReq, config);
     }
 
+    private String getServiceUserNamedCredential(Id execId, String logPrefix) {
+        if (execId == null) {
+            throw new AIAgentException.OrchestrationException('Execution ID is required to resolve service user Named Credential');
+        }
+
+        List<AgentExecution__c> execs = [
+            SELECT AIAgentDefinition__r.ServiceUserNamedCredential__c
+            FROM AgentExecution__c
+            WHERE Id = :execId
+            LIMIT 1
+        ];
+        if (execs.isEmpty() || String.isBlank(execs[0].AIAgentDefinition__r.ServiceUserNamedCredential__c)) {
+            throw new AIAgentException.OrchestrationException(
+                'ServiceUserNamedCredential__c is not configured on AIAgentDefinition__c for execution: ' + execId
+            );
+        }
+
+        String namedCredential = execs[0].AIAgentDefinition__r.ServiceUserNamedCredential__c;
+        System.debug(LoggingLevel.INFO, logPrefix + 'Using service user Named Credential: ' + namedCredential);
+        return namedCredential;
+    }
+
     private static Boolean shouldSendNotification(PendingHITLAction__c action, String eventType) {
         String preference = action.AIAgentCapability__r?.HITLNotificationPreference__c;
         return HITLGatewayService.shouldSendHITLNotification(preference, eventType);
@@ -320,6 +342,21 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
 
     private void logHttpError(Id execId, String turnId, String toolName, Integer statusCode, String responseBody, String logPrefix) {
         try {
+            if (String.isBlank(turnId) && execId != null) {
+                List<AgentExecution__c> execs = [
+                    SELECT CurrentTurnIdentifier__c
+                    FROM AgentExecution__c
+                    WHERE Id = :execId
+                    LIMIT 1
+                ];
+                if (!execs.isEmpty()) {
+                    turnId = execs[0].CurrentTurnIdentifier__c;
+                }
+            }
+            if (String.isBlank(turnId)) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Skipping decision step logging (missing turn identifier)');
+                return;
+            }
             IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(execId, turnId);
             decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ statusCode, responseBody, toolName });
             decisionLogger.commitSteps();
@@ -331,6 +368,21 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
 
     private void logExecutionError(Id execId, String turnId, String toolName, Exception e, String logPrefix) {
         try {
+            if (String.isBlank(turnId) && execId != null) {
+                List<AgentExecution__c> execs = [
+                    SELECT CurrentTurnIdentifier__c
+                    FROM AgentExecution__c
+                    WHERE Id = :execId
+                    LIMIT 1
+                ];
+                if (!execs.isEmpty()) {
+                    turnId = execs[0].CurrentTurnIdentifier__c;
+                }
+            }
+            if (String.isBlank(turnId)) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Skipping decision step logging (missing turn identifier)');
+                return;
+            }
             IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(execId, turnId);
             decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ e, toolName });
             decisionLogger.commitSteps();

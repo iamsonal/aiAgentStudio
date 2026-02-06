@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ApiVersion__c</fullName>
+    <description>Optional API version override for provider-specific endpoints or headers.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Examples: "2023-06-01" (Claude), "v1beta" (Gemini). Leave blank to use adapter defaults.</inlineHelpText>
+    <label>API Version</label>
+    <length>50</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

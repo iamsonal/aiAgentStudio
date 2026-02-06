@@ -94,29 +94,6 @@ public inherited sharing class AIAgentFrameworkSettings {
     }
 
     /**
-     * Gets the Named Credential API name to use for HITL-approved tool execution.
-     * The Named Credential's authentication determines the execution context.
-     *
-     * @return The Named Credential API name for HITL approval executions.
-     */
-    /**
-     * @deprecated Service user routing is now configured per-agent via AIAgentDefinition__c.ServiceUserNamedCredential__c
-     */
-    public static String getServiceUserNamedCredential() {
-        throw new AIAgentException.OrchestrationException(
-            'getServiceUserNamedCredential() is deprecated. Service user Named Credential is now configured ' +
-            'per-agent in AIAgentDefinition__c.ServiceUserNamedCredential__c field.'
-        );
-    }
-
-    /**
-     * @deprecated Use per-agent ServiceUserNamedCredential__c instead. HITL now uses agent-level credential configuration.
-     */
-    public static String getHITLApprovalNamedCredential() {
-        return getServiceUserNamedCredential();
-    }
-
-    /**
      * Gets the maximum number of successive failures allowed for a tool before the execution
      * is automatically failed. Only applies to non-Conversational agents when using autonomous recovery.
      * Conversational agents let the LLM decide how to handle errors.

@@ -722,43 +722,6 @@ public with sharing class HITLGatewayService {
         return toolName.replace('_', ' ').capitalize();
     }
 
-    private static String formatArgumentsForDisplay(String argumentsJson) {
-        if (String.isBlank(argumentsJson)) {
-            return '';
-        }
-
-        try {
-            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(argumentsJson);
-            if (args.isEmpty()) {
-                return '';
-            }
-
-            // Remove framework-internal parameters from display
-            args.remove('_requiresApproval');
-            args.remove('_approvalReason');
-            args.remove('_rationale'); // Also hide rationale
-            args.remove('_confidence'); // Hide confidence score
-            args.remove('_nextStepSuggestion'); // Hide next step suggestion
-
-            if (args.isEmpty()) {
-                return '';
-            }
-
-            List<String> lines = new List<String>();
-            for (String key : args.keySet()) {
-                Object value = args.get(key);
-                String valueStr = value != null ? String.valueOf(value) : 'null';
-                if (valueStr.length() > 200) {
-                    valueStr = valueStr.substring(0, 200) + '...';
-                }
-                lines.add('• ' + key + ': ' + valueStr);
-            }
-            return String.join(lines, '\n');
-        } catch (Exception e) {
-            return argumentsJson.length() > 500 ? argumentsJson.substring(0, 500) + '...' : argumentsJson;
-        }
-    }
-
     /**
      * @description Sends custom platform notification to a Salesforce user
      * @param recipientId User ID to send notification to

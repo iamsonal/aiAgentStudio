@@ -132,6 +132,48 @@ public abstract class BaseAgentOrchestrator implements IAgentOrchestrator {
         return this.agentDefinition;
     }
 
+    /**
+     * @description
+     * Handles multi-record DLQ dispatch when payload contains multiple sourceRecordIds.
+     * Returns an ExecutionResult if dispatch occurred, or null if not applicable.
+     */
+    protected AgentExecutionService.ExecutionResult tryDispatchMultiRecord(String logPrefix, String agentName, AgentExecutionService.ExecutionPayload payload) {
+        if (payload == null || payload.sourceRecordIds == null || payload.sourceRecordIds.size() <= 1) {
+            return null;
+        }
+
+        Integer recordCount = payload.sourceRecordIds.size();
+        System.debug(LoggingLevel.INFO, logPrefix + 'DLQ dispatch for ' + recordCount + ' records');
+
+        AgentExecutionDispatcher.DispatchResult dispatchResult = AgentExecutionDispatcher.dispatch(agentName, payload);
+
+        System.debug(
+            LoggingLevel.INFO,
+            logPrefix +
+                'DLQ dispatch completed. BatchId: ' +
+                dispatchResult.batchId +
+                ', Created: ' +
+                dispatchResult.executionIds.size() +
+                ' executions' +
+                ', Enqueued: ' +
+                dispatchResult.enqueuedJobCount +
+                ' workers'
+        );
+
+        return new AgentExecutionService.ExecutionResult(
+            dispatchResult.executionIds.isEmpty() ? null : dispatchResult.executionIds[0],
+            'Processing',
+            'DLQ dispatch started for ' +
+                recordCount +
+                ' records. ' +
+                dispatchResult.enqueuedJobCount +
+                ' workers enqueued. ' +
+                'BatchId: ' +
+                dispatchResult.batchId +
+                '. Workers will self-pull remaining work.'
+        );
+    }
+
     public virtual void onChildComplete(Id executionId, Map<String, Object> asyncPayload) {
         System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'onChildComplete called but not implemented for this orchestrator type');
     }

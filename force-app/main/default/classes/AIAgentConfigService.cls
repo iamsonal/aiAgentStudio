@@ -75,6 +75,9 @@ public inherited sharing class AIAgentConfigService {
         'NamedCredential__c',
         'DefaultModelIdentifier__c',
         'DefaultTemperature__c',
+        'ApiVersion__c',
+        'MaxResponseTokens__c',
+        'TimeoutMs__c',
         'IsActive__c'
     };
 

@@ -444,19 +444,6 @@ public class AgentExecutionService {
             }
         }
 
-        private void validateRecordExists(Id recordId, String recordType) {
-            try {
-                List<SObject> records = Database.query('SELECT Id FROM ' + recordId.getSObjectType() + ' WHERE Id = :recordId LIMIT 1');
-                if (records.isEmpty()) {
-                    throw new AIAgentException.OrchestrationException(recordType + ' with ID ' + recordId + ' does not exist or is not accessible');
-                }
-            } catch (QueryException e) {
-                throw new AIAgentException.OrchestrationException(
-                    recordType + ' with ID ' + recordId + ' does not exist or is not accessible: ' + e.getMessage()
-                );
-            }
-        }
-
         private void validateRecordsExist(List<Id> recordIds, String recordType) {
             if (recordIds.isEmpty())
                 return;

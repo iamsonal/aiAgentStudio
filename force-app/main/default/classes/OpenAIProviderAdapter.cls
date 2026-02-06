@@ -11,6 +11,7 @@
  */
 public class OpenAIProviderAdapter extends BaseProviderAdapter {
     private static final String LOG_PREFIX = '[OpenAIAdapter] ';
+    private static final Integer DEFAULT_TIMEOUT_MS = 120000;
 
     public class OpenAIParseException extends AIAgentException.ProviderException {
     }
@@ -39,6 +40,9 @@ public class OpenAIProviderAdapter extends BaseProviderAdapter {
         if (llmConfig.DefaultTemperature__c != null) {
             body.put('temperature', llmConfig.DefaultTemperature__c);
         }
+        if (llmConfig.MaxResponseTokens__c != null) {
+            body.put('max_tokens', llmConfig.MaxResponseTokens__c.intValue());
+        }
 
         if (openAITools != null && !openAITools.isEmpty()) {
             body.put('tools', openAITools);
@@ -48,7 +52,8 @@ public class OpenAIProviderAdapter extends BaseProviderAdapter {
             System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Parallel tool calling enabled: ' + allowParallel);
         }
         req.setBody(JSON.serialize(body));
-        req.setTimeout(120000);
+        Integer timeoutMs = llmConfig.TimeoutMs__c != null ? llmConfig.TimeoutMs__c.intValue() : DEFAULT_TIMEOUT_MS;
+        req.setTimeout(timeoutMs);
         System.debug(LoggingLevel.DEBUG, req.getBody());
         System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'HTTP request prepared. Payload size: ' + req.getBody().length() + ' characters.');
         return req;

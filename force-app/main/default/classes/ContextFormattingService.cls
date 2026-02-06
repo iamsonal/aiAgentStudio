@@ -560,14 +560,25 @@ public inherited sharing class ContextFormattingService {
     }
 
     private String truncateWithContext(String content, Integer maxChars, String format) {
+        if (String.isBlank(content) || maxChars == null || maxChars <= 0) {
+            return '';
+        }
         if (content.length() <= maxChars)
             return content;
 
-        Integer cutPoint = maxChars - 50;
+        if (maxChars <= 50) {
+            String shortTruncate = content.substring(0, Math.min(content.length(), maxChars));
+            if (format == 'JSON') {
+                return shortTruncate + '\n... [truncated]"}';
+            }
+            return shortTruncate + '\n# ... [truncated due to size limit]';
+        }
+
+        Integer cutPoint = Math.max(0, maxChars - 50);
         String truncated = content.substring(0, cutPoint);
 
         Integer lastNewline = truncated.lastIndexOf('\n');
-        if (lastNewline > cutPoint - 200) {
+        if (lastNewline > 0 && lastNewline > cutPoint - 200) {
             truncated = truncated.substring(0, lastNewline);
         }
 
