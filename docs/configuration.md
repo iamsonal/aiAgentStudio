@@ -27,7 +27,7 @@ Complete reference for all agent and capability settings.
 |:------|:-----|:------------|
 | `Name` | Text | Display name for the agent |
 | `DeveloperName__c` | Text | Unique API identifier (no spaces) |
-| `AgentType__c` | Picklist | Conversational, Function, or Workflow |
+| `AgentType__c` | Picklist | Conversational, Function, Workflow, or Email |
 | `IsActive__c` | Checkbox | Enable/disable the agent |
 
 ### AI Provider Settings
@@ -54,6 +54,9 @@ Complete reference for all agent and capability settings.
 | `EnableActionTransparency__c` | Checkbox | Show tool execution details to users |
 | `EnableToolReasoning__c` | Checkbox | Require LLM to explain tool selection for better transparency |
 | `AuditLevel__c` | Picklist | None, Standard, or Detailed logging |
+| `EnableDependencyValidation__c` | Checkbox | Enforce tool dependency graph at runtime |
+| `ToolDependencyGraph__c` | Long Text | JSON dependency graph (approved) |
+| `EnableNextStepSuggestion__c` | Checkbox | Injects `_nextStepSuggestion` into tools (experimental) |
 
 ### Performance Settings
 
@@ -61,6 +64,25 @@ Complete reference for all agent and capability settings.
 |:------|:-----|:------------|
 | `AsyncDispatchType__c` | Picklist | High (Platform Events) or Low (Queueables) |
 | `EnableParallelToolCalling__c` | Checkbox | Execute multiple tools simultaneously |
+| `MaxProcessingCycles__c` | Number | Max LLM cycles per execution |
+
+### Service User Context (Optional)
+
+| Field | Type | Description |
+|:------|:-----|:------------|
+| `RequiresServiceUserContext__c` | Checkbox | Route execution through service user context via REST callout |
+| `ServiceUserNamedCredential__c` | Text | Named Credential for loopback callouts |
+
+### Trust & Safety
+
+| Field | Type | Description |
+|:------|:-----|:------------|
+| `PIIMaskingMode__c` | Picklist | Hybrid, Schema-Only, or Pattern-Only |
+| `SensitiveClassifications__c` | Multi-Select | Data classifications to mask |
+| `PIIPatternCategories__c` | Multi-Select | Regex pattern categories to enable |
+| `PromptSafetyMode__c` | Picklist | Block, Sanitize, Flag, or LogOnly |
+| `SafetyThreshold__c` | Number | Threat score threshold (0.0–1.0) |
+| `SafetyPatternCategories__c` | Multi-Select | Which jailbreak categories to enable |
 
 ---
 
@@ -93,9 +115,8 @@ Best for development, testing, and debugging.
 | `DeveloperName__c` | Text | Unique identifier |
 | `NamedCredential__c` | Text | Named Credential API name |
 | `ProviderAdapterClass__c` | Text | Apex class for provider integration |
-| `DefaultModel__c` | Text | Model identifier (e.g., gpt-4o) |
-| `Temperature__c` | Number | Creativity level (0.0 - 1.0) |
-| `MaxTokens__c` | Number | Maximum response tokens |
+| `DefaultModelIdentifier__c` | Text | Model identifier (e.g., gpt-4o) |
+| `DefaultTemperature__c` | Number | Creativity level (0.0 - 1.0) |
 | `IsActive__c` | Checkbox | Enable this configuration |
 
 ### Temperature Guide

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MaxRetries__c</fullName>
+    <defaultValue>3</defaultValue>
+    <description>Maximum number of retry attempts allowed for this execution. When RetryCount__c reaches this value, execution will be marked as permanently failed and not retried. Default is 3.</description>
+    <inlineHelpText>Maximum retry attempts before permanent failure.</inlineHelpText>
+    <label>Max Retries</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

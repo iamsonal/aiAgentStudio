@@ -9,7 +9,7 @@
 /**
  * @description Processes LLM responses that contain only textual content (no tool calls). Orchestrates message persistence.
  */
-public class ContentResponseHandler implements ILLMResponseHandler {
+public inherited sharing class ContentResponseHandler implements ILLMResponseHandler {
     public String handle(OrchestrationContext context) {
         String logPrefix = context.logPrefix + '[ContentHandler] ';
         System.debug(

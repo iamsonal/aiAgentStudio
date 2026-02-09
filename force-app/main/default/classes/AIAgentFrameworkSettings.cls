@@ -17,7 +17,6 @@ public inherited sharing class AIAgentFrameworkSettings {
     private static final Integer FINAL_DEFAULT_BulkFailureThreshold = 5;
     private static final Integer FINAL_DEFAULT_MaxLLMCallsPerTransaction = 2;
     private static final Integer FINAL_DEFAULT_MaxDependencyViolations = 3;
-    private static final String FINAL_DEFAULT_HITLApprovalNamedCredential = 'AgentStudioInternalAPI';
     private static final Boolean FINAL_DEFAULT_EnablePIIMasking = false;
     private static final Boolean FINAL_DEFAULT_EnablePromptSafety = false;
     private static final Boolean FINAL_DEFAULT_PIIAuditLogging = false;
@@ -34,7 +33,6 @@ public inherited sharing class AIAgentFrameworkSettings {
                 settings.MaxToolRetries__c = FINAL_DEFAULT_MaxToolRetries;
                 settings.BulkConcurrencyLimit__c = FINAL_DEFAULT_BulkConcurrencyLimit;
                 settings.BulkFailureThreshold__c = FINAL_DEFAULT_BulkFailureThreshold;
-                settings.HITLApprovalNamedCredential__c = FINAL_DEFAULT_HITLApprovalNamedCredential;
                 settings.EnablePIIMasking__c = FINAL_DEFAULT_EnablePIIMasking;
                 settings.EnablePromptSafety__c = FINAL_DEFAULT_EnablePromptSafety;
                 settings.PIIAuditLogging__c = FINAL_DEFAULT_PIIAuditLogging;
@@ -55,9 +53,6 @@ public inherited sharing class AIAgentFrameworkSettings {
                 }
                 if (settings.BulkFailureThreshold__c == null || settings.BulkFailureThreshold__c < 0) {
                     settings.BulkFailureThreshold__c = FINAL_DEFAULT_BulkFailureThreshold;
-                }
-                if (String.isBlank(settings.HITLApprovalNamedCredential__c)) {
-                    settings.HITLApprovalNamedCredential__c = FINAL_DEFAULT_HITLApprovalNamedCredential;
                 }
             }
             System.debug(LoggingLevel.INFO, '[AIAgentFrameworkSettings] Framework settings successfully initialized and cached');
@@ -96,16 +91,6 @@ public inherited sharing class AIAgentFrameworkSettings {
         }
         // Fall back to org-wide default
         return getDefaultMaxConversationTurns();
-    }
-
-    /**
-     * Gets the Named Credential API name to use for HITL-approved tool execution.
-     * The Named Credential's authentication determines the execution context.
-     *
-     * @return The Named Credential API name for HITL approval executions.
-     */
-    public static String getHITLApprovalNamedCredential() {
-        return getInstance().HITLApprovalNamedCredential__c;
     }
 
     /**

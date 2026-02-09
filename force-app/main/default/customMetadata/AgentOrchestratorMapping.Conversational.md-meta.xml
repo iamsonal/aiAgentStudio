@@ -8,7 +8,7 @@
     </values>
     <values>
         <field>Description__c</field>
-        <value xsi:type="xsd:string">Handles conversational (chat-based) agent executions with multi-turn dialogue support. Supports synchronous initial LLM calls when configured via AIAgentDefinition__c.ExecuteInitialLLMCallSynchronously__c field.</value>
+        <value xsi:type="xsd:string">Handles conversational (chat-based) agent executions with multi-turn dialogue support. Executes initial LLM calls inline when the current transaction can safely make callouts.</value>
     </values>
     <values>
         <field>IsActive__c</field>

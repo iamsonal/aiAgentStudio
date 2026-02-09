@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>FunctionResumeCount__c</fullName>
+    <defaultValue>0</defaultValue>
+    <description>Number of times this function agent has been resumed. Incremented each time a function agent is resumed from a failed tool execution.</description>
+    <inlineHelpText>Number of function agent resume operations.</inlineHelpText>
+    <label>Function Resume Count</label>
+    <precision>18</precision>
+    <required>true</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

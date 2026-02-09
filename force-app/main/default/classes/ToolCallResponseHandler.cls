@@ -9,7 +9,7 @@
 /**
  * @description Orchestrates the full lifecycle of tool call requests from LLM responses. Handles validation, approval, and execution paths.
  */
-public class ToolCallResponseHandler implements ILLMResponseHandler {
+public inherited sharing class ToolCallResponseHandler implements ILLMResponseHandler {
     public class ToolProcessingException extends AIAgentException {
     }
 
@@ -17,6 +17,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         public String toolCallId;
         public String toolName;
         public String toolArguments;
+        public String rawToolArguments;
         public AgentCapability__c capability;
         public Boolean isAsync;
         public String hitlMode;
@@ -24,6 +25,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         public String rationale;
         public Decimal confidence;
         public String nextStepSuggestion;
+        public Boolean requiresApproval;
+        public String approvalReason;
+        public Boolean hasParsedArguments;
 
         public ToolCallRequest(String toolCallId, String toolName, String toolArguments, AgentCapability__c capability, Integer executionOrder) {
             this(toolCallId, toolName, toolArguments, capability, executionOrder, null, null, null);
@@ -71,6 +75,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             this.rationale = rationale;
             this.confidence = confidence;
             this.nextStepSuggestion = nextStepSuggestion;
+            this.hasParsedArguments = false;
 
             this.hitlMode = String.isNotBlank(capability.HITLMode__c) ? capability.HITLMode__c : null;
 
@@ -139,6 +144,38 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
     }
 
+    private class ToolCallParseResult {
+        public List<ToolCallRequest> validRequests = new List<ToolCallRequest>();
+        public List<InvalidToolCall> invalidRequests = new List<InvalidToolCall>();
+    }
+
+    private class ParsedToolArguments {
+        public String rawArguments;
+        public String cleanedArguments;
+        public String rationale;
+        public Decimal confidence;
+        public String nextStepSuggestion;
+        public Boolean requiresApproval;
+        public String approvalReason;
+        public Boolean parsedSuccessfully;
+    }
+
+    private class InvalidToolCall {
+        public String toolCallId;
+        public String toolName;
+        public String toolArguments;
+        public String errorMessage;
+        public Boolean isMalformed;
+
+        public InvalidToolCall(String toolCallId, String toolName, String toolArguments, String errorMessage, Boolean isMalformed) {
+            this.toolCallId = toolCallId;
+            this.toolName = toolName;
+            this.toolArguments = toolArguments;
+            this.errorMessage = errorMessage;
+            this.isMalformed = isMalformed == true;
+        }
+    }
+
     public String handle(OrchestrationContext context) {
         String logPrefix = context.logPrefix + '[ToolCallHandler] ';
         List<Map<String, String>> requestedActions = context.llmResult.providerResult.requestedActions;
@@ -148,9 +185,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         IDecisionStepLogger.ILogger decisionLogger = context.decisionLogger;
 
         try {
-            List<ToolCallRequest> toolRequests = parseAndValidateToolCalls(context, requestedActions, decisionLogger, logPrefix);
+            ToolCallParseResult parseResult = parseAndValidateToolCalls(context, requestedActions, decisionLogger, logPrefix);
 
-            if (toolRequests.isEmpty()) {
+            if (parseResult.validRequests.isEmpty() && parseResult.invalidRequests.isEmpty()) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'No valid tool calls found after parsing');
                 context.agentStateSvc.failTurn(
                     context.executionId,
@@ -162,7 +199,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 return OrchestrationService.OUTCOME_FAILED;
             }
 
-            Map<String, List<ToolCallRequest>> toolGroups = groupToolsByExecutionMode(toolRequests);
+            Map<String, List<ToolCallRequest>> toolGroups = groupToolsByExecutionMode(parseResult.validRequests);
             List<ToolCallRequest> approvalTools = toolGroups.get('approval');
             List<ToolCallRequest> confirmationTools = toolGroups.get('confirmation');
             List<ToolCallRequest> syncTools = toolGroups.get('sync');
@@ -207,20 +244,16 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     context.llmResult.providerResult.modelIdentifier,
                     context.llmResult.providerResult.llmCalloutDurationMs
                 );
-
-                try {
-                    TransientMessage__e event = new TransientMessage__e(
-                        AgentExecutionId__c = context.executionId,
-                        MessageId__c = savedAssistantMessageId,
-                        MessageContent__c = assistantData.content
-                    );
-                    EventBus.publish(event);
-                } catch (Exception e) {
-                    System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to publish TransientMessage__e for UI.');
-                }
             }
 
-            createToolCallExecutionSteps(context, toolRequests, decisionLogger, logPrefix);
+            if (!parseResult.validRequests.isEmpty()) {
+                createToolCallExecutionSteps(context, parseResult.validRequests, decisionLogger, logPrefix);
+            }
+
+            if (!parseResult.invalidRequests.isEmpty()) {
+                handleInvalidToolCalls(context, parseResult.invalidRequests, decisionLogger, logPrefix);
+                return OrchestrationService.OUTCOME_FAILED;
+            }
 
             // IMPORTANT: Execute sync tools FIRST, even if there are approval tools.
             // This ensures non-HITL tools complete their execution before we pause for approval.
@@ -229,6 +262,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             if (!syncTools.isEmpty()) {
                 System.debug(LoggingLevel.INFO, logPrefix + 'Executing ' + syncTools.size() + ' sync tool(s) before handling approval tools');
                 syncResults = executeSynchronousTools(context, syncTools, decisionLogger, logPrefix);
+                if (syncResults == null) {
+                    return OrchestrationService.OUTCOME_FAILED;
+                }
                 createToolResultExecutionSteps(context, syncResults, decisionLogger, logPrefix);
             }
 
@@ -241,6 +277,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             // The sync tool results are already persisted in ExecutionStep__c records
             // and will be retrieved when HITL resumes to aggregate all results for LLM
             if (!approvalTools.isEmpty()) {
+                publishTransientAssistantMessage(context.executionId, savedAssistantMessageId, assistantData.content, logPrefix);
                 return handleApprovalRequiredTools(
                     context,
                     savedUserMessageId,
@@ -252,7 +289,14 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 );
             }
 
-            return determineNextOrchestrationStep(context, syncResults, asyncTools, logPrefix);
+            return determineNextOrchestrationStep(
+                context,
+                syncResults,
+                asyncTools,
+                savedAssistantMessageId,
+                assistantData != null ? assistantData.content : null,
+                logPrefix
+            );
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error in tool call handling: ' + e.getMessage() + '\n' + e.getStackTraceString());
             context.agentStateSvc.failTurn(
@@ -266,13 +310,36 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
     }
 
-    private List<ToolCallRequest> parseAndValidateToolCalls(
+    private ToolCallParseResult parseAndValidateToolCalls(
         OrchestrationContext context,
         List<Map<String, String>> requestedActions,
         IDecisionStepLogger.ILogger decisionLogger,
         String logPrefix
     ) {
-        List<ToolCallRequest> toolRequests = new List<ToolCallRequest>();
+        ToolCallParseResult parseResult = new ToolCallParseResult();
+        Map<String, AgentCapability__c> capabilitiesByLowerName = new Map<String, AgentCapability__c>();
+
+        // Bulk-load capabilities to avoid N+1 lookups
+        try {
+            Set<String> capabilityNames = new Set<String>();
+            for (Map<String, String> action : requestedActions) {
+                String toolName = action != null ? action.get('name') : null;
+                if (String.isNotBlank(toolName)) {
+                    capabilityNames.add(toolName);
+                }
+            }
+
+            if (!capabilityNames.isEmpty()) {
+                Map<String, AgentCapability__c> capabilitiesByName = AIAgentConfigService.getCapabilitiesByNames(context.agentDefinitionId, capabilityNames);
+                for (String nameKey : capabilitiesByName.keySet()) {
+                    if (String.isNotBlank(nameKey) && capabilitiesByName.get(nameKey) != null) {
+                        capabilitiesByLowerName.put(nameKey.toLowerCase(), capabilitiesByName.get(nameKey));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Bulk capability lookup failed; falling back to missing tool handling. ' + e.getMessage());
+        }
 
         for (Integer i = 0; i < requestedActions.size(); i++) {
             Map<String, String> actionMap = requestedActions[i];
@@ -283,54 +350,53 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 String toolArguments = actionMap.get('arguments');
 
                 if (String.isBlank(toolCallId) || String.isBlank(toolName)) {
-                    System.debug(LoggingLevel.WARN, logPrefix + 'Skipping malformed tool call at index ' + i + ': missing id or name');
+                    String errorMessage = 'Malformed tool call at index ' + i + ': missing id or name';
+                    System.debug(LoggingLevel.WARN, logPrefix + errorMessage);
+                    parseResult.invalidRequests.add(new InvalidToolCall(toolCallId, toolName, toolArguments, errorMessage, true));
                     continue;
                 }
 
-                AgentCapability__c capability = AIAgentConfigService.getCapability(context.agentDefinitionId, toolName);
+                AgentCapability__c capability = capabilitiesByLowerName.get(toolName.toLowerCase());
                 if (capability == null) {
-                    System.debug(LoggingLevel.WARN, logPrefix + 'Skipping tool call ' + toolName + ': capability not found');
+                    String errorMessage = 'Tool "' + toolName + '" is not configured for this agent.';
+                    System.debug(LoggingLevel.WARN, logPrefix + errorMessage);
+                    parseResult.invalidRequests.add(new InvalidToolCall(toolCallId, toolName, toolArguments, errorMessage, false));
                     continue;
                 }
 
-                // Extract confidence and nextStepSuggestion BEFORE stripping internal parameters
-                Decimal confidence = ExecutionStepService.extractConfidenceScore(toolArguments);
-                String nextStepSuggestion = ExecutionStepService.extractNextStepSuggestion(toolArguments);
+                ParsedToolArguments parsedArgs = parseToolArguments(toolArguments, logPrefix);
 
-                String extractedRationale = null;
-                String cleanedArguments = toolArguments;
-
-                Map<String, String> rationaleResult = LLMFormattingService.extractAndStripRationale(toolArguments, logPrefix);
-                extractedRationale = rationaleResult.get('rationale');
-                cleanedArguments = rationaleResult.get('cleanedArguments');
-
-                if (String.isNotBlank(extractedRationale)) {
+                if (String.isNotBlank(parsedArgs.rationale)) {
                     System.debug(
                         LoggingLevel.INFO,
                         logPrefix +
                             'Extracted rationale for tool ' +
                             toolName +
                             ': ' +
-                            extractedRationale.left(100) +
-                            (extractedRationale.length() > 100 ? '...' : '')
+                            parsedArgs.rationale.left(100) +
+                            (parsedArgs.rationale.length() > 100 ? '...' : '')
                     );
                 }
 
-                if (String.isNotBlank(nextStepSuggestion)) {
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Extracted next step suggestion for tool ' + toolName + ': ' + nextStepSuggestion);
+                if (String.isNotBlank(parsedArgs.nextStepSuggestion)) {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Extracted next step suggestion for tool ' + toolName + ': ' + parsedArgs.nextStepSuggestion);
                 }
 
                 ToolCallRequest toolRequest = new ToolCallRequest(
                     toolCallId,
                     toolName,
-                    cleanedArguments,
+                    parsedArgs.cleanedArguments,
                     capability,
                     i + 1,
-                    extractedRationale,
-                    confidence,
-                    nextStepSuggestion
+                    parsedArgs.rationale,
+                    parsedArgs.confidence,
+                    parsedArgs.nextStepSuggestion
                 );
-                toolRequests.add(toolRequest);
+                toolRequest.rawToolArguments = parsedArgs.rawArguments;
+                toolRequest.requiresApproval = parsedArgs.requiresApproval;
+                toolRequest.approvalReason = parsedArgs.approvalReason;
+                toolRequest.hasParsedArguments = parsedArgs.parsedSuccessfully;
+                parseResult.validRequests.add(toolRequest);
 
                 System.debug(
                     LoggingLevel.INFO,
@@ -344,7 +410,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                         ', hitlMode=' +
                         toolRequest.hitlMode +
                         ', hasRationale=' +
-                        String.isNotBlank(extractedRationale) +
+                        String.isNotBlank(parsedArgs.rationale) +
                         ')'
                 );
             } catch (Exception e) {
@@ -354,12 +420,12 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
 
         // Log the tool execution plan
-        if (decisionLogger != null && !toolRequests.isEmpty()) {
+        if (decisionLogger != null && !parseResult.validRequests.isEmpty()) {
             // Count tools by type using the already-grouped data
-            Map<String, List<ToolCallRequest>> groups = groupToolsByExecutionMode(toolRequests);
+            Map<String, List<ToolCallRequest>> groups = groupToolsByExecutionMode(parseResult.validRequests);
 
             Map<String, Object> planData = new Map<String, Object>{
-                'totalTools' => toolRequests.size(),
+                'totalTools' => parseResult.validRequests.size(),
                 'syncTools' => groups.get('sync').size(),
                 'asyncTools' => groups.get('async').size(),
                 'approvalTools' => groups.get('approval').size(),
@@ -367,7 +433,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 'tools' => new List<Map<String, Object>>()
             };
 
-            for (ToolCallRequest req : toolRequests) {
+            for (ToolCallRequest req : parseResult.validRequests) {
                 ((List<Map<String, Object>>) planData.get('tools'))
                     .add(
                         new Map<String, Object>{
@@ -380,20 +446,91 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                         }
                     );
             }
-
-            // Note: Tool Execution Plan step removed - not needed in storyboard
-            // decisionLogger.logToolExecution(
-            //     'Tool Execution Plan',
-            //     'LLM requested ' + toolRequests.size() + ' tool(s) for execution',
-            //     JSON.serialize(planData),
-            //     null,
-            //     true,
-            //     null,
-            //     null
-            // );
         }
 
-        return toolRequests;
+        return parseResult;
+    }
+
+    private ParsedToolArguments parseToolArguments(String toolArguments, String logPrefix) {
+        ParsedToolArguments result = new ParsedToolArguments();
+        result.rawArguments = toolArguments;
+        result.cleanedArguments = toolArguments;
+        result.parsedSuccessfully = false;
+
+        if (String.isBlank(toolArguments)) {
+            return result;
+        }
+
+        try {
+            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(toolArguments);
+
+            if (args.containsKey('_rationale')) {
+                Object rationaleValue = args.get('_rationale');
+                if (rationaleValue != null) {
+                    result.rationale = String.valueOf(rationaleValue);
+                }
+            }
+
+            if (args.containsKey('_confidence')) {
+                Object confidenceValue = args.get('_confidence');
+                if (confidenceValue != null) {
+                    try {
+                        Decimal confidence = Decimal.valueOf(String.valueOf(confidenceValue));
+                        if (confidence >= 0 && confidence <= 100) {
+                            result.confidence = confidence;
+                        } else {
+                            System.debug(LoggingLevel.WARN, logPrefix + 'Confidence value out of range (0-100): ' + confidence);
+                        }
+                    } catch (Exception e) {
+                        System.debug(LoggingLevel.WARN, logPrefix + 'Could not parse confidence value: ' + confidenceValue);
+                    }
+                }
+            }
+
+            if (args.containsKey('_nextStepSuggestion')) {
+                Object suggestionValue = args.get('_nextStepSuggestion');
+                if (suggestionValue != null) {
+                    String suggestion = String.valueOf(suggestionValue).trim();
+                    if (String.isNotBlank(suggestion)) {
+                        if (suggestion.length() > 255) {
+                            System.debug(LoggingLevel.WARN, logPrefix + 'Next step suggestion exceeds 255 chars, truncating: ' + suggestion);
+                            suggestion = suggestion.substring(0, 255);
+                        }
+                        result.nextStepSuggestion = suggestion;
+                    }
+                }
+            }
+
+            if (args.containsKey('_requiresApproval')) {
+                Object requiresApproval = args.get('_requiresApproval');
+                if (requiresApproval instanceof Boolean) {
+                    result.requiresApproval = (Boolean) requiresApproval;
+                } else if (requiresApproval instanceof String) {
+                    String strValue = ((String) requiresApproval).toLowerCase();
+                    result.requiresApproval = (strValue == 'true' || strValue == '1' || strValue == 'yes');
+                }
+            }
+
+            if (args.containsKey('_approvalReason')) {
+                Object approvalReason = args.get('_approvalReason');
+                if (approvalReason != null) {
+                    result.approvalReason = String.valueOf(approvalReason);
+                }
+            }
+
+            args.remove('_requiresApproval');
+            args.remove('_approvalReason');
+            args.remove('_rationale');
+            args.remove('_confidence');
+            args.remove('_nextStepSuggestion');
+
+            result.cleanedArguments = JSON.serialize(args);
+            result.parsedSuccessfully = true;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to parse tool arguments: ' + e.getMessage());
+        }
+
+        return result;
     }
 
     // TOOL GROUPING
@@ -469,13 +606,19 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
      * @param tool The tool call request to check
      * @return true if _requiresApproval=true, false otherwise
      */
+    @TestVisible
     private static Boolean checkLLMApprovalRequest(ToolCallRequest tool) {
-        if (String.isBlank(tool.toolArguments)) {
+        if (tool != null && tool.requiresApproval != null) {
+            return tool.requiresApproval;
+        }
+
+        String argsSource = tool != null && String.isNotBlank(tool.rawToolArguments) ? tool.rawToolArguments : (tool != null ? tool.toolArguments : null);
+        if (String.isBlank(argsSource)) {
             return false;
         }
 
         try {
-            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(tool.toolArguments);
+            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(argsSource);
 
             if (!args.containsKey('_requiresApproval')) {
                 return false;
@@ -500,8 +643,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 LoggingLevel.WARN,
                 '[ToolCallResponseHandler] ' + 'Error parsing _requiresApproval for tool "' + tool.toolName + '": ' + e.getMessage()
             );
-            // Fail-safe: if we can't parse, don't require approval
-            return false;
+            // Fail-safe: if we can't parse, require approval
+            return true;
         }
     }
 
@@ -512,12 +655,17 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
      * @return The approval reason string, or null if not present
      */
     private static String extractApprovalReason(ToolCallRequest tool) {
-        if (String.isBlank(tool.toolArguments)) {
+        if (tool != null && String.isNotBlank(tool.approvalReason)) {
+            return tool.approvalReason;
+        }
+
+        String argsSource = tool != null && String.isNotBlank(tool.rawToolArguments) ? tool.rawToolArguments : (tool != null ? tool.toolArguments : null);
+        if (String.isBlank(argsSource)) {
             return null;
         }
 
         try {
-            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(tool.toolArguments);
+            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(argsSource);
 
             if (args.containsKey('_approvalReason')) {
                 return String.valueOf(args.get('_approvalReason'));
@@ -527,6 +675,36 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, '[ToolCallResponseHandler] ' + 'Error extracting _approvalReason: ' + e.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * @description Strips framework-internal parameters from tool arguments before execution
+     * Parameters like _requiresApproval, _approvalReason, _rationale, _confidence, _nextStepSuggestion
+     * are used by the framework but should not be passed to the actual tool implementation
+     * @param toolArguments The original tool arguments JSON
+     * @return Cleaned tool arguments JSON without internal parameters
+     */
+    private static String stripInternalParameters(String toolArguments) {
+        if (String.isBlank(toolArguments)) {
+            return toolArguments;
+        }
+
+        try {
+            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(toolArguments);
+
+            // Remove all framework-internal parameters
+            args.remove('_requiresApproval');
+            args.remove('_approvalReason');
+            args.remove('_rationale');
+            args.remove('_confidence');
+            args.remove('_nextStepSuggestion');
+
+            return JSON.serialize(args);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, '[ToolCallResponseHandler] ' + 'Error stripping internal parameters: ' + e.getMessage());
+            // If parsing fails, return original arguments (fail-safe)
+            return toolArguments;
         }
     }
 
@@ -543,43 +721,158 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     ) {
         ExecutionStepService executionStepService = new ExecutionStepService();
 
+        if (TransactionContext.getInstance().isDeferredDMLMode()) {
+            for (ToolCallRequest toolRequest : toolRequests) {
+                try {
+                    executionStepService.createToolCallStep(
+                        context.executionId,
+                        toolRequest.toolCallId,
+                        toolRequest.toolName,
+                        toolRequest.toolArguments,
+                        context.turnIdentifier,
+                        context.currentTurnCount,
+                        context.llmResult.providerResult.promptTokens,
+                        context.llmResult.providerResult.completionTokens,
+                        context.llmResult.providerResult.totalTokens,
+                        context.llmResult.providerResult.modelIdentifier,
+                        context.llmResult.providerResult.llmCalloutDurationMs,
+                        toolRequest.capability.Id,
+                        toolRequest.rationale,
+                        toolRequest.confidence,
+                        toolRequest.nextStepSuggestion
+                    );
+
+                    // Note: Tool Execution decision step logging removed
+                    // The LLM Response step already shows tool calls with arguments
+                    // Only Tool Result steps are logged to show the outcome
+
+                    System.debug(
+                        LoggingLevel.DEBUG,
+                        logPrefix +
+                            'Created execution step for tool call: ' +
+                            toolRequest.toolName +
+                            ' (hasRationale=' +
+                            String.isNotBlank(toolRequest.rationale) +
+                            ')'
+                    );
+                } catch (Exception e) {
+                    System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create execution step for tool ' + toolRequest.toolName + ': ' + e.getMessage());
+                }
+            }
+            return;
+        }
+
+        List<ExecutionStep__c> stepsToInsert = new List<ExecutionStep__c>();
         for (ToolCallRequest toolRequest : toolRequests) {
             try {
-                executionStepService.createToolCallStep(
-                    context.executionId,
-                    toolRequest.toolCallId,
-                    toolRequest.toolName,
-                    toolRequest.toolArguments,
-                    context.turnIdentifier,
-                    context.currentTurnCount,
-                    context.llmResult.providerResult.promptTokens,
-                    context.llmResult.providerResult.completionTokens,
-                    context.llmResult.providerResult.totalTokens,
-                    context.llmResult.providerResult.modelIdentifier,
-                    context.llmResult.providerResult.llmCalloutDurationMs,
-                    toolRequest.capability.Id,
-                    toolRequest.rationale,
-                    toolRequest.confidence,
-                    toolRequest.nextStepSuggestion
+                stepsToInsert.add(
+                    executionStepService.buildToolCallStep(
+                        context.executionId,
+                        toolRequest.toolCallId,
+                        toolRequest.toolName,
+                        toolRequest.toolArguments,
+                        context.turnIdentifier,
+                        context.currentTurnCount,
+                        context.llmResult.providerResult.promptTokens,
+                        context.llmResult.providerResult.completionTokens,
+                        context.llmResult.providerResult.totalTokens,
+                        context.llmResult.providerResult.modelIdentifier,
+                        context.llmResult.providerResult.llmCalloutDurationMs,
+                        toolRequest.capability.Id,
+                        toolRequest.rationale,
+                        toolRequest.confidence,
+                        toolRequest.nextStepSuggestion,
+                        false
+                    )
                 );
-
-                // Note: Tool Execution decision step logging removed
-                // The LLM Response step already shows tool calls with arguments
-                // Only Tool Result steps are logged to show the outcome
 
                 System.debug(
                     LoggingLevel.DEBUG,
                     logPrefix +
-                        'Created execution step for tool call: ' +
+                        'Queued execution step for tool call: ' +
                         toolRequest.toolName +
                         ' (hasRationale=' +
                         String.isNotBlank(toolRequest.rationale) +
                         ')'
                 );
             } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create execution step for tool ' + toolRequest.toolName + ': ' + e.getMessage());
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to build execution step for tool ' + toolRequest.toolName + ': ' + e.getMessage());
             }
         }
+
+        insertExecutionSteps(stepsToInsert, logPrefix);
+    }
+
+    private void handleInvalidToolCalls(
+        OrchestrationContext context,
+        List<InvalidToolCall> invalidRequests,
+        IDecisionStepLogger.ILogger decisionLogger,
+        String logPrefix
+    ) {
+        ExecutionStepService executionStepService = new ExecutionStepService();
+        List<String> failureMessages = new List<String>();
+        Boolean hasMalformed = false;
+
+        for (InvalidToolCall invalid : invalidRequests) {
+            String errorMessage = invalid.errorMessage;
+            failureMessages.add(errorMessage);
+            hasMalformed = hasMalformed || invalid.isMalformed;
+
+            if (String.isBlank(invalid.toolCallId) || String.isBlank(invalid.toolName)) {
+                executionStepService.createErrorStep(
+                    context.executionId,
+                    errorMessage,
+                    AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
+                    context.turnIdentifier,
+                    context.currentTurnCount
+                );
+                if (decisionLogger != null) {
+                    decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ errorMessage, invalid.toolCallId, invalid.toolName });
+                }
+                continue;
+            }
+
+            executionStepService.createToolCallStep(
+                context.executionId,
+                invalid.toolCallId,
+                invalid.toolName,
+                invalid.toolArguments,
+                context.turnIdentifier,
+                context.currentTurnCount,
+                context.llmResult.providerResult.promptTokens,
+                context.llmResult.providerResult.completionTokens,
+                context.llmResult.providerResult.totalTokens,
+                context.llmResult.providerResult.modelIdentifier,
+                context.llmResult.providerResult.llmCalloutDurationMs,
+                null // capabilityId unknown
+            );
+
+            String errorResult = JSON.serialize(
+                new Map<String, Object>{ 'isSuccess' => false, 'errorCode' => AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'messageForUser' => errorMessage }
+            );
+
+            executionStepService.createToolResultStep(
+                context.executionId,
+                invalid.toolCallId,
+                invalid.toolName,
+                errorResult,
+                context.turnIdentifier,
+                context.currentTurnCount,
+                0L,
+                false,
+                null,
+                true
+            );
+
+            if (decisionLogger != null) {
+                decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ invalid.toolName, errorMessage });
+            }
+        }
+
+        String failureMessage = 'Invalid tool call(s): ' + String.join(failureMessages, '; ');
+        String errorCode = hasMalformed ? AIAgentConstants.ERR_CODE_LLM_CALL_FAILED : AIAgentConstants.ERR_CODE_CONFIG_ERROR;
+
+        context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, failureMessage, errorCode, logPrefix);
     }
 
     // APPROVAL HANDLING
@@ -607,130 +900,134 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         String logPrefix,
         IDecisionStepLogger.ILogger decisionLogger
     ) {
-        // Handle first approval tool (could be enhanced to handle multiple)
-        ToolCallRequest approvalTool = approvalTools[0];
+        System.debug(LoggingLevel.INFO, logPrefix + 'Processing ' + approvalTools.size() + ' approval-required tool(s)');
 
-        System.debug(
-            LoggingLevel.INFO,
-            logPrefix + 'Tool "' + approvalTool.toolName + '" requires approval. Creating approval request via HITLGatewayService.'
-        );
-
-        // Load agent definition for HITL context
+        // Load agent definition once for all approval tools
         AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinition(context.agentDefinitionId);
 
-        // Build HITL context
-        HITLGatewayService.HITLContext hitlContext = new HITLGatewayService.HITLContext();
-        hitlContext.capability = approvalTool.capability;
-        hitlContext.agentDefinition = agentDef;
-        hitlContext.executionId = context.executionId;
-        hitlContext.requestingUserId = context.originalUserId;
-        hitlContext.turnIdentifier = context.turnIdentifier;
-        hitlContext.turnCount = context.currentTurnCount;
-        hitlContext.toolCallId = approvalTool.toolCallId;
-        hitlContext.toolArguments = approvalTool.toolArguments;
-        hitlContext.sourceRecordId = context.currentPageRecordId;
-        hitlContext.logPrefix = logPrefix;
+        // Collect all approval tool results for orchestrator
+        List<ToolExecutionResult> approvalToolResults = new List<ToolExecutionResult>();
 
-        // Add conditional approval context
-        hitlContext.isConditionalApproval = (approvalTool.hitlMode == HITLGatewayService.HITL_MODE_CONDITIONAL_APPROVAL);
-        if (hitlContext.isConditionalApproval) {
-            hitlContext.llmApprovalReason = extractApprovalReason(approvalTool);
-        }
+        // Process ALL approval tools (not just the first)
+        for (ToolCallRequest approvalTool : approvalTools) {
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Tool "' + approvalTool.toolName + '" requires approval. Creating approval request via HITLGatewayService.'
+            );
 
-        // Evaluate HITL requirement
-        // For ConditionalApproval mode, LLM already decided via _requiresApproval parameter
-        // So we create an Approval decision directly without calling evaluate()
-        HITLGatewayService.HITLDecision decision;
-        if (hitlContext.isConditionalApproval) {
-            // LLM decided approval is needed - create intervention decision
-            decision = HITLGatewayService.createInterventionDecision(HITLGatewayService.HITL_MODE_APPROVAL);
-        } else {
-            // Standard Approval or ConfirmationThenApproval - evaluate normally
-            decision = HITLGatewayService.evaluate(hitlContext);
-        }
+            // Build HITL context
+            HITLGatewayService.HITLContext hitlContext = new HITLGatewayService.HITLContext();
+            hitlContext.capability = approvalTool.capability;
+            hitlContext.agentDefinition = agentDef;
+            hitlContext.executionId = context.executionId;
+            hitlContext.requestingUserId = context.originalUserId;
+            hitlContext.turnIdentifier = context.turnIdentifier;
+            hitlContext.turnCount = context.currentTurnCount;
+            hitlContext.toolCallId = approvalTool.toolCallId;
+            hitlContext.toolArguments = approvalTool.toolArguments;
+            hitlContext.sourceRecordId = context.currentPageRecordId;
+            hitlContext.logPrefix = logPrefix;
 
-        if (!decision.isValidConfiguration) {
-            // Configuration error - fail the turn
-            String errMsg = 'HITL configuration error: ' + decision.configurationError;
-            context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, errMsg, AIAgentConstants.ERR_CODE_CONFIG_ERROR, logPrefix);
-            decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ decision, approvalTool });
-            return OrchestrationService.OUTCOME_FAILED;
-        }
-
-        // Initiate the approval workflow FIRST to get pendingActionId
-        HITLGatewayService.HITLResult hitlResult = HITLGatewayService.initiateHITL(hitlContext, decision);
-
-        if (!hitlResult.success) {
-            String errMsg = 'Failed to initiate approval: ' + hitlResult.errorMessage;
-            context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, errMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
-            decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ hitlResult, approvalTool });
-            return OrchestrationService.OUTCOME_FAILED;
-        }
-
-        System.debug(LoggingLevel.INFO, logPrefix + 'Approval request created: ' + hitlResult.pendingActionId);
-
-        decisionLogger.log(IDecisionStepLogger.EventType.APPROVAL_REQUESTED, new List<Object>{ approvalTool, decision, hitlResult });
-
-        // Create placeholder tool result immediately to maintain proper OpenAI message sequence
-        String placeholderResult = JSON.serialize(
-            new Map<String, Object>{
-                'status' => 'pending_approval',
-                'message' => 'This action is pending approval. It will be executed once approved.',
-                'pendingActionId' => hitlResult.pendingActionId,
-                'toolName' => approvalTool.toolName
+            // Add conditional approval context
+            hitlContext.isConditionalApproval = (approvalTool.hitlMode == HITLGatewayService.HITL_MODE_CONDITIONAL_APPROVAL);
+            if (hitlContext.isConditionalApproval) {
+                hitlContext.llmApprovalReason = extractApprovalReason(approvalTool);
             }
-        );
 
-        ExecutionStepService executionStepService = new ExecutionStepService();
-        executionStepService.createToolResultStep(
-            context.executionId,
-            approvalTool.toolCallId,
-            approvalTool.capability.CapabilityName__c,
-            placeholderResult,
-            context.turnIdentifier,
-            context.currentTurnCount,
-            0L,
-            false,
-            approvalTool.capability.Id
-        );
+            // Evaluate HITL requirement
+            // For ConditionalApproval mode, LLM already decided via _requiresApproval parameter
+            // So we create an Approval decision directly without calling evaluate()
+            HITLGatewayService.HITLDecision decision;
+            if (hitlContext.isConditionalApproval) {
+                // LLM decided approval is needed - create intervention decision
+                decision = HITLGatewayService.createInterventionDecision(HITLGatewayService.HITL_MODE_APPROVAL);
+            } else {
+                // Standard Approval or ConfirmationThenApproval - evaluate normally
+                decision = HITLGatewayService.evaluate(hitlContext);
+            }
 
-        // Publish approval request event to UI via TransientMessage__e
-        try {
-            TransientMessage__e approvalEvent = new TransientMessage__e(
-                AgentExecutionId__c = context.executionId,
-                MessageId__c = String.valueOf(hitlResult.pendingActionId),
-                MessageContent__c = JSON.serialize(
-                    new Map<String, Object>{
-                        'type' => 'ApprovalRequest',
-                        'pendingActionId' => hitlResult.pendingActionId,
-                        'toolName' => approvalTool.toolName,
-                        'approvalPrompt' => hitlResult.confirmationPrompt
-                    }
+            if (!decision.isValidConfiguration) {
+                // Configuration error - fail the turn
+                String errMsg = 'HITL configuration error: ' + decision.configurationError;
+                context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, errMsg, AIAgentConstants.ERR_CODE_CONFIG_ERROR, logPrefix);
+                decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ decision, approvalTool });
+                return OrchestrationService.OUTCOME_FAILED;
+            }
+
+            // Initiate the approval workflow FIRST to get pendingActionId
+            HITLGatewayService.HITLResult hitlResult = HITLGatewayService.initiateHITL(hitlContext, decision);
+
+            if (!hitlResult.success) {
+                String errMsg = 'Failed to initiate approval: ' + hitlResult.errorMessage;
+                context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, errMsg, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, logPrefix);
+                decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ hitlResult, approvalTool });
+                return OrchestrationService.OUTCOME_FAILED;
+            }
+
+            System.debug(LoggingLevel.INFO, logPrefix + 'Approval request created: ' + hitlResult.pendingActionId);
+
+            decisionLogger.log(IDecisionStepLogger.EventType.APPROVAL_REQUESTED, new List<Object>{ approvalTool, decision, hitlResult });
+
+            // Create placeholder tool result immediately to maintain proper OpenAI message sequence
+            String placeholderResult = JSON.serialize(
+                new Map<String, Object>{
+                    'status' => 'pending_approval',
+                    'message' => 'This action is pending approval. It will be executed once approved.',
+                    'pendingActionId' => hitlResult.pendingActionId,
+                    'toolName' => approvalTool.toolName
+                }
+            );
+
+            ExecutionStepService executionStepService = new ExecutionStepService();
+            executionStepService.createToolResultStep(
+                context.executionId,
+                approvalTool.toolCallId,
+                approvalTool.capability.CapabilityName__c,
+                placeholderResult,
+                context.turnIdentifier,
+                context.currentTurnCount,
+                0L,
+                false,
+                approvalTool.capability.Id
+            );
+
+            // Publish approval request event to UI via TransientMessage__e
+            try {
+                TransientMessage__e approvalEvent = new TransientMessage__e(
+                    AgentExecutionId__c = context.executionId,
+                    MessageId__c = String.valueOf(hitlResult.pendingActionId),
+                    MessageContent__c = JSON.serialize(
+                        new Map<String, Object>{
+                            'type' => 'ApprovalRequest',
+                            'pendingActionId' => hitlResult.pendingActionId,
+                            'toolName' => approvalTool.toolName,
+                            'approvalPrompt' => hitlResult.confirmationPrompt
+                        }
+                    )
+                );
+                EventBus.publish(approvalEvent);
+                System.debug(LoggingLevel.INFO, logPrefix + 'Published approval request event to UI');
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to publish approval event: ' + e.getMessage());
+            }
+
+            // Add this tool to the results list
+            approvalToolResults.add(
+                new ToolExecutionResult(
+                    approvalTool.toolCallId,
+                    approvalTool.toolName,
+                    null, // No outcome yet - pending approval
+                    0L,
+                    false,
+                    approvalTool.executionOrder,
+                    approvalTool.capability.Id
                 )
             );
-            EventBus.publish(approvalEvent);
-            System.debug(LoggingLevel.INFO, logPrefix + 'Published approval request event to UI');
-        } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to publish approval event: ' + e.getMessage());
-        }
+        } // End of approval tools loop
 
         // Delegate agent-specific behavior to orchestrator
         // This keeps ToolCallResponseHandler agent-agnostic
         IAgentOrchestrator orchestrator = loadOrchestrator(agentDef);
-
-        // Build tool execution result for the orchestrator
-        List<ToolExecutionResult> approvalToolResults = new List<ToolExecutionResult>();
-        approvalToolResults.add(
-            new ToolExecutionResult(
-                approvalTool.toolCallId,
-                approvalTool.toolName,
-                null, // No outcome yet - pending approval
-                0L,
-                false,
-                approvalTool.executionOrder,
-                approvalTool.capability.Id
-            )
-        );
 
         // Let orchestrator handle agent-specific completion behavior (polymorphic call - no instanceof check needed)
         String orchestratorOutcome = orchestrator.evaluateToolOutcome(context, approvalToolResults, 'APPROVAL_REQUIRED');
@@ -829,8 +1126,17 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
         System.debug(LoggingLevel.DEBUG, logPrefix + 'Dependency validation enabled: ' + isDependencyValidationEnabled);
 
-        // Track executed tools for dependency validation (across this execution session)
-        Set<String> executedTools = getExecutedToolsForExecution(context.executionId);
+        // Determine dependency scope based on agent type:
+        // - Conversational/Email: Turn-scoped (dependencies reset each conversation turn)
+        // - Function/Workflow: Execution-scoped (dependencies persist across entire execution)
+        Boolean turnScoped = isTurnScopedDependencies(agentDef.AgentType__c);
+        System.debug(
+            LoggingLevel.DEBUG,
+            logPrefix + 'Dependency scope: ' + (turnScoped ? 'turn-scoped' : 'execution-wide') + ' for agent type: ' + agentDef.AgentType__c
+        );
+
+        // Track executed tools for dependency validation
+        Set<String> executedTools = getExecutedToolsForExecution(context.executionId, context.turnIdentifier, turnScoped);
 
         // PRE-FLIGHT VALIDATION & REORDERING
         if (isDependencyValidationEnabled && String.isNotBlank(dependencyGraph)) {
@@ -928,8 +1234,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                         logPrefix
                     );
 
-                    // Return empty - execution stops here, no follow-up LLM call
-                    return new List<ToolExecutionResult>();
+                    // Return null - execution stops here, no follow-up LLM call
+                    return null;
                 }
 
                 // If ALL tools blocked, return immediately - no DML has occurred
@@ -1010,10 +1316,19 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                     'SyncTool'
                 );
 
+                // Strip framework-internal parameters before execution if we couldn't parse earlier
+                String cleanedArguments = toolRequest.hasParsedArguments == true
+                    ? toolRequest.toolArguments
+                    : stripInternalParameters(toolRequest.toolArguments);
+
                 // Execute the tool
-                ActionOutcome outcome = context.actionExecSvc.executeSingleAction(toolRequest.capability, toolRequest.toolArguments, actionContext);
+                ActionOutcome outcome = context.actionExecSvc.executeSingleAction(toolRequest.capability, cleanedArguments, actionContext);
 
                 Long processingTime = System.currentTimeMillis() - startTime;
+
+                // Multi-LLM optimization: Check if tool performed DML/callout and update sticky flag
+                // This must happen AFTER each tool execution to properly track unsafe operations
+                TransactionContext.getInstance().toolPerformedDMLOrCallout();
 
                 // Only add to satisfied dependencies if SUCCESSFUL
                 if (outcome.isSuccess) {
@@ -1043,6 +1358,9 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 }
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Error executing sync tool ' + toolRequest.toolName + ': ' + e.getMessage());
+
+                // Multi-LLM optimization: Check for DML/callout even on failure (may have happened before exception)
+                TransactionContext.getInstance().toolPerformedDMLOrCallout();
 
                 ActionOutcome failureOutcome = ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
@@ -1083,130 +1401,181 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         // Parse dependency graph
         ToolDependencyValidator.DependencyGraph graph = ToolDependencyValidator.parseGraph(dependencyGraph);
 
-        // Build set of tool names in current batch
+        // Build set of tool names in current batch (for dependency validation)
         Set<String> toolsInBatch = new Set<String>();
-        Map<String, ToolCallRequest> toolNameToRequest = new Map<String, ToolCallRequest>();
         for (ToolCallRequest tool : tools) {
-            toolsInBatch.add(tool.toolName);
-            toolNameToRequest.put(tool.toolName, tool);
+            if (!toolsInBatch.contains(tool.toolName)) {
+                toolsInBatch.add(tool.toolName);
+            }
         }
 
-        // Attempt topological sort to reorder tools
-        List<String> sortedToolNames = ToolDependencyValidator.topologicalSort(toolsInBatch, graph, executedTools);
+        Set<String> executedOrInBatch = new Set<String>(executedTools);
+        executedOrInBatch.addAll(toolsInBatch);
 
-        // Check if reordering was successful (all tools can execute)
-        if (sortedToolNames.size() == toolsInBatch.size()) {
-            // Successfully sorted - check if order changed
-            result.wasReordered = !isOriginalOrder(tools, sortedToolNames);
+        List<ToolCallRequest> allowedRequests = new List<ToolCallRequest>();
+        for (ToolCallRequest toolRequest : tools) {
+            ToolDependencyValidator.DependencyRequirements reqs = graph.getDependenciesFor(toolRequest.toolName);
 
-            Integer newOrder = 0;
-            for (String toolName : sortedToolNames) {
-                ToolCallRequest tool = toolNameToRequest.get(toolName);
-                if (tool != null) {
-                    tool.executionOrder = newOrder++;
-                    result.reorderedTools.add(tool);
+            List<String> missingAllOf = new List<String>();
+            for (String dep : reqs.allOf) {
+                if (!executedOrInBatch.contains(dep)) {
+                    missingAllOf.add(dep);
                 }
             }
 
-            if (result.wasReordered) {
-                System.debug(
-                    LoggingLevel.INFO,
-                    logPrefix +
-                        'Pre-flight: Reordered ' +
-                        result.reorderedTools.size() +
-                        ' tool(s) based on dependencies. Order: ' +
-                        String.join(sortedToolNames, ' -> ')
-                );
-            }
-        } else {
-            // Some tools have missing dependencies - separate allowed from blocked
-            Set<String> allowedToolNames = new Set<String>(sortedToolNames);
-
-            for (ToolCallRequest toolRequest : tools) {
-                if (allowedToolNames.contains(toolRequest.toolName)) {
-                    result.reorderedTools.add(toolRequest);
-                } else {
-                    // Tool is blocked
-                    result.hasBlockedTools = true;
-
-                    ToolDependencyValidator.ValidationResult validationResult = ToolDependencyValidator.validate(
-                        toolRequest.toolName,
-                        executedTools,
-                        dependencyGraph
-                    );
-
-                    System.debug(
-                        LoggingLevel.WARN,
-                        logPrefix +
-                            'Pre-flight: Tool "' +
-                            toolRequest.toolName +
-                            '" blocked. Missing dependencies: ' +
-                            String.join(validationResult.missingDependencies, ', ')
-                    );
-
-                    ActionOutcome blockedOutcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_DEPENDENCY_VALIDATION, validationResult.guidanceForLLM);
-
-                    ToolExecutionResult blockedResult = new ToolExecutionResult(
-                        toolRequest.toolCallId,
-                        toolRequest.toolName,
-                        blockedOutcome,
-                        0L,
-                        false,
-                        toolRequest.executionOrder,
-                        toolRequest.capability.Id,
-                        true // isDependencyValidationFailure
-                    );
-
-                    result.blockedResults.add(blockedResult);
-
-                    if (decisionLogger != null) {
-                        decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ toolRequest, blockedOutcome, 0L });
+            List<String> missingAnyOfGroups = new List<String>();
+            if (!reqs.anyOf.isEmpty()) {
+                Boolean anyMet = false;
+                for (String dep : reqs.anyOf) {
+                    if (executedOrInBatch.contains(dep)) {
+                        anyMet = true;
+                        break;
                     }
                 }
+                if (!anyMet) {
+                    missingAnyOfGroups.add('[Any of: ' + String.join(reqs.anyOf, ', ') + ']');
+                }
             }
 
-            // Reorder the allowed tools
-            if (!result.reorderedTools.isEmpty()) {
-                result.reorderedTools = reorderToolsByDependencies(result.reorderedTools, sortedToolNames);
-                result.wasReordered = true;
+            if (missingAllOf.isEmpty() && missingAnyOfGroups.isEmpty()) {
+                allowedRequests.add(toolRequest);
+            } else {
+                result.hasBlockedTools = true;
+                ToolDependencyValidator.ValidationResult validationResult = ToolDependencyValidator.createBlockedResult(
+                    toolRequest.toolName,
+                    missingAllOf,
+                    missingAnyOfGroups,
+                    executedTools
+                );
+
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix +
+                        'Pre-flight: Tool "' +
+                        toolRequest.toolName +
+                        '" blocked. Missing dependencies: ' +
+                        String.join(validationResult.missingDependencies, ', ')
+                );
+
+                ActionOutcome blockedOutcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_DEPENDENCY_VALIDATION, validationResult.guidanceForLLM);
+
+                ToolExecutionResult blockedResult = new ToolExecutionResult(
+                    toolRequest.toolCallId,
+                    toolRequest.toolName,
+                    blockedOutcome,
+                    0L,
+                    false,
+                    toolRequest.executionOrder,
+                    toolRequest.capability.Id,
+                    true // isDependencyValidationFailure
+                );
+
+                result.blockedResults.add(blockedResult);
+
+                if (decisionLogger != null) {
+                    decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ toolRequest, blockedOutcome, 0L });
+                }
             }
+        }
+
+        result.reorderedTools = orderToolsByDependencies(allowedRequests, executedTools, graph, logPrefix);
+        result.wasReordered = !isOriginalOrder(allowedRequests, result.reorderedTools);
+
+        if (result.wasReordered) {
+            List<String> toolNames = new List<String>();
+            for (ToolCallRequest t : result.reorderedTools) {
+                toolNames.add(t.toolName);
+            }
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Pre-flight: Reordered ' + result.reorderedTools.size() + ' tool(s) based on dependencies. Order: ' + String.join(toolNames, ' -> ')
+            );
         }
 
         return result;
     }
 
     /**
-     * Reorders tools based on sorted names and updates executionOrder.
+     * Orders tools based on dependency readiness while preserving original ordering where possible.
      */
-    private List<ToolCallRequest> reorderToolsByDependencies(List<ToolCallRequest> tools, List<String> sortedNames) {
-        Map<String, ToolCallRequest> nameToTool = new Map<String, ToolCallRequest>();
-        for (ToolCallRequest tool : tools) {
-            nameToTool.put(tool.toolName, tool);
-        }
+    private List<ToolCallRequest> orderToolsByDependencies(
+        List<ToolCallRequest> tools,
+        Set<String> executedTools,
+        ToolDependencyValidator.DependencyGraph graph,
+        String logPrefix
+    ) {
+        List<ToolCallRequest> remaining = new List<ToolCallRequest>();
+        remaining.addAll(tools);
 
-        List<ToolCallRequest> reordered = new List<ToolCallRequest>();
-        Integer newOrder = 0;
-        for (String name : sortedNames) {
-            ToolCallRequest tool = nameToTool.get(name);
-            if (tool != null) {
-                tool.executionOrder = newOrder++;
-                reordered.add(tool);
+        List<ToolCallRequest> ordered = new List<ToolCallRequest>();
+        Set<String> satisfied = new Set<String>(executedTools);
+        Boolean progress = true;
+
+        while (!remaining.isEmpty() && progress) {
+            progress = false;
+            for (Integer i = 0; i < remaining.size(); i++) {
+                ToolCallRequest candidate = remaining[i];
+                ToolDependencyValidator.DependencyRequirements reqs = graph.getDependenciesFor(candidate.toolName);
+                if (areDependenciesSatisfied(reqs, satisfied)) {
+                    ordered.add(candidate);
+                    satisfied.add(candidate.toolName);
+                    remaining.remove(i);
+                    i--;
+                    progress = true;
+                }
             }
         }
 
-        return reordered;
+        if (!remaining.isEmpty()) {
+            System.debug(
+                LoggingLevel.WARN,
+                logPrefix +
+                'Pre-flight: Unable to fully satisfy dependency ordering (possible cycle or missing prerequisites). Executing remaining tools in original order.'
+            );
+            ordered.addAll(remaining);
+        }
+
+        Integer newOrder = 0;
+        for (ToolCallRequest tool : ordered) {
+            tool.executionOrder = newOrder++;
+        }
+
+        return ordered;
     }
 
     /**
      * Checks if the sorted order matches the original order.
      */
-    private Boolean isOriginalOrder(List<ToolCallRequest> original, List<String> sorted) {
-        if (original.size() != sorted.size()) {
+    private Boolean isOriginalOrder(List<ToolCallRequest> original, List<ToolCallRequest> reordered) {
+        if (original.size() != reordered.size()) {
             return false;
         }
 
         for (Integer i = 0; i < original.size(); i++) {
-            if (original[i].toolName != sorted[i]) {
+            if (original[i].toolCallId != reordered[i].toolCallId) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private Boolean areDependenciesSatisfied(ToolDependencyValidator.DependencyRequirements reqs, Set<String> satisfied) {
+        for (String dep : reqs.allOf) {
+            if (!satisfied.contains(dep)) {
+                return false;
+            }
+        }
+
+        if (!reqs.anyOf.isEmpty()) {
+            Boolean anyMet = false;
+            for (String dep : reqs.anyOf) {
+                if (satisfied.contains(dep)) {
+                    anyMet = true;
+                    break;
+                }
+            }
+            if (!anyMet) {
                 return false;
             }
         }
@@ -1216,9 +1585,15 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
 
     /**
      * Gets the set of tools already executed in this execution session.
-     * Retrieves from ExecutionStep__c records for cross-turn persistence.
+     * Retrieves from ExecutionStep__c records.
+     *
+     * @param executionId The execution ID
+     * @param turnIdentifier The current turn identifier (used for turn-scoped queries)
+     * @param turnScopedOnly If true, only return tools from the current turn (Conversational/Email agents).
+     *                       If false, return tools from all turns (Function/Workflow agents).
+     * @return Set of tool names that have been successfully executed
      */
-    private Set<String> getExecutedToolsForExecution(Id executionId) {
+    private Set<String> getExecutedToolsForExecution(Id executionId, String turnIdentifier, Boolean turnScopedOnly) {
         Set<String> executed = new Set<String>();
 
         if (executionId == null) {
@@ -1228,16 +1603,34 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         // Query successful tool result steps for this execution
         // CRITICAL: Include tools regardless of IsError__c, but exclude dependency validation failures
         // Dependency failures are NOT real executions - they're blocked attempts
-        List<ExecutionStep__c> toolSteps = [
-            SELECT ToolName__c
-            FROM ExecutionStep__c
-            WHERE
-                AgentExecution__c = :executionId
-                AND StepType__c = 'ToolResult'
-                AND IsError__c = FALSE
-                AND IsDependencyValidationFailure__c = FALSE
-                AND ToolName__c != NULL
-        ];
+        List<ExecutionStep__c> toolSteps;
+
+        // For turn-scoped agents (Conversational/Email), only consider tools from current turn
+        // For execution-scoped agents (Function/Workflow), consider all tools across turns
+        if (turnScopedOnly && String.isNotBlank(turnIdentifier)) {
+            toolSteps = [
+                SELECT ToolName__c
+                FROM ExecutionStep__c
+                WHERE
+                    AgentExecution__c = :executionId
+                    AND StepType__c = 'ToolResult'
+                    AND IsError__c = FALSE
+                    AND IsDependencyValidationFailure__c = FALSE
+                    AND ToolName__c != NULL
+                    AND TurnIdentifier__c = :turnIdentifier
+            ];
+        } else {
+            toolSteps = [
+                SELECT ToolName__c
+                FROM ExecutionStep__c
+                WHERE
+                    AgentExecution__c = :executionId
+                    AND StepType__c = 'ToolResult'
+                    AND IsError__c = FALSE
+                    AND IsDependencyValidationFailure__c = FALSE
+                    AND ToolName__c != NULL
+            ];
+        }
 
         for (ExecutionStep__c step : toolSteps) {
             executed.add(step.ToolName__c);
@@ -1250,6 +1643,22 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
 
         return executed;
+    }
+
+    /**
+     * Determines if the given agent type should use turn-scoped dependency tracking.
+     * - Conversational & Email agents: Turn-scoped (dependencies reset each turn)
+     * - Function & Workflow agents: Execution-scoped (dependencies persist across turns)
+     */
+    private Boolean isTurnScopedDependencies(String agentType) {
+        if (String.isBlank(agentType)) {
+            return false; // Default to execution-wide for unknown types
+        }
+
+        String agentTypeLower = agentType.toLowerCase();
+        // Conversational and Email agents have multi-turn conversations where each turn is independent
+        // Function and Workflow agents have sequential/dependent tool execution across the execution
+        return agentTypeLower == 'conversational' || agentTypeLower == 'email';
     }
 
     /**
@@ -1276,6 +1685,13 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             WHERE AgentExecution__c = :executionId AND StepType__c = 'ToolResult' AND IsDependencyValidationFailure__c = TRUE
         ];
 
+        // Include buffered steps in deferred DML mode
+        for (ExecutionStep__c step : TransactionContext.getInstance().getBufferedExecutionSteps(executionId)) {
+            if (step.StepType__c == 'ToolResult' && step.IsDependencyValidationFailure__c == true) {
+                count++;
+            }
+        }
+
         return count;
     }
 
@@ -1290,6 +1706,40 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
     ) {
         ExecutionStepService executionStepService = new ExecutionStepService();
 
+        if (TransactionContext.getInstance().isDeferredDMLMode()) {
+            for (ToolExecutionResult result : syncResults) {
+                try {
+                    String resultJsonForStorage = OrchestrationService.serializeActionOutcome(result.outcome, logPrefix);
+
+                    // For dependency validation failures, IsError__c should be false
+                    // These are not real execution errors - they're blocked attempts
+                    Boolean isError = !result.outcome.isSuccess && !result.isDependencyValidationFailure;
+
+                    executionStepService.createToolResultStep(
+                        context.executionId,
+                        result.toolCallId,
+                        result.toolName,
+                        resultJsonForStorage,
+                        context.turnIdentifier,
+                        context.currentTurnCount,
+                        result.processingTime,
+                        false,
+                        result.capabilityId,
+                        isError, // isError = real failure only, not dependency blocks
+                        false, // isResumed
+                        result.isDependencyValidationFailure // Pass the dependency validation failure flag
+                    );
+                } catch (Exception e) {
+                    System.debug(
+                        LoggingLevel.ERROR,
+                        logPrefix + 'Failed to create execution step for sync tool result ' + result.toolName + ': ' + e.getMessage()
+                    );
+                }
+            }
+            return;
+        }
+
+        List<ExecutionStep__c> stepsToInsert = new List<ExecutionStep__c>();
         for (ToolExecutionResult result : syncResults) {
             try {
                 String resultJsonForStorage = OrchestrationService.serializeActionOutcome(result.outcome, logPrefix);
@@ -1298,23 +1748,51 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                 // These are not real execution errors - they're blocked attempts
                 Boolean isError = !result.outcome.isSuccess && !result.isDependencyValidationFailure;
 
-                executionStepService.createToolResultStep(
-                    context.executionId,
-                    result.toolCallId,
-                    result.toolName,
-                    resultJsonForStorage,
-                    context.turnIdentifier,
-                    context.currentTurnCount,
-                    result.processingTime,
-                    false,
-                    result.capabilityId,
-                    isError, // isError = real failure only, not dependency blocks
-                    false, // isResumed
-                    result.isDependencyValidationFailure // Pass the dependency validation failure flag
+                stepsToInsert.add(
+                    executionStepService.buildToolResultStep(
+                        context.executionId,
+                        result.toolCallId,
+                        result.toolName,
+                        resultJsonForStorage,
+                        context.turnIdentifier,
+                        context.currentTurnCount,
+                        result.processingTime,
+                        false,
+                        result.capabilityId,
+                        isError, // isError = real failure only, not dependency blocks
+                        false, // isResumed
+                        result.isDependencyValidationFailure
+                    )
                 );
             } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create execution step for sync tool result ' + result.toolName + ': ' + e.getMessage());
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to build execution step for sync tool result ' + result.toolName + ': ' + e.getMessage());
             }
+        }
+
+        insertExecutionSteps(stepsToInsert, logPrefix);
+    }
+
+    /**
+     * Bulk insert helper for ExecutionStep__c with partial success handling.
+     */
+    private void insertExecutionSteps(List<ExecutionStep__c> stepsToInsert, String logPrefix) {
+        if (stepsToInsert == null || stepsToInsert.isEmpty()) {
+            return;
+        }
+
+        try {
+            Database.SaveResult[] results = Database.insert(stepsToInsert, false);
+            for (Integer i = 0; i < results.size(); i++) {
+                if (!results[i].isSuccess()) {
+                    Database.Error err = results[i].getErrors()[0];
+                    System.debug(
+                        LoggingLevel.ERROR,
+                        logPrefix + 'Failed to insert ExecutionStep__c (index ' + i + '): ' + err.getStatusCode() + ' - ' + err.getMessage()
+                    );
+                }
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Bulk insert failed for ExecutionStep__c: ' + e.getMessage());
         }
     }
 
@@ -1455,11 +1933,14 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         OrchestrationContext context,
         List<ToolExecutionResult> syncResults,
         List<ToolCallRequest> asyncTools,
+        Id savedAssistantMessageId,
+        String assistantMessageContent,
         String logPrefix
     ) {
         // If there are async tools, wait for them to complete
         if (!asyncTools.isEmpty()) {
             System.debug(LoggingLevel.INFO, logPrefix + 'Async tools queued, returning QUEUED_ACTION outcome');
+            publishTransientAssistantMessage(context.executionId, savedAssistantMessageId, assistantMessageContent, logPrefix);
             return OrchestrationService.OUTCOME_QUEUED_ACTION;
         }
 
@@ -1475,22 +1956,28 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
             System.debug(LoggingLevel.INFO, logPrefix + 'Tool-terminating mode detected. Tool result is final.');
 
             Boolean hasFailures = false;
+            String failureMessage = null;
+            String failureCode = null;
             for (ToolExecutionResult result : syncResults) {
-                if (!result.outcome.isSuccess) {
+                if (!result.outcome.isSuccess && !result.isDependencyValidationFailure) {
                     hasFailures = true;
+                    failureMessage = result.outcome.errorMessage;
+                    failureCode = result.outcome.errorCode;
                     break;
                 }
             }
 
-            AgentExecution__c completedExecution = new AgentExecution__c(
-                Id = context.executionId,
-                ExecutionStatus__c = hasFailures ? 'Failed' : 'Completed',
-                ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
-                EndTime__c = Datetime.now()
-            );
-            update completedExecution;
+            if (hasFailures) {
+                String errorDetail = String.isNotBlank(failureMessage) ? failureMessage : 'Tool execution failed';
+                String errorCode = String.isNotBlank(failureCode) ? failureCode : AIAgentConstants.ERR_CODE_ACTION_EXECUTION;
+                context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, errorDetail, errorCode, logPrefix);
+                publishTransientAssistantMessage(context.executionId, savedAssistantMessageId, assistantMessageContent, logPrefix);
+                return OrchestrationService.OUTCOME_FAILED;
+            }
 
-            return hasFailures ? OrchestrationService.OUTCOME_FAILED : OrchestrationService.OUTCOME_COMPLETED;
+            context.agentStateSvc.completeTurnSuccessfully(context.executionId, context.turnIdentifier, null, logPrefix);
+            publishTransientAssistantMessage(context.executionId, savedAssistantMessageId, assistantMessageContent, logPrefix);
+            return OrchestrationService.OUTCOME_COMPLETED;
         }
 
         // Check fail-fast policy using bulk capability lookup to prevent N+1 SOQL queries
@@ -1559,20 +2046,8 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         }
 
         if (shouldHalt) {
+            publishTransientAssistantMessage(context.executionId, savedAssistantMessageId, assistantMessageContent, logPrefix);
             return OrchestrationService.OUTCOME_FAILED;
-        }
-
-        // Commit page context to ledger (Conversational agents only)
-        // Skip for Function/Workflow agents since:
-        // 1. Context was already resolved upfront from the recordId
-        // 2. Function agents don't need multi-turn context tracking
-        // 3. Reduces unnecessary DML for stateless execution patterns
-        if (context.currentPageRecordId != null && context.agentStateSvc.isContextTrackingEnabled(context.executionId)) {
-            try {
-                context.contextManagerSvc.commitExecutionTurnContext(context.executionId, context.currentTurnCount, context.currentPageRecordId, null);
-            } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Non-fatal: Failed to commit context: ' + e.getMessage());
-            }
         }
 
         // Enforce max turn limit (per-agent override with org-wide fallback)
@@ -1581,6 +2056,7 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         if ((context.currentTurnCount + 1) > maxTurns) {
             String limitErrorMsg = 'Maximum processing cycles (' + maxTurns + ') exceeded.';
             context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, limitErrorMsg, AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED, logPrefix);
+            publishTransientAssistantMessage(context.executionId, savedAssistantMessageId, assistantMessageContent, logPrefix);
             return OrchestrationService.OUTCOME_FAILED;
         }
 
@@ -1616,11 +2092,26 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         // Reasons: tool performed DML/callout, max calls reached, or deferred mode not enabled
         System.debug(LoggingLevel.INFO, logPrefix + 'Multi-LLM optimization not applicable, queueing follow-up');
 
+        // Commit page context to ledger (Conversational agents only)
+        // Skip for Function/Workflow agents since:
+        // 1. Context was already resolved upfront from the recordId
+        // 2. Function agents don't need multi-turn context tracking
+        // 3. Reduces unnecessary DML for stateless execution patterns
+        if (context.currentPageRecordId != null && context.agentStateSvc.isContextTrackingEnabled(context.executionId)) {
+            try {
+                context.contextManagerSvc.commitExecutionTurnContext(context.executionId, context.currentTurnCount, context.currentPageRecordId, null);
+            } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Non-fatal: Failed to commit context: ' + e.getMessage());
+            }
+        }
+
         // Commit buffer before queueing (if in deferred mode)
         if (txnCtx.isDeferredDMLMode()) {
             TransactionContext.getInstance().commitBuffer();
             txnCtx.disableDeferredDMLMode();
         }
+
+        publishTransientAssistantMessage(context.executionId, savedAssistantMessageId, assistantMessageContent, logPrefix);
 
         // Queue follow-up LLM call
         context.agentStateSvc.resumeForFollowUpLlmCall(context.executionId, context.turnIdentifier, null, logPrefix);
@@ -1636,5 +2127,27 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
         );
 
         return OrchestrationService.OUTCOME_QUEUED_FOLLOWUP;
+    }
+
+    /**
+     * Publishes a transient assistant message for UI updates after tool processing completes.
+     * Must only be called when no further callouts will occur in this transaction.
+     */
+    private void publishTransientAssistantMessage(Id executionId, Id messageId, String messageContent, String logPrefix) {
+        if (executionId == null || messageId == null || String.isBlank(messageContent)) {
+            return;
+        }
+
+        try {
+            TransientMessage__e event = new TransientMessage__e(
+                AgentExecutionId__c = executionId,
+                MessageId__c = messageId,
+                MessageContent__c = messageContent
+            );
+            EventBus.publish(event);
+            System.debug(LoggingLevel.INFO, logPrefix + 'Published TransientMessage__e for UI (post-tool execution)');
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to publish TransientMessage__e for UI.');
+        }
     }
 }

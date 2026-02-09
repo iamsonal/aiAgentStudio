@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>LastResumedStep__c</fullName>
+    <description>Name of the step that was resumed in the last resume operation. Used for tracking which steps required resumption.</description>
+    <inlineHelpText>The step that was last resumed.</inlineHelpText>
+    <label>Last Resumed Step</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>
+

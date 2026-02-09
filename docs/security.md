@@ -40,11 +40,15 @@ flowchart TB
 
 ### User Context
 
-Agents always run in the context of the requesting user. There is no privilege escalation.
+By default, agents run in the context of the requesting user and fully respect CRUD/FLS/sharing.
+
+**Optional Service User Context**: Some agents can be configured to route execution through a service user
+via a loopback REST callout (see `RequiresServiceUserContext__c` and `ServiceUserNamedCredential__c`).
+This is an explicit, admin-controlled configuration and should only be enabled when needed.
 
 ```apex
-// The framework automatically uses the current user's context
-// No "without sharing" or "system mode" execution
+// Default: run as requesting user
+// Optional: route through service user via Named Credential when configured
 ```
 
 ### CRUD Checks

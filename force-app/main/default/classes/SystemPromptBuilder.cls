@@ -12,7 +12,6 @@
 public inherited sharing class SystemPromptBuilder {
     private final ContextManagerService contextManager;
     private final ContextResolverService contextResolver;
-    private static final Integer MAX_CONTEXT_CHARS = 8000;
     private static final Map<String, String> SECTION_HEADERS = new Map<String, String>{
         'primary' => '## Current Primary Context',
         'recent' => '## Recently Discussed',
@@ -21,6 +20,9 @@ public inherited sharing class SystemPromptBuilder {
     };
     private final IDecisionStepLogger.ILogger decisionLogger;
     private PIIMaskingService piiMaskingService;
+
+    @TestVisible
+    private static Exception mockFormatterException;
 
     public SystemPromptBuilder() {
         this(new ContextManagerService(), new ContextResolverService(), null, null);
@@ -151,6 +153,10 @@ public inherited sharing class SystemPromptBuilder {
                             System.debug(LoggingLevel.DEBUG, logPrefix + 'PII schema masking enabled for context data formatting');
                         }
 
+                        if (Test.isRunningTest() && mockFormatterException != null) {
+                            throw mockFormatterException;
+                        }
+
                         String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix, formatStrategy, formatOptions);
 
                         if (this.decisionLogger != null) {
@@ -220,25 +226,13 @@ public inherited sharing class SystemPromptBuilder {
         }
 
         List<String> promptSections = new List<String>();
-        Integer totalChars = 0;
-
         String[] sectionOrder = new List<String>{ 'primary', 'recent', 'related', 'background' };
 
         for (String sectionKey : sectionOrder) {
             List<ContextManagerService.ContextItem> items = structuredContext.get(sectionKey);
             if (items != null && !items.isEmpty()) {
                 String section = buildContextPromptSection(sectionKey, items, currentTurn, includeMetadata);
-
-                if (totalChars + section.length() > MAX_CONTEXT_CHARS) {
-                    if (sectionKey == 'primary' || sectionKey == 'recent') {
-                        section = truncateContextSection(section, MAX_CONTEXT_CHARS - totalChars);
-                    } else {
-                        break;
-                    }
-                }
-
                 promptSections.add(section);
-                totalChars += section.length();
             }
         }
 
@@ -349,19 +343,5 @@ public inherited sharing class SystemPromptBuilder {
                 return null;
             }
         }
-    }
-
-    @TestVisible
-    private String truncateContextSection(String section, Integer maxChars) {
-        if (section.length() <= maxChars) {
-            return section;
-        }
-
-        String truncated = section.substring(0, maxChars - 20);
-        Integer lastNewline = truncated.lastIndexOf('\n');
-        if (lastNewline > 0) {
-            truncated = truncated.substring(0, lastNewline);
-        }
-        return truncated + '\n*[Context truncated...]*';
     }
 }

@@ -135,6 +135,14 @@ public class ThreatAssessment {
     /** Safe message to return to user when blocked */
     private String safeBlockMessage;
 
+    /** Whether assessment exited early after pattern detection */
+    @AuraEnabled
+    public Boolean earlyExit { get; private set; }
+
+    /** Sanitized spans recorded during sanitization */
+    @AuraEnabled
+    public List<Map<String, Object>> sanitizedSpans { get; private set; }
+
     // =========================================================================
     // CONSTRUCTORS
     // =========================================================================
@@ -148,6 +156,7 @@ public class ThreatAssessment {
         this.level = ThreatLevel.NONE;
         this.blocked = false;
         this.flagged = false;
+        this.sanitizedSpans = new List<Map<String, Object>>();
     }
 
     // =========================================================================
@@ -236,6 +245,14 @@ public class ThreatAssessment {
      */
     public ThreatAssessment withProcessingTime(Long ms) {
         this.processingTimeMs = ms;
+        return this;
+    }
+
+    /**
+     * @description Marks the assessment as early-exit (pattern-only).
+     */
+    public ThreatAssessment withEarlyExit(Boolean value) {
+        this.earlyExit = value == true;
         return this;
     }
 
@@ -329,6 +346,8 @@ public class ThreatAssessment {
         summary.put('flagged', this.flagged);
         summary.put('configuredThreshold', this.configuredThreshold);
         summary.put('processingTimeMs', this.processingTimeMs);
+        summary.put('earlyExit', this.earlyExit);
+        summary.put('sanitizedSpanCount', this.sanitizedSpans != null ? this.sanitizedSpans.size() : 0);
 
         // Summarize indicators by category (without sensitive content)
         Map<String, Integer> categoryCount = new Map<String, Integer>();
@@ -387,6 +406,7 @@ public class ThreatAssessment {
         }
 
         String sanitized = content;
+        this.sanitizedSpans = new List<Map<String, Object>>();
 
         // Sort indicators by startIndex descending to process from end to start
         List<ThreatIndicator> sortedIndicators = new List<ThreatIndicator>();
@@ -398,11 +418,27 @@ public class ThreatAssessment {
         sortedIndicators.sort(new ThreatIndicatorComparator());
 
         // Replace detected threats with safe placeholder
+        Integer lastStart = sanitized.length();
         for (ThreatIndicator indicator : sortedIndicators) {
             if (indicator.startIndex != null && indicator.endIndex != null) {
+                if (indicator.endIndex > lastStart) {
+                    continue;
+                }
                 String before = sanitized.substring(0, indicator.startIndex);
                 String after = sanitized.substring(indicator.endIndex);
-                sanitized = before + '[REMOVED]' + after;
+                String category = String.isNotBlank(indicator.category) ? indicator.category : 'THREAT';
+                String replacement = '[REMOVED:' + category + ']';
+                sanitized = before + replacement + after;
+                lastStart = indicator.startIndex;
+
+                this.sanitizedSpans.add(
+                    new Map<String, Object>{
+                        'start' => indicator.startIndex,
+                        'end' => indicator.endIndex,
+                        'category' => indicator.category,
+                        'name' => indicator.name
+                    }
+                );
             }
         }
 

@@ -17,7 +17,7 @@
  *
  * @extends BaseAgentAction
  */
-public class ActionUpdateRecord extends BaseAgentAction {
+public with sharing class ActionUpdateRecord extends BaseAgentAction {
     private ConfigDTO config;
 
     public class ArgumentsDTO {
@@ -155,8 +155,8 @@ public class ActionUpdateRecord extends BaseAgentAction {
 
         // Explicit object-level update permission check
         try {
-            SecurityUtils.checkObjectPermission(targetSObjectType, AccessType.UPDATABLE);
-        } catch (SecurityUtils.ActionSecurityException ase) {
+            Utils.checkObjectPermission(targetSObjectType, AccessType.UPDATABLE);
+        } catch (Utils.ActionSecurityException ase) {
             System.debug(LoggingLevel.ERROR, '[ActionUpdateRecord] User lacks update permission for ' + targetSObjectType + ': ' + ase.getMessage());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ase.getMessage());
         }
@@ -171,7 +171,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
                 return ActionOutcome.failureWithGuidance(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage(), typeEx.correctionGuidance);
             }
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
-        } catch (SecurityUtils.ActionSecurityException secEx) {
+        } catch (Utils.ActionSecurityException secEx) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, secEx.getMessage());
         }
 
@@ -228,7 +228,7 @@ public class ActionUpdateRecord extends BaseAgentAction {
         }
 
         // Perform DML update with enhanced error handling and context
-        Database.SaveResult saveResult = Database.update(decision.getRecords()[0], false);
+        Database.SaveResult saveResult = Database.update(decision.getRecords()[0], false, AccessLevel.USER_MODE);
 
         Long executionTime = System.currentTimeMillis() - startTime;
         System.debug(

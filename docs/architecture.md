@@ -51,8 +51,9 @@ Orchestrators manage the execution flow for different agent types.
 | Orchestrator | Agent Type | Behavior |
 |:-------------|:-----------|:---------|
 | `ConversationalOrchestrator` | Conversational | Multi-turn with memory |
-
-Additional orchestrators for Function and Workflow agents are available in the addon package.
+| `FunctionOrchestrator` | Function | Single-task factory routing to sync/async patterns |
+| `WorkflowOrchestrator` | Workflow | Multi-agent state machine |
+| `EmailOrchestrator` | Email | Threaded email processing |
 
 ### Core Services
 
@@ -63,6 +64,10 @@ Additional orchestrators for Function and Workflow agents are available in the a
 | `CapabilityExecutionService` | Executes agent actions |
 | `AgentStateService` | Manages execution lifecycle |
 | `ContextManagerService` | Handles memory and context |
+| `ExecutionStepService` | Execution step logging & retrieval |
+| `AgentExecutionDispatcher` | DLQ dispatch for multi-record execution |
+| `AgentExecutionWorker` | DLQ worker with self-pull pattern |
+| `TransactionContext` | Deferred DML / multi-LLM optimization |
 
 ---
 
@@ -85,8 +90,10 @@ flowchart TB
 | Adapter | Provider | Models |
 |:--------|:---------|:-------|
 | `OpenAIProviderAdapter` | OpenAI | GPT-4o, GPT-4o-mini |
+| `ClaudeProviderAdapter` | Anthropic | Claude models |
+| `GeminiProviderAdapter` | Google | Gemini models |
 
-Additional provider adapters are available in the addon package. You can also add your own by extending `BaseProviderAdapter`.
+You can add your own provider by extending `BaseProviderAdapter`.
 
 ---
 
@@ -176,9 +183,15 @@ Implement `IAgentOrchestrator`:
 
 ```apex
 public interface IAgentOrchestrator {
-    void initialize(AIAgentDefinition__c agentDefinition);
-    AgentExecutionService.ExecutionResult initiate(String agentDeveloperName, AgentExecutionService.ExecutionPayload payload);
-    void processAsyncResult(Id executionId, Map<String, Object> asyncPayload);
+    void configure(AIAgentDefinition__c agentDefinition);
+    AgentExecutionService.ExecutionResult start(String agentDeveloperName, AgentExecutionService.ExecutionPayload payload);
+    AgentExecutionService.ExecutionResult resume(Id executionId, BaseAgentOrchestrator.ResumeOptions options);
+    void runAsync(Map<String, Object> payload, String logPrefix);
+    void onChildComplete(Id executionId, Map<String, Object> asyncPayload);
+    Boolean canResume(Id executionId);
+    String buildSystemPromptAdditions(OrchestrationContext context);
+    String evaluateToolOutcome(OrchestrationContext context, List<ToolCallResponseHandler.ToolExecutionResult> toolResults, String scenario);
+    AIAgentDefinition__c getAgentDefinition();
 }
 ```
 
@@ -255,6 +268,16 @@ public interface IMemoryManager {
 |:-----|:------|:---------|
 | Platform Events | High | Production, many users |
 | Queueables | ~50 concurrent | Development, debugging |
+
+### Multi-LLM Optimization (Deferred DML)
+
+Conversational, Email, and async Function agents can chain multiple LLM calls within one transaction when:
+1. Deferred DML mode is enabled,
+2. The execution record already exists,
+3. No tool in the turn performed DML or callouts, and
+4. The max LLM call limit is not exceeded.
+
+This reduces queueable churn and improves latency while preserving transaction safety.
 
 ### Caching
 

@@ -52,6 +52,10 @@ public inherited sharing class JailbreakPatternMatcher {
     // CPU safeguard: Maximum text length for pattern matching
     @TestVisible
     private static Integer MAX_TEXT_LENGTH = 50000;
+    @TestVisible
+    private static Integer MAX_PATTERN_EVALUATIONS = 200;
+    @TestVisible
+    private static Decimal EARLY_EXIT_SEVERITY = 0.9;
 
     /**
      * @description Represents a detected jailbreak pattern match.
@@ -134,7 +138,13 @@ public inherited sharing class JailbreakPatternMatcher {
         }
 
         // Apply each pattern in priority order
+        Integer evaluated = 0;
         for (CompiledPattern cp : this.compiledPatterns) {
+            if (evaluated >= MAX_PATTERN_EVALUATIONS) {
+                System.debug(LoggingLevel.WARN, LOG_PREFIX + 'Pattern evaluation limit reached. Stopping early.');
+                break;
+            }
+            evaluated++;
             try {
                 System.Matcher m = cp.regex.matcher(text);
 
@@ -143,6 +153,11 @@ public inherited sharing class JailbreakPatternMatcher {
 
                     PatternMatch match = new PatternMatch(matchedValue, cp.developerName, cp.category, cp.severity, cp.description, m.start(), m.end());
                     allMatches.add(match);
+
+                    if (cp.severity != null && cp.severity >= EARLY_EXIT_SEVERITY) {
+                        System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Early exit on high-severity pattern: ' + cp.developerName);
+                        return allMatches;
+                    }
                 }
             } catch (Exception e) {
                 // Log but don't fail on individual pattern errors
@@ -176,7 +191,12 @@ public inherited sharing class JailbreakPatternMatcher {
             return false;
         }
 
+        Integer evaluated = 0;
         for (CompiledPattern cp : this.compiledPatterns) {
+            if (evaluated >= MAX_PATTERN_EVALUATIONS) {
+                break;
+            }
+            evaluated++;
             try {
                 System.Matcher m = cp.regex.matcher(text);
                 if (m.find()) {
@@ -255,6 +275,16 @@ public inherited sharing class JailbreakPatternMatcher {
     @TestVisible
     public static void setMaxTextLength(Integer maxLength) {
         MAX_TEXT_LENGTH = maxLength != null ? maxLength : 50000;
+    }
+
+    @TestVisible
+    public static void setMaxPatternEvaluations(Integer maxEvaluations) {
+        MAX_PATTERN_EVALUATIONS = maxEvaluations != null ? maxEvaluations : 200;
+    }
+
+    @TestVisible
+    public static void setEarlyExitSeverity(Decimal severity) {
+        EARLY_EXIT_SEVERITY = severity != null ? severity : 0.9;
     }
 
     // =========================================================================

@@ -267,10 +267,10 @@ public inherited sharing class AgentStateService {
         String errorDetailForState = String.isNotBlank(errorCode) ? '[' + errorCode + '] ' + errorMessage : errorMessage;
         System.debug(LoggingLevel.ERROR, logPrefix + 'AgentStateService: FAILED state for Turn=' + turnIdentifier + '. Error=' + errorDetailForState);
 
-        updateStatus(executionId, 'Failed', AIAgentConstants.STATUS_FAILED, turnIdentifier, errorDetailForState?.abbreviate(255));
+        updateStatus(executionId, 'Failed', AIAgentConstants.STATUS_FAILED, turnIdentifier, errorDetailForState);
 
         // Publish AgentResponse__e event for UI notification of failure
-        publishAgentResponseEvent(executionId, false, null, errorMessage?.abbreviate(255), turnIdentifier, logPrefix);
+        publishAgentResponseEvent(executionId, false, null, errorMessage, turnIdentifier, logPrefix);
     }
 
     // STATUS UPDATE (Public for direct callers)
@@ -297,6 +297,44 @@ public inherited sharing class AgentStateService {
                 TransactionContext.getInstance().disableDeferredDMLMode();
             }
 
+            // Guard against stale workers overwriting newer turns.
+            if (String.isNotBlank(turnIdentifier)) {
+                List<AgentExecution__c> currentExecutions = [
+                    SELECT Id, CurrentTurnIdentifier__c
+                    FROM AgentExecution__c
+                    WHERE Id = :executionId AND (CurrentTurnIdentifier__c = :turnIdentifier OR CurrentTurnIdentifier__c = NULL)
+                    LIMIT 1
+                    FOR UPDATE
+                ];
+
+                if (currentExecutions.isEmpty()) {
+                    String currentTurn = null;
+                    try {
+                        List<AgentExecution__c> lookup = [
+                            SELECT Id, CurrentTurnIdentifier__c
+                            FROM AgentExecution__c
+                            WHERE Id = :executionId
+                            LIMIT 1
+                        ];
+                        if (!lookup.isEmpty()) {
+                            currentTurn = lookup[0].CurrentTurnIdentifier__c;
+                        }
+                    } catch (Exception e) {
+                        System.debug(LoggingLevel.WARN, logPrefix + 'Unable to read current turn for debug: ' + e.getMessage());
+                    }
+                    System.debug(
+                        LoggingLevel.WARN,
+                        logPrefix +
+                            'Stale status update skipped for execution ' +
+                            executionId +
+                            '. Turn mismatch for provided turn=' +
+                            turnIdentifier +
+                            (currentTurn != null ? (', current turn=' + currentTurn) : '')
+                    );
+                    return;
+                }
+            }
+
             AgentExecution__c execution = new AgentExecution__c(Id = executionId, ExecutionStatus__c = executionStatus, LastActivityTime__c = Datetime.now());
 
             if (String.isNotBlank(processingStatus)) {
@@ -314,7 +352,7 @@ public inherited sharing class AgentStateService {
 
             // Set error message when execution fails
             if (executionStatus == 'Failed' && String.isNotBlank(statusMessage)) {
-                execution.ErrorMessage__c = statusMessage.abbreviate(255);
+                execution.ErrorMessage__c = statusMessage;
             }
 
             update execution;

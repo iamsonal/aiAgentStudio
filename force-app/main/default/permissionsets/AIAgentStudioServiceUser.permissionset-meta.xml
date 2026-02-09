@@ -8,10 +8,6 @@
         <apexClass>ConversationalChatController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
-    <classAccesses>
-        <apexClass>EventSubscriptionHelper</apexClass>
-        <enabled>true</enabled>
-    </classAccesses>
     <description>Elevated permissions for the Service User executing agents with RequiresServiceUserContext = true via JWT authentication through Named Credentials.</description>
     <externalCredentialPrincipalAccesses>
         <enabled>true</enabled>

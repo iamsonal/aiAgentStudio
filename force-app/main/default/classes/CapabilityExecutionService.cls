@@ -31,39 +31,23 @@ public inherited sharing class CapabilityExecutionService {
         }
 
         try {
-            switch on capability.ImplementationType__c {
-                when 'Standard', 'Apex', 'Flow' {
-                    System.debug(
-                        LoggingLevel.INFO,
-                        logPrefix + 'Executing ' + capability.ImplementationType__c + ' capability: ' + capability.CapabilityName__c
-                    );
+            // ImplementationType__c is a restricted picklist with only: Standard, Apex, Flow
+            System.debug(LoggingLevel.INFO, logPrefix + 'Executing ' + capability.ImplementationType__c + ' capability: ' + capability.CapabilityName__c);
 
-                    IAgentAction actionHandler = createActionHandler(capability);
-                    ActionOutcome outcome = actionHandler.execute(capability.BackendConfiguration__c, llmArgumentsJson, context);
+            IAgentAction actionHandler = createActionHandler(capability);
+            ActionOutcome outcome = actionHandler.execute(capability.BackendConfiguration__c, llmArgumentsJson, context);
 
-                    if (outcome == null) {
-                        System.debug(LoggingLevel.ERROR, logPrefix + 'Action handler returned null outcome. This indicates a handler implementation bug.');
-                        outcome = ActionOutcome.failure(
-                            AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT,
-                            'Action handler failed to return an outcome. Handler returned null. Check handler implementation for capability: ' +
-                            capability.CapabilityName__c
-                        );
-                    } else {
-                        System.debug(LoggingLevel.DEBUG, logPrefix + 'Action handler returned outcome: ' + String.valueOf(outcome));
-                    }
-                    return outcome;
-                }
-                when else {
-                    String errorMsg =
-                        'Unsupported ImplementationType__c: "' +
-                        String.valueOf(capability.ImplementationType__c) +
-                        '" for capability: ' +
-                        capability.CapabilityName__c +
-                        '. Valid types: Standard, Apex, Flow.';
-                    System.debug(LoggingLevel.ERROR, logPrefix + errorMsg);
-                    return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, errorMsg);
-                }
+            if (outcome == null) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Action handler returned null outcome. This indicates a handler implementation bug.');
+                outcome = ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT,
+                    'Action handler failed to return an outcome. Handler returned null. Check handler implementation for capability: ' +
+                    capability.CapabilityName__c
+                );
+            } else {
+                System.debug(LoggingLevel.DEBUG, logPrefix + 'Action handler returned outcome: ' + String.valueOf(outcome));
             }
+            return outcome;
         } catch (CapabilityExecutionException cee) {
             System.debug(LoggingLevel.ERROR, logPrefix + cee.getMessage());
             throw cee;
@@ -104,35 +88,27 @@ public inherited sharing class CapabilityExecutionService {
         );
 
         try {
-            switch on implType {
-                when 'Standard' {
-                    StandardActionHandler__mdt handlerMdt = standardHandlerCache.get(stdActionType.toLowerCase());
-                    if (handlerMdt == null) {
-                        System.debug(LoggingLevel.ERROR, '[CapabilityExecutionService] No StandardActionHandler__mdt found for key: "' + stdActionType + '".');
-                        throw new CapabilityExecutionException('No active StandardActionHandler registered for key: "' + stdActionType + '".');
-                    }
-                    return instantiateAndCheckInterface(Type.forName(handlerMdt.HandlerClassName__c), handlerMdt.HandlerClassName__c);
+            // ImplementationType__c is a restricted picklist with only: Standard, Apex, Flow
+            if ('Standard'.equalsIgnoreCase(implType)) {
+                StandardActionHandler__mdt handlerMdt = standardHandlerCache.get(stdActionType.toLowerCase());
+                if (handlerMdt == null) {
+                    System.debug(LoggingLevel.ERROR, '[CapabilityExecutionService] No StandardActionHandler__mdt found for key: "' + stdActionType + '".');
+                    throw new CapabilityExecutionException('No active StandardActionHandler registered for key: "' + stdActionType + '".');
                 }
-                when 'Apex' {
-                    return instantiateAndCheckInterface(Type.forName(implDetail), implDetail);
+                return instantiateAndCheckInterface(Type.forName(handlerMdt.HandlerClassName__c), handlerMdt.HandlerClassName__c);
+            } else if ('Apex'.equalsIgnoreCase(implType)) {
+                return instantiateAndCheckInterface(Type.forName(implDetail), implDetail);
+            } else if ('Flow'.equalsIgnoreCase(implType)) {
+                final String FLOW_HANDLER_KEY = 'RunFlow';
+                StandardActionHandler__mdt flowHandlerMdt = standardHandlerCache.get(FLOW_HANDLER_KEY.toLowerCase());
+                if (flowHandlerMdt == null) {
+                    System.debug(LoggingLevel.ERROR, '[CapabilityExecutionService] No Flow handler registration found for key: "' + FLOW_HANDLER_KEY + '".');
+                    throw new CapabilityExecutionException('Flow handler registration not found for key: "' + FLOW_HANDLER_KEY + '".');
                 }
-                when 'Flow' {
-                    final String FLOW_HANDLER_KEY = 'RunFlow';
-                    StandardActionHandler__mdt flowHandlerMdt = standardHandlerCache.get(FLOW_HANDLER_KEY.toLowerCase());
-                    if (flowHandlerMdt == null) {
-                        System.debug(
-                            LoggingLevel.ERROR,
-                            '[CapabilityExecutionService] No Flow handler registration found for key: "' + FLOW_HANDLER_KEY + '".'
-                        );
-                        throw new CapabilityExecutionException('Flow handler registration not found for key: "' + FLOW_HANDLER_KEY + '".');
-                    }
-                    return instantiateAndCheckInterface(Type.forName(flowHandlerMdt.HandlerClassName__c), flowHandlerMdt.HandlerClassName__c);
-                }
-                when else {
-                    System.debug(LoggingLevel.ERROR, '[CapabilityExecutionService] Unsupported Implementation Type: "' + implType + '".');
-                    throw new CapabilityExecutionException('Unsupported Implementation Type: "' + implType + '".');
-                }
+                return instantiateAndCheckInterface(Type.forName(flowHandlerMdt.HandlerClassName__c), flowHandlerMdt.HandlerClassName__c);
             }
+            // Note: No else needed - picklist only allows Standard, Apex, Flow
+            return null; // Unreachable, but required for compiler
         } catch (CapabilityExecutionException cee) {
             throw cee;
         } catch (Exception e) {

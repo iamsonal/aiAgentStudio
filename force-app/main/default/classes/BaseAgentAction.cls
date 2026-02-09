@@ -9,7 +9,7 @@
 /**
  * @description Abstract base class for all agent actions. Subclasses must implement executeAction() and define ArgumentsDTO/ConfigDTO classes.
  */
-public abstract class BaseAgentAction implements IAgentAction {
+public abstract with sharing class BaseAgentAction implements IAgentAction {
     protected ActionContext actionContext { get; private set; }
     protected Map<String, Object> parsedActionConfig { get; private set; }
     public virtual class ValidationException extends AIAgentException {
@@ -211,6 +211,7 @@ public abstract class BaseAgentAction implements IAgentAction {
         return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex.getMessage());
     }
 
+    @TestVisible
     private String mapStatusCodeToErrorCode(String statusCodeStr, String defaultCode) {
         if (statusCodeStr == null)
             return defaultCode;

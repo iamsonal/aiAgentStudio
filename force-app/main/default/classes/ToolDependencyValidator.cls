@@ -374,18 +374,31 @@ public inherited sharing class ToolDependencyValidator {
             return '';
         }
 
-        // Sort capability names for consistent hashing
-        List<String> capNames = new List<String>();
+        // Build stable signature list for consistent hashing
+        List<String> capSignatures = new List<String>();
         for (AgentCapability__c cap : capabilities) {
             // Only include enabled capabilities
             if (cap.ExposureLevel__c != 'Disabled') {
-                capNames.add(cap.CapabilityName__c);
+                String signature = String.join(
+                    new List<String>{
+                        String.valueOf(cap.CapabilityName__c),
+                        String.valueOf(cap.ExposureLevel__c),
+                        String.valueOf(cap.RunAsynchronously__c),
+                        String.valueOf(cap.HITLMode__c),
+                        String.valueOf(cap.ImplementationType__c),
+                        String.valueOf(cap.StandardActionType__c),
+                        String.valueOf(cap.ImplementationDetail__c),
+                        String.valueOf(cap.Parameters__c)
+                    },
+                    '|'
+                );
+                capSignatures.add(signature);
             }
         }
-        capNames.sort();
+        capSignatures.sort();
 
-        // Create hash from sorted names
-        String combined = String.join(capNames, '|');
+        // Create hash from sorted signatures
+        String combined = String.join(capSignatures, '||');
         Blob hashBlob = Crypto.generateDigest('SHA-256', Blob.valueOf(combined));
         return EncodingUtil.convertToHex(hashBlob).left(32);
     }
@@ -418,7 +431,10 @@ public inherited sharing class ToolDependencyValidator {
         Set<String> visited = new Set<String>(alreadyExecuted);
         Set<String> visiting = new Set<String>();
 
-        for (String toolName : toolNames) {
+        List<String> orderedToolNames = new List<String>(toolNames);
+        orderedToolNames.sort();
+
+        for (String toolName : orderedToolNames) {
             if (!visited.contains(toolName)) {
                 topologicalSortVisit(toolName, graph, toolNames, visited, visiting, result, alreadyExecuted);
             }
@@ -477,31 +493,44 @@ public inherited sharing class ToolDependencyValidator {
         // Check anyOf dependencies (at least one must be satisfied)
         if (!reqs.anyOf.isEmpty()) {
             Boolean anyMet = false;
-            String satisfiedDep = null;
 
+            // Strategy: Prefer already-satisfied dependencies first, then try batch candidates
+            // This prevents blocking when one anyOf option is in batch but blocked
+
+            // Check if any dependency is already satisfied
             for (String dep : reqs.anyOf) {
-                if (alreadyExecuted.contains(dep) || toolsInBatch.contains(dep)) {
+                if (alreadyExecuted.contains(dep)) {
                     anyMet = true;
+                    break; // Already satisfied, no need to visit
+                }
+            }
+
+            // If not already satisfied, try to visit candidates in the batch
+            if (!anyMet) {
+                for (String dep : reqs.anyOf) {
                     if (toolsInBatch.contains(dep) && !visited.contains(dep)) {
-                        satisfiedDep = dep;
+                        // Try to visit this candidate
+                        Boolean canVisit = topologicalSortVisit(dep, graph, toolsInBatch, visited, visiting, result, alreadyExecuted);
+                        if (canVisit) {
+                            anyMet = true;
+                            break; // Found a satisfiable path
+                        }
+                        // If this candidate can't be visited, try next anyOf option
+                    } else if (toolsInBatch.contains(dep) && visited.contains(dep)) {
+                        // Already visited in this batch
+                        anyMet = true;
+                        break;
                     }
-                    break;
                 }
             }
 
             if (!anyMet) {
-                System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Tool "' + toolName + '" blocked - missing anyOf dependencies: ' + String.join(reqs.anyOf, ', '));
+                System.debug(
+                    LoggingLevel.DEBUG,
+                    LOG_PREFIX + 'Tool "' + toolName + '" blocked - no satisfiable anyOf dependency found: ' + String.join(reqs.anyOf, ', ')
+                );
                 visiting.remove(toolName);
                 return false;
-            }
-
-            // If the satisfied dependency is in batch and not visited, visit it first
-            if (satisfiedDep != null) {
-                Boolean canVisit = topologicalSortVisit(satisfiedDep, graph, toolsInBatch, visited, visiting, result, alreadyExecuted);
-                if (!canVisit) {
-                    visiting.remove(toolName);
-                    return false;
-                }
             }
         }
 

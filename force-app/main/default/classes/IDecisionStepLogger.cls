@@ -32,6 +32,7 @@ public inherited sharing class IDecisionStepLogger {
         LLM_REQUEST,
         LLM_RESPONSE,
         SAFETY_CHECK,
+        SAFETY_BLOCKED, // Prompt safety blocked a message (returns safe response, not error)
         // Context preparation events
         SYSTEM_PROMPT_BUILT,
         CONTEXT_GATHERED,

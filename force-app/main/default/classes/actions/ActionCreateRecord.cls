@@ -14,9 +14,24 @@
  * @ActionIsActive true
  * @extends BaseAgentAction
  */
-public class ActionCreateRecord extends BaseAgentAction {
+public with sharing class ActionCreateRecord extends BaseAgentAction {
     private ConfigDTO config;
     private SObjectType targetSObjectType;
+    @TestVisible
+    private static Map<String, NameFieldInfo> nameFieldInfoCache = new Map<String, NameFieldInfo>();
+    @TestVisible
+    private static List<RecordType> mockRecordTypeQueryResult;
+
+    @TestVisible
+    private class NameFieldInfo {
+        public String apiName;
+        public String label;
+
+        public NameFieldInfo(String apiName, String label) {
+            this.apiName = apiName;
+            this.label = label;
+        }
+    }
 
     public class ArgumentsDTO {
         /**
@@ -75,8 +90,8 @@ public class ActionCreateRecord extends BaseAgentAction {
         }
 
         try {
-            SecurityUtils.checkObjectPermission(this.targetSObjectType, AccessType.CREATABLE);
-        } catch (SecurityUtils.ActionSecurityException ase) {
+            Utils.checkObjectPermission(this.targetSObjectType, AccessType.CREATABLE);
+        } catch (Utils.ActionSecurityException ase) {
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Security check failed for object ' + config.objectApiName + ': ' + ase.getMessage());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ase.getMessage());
         }
@@ -90,7 +105,7 @@ public class ActionCreateRecord extends BaseAgentAction {
                 return ActionOutcome.failureWithGuidance(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage(), typeEx.correctionGuidance);
             }
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
-        } catch (SecurityUtils.ActionSecurityException secEx) {
+        } catch (Utils.ActionSecurityException secEx) {
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Field-level security check failed: ' + secEx.getMessage());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, secEx.getMessage());
         }
@@ -138,7 +153,7 @@ public class ActionCreateRecord extends BaseAgentAction {
             }
         }
 
-        Database.SaveResult saveResult = Database.insert(decision.getRecords()[0], false);
+        Database.SaveResult saveResult = Database.insert(decision.getRecords()[0], false, AccessLevel.USER_MODE);
 
         Long executionTime = System.currentTimeMillis() - startTime;
         System.debug(LoggingLevel.INFO, '[ActionCreateRecord] Record creation for ' + config.objectApiName + ' completed in ' + executionTime + ' ms.');
@@ -194,7 +209,7 @@ public class ActionCreateRecord extends BaseAgentAction {
             throw new ValidationException('objectApiName is required in configuration', 'objectApiName');
         }
 
-        this.targetSObjectType = SchemaUtils.getSObjectType(config.objectApiName);
+        this.targetSObjectType = Utils.getSObjectType(config.objectApiName);
         if (this.targetSObjectType == null) {
             throw new ValidationException('Invalid SObject API Name in configuration: ' + config.objectApiName, 'objectApiName');
         }
@@ -208,23 +223,44 @@ public class ActionCreateRecord extends BaseAgentAction {
         }
     }
 
+    @SuppressWarnings('PMD.ApexSOQLInjection')
     private Map<String, String> queryNameFieldWithLabel(Id recordId) {
         try {
-            List<String> objectNames = new List<String>{ config.objectApiName };
-            List<FieldDefinition> nameFields = [
-                SELECT QualifiedApiName, Label
-                FROM FieldDefinition
-                WHERE EntityDefinition.QualifiedApiName IN :objectNames AND IsNameField = TRUE
-                LIMIT 1
-            ];
+            String cacheKey = String.isNotBlank(config.objectApiName) ? config.objectApiName.toLowerCase() : null;
+            String nameFieldApiName;
+            String nameFieldLabel;
 
-            if (nameFields.isEmpty()) {
-                System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] No Name field found for object: ' + config.objectApiName);
-                return null;
+            if (cacheKey != null && nameFieldInfoCache.containsKey(cacheKey)) {
+                NameFieldInfo cachedInfo = nameFieldInfoCache.get(cacheKey);
+                if (cachedInfo == null) {
+                    System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] Name field cache hit (null) for object: ' + config.objectApiName);
+                    return null;
+                }
+                nameFieldApiName = cachedInfo.apiName;
+                nameFieldLabel = cachedInfo.label;
+            } else {
+                List<String> objectNames = new List<String>{ config.objectApiName };
+                List<FieldDefinition> nameFields = [
+                    SELECT QualifiedApiName, Label
+                    FROM FieldDefinition
+                    WHERE EntityDefinition.QualifiedApiName IN :objectNames AND IsNameField = TRUE
+                    LIMIT 1
+                ];
+
+                if (nameFields.isEmpty()) {
+                    System.debug(LoggingLevel.DEBUG, '[ActionCreateRecord] No Name field found for object: ' + config.objectApiName);
+                    if (cacheKey != null) {
+                        nameFieldInfoCache.put(cacheKey, null);
+                    }
+                    return null;
+                }
+
+                nameFieldApiName = nameFields[0].QualifiedApiName;
+                nameFieldLabel = nameFields[0].Label;
+                if (cacheKey != null) {
+                    nameFieldInfoCache.put(cacheKey, new NameFieldInfo(nameFieldApiName, nameFieldLabel));
+                }
             }
-
-            String nameFieldApiName = nameFields[0].QualifiedApiName;
-            String nameFieldLabel = nameFields[0].Label;
 
             String soql = 'SELECT ' + nameFieldApiName + ' FROM ' + config.objectApiName + ' WHERE Id = :recordId WITH USER_MODE LIMIT 1';
             List<SObject> records = Database.query(soql);
@@ -290,13 +326,18 @@ public class ActionCreateRecord extends BaseAgentAction {
         }
 
         try {
-            List<RecordType> recordTypes = [
-                SELECT Id, DeveloperName, Name, IsActive
-                FROM RecordType
-                WHERE Id = :recordTypeId AND SObjectType = :config.objectApiName
-                WITH USER_MODE
-                LIMIT 1
-            ];
+            List<RecordType> recordTypes;
+            if (Test.isRunningTest() && mockRecordTypeQueryResult != null) {
+                recordTypes = mockRecordTypeQueryResult;
+            } else {
+                recordTypes = [
+                    SELECT Id, DeveloperName, Name, IsActive
+                    FROM RecordType
+                    WHERE Id = :recordTypeId AND SObjectType = :config.objectApiName
+                    WITH USER_MODE
+                    LIMIT 1
+                ];
+            }
 
             if (recordTypes.isEmpty()) {
                 return ActionOutcome.failure(

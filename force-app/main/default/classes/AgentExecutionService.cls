@@ -9,9 +9,8 @@
 /**
  * @description Unified entry point for agent execution. Handles service user context switching and delegates to orchestrators.
  */
-public class AgentExecutionService {
+public inherited sharing class AgentExecutionService {
     private static final String LOG_PREFIX = '[AgentExecutionService] ';
-    private static final String NAMED_CREDENTIAL_NAME = 'AgentStudioInternalAPI';
 
     @TestVisible
     private static Map<String, AgentOrchestratorMapping__mdt> orchestratorMappingCache;
@@ -21,6 +20,10 @@ public class AgentExecutionService {
     public static ExecutionResult startExecution(String agentDeveloperName, ExecutionPayload payload) {
         String logPrefix = LOG_PREFIX + '[' + agentDeveloperName + '] ';
 
+        // Reset TransactionContext at entry to ensure clean state for this execution
+        // Prevents state pollution if multiple executions occur in same transaction
+        TransactionContext.getInstance().reset();
+
         try {
             if (String.isBlank(agentDeveloperName)) {
                 throw new AIAgentException.OrchestrationException('Agent developer name is required');
@@ -28,13 +31,33 @@ public class AgentExecutionService {
             if (payload == null) {
                 throw new AIAgentException.OrchestrationException('Execution payload is required');
             }
-            payload.validate();
+
+            // Lightweight validation BEFORE service user routing (only validates ID formats, not record access)
+            // Full validation happens AFTER routing when we have proper context
+            payload.validateIdFormats();
 
             AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(agentDeveloperName);
 
-            if (agentDef.RequiresServiceUserContext__c && payload.isInServiceUserContext != true) {
-                return routeThroughRestApi(agentDef, payload, logPrefix);
+            // Generate turnIdentifier if not provided (needed for service user routing)
+            if (String.isBlank(payload.turnIdentifier)) {
+                payload.turnIdentifier = UUID.randomUUID().toString();
             }
+
+            // Service user context routing
+            if (agentDef.RequiresServiceUserContext__c && payload.isInServiceUserContext != true) {
+                // Check if DML has already occurred in this transaction
+                // If so, we cannot make HTTP callout - must defer to Queueable
+                if (hasPriorDML()) {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Prior DML detected, routing through Queueable');
+                    return routeThroughQueueable(agentDef, payload, logPrefix);
+                } else {
+                    System.debug(LoggingLevel.INFO, logPrefix + 'No prior DML, routing through REST API');
+                    return routeThroughRestApi(agentDef, payload, logPrefix);
+                }
+            }
+
+            // Full validation now that we're in the correct user context
+            payload.validate();
 
             IAgentOrchestrator orchestrator = getOrchestrator(agentDef);
             return orchestrator.start(agentDeveloperName, payload);
@@ -43,6 +66,90 @@ public class AgentExecutionService {
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error: ' + e.getMessage() + '\n' + e.getStackTraceString());
             throw new AIAgentException.OrchestrationException('Failed to start execution: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * @description Checks if operations that prevent HTTP callouts have already occurred.
+     * Used to determine if we can make an HTTP callout or must defer to Queueable.
+     *
+     * Salesforce prevents HTTP callouts after:
+     * - DML operations
+     * - Email sends (Messaging.sendEmail)
+     * - Any other operation that creates "uncommitted work"
+     */
+    private static Boolean hasPriorDML() {
+        return Limits.getDMLStatements() > 0 || Limits.getDMLRows() > 0 || Limits.getEmailInvocations() > 0;
+    }
+
+    /**
+     * @description Routes execution through a Queueable when HTTP callout is not possible (DML already occurred).
+     * Creates a stub execution record (if possible) and enqueues the work for service user context.
+     *
+     * For MULTI-RECORD payloads (sourceRecordIds.size() > 1):
+     * - Does NOT create stub records - lets service user create all AgentExecution__c records via DLQ dispatch
+     * - This preserves the DLQ dispatch pattern from AgentExecutionDispatcher
+     *
+     * For SINGLE record payloads:
+     * - Tries to create stub AgentExecution__c for immediate tracking
+     * - Falls back gracefully if caller doesn't have permission
+     */
+    private static ExecutionResult routeThroughQueueable(AIAgentDefinition__c agentDef, ExecutionPayload payload, String logPrefix) {
+        Id stubExecutionId = null;
+        Boolean isMultiRecordExecution = payload.sourceRecordIds != null && payload.sourceRecordIds.size() > 1;
+
+        if (isMultiRecordExecution) {
+            // MULTI-RECORD: Don't create stub - let service user create all AgentExecution__c records via DLQ dispatch
+            // This preserves the proper DLQ dispatch pattern with BatchId correlation
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix +
+                    'Multi-record execution detected (' +
+                    payload.sourceRecordIds.size() +
+                    ' records). ' +
+                    'Skipping stub creation - AgentExecution__c records will be created in service user context via DLQ dispatch.'
+            );
+        } else {
+            // SINGLE RECORD: Try to create stub execution record for immediate tracking
+            try {
+                AgentStateService stateService = new AgentStateService();
+                stubExecutionId = stateService.createExecution(
+                    agentDef.AgentType__c, // executionType
+                    agentDef.Id, // agentDefinitionId
+                    payload.triggerSource ??
+                        'API', // triggerSource (API for service user routing)
+                    'Stub execution for service user routing', // triggerPayload
+                    payload.sourceRecordId, // sourceRecordId
+                    payload.userId, // userId
+                    null // serviceUserId (will be set in service user context)
+                );
+                System.debug(LoggingLevel.INFO, logPrefix + 'Created stub execution for tracking: ' + stubExecutionId);
+            } catch (Exception e) {
+                // Fallback: Caller might not have permission to create execution records
+                System.debug(LoggingLevel.WARN, logPrefix + 'Could not create stub execution (will create in service user context): ' + e.getMessage());
+            }
+        }
+
+        // Enqueue the work to be processed in service user context
+        System.enqueueJob(new ServiceUserContextQueueable(stubExecutionId, agentDef.Id, payload));
+
+        if (isMultiRecordExecution) {
+            return new ExecutionResult(
+                null,
+                AIAgentConstants.STATUS_PROCESSING,
+                'Multi-record execution queued for service user context (' +
+                    payload.sourceRecordIds.size() +
+                    ' records). ' +
+                    'AgentExecution__c records will be created via DLQ dispatch with BatchId correlation.'
+            );
+        } else if (stubExecutionId != null) {
+            return new ExecutionResult(stubExecutionId, AIAgentConstants.STATUS_PROCESSING, 'Queued for service user context');
+        } else {
+            return new ExecutionResult(
+                null,
+                AIAgentConstants.STATUS_PROCESSING,
+                'Queued for service user context (tracking ID will be created by service user)'
+            );
         }
     }
 
@@ -106,26 +213,20 @@ public class AgentExecutionService {
             HttpCalloutService.CalloutResult result = HttpCalloutService.execute(httpReq, config);
 
             HttpResponse httpRes = result.response;
-            Integer statusCode = httpRes.getStatusCode();
             String responseBody = httpRes.getBody();
 
-            if (statusCode == 200) {
-                AIAgentRestService.AIAgentResponse restResponse = (AIAgentRestService.AIAgentResponse) JSON.deserialize(
-                    responseBody,
-                    AIAgentRestService.AIAgentResponse.class
+            AIAgentRestService.AIAgentResponse restResponse = (AIAgentRestService.AIAgentResponse) JSON.deserialize(
+                responseBody,
+                AIAgentRestService.AIAgentResponse.class
+            );
+            if (restResponse.success) {
+                return new ExecutionResult(
+                    null,
+                    restResponse.outcome ?? AIAgentConstants.STATUS_PROCESSING,
+                    restResponse.outcome ?? 'Processing in service user context'
                 );
-                if (restResponse.success) {
-                    return new ExecutionResult(
-                        null,
-                        restResponse.outcome ?? AIAgentConstants.STATUS_PROCESSING,
-                        restResponse.outcome ?? 'Processing in service user context'
-                    );
-                }
-                throw new AIAgentException.OrchestrationException('REST API routing failed: ' + restResponse.error);
             }
-
-            String errorMessage = extractErrorMessage(responseBody, statusCode);
-            throw new AIAgentException.OrchestrationException(errorMessage);
+            throw new AIAgentException.OrchestrationException('REST API routing failed: ' + restResponse.error);
         } catch (AIAgentException.OrchestrationException e) {
             throw e;
         } catch (Exception e) {
@@ -133,39 +234,49 @@ public class AgentExecutionService {
         }
     }
 
-    private static String extractErrorMessage(String responseBody, Integer statusCode) {
-        if (String.isBlank(responseBody)) {
-            return 'HTTP ' + statusCode;
-        }
-        try {
-            AIAgentRestService.AIAgentResponse errorResponse = (AIAgentRestService.AIAgentResponse) JSON.deserialize(
-                responseBody,
-                AIAgentRestService.AIAgentResponse.class
-            );
-            return errorResponse.error ?? 'HTTP ' + statusCode;
-        } catch (Exception e) {
-            return responseBody.length() > 200 ? responseBody.substring(0, 200) + '...' : responseBody;
-        }
-    }
-
     private static HttpRequest buildLoopbackHttpRequest(AIAgentDefinition__c agentDef, ExecutionPayload payload) {
         HttpRequest httpReq = new HttpRequest();
-        httpReq.setEndpoint('callout:' + NAMED_CREDENTIAL_NAME + '/services/apexrest/ai/agent/process/');
+
+        // Get Named Credential from agent definition (required)
+        if (String.isBlank(agentDef.ServiceUserNamedCredential__c)) {
+            throw new AIAgentException.OrchestrationException(
+                'ServiceUserNamedCredential__c is not configured on AIAgentDefinition__c: ' +
+                    agentDef.DeveloperName__c +
+                    '. ' +
+                    'This field is REQUIRED when RequiresServiceUserContext__c is enabled. ' +
+                    'Please configure a Named Credential for this agent.'
+            );
+        }
+
+        httpReq.setEndpoint('callout:' + agentDef.ServiceUserNamedCredential__c + '/services/apexrest/ai/agent/process/');
         httpReq.setMethod('POST');
         httpReq.setHeader('Content-Type', 'application/json');
 
-        httpReq.setBody(
-            JSON.serialize(
-                new Map<String, Object>{
-                    'sessionId' => payload.existingExecutionId != null ? String.valueOf(payload.existingExecutionId) : null,
-                    'originalUserId' => String.valueOf(payload.userId),
-                    'agentDefinitionId' => String.valueOf(agentDef.Id),
-                    'turnIdentifier' => payload.turnIdentifier,
-                    'userMessage' => payload.userMessage,
-                    'currentRecordId' => payload.currentRecordId != null ? String.valueOf(payload.currentRecordId) : null
-                }
-            )
-        );
+        // Build full payload map with all context fields
+        Map<String, Object> requestBody = new Map<String, Object>{
+            'sessionId' => payload.existingExecutionId != null ? String.valueOf(payload.existingExecutionId) : null,
+            'originalUserId' => String.valueOf(payload.userId),
+            'agentDefinitionId' => String.valueOf(agentDef.Id),
+            'turnIdentifier' => payload.turnIdentifier,
+            'userMessage' => payload.userMessage,
+            'currentRecordId' => payload.currentRecordId != null ? String.valueOf(payload.currentRecordId) : null,
+            // Additional context fields for full payload support
+            'sourceRecordId' => payload.sourceRecordId != null ? String.valueOf(payload.sourceRecordId) : null,
+            'triggerSource' => payload.triggerSource,
+            'batchId' => payload.batchId,
+            'priority' => payload.priority
+        };
+
+        // Convert sourceRecordIds to string list
+        if (payload.sourceRecordIds != null && !payload.sourceRecordIds.isEmpty()) {
+            List<String> sourceRecordIdStrings = new List<String>();
+            for (Id recordId : payload.sourceRecordIds) {
+                sourceRecordIdStrings.add(String.valueOf(recordId));
+            }
+            requestBody.put('sourceRecordIds', sourceRecordIdStrings);
+        }
+
+        httpReq.setBody(JSON.serialize(requestBody));
 
         return httpReq;
     }
@@ -194,6 +305,7 @@ public class AgentExecutionService {
     /**
      * Execution payload containing all data needed for agent execution.
      */
+    @SuppressWarnings('PMD.ApexSharingViolations')
     public class ExecutionPayload {
         @AuraEnabled
         public Id userId { get; set; }
@@ -215,8 +327,26 @@ public class AgentExecutionService {
         public Id existingExecutionId { get; set; }
         @AuraEnabled
         public List<Id> sourceRecordIds { get; set; }
+
+        /**
+         * Batch correlation ID for grouping related executions.
+         * Generated automatically by dispatcher. Used for progress tracking and retry operations.
+         */
         @AuraEnabled
-        public Id bulkExecutionId { get; set; }
+        public String batchId { get; set; }
+
+        /**
+         * Priority for DLQ processing. Higher values = higher priority.
+         * Workers process records ordered by Priority DESC, CreatedDate ASC.
+         */
+        @AuraEnabled
+        public Integer priority { get; set; }
+
+        /**
+         * Optional trigger payload data to pass to the execution.
+         */
+        @AuraEnabled
+        public String triggerPayload { get; set; }
 
         public ExecutionPayload() {
         }
@@ -231,50 +361,87 @@ public class AgentExecutionService {
             this.userMessage = message;
         }
 
-        public void validate() {
+        /**
+         * @description Lightweight validation that only checks ID formats, not record accessibility.
+         * Use before service user context routing when the current user may not have access to records.
+         */
+        public void validateIdFormats() {
             if (userId == null) {
                 userId = UserInfo.getUserId();
             }
 
+            // Validate ID formats only (no SOQL queries)
             if (sourceRecordId != null) {
-                validateRecordExists(sourceRecordId, 'Source record');
+                validateIdFormat(sourceRecordId, 'sourceRecordId');
+            }
+            if (currentRecordId != null) {
+                validateIdFormat(currentRecordId, 'currentRecordId');
+            }
+            if (existingExecutionId != null) {
+                validateIdFormat(existingExecutionId, 'existingExecutionId');
+            }
+            if (sourceRecordIds != null) {
+                for (Integer i = 0; i < sourceRecordIds.size(); i++) {
+                    if (sourceRecordIds[i] != null) {
+                        validateIdFormat(sourceRecordIds[i], 'sourceRecordIds[' + i + ']');
+                    }
+                }
+            }
+        }
+
+        private void validateIdFormat(Id idValue, String fieldName) {
+            // Id type already validated by Apex type system
+            // This method exists for consistency and future format validation if needed
+            if (idValue == null) {
+                throw new AIAgentException.OrchestrationException(fieldName + ' cannot be null');
+            }
+        }
+
+        /**
+         * @description Full validation including record accessibility.
+         * Use after service user context routing when we have proper permissions.
+         */
+        public void validate() {
+            if (userId == null) {
+                userId = UserInfo.getUserId();
+            }
+            Set<Id> recordIds = new Set<Id>();
+
+            if (sourceRecordId != null) {
+                recordIds.add(sourceRecordId);
             }
 
             if (currentRecordId != null && currentRecordId != sourceRecordId) {
-                validateRecordExists(currentRecordId, 'Current record');
+                recordIds.add(currentRecordId);
             }
 
             if (sourceRecordIds != null && !sourceRecordIds.isEmpty()) {
-                validateRecordsExist(sourceRecordIds, 'Source records');
+                recordIds.addAll(sourceRecordIds);
+            }
+
+            if (!recordIds.isEmpty()) {
+                validateRecordsExist(new List<Id>(recordIds), 'Record');
             }
         }
 
-        private void validateRecordExists(Id recordId, String recordType) {
-            try {
-                List<SObject> records = Database.query('SELECT Id FROM ' + recordId.getSObjectType() + ' WHERE Id = :recordId LIMIT 1');
-                if (records.isEmpty()) {
-                    throw new AIAgentException.OrchestrationException(recordType + ' with ID ' + recordId + ' does not exist or is not accessible');
-                }
-            } catch (QueryException e) {
-                throw new AIAgentException.OrchestrationException(
-                    recordType + ' with ID ' + recordId + ' does not exist or is not accessible: ' + e.getMessage()
-                );
-            }
-        }
-
+        @SuppressWarnings('PMD.ApexSOQLInjection')
         private void validateRecordsExist(List<Id> recordIds, String recordType) {
             if (recordIds.isEmpty())
                 return;
 
             Map<String, List<Id>> recordsByType = new Map<String, List<Id>>();
             for (Id recordId : recordIds) {
-                String objectType = String.valueOf(recordId.getSObjectType());
+                Schema.SObjectType sobjectType = recordId.getSObjectType();
+                String objectType = sobjectType.getDescribe().getName();
                 if (!recordsByType.containsKey(objectType)) {
                     recordsByType.put(objectType, new List<Id>());
                 }
                 recordsByType.get(objectType).add(recordId);
             }
             for (String objectType : recordsByType.keySet()) {
+                if (!Schema.getGlobalDescribe().containsKey(objectType)) {
+                    throw new AIAgentException.OrchestrationException(recordType + ' validation failed: Unsupported object type ' + objectType);
+                }
                 List<Id> typeRecordIds = recordsByType.get(objectType);
                 try {
                     List<SObject> existingRecords = Database.query('SELECT Id FROM ' + objectType + ' WHERE Id IN :typeRecordIds');
@@ -390,11 +557,5 @@ public class AgentExecutionService {
                 e
             );
         }
-    }
-
-    @TestVisible
-    private static void clearOrchestratorCache_TestOnly() {
-        orchestratorMappingCache = null;
-        isMappingCacheInitialized = false;
     }
 }

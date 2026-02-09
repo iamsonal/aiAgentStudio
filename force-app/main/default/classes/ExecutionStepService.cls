@@ -104,20 +104,6 @@ public inherited sharing class ExecutionStepService {
             insert step;
 
             System.debug(LoggingLevel.DEBUG, logPrefix + 'Created ExecutionStep__c: ' + step.Id + ' Type: ' + stepType + ' Role: ' + stepRole);
-            if (totalTokens != null) {
-                System.debug(
-                    LoggingLevel.DEBUG,
-                    logPrefix +
-                        'Token usage - Prompt: ' +
-                        promptTokens +
-                        ', Completion: ' +
-                        completionTokens +
-                        ', Total: ' +
-                        totalTokens +
-                        ', Model: ' +
-                        modelIdentifier
-                );
-            }
 
             return step.Id;
         } catch (Exception e) {
@@ -305,6 +291,60 @@ public inherited sharing class ExecutionStepService {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create tool call step: ' + e.getMessage());
             throw new ExecutionStepException('Failed to create tool call step: ' + e.getMessage());
         }
+    }
+
+    /**
+     * Builds a ToolCall ExecutionStep__c without performing DML.
+     * Use this for bulk insert scenarios to reduce DML operations.
+     */
+    public ExecutionStep__c buildToolCallStep(
+        Id executionId,
+        String toolCallId,
+        String toolName,
+        String toolArguments,
+        String turnIdentifier,
+        Integer turnCount,
+        Integer promptTokens,
+        Integer completionTokens,
+        Integer totalTokens,
+        String modelIdentifier,
+        Long llmCalloutDurationMs,
+        Id capabilityId,
+        String toolRationale,
+        Decimal confidence,
+        String nextStepSuggestion,
+        Boolean isResumed
+    ) {
+        Decimal estimatedCost = calculateCost(modelIdentifier, promptTokens, completionTokens);
+
+        return new ExecutionStep__c(
+            AgentExecution__c = executionId,
+            StepType__c = 'ToolCall',
+            StepRole__c = 'Assistant',
+            Content__c = null,
+            ContentType__c = 'JSON',
+            Timestamp__c = Datetime.now(),
+            TurnIdentifier__c = turnIdentifier,
+            TurnCount__c = turnCount,
+            ToolCallId__c = toolCallId,
+            ToolName__c = toolName,
+            ToolArguments__c = toolArguments,
+            ToolResult__c = null,
+            StepMetadata__c = null,
+            PromptTokens__c = promptTokens,
+            CompletionTokens__c = completionTokens,
+            TotalTokens__c = totalTokens,
+            ModelIdentifier__c = modelIdentifier,
+            LLMCalloutDurationMs__c = llmCalloutDurationMs,
+            EstimatedCostUSD__c = estimatedCost,
+            IsInternal__c = false,
+            IsAsyncToolExecution__c = false,
+            AIAgentCapability__c = capabilityId,
+            ToolRationale__c = toolRationale,
+            Confidence__c = confidence,
+            NextStepSuggestion__c = nextStepSuggestion,
+            IsResumed__c = isResumed != null ? isResumed : false
+        );
     }
 
     public Id createToolCallStep(
@@ -707,6 +747,63 @@ public inherited sharing class ExecutionStepService {
         }
     }
 
+    /**
+     * Builds a ToolResult ExecutionStep__c without performing DML.
+     * Use this for bulk insert scenarios to reduce DML operations.
+     */
+    public ExecutionStep__c buildToolResultStep(
+        Id executionId,
+        String toolCallId,
+        String toolName,
+        String toolResult,
+        String turnIdentifier,
+        Integer turnCount,
+        Long processingDuration,
+        Boolean isAsyncToolExecution,
+        Id capabilityId,
+        Boolean isError,
+        Boolean isResumed,
+        Boolean isDependencyValidationFailure
+    ) {
+        Map<String, Object> metadata = new Map<String, Object>();
+        if (processingDuration != null) {
+            metadata.put('processingDuration', processingDuration);
+        }
+        if (isAsyncToolExecution != null) {
+            metadata.put('isAsyncToolExecution', isAsyncToolExecution);
+        }
+        if (isDependencyValidationFailure == true) {
+            metadata.put('isDependencyValidationFailure', true);
+        }
+
+        return new ExecutionStep__c(
+            AgentExecution__c = executionId,
+            StepType__c = 'ToolResult',
+            StepRole__c = 'Tool',
+            Content__c = null,
+            ContentType__c = 'JSON',
+            Timestamp__c = Datetime.now(),
+            TurnIdentifier__c = turnIdentifier,
+            TurnCount__c = turnCount,
+            ToolCallId__c = toolCallId,
+            ToolName__c = toolName,
+            ToolResult__c = toolResult,
+            HasResult__c = String.isNotBlank(toolResult),
+            IsError__c = isError != null ? isError : false,
+            ProcessingDuration__c = processingDuration,
+            IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false,
+            StepMetadata__c = !metadata.isEmpty() ? JSON.serialize(metadata) : null,
+            PromptTokens__c = null,
+            CompletionTokens__c = null,
+            TotalTokens__c = null,
+            ModelIdentifier__c = null,
+            LLMCalloutDurationMs__c = null,
+            AIAgentCapability__c = capabilityId,
+            IsResumed__c = isResumed != null ? isResumed : false,
+            IsDependencyValidationFailure__c = isDependencyValidationFailure != null ? isDependencyValidationFailure : false
+        );
+    }
+
     public Id updateToolResultStep(Id executionId, String toolCallId, String toolResult, Long processingDuration) {
         return updateToolResultStep(executionId, toolCallId, toolResult, processingDuration, false);
     }
@@ -792,6 +889,7 @@ public inherited sharing class ExecutionStepService {
         );
     }
 
+    @SuppressWarnings('PMD.ApexSOQLInjection')
     public List<ExecutionStep__c> getHistory(Id executionId, Integer maxResults, String sortOrder, List<String> stepTypes, Boolean includeInternal) {
         String logPrefix = LOG_PREFIX + '[getHistory] ';
 
@@ -935,6 +1033,7 @@ public inherited sharing class ExecutionStepService {
         }
     }
 
+    @SuppressWarnings('PMD.ApexSOQLInjection')
     public List<ExecutionStep__c> getHistoryWithCompleteTurns(Id executionId, Integer turnLimit, String sortOrder, Boolean includeInternal) {
         String logPrefix = LOG_PREFIX + '[getHistoryWithCompleteTurns] ';
 
@@ -1039,6 +1138,7 @@ public inherited sharing class ExecutionStepService {
         }
     }
 
+    @SuppressWarnings('PMD.ApexSOQLInjection')
     public List<ExecutionStep__c> getUnsummarizedSteps(Id executionId, Boolean includeInternal) {
         String logPrefix = LOG_PREFIX + '[getUnsummarizedSteps] ';
 

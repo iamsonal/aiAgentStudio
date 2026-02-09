@@ -4,10 +4,6 @@
         <apexClass>ConversationalChatController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
-    <classAccesses>
-        <apexClass>EventSubscriptionHelper</apexClass>
-        <enabled>true</enabled>
-    </classAccesses>
     <description>Grants access for end users (including community users) to interact with AI agents. Users can create sessions, send messages, and view their own execution history.</description>
     <externalCredentialPrincipalAccesses>
         <enabled>true</enabled>

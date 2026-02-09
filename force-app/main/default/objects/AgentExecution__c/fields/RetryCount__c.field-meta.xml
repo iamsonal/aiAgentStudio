@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RetryCount__c</fullName>
+    <defaultValue>0</defaultValue>
+    <description>Number of retry attempts for this execution. Incremented when a failed or stale execution is reset to Pending for reprocessing. Used with MaxRetries__c to limit retry attempts.</description>
+    <inlineHelpText>Number of times this execution has been retried.</inlineHelpText>
+    <label>Retry Count</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

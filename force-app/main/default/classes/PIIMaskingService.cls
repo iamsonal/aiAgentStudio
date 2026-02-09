@@ -185,15 +185,47 @@ public inherited sharing class PIIMaskingService {
             return text;
         }
 
-        // Replace matches from end to start (to preserve indices)
-        String maskedText = text;
-        for (PIIPatternMatcher.PIIMatch match : matches) {
+        // Replace matches using original indices (stable even if lengths change)
+        List<PIIPatternMatcher.PIIMatch> orderedMatches = new List<PIIPatternMatcher.PIIMatch>();
+        orderedMatches.addAll(matches);
+        orderedMatches.sort(new PIIMatchAscendingComparator());
+
+        List<String> parts = new List<String>();
+        Integer lastIndex = 0;
+        Integer textLength = text.length();
+
+        for (PIIPatternMatcher.PIIMatch match : orderedMatches) {
+            if (match == null) {
+                continue;
+            }
+            if (match.startIndex < lastIndex || match.startIndex < 0 || match.endIndex < match.startIndex || match.endIndex > textLength) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    LOG_PREFIX +
+                        'Skipping invalid PII match bounds: start=' +
+                        match.startIndex +
+                        ', end=' +
+                        match.endIndex +
+                        ', lastIndex=' +
+                        lastIndex +
+                        ', textLength=' +
+                        textLength
+                );
+                continue;
+            }
+
             // Get or create token for this value
             String token = this.session.getOrCreateToken(match.matchedValue, extractPatternPrefix(match.maskFormat));
-
-            // Replace in text
-            maskedText = maskedText.substring(0, match.startIndex) + token + maskedText.substring(match.endIndex);
+            parts.add(text.substring(lastIndex, match.startIndex));
+            parts.add(token);
+            lastIndex = match.endIndex;
         }
+
+        if (lastIndex < textLength) {
+            parts.add(text.substring(lastIndex));
+        }
+
+        String maskedText = String.join(parts, '');
 
         if (this.auditLoggingEnabled) {
             System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Masked ' + matches.size() + ' PII instances in text');
@@ -288,8 +320,8 @@ public inherited sharing class PIIMaskingService {
         for (String key : message.keySet()) {
             Object value = message.get(key);
 
-            if (key == 'content' && value instanceof String) {
-                // Mask text content
+            if ((key == 'content' || key == 'arguments') && value instanceof String) {
+                // Mask text content and tool arguments
                 maskedMessage.put(key, maskText((String) value));
             } else if (value instanceof List<Object>) {
                 // Recursively handle lists (e.g., tool_calls)
@@ -494,6 +526,25 @@ public inherited sharing class PIIMaskingService {
     private class TokenReplacementComparator implements Comparator<TokenReplacement> {
         public Integer compare(TokenReplacement a, TokenReplacement b) {
             return b.startIdx - a.startIdx;
+        }
+    }
+
+    /**
+     * @description Comparator to sort PIIMatch objects by start index (ascending).
+     * Ascending order allows stable rebuild of the masked string using original indices.
+     */
+    private class PIIMatchAscendingComparator implements Comparator<PIIPatternMatcher.PIIMatch> {
+        public Integer compare(PIIPatternMatcher.PIIMatch a, PIIPatternMatcher.PIIMatch b) {
+            if (a == null && b == null) {
+                return 0;
+            }
+            if (a == null) {
+                return 1;
+            }
+            if (b == null) {
+                return -1;
+            }
+            return a.startIndex - b.startIndex;
         }
     }
 }

@@ -56,6 +56,11 @@ public inherited sharing class PromptSafetyService {
     private static final Decimal WEIGHT_PATTERN = 0.4;
     private static final Decimal WEIGHT_HEURISTIC = 0.35;
     private static final Decimal WEIGHT_STRUCTURAL = 0.25;
+    private static final Decimal DEFAULT_THRESHOLD = 0.6;
+    private static final Decimal EARLY_EXIT_PATTERN_SCORE = 0.85;
+
+    @TestVisible
+    private static Map<String, CacheEntry> messageCache = new Map<String, CacheEntry>();
 
     // Detection layers
     private JailbreakPatternMatcher patternMatcher;
@@ -68,6 +73,11 @@ public inherited sharing class PromptSafetyService {
     private Decimal threshold;
     private Boolean auditLoggingEnabled;
     private Id executionId;
+    private class CacheEntry {
+        public Decimal overallScore;
+        public List<ThreatAssessment.ThreatIndicator> indicators;
+        public Boolean earlyExit;
+    }
 
     // Logging prefix
     private static final String LOG_PREFIX = '[PromptSafetyService] ';
@@ -91,7 +101,7 @@ public inherited sharing class PromptSafetyService {
     public PromptSafetyService(String responseMode, Decimal threshold, Set<String> patternCategories, Id executionId) {
         this.isEnabled = true;
         this.responseMode = String.isNotBlank(responseMode) ? responseMode : MODE_BLOCK;
-        this.threshold = threshold != null ? threshold : 0.6;
+        this.threshold = normalizeThreshold(threshold);
         this.executionId = executionId;
         this.auditLoggingEnabled = false;
 
@@ -137,7 +147,7 @@ public inherited sharing class PromptSafetyService {
         String mode = parseResponseMode(agentConfig.PromptSafetyMode__c);
 
         // Parse threshold
-        Decimal threshold = agentConfig.SafetyThreshold__c != null ? agentConfig.SafetyThreshold__c : 0.6;
+        Decimal threshold = normalizeThreshold(agentConfig.SafetyThreshold__c);
 
         // Parse pattern categories
         Set<String> patternCategories = parseMultiSelectPicklist(agentConfig.SafetyPatternCategories__c);
@@ -181,23 +191,54 @@ public inherited sharing class PromptSafetyService {
             return ThreatAssessment.safe(message);
         }
 
+        CacheEntry cached = getCachedAssessment(message);
+        if (cached != null) {
+            ThreatAssessment assessment = ThreatAssessment.fromAnalysis(message, cached.overallScore, cloneIndicators(cached.indicators));
+            assessment.withEarlyExit(cached.earlyExit);
+            assessment.applyResponseMode(this.responseMode, this.threshold);
+            Long processingTime = System.currentTimeMillis() - startTime;
+            assessment.withProcessingTime(processingTime);
+            if (this.auditLoggingEnabled) {
+                logAssessment(assessment);
+            }
+            return assessment;
+        }
+
         // Run all detection layers
         List<ThreatAssessment.ThreatIndicator> allIndicators = new List<ThreatAssessment.ThreatIndicator>();
 
         // Layer 1: Pattern-based detection
         Decimal patternScore = runPatternDetection(message, allIndicators);
 
+        // Early exit for high-confidence pattern detection
+        Boolean earlyExit = shouldEarlyExit(patternScore);
+
         // Layer 2: Heuristic analysis
-        Decimal heuristicScore = runHeuristicAnalysis(message, allIndicators);
+        Decimal heuristicScore = 0.0;
+        if (!earlyExit) {
+            heuristicScore = runHeuristicAnalysis(message, allIndicators);
+        }
 
         // Layer 3: Structural analysis
-        Decimal structuralScore = runStructuralAnalysis(message, allIndicators);
+        Decimal structuralScore = 0.0;
+        if (!earlyExit) {
+            structuralScore = runStructuralAnalysis(message, allIndicators);
+        }
 
         // Calculate aggregate score
-        Decimal aggregateScore = calculateAggregateScore(patternScore, heuristicScore, structuralScore);
+        // If we early-exit on high-confidence pattern detection, use the pattern score directly
+        // so the response mode can block as expected.
+        Decimal aggregateScore = earlyExit
+            ? (patternScore != null ? Math.min(1.0, patternScore) : 0.0)
+            : calculateAggregateScore(patternScore, heuristicScore, structuralScore);
 
         // Create threat assessment
         ThreatAssessment assessment = ThreatAssessment.fromAnalysis(message, aggregateScore, allIndicators);
+        if (earlyExit) {
+            assessment.withEarlyExit(true);
+        }
+
+        cacheAssessment(message, assessment);
 
         // Apply response mode
         assessment.applyResponseMode(this.responseMode, this.threshold);
@@ -364,6 +405,13 @@ public inherited sharing class PromptSafetyService {
     }
 
     /**
+     * @description Gets whether audit logging is enabled for this service.
+     */
+    public Boolean isAuditLoggingEnabled() {
+        return this.auditLoggingEnabled;
+    }
+
+    /**
      * @description Gets service statistics for monitoring.
      *
      * @return Map of statistics
@@ -401,6 +449,7 @@ public inherited sharing class PromptSafetyService {
             return MODE_LOG_ONLY;
         }
 
+        System.debug(LoggingLevel.WARN, LOG_PREFIX + 'Unknown prompt safety mode "' + modeString + '". Defaulting to Block.');
         return MODE_BLOCK;
     }
 
@@ -445,5 +494,91 @@ public inherited sharing class PromptSafetyService {
     private void logAssessment(ThreatAssessment assessment) {
         Map<String, Object> summary = assessment.getSummary();
         System.debug(LoggingLevel.INFO, LOG_PREFIX + 'AUDIT: ' + JSON.serialize(summary));
+    }
+
+    /**
+     * @description Normalizes threat threshold to a safe range.
+     */
+    private static Decimal normalizeThreshold(Decimal rawThreshold) {
+        if (rawThreshold == null) {
+            return DEFAULT_THRESHOLD;
+        }
+        if (rawThreshold < 0 || rawThreshold > 1) {
+            System.debug(
+                LoggingLevel.WARN,
+                LOG_PREFIX + 'Invalid SafetyThreshold__c value (' + rawThreshold + '). Falling back to default: ' + DEFAULT_THRESHOLD
+            );
+            return DEFAULT_THRESHOLD;
+        }
+        return rawThreshold;
+    }
+
+    /**
+     * @description Determines if we can early-exit after pattern detection.
+     */
+    private Boolean shouldEarlyExit(Decimal patternScore) {
+        return patternScore != null && patternScore >= EARLY_EXIT_PATTERN_SCORE;
+    }
+
+    private CacheEntry getCachedAssessment(String message) {
+        String cacheKey = buildCacheKey(message);
+        return messageCache.get(cacheKey);
+    }
+
+    private void cacheAssessment(String message, ThreatAssessment assessment) {
+        String cacheKey = buildCacheKey(message);
+        CacheEntry entry = new CacheEntry();
+        entry.overallScore = assessment.overallScore;
+        entry.indicators = cloneIndicators(assessment.indicators);
+        entry.earlyExit = assessment.earlyExit == true;
+        messageCache.put(cacheKey, entry);
+    }
+
+    private String buildCacheKey(String message) {
+        String categoriesKey = '';
+        Set<String> enabledCategories = this.patternMatcher.getEnabledCategories();
+        if (enabledCategories != null && !enabledCategories.isEmpty()) {
+            List<String> sorted = new List<String>(enabledCategories);
+            sorted.sort();
+            categoriesKey = String.join(sorted, ',');
+        }
+
+        String rawKey = String.valueOf(this.executionId) + '|' + this.responseMode + '|' + this.threshold + '|' + categoriesKey + '|' + message;
+        Blob hashBlob = Crypto.generateDigest('SHA-256', Blob.valueOf(rawKey));
+        return EncodingUtil.convertToHex(hashBlob);
+    }
+
+    private List<ThreatAssessment.ThreatIndicator> cloneIndicators(List<ThreatAssessment.ThreatIndicator> indicators) {
+        List<ThreatAssessment.ThreatIndicator> cloned = new List<ThreatAssessment.ThreatIndicator>();
+        if (indicators == null) {
+            return cloned;
+        }
+        for (ThreatAssessment.ThreatIndicator indicator : indicators) {
+            if (indicator == null) {
+                continue;
+            }
+            ThreatAssessment.ThreatIndicator copy = new ThreatAssessment.ThreatIndicator(
+                indicator.indicatorType,
+                indicator.category,
+                indicator.name,
+                indicator.description,
+                indicator.score
+            );
+            copy.matchedContent = indicator.matchedContent;
+            copy.startIndex = indicator.startIndex;
+            copy.endIndex = indicator.endIndex;
+            cloned.add(copy);
+        }
+        return cloned;
+    }
+
+    @TestVisible
+    private static void clearMessageCache() {
+        messageCache.clear();
+    }
+
+    @TestVisible
+    private static Integer getMessageCacheSize() {
+        return messageCache.size();
     }
 }

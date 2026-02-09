@@ -72,7 +72,7 @@ public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts
                     ExecutionStatus__c = 'Failed',
                     ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
                     EndTime__c = Datetime.now(),
-                    ErrorMessage__c = errorMessage?.abbreviate(255)
+                    ErrorMessage__c = errorMessage
                 );
                 update execUpdate;
                 System.debug(LoggingLevel.INFO, logPrefix + 'Updated execution ' + executionIdToUpdate + ' to Failed status');

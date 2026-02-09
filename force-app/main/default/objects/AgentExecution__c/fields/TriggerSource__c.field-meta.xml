@@ -57,6 +57,11 @@
                 <default>false</default>
                 <label>Email</label>
             </value>
+            <value>
+                <fullName>Batch</fullName>
+                <default>false</default>
+                <label>Batch</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

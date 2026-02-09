@@ -9,7 +9,7 @@
 /**
  * @description Abstract base class for agent orchestrators. Provides common functionality and template method pattern for resume operations.
  */
-public abstract class BaseAgentOrchestrator implements IAgentOrchestrator {
+public inherited sharing abstract class BaseAgentOrchestrator implements IAgentOrchestrator {
     protected AIAgentDefinition__c agentDefinition;
     protected LLMConfiguration__c llmConfig;
     private static final String LOG_PREFIX = '[BaseOrchestrator] ';

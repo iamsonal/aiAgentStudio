@@ -9,7 +9,7 @@
 /**
  * @description Memory management strategy that maintains a precise, turn-based buffer of recent conversation history using optimized single-query retrieval.
  */
-public class BufferWindowMemoryManager implements IMemoryManager {
+public with sharing class BufferWindowMemoryManager implements IMemoryManager {
     public List<Map<String, Object>> getHistoryPayload(Id executionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String loggingContext) {
         String debugPrefix = String.isNotBlank(loggingContext) ? loggingContext : '[BufferWindowMemory] ';
         System.debug(LoggingLevel.INFO, debugPrefix + 'BufferWindowMemoryManager: Starting history retrieval for execution: ' + executionId);

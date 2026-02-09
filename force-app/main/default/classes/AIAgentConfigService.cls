@@ -46,6 +46,7 @@ public inherited sharing class AIAgentConfigService {
         'EnableParallelToolCalling__c',
         'EnableToolReasoning__c',
         'RequiresServiceUserContext__c',
+        'ServiceUserNamedCredential__c',
         'EnableDependencyValidation__c',
         'ToolDependencyGraph__c',
         'ToolDependencyGraphWarnings__c',
@@ -53,7 +54,6 @@ public inherited sharing class AIAgentConfigService {
         'SummarizerAgent__c',
         'EnableNextStepSuggestion__c',
         'MaxProcessingCycles__c',
-        'ExecuteInitialLLMCallSynchronously__c',
         'SummarizerAgent__r.DeveloperName__c',
         'SummarizerAgent__r.LLMConfiguration__c',
         'SummarizerAgent__r.InstructionsPrompt__c',
@@ -75,6 +75,9 @@ public inherited sharing class AIAgentConfigService {
         'NamedCredential__c',
         'DefaultModelIdentifier__c',
         'DefaultTemperature__c',
+        'ApiVersion__c',
+        'MaxResponseTokens__c',
+        'TimeoutMs__c',
         'IsActive__c'
     };
 
@@ -245,6 +248,7 @@ public inherited sharing class AIAgentConfigService {
      *                        Missing capabilities are not included in the map (no null values).
      * @throws ConfigurationException if agentDefId is null or on query errors.
      */
+    @SuppressWarnings('PMD.ApexSOQLInjection')
     public static Map<String, AgentCapability__c> getCapabilitiesByNames(Id agentDefId, Set<String> capabilityNames) {
         String logPrefix = '[AIAgentCfgSvc] ';
 

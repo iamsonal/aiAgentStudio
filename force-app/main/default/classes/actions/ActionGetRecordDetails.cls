@@ -17,7 +17,7 @@
  *
  * @extends BaseAgentAction
  */
-public class ActionGetRecordDetails extends BaseAgentAction {
+public with sharing class ActionGetRecordDetails extends BaseAgentAction {
     private ConfigDTO config;
 
     /**
@@ -197,10 +197,39 @@ public class ActionGetRecordDetails extends BaseAgentAction {
             System.debug(LoggingLevel.INFO, '[ActionGetRecordDetails] Using defaultFields: ' + config.defaultFields);
         }
 
+        // Validate identifier field is a real, accessible field (prevents injection)
+        if (identifierField.contains('.')) {
+            return ActionOutcome.failureWithGuidance(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'Invalid identifier field: ' + identifierField,
+                'Identifier field must be a direct field on ' + objectApiName + ' (e.g., "Id", "CaseNumber").'
+            );
+        }
+
+        SObjectField identifierToken = Utils.getFieldToken(sObjectType, identifierField);
+        if (identifierToken == null) {
+            return ActionOutcome.failureWithGuidance(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                'Unknown identifier field "' + identifierField + '" for object ' + objectApiName,
+                'Use a valid identifier field for ' + objectApiName + ' (e.g., "Id", "CaseNumber").'
+            );
+        }
+
+        DescribeFieldResult identifierDescribe = identifierToken.getDescribe();
+        if (!identifierDescribe.isAccessible()) {
+            return ActionOutcome.failureWithGuidance(
+                AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
+                'Access Denied: You do not have permission to read field ' + identifierDescribe.getName(),
+                'Contact your Salesforce administrator to request read access to ' + identifierDescribe.getName() + '.'
+            );
+        }
+
+        String identifierFieldApiName = identifierDescribe.getName();
+
         // Filter fields based on FLS
         List<String> accessibleFields = new List<String>();
         List<String> inaccessibleFields = new List<String>();
-        Map<String, SObjectField> fieldMap = objDescribe.fields.getMap();
+        Map<String, SObjectField> fieldMap = Utils.getObjectFields(sObjectType);
 
         for (String fieldName : fieldsToQuery) {
             // Handle relationship fields (e.g., Account.Name)
@@ -242,14 +271,14 @@ public class ActionGetRecordDetails extends BaseAgentAction {
             ' FROM ' +
             objectApiName +
             ' WHERE ' +
-            identifierField +
+            identifierFieldApiName +
             ' = :identifierValueStr' +
             ' LIMIT 10'; // Get up to 10 in case of non-unique fields
 
         System.debug(LoggingLevel.INFO, '[ActionGetRecordDetails] Executing SOQL: ' + soql);
 
         try {
-            List<SObject> results = Database.query(soql);
+            List<SObject> results = Database.queryWithBinds(soql, new Map<String, Object>{ 'identifierValueStr' => identifierValueStr }, AccessLevel.USER_MODE);
 
             if (results.isEmpty()) {
                 return ActionOutcome.failureWithGuidance(
@@ -286,7 +315,7 @@ public class ActionGetRecordDetails extends BaseAgentAction {
                 'record' => recordData,
                 'objectType' => objectApiName,
                 'recordId' => String.valueOf(record.Id),
-                'matchedBy' => identifierField
+                'matchedBy' => identifierFieldApiName
             };
 
             // Include warnings
