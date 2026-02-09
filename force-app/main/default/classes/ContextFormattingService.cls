@@ -225,7 +225,7 @@ public inherited sharing class ContextFormattingService {
         Map<String, Object> childRels = new Map<String, Object>();
 
         Map<String, Object> populatedFields = record.getPopulatedFieldsAsMap();
-        Map<String, SObjectField> fieldMap = SchemaUtils.getObjectFields(objDescribe.getSObjectType());
+        Map<String, SObjectField> fieldMap = Utils.getObjectFields(objDescribe.getSObjectType());
 
         // Pre-calculate sensitive fields once per SObject type (optimization)
         Set<String> sensitiveFields = options.getSensitiveFieldsForType(objDescribe.getSObjectType());
@@ -357,7 +357,7 @@ public inherited sharing class ContextFormattingService {
         List<String> lines = new List<String>();
 
         Map<String, Object> populatedFields = record.getPopulatedFieldsAsMap();
-        Map<String, SObjectField> fieldMap = SchemaUtils.getObjectFields(objDescribe.getSObjectType());
+        Map<String, SObjectField> fieldMap = Utils.getObjectFields(objDescribe.getSObjectType());
 
         // Pre-calculate sensitive fields once per SObject type (optimization)
         Set<String> sensitiveFields = options.getSensitiveFieldsForType(objDescribe.getSObjectType());
@@ -508,7 +508,7 @@ public inherited sharing class ContextFormattingService {
         try {
             Map<String, Object> relatedPopulated = relatedRecord.getPopulatedFieldsAsMap();
             Schema.DescribeSObjectResult relatedDescribe = relatedRecord.getSObjectType().getDescribe();
-            Map<String, SObjectField> relatedFieldMap = SchemaUtils.getObjectFields(relatedDescribe.getSObjectType());
+            Map<String, SObjectField> relatedFieldMap = Utils.getObjectFields(relatedDescribe.getSObjectType());
 
             // Pre-calculate sensitive fields for the related record's type (optimization)
             Set<String> sensitiveFields = options.getSensitiveFieldsForType(relatedDescribe.getSObjectType());

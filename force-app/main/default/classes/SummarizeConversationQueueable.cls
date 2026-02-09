@@ -9,7 +9,7 @@
 /**
  * @description Asynchronous queueable job that processes and summarizes complete execution turns atomically. Generates condensed summaries using LLM.
  */
-public class SummarizeConversationQueueable implements Queueable, Database.AllowsCallouts {
+public without sharing class SummarizeConversationQueueable implements Queueable, Database.AllowsCallouts {
     private static final String FALLBACK_PROMPT_TEMPLATE =
         'You are a conversation summarization engine. Your task is to progressively condense a conversation. ' +
         'You will be given the existing summary and the latest turn(s) of the conversation. ' +
@@ -36,6 +36,31 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
         AIAgentDefinition__c primaryAgentConfig = null;
         LLMConfiguration__c llmConfigToUse = null;
         String promptTemplateToUse = '';
+        String currentJobId = (String) context.getJobId();
+
+        AgentExecution__c execution = null;
+        try {
+            List<AgentExecution__c> executions = [
+                SELECT Id, ExecutionStatus__c, ConversationSummary__c, SummarizationJobId__c
+                FROM AgentExecution__c
+                WHERE Id = :this.executionId
+                LIMIT 1
+            ];
+            if (executions.isEmpty()) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Execution not found. Skipping summarization.');
+                return;
+            }
+            execution = executions[0];
+            if (execution.ExecutionStatus__c == 'Cancelled' || execution.ExecutionStatus__c == 'Failed') {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Execution is no longer active. Skipping summarization.');
+                this.clearSummarizationJobId(currentJobId, logPrefix);
+                return;
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to load execution for summarization: ' + e.getMessage());
+            this.clearSummarizationJobId(currentJobId, logPrefix);
+            return;
+        }
 
         try {
             primaryAgentConfig = AIAgentConfigService.getAgentDefinition(this.agentConfigId);
@@ -67,6 +92,7 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
 
         if (messagesToProcess.isEmpty()) {
             System.debug(LoggingLevel.INFO, logPrefix + 'No unsummarized messages found. Exiting.');
+            this.clearSummarizationJobId(currentJobId, logPrefix);
             return;
         }
 
@@ -79,7 +105,6 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
         }
         String newLines = String.join(newLinesList, '\n');
 
-        AgentExecution__c execution = [SELECT ConversationSummary__c FROM AgentExecution__c WHERE Id = :this.executionId];
         String currentSummary = String.isNotBlank(execution.ConversationSummary__c) ? execution.ConversationSummary__c : 'The execution has just begun.';
         String prompt = promptTemplateToUse.replace('{current_summary}', currentSummary).replace('{new_lines}', newLines);
 
@@ -108,6 +133,27 @@ public class SummarizeConversationQueueable implements Queueable, Database.Allow
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Exception during summarization: ' + e.getMessage() + '\n' + e.getStackTraceString());
+        } finally {
+            this.clearSummarizationJobId(currentJobId, logPrefix);
+        }
+    }
+
+    private void clearSummarizationJobId(String jobId, String logPrefix) {
+        if (String.isBlank(jobId) || this.executionId == null) {
+            return;
+        }
+        try {
+            List<AgentExecution__c> executions = [
+                SELECT Id, SummarizationJobId__c
+                FROM AgentExecution__c
+                WHERE Id = :this.executionId
+                LIMIT 1
+            ];
+            if (!executions.isEmpty() && executions[0].SummarizationJobId__c == jobId) {
+                update new AgentExecution__c(Id = this.executionId, SummarizationJobId__c = null);
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to clear summarization job id: ' + e.getMessage());
         }
     }
 

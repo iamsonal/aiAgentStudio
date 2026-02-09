@@ -9,7 +9,7 @@
 /**
  * @description Unified entry point for agent execution. Handles service user context switching and delegates to orchestrators.
  */
-public class AgentExecutionService {
+public inherited sharing class AgentExecutionService {
     private static final String LOG_PREFIX = '[AgentExecutionService] ';
 
     @TestVisible
@@ -213,45 +213,24 @@ public class AgentExecutionService {
             HttpCalloutService.CalloutResult result = HttpCalloutService.execute(httpReq, config);
 
             HttpResponse httpRes = result.response;
-            Integer statusCode = httpRes.getStatusCode();
             String responseBody = httpRes.getBody();
 
-            if (statusCode == 200) {
-                AIAgentRestService.AIAgentResponse restResponse = (AIAgentRestService.AIAgentResponse) JSON.deserialize(
-                    responseBody,
-                    AIAgentRestService.AIAgentResponse.class
+            AIAgentRestService.AIAgentResponse restResponse = (AIAgentRestService.AIAgentResponse) JSON.deserialize(
+                responseBody,
+                AIAgentRestService.AIAgentResponse.class
+            );
+            if (restResponse.success) {
+                return new ExecutionResult(
+                    null,
+                    restResponse.outcome ?? AIAgentConstants.STATUS_PROCESSING,
+                    restResponse.outcome ?? 'Processing in service user context'
                 );
-                if (restResponse.success) {
-                    return new ExecutionResult(
-                        null,
-                        restResponse.outcome ?? AIAgentConstants.STATUS_PROCESSING,
-                        restResponse.outcome ?? 'Processing in service user context'
-                    );
-                }
-                throw new AIAgentException.OrchestrationException('REST API routing failed: ' + restResponse.error);
             }
-
-            String errorMessage = extractErrorMessage(responseBody, statusCode);
-            throw new AIAgentException.OrchestrationException(errorMessage);
+            throw new AIAgentException.OrchestrationException('REST API routing failed: ' + restResponse.error);
         } catch (AIAgentException.OrchestrationException e) {
             throw e;
         } catch (Exception e) {
             throw new AIAgentException.OrchestrationException('Failed to switch to service user context: ' + e.getMessage());
-        }
-    }
-
-    private static String extractErrorMessage(String responseBody, Integer statusCode) {
-        if (String.isBlank(responseBody)) {
-            return 'HTTP ' + statusCode;
-        }
-        try {
-            AIAgentRestService.AIAgentResponse errorResponse = (AIAgentRestService.AIAgentResponse) JSON.deserialize(
-                responseBody,
-                AIAgentRestService.AIAgentResponse.class
-            );
-            return errorResponse.error ?? 'HTTP ' + statusCode;
-        } catch (Exception e) {
-            return responseBody.length() > 200 ? responseBody.substring(0, 200) + '...' : responseBody;
         }
     }
 
@@ -326,6 +305,7 @@ public class AgentExecutionService {
     /**
      * Execution payload containing all data needed for agent execution.
      */
+    @SuppressWarnings('PMD.ApexSharingViolations')
     public class ExecutionPayload {
         @AuraEnabled
         public Id userId { get; set; }
@@ -444,19 +424,24 @@ public class AgentExecutionService {
             }
         }
 
+        @SuppressWarnings('PMD.ApexSOQLInjection')
         private void validateRecordsExist(List<Id> recordIds, String recordType) {
             if (recordIds.isEmpty())
                 return;
 
             Map<String, List<Id>> recordsByType = new Map<String, List<Id>>();
             for (Id recordId : recordIds) {
-                String objectType = String.valueOf(recordId.getSObjectType());
+                Schema.SObjectType sobjectType = recordId.getSObjectType();
+                String objectType = sobjectType.getDescribe().getName();
                 if (!recordsByType.containsKey(objectType)) {
                     recordsByType.put(objectType, new List<Id>());
                 }
                 recordsByType.get(objectType).add(recordId);
             }
             for (String objectType : recordsByType.keySet()) {
+                if (!Schema.getGlobalDescribe().containsKey(objectType)) {
+                    throw new AIAgentException.OrchestrationException(recordType + ' validation failed: Unsupported object type ' + objectType);
+                }
                 List<Id> typeRecordIds = recordsByType.get(objectType);
                 try {
                     List<SObject> existingRecords = Database.query('SELECT Id FROM ' + objectType + ' WHERE Id IN :typeRecordIds');
@@ -572,11 +557,5 @@ public class AgentExecutionService {
                 e
             );
         }
-    }
-
-    @TestVisible
-    private static void clearOrchestratorCache_TestOnly() {
-        orchestratorMappingCache = null;
-        isMappingCacheInitialized = false;
     }
 }

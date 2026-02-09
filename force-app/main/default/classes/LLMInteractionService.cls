@@ -384,10 +384,7 @@ public inherited sharing class LLMInteractionService {
                     throw new LLMInteractionException('LLM Adapter returned a null result.');
                 }
                 Long callDuration = System.currentTimeMillis() - callStartTime;
-                System.debug(
-                    LoggingLevel.INFO,
-                    logPrefix + 'LLM call succeeded in ' + callDuration + 'ms. Tokens used: ' + llmApiResult.totalTokens + ', executionId=' + this.executionId
-                );
+                System.debug(LoggingLevel.INFO, logPrefix + 'LLM call succeeded in ' + callDuration + 'ms. executionId=' + this.executionId);
 
                 if (this.decisionLogger != null) {
                     this.decisionLogger.log(IDecisionStepLogger.EventType.LLM_RESPONSE, new List<Object>{ llmApiResult, llmConfig });
@@ -413,10 +410,7 @@ public inherited sharing class LLMInteractionService {
                             }
                         }
                     }
-                    System.debug(
-                        LoggingLevel.DEBUG,
-                        logPrefix + 'Applied PII unmasking to LLM response. Stats: ' + JSON.serialize(maskingService.getStatistics())
-                    );
+                    System.debug(LoggingLevel.DEBUG, logPrefix + 'Applied PII unmasking to LLM response.');
                 }
 
                 MessageData asstMsgData = new MessageData();

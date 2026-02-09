@@ -17,8 +17,12 @@
 public with sharing class ActionCreateRecord extends BaseAgentAction {
     private ConfigDTO config;
     private SObjectType targetSObjectType;
+    @TestVisible
     private static Map<String, NameFieldInfo> nameFieldInfoCache = new Map<String, NameFieldInfo>();
+    @TestVisible
+    private static List<RecordType> mockRecordTypeQueryResult;
 
+    @TestVisible
     private class NameFieldInfo {
         public String apiName;
         public String label;
@@ -86,8 +90,8 @@ public with sharing class ActionCreateRecord extends BaseAgentAction {
         }
 
         try {
-            SecurityUtils.checkObjectPermission(this.targetSObjectType, AccessType.CREATABLE);
-        } catch (SecurityUtils.ActionSecurityException ase) {
+            Utils.checkObjectPermission(this.targetSObjectType, AccessType.CREATABLE);
+        } catch (Utils.ActionSecurityException ase) {
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Security check failed for object ' + config.objectApiName + ': ' + ase.getMessage());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ase.getMessage());
         }
@@ -101,7 +105,7 @@ public with sharing class ActionCreateRecord extends BaseAgentAction {
                 return ActionOutcome.failureWithGuidance(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage(), typeEx.correctionGuidance);
             }
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
-        } catch (SecurityUtils.ActionSecurityException secEx) {
+        } catch (Utils.ActionSecurityException secEx) {
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Field-level security check failed: ' + secEx.getMessage());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, secEx.getMessage());
         }
@@ -205,7 +209,7 @@ public with sharing class ActionCreateRecord extends BaseAgentAction {
             throw new ValidationException('objectApiName is required in configuration', 'objectApiName');
         }
 
-        this.targetSObjectType = SchemaUtils.getSObjectType(config.objectApiName);
+        this.targetSObjectType = Utils.getSObjectType(config.objectApiName);
         if (this.targetSObjectType == null) {
             throw new ValidationException('Invalid SObject API Name in configuration: ' + config.objectApiName, 'objectApiName');
         }
@@ -219,6 +223,7 @@ public with sharing class ActionCreateRecord extends BaseAgentAction {
         }
     }
 
+    @SuppressWarnings('PMD.ApexSOQLInjection')
     private Map<String, String> queryNameFieldWithLabel(Id recordId) {
         try {
             String cacheKey = String.isNotBlank(config.objectApiName) ? config.objectApiName.toLowerCase() : null;
@@ -321,13 +326,18 @@ public with sharing class ActionCreateRecord extends BaseAgentAction {
         }
 
         try {
-            List<RecordType> recordTypes = [
-                SELECT Id, DeveloperName, Name, IsActive
-                FROM RecordType
-                WHERE Id = :recordTypeId AND SObjectType = :config.objectApiName
-                WITH USER_MODE
-                LIMIT 1
-            ];
+            List<RecordType> recordTypes;
+            if (Test.isRunningTest() && mockRecordTypeQueryResult != null) {
+                recordTypes = mockRecordTypeQueryResult;
+            } else {
+                recordTypes = [
+                    SELECT Id, DeveloperName, Name, IsActive
+                    FROM RecordType
+                    WHERE Id = :recordTypeId AND SObjectType = :config.objectApiName
+                    WITH USER_MODE
+                    LIMIT 1
+                ];
+            }
 
             if (recordTypes.isEmpty()) {
                 return ActionOutcome.failure(

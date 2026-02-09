@@ -9,7 +9,7 @@
 /**
  * @description Orchestrates the full lifecycle of tool call requests from LLM responses. Handles validation, approval, and execution paths.
  */
-public class ToolCallResponseHandler implements ILLMResponseHandler {
+public inherited sharing class ToolCallResponseHandler implements ILLMResponseHandler {
     public class ToolProcessingException extends AIAgentException {
     }
 
@@ -446,17 +446,6 @@ public class ToolCallResponseHandler implements ILLMResponseHandler {
                         }
                     );
             }
-
-            // Note: Tool Execution Plan step removed - not needed in storyboard
-            // decisionLogger.logToolExecution(
-            //     'Tool Execution Plan',
-            //     'LLM requested ' + toolRequests.size() + ' tool(s) for execution',
-            //     JSON.serialize(planData),
-            //     null,
-            //     true,
-            //     null,
-            //     null
-            // );
         }
 
         return parseResult;

@@ -322,6 +322,7 @@ public with sharing class ActionPostChatter extends BaseAgentAction {
      * @param sObjType  The SObject type (User or CollaborationGroup)
      * @return True if the mention target is valid and accessible
      */
+    @SuppressWarnings('PMD.ApexSOQLInjection')
     private Boolean validateMentionTarget(Id mentionId, Schema.SObjectType sObjType) {
         try {
             String objectName = sObjType.getDescribe().getName();

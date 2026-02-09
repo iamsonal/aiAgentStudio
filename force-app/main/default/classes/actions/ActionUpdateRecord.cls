@@ -155,8 +155,8 @@ public with sharing class ActionUpdateRecord extends BaseAgentAction {
 
         // Explicit object-level update permission check
         try {
-            SecurityUtils.checkObjectPermission(targetSObjectType, AccessType.UPDATABLE);
-        } catch (SecurityUtils.ActionSecurityException ase) {
+            Utils.checkObjectPermission(targetSObjectType, AccessType.UPDATABLE);
+        } catch (Utils.ActionSecurityException ase) {
             System.debug(LoggingLevel.ERROR, '[ActionUpdateRecord] User lacks update permission for ' + targetSObjectType + ': ' + ase.getMessage());
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ase.getMessage());
         }
@@ -171,7 +171,7 @@ public with sharing class ActionUpdateRecord extends BaseAgentAction {
                 return ActionOutcome.failureWithGuidance(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage(), typeEx.correctionGuidance);
             }
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
-        } catch (SecurityUtils.ActionSecurityException secEx) {
+        } catch (Utils.ActionSecurityException secEx) {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, secEx.getMessage());
         }
 

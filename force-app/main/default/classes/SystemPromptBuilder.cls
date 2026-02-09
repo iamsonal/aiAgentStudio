@@ -21,6 +21,9 @@ public inherited sharing class SystemPromptBuilder {
     private final IDecisionStepLogger.ILogger decisionLogger;
     private PIIMaskingService piiMaskingService;
 
+    @TestVisible
+    private static Exception mockFormatterException;
+
     public SystemPromptBuilder() {
         this(new ContextManagerService(), new ContextResolverService(), null, null);
     }
@@ -148,6 +151,10 @@ public inherited sharing class SystemPromptBuilder {
                         if (this.piiMaskingService != null && this.piiMaskingService.getSchemaMasker() != null) {
                             formatOptions.withPIIMasking(this.piiMaskingService.getSchemaMasker(), this.piiMaskingService.getSession());
                             System.debug(LoggingLevel.DEBUG, logPrefix + 'PII schema masking enabled for context data formatting');
+                        }
+
+                        if (Test.isRunningTest() && mockFormatterException != null) {
+                            throw mockFormatterException;
                         }
 
                         String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix, formatStrategy, formatOptions);

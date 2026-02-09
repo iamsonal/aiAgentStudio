@@ -109,30 +109,8 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
             HttpRequest httpReq = buildToolExecutionRequest(action, logPrefix);
             HttpCalloutService.CalloutResult result = executeHttpRequest(httpReq, logPrefix);
 
-            if (result.response.getStatusCode() == 200) {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Tool execution successful via REST API');
-            } else {
-                String errorMsg = 'HTTP ' + result.response.getStatusCode() + ': ' + result.response.getBody();
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Tool execution failed: ' + errorMsg);
-
-                logHttpError(
-                    action.AgentExecution__c,
-                    action.TurnIdentifier__c,
-                    action.ToolName__c,
-                    result.response.getStatusCode(),
-                    result.response.getBody(),
-                    logPrefix
-                );
-
-                if (action.RequestingUser__c != null && shouldSendNotification(action, HITLGatewayService.NOTIFICATION_TYPE_ERROR)) {
-                    HITLGatewayService.sendUserNotification(
-                        action.RequestingUser__c,
-                        'Tool Execution Failed: ' + action.ToolName__c,
-                        'Failed to execute approved action in service user context: ' + errorMsg,
-                        action.AgentExecution__c
-                    );
-                }
-            }
+            // HttpCalloutService throws exception for non-200, so reaching here means success
+            System.debug(LoggingLevel.INFO, logPrefix + 'Tool execution successful via REST API');
         } catch (Exception e) {
             handleToolExecutionError(e, logPrefix);
         }
@@ -207,14 +185,8 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
             HttpRequest httpReq = buildFollowUpRequest(logPrefix);
             HttpCalloutService.CalloutResult result = executeHttpRequest(httpReq, logPrefix);
 
-            if (result.response.getStatusCode() == 200) {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up LLM call queued successfully via REST API');
-            } else {
-                String errorMsg = 'HTTP ' + result.response.getStatusCode() + ': ' + result.response.getBody();
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Follow-up LLM call failed: ' + errorMsg);
-
-                logHttpError(executionId, turnIdentifier, null, result.response.getStatusCode(), result.response.getBody(), logPrefix);
-            }
+            // HttpCalloutService throws exception for non-200, so reaching here means success
+            System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up LLM call queued successfully via REST API');
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error triggering follow-up LLM via REST API: ' + e.getMessage() + '\n' + e.getStackTraceString());
             logExecutionError(executionId, turnIdentifier, null, e, logPrefix);
@@ -256,24 +228,18 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
             HttpRequest httpReq = buildResumeRequest(logPrefix);
             HttpCalloutService.CalloutResult result = executeHttpRequest(httpReq, logPrefix);
 
-            if (result.response.getStatusCode() == 200) {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Resume completed successfully via REST API');
+            // HttpCalloutService throws exception for non-200, so reaching here means success
+            System.debug(LoggingLevel.INFO, logPrefix + 'Resume completed successfully via REST API');
 
-                // Parse response to log result
-                Map<String, Object> responseData = (Map<String, Object>) JSON.deserializeUntyped(result.response.getBody());
-                Boolean success = (Boolean) responseData.get('success');
-                String message = (String) responseData.get('message');
+            // Parse response to log result
+            Map<String, Object> responseData = (Map<String, Object>) JSON.deserializeUntyped(result.response.getBody());
+            Boolean success = (Boolean) responseData.get('success');
+            String message = (String) responseData.get('message');
 
-                if (success == true) {
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Resume result: ' + message);
-                } else {
-                    System.debug(LoggingLevel.WARN, logPrefix + 'Resume completed with warning: ' + message);
-                }
+            if (success == true) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Resume result: ' + message);
             } else {
-                String errorMsg = 'HTTP ' + result.response.getStatusCode() + ': ' + result.response.getBody();
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Resume failed: ' + errorMsg);
-
-                logHttpError(executionId, null, null, result.response.getStatusCode(), result.response.getBody(), logPrefix);
+                System.debug(LoggingLevel.WARN, logPrefix + 'Resume completed with warning: ' + message);
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error executing resume via REST API: ' + e.getMessage() + '\n' + e.getStackTraceString());
@@ -338,32 +304,6 @@ public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts 
     private static Boolean shouldSendNotification(PendingHITLAction__c action, String eventType) {
         String preference = action.AIAgentCapability__r?.HITLNotificationPreference__c;
         return HITLGatewayService.shouldSendHITLNotification(preference, eventType);
-    }
-
-    private void logHttpError(Id execId, String turnId, String toolName, Integer statusCode, String responseBody, String logPrefix) {
-        try {
-            if (String.isBlank(turnId) && execId != null) {
-                List<AgentExecution__c> execs = [
-                    SELECT CurrentTurnIdentifier__c
-                    FROM AgentExecution__c
-                    WHERE Id = :execId
-                    LIMIT 1
-                ];
-                if (!execs.isEmpty()) {
-                    turnId = execs[0].CurrentTurnIdentifier__c;
-                }
-            }
-            if (String.isBlank(turnId)) {
-                System.debug(LoggingLevel.WARN, logPrefix + 'Skipping decision step logging (missing turn identifier)');
-                return;
-            }
-            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(execId, turnId);
-            decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ statusCode, responseBody, toolName });
-            decisionLogger.commitSteps();
-            System.debug(LoggingLevel.INFO, logPrefix + 'HTTP error logged to decision steps');
-        } catch (Exception logEx) {
-            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to log HTTP error to decision steps: ' + logEx.getMessage());
-        }
     }
 
     private void logExecutionError(Id execId, String turnId, String toolName, Exception e, String logPrefix) {

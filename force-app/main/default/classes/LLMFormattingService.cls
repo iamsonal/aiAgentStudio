@@ -164,7 +164,7 @@ public inherited sharing class LLMFormattingService {
 
                 String sObjectApiName = getObjectApiNameFromConfig(cap);
                 if (String.isNotBlank(sObjectApiName)) {
-                    SObjectType sObjType = SchemaUtils.getSObjectType(sObjectApiName);
+                    SObjectType sObjType = Utils.getSObjectType(sObjectApiName);
                     if (sObjType != null) {
                         System.debug(
                             LoggingLevel.DEBUG,
@@ -436,7 +436,7 @@ public inherited sharing class LLMFormattingService {
             return;
 
         Map<String, Object> properties = (Map<String, Object>) paramSchema.get('properties');
-        Map<String, SObjectField> objectFields = SchemaUtils.getObjectFields(sObjType);
+        Map<String, SObjectField> objectFields = Utils.getObjectFields(sObjType);
 
         for (String paramName : properties.keySet()) {
             SObjectField fieldToken = objectFields.get(paramName.toLowerCase());

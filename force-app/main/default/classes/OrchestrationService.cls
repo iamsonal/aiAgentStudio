@@ -12,8 +12,6 @@
 public inherited sharing class OrchestrationService {
     public virtual class OrchestrationException extends AIAgentException {
     }
-    public class ConfigurationException extends OrchestrationException {
-    }
 
     public static final String OUTCOME_COMPLETED = 'COMPLETED';
     public static final String OUTCOME_FAILED = 'FAILED';
@@ -213,30 +211,6 @@ public inherited sharing class OrchestrationService {
         return null;
     }
 
-    private static String serializeLlmInteractionResultForLogging(LLMInteractionService.LLMInteractionResult result) {
-        if (result == null) {
-            return null;
-        }
-
-        try {
-            Map<String, Object> serializableResult = new Map<String, Object>();
-            serializableResult.put('isSuccess', result.isSuccess);
-            serializableResult.put('providerResult', result.providerResult);
-            serializableResult.put('assistantMessageData', result.assistantMessageData);
-            serializableResult.put('failureReason', result.failureReason);
-            serializableResult.put('failureCode', result.failureCode);
-
-            if (result.failureException != null) {
-                serializableResult.put('failureExceptionMessage', result.failureException.getMessage());
-                serializableResult.put('failureExceptionType', result.failureException.getTypeName());
-            }
-
-            return JSON.serialize(serializableResult);
-        } catch (Exception e) {
-            return '{"isSuccess": ' + result.isSuccess + ', "serializationError": "Failed to serialize LLMInteractionResult: ' + e.getMessage() + '"}';
-        }
-    }
-
     /**
      * @description Determines if execution should fail immediately on tool error. Three-tier hierarchy: Capability.FailFastOnError__c, MaxToolRetries__c, or autonomous recovery.
      * Note: For Conversational and Email agents, MaxToolRetries is turn-scoped (resets each turn) to allow fresh attempts with new user messages.
@@ -295,10 +269,6 @@ public inherited sharing class OrchestrationService {
                 agentDefinition.AgentType__c
         );
         return false;
-    }
-
-    public static Boolean shouldFailFast(AgentCapability__c capability, AIAgentDefinition__c agentDefinition, ActionOutcome toolOutcome, String logPrefix) {
-        return shouldFailFast(capability, agentDefinition, toolOutcome, null, logPrefix);
     }
 
     public static Integer countSuccessiveToolFailures(Id executionId, String toolName, String logPrefix) {

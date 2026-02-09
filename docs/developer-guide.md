@@ -192,11 +192,11 @@ public class ActionCalculateAccountHealth extends BaseAgentAction {
 
         // 3. Check object-level permissions
         try {
-            SecurityUtils.checkObjectPermission(
+            Utils.checkObjectPermission(
                 Account.SObjectType,
                 AccessType.READABLE
             );
-        } catch (SecurityUtils.ActionSecurityException e) {
+        } catch (Utils.ActionSecurityException e) {
             return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
                 e.getMessage()
@@ -335,7 +335,7 @@ In Salesforce, create an `AgentCapability__c` record:
 
 ```apex
 // ✅ DO: Always check object permissions
-SecurityUtils.checkObjectPermission(Account.SObjectType, AccessType.READABLE);
+Utils.checkObjectPermission(Account.SObjectType, AccessType.READABLE);
 
 // ✅ DO: Use WITH USER_MODE in SOQL
 List<Account> accounts = [SELECT Id FROM Account WITH USER_MODE];

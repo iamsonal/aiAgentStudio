@@ -49,22 +49,16 @@ public class ServiceUserContextQueueable implements Queueable, Database.AllowsCa
             HttpCalloutService.CalloutResult result = HttpCalloutService.execute(httpReq, config);
 
             HttpResponse httpRes = result.response;
-            Integer statusCode = httpRes.getStatusCode();
             String responseBody = httpRes.getBody();
 
-            if (statusCode == 200) {
-                AIAgentRestService.AIAgentResponse restResponse = (AIAgentRestService.AIAgentResponse) JSON.deserialize(
-                    responseBody,
-                    AIAgentRestService.AIAgentResponse.class
-                );
-                if (restResponse.success) {
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Service user context routing successful. Outcome: ' + restResponse.outcome);
-                } else {
-                    handleFailure(logPrefix, 'REST API returned failure: ' + restResponse.error);
-                }
+            AIAgentRestService.AIAgentResponse restResponse = (AIAgentRestService.AIAgentResponse) JSON.deserialize(
+                responseBody,
+                AIAgentRestService.AIAgentResponse.class
+            );
+            if (restResponse.success) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Service user context routing successful. Outcome: ' + restResponse.outcome);
             } else {
-                String errorMessage = extractErrorMessage(responseBody, statusCode);
-                handleFailure(logPrefix, 'HTTP ' + statusCode + ': ' + errorMessage);
+                handleFailure(logPrefix, 'REST API returned failure: ' + restResponse.error);
             }
         } catch (Exception e) {
             handleFailure(logPrefix, 'Exception during service user context routing: ' + e.getMessage() + '\n' + e.getStackTraceString());
@@ -123,21 +117,6 @@ public class ServiceUserContextQueueable implements Queueable, Database.AllowsCa
 
         httpReq.setBody(JSON.serialize(requestBody));
         return httpReq;
-    }
-
-    private String extractErrorMessage(String responseBody, Integer statusCode) {
-        if (String.isBlank(responseBody)) {
-            return 'HTTP ' + statusCode;
-        }
-        try {
-            AIAgentRestService.AIAgentResponse errorResponse = (AIAgentRestService.AIAgentResponse) JSON.deserialize(
-                responseBody,
-                AIAgentRestService.AIAgentResponse.class
-            );
-            return errorResponse.error ?? 'HTTP ' + statusCode;
-        } catch (Exception e) {
-            return responseBody.length() > 200 ? responseBody.substring(0, 200) + '...' : responseBody;
-        }
     }
 
     private void handleFailure(String logPrefix, String errorMessage) {

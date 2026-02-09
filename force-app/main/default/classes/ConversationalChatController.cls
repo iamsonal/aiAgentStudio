@@ -449,6 +449,34 @@ public with sharing class ConversationalChatController {
     }
 
     /**
+     * Provides secure, cacheable access to the current user's session ID for use in LWC platform event subscriptions.
+     *
+     * @return The current user's session ID
+     * @throws AuraHandledException if unable to retrieve session ID
+     */
+    @AuraEnabled(Cacheable=true)
+    public static String fetchSessionId() {
+        try {
+            Map<String, Object> currentSession = Auth.SessionManagement.getCurrentSession();
+            String sessionId = null;
+            if (currentSession != null) {
+                if (currentSession.containsKey('SessionId')) {
+                    sessionId = (String) currentSession.get('SessionId');
+                } else if (currentSession.containsKey('sessionId')) {
+                    sessionId = (String) currentSession.get('sessionId');
+                }
+            }
+            if (String.isBlank(sessionId)) {
+                throw new AuraHandledException('Unable to retrieve session ID. Please contact your administrator.');
+            }
+            return sessionId;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, '[ConversationalChatController] Exception in fetchSessionId: ' + e.getTypeName() + ': ' + e.getMessage());
+            throw new AuraHandledException('Unable to retrieve session ID. Please contact your administrator.');
+        }
+    }
+
+    /**
      * Wrapper for chat session details, including session ID, welcome message, and UI flags.
      */
     public class SessionDetails {

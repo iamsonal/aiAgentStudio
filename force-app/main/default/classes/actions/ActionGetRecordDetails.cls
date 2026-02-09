@@ -206,7 +206,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
             );
         }
 
-        SObjectField identifierToken = SchemaUtils.getFieldToken(sObjectType, identifierField);
+        SObjectField identifierToken = Utils.getFieldToken(sObjectType, identifierField);
         if (identifierToken == null) {
             return ActionOutcome.failureWithGuidance(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
@@ -229,7 +229,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
         // Filter fields based on FLS
         List<String> accessibleFields = new List<String>();
         List<String> inaccessibleFields = new List<String>();
-        Map<String, SObjectField> fieldMap = SchemaUtils.getObjectFields(sObjectType);
+        Map<String, SObjectField> fieldMap = Utils.getObjectFields(sObjectType);
 
         for (String fieldName : fieldsToQuery) {
             // Handle relationship fields (e.g., Account.Name)

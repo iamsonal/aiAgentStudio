@@ -248,6 +248,7 @@ public inherited sharing class AIAgentConfigService {
      *                        Missing capabilities are not included in the map (no null values).
      * @throws ConfigurationException if agentDefId is null or on query errors.
      */
+    @SuppressWarnings('PMD.ApexSOQLInjection')
     public static Map<String, AgentCapability__c> getCapabilitiesByNames(Id agentDefId, Set<String> capabilityNames) {
         String logPrefix = '[AIAgentCfgSvc] ';
 

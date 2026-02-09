@@ -211,6 +211,7 @@ public abstract with sharing class BaseAgentAction implements IAgentAction {
         return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex.getMessage());
     }
 
+    @TestVisible
     private String mapStatusCodeToErrorCode(String statusCodeStr, String defaultCode) {
         if (statusCodeStr == null)
             return defaultCode;

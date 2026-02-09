@@ -84,7 +84,7 @@ public with sharing class TypeCoercionService {
         }
 
         Map<String, Object> coercedArguments = new Map<String, Object>();
-        Map<String, Schema.SObjectField> allFields = SchemaUtils.getObjectFields(targetSObjectType);
+        Map<String, Schema.SObjectField> allFields = Utils.getObjectFields(targetSObjectType);
 
         for (String fieldName : rawArguments.keySet()) {
             Schema.SObjectField fieldToken = allFields.get(fieldName.toLowerCase());
@@ -97,7 +97,7 @@ public with sharing class TypeCoercionService {
             }
 
             Schema.DescribeFieldResult dfr = fieldToken.getDescribe();
-            if (!SecurityUtils.hasFieldPermission(dfr, accessType)) {
+            if (!Utils.hasFieldPermission(dfr, accessType)) {
                 System.debug(LoggingLevel.DEBUG, '[TypeCoercionService] Field "' + fieldName + '" skipped due to FLS (' + accessType + ').');
                 continue;
             }

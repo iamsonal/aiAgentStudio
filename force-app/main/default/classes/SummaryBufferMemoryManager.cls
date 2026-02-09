@@ -9,21 +9,15 @@
 /**
  * @description Turn-based summary buffer memory management strategy. Maintains a running summary of conversation history, updated asynchronously after each turn.
  */
-public class SummaryBufferMemoryManager implements IMemoryManager {
+public with sharing class SummaryBufferMemoryManager implements IMemoryManager {
     public List<Map<String, Object>> getHistoryPayload(Id executionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String loggingContext) {
         String debugPrefix = String.isNotBlank(loggingContext) ? loggingContext : '[SummaryBufferMemory] ';
         System.debug(LoggingLevel.DEBUG, debugPrefix + 'Loading unsummarized execution history (SummaryBuffer strategy).');
 
-        List<Map<String, Object>> payload = new List<Map<String, Object>>();
-        try {
-            // Use ExecutionStep__c retrieval via ExecutionStepService with summarization support
-            ExecutionStepService executionStepService = new ExecutionStepService();
-            List<ExecutionStep__c> unsummarizedSteps = executionStepService.getUnsummarizedSteps(executionId, false);
-            return LLMFormattingService.formatStepsForApi(unsummarizedSteps, agentConfig, debugPrefix);
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, debugPrefix + 'Failed to retrieve unsummarized execution history: ' + e.getMessage());
-            return payload;
-        }
+        // Use ExecutionStep__c retrieval via ExecutionStepService with summarization support
+        ExecutionStepService executionStepService = new ExecutionStepService();
+        List<ExecutionStep__c> unsummarizedSteps = executionStepService.getUnsummarizedSteps(executionId, false);
+        return LLMFormattingService.formatStepsForApi(unsummarizedSteps, agentConfig, debugPrefix);
     }
 
     /**
@@ -51,6 +45,23 @@ public class SummaryBufferMemoryManager implements IMemoryManager {
         }
 
         try {
+            AgentExecution__c execution = [
+                SELECT Id, ExecutionStatus__c, SummarizationJobId__c
+                FROM AgentExecution__c
+                WHERE Id = :executionId
+                FOR UPDATE
+            ];
+
+            if (execution.ExecutionStatus__c == 'Cancelled' || execution.ExecutionStatus__c == 'Failed') {
+                System.debug(LoggingLevel.INFO, debugPrefix + 'Execution is no longer active. Skipping summarization enqueue.');
+                return;
+            }
+
+            if (this.isSummarizationJobActive(execution.SummarizationJobId__c, debugPrefix)) {
+                System.debug(LoggingLevel.DEBUG, debugPrefix + 'Summarization job already queued. Skipping duplicate enqueue.');
+                return;
+            }
+
             // Use ExecutionStep__c counting via ExecutionStepService
             ExecutionStepService executionStepService = new ExecutionStepService();
             Integer unsummarizedTurnCount = executionStepService.getUnsummarizedTurnCount(executionId);
@@ -65,7 +76,9 @@ public class SummaryBufferMemoryManager implements IMemoryManager {
                         triggerTurnCount +
                         '). Enqueueing summarization job.'
                 );
-                System.enqueueJob(new SummarizeConversationQueueable(executionId, agentConfig.Id));
+                Id jobId = System.enqueueJob(new SummarizeConversationQueueable(executionId, agentConfig.Id));
+                execution.SummarizationJobId__c = (String) jobId;
+                update execution;
             } else {
                 System.debug(
                     LoggingLevel.DEBUG,
@@ -77,8 +90,31 @@ public class SummaryBufferMemoryManager implements IMemoryManager {
                         '). No summarization needed.'
                 );
             }
+        } catch (QueryException e) {
+            System.debug(LoggingLevel.WARN, debugPrefix + 'Execution not found. Skipping summarization enqueue.');
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, debugPrefix + 'Failed to check unsummarized turn count or enqueue summarization job: ' + e.getMessage());
         }
+    }
+
+    private Boolean isSummarizationJobActive(String jobId, String logPrefix) {
+        if (String.isBlank(jobId)) {
+            return false;
+        }
+
+        List<AsyncApexJob> jobs = [
+            SELECT Id, Status
+            FROM AsyncApexJob
+            WHERE Id = :jobId
+            LIMIT 1
+        ];
+
+        if (jobs.isEmpty()) {
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Summarization job id not found. Allowing enqueue.');
+            return false;
+        }
+
+        String status = jobs[0].Status;
+        return status == 'Holding' || status == 'Queued' || status == 'Processing' || status == 'Preparing';
     }
 }

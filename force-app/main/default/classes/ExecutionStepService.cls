@@ -104,20 +104,6 @@ public inherited sharing class ExecutionStepService {
             insert step;
 
             System.debug(LoggingLevel.DEBUG, logPrefix + 'Created ExecutionStep__c: ' + step.Id + ' Type: ' + stepType + ' Role: ' + stepRole);
-            if (totalTokens != null) {
-                System.debug(
-                    LoggingLevel.DEBUG,
-                    logPrefix +
-                        'Token usage - Prompt: ' +
-                        promptTokens +
-                        ', Completion: ' +
-                        completionTokens +
-                        ', Total: ' +
-                        totalTokens +
-                        ', Model: ' +
-                        modelIdentifier
-                );
-            }
 
             return step.Id;
         } catch (Exception e) {
@@ -903,6 +889,7 @@ public inherited sharing class ExecutionStepService {
         );
     }
 
+    @SuppressWarnings('PMD.ApexSOQLInjection')
     public List<ExecutionStep__c> getHistory(Id executionId, Integer maxResults, String sortOrder, List<String> stepTypes, Boolean includeInternal) {
         String logPrefix = LOG_PREFIX + '[getHistory] ';
 
@@ -1046,6 +1033,7 @@ public inherited sharing class ExecutionStepService {
         }
     }
 
+    @SuppressWarnings('PMD.ApexSOQLInjection')
     public List<ExecutionStep__c> getHistoryWithCompleteTurns(Id executionId, Integer turnLimit, String sortOrder, Boolean includeInternal) {
         String logPrefix = LOG_PREFIX + '[getHistoryWithCompleteTurns] ';
 
@@ -1150,6 +1138,7 @@ public inherited sharing class ExecutionStepService {
         }
     }
 
+    @SuppressWarnings('PMD.ApexSOQLInjection')
     public List<ExecutionStep__c> getUnsummarizedSteps(Id executionId, Boolean includeInternal) {
         String logPrefix = LOG_PREFIX + '[getUnsummarizedSteps] ';
 

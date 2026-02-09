@@ -9,7 +9,7 @@
 import { subscribe, unsubscribe, onError, isEmpEnabled } from 'lightning/empApi';
 import { loadScript } from 'lightning/platformResourceLoader';
 import cometdLib from '@salesforce/resourceUrl/cometdlwc';
-import fetchSessionId from '@salesforce/apex/EventSubscriptionHelper.fetchSessionId';
+import fetchSessionId from '@salesforce/apex/ConversationalChatController.fetchSessionId';
 
 /**
  * UniversalEmpApi

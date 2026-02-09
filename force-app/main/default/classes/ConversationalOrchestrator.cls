@@ -9,7 +9,7 @@
 /**
  * @description Orchestrator for conversational (chat-based) agent executions. Handles multi-turn conversations and async dispatch.
  */
-public class ConversationalOrchestrator extends BaseAgentOrchestrator {
+public inherited sharing class ConversationalOrchestrator extends BaseAgentOrchestrator {
     private static final String LOG_PREFIX = '[ConversationalOrch] ';
 
     public ConversationalOrchestrator() {

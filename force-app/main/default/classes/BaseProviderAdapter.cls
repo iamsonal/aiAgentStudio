@@ -102,10 +102,7 @@ public abstract class BaseProviderAdapter implements ILLMProviderAdapter {
                 result.totalTokens = result.promptTokens + result.completionTokens;
             }
 
-            System.debug(
-                LoggingLevel.DEBUG,
-                logPrefix + 'Token usage - Prompt: ' + result.promptTokens + ', Completion: ' + result.completionTokens + ', Total: ' + result.totalTokens
-            );
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Token usage captured for provider response.');
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Failed to extract token usage: ' + e.getMessage());
         }

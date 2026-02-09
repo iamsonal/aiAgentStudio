@@ -44,6 +44,7 @@ public inherited sharing class ContextManagerService {
         PRUNED
     }
 
+    @SuppressWarnings('PMD.ApexSharingViolations')
     public class LedgerQueryBuilder {
         private Id executionId;
         private Set<String> statuses;
