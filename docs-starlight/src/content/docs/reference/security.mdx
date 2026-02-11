@@ -3,18 +3,337 @@ title: Security
 description: Security controls and governance model.
 ---
 
-## Security Layers
+import { Card, CardGrid, Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 
-- Prompt safety checks for jailbreak and injection patterns
-- PII masking before model invocation
-- CRUD, FLS, and sharing enforcement
-- Human-in-the-loop approvals for sensitive actions
-- Detailed audit trails for requests, tool calls, and outcomes
+# Security & Governance
 
-## Recommended Baseline
+AI Agent Studio implements defense-in-depth security with multiple layers of protection for AI agent operations on Salesforce.
 
-1. Use sandbox-first rollout with representative data.
-2. Configure least-privilege integration users.
-3. Route high-risk actions through approval queues.
-4. Enable dashboards and alerting for execution anomalies.
-5. Review confidence and cost trends on a regular cadence.
+## Security Architecture
+
+<CardGrid>
+  <Card title="Platform-Native Security" icon="seti:lock">
+    User context execution, CRUD/FLS enforcement, sharing rules, field-level access control with type coercion.
+  </Card>
+  <Card title="Trust Layers" icon="seti:shield">
+    PII masking before LLM calls, prompt injection detection, tool dependency validation, declarative sequencing constraints.
+  </Card>
+  <Card title="Human-in-the-Loop" icon="seti:gear">
+    Configurable approval workflows with Confirmation, Approval, and hybrid modes. Atomic state tracking with PendingHITLAction__c.
+  </Card>
+  <Card title="Audit & Observability" icon="seti:graph-line">
+    Complete execution traces, tool rationale capture, decision step logging, token tracking, cost analytics.
+  </Card>
+</CardGrid>
+
+## Platform-Native Security
+
+### User Context Execution
+
+**No Privilege Escalation**: Agents always run in the context of the user who initiated the execution (`OriginalUserId__c`).
+
+**Sharing Mode**: All classes use `with sharing` or `inherited sharing` to respect Salesforce sharing rules.
+
+**Record-Level Access**: Users can only interact with records they have access to through org-wide defaults, sharing rules, and manual shares.
+
+<Aside type="tip" title="Service User Context">
+For scenarios requiring elevated permissions, use `AIAgentDefinition__c.RequiresServiceUserContext__c` to route execution through a dedicated service user via REST API loopback. The original user context is preserved for audit trails.
+</Aside>
+
+### CRUD & FLS Enforcement
+
+**Automatic Enforcement**: All SOQL queries use `WITH USER_MODE` to enforce object and field-level security.
+
+```apex
+// Framework pattern - always enforces security
+List<Account> accounts = [
+    SELECT Id, Name, Industry
+    FROM Account
+    WHERE Id IN :accountIds
+    WITH USER_MODE  // Enforces CRUD + FLS
+];
+```
+
+**DML Security**: All DML operations use `Security.stripInaccessible()` to remove inaccessible fields.
+
+```apex
+// Framework pattern for DML
+SObjectAccessDecision decision = Security.stripInaccessible(
+    AccessType.CREATABLE,
+    recordsToInsert
+);
+insert decision.getRecords();
+```
+
+**Type Coercion with FLS**: `TypeCoercionService.coerceArgumentTypesForSObject()` validates field access when converting LLM-provided arguments to SObject field values.
+
+### Permission Checks
+
+**Object Permissions**: `Utils.checkObjectPermission()` validates CRUD access before operations.
+
+```apex
+// Validate read access before querying
+Utils.checkObjectPermission(
+    Account.SObjectType,
+    AccessType.READABLE
+);
+```
+
+**Field Accessibility**: Framework respects field-level security when building SOQL queries and processing DML operations.
+
+## Trust Layers
+
+<Tabs>
+  <TabItem label="PII Masking">
+
+### Hybrid PII Masking
+
+Prevents sensitive data from reaching LLM providers in raw form.
+
+**Architecture**: `PIIMaskingService` orchestrates `SchemaBasedMasker` (Salesforce Data Classification) and `PIIPatternMatcher` (regex patterns).
+
+**How It Works**:
+
+1. **Masking Phase**: User message → scan for PII → replace with deterministic tokens (`[SSN:001]`)
+2. **LLM Processing**: Masked message sent to LLM with tokens instead of actual values
+3. **Unmasking Phase**: LLM response → replace tokens with original values → return to user
+4. **Bidirectional**: Applies to both user messages and tool arguments in both directions
+
+**Configuration**:
+
+Per-agent via `AIAgentDefinition__c`:
+- `PIIMaskingMode__c`: Hybrid (both) / Schema-Only / Pattern-Only
+- `SensitiveClassifications__c`: Which Salesforce Data Classifications to mask (PII, Sensitive, Confidential, etc.)
+- `PIIPatternCategories__c`: Which regex pattern categories to enable
+
+Org-level via `AIAgentFrameworkSettings__c.EnablePIIMasking__c`
+
+**Pattern Coverage**:
+- **SSN**: `###-##-####` format with validation
+- **Credit Cards**: Luhn algorithm validation for card numbers
+- **Email**: RFC-compliant email address detection
+- **Phone**: US and international phone number formats
+- **IPv4**: IP address detection
+- **DOB**: Date of birth in various formats
+
+**Key Features**:
+- **Deterministic Tokens**: Same value always gets same token within session
+- **No Persistence**: Mapping stored only in memory for session scope
+- **FLS Respected**: Schema-based masking honors field-level security
+- **Tool Arguments**: Applies to both user input and LLM tool call arguments
+
+**Example**:
+
+```
+User: "Update case for customer SSN 123-45-6789"
+Masked: "Update case for customer SSN [SSN:001]"
+→ LLM processes masked version
+→ Tool execution receives unmasked value
+→ Response shown to user with original values
+```
+
+  </TabItem>
+  <TabItem label="Prompt Safety">
+
+### Multi-Layered Jailbreak Protection
+
+Protects against prompt injection and instruction override attacks using three detection layers.
+
+**Architecture**: `PromptSafetyService` orchestrates three analyzers. **Pattern-Based Detection** (`JailbreakPatternMatcher`) uses regex patterns from `JailbreakPattern__mdt` custom metadata to detect known attack signatures (DAN, jailbreak keywords, ignore instructions) with fast, deterministic detection. **Heuristic Analysis** (`PromptHeuristicAnalyzer`) detects instruction override ("ignore previous instructions"), role manipulation attempts ("you are now in developer mode"), delimiter injection (attempt to close/open prompt delimiters), and conversation reset attempts. **Structural Analysis** (`PromptStructureAnalyzer`) provides encoding detection (base64, hex, unicode escapes), N-gram similarity to known jailbreak patterns, and suspicious structure patterns.
+
+**Threat Scoring**: Each analyzer returns score 0.0-1.0, combined into aggregate threat assessment. **NONE** 0.0-0.2 (safe), **LOW** 0.2-0.4 (minimal concern), **MEDIUM** 0.4-0.6 (suspicious), **HIGH** 0.6-0.8 (likely attack), **CRITICAL** 0.8-1.0 (definite attack).
+
+**Response Modes** (per-agent configurable via `PromptSafetyMode__c`): **Block** rejects request entirely with safe error message where user sees generic denial and execution stops. **Sanitize** removes detected threats and continues with cleaned input where replacements are marked as `[REMOVED:<category>]` with recorded sanitized spans. **Flag** marks for review in audit logs and continues execution while creating AgentDecisionStep__c with threat details. **Log Only** records threat assessment and takes no action (for monitoring in non-production).
+
+**Configuration**: Per-agent via `AIAgentDefinition__c` fields `PromptSafetyMode__c` (Block/Sanitize/Flag/LogOnly), `SafetyThreshold__c` (Threat score threshold 0.0-1.0 to trigger response), and `SafetyPatternCategories__c` (Which jailbreak categories to enable). Org-level via `AIAgentFrameworkSettings__c.EnablePromptSafety__c`.
+
+**Optimizations**: Message-level caching (same message not re-analyzed within execution), early exit on high-severity pattern matches, and evaluation caps to prevent CPU time spikes.
+
+**Detection Categories**: Role manipulation ("you are now", "pretend to be"), instruction override ("ignore previous", "forget your instructions"), delimiter injection (closing system prompt, opening new context), encoding attacks (base64, hex, unicode obfuscation), prompt leaking ("repeat your instructions"), and context manipulation ("this is a simulation", "hypothetically").
+
+  </TabItem>
+  <TabItem label="Tool Dependencies">
+
+### Declarative Tool Sequencing
+
+Prevents workflow hallucinations where LLM calls tools in illogical order.
+
+**Problem**: Without constraints, LLM might call `send_email` before `create_record`, or `update_record` before `get_record_details`.
+
+**Solution**: Shadow Graph Pattern - LLM generates dependency graph, admin approves, system enforces at runtime.
+
+**How It Works**:
+
+1. **Graph Generation**: `ToolDependencyGraphService` uses LLM to analyze agent capabilities and suggest dependency graph
+2. **Admin Review**: Human reviews and edits graph in `ToolDependencyGraphEditorController` UI
+3. **Storage**: Approved graph stored in `AIAgentDefinition__c.ToolDependencyGraph__c` as JSON
+4. **Runtime Enforcement**: `ToolDependencyValidator` checks dependencies before tool execution
+
+**Dependency Logic**:
+
+```json
+{
+  "version": "1.0",
+  "dependencies": {
+    "update_record": {
+      "allOf": ["get_record_details"]
+    },
+    "send_email": {
+      "allOf": ["update_record"],
+      "anyOf": ["get_email_address", "get_contact_info"]
+    }
+  }
+}
+```
+
+- `allOf`: ALL tools must be executed first (AND logic)
+- `anyOf`: AT LEAST ONE tool must be executed first (OR logic)
+- Combined: `send_email` requires `update_record` AND (at least one of `get_email_address` OR `get_contact_info`)
+
+**Two-Phase Validation**:
+
+1. **Pre-Flight Validation** (before executing any tools in batch):
+   - Validates ALL tools in batch
+   - Attempts intelligent reordering via topological sort
+   - Only blocks tools whose dependencies are completely missing from batch
+   - Keeps transaction clean (no DML before validation failure)
+
+2. **Runtime Validation** (during execution loop):
+   - Re-validates dependencies at execution time
+   - Catches cases where dependency in same batch failed
+   - Only successful tools satisfy dependencies
+
+**Circuit Breaker**: `ToolCallResponseHandler` tracks total dependency violations across execution. If threshold exceeded (default 10, configurable via `AIAgentFrameworkSettings__c.MaxDependencyViolations__c`), fails execution immediately to prevent infinite loops.
+
+**LLM Guidance on Violation**: When tool blocked, system provides structured error message explaining required dependencies and next action.
+
+**Configuration**: Enable via `AIAgentDefinition__c.EnableDependencyValidation__c`
+
+**Limitations**: Only enforces synchronous tools in same batch. Async tools (separate jobs) cannot have dependencies enforced. Scope is turn-scoped for Conversational/Email agents (reset each turn) and execution-scoped for Function/Workflow agents.
+
+  </TabItem>
+</Tabs>
+
+## Human-in-the-Loop (HITL)
+
+### Approval Workflows
+
+Configurable approval requirements for sensitive actions via `AgentCapability__c.HITLMode__c`.
+
+**Modes**: **Disabled** means no HITL and action executes immediately. **Confirmation** has LLM ask user for confirmation in chat before executing. **Approval** uses formal approval process via `PendingHITLAction__c` with notification. **ConfirmationThenApproval** requires both confirmation AND formal approval.
+
+**Notification Preferences** (`HITLNotificationPreference__c`): **Always Notify** sends notifications for approvals, rejections, and errors (default). **Notify on Rejection Only** only sends notifications when actions are rejected.
+
+### Approval State Management
+
+**Object**: `PendingHITLAction__c` tracks approval state with atomic locking.
+
+**Lifecycle**: Action requires approval → Create PendingHITLAction__c record → Set ExecutionStatus__c to 'Awaiting Action' → Notify approver (if configured) → Approver reviews and approves/rejects → On approval: Execute action and update execution → On rejection: Log rejection and mark execution failed/cancelled.
+
+**Security**: Approvers must have access to source record and capability to approve.
+
+## Audit & Observability
+
+### Execution Traces
+
+**ExecutionStep__c**: Detailed execution log capturing:
+- User input, LLM requests/responses, tool calls, tool results, errors
+- Token counts (prompt, completion, total) and estimated cost
+- Tool rationale (if `EnableToolReasoning__c`)
+- Turn identifiers for grouping steps
+
+**AgentDecisionStep__c**: User-friendly decision timeline for storyboard UI:
+- High-level steps (ToolCall/TextResponse/Error)
+- Success/failure indicators
+- Tool rationale display
+
+### Tool Reasoning & Explainability
+
+When `AIAgentDefinition__c.EnableToolReasoning__c` is enabled:
+
+1. Framework adds required `_rationale` parameter to all tools in LLM schema
+2. LLM must provide reasoning for each tool call
+3. `LLMFormattingService.extractAndStripRationale()` extracts rationale, removes from arguments
+4. Stored in `ExecutionStep__c.ToolRationale__c` and `AgentDecisionStep__c.ToolRationale__c`
+5. Displayed in `agentStoryboardStep` component for user visibility
+
+**Benefits**:
+- **Explainability**: End users understand why agent took actions
+- **Debugging**: Developers see LLM reasoning for tool selection
+- **Compliance**: Audit trails show decision rationale
+- **Accuracy**: Forces LLM to think through tool selection, improves quality
+
+### Token Tracking & Cost Analytics
+
+**Per-Step Tracking**: `ExecutionStep__c` captures:
+- `PromptTokens__c`: Input tokens consumed
+- `CompletionTokens__c`: Output tokens generated
+- `TotalTokens__c`: Sum of prompt + completion
+- `EstimatedCostUSD__c`: Calculated cost based on model pricing
+
+**Aggregation**: Build dashboards to track:
+- Total cost per agent, per user, per day
+- Token efficiency (tokens per conversation turn)
+- Cost trends over time
+- Identify high-cost agents for optimization
+
+## Best Practices
+
+<Steps>
+
+1. **Start in Sandbox**
+   
+   Deploy to sandbox first with representative data. Test with various user profiles to validate CRUD/FLS enforcement.
+
+2. **Principle of Least Privilege**
+   
+   Create dedicated integration users with minimal permissions needed. Don't grant system admin to agent service users.
+
+3. **Enable Trust Layers Incrementally**
+   
+   Start with LogOnly mode for prompt safety and PII masking. Monitor detection rates, tune thresholds, then enable Block/Sanitize modes.
+
+4. **Route Sensitive Actions Through Approvals**
+   
+   Use HITL Approval mode for data deletion, external integrations, financial transactions, and high-impact operations.
+
+5. **Monitor Execution Anomalies**
+   
+   Build dashboards on ExecutionStep__c and AgentDecisionStep__c. Alert on:
+   - High failure rates
+   - Sudden token cost spikes
+   - Prompt safety violations
+   - HITL rejection rates
+
+6. **Review Tool Dependencies**
+   
+   Use `ToolDependencyGraphService` to generate initial graph, but have domain experts review and refine before production.
+
+7. **Regular Audit Reviews**
+   
+   Schedule periodic reviews of:
+   - Tool rationale for unexpected patterns
+   - Prompt safety flags
+   - PII masking effectiveness
+   - HITL approval/rejection trends
+
+</Steps>
+
+## Security Checklist
+
+Before deploying agents to production:
+
+- [ ] Agents run as users with appropriate profiles/permission sets
+- [ ] Service user context configured (if needed) with minimal permissions
+- [ ] PII masking enabled with appropriate classifications and patterns
+- [ ] Prompt safety mode set to Block or Sanitize (not LogOnly) for production agents
+- [ ] Sensitive actions routed through HITL approval workflows
+- [ ] Tool dependency validation enabled and graph reviewed by domain experts
+- [ ] Dashboard/alerts configured for execution monitoring
+- [ ] Audit trail retention policy established for ExecutionStep__c records
+- [ ] Token budget limits and cost alerts configured
+- [ ] User training completed on HITL approval responsibilities
+
+<Aside type="caution" title="Production Deployment">
+Always test security controls in sandbox with production data volumes before deploying to production. Monitor closely during initial rollout and be prepared to disable agents quickly if issues arise.
+</Aside>

@@ -3,29 +3,572 @@ title: Standard Actions
 description: Built-in actions available in AI Agent Studio.
 ---
 
-import { Card, CardGrid, Steps } from '@astrojs/starlight/components';
+import { Card, CardGrid, Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 
-## Core Action Types
+# Standard Actions
+
+AI Agent Studio includes a comprehensive set of standard actions for common Salesforce operations. All standard actions enforce CRUD/FLS permissions, support HITL approval workflows, and integrate with the framework's security layers.
+
+## Core Actions
+
+These actions are included in the core framework package.
 
 <CardGrid>
-  <Card title="GetRecordDetails">Read/search Salesforce records with constrained fields.</Card>
-  <Card title="CreateRecord">Create records with schema-validated inputs.</Card>
-  <Card title="UpdateRecord">Update records with permission and approval controls.</Card>
-  <Card title="RunFlow">Trigger configured flows for structured automations.</Card>
-  <Card title="PostChatter">Publish Chatter updates as part of execution workflows.</Card>
+  <Card title="GetRecordDetails" icon="seti:search">
+    **Purpose**: Search and retrieve Salesforce records with field-level control.
+    
+    **Use Cases**: Find accounts by name, search contacts, lookup opportunities, fetch record details.
+    
+    **Security**: WITH USER_MODE enforces CRUD+FLS, respects sharing rules.
+  </Card>
+  <Card title="CreateRecord" icon="seti:plus">
+    **Purpose**: Create new Salesforce records with schema validation.
+    
+    **Use Cases**: Create tasks, log cases, add contacts, create opportunities.
+    
+    **Security**: Security.stripInaccessible enforces FLS, type coercion validates field access.
+  </Card>
+  <Card title="UpdateRecord" icon="seti:gear">
+    **Purpose**: Update existing records with permission and approval controls.
+    
+    **Use Cases**: Update case status, change opportunity stage, modify account details.
+    
+    **Security**: FLS enforcement on updates, supports HITL approval workflows.
+  </Card>
+  <Card title="PostChatter" icon="seti:comment">
+    **Purpose**: Post Chatter updates to records or groups.
+    
+    **Use Cases**: Notify teams, log agent actions, create audit trail in Chatter feed.
+    
+    **Security**: User must have Chatter access and record visibility.
+  </Card>
 </CardGrid>
 
-## Typical Action Contract
+## Action Configuration Pattern
 
-- Human-readable capability description
-- JSON Schema parameters for model guidance
-- Backend configuration for object or operation context
-- Optional approval requirement and policy constraints
+All actions follow a consistent configuration pattern:
+
+<Tabs>
+  <TabItem label="Capability Record">
+
+Create an `AgentCapability__c` record:
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `CapabilityName__c` | Tool name exposed to LLM (snake_case) | `search_contacts` |
+| `Description__c` | When and how to use this tool (critical for LLM guidance) | "Search for contacts by name, email, or account. Use when users ask to find contact information." |
+| `ImplementationType__c` | Standard / Apex / Flow | `Standard` |
+| `StandardActionType__c` | Maps to StandardActionHandler__mdt | `GetRecordDetails` |
+| `AIAgentDefinition__c` | Agent this capability belongs to | (Your agent record) |
+| `BackendConfiguration__c` | Admin config JSON | `{"objectApiName": "Contact"}` |
+| `Parameters__c` | JSON Schema for LLM | See examples below |
+| `HITLMode__c` | Approval requirement | Blank (none), Confirmation, Approval, ConfirmationThenApproval |
+| `RunAsynchronously__c` | Execute in separate queueable | ☐ (unchecked for most) |
+| `FailFastOnError__c` | Stop immediately on error | ☐ (false = pass error to LLM) |
+
+  </TabItem>
+  <TabItem label="Backend Config">
+
+**Backend Configuration** (`BackendConfiguration__c`) provides admin-controlled settings passed to the action implementation.
+
+**Common Patterns**:
+
+```json
+// GetRecordDetails - specify object and default fields
+{
+  "objectApiName": "Contact",
+  "defaultFields": ["Id", "Name", "Email", "Phone", "Account.Name"],
+  "defaultLimit": 25
+}
+
+// CreateRecord - specify object and default values
+{
+  "objectApiName": "Task",
+  "defaultValues": {
+    "OwnerId": "{!$User.Id}",
+    "Status": "Not Started",
+    "Priority": "Normal"
+  }
+}
+
+// UpdateRecord - specify object
+{
+  "objectApiName": "Case"
+}
+
+// FlowHandler - Flow API name in ImplementationDetail__c
+{
+  "defaultInputValues": {
+    "source": "AI_Agent"
+  }
+}
+
+// PostChatter - target configuration
+{
+  "mentionUsers": ["005..."],
+  "visibility": "AllUsers"
+}
+```
+
+  </TabItem>
+  <TabItem label="Parameters Schema">
+
+**Parameters** (`Parameters__c`) use JSON Schema to define LLM-provided arguments at runtime.
+
+**Basic Example**:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Contact's full name"
+    }
+  }
+}
+```
+
+**With Required Fields**:
+
+```json
+{
+  "type": "object",
+  "required": ["email"],
+  "properties": {
+    "email": {
+      "type": "string",
+      "description": "Email address (required)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Optional name filter"
+    }
+  }
+}
+```
+
+**With Enums** (constrained values):
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "priority": {
+      "type": "string",
+      "enum": ["High", "Normal", "Low"],
+      "description": "Task priority level"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["Not Started", "In Progress", "Completed"],
+      "description": "Task status"
+    }
+  }
+}
+```
+
+**Complex Schema** (nested objects, arrays):
+
+```json
+{
+  "type": "object",
+  "required": ["objectType"],
+  "properties": {
+    "objectType": {
+      "type": "string",
+      "enum": ["Account", "Contact", "Opportunity"],
+      "description": "Salesforce object to search"
+    },
+    "filters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": {"type": "string", "description": "Field API name"},
+          "operator": {"type": "string", "enum": ["=", "!=", "LIKE"], "description": "Comparison operator"},
+          "value": {"type": "string", "description": "Filter value"}
+        }
+      },
+      "description": "Search filters to apply"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 10,
+      "description": "Maximum records to return"
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+## Detailed Action Reference
+
+### GetRecordDetails
+
+**Purpose**: Search and retrieve Salesforce records.
+
+**Implementation**: `ActionGetRecordDetails` extends `BaseAgentAction`
+
+**Standard Action Type**: `GetRecordDetails`
+
+**Backend Configuration**:
+
+```json
+{
+  "objectApiName": "Contact",
+  "defaultFields": ["Id", "Name", "Email", "Phone", "Account.Name", "Title"],
+  "defaultLimit": 25,
+  "allowedFields": ["Id", "Name", "Email", "Phone", "AccountId", "Account.Name", "Title", "Department"]
+}
+```
+
+**Parameters Schema**:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "firstName": {
+      "type": "string",
+      "description": "Contact's first name for filtering"
+    },
+    "lastName": {
+      "type": "string",
+      "description": "Contact's last name for filtering"
+    },
+    "email": {
+      "type": "string",
+      "description": "Contact's email address"
+    },
+    "accountName": {
+      "type": "string",
+      "description": "Name of the contact's account"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 10,
+      "description": "Maximum number of records to return"
+    }
+  }
+}
+```
+
+**Example Capability Description**:
+
+```
+Search for contacts in Salesforce by name, email, or account.
+
+Use this capability when:
+- User asks to find a contact
+- User wants contact information
+- User mentions a person's name in a business context
+- User asks "who is" or "find contact"
+
+Do NOT use when:
+- User is asking about accounts (use search_accounts instead)
+- User wants to create a new contact (use create_contact instead)
+- User wants to update contact information (use update_contact instead)
+
+Examples:
+- "Find John Smith's contact info"
+- "Who is the contact at Acme Corp?"
+- "Look up contacts with @gmail.com emails"
+- "Find contacts in the Sales department"
+```
+
+**Security**: Enforces object CRUD + field FLS via `WITH USER_MODE`. Only returns fields user has access to.
+
+---
+
+### CreateRecord
+
+**Purpose**: Create new Salesforce records.
+
+**Implementation**: `ActionCreateRecord` extends `BaseAgentAction`
+
+**Standard Action Type**: `CreateRecord`
+
+**Backend Configuration**:
+
+```json
+{
+  "objectApiName": "Task",
+  "defaultValues": {
+    "OwnerId": "{!$User.Id}",
+    "Status": "Not Started",
+    "Priority": "Normal"
+  },
+  "requiredFields": ["Subject"]
+}
+```
+
+**Parameters Schema**:
+
+```json
+{
+  "type": "object",
+  "required": ["Subject"],
+  "properties": {
+    "Subject": {
+      "type": "string",
+      "description": "Task subject/title (required)"
+    },
+    "Description": {
+      "type": "string",
+      "description": "Detailed task description"
+    },
+    "ActivityDate": {
+      "type": "string",
+      "description": "Due date in YYYY-MM-DD format"
+    },
+    "Priority": {
+      "type": "string",
+      "enum": ["High", "Normal", "Low"],
+      "description": "Task priority level"
+    },
+    "Status": {
+      "type": "string",
+      "enum": ["Not Started", "In Progress", "Completed"],
+      "description": "Task status"
+    },
+    "WhatId": {
+      "type": "string",
+      "description": "Related record ID (Account, Opportunity, etc.)"
+    },
+    "WhoId": {
+      "type": "string",
+      "description": "Related contact or lead ID"
+    }
+  }
+}
+```
+
+**Example Capability Description**:
+
+```
+Create a new task in Salesforce for follow-up or to-dos.
+
+Use this capability when:
+- User asks to create a task, reminder, or follow-up
+- User says "remind me to" or "schedule a"
+- User wants to create a to-do item
+- User asks to log an action item
+
+ALWAYS ask for confirmation before creating tasks unless user explicitly approves.
+
+Required information:
+- Subject (what the task is about)
+
+Optional information (ask if relevant):
+- Due date (when it should be completed)
+- Priority (High/Normal/Low)
+- Description (additional details)
+- Related record (which account, contact, or opportunity)
+
+Examples:
+- "Create a task to follow up with John Smith next week"
+- "Remind me to call Acme Corp tomorrow"
+- "Schedule a follow-up for this opportunity"
+```
+
+**Security**: Uses `Security.stripInaccessible(AccessType.CREATABLE)` to enforce FLS. Type coercion validates field access and types.
+
+**HITL**: Consider setting `HITLMode__c` to `Confirmation` or `Approval` for production use.
+
+---
+
+### UpdateRecord
+
+**Purpose**: Update existing Salesforce records.
+
+**Implementation**: `ActionUpdateRecord` extends `BaseAgentAction`
+
+**Standard Action Type**: `UpdateRecord`
+
+**Backend Configuration**:
+
+```json
+{
+  "objectApiName": "Case",
+  "allowedFields": ["Status", "Priority", "Description", "Subject"],
+  "preventStatusRollback": true
+}
+```
+
+**Parameters Schema**:
+
+```json
+{
+  "type": "object",
+  "required": ["recordId"],
+  "properties": {
+    "recordId": {
+      "type": "string",
+      "description": "Salesforce record ID to update (required)"
+    },
+    "Status": {
+      "type": "string",
+      "enum": ["New", "Working", "Escalated", "Closed"],
+      "description": "Case status"
+    },
+    "Priority": {
+      "type": "string",
+      "enum": ["High", "Medium", "Low"],
+      "description": "Case priority"
+    },
+    "Description": {
+      "type": "string",
+      "description": "Updated case description"
+    }
+  }
+}
+```
+
+**Example Capability Description**:
+
+```
+Update an existing case in Salesforce.
+
+Use this capability when:
+- User asks to update, modify, or change a case
+- User wants to change case status or priority
+- User asks to escalate or resolve a case
+
+ALWAYS confirm with user before updating records.
+
+Required information:
+- Record ID (which case to update)
+- At least one field to update
+
+Examples:
+- "Update case 00001234 to status Working"
+- "Change the priority of this case to High"
+- "Mark the case as Escalated"
+```
+
+**Security**: Uses `Security.stripInaccessible(AccessType.UPDATABLE)` to enforce FLS. Validates user has update access to record and fields.
+
+**HITL**: **Strongly recommended** to set `HITLMode__c` to `Approval` for updates in production.
+
+---
+
+### PostChatter
+
+**Purpose**: Post updates to Chatter feeds.
+
+**Implementation**: `ActionPostChatter` extends `BaseAgentAction`
+
+**Standard Action Type**: `PostChatter`
+
+**Backend Configuration**:
+
+```json
+{
+  "mentionUsers": [],
+  "mentionGroups": [],
+  "visibility": "AllUsers"
+}
+```
+
+**Parameters Schema**:
+
+```json
+{
+  "type": "object",
+  "required": ["message"],
+  "properties": {
+    "message": {
+      "type": "string",
+      "description": "Message to post (required)"
+    },
+    "recordId": {
+      "type": "string",
+      "description": "Record ID to post to (uses context record if not provided)"
+    },
+    "mentionUsers": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "User IDs to @mention in the post"
+    }
+  }
+}
+```
+
+**Example Capability Description**:
+
+```
+Post an update to the Chatter feed for a record.
+
+Use this capability when:
+- User asks to post to Chatter
+- You need to notify team members
+- Creating audit trail of agent actions
+- User says "post to", "notify team", or "share with"
+
+Examples:
+- "Post to Chatter that I completed the follow-up"
+- "Let the team know about this update"
+- "Notify the account team on Chatter"
+```
+
+**Security**: User must have Chatter access. Record visibility enforced by sharing rules.
 
 ## Best Practices
 
 <Steps>
-1. Keep capability descriptions explicit and task-scoped.
-2. Use strict parameter schemas with enums and required fields.
-3. Start with read-only actions before enabling writes.
+
+1. **Write Explicit Descriptions**
+   
+   The capability description is THE most important field. LLM uses it to decide when to call the tool. Be specific about when to use, when NOT to use, and provide examples.
+
+2. **Use Enums for Constrained Values**
+   
+   When a parameter has specific allowed values (like picklist values), use `enum` in JSON Schema to constrain LLM's choices.
+
+3. **Start Read-Only, Add Writes Later**
+   
+   Begin with GetRecordDetails actions only. Once validated, add CreateRecord. Add UpdateRecord last with HITL approval.
+
+4. **Enable HITL for Sensitive Operations**
+   
+   Set `HITLMode__c` to Approval for UpdateRecord, DeleteRecord (custom), and any external integrations. Use Confirmation for CreateRecord.
+
+5. **Set Appropriate FailFast Behavior**
+   
+   For critical operations, set `FailFastOnError__c = true` to stop immediately on failure. For optional operations, leave false to let LLM handle errors.
+
+6. **Limit Field Exposure**
+   
+   In `BackendConfiguration__c`, specify `allowedFields` to limit which fields LLM can access. Don't expose sensitive fields unnecessarily.
+
+7. **Use Default Values**
+   
+   For CreateRecord, provide `defaultValues` in Backend Configuration to set standard values (like OwnerId, RecordTypeId) that LLM shouldn't control.
+
+8. **Test Parameter Schemas**
+   
+   Validate JSON Schema is correct using [JSON Schema Validator](https://www.jsonschemavalidator.net/). Invalid schema will cause capability to fail at runtime.
+
 </Steps>
+
+## Typical Action Contract
+
+Every action follows this contract:
+
+1. **Description** (capability record): Human-readable explanation of when/how to use
+2. **JSON Schema** (Parameters__c): Formal parameter definitions for LLM guidance
+3. **Backend Configuration** (BackendConfiguration__c): Admin-controlled operational settings
+4. **Security Enforcement**: CRUD/FLS checks, WITH USER_MODE queries, stripInaccessible DML
+5. **Error Handling**: Returns ActionOutcome.success() or ActionOutcome.failure() with error codes
+6. **Optional HITL**: Approval workflow integration via HITLMode__c
+
+<Aside type="tip" title="Creating Custom Actions">
+Need custom business logic? See the [Developer Guide](/guides/developer-guide/#custom-actions) for how to create custom actions extending BaseAgentAction.
+</Aside>
