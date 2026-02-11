@@ -1,0 +1,20 @@
+---
+title: Security
+description: Security controls and governance model.
+---
+
+## Security Layers
+
+- Prompt safety checks for jailbreak and injection patterns
+- PII masking before model invocation
+- CRUD, FLS, and sharing enforcement
+- Human-in-the-loop approvals for sensitive actions
+- Detailed audit trails for requests, tool calls, and outcomes
+
+## Recommended Baseline
+
+1. Use sandbox-first rollout with representative data.
+2. Configure least-privilege integration users.
+3. Route high-risk actions through approval queues.
+4. Enable dashboards and alerting for execution anomalies.
+5. Review confidence and cost trends on a regular cadence.

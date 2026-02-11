@@ -1,23 +1,28 @@
 ---
-layout: default
-title: Examples
-nav_order: 8
-parent: Guides
+title: Use Cases and Examples
+description: Real-world scenarios and implementation patterns.
 ---
+
+import { Badge, Card, CardGrid, LinkButton } from '@astrojs/starlight/components';
 
 # Use Cases & Examples
-{: .no_toc }
 
 Real-world scenarios and implementation patterns.
-{: .fs-6 .fw-300 }
 
-## Table of contents
-{: .no_toc .text-delta }
+<p><Badge text="Playbooks" variant="note" size="small" /> <Badge text="Production Patterns" variant="success" size="small" /></p>
 
-1. TOC
-{:toc}
+<CardGrid>
+  <Card title="Customer Support Pattern" icon="seti:comment">
+    Search + update + follow-up with explicit approval checkpoints.
+  </Card>
+  <Card title="Sales Assistant Pattern" icon="seti:graph-line">
+    Pipeline context, activity logging, and next-step guidance.
+  </Card>
+</CardGrid>
 
----
+<LinkButton href="../configuration/" variant="secondary">Configuration Inputs</LinkButton>
+<LinkButton href="../developer-guide/" icon="right-arrow">Customize Patterns</LinkButton>
+
 
 ## Customer Support Agent
 

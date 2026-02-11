@@ -1,0 +1,21 @@
+---
+title: Architecture
+description: Runtime architecture and orchestration model.
+---
+
+## Control Plane Components
+
+- Orchestrators: conversational, function, and workflow execution paths
+- Context providers: dynamic data shaping and enrichment
+- Action handlers: governed operations and integrations
+- Provider adapters: OpenAI and extensible adapter pattern for additional providers
+- Observability: execution traces, confidence, cost and latency analytics
+
+## Execution Lifecycle
+
+1. Request enters an orchestrator.
+2. Prompt safety and policy checks run.
+3. Context and memory are assembled.
+4. LLM inference executes with selected capabilities.
+5. Actions run under permission and approval constraints.
+6. Execution records are persisted for analytics and auditing.

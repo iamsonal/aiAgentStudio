@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/images/logo.png" alt="AI Agent Studio Logo" width="150">
+  <img src="docs-starlight/public/logo.png" alt="AI Agent Studio Logo" width="150">
 </p>
 
 <h1 align="center">Salesforce AI Agent Framework</h1>

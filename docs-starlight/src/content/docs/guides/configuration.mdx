@@ -1,23 +1,36 @@
 ---
-layout: default
 title: Configuration
-nav_order: 3
-parent: Guides
+description: Complete reference for agent and capability settings.
 ---
+
+import { Aside, Badge, Card, CardGrid, LinkButton, Steps } from '@astrojs/starlight/components';
 
 # Configuration Guide
-{: .no_toc }
 
 Complete reference for all agent and capability settings.
-{: .fs-6 .fw-300 }
 
-## Table of contents
-{: .no_toc .text-delta }
+<Aside type="note" title="Use This Page As Your Admin Baseline">
+Start with agent + provider settings, then tune safety and performance as usage grows.
+</Aside>
 
-1. TOC
-{:toc}
+<CardGrid>
+  <Card title="Agent Settings" icon="seti:settings">Identity, memory, behavior, and runtime controls.</Card>
+  <Card title="Trust & Safety" icon="seti:lock">PII masking and prompt safety thresholds.</Card>
+  <Card title="Capability Design" icon="seti:tools">Implementation type, schemas, and execution rules.</Card>
+</CardGrid>
 
----
+<p><Badge text="Admin" variant="note" size="small" /> <Badge text="Security Critical" variant="caution" size="small" /> <Badge text="Reference" variant="default" size="small" /></p>
+
+<Steps>
+1. Configure core agent and LLM settings.
+2. Enable trust and safety controls.
+3. Define capability contracts and execution policies.
+4. Validate in sandbox before production rollout.
+</Steps>
+
+<LinkButton href="../troubleshooting/" variant="secondary">Troubleshooting Guide</LinkButton>
+<LinkButton href="../../reference/security/" icon="right-arrow">Security Reference</LinkButton>
+
 
 ## Agent Configuration
 
