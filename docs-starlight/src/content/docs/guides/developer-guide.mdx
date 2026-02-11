@@ -1,23 +1,36 @@
 ---
-layout: default
 title: Developer Guide
-nav_order: 4
-parent: Guides
+description: Build custom actions and context providers.
 ---
+
+import { Aside, Badge, FileTree, LinkButton } from '@astrojs/starlight/components';
 
 # Developer Guide
-{: .no_toc }
 
 Build custom actions and context providers to extend the AI Agent Framework.
-{: .fs-6 .fw-300 }
 
-## Table of contents
-{: .no_toc .text-delta }
+<p><Badge text="Developer" variant="tip" size="small" /> <Badge text="Advanced" variant="caution" size="small" /></p>
 
-1. TOC
-{:toc}
+<Aside type="tip" title="Implementation Flow">
+Start with a minimal custom action, validate with tests, then expand behavior and context providers incrementally.
+</Aside>
 
----
+## Suggested Workspace Paths
+
+<FileTree>
+- `force-app/`
+  - `main/default/classes/`
+    - `BaseAgentAction.cls`
+    - `IAgentAction.cls`
+    - `...custom actions...`
+- `seed-data/`
+  - `main/default/classes/`
+    - `...reference examples...`
+</FileTree>
+
+<LinkButton href="../getting-started/" variant="secondary">Setup Prerequisites</LinkButton>
+<LinkButton href="../../reference/actions/" icon="right-arrow">Action Reference</LinkButton>
+
 
 ## Overview
 

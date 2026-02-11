@@ -1,38 +1,47 @@
 ---
-layout: default
 title: Getting Started
-nav_order: 2
-parent: Guides
+description: Deploy and configure your first AI agent.
 ---
+
+import { Card, CardGrid, Steps } from '@astrojs/starlight/components';
+
 
 # Getting Started
-{: .no_toc }
 
 Complete guide to deploying and configuring your first AI agent.
-{: .fs-6 .fw-300 }
 
-<div class="reading-time">10 min read</div>
+> [!TIP]
+> Fastest path: run `cci flow run dev_org --org dev` with [CumulusCI](https://cumulusci.readthedocs.io/en/stable/get-started.html).  
+> Manual path: clone repo, deploy with SF CLI, create Named Credential, create LLM Config, create Agent, add capabilities, add chat component.
 
-<div class="tldr-box">
-  <div class="tldr-title">TL;DR</div>
-  <p><strong>Fastest way:</strong> Run <code>cci flow run dev_org --org dev</code> with <a href="https://cumulusci.readthedocs.io/en/stable/get-started.html">CumulusCI</a></p>
-  <p><strong>Manual setup:</strong> Clone repo, deploy with SF CLI, create Named Credential, create LLM Config, create Agent, add Capabilities, add chat component, test!</p>
-</div>
+## Setup Flow
 
-## Table of contents
-{: .no_toc .text-delta }
+<Steps>
+1. Deploy the framework.
+2. Configure Named Credentials.
+3. Create an LLM Configuration.
+4. Create your first agent.
+5. Add capabilities.
+6. Add the chat component and test.
+</Steps>
 
-1. TOC
-{:toc}
+<CardGrid>
+  <Card title="Configuration Reference" href="../configuration/">
+    Field-level settings for agents, safety controls, and runtime behavior.
+  </Card>
+  <Card title="Developer Guide" href="../developer-guide/">
+    Build custom actions and context providers.
+  </Card>
+  <Card title="Troubleshooting" href="../troubleshooting/">
+    Diagnose setup and runtime issues quickly.
+  </Card>
+</CardGrid>
 
----
 
 ## Prerequisites
 
-<div class="callout callout-tip">
-  <div class="callout-title">💡 Tip</div>
-  <p>We recommend starting with a Sandbox org for initial setup and testing.</p>
-</div>
+> [!TIP]
+> Start with a Sandbox org for initial setup and testing.
 
 Before you begin, ensure you have:
 
@@ -50,7 +59,7 @@ Before you begin, ensure you have:
 
 ### Option 1: CumulusCI (Recommended for Scratch Orgs)
 
-[CumulusCI](https://cumulusci.readthedocs.io/en/stable/get-started.html) provides the fastest way to get started with a fully configured scratch org.
+[CumulusCI](https://cumulusci.readthedocs.io/en/stable/get-started/) provides the fastest way to get started with a fully configured scratch org.
 
 ```bash
 # Clone the repository
@@ -100,10 +109,8 @@ sf project deploy start -d force-app/main/default -o your-org-alias
 
 ## Step 2: Configure Named Credentials
 
-<div class="callout callout-warning">
-  <div class="callout-title">⚠️ Security Note</div>
-  <p>Never commit API keys to source control. Named Credentials keep your keys secure and separate from your code.</p>
-</div>
+> [!CAUTION]
+> Never commit API keys to source control. Named Credentials keep secrets out of metadata.
 
 Named Credentials securely store your AI provider API keys.
 
@@ -213,10 +220,8 @@ You are professional, concise, and always confirm before making changes.
 
 ## Step 5: Add Capabilities
 
-<div class="callout callout-note">
-  <div class="callout-title">📝 Note</div>
-  <p>Capabilities are the "tools" your agent can use. Start with read-only capabilities and add write capabilities once you're comfortable with the framework.</p>
-</div>
+> [!NOTE]
+> Capabilities are the tools your agent can use. Start with read-only capabilities, then add write capabilities.
 
 Capabilities define what actions your agent can perform.
 
@@ -351,8 +356,8 @@ Agent: ✓ Task created successfully!
 
 Now that you have a working agent, explore:
 
-- [Configuration Guide](configuration.html) - Deep dive into all settings
-- [Standard Actions](actions.html) - All available built-in actions
-- [Custom Actions](developer-guide.html#custom-actions) - Build your own capabilities
-- [Security](security.html) - Permissions and best practices
-- [Troubleshooting](troubleshooting.html) - Common issues and solutions
+- [Configuration Guide](../configuration/) - Deep dive into all settings
+- [Standard Actions](../../reference/actions/) - All available built-in actions
+- [Custom Actions](../developer-guide/#custom-actions) - Build your own capabilities
+- [Security](../../reference/security/) - Permissions and best practices
+- [Troubleshooting](../troubleshooting/) - Common issues and solutions

@@ -1,0 +1,51 @@
+---
+title: API Reference
+description: REST API access patterns and artifacts.
+---
+
+import { LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Base Endpoint
+
+`/services/apexrest/ai/agent`
+
+## Common Endpoints
+
+- `POST /process` for chat turn processing
+- `POST /approve` for HITL action approvals
+- `POST /reject` for HITL action rejection
+
+## Authentication
+
+Use Salesforce authentication (session token or OAuth) and include:
+
+<Tabs>
+  <TabItem label="Headers">
+
+```text
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Content-Type: application/json
+```
+
+  </TabItem>
+  <TabItem label="cURL Example">
+
+```bash
+curl -X POST "https://YOUR-INSTANCE.salesforce.com/services/apexrest/ai/agent/process" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"sessionId":"...","agentDefinitionId":"...","turnIdentifier":"...","userMessage":"hello"}'
+```
+
+  </TabItem>
+</Tabs>
+
+## OpenAPI Assets
+
+<LinkCard title="openapi.yml" href="../../openapi.yml">
+  YAML specification for generated clients and API tooling.
+</LinkCard>
+
+<LinkCard title="openapi.json" href="../../openapi.json">
+  JSON specification for machine-consumable workflows.
+</LinkCard>

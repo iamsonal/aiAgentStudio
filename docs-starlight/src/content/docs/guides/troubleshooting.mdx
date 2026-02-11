@@ -1,23 +1,21 @@
 ---
-layout: default
 title: Troubleshooting
-nav_order: 7
-parent: Guides
+description: Common issues and resolutions.
 ---
+
+import { Aside, LinkButton, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # Troubleshooting
-{: .no_toc }
 
 Common issues and how to resolve them.
-{: .fs-6 .fw-300 }
 
-## Table of contents
-{: .no_toc .text-delta }
+<Aside type="tip" title="Triage Order">
+Validate credentials first, then permissions, then model behavior, then performance tuning.
+</Aside>
 
-1. TOC
-{:toc}
+<LinkButton href="../configuration/" variant="secondary">Check Configuration</LinkButton>
+<LinkButton href="../getting-started/" icon="right-arrow">Re-run Setup Flow</LinkButton>
 
----
 
 ## Agent Not Responding
 
@@ -123,25 +121,28 @@ Then verify the profile/permission set grants CRUD on target objects.
 
 **Improve Descriptions**
 
-<div class="code-wrong" markdown="1">
+<Tabs>
+  <TabItem label="Poor Example">
 
-```
+```text
 Gets contacts
 ```
 
-</div>
+  </TabItem>
+  <TabItem label="Better Example">
 
-Too vague - the AI won't know when to use this.
-
-<div class="code-correct" markdown="1">
-
-```
+```text
 Search for contacts by name, email, or account.
 Use when users ask to find contact information.
 Do NOT use for creating contacts or searching accounts.
 ```
 
-</div>
+  </TabItem>
+</Tabs>
+
+Too vague descriptions cause the model to choose tools inconsistently.
+
+
 
 **Add Examples**
 ```
@@ -208,7 +209,8 @@ Use a JSON validator to check:
 
 **Common Issues**
 
-<div class="code-wrong" markdown="1">
+<Tabs>
+  <TabItem label="Trailing Comma (Invalid)">
 
 ```json
 {
@@ -216,11 +218,8 @@ Use a JSON validator to check:
 }
 ```
 
-</div>
-
-Trailing commas are not allowed in JSON.
-
-<div class="code-correct" markdown="1">
+  </TabItem>
+  <TabItem label="Valid JSON">
 
 ```json
 {
@@ -228,9 +227,8 @@ Trailing commas are not allowed in JSON.
 }
 ```
 
-</div>
-
-<div class="code-wrong" markdown="1">
+  </TabItem>
+  <TabItem label="Single Quotes (Invalid)">
 
 ```json
 {
@@ -238,19 +236,10 @@ Trailing commas are not allowed in JSON.
 }
 ```
 
-</div>
+  </TabItem>
+</Tabs>
 
-JSON requires double quotes, not single quotes.
 
-<div class="code-correct" markdown="1">
-
-```json
-{
-  "field": "value"
-}
-```
-
-</div>
 
 ---
 
@@ -321,11 +310,13 @@ If using High Concurrency mode:
 ### Before Asking for Help
 
 Gather this information:
+<Steps>
 1. Agent configuration (type, memory, history limit)
 2. Capability configuration (description, parameters)
 3. Error messages (exact text)
 4. Decision step data (if available)
 5. Debug log excerpts (relevant sections)
+</Steps>
 
 ### Resources
 

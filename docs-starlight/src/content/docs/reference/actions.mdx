@@ -1,0 +1,31 @@
+---
+title: Standard Actions
+description: Built-in actions available in AI Agent Studio.
+---
+
+import { Card, CardGrid, Steps } from '@astrojs/starlight/components';
+
+## Core Action Types
+
+<CardGrid>
+  <Card title="GetRecordDetails">Read/search Salesforce records with constrained fields.</Card>
+  <Card title="CreateRecord">Create records with schema-validated inputs.</Card>
+  <Card title="UpdateRecord">Update records with permission and approval controls.</Card>
+  <Card title="RunFlow">Trigger configured flows for structured automations.</Card>
+  <Card title="PostChatter">Publish Chatter updates as part of execution workflows.</Card>
+</CardGrid>
+
+## Typical Action Contract
+
+- Human-readable capability description
+- JSON Schema parameters for model guidance
+- Backend configuration for object or operation context
+- Optional approval requirement and policy constraints
+
+## Best Practices
+
+<Steps>
+1. Keep capability descriptions explicit and task-scoped.
+2. Use strict parameter schemas with enums and required fields.
+3. Start with read-only actions before enabling writes.
+</Steps>

@@ -1,0 +1,137 @@
+---
+title: AI Agent Studio
+description: Enterprise AI control plane for secure Salesforce agent orchestration.
+template: splash
+hero:
+  tagline: Enterprise AI Control Plane for Salesforce
+  actions:
+    - text: Get Started
+      link: getting-started/
+      icon: right-arrow
+      variant: primary
+    - text: GitHub Repository
+      link: https://github.com/iamsonal/aiAgentStudio
+      variant: minimal
+---
+
+import { Aside, Badge, Card, CardGrid, Icon, LinkButton, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+
+<div class="hero-shell">
+  <div class="hero-kicker">Built for governed enterprise AI</div>
+  <p><Badge text="Open Source" variant="success" size="small" /> <Badge text="Enterprise Ready" variant="note" size="small" /> <Badge text="Salesforce Native" variant="tip" size="small" /></p>
+  Build intelligent AI agents powered by LLMs that integrate directly with Salesforce, with governance and observability built in.
+
+  <div class="hero-grid">
+    <div class="stat-tile"><strong>6-step setup</strong><br />From deploy to first working agent.</div>
+    <div class="stat-tile"><strong>Trust Layers</strong><br />PII masking and prompt-safety controls.</div>
+    <div class="stat-tile"><strong>Multi-Provider</strong><br />OpenAI included with extensible adapters.</div>
+  </div>
+</div>
+
+<Aside type="caution" title="Repository Scope">
+This public repository contains the core framework. The `aiAgentStudioAddons` package includes proprietary extensions that are not part of open source.
+</Aside>
+
+## Why AgentStudio
+
+<CardGrid>
+  <Card title="No-Code + Pro-Code" icon="seti:settings">
+    Admin-friendly setup with clear extension points for developers.
+  </Card>
+  <Card title="Security by Default" icon="seti:lock">
+    CRUD/FLS/sharing enforcement, auditability, and configurable guardrails.
+  </Card>
+  <Card title="Operational Visibility" icon="seti:graph-line">
+    Execution traces, tool outcomes, confidence, latency, and cost telemetry.
+  </Card>
+</CardGrid>
+
+## Who It Is For
+
+<CardGrid>
+  <Card title="Admins" icon="seti:settings">
+    Configure AI behavior, capability access, and approvals without custom orchestration code.
+  </Card>
+  <Card title="Managers" icon="seti:graph-line">
+    Monitor reliability, risk, and business impact with observable agent operations.
+  </Card>
+  <Card title="Developers" icon="seti:code">
+    Extend with provider adapters, custom actions, and context providers.
+  </Card>
+</CardGrid>
+
+## Agent Types
+
+<CardGrid>
+  <Card title="Conversational Agents" icon="chat">
+    Multi-turn assistants with memory and contextual reasoning.
+  </Card>
+  <Card title="Function Agents" icon="seti:gear">
+    One-shot specialists for summarization, classification, and enrichment.
+  </Card>
+  <Card title="Workflow Agents" icon="seti:graph-line">
+    Orchestrated multi-step execution with state and approvals.
+  </Card>
+</CardGrid>
+
+## Security and Trust Layers
+
+<Tabs>
+  <TabItem label="Platform Security">
+
+<ul>
+  <li>Agents run in user context (no implicit privilege escalation)</li>
+  <li>Object and field permissions are enforced automatically</li>
+  <li>Sharing rules are respected for record-level access</li>
+  <li>All execution decisions and actions are logged</li>
+</ul>
+
+  </TabItem>
+  <TabItem label="Trust Layers">
+
+<ul>
+  <li>PII masking before outbound model calls</li>
+  <li>Prompt safety checks for jailbreak/prompt injection patterns</li>
+  <li>Configurable response modes and safety thresholds</li>
+  <li>Recommended to validate in sandbox before production rollout</li>
+</ul>
+
+  </TabItem>
+</Tabs>
+
+## Quick Start
+
+<Aside type="tip" title="Time to First Agent">
+You can have a working first agent in about 30 minutes.
+</Aside>
+
+<Steps>
+1. Deploy the framework to your org.
+2. Configure Named Credentials for your AI provider.
+3. Create an LLM Configuration.
+4. Create an AI Agent Definition.
+5. Add capabilities and configure approvals.
+6. Place the chat component on a Lightning page and test.
+</Steps>
+
+<p><Icon name="rocket" /> Start with the guided setup and iterate from observability data.</p>
+
+<LinkButton href="getting-started/" icon="right-arrow">Launch Setup Guide</LinkButton>
+<LinkButton href="reference/security/" variant="secondary">Security Model</LinkButton>
+
+## Continue
+
+<CardGrid>
+  <LinkCard title="Getting Started" href="getting-started/">
+    Complete setup walkthrough from deployment to first conversation.
+  </LinkCard>
+  <LinkCard title="Configuration" href="guides/configuration/">
+    Agent, capability, safety, and runtime settings reference.
+  </LinkCard>
+  <LinkCard title="Developer Guide" href="guides/developer-guide/">
+    Custom actions, context providers, and implementation patterns.
+  </LinkCard>
+  <LinkCard title="API Reference" href="reference/api-reference/">
+    Endpoint usage and OpenAPI artifacts.
+  </LinkCard>
+</CardGrid>
