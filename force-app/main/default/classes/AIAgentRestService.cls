@@ -531,7 +531,7 @@ global with sharing class AIAgentRestService {
         return String.valueOf(Crypto.getRandomLong()).substring(1, 9);
     }
 
-    global class AIAgentRequest {
+    public class AIAgentRequest {
         public String sessionId { get; set; } // Optional for new executions
         public String originalUserId { get; set; }
         public String agentDefinitionId { get; set; }
@@ -561,7 +561,7 @@ global with sharing class AIAgentRestService {
         }
     }
 
-    global class HITLToolRequest {
+    public class HITLToolRequest {
         public String pendingActionId { get; set; }
         public String executionId { get; set; }
         public String capabilityId { get; set; }
@@ -575,14 +575,14 @@ global with sharing class AIAgentRestService {
         public Boolean needsFollowUp { get; set; }
     }
 
-    global class HITLFollowUpRequest {
+    public class HITLFollowUpRequest {
         public String executionId { get; set; }
         public String turnIdentifier { get; set; }
         public Decimal turnCount { get; set; }
         public String sourceRecordId { get; set; }
     }
 
-    global class ResumeRequest {
+    public class ResumeRequest {
         public String executionId { get; set; }
         public String resumeReason { get; set; }
         public Boolean retryFailedTool { get; set; }

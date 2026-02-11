@@ -1,8 +1,12 @@
 {
   "packageDirectories": [
     {
+      "versionName": "ver 0.1",
+      "versionNumber": "0.1.0.NEXT",
       "path": "force-app",
-      "default": true
+      "default": true,
+      "package": "aiAgentStudio",
+      "versionDescription": "AI Agent Studio core framework"
     },
     {
       "path": "seed-data",
@@ -16,5 +20,8 @@
   "name": "aiAgent",
   "namespace": "",
   "sfdcLoginUrl": "https://login.salesforce.com",
-  "sourceApiVersion": "63.0"
+  "sourceApiVersion": "63.0",
+  "packageAliases": {
+    "aiAgentStudio": "0HoHu000000c68lKAA"
+  }
 }

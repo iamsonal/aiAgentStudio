@@ -34,8 +34,11 @@ public without sharing class SummarizeConversationQueueable implements Queueable
         System.debug(LoggingLevel.INFO, logPrefix + 'Summarization job started for AgentExecution.');
 
         AIAgentDefinition__c primaryAgentConfig = null;
+        AIAgentDefinition__c summarizationAgentConfig = null;
         LLMConfiguration__c llmConfigToUse = null;
         String promptTemplateToUse = '';
+        PIIMaskingService maskingService = null;
+        PromptSafetyService safetyService = null;
         String currentJobId = (String) context.getJobId();
 
         AgentExecution__c execution = null;
@@ -67,10 +70,12 @@ public without sharing class SummarizeConversationQueueable implements Queueable
 
             if (primaryAgentConfig.SummarizerAgent__c != null && primaryAgentConfig.SummarizerAgent__c != null) {
                 AIAgentDefinition__c summarizerAgent = primaryAgentConfig.SummarizerAgent__r;
+                summarizationAgentConfig = summarizerAgent;
                 llmConfigToUse = AIAgentConfigService.getLLMConfiguration(summarizerAgent.LLMConfiguration__c);
                 promptTemplateToUse = summarizerAgent.InstructionsPrompt__c;
                 System.debug(LoggingLevel.INFO, logPrefix + 'Using dedicated summarizer agent: ' + summarizerAgent.DeveloperName__c);
             } else {
+                summarizationAgentConfig = primaryAgentConfig;
                 llmConfigToUse = AIAgentConfigService.getLLMConfiguration(primaryAgentConfig.LLMConfiguration__c);
                 promptTemplateToUse = FALLBACK_PROMPT_TEMPLATE;
                 System.debug(LoggingLevel.WARN, logPrefix + 'No summarizer agent linked. Falling back to primary agent LLM and default prompt.');
@@ -79,6 +84,9 @@ public without sharing class SummarizeConversationQueueable implements Queueable
             if (String.isBlank(promptTemplateToUse)) {
                 throw new SummarizationException('Summarization prompt template is blank for both the dedicated summarizer and the fallback.');
             }
+
+            maskingService = PIIMaskingService.createForAgent(summarizationAgentConfig, this.executionId);
+            safetyService = PromptSafetyService.createForAgent(summarizationAgentConfig, this.executionId);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to load summarization configuration: ' + e.getMessage());
             return;
@@ -107,14 +115,38 @@ public without sharing class SummarizeConversationQueueable implements Queueable
 
         String currentSummary = String.isNotBlank(execution.ConversationSummary__c) ? execution.ConversationSummary__c : 'The execution has just begun.';
         String prompt = promptTemplateToUse.replace('{current_summary}', currentSummary).replace('{new_lines}', newLines);
+        String outboundPrompt = prompt;
+
+        if (maskingService != null) {
+            outboundPrompt = maskingService.maskText(outboundPrompt);
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Applied PII masking to summarization prompt.');
+        }
+
+        if (safetyService != null) {
+            ThreatAssessment assessment = safetyService.checkMessage(outboundPrompt);
+            if (assessment.shouldBlock()) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Summarization prompt blocked by safety policy. Skipping summarization.');
+                return;
+            }
+            if (assessment.hasSanitizedContent()) {
+                outboundPrompt = assessment.getSanitizedContent();
+                System.debug(LoggingLevel.INFO, logPrefix + 'Summarization prompt sanitized by safety policy.');
+            }
+        }
 
         try {
             ILLMProviderAdapter adapter = LLMInteractionService.getLLMProviderAdapter(llmConfigToUse);
-            List<Map<String, Object>> messagesPayload = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => prompt } };
+            List<Map<String, Object>> messagesPayload = new List<Map<String, Object>>{
+                new Map<String, Object>{ 'role' => 'user', 'content' => outboundPrompt }
+            };
             ProviderResult result = adapter.sendMessage(messagesPayload, null, llmConfigToUse, null);
 
             if (result != null && String.isNotBlank(result.content)) {
-                AgentExecution__c executionToUpdate = new AgentExecution__c(Id = this.executionId, ConversationSummary__c = result.content);
+                String summarizedContent = result.content;
+                if (maskingService != null) {
+                    summarizedContent = maskingService.unmaskText(summarizedContent);
+                }
+                AgentExecution__c executionToUpdate = new AgentExecution__c(Id = this.executionId, ConversationSummary__c = summarizedContent);
                 update executionToUpdate;
 
                 List<Id> stepIdsToMarkSummarized = new List<Id>();

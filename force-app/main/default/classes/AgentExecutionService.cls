@@ -9,7 +9,7 @@
 /**
  * @description Unified entry point for agent execution. Handles service user context switching and delegates to orchestrators.
  */
-public inherited sharing class AgentExecutionService {
+global inherited sharing class AgentExecutionService {
     private static final String LOG_PREFIX = '[AgentExecutionService] ';
 
     @TestVisible
@@ -162,7 +162,7 @@ public inherited sharing class AgentExecutionService {
         Category='AI Agent'
         IconName='slds:standard:bot'
     )
-    public static List<ExecutionResult> startExecutionFromFlow(List<InvocableRequest> requests) {
+    global static List<ExecutionResult> startExecutionFromFlow(List<InvocableRequest> requests) {
         if (requests.isEmpty()) {
             return new List<ExecutionResult>();
         }
@@ -284,22 +284,22 @@ public inherited sharing class AgentExecutionService {
     /**
      * @description Flow-friendly request wrapper for @InvocableMethod.
      */
-    public class InvocableRequest {
+    global class InvocableRequest {
         @InvocableVariable(Label='Agent Name' Description='The developer name of the AI agent to execute (e.g., Case_Processing_Workflow)' Required=true)
-        public String agentName;
+        global String agentName;
 
         @InvocableVariable(
             Label='Record ID'
             Description='The record to process. In record-triggered flows, use $Record.Id. Flow automatically bulkifies multiple records.'
             Required=true
         )
-        public Id recordId;
+        global Id recordId;
 
         @InvocableVariable(Label='User Message' Description='Optional message for conversational agents. Leave blank for autonomous agents.')
-        public String userMessage;
+        global String userMessage;
 
         @InvocableVariable(Label='Trigger Source' Description='Optional identifier for tracking where the execution originated (e.g., "Case Creation Flow")')
-        public String triggerSource;
+        global String triggerSource;
     }
 
     /**
@@ -465,26 +465,26 @@ public inherited sharing class AgentExecutionService {
         }
     }
 
-    public class ExecutionResult {
+    global class ExecutionResult {
         @AuraEnabled
         @InvocableVariable(Label='Execution ID' Description='The ID of the created AgentExecution__c record. Use this to track execution progress.')
-        public Id executionId;
+        global Id executionId;
 
         @AuraEnabled
         @InvocableVariable(Label='Status' Description='Current execution status (e.g., Processing, Completed, Failed)')
-        public String status;
+        global String status;
 
         @AuraEnabled
         @InvocableVariable(Label='Message' Description='Human-readable status message describing the execution state')
-        public String message;
+        global String message;
 
         @AuraEnabled
         @InvocableVariable(Label='Success' Description='True if execution started successfully, false if there was an error')
-        public Boolean success;
+        global Boolean success;
 
         @AuraEnabled
         @InvocableVariable(Label='Error Message' Description='Detailed error information if the execution failed to start')
-        public String errorMessage;
+        global String errorMessage;
 
         public ExecutionResult(Id executionId, String status, String message) {
             this.executionId = executionId;
