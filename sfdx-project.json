@@ -7,17 +7,9 @@
       "default": true,
       "package": "aiAgentStudio",
       "versionDescription": "AI Agent Studio core framework"
-    },
-    {
-      "path": "seed-data",
-      "default": false
-    },
-    {
-      "path": "aiAgentStudioAddons",
-      "default": false
     }
   ],
-  "name": "aiAgent",
+  "name": "aiAgentStudio",
   "namespace": "",
   "sfdcLoginUrl": "https://login.salesforce.com",
   "sourceApiVersion": "63.0",
