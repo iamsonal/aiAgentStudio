@@ -34,12 +34,12 @@ See how Function Agents orchestrate Account-Based Marketing campaigns with intel
 
 **[View Full Documentation →](https://iamsonal.github.io/aiAgentStudio/)**
 
-- [Getting Started Guide](https://iamsonal.github.io/aiAgentStudio/getting-started)
-- [Configuration Reference](https://iamsonal.github.io/aiAgentStudio/configuration)
-- [Standard Actions](https://iamsonal.github.io/aiAgentStudio/actions)
-- [Developer Guide](https://iamsonal.github.io/aiAgentStudio/developer-guide) - Custom actions & context providers
-- [Security Guide](https://iamsonal.github.io/aiAgentStudio/security)
-- [Troubleshooting](https://iamsonal.github.io/aiAgentStudio/troubleshooting)
+- [Getting Started Guide](https://iamsonal.github.io/aiAgentStudio/guides/getting-started/)
+- [Configuration Reference](https://iamsonal.github.io/aiAgentStudio/guides/configuration/)
+- [Standard Actions](https://iamsonal.github.io/aiAgentStudio/reference/actions/)
+- [Developer Guide](https://iamsonal.github.io/aiAgentStudio/guides/developer-guide/) - Custom actions & context providers
+- [Security Guide](https://iamsonal.github.io/aiAgentStudio/reference/security/)
+- [Troubleshooting](https://iamsonal.github.io/aiAgentStudio/guides/troubleshooting/)
 
 ---
 
@@ -194,7 +194,7 @@ sf project deploy start -d force-app/main/default -o your-org-alias
 4. **Add Capabilities** (tools) the agent can use
 5. **Add Chat Component** to a Lightning page
 
-👉 **[Full Getting Started Guide →](https://iamsonal.github.io/aiAgentStudio/getting-started)**
+👉 **[Full Getting Started Guide →](https://iamsonal.github.io/aiAgentStudio/guides/getting-started/)**
 
 ---
 
@@ -218,7 +218,7 @@ sf project deploy start -d force-app/main/default -o your-org-alias
 - `IMemoryManager` - Implement custom conversation memory strategies
 - `IAgentOrchestrator` - Create new agent types
 
-👉 **[Architecture Details →](https://iamsonal.github.io/aiAgentStudio/architecture)** | **[Developer Guide →](https://iamsonal.github.io/aiAgentStudio/developer-guide)**
+👉 **[Architecture Details →](https://iamsonal.github.io/aiAgentStudio/reference/architecture/)** | **[Developer Guide →](https://iamsonal.github.io/aiAgentStudio/guides/developer-guide/)**
 
 ---
 
