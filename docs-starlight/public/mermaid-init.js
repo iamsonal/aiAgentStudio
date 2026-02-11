@@ -1,14 +1,34 @@
-import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-
 const MERMAID_SELECTOR = 'pre[data-language="mermaid"]';
+const MERMAID_CDN_URLS = [
+  'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs',
+  'https://unpkg.com/mermaid@11/dist/mermaid.esm.min.mjs'
+];
+let mermaidApi;
 
-function getMermaidSource(pre) {
-  const copyButton = pre.closest('.expressive-code')?.querySelector('button[data-code]');
-  const encodedSource = copyButton?.getAttribute('data-code');
-  if (encodedSource) {
-    return encodedSource.split('\u007f').join('\n').trim();
+function decodeHtmlEntities(text) {
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = text;
+  return textarea.value;
+}
+
+async function loadMermaid() {
+  if (mermaidApi) return mermaidApi;
+
+  let lastError;
+  for (const url of MERMAID_CDN_URLS) {
+    try {
+      const mod = await import(url);
+      mermaidApi = mod.default;
+      return mermaidApi;
+    } catch (error) {
+      lastError = error;
+    }
   }
 
+  throw lastError || new Error('Failed to load Mermaid.');
+}
+
+function getMermaidSource(pre) {
   const lineNodes = pre.querySelectorAll('.ec-line .code');
   if (lineNodes.length > 0) {
     return Array.from(lineNodes)
@@ -17,12 +37,19 @@ function getMermaidSource(pre) {
       .trim();
   }
 
+  const copyButton = pre.closest('.expressive-code')?.querySelector('button[data-code]');
+  const encodedSource = copyButton?.getAttribute('data-code');
+  if (encodedSource) {
+    return decodeHtmlEntities(encodedSource.split('\u007f').join('\n')).trim();
+  }
+
   return (pre.textContent || '').trim();
 }
 
 async function renderMermaidDiagrams() {
   const mermaidBlocks = document.querySelectorAll(MERMAID_SELECTOR);
   if (mermaidBlocks.length === 0) return;
+  const mermaid = await loadMermaid();
 
   const theme = document.documentElement.classList.contains('dark') ? 'dark' : 'neutral';
   mermaid.initialize({
