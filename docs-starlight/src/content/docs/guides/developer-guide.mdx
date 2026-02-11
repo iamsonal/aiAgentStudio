@@ -105,46 +105,23 @@ Custom actions allow agents to perform operations beyond the standard CRUD actio
 ### Architecture Overview
 
 ```mermaid
-classDiagram
-    class IAgentAction {
-        <<interface>>
-        +execute(configJson, argsJson, context) ActionOutcome
-    }
+sequenceDiagram
+    participant Framework as Framework Runtime
+    participant Base as BaseAgentAction
+    participant Action as YourCustomAction
+    participant Config as ConfigDTO
+    participant Args as ArgumentsDTO
+    participant Outcome as ActionOutcome
 
-    class BaseAgentAction {
-        <<abstract>>
-        #actionContext : ActionContext
-        #parsedActionConfig : Map
-        +execute(configJson, argsJson, context) ActionOutcome
-        +executeAction(params)* ActionOutcome
-        #parseActionConfiguration(json, prefix)
-        -mapExceptionToOutcome(ex, prefix) ActionOutcome
-    }
-
-    class YourCustomAction {
-        -config : ConfigDTO
-        +executeAction(params) ActionOutcome
-        #parseActionConfiguration(json, prefix)
-    }
-
-    class ConfigDTO {
-        +yourConfigField : Type
-    }
-
-    class ArgumentsDTO {
-        +yourParamField : Type
-    }
-
-    IAgentAction <|.. BaseAgentAction : implements
-    BaseAgentAction <|-- YourCustomAction : extends
-    YourCustomAction *-- ConfigDTO : uses
-    YourCustomAction *-- ArgumentsDTO : uses
+    Framework->>Base: execute(configJson, argsJson, context)
+    Base->>Action: parseActionConfiguration(configJson)
+    Action->>Config: load admin settings
+    Base->>Action: executeAction(params)
+    Action->>Args: parse runtime arguments
+    Action-->>Base: success/failure result
+    Base-->>Outcome: standardized ActionOutcome
+    Outcome-->>Framework: return to orchestrator
 ```
-
-**Key responsibilities:**
-- `IAgentAction` - Interface contract for all actions
-- `BaseAgentAction` - Configuration parsing, error handling, logging
-- `YourCustomAction` - Business logic implementation
 
 ### Step-by-Step Implementation
 
@@ -448,29 +425,23 @@ Context providers supply dynamic, relevant data to agents during conversations. 
 ### Architecture Overview
 
 ```mermaid
-classDiagram
-    class IAgentContextProvider {
-        <<interface>>
-        +getContext(anchorIds, userId, configJson) Map~String, List~SObject~~
-    }
+sequenceDiagram
+    participant Orchestrator
+    participant Resolver as ContextResolverService
+    participant Provider as YourContextProvider
+    participant Config as ProviderConfig
+    participant Data as Salesforce Data
+    participant Context as Context Map
 
-    class YourContextProvider {
-        +getContext(anchorIds, userId, configJson) Map~String, List~SObject~~
-        -queryRelatedRecords(ids) List~SObject~
-        -parseConfig(json) ProviderConfig
-    }
-
-    class ProviderConfig {
-        +configField : Type
-    }
-
-    IAgentContextProvider <|.. YourContextProvider : implements
-    YourContextProvider *-- ProviderConfig : uses
+    Orchestrator->>Resolver: resolve(anchorIds, userId)
+    Resolver->>Provider: getContext(anchorIds, userId, configJson)
+    Provider->>Config: parseConfig(configurationJson)
+    Provider->>Data: query related records (USER_MODE)
+    Data-->>Provider: records
+    Provider-->>Context: build labeled context blocks
+    Context-->>Resolver: context payload
+    Resolver-->>Orchestrator: aggregated context
 ```
-
-**Key responsibilities:**
-- `IAgentContextProvider` - Interface contract for all context providers
-- `YourContextProvider` - Query logic, security enforcement, context labeling
 
 ### Step-by-Step Implementation
 
