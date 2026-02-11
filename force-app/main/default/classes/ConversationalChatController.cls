@@ -324,7 +324,7 @@ public with sharing class ConversationalChatController {
      */
     private static void validateExecutionAccess(Id executionId) {
         try {
-            Integer c = [SELECT COUNT() FROM AgentExecution__c WHERE Id = :executionId AND User__c = :UserInfo.getUserId() WITH USER_MODE];
+            Integer c = [SELECT COUNT() FROM AgentExecution__c WHERE Id = :executionId AND User__c = :UserInfo.getUserId()];
             if (c == 0)
                 throw new AuraHandledException('Agent execution not found or access denied.');
         } catch (Exception e) {
@@ -354,7 +354,6 @@ public with sharing class ConversationalChatController {
                 SELECT Id
                 FROM AgentExecution__c
                 WHERE User__c = :userId AND AIAgentDefinition__c = :agentDef.Id AND ExecutionType__c = 'Conversational'
-                WITH USER_MODE
                 ORDER BY LastActivityTime__c DESC NULLS LAST
                 LIMIT 1
             ];
@@ -401,7 +400,6 @@ public with sharing class ConversationalChatController {
                 SELECT Timestamp__c
                 FROM ExecutionStep__c
                 WHERE TurnIdentifier__c = :turnIdentifier AND AgentExecution__c = :sessionId
-                WITH USER_MODE
                 ORDER BY Timestamp__c ASC
             ];
 
@@ -417,7 +415,6 @@ public with sharing class ConversationalChatController {
                 SELECT Id, TurnIdentifier__c
                 FROM ExecutionStep__c
                 WHERE AgentExecution__c = :sessionId AND Timestamp__c >= :targetTimestamp
-                WITH USER_MODE
             ];
 
             if (!stepsToDelete.isEmpty()) {
@@ -439,8 +436,8 @@ public with sharing class ConversationalChatController {
                         targetTimestamp
                 );
 
-                // Delete the execution steps
-                delete as user stepsToDelete;
+                // Delete the execution steps. We rely on class sharing + explicit execution ownership checks.
+                delete stepsToDelete;
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error starting over from step with turnIdentifier ' + turnIdentifier + ': ' + e.getMessage());
