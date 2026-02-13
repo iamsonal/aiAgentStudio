@@ -659,9 +659,16 @@ public with sharing class CaseProcessingWorkflowFactory {
      * @description Step 1: Case Triage & Routing Agent
      * Classifies cases, scores urgency, filters spam, routes to queue, suggests knowledge
      * Receives pre-loaded context (Case, Account, Contact, Entitlement) from workflow config
-     * Capabilities: classify_and_update_case, search_knowledge_base, assign_to_queue, add_internal_comment, attach_knowledge_articles
+     * Capabilities (lean): classify_and_update_case, search_knowledge_base, assign_to_queue
      */
     private static Id createCaseTriageAgent(Id llmConfigId) {
+        String instructionsPrompt = 'Analyze the case using provided context (Case, Account, Contact, Entitlement).\n\n' +
+            '1) Detect spam and low-quality submissions.\n' +
+            '2) Classify and set Case fields with `classify_and_update_case`.\n' +
+            '3) Route case to the correct queue with `assign_to_queue`.\n' +
+            '4) Search knowledge with `search_knowledge_base` using 2-4 keywords from Subject.\n' +
+            'Keep execution concise and deterministic.';
+
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Case Triage & Routing Agent',
             DeveloperName__c = 'Case_Triage_Routing_Agent',
@@ -672,21 +679,7 @@ public with sharing class CaseProcessingWorkflowFactory {
             EnableParallelToolCalling__c = true,
             ContextFormatStrategy__c = 'Structured Text',
             IdentityPrompt__c = 'You are a Case Triage Specialist for a support organization. You analyze incoming cases, classify them accurately, detect spam, route to the correct queue, and suggest relevant knowledge articles.',
-            InstructionsPrompt__c = 'Analyze the case using the provided context (Case, Account, Contact, Entitlement).\n\n' +
-                '**1. SPAM DETECTION:** Check for spam indicators: gibberish, phishing, test submissions, promotional content. If spam → mark as "Closed" with Reason="Other".\n\n' +
-                '**2. CLASSIFICATION:**\n' +
-                '- Type: Mechanical, Electrical, Electronic, Structural, Other\n' +
-                '- Reason: Installation, Equipment Complexity, Performance, Breakdown, Equipment Design, Feedback, Other\n\n' +
-                '**3. URGENCY SCORING (Priority field - High/Medium/Low):**\n' +
-                '- High: "system down", "revenue impact", "data loss", ">50 users affected", "broken", "not working", "urgent", Premium customer SLA\n' +
-                '- Medium: Standard issues with workarounds, moderate impact\n' +
-                '- Low: Questions, minor issues, general inquiries\n\n' +
-                '**4. ROUTING:**\n' +
-                '- Technical issues (Mechanical/Electrical/Electronic) → Engineering_Support_Queue\n' +
-                '- Billing/invoicing → Finance_Support_Queue\n' +
-                '- Product questions/features → Product_Support_Queue\n\n' +
-                '**5. KNOWLEDGE SEARCH:** Search for relevant KB articles (2-4 keywords from Subject). Attach top 2-3 articles.\n\n' +
-                '**6. DOCUMENTATION:** Add internal comment with triage reasoning (category, priority, routing decision, confidence).'
+            InstructionsPrompt__c = instructionsPrompt
         );
         insert agent;
 
@@ -702,7 +695,7 @@ public with sharing class CaseProcessingWorkflowFactory {
         insert contextConfig;
         System.debug('[Agent] ✓ Added consolidated context config to Triage agent');
 
-        // Capabilities (5 total)
+        // Capabilities (lean profile)
         List<AgentCapability__c> capabilities = new List<AgentCapability__c>{
             createCapability(
                 agent.Id,
@@ -792,6 +785,10 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'External'
             )
         };
+        capabilities = filterCapabilitiesByName(
+            capabilities,
+            new Set<String>{ 'classify_and_update_case', 'search_knowledge_base', 'assign_to_queue' }
+        );
         insert capabilities;
 
         System.debug('[Agent] ✓ Triage & Routing Agent created with ' + capabilities.size() + ' capabilities');
@@ -801,10 +798,15 @@ public with sharing class CaseProcessingWorkflowFactory {
     /**
      * @description Step 2: Case Assignment & Notification Agent
      * Assigns to best rep (skills, workload), notifies rep & customer, creates follow-up task
-     * Capabilities: get_queue_members, get_user_workload, get_account_case_history, assign_case_to_user,
-     *               send_rep_notification, send_customer_acknowledgment, create_followup_task
+     * Capabilities (lean): get_queue_members, get_user_workload, assign_case_to_user, send_customer_acknowledgment
      */
     private static Id createCaseAssignmentAgent(Id llmConfigId) {
+        String instructionsPrompt = 'Assign case ownership with a deterministic flow.\n\n' +
+            '1) Get queue members with `get_queue_members`.\n' +
+            '2) Compare workload using `get_user_workload`.\n' +
+            '3) Assign to best rep using `assign_case_to_user` and set Status="Working".\n' +
+            '4) Send customer confirmation email using `send_customer_acknowledgment`.';
+
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Case Assignment & Notification Agent',
             DeveloperName__c = 'Case_Assignment_Notification_Agent',
@@ -815,24 +817,7 @@ public with sharing class CaseProcessingWorkflowFactory {
             EnableParallelToolCalling__c = false,
             ContextFormatStrategy__c = 'Structured Text',
             IdentityPrompt__c = 'You are a Case Assignment Specialist. You match cases to the best-fit support representative based on expertise, workload, and customer history, then notify all parties.',
-            InstructionsPrompt__c = 'Assign the case to the best rep using available context.\n\n' +
-                '**IMPORTANT WORKFLOW - Follow this exact sequence:**\n\n' +
-                '**1. GATHER CONTEXT (in this order):**\n' +
-                '- First, get queue members: `get_queue_members` (case is already routed to a queue - extract queue name from Case.Owner)\n' +
-                '- Then, check workload: `get_user_workload` (pass userIds from get_queue_members response - avoid overloading)\n' +
-                '- Optionally, review history: `get_account_case_history` (prefer continuity if same account had cases before)\n\n' +
-                '**2. SELECT BEST REP:**\n' +
-                '- Balance workload (choose rep with fewest open cases from get_user_workload)\n' +
-                '- Prefer rep who handled previous cases for this account (if applicable from history)\n' +
-                '- Consider SLA tier from context (Premium customers → more experienced reps if identifiable)\n\n' +
-                '**3. ASSIGN:**\n' +
-                '- Update case owner: `assign_case_to_user`\n' +
-                '- Set Status to "Working"\n\n' +
-                '**4. NOTIFY:**\n' +
-                '- Alert rep: `send_rep_notification` (in-app, includes case summary, priority, SLA)\n' +
-                '- Acknowledge customer: `send_customer_acknowledgment` (email: "Your case is assigned to [Rep], expected response within [SLA]")\n\n' +
-                '**5. CREATE FOLLOW-UP:**\n' +
-                '- For urgent cases (High priority): `create_followup_task` due before SLA deadline'
+            InstructionsPrompt__c = instructionsPrompt
         );
         insert agent;
 
@@ -848,7 +833,7 @@ public with sharing class CaseProcessingWorkflowFactory {
         insert contextConfig;
         System.debug('[Agent] ✓ Added consolidated context config to Assignment agent');
 
-        // Capabilities (7 total)
+        // Capabilities (lean profile)
         List<AgentCapability__c> capabilities = new List<AgentCapability__c>{
             createCapability(
                 agent.Id,
@@ -974,6 +959,10 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'External'
             )
         };
+        capabilities = filterCapabilitiesByName(
+            capabilities,
+            new Set<String>{ 'get_queue_members', 'get_user_workload', 'assign_case_to_user', 'send_customer_acknowledgment' }
+        );
         insert capabilities;
 
         System.debug('[Agent] ✓ Assignment & Notification Agent created with ' + capabilities.size() + ' capabilities');
@@ -985,7 +974,7 @@ public with sharing class CaseProcessingWorkflowFactory {
      * Designed for critical/high-value cases requiring executive attention
      * Target cases: Priority = "Critical" OR (Priority = "High" AND Account.AnnualRevenue >= $1M)
      * Agent will assess and skip if case doesn't meet criteria
-     * Capabilities: create_escalation_task, notify_account_team, post_to_executive_support_channel, recommend_proactive_outreach
+     * Capabilities (lean): create_escalation_task, notify_account_team
      */
     private static Id createHighValueEscalationAgent(Id llmConfigId) {
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
@@ -997,29 +986,21 @@ public with sharing class CaseProcessingWorkflowFactory {
             AuditLevel__c = 'Full',
             EnableParallelToolCalling__c = true,
             ContextFormatStrategy__c = 'Structured Text',
-            IdentityPrompt__c = 'You are an Escalation Manager for high-value and critical cases. You ensure executive visibility, coordinate cross-functional teams, and recommend proactive customer outreach.',
+            IdentityPrompt__c = 'You are an Escalation Manager for high-value and critical cases. You ensure executive visibility and coordinate cross-functional teams.',
             InstructionsPrompt__c = '**IMPORTANT: This agent is designed for high-value cases ONLY.**\n\n' +
                 '**FIRST, ASSESS IF YOU SHOULD ACT:**\n' +
                 '- Check Case Priority: Must be "High" (standard Salesforce has High/Medium/Low)\n' +
                 '- If High priority: Check Account.AnnualRevenue >= $1,000,000\n' +
                 '- If case does NOT meet criteria (e.g., Priority=Medium/Low, or Priority=High but revenue <$1M), respond: "This case does not require escalation. Skipping escalation agent." and STOP.\n\n' +
                 '**IF CASE MEETS CRITERIA (High Priority + $1M+ Revenue), PROCEED:**\n\n' +
-                '**1. ASSESS SEVERITY:**\n' +
-                '- Review case details, customer value, business impact\n' +
-                '- Determine if management/executive oversight is warranted\n' +
-                '- Check for: system outages, revenue impact, data loss, VIP customer, relationship risk\n\n' +
-                '**2. ESCALATE TO MANAGEMENT:**\n' +
+                '**1. ESCALATE TO MANAGEMENT:**\n' +
                 '- Create escalation task for Support Manager: `create_escalation_task`\n' +
                 '- Task should include: case summary, customer value, business impact, urgency\n' +
                 '- Priority: High, Due: TODAY\n\n' +
-                '**3. NOTIFY ACCOUNT TEAM:**\n' +
+                '**2. NOTIFY ACCOUNT TEAM:**\n' +
                 '- Alert Customer Success Manager / Account Executive: `notify_account_team`\n' +
                 '- Purpose: Keep account owner aware of high-priority customer issues\n' +
-                '- Use for: $1M+ accounts, relationship risk, potential churn\n\n' +
-                '**4. PROACTIVE OUTREACH:**\n' +
-                '- Recommend executive call/meeting: `recommend_proactive_outreach`\n' +
-                '- For: VIP accounts with high-priority issues, relationship salvage, major incidents\n' +
-                '- Creates recommendation task for Account Manager'
+                '- Use for: $1M+ accounts, relationship risk, potential churn'
         );
         insert agent;
 
@@ -1035,7 +1016,7 @@ public with sharing class CaseProcessingWorkflowFactory {
         insert contextConfig;
         System.debug('[Agent] ✓ Added consolidated context config to Escalation agent');
 
-        // Capabilities (5 total - pure reasoning + 4 tools)
+        // Capabilities (lean profile)
         List<AgentCapability__c> capabilities = new List<AgentCapability__c>{
             createCapability(
                 agent.Id,
@@ -1051,7 +1032,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'Standard',
                 'CreateRecord',
                 null,
-                '{"objectApiName":"Task","defaultFieldValues":{"Priority":"High","Status":"Not Started","Type":"Escalation Review"}}',
+                '{"objectApiName":"Task","defaultFieldValues":{"Priority":"High","Status":"Not Started","Type":"Other"}}',
                 null,
                 false,
                 'External'
@@ -1089,6 +1070,10 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'External'
             )
         };
+        capabilities = filterCapabilitiesByName(
+            capabilities,
+            new Set<String>{ 'create_escalation_task', 'notify_account_team' }
+        );
         insert capabilities;
 
         System.debug('[Agent] ✓ High-Value Escalation Agent created with ' + capabilities.size() + ' capabilities (CONDITIONAL)');
@@ -1098,6 +1083,19 @@ public with sharing class CaseProcessingWorkflowFactory {
     // ===================================================================================
     // HELPER METHODS
     // ===================================================================================
+
+    /**
+     * @description Filters capability list by allowed capability names.
+     */
+    private static List<AgentCapability__c> filterCapabilitiesByName(List<AgentCapability__c> capabilities, Set<String> allowedNames) {
+        List<AgentCapability__c> filtered = new List<AgentCapability__c>();
+        for (AgentCapability__c capability : capabilities) {
+            if (allowedNames.contains(capability.CapabilityName__c)) {
+                filtered.add(capability);
+            }
+        }
+        return filtered;
+    }
 
     /**
      * @description Creates an AgentContextConfig__c record

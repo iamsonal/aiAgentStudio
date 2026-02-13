@@ -164,7 +164,22 @@ All operations run asynchronously using Platform Events or Queueables, ensuring 
 
 ### Installation
 
-**Option 1: CumulusCI (Recommended for Scratch Orgs)**
+**Option 1: Unlocked Package (Recommended for Quick Start)**
+
+Install directly via package URL:
+
+- **Sandbox & Scratch Orgs:**  
+  [https://test.salesforce.com/packaging/installPackage.apexp?p0=04tgK0000009qU1QAI](https://test.salesforce.com/packaging/installPackage.apexp?p0=04tgK0000009qU1QAI)
+
+- **Production & Developer Edition Orgs:**  
+  [https://login.salesforce.com/packaging/installPackage.apexp?p0=04tgK0000009qU1QAI](https://login.salesforce.com/packaging/installPackage.apexp?p0=04tgK0000009qU1QAI)
+
+After installation:
+- Assign permission sets: `AIAgentStudioConfigurator` (for admins), `AIAgentStudioEndUser` (for users)
+- Configure your LLM provider (OpenAI, Claude, or Gemini)
+- Create your first agent
+
+**Option 2: CumulusCI (Best for Development & Testing)**
 
 If you have [CumulusCI](https://cumulusci.readthedocs.io/en/stable/get-started.html) set up:
 
@@ -180,19 +195,52 @@ This single command:
 - Creates comprehensive sample data (agents, capabilities, test records)
 - Sets up a Connected App for API access
 
-**Option 2: Salesforce CLI**
+**Option 3: Salesforce CLI (Source-Based)**
 
 ```bash
 sf project deploy start -d force-app/main/default -o your-org-alias
 ```
 
+### Optional: Load Test Data
+
+If you need sample data to explore the framework (especially with Option 1 or 3):
+
+1. **Deploy the test data factory** from the `seed-data` folder:
+   ```bash
+   sf project deploy start -d seed-data/main/default -o your-org-alias
+   ```
+
+2. **Execute in Developer Console** (or via Anonymous Apex):
+   ```apex
+   AgentTestDataFactory.createComprehensiveShowcase();
+   ```
+
+This creates sample agents, capabilities, accounts, contacts, and test scenarios to help you get started quickly.
+
+### Configure OpenAI API Key
+
+The framework includes pre-configured OpenAI named credentials. You just need to add your API key:
+
+1. Navigate to **Setup** → **Named Credentials** → **External Credentials**
+2. Find and open **OpenAIEC**
+3. Under **Principals**, click **Edit** on the principal
+4. In the **Authentication Parameters** section, add:
+   - **Parameter**: `OpenAIKey`
+   - **Value**: Your OpenAI API key (starts with `sk-`)
+5. Click **Save**
+
+The `OpenAILLM` named credential is now ready to use with the framework.
+
+> **Note**: If you're using Claude or Gemini, similar external credentials may be included. Check the [Configuration Guide](https://iamsonal.github.io/aiAgentStudio/guides/configuration/) for details on other LLM providers.
+
 ### Setup
 
-1. **Create Named Credential** for OpenAI API (`https://api.openai.com`)
-2. **Create LLM Configuration** with your Named Credential and model settings
-3. **Create AI Agent Definition** with identity/instruction prompts
-4. **Add Capabilities** (tools) the agent can use
-5. **Add Chat Component** to a Lightning page
+Once your API key is configured:
+
+1. **Create or use existing LLM Configuration** (references the `OpenAILLM` named credential)
+2. **Create AI Agent Definition** with identity/instruction prompts
+3. **Add Capabilities** (tools) the agent can use
+4. **Add Chat Component** to a Lightning page or use Quick Actions
 
 👉 **[Full Getting Started Guide →](https://iamsonal.github.io/aiAgentStudio/guides/getting-started/)**
 
