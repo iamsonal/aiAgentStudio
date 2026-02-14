@@ -51,6 +51,9 @@ public inherited sharing class PromptSafetyService {
     public static final String MODE_SANITIZE = 'Sanitize';
     public static final String MODE_FLAG = 'Flag';
     public static final String MODE_LOG_ONLY = 'LogOnly';
+    private static final String PRESET_OFF = 'Off';
+    private static final String PRESET_STANDARD = 'Standard';
+    private static final String PRESET_STRICT = 'Strict';
 
     // Detection layer weight constants
     private static final Decimal WEIGHT_PATTERN = 0.4;
@@ -136,38 +139,24 @@ public inherited sharing class PromptSafetyService {
             return null;
         }
 
-        // Check if prompt safety is enabled at org level (from AIAgentFrameworkSettings__c)
-        Boolean enabled = AIAgentFrameworkSettings.isPromptSafetyEnabled();
-        if (!enabled) {
-            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Prompt safety disabled at org level');
+        String preset = normalizePreset(agentConfig.PromptSafetyPreset__c);
+        if (preset == PRESET_OFF) {
+            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Prompt safety disabled by preset');
             return null;
         }
 
-        // Parse response mode
-        String mode = parseResponseMode(agentConfig.PromptSafetyMode__c);
-
-        // Parse threshold
-        Decimal threshold = normalizeThreshold(agentConfig.SafetyThreshold__c);
-
-        // Parse pattern categories
-        Set<String> patternCategories = parseMultiSelectPicklist(agentConfig.SafetyPatternCategories__c);
+        String mode = preset == PRESET_STRICT ? MODE_BLOCK : MODE_LOG_ONLY;
+        Decimal threshold = DEFAULT_THRESHOLD;
+        Set<String> patternCategories = preset == PRESET_STANDARD ? getStandardPatternCategories() : null;
 
         PromptSafetyService service = new PromptSafetyService(mode, threshold, patternCategories, executionId);
 
-        // Configure audit logging from org-level settings
-        service.auditLoggingEnabled = AIAgentFrameworkSettings.isPromptSafetyAuditLoggingEnabled();
+        // Audit logging always on for preset-driven safety
+        service.auditLoggingEnabled = true;
 
         System.debug(
             LoggingLevel.INFO,
-            LOG_PREFIX +
-                'Created service for agent: ' +
-                agentConfig.DeveloperName__c +
-                ', Mode: ' +
-                mode +
-                ', Threshold: ' +
-                threshold +
-                ', Audit: ' +
-                service.auditLoggingEnabled
+            LOG_PREFIX + 'Created service for agent: ' + agentConfig.DeveloperName__c + ', Preset: ' + preset + ', Mode: ' + mode + ', Threshold: ' + threshold
         );
 
         return service;
@@ -453,6 +442,24 @@ public inherited sharing class PromptSafetyService {
         return MODE_BLOCK;
     }
 
+    private static String normalizePreset(String presetValue) {
+        if (String.isBlank(presetValue)) {
+            return PRESET_STANDARD;
+        }
+        String normalized = presetValue.trim();
+        if (normalized.equalsIgnoreCase(PRESET_OFF)) {
+            return PRESET_OFF;
+        }
+        if (normalized.equalsIgnoreCase(PRESET_STRICT)) {
+            return PRESET_STRICT;
+        }
+        return PRESET_STANDARD;
+    }
+
+    private static Set<String> getStandardPatternCategories() {
+        return new Set<String>{ 'RoleManipulation', 'InstructionOverride', 'PromptLeaking' };
+    }
+
     /**
      * @description Parses a semicolon-separated multi-select picklist value to a Set.
      */
@@ -504,10 +511,7 @@ public inherited sharing class PromptSafetyService {
             return DEFAULT_THRESHOLD;
         }
         if (rawThreshold < 0 || rawThreshold > 1) {
-            System.debug(
-                LoggingLevel.WARN,
-                LOG_PREFIX + 'Invalid SafetyThreshold__c value (' + rawThreshold + '). Falling back to default: ' + DEFAULT_THRESHOLD
-            );
+            System.debug(LoggingLevel.WARN, LOG_PREFIX + 'Invalid threshold value (' + rawThreshold + '). Falling back to default: ' + DEFAULT_THRESHOLD);
             return DEFAULT_THRESHOLD;
         }
         return rawThreshold;

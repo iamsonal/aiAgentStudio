@@ -87,6 +87,7 @@ public inherited sharing class LLMInteractionService {
     private final Id currentPageRecordId;
     private final Boolean isFinalErrorTurn;
     private final IDecisionStepLogger.ILogger decisionLogger;
+    private List<ExecutionStep__c> pendingSafetyAuditSteps = new List<ExecutionStep__c>();
     public LLMInteractionService(
         Id executionId,
         Id usrId,
@@ -290,6 +291,7 @@ public inherited sharing class LLMInteractionService {
                     safetyMessageData.content = safeMessage;
 
                     System.debug(LoggingLevel.INFO, logPrefix + 'Returning safe response to user: ' + safeMessage.left(100));
+                    flushPendingSafetyAuditSteps(logPrefix, false);
                     return new LLMInteractionResult(safetyProviderResult, safetyMessageData);
                 }
 
@@ -349,6 +351,7 @@ public inherited sharing class LLMInteractionService {
                         safetyMessageData.content = safeMessage;
 
                         System.debug(LoggingLevel.INFO, logPrefix + 'Returning safe response to user (context check): ' + safeMessage.left(100));
+                        flushPendingSafetyAuditSteps(logPrefix, false);
                         return new LLMInteractionResult(safetyProviderResult, safetyMessageData);
                     }
 
@@ -366,8 +369,31 @@ public inherited sharing class LLMInteractionService {
             }
 
             if (maskingService != null) {
+                Integer maskingOpsBefore = null;
+                if (this.decisionLogger != null) {
+                    Map<String, Object> preStats = maskingService.getStatistics();
+                    Object preCount = preStats != null ? preStats.get('totalMaskingOperations') : null;
+                    if (preCount instanceof Integer) {
+                        maskingOpsBefore = (Integer) preCount;
+                    }
+                }
+
                 finalMessagesPayload = maskingService.maskMessagePayload(finalMessagesPayload);
                 System.debug(LoggingLevel.INFO, logPrefix + 'Applied PII masking to message payload. Mode: ' + maskingService.getMode());
+
+                if (this.decisionLogger != null) {
+                    Map<String, Object> stats = maskingService.getStatistics();
+                    Integer maskingOpsAfter = null;
+                    Object postCount = stats != null ? stats.get('totalMaskingOperations') : null;
+                    if (postCount instanceof Integer) {
+                        maskingOpsAfter = (Integer) postCount;
+                    }
+                    Integer appliedCount = null;
+                    if (maskingOpsBefore != null && maskingOpsAfter != null) {
+                        appliedCount = Math.max(0, maskingOpsAfter - maskingOpsBefore);
+                    }
+                    this.decisionLogger.log(IDecisionStepLogger.EventType.PII_MASKING, new List<Object>{ stats, appliedCount });
+                }
             }
 
             if (this.decisionLogger != null) {
@@ -423,6 +449,8 @@ public inherited sharing class LLMInteractionService {
                 llmApiResult.content = unmaskedContent;
                 llmApiResult.rawToolCallsJson = unmaskedToolCallsJson;
 
+                Boolean hasToolCalls = (llmApiResult.requestedActions != null && !llmApiResult.requestedActions.isEmpty());
+                flushPendingSafetyAuditSteps(logPrefix, hasToolCalls);
                 return new LLMInteractionResult(llmApiResult, asstMsgData);
             } catch (Exception callEx) {
                 Long callDuration = System.currentTimeMillis() - callStartTime;
@@ -443,6 +471,7 @@ public inherited sharing class LLMInteractionService {
                     this.decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ callEx });
                 }
 
+                flushPendingSafetyAuditSteps(logPrefix, false);
                 return new LLMInteractionResult('LLM Call Failed: ' + callEx.getMessage(), AIAgentConstants.ERR_CODE_LLM_CALL_FAILED, callEx);
             }
         } catch (Exception ex) {
@@ -462,6 +491,7 @@ public inherited sharing class LLMInteractionService {
                 this.decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ ex });
             }
 
+            flushPendingSafetyAuditSteps(logPrefix, false);
             return new LLMInteractionResult('Interaction Setup Failed: ' + ex.getMessage(), AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex);
         }
     }
@@ -696,18 +726,58 @@ public inherited sharing class LLMInteractionService {
             summary.put('turnIdentifier', this.turnIdentifier);
             summary.put('turnCount', this.currentTurnCount);
 
-            ExecutionStepService executionStepService = new ExecutionStepService();
-            executionStepService.createStep(
-                this.executionId,
-                'SystemEvent',
-                'System',
-                JSON.serialize(summary),
-                'JSON',
-                this.turnIdentifier,
-                this.currentTurnCount
+            if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                ExecutionStepService executionStepService = new ExecutionStepService();
+                executionStepService.createStep(
+                    this.executionId,
+                    'SystemEvent',
+                    'System',
+                    JSON.serialize(summary),
+                    'JSON',
+                    this.turnIdentifier,
+                    this.currentTurnCount
+                );
+                return;
+            }
+
+            ExecutionStep__c pendingStep = new ExecutionStep__c(
+                AgentExecution__c = this.executionId,
+                StepType__c = 'SystemEvent',
+                StepRole__c = 'System',
+                Content__c = JSON.serialize(summary),
+                ContentType__c = 'JSON',
+                Timestamp__c = Datetime.now(),
+                TurnIdentifier__c = this.turnIdentifier,
+                TurnCount__c = this.currentTurnCount,
+                IsInternal__c = false,
+                IsAsyncToolExecution__c = false
             );
+            this.pendingSafetyAuditSteps.add(pendingStep);
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Queued prompt safety audit step for deferred insert.');
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Failed to log prompt safety audit: ' + e.getMessage());
+        }
+    }
+
+    private void flushPendingSafetyAuditSteps(String logPrefix, Boolean mayCallAgain) {
+        if (this.pendingSafetyAuditSteps == null || this.pendingSafetyAuditSteps.isEmpty()) {
+            return;
+        }
+
+        try {
+            if (TransactionContext.getInstance().isDeferredDMLMode() || mayCallAgain == true) {
+                for (ExecutionStep__c pendingStep : this.pendingSafetyAuditSteps) {
+                    TransactionContext.getInstance().bufferInsert(pendingStep);
+                }
+                System.debug(LoggingLevel.INFO, logPrefix + 'Buffered ' + this.pendingSafetyAuditSteps.size() + ' pending prompt safety audit step(s).');
+            } else {
+                insert this.pendingSafetyAuditSteps;
+                System.debug(LoggingLevel.INFO, logPrefix + 'Inserted ' + this.pendingSafetyAuditSteps.size() + ' pending prompt safety audit step(s).');
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to flush prompt safety audit steps: ' + e.getMessage());
+        } finally {
+            this.pendingSafetyAuditSteps.clear();
         }
     }
 }

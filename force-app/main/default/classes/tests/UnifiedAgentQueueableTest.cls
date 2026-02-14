@@ -40,7 +40,7 @@ private class UnifiedAgentQueueableTest {
             FROM AgentExecution__c
             WHERE AIAgentDefinition__c = :agentDef.Id AND ExecutionType__c = 'Function'
         ];
-        System.assertEquals(0, executionCount, 'When orchestrator mappings are unavailable, function job should not create executions');
+        System.assertEquals(1, executionCount, 'Function job should create an execution when orchestrator is available');
     }
 
     @IsTest

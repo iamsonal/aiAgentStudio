@@ -108,6 +108,7 @@ private class IDecisionStepLoggerTest {
         logger.log(IDecisionStepLogger.EventType.APPROVAL_RESOLVED, new List<Object>{ 'resolved' });
         logger.log(IDecisionStepLogger.EventType.LLM_REQUEST, new List<Object>{ 'llm request' });
         logger.log(IDecisionStepLogger.EventType.LLM_RESPONSE, new List<Object>{ 'llm response' });
+        logger.log(IDecisionStepLogger.EventType.PII_MASKING, new List<Object>{ 'pii masking' });
         logger.log(IDecisionStepLogger.EventType.SAFETY_CHECK, new List<Object>{ 'safety check' });
         logger.log(IDecisionStepLogger.EventType.SAFETY_BLOCKED, new List<Object>{ 'blocked' });
         logger.log(IDecisionStepLogger.EventType.SYSTEM_PROMPT_BUILT, new List<Object>{ 'system prompt' });

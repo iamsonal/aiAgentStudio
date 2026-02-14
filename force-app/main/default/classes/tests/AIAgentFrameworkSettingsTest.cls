@@ -15,8 +15,6 @@ private class AIAgentFrameworkSettingsTest {
         System.assertEquals(2, instance.MaxToolRetries__c, 'Default max retries should be 2');
         System.assertEquals(5, instance.BulkConcurrencyLimit__c, 'Default concurrency should be 5');
         System.assertEquals(5, instance.BulkFailureThreshold__c, 'Default failure threshold should be 5');
-        System.assertEquals(false, instance.EnablePIIMasking__c, 'PII masking should be disabled by default');
-        System.assertEquals(false, instance.EnablePromptSafety__c, 'Prompt safety should be disabled by default');
         System.assertEquals(true, instance.EnableDecisionStepLogging__c, 'Decision step logging should be enabled by default');
         System.assertEquals(false, instance.ExtendQueueableChainLimit__c, 'Extend chain limit should be false by default');
     }
@@ -28,10 +26,6 @@ private class AIAgentFrameworkSettingsTest {
             MaxToolRetries__c = 5,
             BulkConcurrencyLimit__c = 10,
             BulkFailureThreshold__c = 3,
-            EnablePIIMasking__c = true,
-            EnablePromptSafety__c = true,
-            PIIAuditLogging__c = true,
-            PromptSafetyAuditLogging__c = true,
             EnableDecisionStepLogging__c = false,
             ExtendQueueableChainLimit__c = true,
             MaxLLMCallsPerTransaction__c = 4
@@ -162,30 +156,15 @@ private class AIAgentFrameworkSettingsTest {
 
     @IsTest
     static void testBooleanFlags_ReturnExpectedDefaults() {
-        System.assertEquals(false, AIAgentFrameworkSettings.isPIIMaskingEnabled(), 'PII masking should default to disabled');
-        System.assertEquals(false, AIAgentFrameworkSettings.isPromptSafetyEnabled(), 'Prompt safety should default to disabled');
-        System.assertEquals(false, AIAgentFrameworkSettings.isPIIAuditLoggingEnabled(), 'PII audit logging should default to disabled');
-        System.assertEquals(false, AIAgentFrameworkSettings.isPromptSafetyAuditLoggingEnabled(), 'Prompt safety audit should default to disabled');
         System.assertEquals(true, AIAgentFrameworkSettings.isDecisionStepLoggingEnabled(), 'Decision step logging should default to enabled');
         System.assertEquals(false, AIAgentFrameworkSettings.shouldExtendQueueableChainLimit(), 'Extend chain limit should default to false');
     }
 
     @IsTest
     static void testBooleanFlags_WithCustomSetting_ReturnsConfiguredValues() {
-        AIAgentFrameworkSettings__c custom = new AIAgentFrameworkSettings__c(
-            EnablePIIMasking__c = true,
-            EnablePromptSafety__c = true,
-            PIIAuditLogging__c = true,
-            PromptSafetyAuditLogging__c = true,
-            EnableDecisionStepLogging__c = false,
-            ExtendQueueableChainLimit__c = true
-        );
+        AIAgentFrameworkSettings__c custom = new AIAgentFrameworkSettings__c(EnableDecisionStepLogging__c = false, ExtendQueueableChainLimit__c = true);
         insert custom;
 
-        System.assertEquals(true, AIAgentFrameworkSettings.isPIIMaskingEnabled(), 'PII masking should be enabled');
-        System.assertEquals(true, AIAgentFrameworkSettings.isPromptSafetyEnabled(), 'Prompt safety should be enabled');
-        System.assertEquals(true, AIAgentFrameworkSettings.isPIIAuditLoggingEnabled(), 'PII audit logging should be enabled');
-        System.assertEquals(true, AIAgentFrameworkSettings.isPromptSafetyAuditLoggingEnabled(), 'Prompt safety audit should be enabled');
         System.assertEquals(false, AIAgentFrameworkSettings.isDecisionStepLoggingEnabled(), 'Decision step logging should be disabled');
         System.assertEquals(true, AIAgentFrameworkSettings.shouldExtendQueueableChainLimit(), 'Extend chain limit should be true');
     }

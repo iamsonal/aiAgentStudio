@@ -7,11 +7,7 @@ private class LLMInteractionServiceTest {
     static void setupData() {
         AIAgentFrameworkSettings__c settings = new AIAgentFrameworkSettings__c(
             SetupOwnerId = UserInfo.getOrganizationId(),
-            EnableDecisionStepLogging__c = false,
-            EnablePromptSafety__c = false,
-            EnablePIIMasking__c = false,
-            PIIAuditLogging__c = false,
-            PromptSafetyAuditLogging__c = false
+            EnableDecisionStepLogging__c = false
         );
         insert settings;
 
@@ -122,25 +118,15 @@ private class LLMInteractionServiceTest {
         TransactionContext.resetInstance();
         TransactionContext.getInstance().enableDeferredDMLMode();
 
-        AIAgentFrameworkSettings__c settings = [
-            SELECT Id, EnablePIIMasking__c
-            FROM AIAgentFrameworkSettings__c
-            WHERE SetupOwnerId = :UserInfo.getOrganizationId()
-            LIMIT 1
-        ];
-        settings.EnablePIIMasking__c = true;
-        update settings;
-
         PIIPatternMatcher.clearCache();
 
         AIAgentDefinition__c agent = [
-            SELECT Id, PIIMaskingMode__c, PIIPatternCategories__c
+            SELECT Id, PIIMaskingPreset__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'LLMInt_Agent%'
             LIMIT 1
         ];
-        agent.PIIMaskingMode__c = 'Pattern-Only';
-        agent.PIIPatternCategories__c = 'Identity';
+        agent.PIIMaskingPreset__c = 'Standard';
         update agent;
 
         AgentContext ctx = getContext();
@@ -222,24 +208,13 @@ private class LLMInteractionServiceTest {
         AIAgentFrameworkSettings.clearCache();
         TransactionContext.resetInstance();
 
-        AIAgentFrameworkSettings__c settings = [
-            SELECT Id, EnablePromptSafety__c, PromptSafetyAuditLogging__c
-            FROM AIAgentFrameworkSettings__c
-            WHERE SetupOwnerId = :UserInfo.getOrganizationId()
-            LIMIT 1
-        ];
-        settings.EnablePromptSafety__c = true;
-        settings.PromptSafetyAuditLogging__c = true;
-        update settings;
-
         AIAgentDefinition__c agent = [
-            SELECT Id, PromptSafetyMode__c, SafetyPatternCategories__c
+            SELECT Id, PromptSafetyPreset__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'LLMInt_Agent%'
             LIMIT 1
         ];
-        agent.PromptSafetyMode__c = 'Block';
-        agent.SafetyPatternCategories__c = 'InstructionOverride';
+        agent.PromptSafetyPreset__c = 'Strict';
         update agent;
 
         AgentContext ctx = getContext();
@@ -305,15 +280,14 @@ private class LLMInteractionServiceTest {
         AIAgentFrameworkSettings.clearCache();
         TransactionContext.resetInstance();
 
-        AIAgentFrameworkSettings__c settings = [
-            SELECT Id, EnablePromptSafety__c, PromptSafetyAuditLogging__c
-            FROM AIAgentFrameworkSettings__c
-            WHERE SetupOwnerId = :UserInfo.getOrganizationId()
+        AIAgentDefinition__c agent = [
+            SELECT Id, PromptSafetyPreset__c
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c LIKE 'LLMInt_Agent%'
             LIMIT 1
         ];
-        settings.EnablePromptSafety__c = true;
-        settings.PromptSafetyAuditLogging__c = true;
-        update settings;
+        agent.PromptSafetyPreset__c = 'Strict';
+        update agent;
 
         AgentContext ctx = getContext();
 

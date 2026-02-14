@@ -536,20 +536,13 @@ private class HITLGatewayServiceTest {
             .forFlowHandler('HITL_Confirm_Approve_Function')
             .withName('hitl_confirm_approve_func')
             .withHITLMode(HITLGatewayService.HITL_MODE_CONFIRMATION_THEN_APPROVAL)
-            .save();
-
-        HITLGatewayService.HITLContext ctx = new HITLGatewayService.HITLContext();
-        ctx.capability = confirmThenApproveCap;
-        ctx.agentDefinition = functionAgent;
-        ctx.executionId = [SELECT Id FROM AgentExecution__c LIMIT 1].Id;
-        ctx.turnIdentifier = 'turn-hitl-confirm-approve-func';
-        ctx.toolCallId = 'call-confirm-approve-func-001';
-
-        HITLGatewayService.HITLDecision decision = HITLGatewayService.evaluate(ctx);
-
-        System.assertEquals(false, decision.isValidConfiguration, 'ConfirmationThenApproval with Function agent should be invalid');
-        System.assert(decision.configurationError.contains('Conversational'), 'Error should mention Conversational requirement');
-        System.assertEquals(false, decision.requiresIntervention, 'Invalid config should not require intervention');
+            .build();
+        try {
+            insert confirmThenApproveCap;
+            System.assert(false, 'Expected validation error for ConfirmationThenApproval with Function agent');
+        } catch (DmlException e) {
+            System.assert(e.getMessage().contains('Conversational'), 'Error should mention Conversational requirement');
+        }
     }
 
     @IsTest

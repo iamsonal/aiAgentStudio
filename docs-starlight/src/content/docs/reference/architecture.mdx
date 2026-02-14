@@ -155,7 +155,7 @@ Core agent configuration:
 
 **Memory & Context**: `LLMConfiguration__c` (LLM provider settings lookup), `MemoryStrategy__c` (Buffer Window/Summary Buffer), `HistoryTurnLimit__c` (Number of turns to remember).
 
-**Security & Trust**: `PIIMaskingMode__c` (Hybrid/Schema-Only/Pattern-Only), `SensitiveClassifications__c` (Data classifications to mask), `PromptSafetyMode__c` (Block/Sanitize/Flag/LogOnly), `SafetyThreshold__c` (Threat score threshold 0.0-1.0).
+**Security & Trust**: `PIIMaskingPreset__c` (Off/Standard/Strict), `PromptSafetyPreset__c` (Off/Standard/Strict).
 
 **Performance**: `AsyncDispatchType__c` (High for Platform Events / Low for Queueable), `MaxProcessingCycles__c` (Max LLM turns per execution), `EnableDependencyValidation__c` (Enforce tool dependency graph).
 

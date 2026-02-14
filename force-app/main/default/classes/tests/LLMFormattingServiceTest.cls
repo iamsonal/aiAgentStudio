@@ -634,11 +634,12 @@ private class LLMFormattingServiceTest {
 
         AgentCapability__c cap = TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').build();
         cap.CapabilityName__c = '';
-        insert cap;
-
-        List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, null);
-
-        System.assertEquals(0, tools.size(), 'Capability with blank name should be skipped');
+        try {
+            insert cap;
+            System.assert(false, 'Expected validation error for blank capability name');
+        } catch (DmlException e) {
+            System.assert(e.getMessage().contains('Capability Name is required'), 'Should enforce required capability name');
+        }
     }
 
     @IsTest
@@ -648,11 +649,12 @@ private class LLMFormattingServiceTest {
 
         AgentCapability__c cap = TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').build();
         cap.Description__c = '';
-        insert cap;
-
-        List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, null);
-
-        System.assertEquals(0, tools.size(), 'Capability with blank description should be skipped');
+        try {
+            insert cap;
+            System.assert(false, 'Expected validation error for blank description');
+        } catch (DmlException e) {
+            System.assert(e.getMessage().contains('Description is required'), 'Should enforce required description');
+        }
     }
 
     @IsTest
@@ -667,11 +669,14 @@ private class LLMFormattingServiceTest {
             .build();
         cap.ExposureLevel__c = 'External';
         cap.Parameters__c = '';
-        insert cap;
-
-        List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, null);
-
-        System.assertEquals(1, tools.size(), 'Capability with blank schema should use default and not be skipped');
+        cap.ImplementationType__c = 'Standard';
+        cap.StandardActionType__c = 'CreateRecord';
+        try {
+            insert cap;
+            System.assert(false, 'Expected validation error for blank Parameters__c');
+        } catch (DmlException e) {
+            System.assert(e.getMessage().contains('Parameters cannot be blank'), 'Should enforce parameters JSON requirement');
+        }
     }
 
     @IsTest
@@ -686,11 +691,14 @@ private class LLMFormattingServiceTest {
             .build();
         cap.ExposureLevel__c = 'External';
         cap.Parameters__c = '["not","an","object"]';
-        insert cap;
-
-        List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, null);
-
-        System.assertEquals(0, tools.size(), 'Capability with non-object schema should be skipped');
+        cap.ImplementationType__c = 'Standard';
+        cap.StandardActionType__c = 'CreateRecord';
+        try {
+            insert cap;
+            System.assert(false, 'Expected validation error for non-object Parameters__c');
+        } catch (DmlException e) {
+            System.assert(e.getMessage().contains('JSON Object'), 'Should enforce Parameters__c as JSON object');
+        }
     }
 
     @IsTest
@@ -705,6 +713,8 @@ private class LLMFormattingServiceTest {
             .build();
         cap.ExposureLevel__c = 'External';
         cap.Parameters__c = '{"customKey":"customValue"}';
+        cap.ImplementationType__c = 'Standard';
+        cap.StandardActionType__c = 'CreateRecord';
         insert cap;
 
         List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, null);

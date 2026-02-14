@@ -7,6 +7,7 @@ private class PendingHITLActionTriggerHandlerTest {
     static void setupData() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('HITL Trigger LLM').save();
         TestFactory.newAgentDefinition().withName('HITL_Trigger_Agent').withType('Function').withLLM(llm.Id).save();
+        TestFactory.newAgentDefinition().withName('HITL_Trigger_Convo_Agent').withType('Conversational').withLLM(llm.Id).save();
     }
 
     @IsTest
@@ -347,7 +348,12 @@ private class PendingHITLActionTriggerHandlerTest {
     static void testProcessConfirmedActions_ConfirmationMode_EnqueuesToolExecution() {
         Test.setMock(HttpCalloutMock.class, MockHttpResponses.success());
 
-        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE DeveloperName__c LIKE 'HITL_Trigger_Agent%' LIMIT 1];
+        AIAgentDefinition__c agent = [
+            SELECT Id
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c LIKE 'HITL_Trigger_Convo_Agent%'
+            LIMIT 1
+        ];
         AgentCapability__c capability = TestFactory.newCapability()
             .withAgent(agent.Id)
             .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
@@ -358,7 +364,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withSourceRecord(testCase.Id)
@@ -471,7 +477,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentCapability__c capability = TestFactory.newCapability()
             .withAgent(agent.Id)
             .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
-            .withHITLMode(HITLGatewayService.HITL_MODE_CONFIRMATION)
+            .withHITLMode(HITLGatewayService.HITL_MODE_APPROVAL)
             .save();
         Case testCase = TestFactory.newCase().withSubject('Function Agent Confirmed').save();
 
@@ -501,7 +507,7 @@ private class PendingHITLActionTriggerHandlerTest {
         insert action;
 
         Test.startTest();
-        action.Status__c = HITLGatewayService.STATUS_CONFIRMED;
+        action.Status__c = HITLGatewayService.STATUS_APPROVED;
         update action;
         Test.stopTest();
 
@@ -511,7 +517,7 @@ private class PendingHITLActionTriggerHandlerTest {
             FROM PendingHITLAction__c
             WHERE Id = :action.Id
         ];
-        System.assertEquals(HITLGatewayService.STATUS_CONFIRMED, updated.Status__c, 'Status should be Confirmed');
+        System.assertEquals(HITLGatewayService.STATUS_APPROVED, updated.Status__c, 'Status should be Approved');
         System.assertNotEquals(null, updated.ResolvedAt__c, 'ResolvedAt should be set');
         System.assertEquals(UserInfo.getUserId(), updated.ResolvedBy__c, 'ResolvedBy should be current user');
     }
@@ -522,7 +528,12 @@ private class PendingHITLActionTriggerHandlerTest {
      */
     @IsTest
     static void testProcessConfirmedActions_ActionNotFound_HandlesException() {
-        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE DeveloperName__c LIKE 'HITL_Trigger_Agent%' LIMIT 1];
+        AIAgentDefinition__c agent = [
+            SELECT Id
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c LIKE 'HITL_Trigger_Convo_Agent%'
+            LIMIT 1
+        ];
         AgentCapability__c capability = TestFactory.newCapability()
             .withAgent(agent.Id)
             .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
@@ -532,7 +543,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-notfound-001')
@@ -578,7 +589,12 @@ private class PendingHITLActionTriggerHandlerTest {
      */
     @IsTest
     static void testProcessConfirmedActions_CapabilityNotFound_ThrowsException() {
-        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE DeveloperName__c LIKE 'HITL_Trigger_Agent%' LIMIT 1];
+        AIAgentDefinition__c agent = [
+            SELECT Id
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c LIKE 'HITL_Trigger_Convo_Agent%'
+            LIMIT 1
+        ];
         AgentCapability__c capability = TestFactory.newCapability()
             .withAgent(agent.Id)
             .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
@@ -588,7 +604,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-nocap-001')
@@ -632,7 +648,12 @@ private class PendingHITLActionTriggerHandlerTest {
     static void testProcessConfirmedActions_LogsDecisionStep() {
         Test.setMock(HttpCalloutMock.class, MockHttpResponses.success());
 
-        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE DeveloperName__c LIKE 'HITL_Trigger_Agent%' LIMIT 1];
+        AIAgentDefinition__c agent = [
+            SELECT Id
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c LIKE 'HITL_Trigger_Convo_Agent%'
+            LIMIT 1
+        ];
         AgentCapability__c capability = TestFactory.newCapability()
             .withAgent(agent.Id)
             .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
@@ -643,7 +664,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withSourceRecord(testCase.Id)
@@ -689,7 +710,12 @@ private class PendingHITLActionTriggerHandlerTest {
     static void testProcessConfirmedActions_MultipleActions_ProcessesAll() {
         Test.setMock(HttpCalloutMock.class, MockHttpResponses.success());
 
-        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE DeveloperName__c LIKE 'HITL_Trigger_Agent%' LIMIT 1];
+        AIAgentDefinition__c agent = [
+            SELECT Id
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c LIKE 'HITL_Trigger_Convo_Agent%'
+            LIMIT 1
+        ];
         AgentCapability__c capability = TestFactory.newCapability()
             .withAgent(agent.Id)
             .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
@@ -700,7 +726,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withSourceRecord(testCase.Id)

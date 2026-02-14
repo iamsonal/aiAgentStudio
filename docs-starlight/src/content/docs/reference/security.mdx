@@ -102,11 +102,9 @@ Prevents sensitive data from reaching LLM providers in raw form.
 **Configuration**:
 
 Per-agent via `AIAgentDefinition__c`:
-- `PIIMaskingMode__c`: Hybrid (both) / Schema-Only / Pattern-Only
-- `SensitiveClassifications__c`: Which Salesforce Data Classifications to mask (PII, Sensitive, Confidential, etc.)
-- `PIIPatternCategories__c`: Which regex pattern categories to enable
-
-Org-level via `AIAgentFrameworkSettings__c.EnablePIIMasking__c`
+- `PIIMaskingPreset__c`: Off / Standard / Strict
+  - Standard: Hybrid masking with common categories and classifications
+  - Strict: Hybrid masking with all categories and classifications
 
 **Pattern Coverage**:
 - **SSN**: `###-##-####` format with validation
@@ -143,9 +141,9 @@ Protects against prompt injection and instruction override attacks using three d
 
 **Threat Scoring**: Each analyzer returns score 0.0-1.0, combined into aggregate threat assessment. **NONE** 0.0-0.2 (safe), **LOW** 0.2-0.4 (minimal concern), **MEDIUM** 0.4-0.6 (suspicious), **HIGH** 0.6-0.8 (likely attack), **CRITICAL** 0.8-1.0 (definite attack).
 
-**Response Modes** (per-agent configurable via `PromptSafetyMode__c`): **Block** rejects request entirely with safe error message where user sees generic denial and execution stops. **Sanitize** removes detected threats and continues with cleaned input where replacements are marked as `[REMOVED:<category>]` with recorded sanitized spans. **Flag** marks for review in audit logs and continues execution while creating AgentDecisionStep__c with threat details. **Log Only** records threat assessment and takes no action (for monitoring in non-production).
+**Response Modes**: Internally supports Block, Sanitize, Flag, LogOnly. Presets map to these modes for simplicity.
 
-**Configuration**: Per-agent via `AIAgentDefinition__c` fields `PromptSafetyMode__c` (Block/Sanitize/Flag/LogOnly), `SafetyThreshold__c` (Threat score threshold 0.0-1.0 to trigger response), and `SafetyPatternCategories__c` (Which jailbreak categories to enable). Org-level via `AIAgentFrameworkSettings__c.EnablePromptSafety__c`.
+**Configuration**: Per-agent via `AIAgentDefinition__c` field `PromptSafetyPreset__c` (Off / Standard / Strict). Standard logs but does not block; Strict blocks on detection using all categories.
 
 **Optimizations**: Message-level caching (same message not re-analyzed within execution), early exit on high-severity pattern matches, and evaluation caps to prevent CPU time spikes.
 

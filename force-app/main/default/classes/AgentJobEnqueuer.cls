@@ -421,16 +421,21 @@ public inherited sharing class AgentJobEnqueuer {
         }
 
         // Check if MaxStackDepth was already configured in parent chain
-        // AsyncInfo.hasMaxStackDepth() returns true if AsyncOptions was set on a parent job
-        if (AsyncInfo.hasMaxStackDepth()) {
-            System.debug(
-                LoggingLevel.DEBUG,
-                logPrefix +
-                    '[AgentJobEnqueuer] MaxStackDepth already configured in parent chain (depth=' +
-                    AsyncInfo.getMaximumQueueableStackDepth() +
-                    ') - skipping AsyncOptions'
-            );
-            return null;
+        // AsyncInfo.hasMaxStackDepth() can only be called from within a Queueable or Finalizer context
+        // If we're not in a Queueable context, this is the first job in the chain
+        if (System.isQueueable()) {
+            if (AsyncInfo.hasMaxStackDepth()) {
+                System.debug(
+                    LoggingLevel.DEBUG,
+                    logPrefix +
+                        '[AgentJobEnqueuer] MaxStackDepth already configured in parent chain (depth=' +
+                        AsyncInfo.getMaximumQueueableStackDepth() +
+                        ') - skipping AsyncOptions'
+                );
+                return null;
+            }
+        } else {
+            System.debug(LoggingLevel.DEBUG, logPrefix + '[AgentJobEnqueuer] Not in Queueable context - this is the first job in chain, will set AsyncOptions');
         }
 
         // Automatically derive stack depth from MaxProcessingCycles + buffer
