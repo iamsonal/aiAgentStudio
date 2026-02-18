@@ -123,6 +123,14 @@ private class PIIMaskingServiceTest {
     }
 
     @IsTest
+    static void testCreateForAgent_BlankPreset_DefaultsToOff() {
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(DeveloperName__c = 'PIIMaskBlankPreset');
+
+        PIIMaskingService service = PIIMaskingService.createForAgent(agent);
+        System.assertEquals(null, service, 'Blank preset should default to Off and disable masking');
+    }
+
+    @IsTest
     static void testGetStatistics_ReturnsNonNull() {
         PIIPatternMatcher.clearCache();
         PIIMaskingService service = new PIIMaskingService(PIIMaskingService.MODE_PATTERN_ONLY, new Set<String>{ 'Identity' }, null, null);

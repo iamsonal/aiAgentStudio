@@ -489,7 +489,8 @@ public inherited sharing class PIIMaskingService {
 
     private static String normalizePreset(String presetValue) {
         if (String.isBlank(presetValue)) {
-            return PRESET_STANDARD;
+            // Default to Off when not explicitly configured on the agent.
+            return PRESET_OFF;
         }
         String normalized = presetValue.trim();
         if (normalized.equalsIgnoreCase(PRESET_OFF)) {

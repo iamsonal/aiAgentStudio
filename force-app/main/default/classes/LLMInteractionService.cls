@@ -129,12 +129,21 @@ public inherited sharing class LLMInteractionService {
             Boolean useCachedContext = false;
             LLMRequestCache cachedRequest = null;
 
-            if (TransactionContext.getInstance().isDeferredDMLMode() && requestCacheByExecution.containsKey(this.executionId)) {
+            // Check if we can use cached context from a previous LLM call in the same transaction
+            // This is critical for multi-LLM optimization to avoid redundant context resolution
+            // Conditions:
+            // 1. Deferred DML mode is enabled (multi-LLM optimization active)
+            // 2. Turn count > 1 (not the first LLM call - first call must build and cache)
+            // 3. Cache exists for this execution ID (from previous turn in same transaction)
+            if (TransactionContext.getInstance().isDeferredDMLMode() && this.currentTurnCount > 1 && requestCacheByExecution.containsKey(this.executionId)) {
                 cachedRequest = requestCacheByExecution.get(this.executionId);
                 // Only use cache if it's from the same transaction (within reasonable time window)
                 if (cachedRequest != null && cachedRequest.systemPrompt != null) {
                     useCachedContext = true;
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Multi-LLM optimization: Using cached request context (saved system prompt rebuild)');
+                    System.debug(
+                        LoggingLevel.INFO,
+                        logPrefix + 'Multi-LLM optimization: Using cached request context (saved system prompt rebuild and context resolution)'
+                    );
                 }
             }
 
@@ -147,7 +156,7 @@ public inherited sharing class LLMInteractionService {
 
                 System.debug(
                     LoggingLevel.DEBUG,
-                    logPrefix + 'Loaded cached config: Agent=' + agentConfig.DeveloperName__c + ', LLM=' + llmConfig.DeveloperName__c
+                    logPrefix + 'Loaded cached config: Agent=' + agentConfig.DeveloperName__c + ', LLM=' + llmConfig.DeveloperName__c + ', User=' + this.userId
                 );
             } else {
                 agentConfig = AIAgentConfigService.getAgentDefinition(this.agentDefinitionId);
@@ -206,6 +215,8 @@ public inherited sharing class LLMInteractionService {
                     this.decisionLogger.log(IDecisionStepLogger.EventType.TOOLS_CONFIGURED, new List<Object>{ toolsPayload });
                 }
 
+                // Cache the request context for subsequent LLM calls in the same transaction
+                // This is critical for multi-LLM optimization to avoid rebuilding system prompt and context
                 if (TransactionContext.getInstance().isDeferredDMLMode()) {
                     LLMRequestCache newCache = new LLMRequestCache();
                     newCache.systemPrompt = finalSystemPrompt;
