@@ -31,7 +31,6 @@
     <testClassName>HITLGatewayServiceTest</testClassName>
     <testClassName>HITLServiceQueueableTest</testClassName>
     <testClassName>IDecisionStepLoggerTest</testClassName>
-    <testClassName>JailbreakPatternMatcherTest</testClassName>
     <testClassName>LLMFormattingServiceTest</testClassName>
     <testClassName>LLMInteractionServiceTest</testClassName>
     <testClassName>MockHttpResponses</testClassName>
@@ -41,9 +40,6 @@
     <testClassName>PIIMaskingServiceTest</testClassName>
     <testClassName>PIIMaskingSessionTest</testClassName>
     <testClassName>PIIPatternMatcherTest</testClassName>
-    <testClassName>PromptHeuristicAnalyzerTest</testClassName>
-    <testClassName>PromptSafetyServiceTest</testClassName>
-    <testClassName>PromptStructureAnalyzerTest</testClassName>
     <testClassName>SchemaBasedMaskerTest</testClassName>
     <testClassName>ServiceUserContextQueueableTest</testClassName>
     <testClassName>SummarizeConversationQueueableTest</testClassName>

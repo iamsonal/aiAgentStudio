@@ -126,6 +126,120 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
         }
     }
 
+    /**
+     * @description Calls the OpenAI Moderation API (/v1/moderations) using the same Named Credential
+     * as the chat completions endpoint. No new credentials or third-party services required.
+     *
+     * Response mode is derived from PromptSafetyPreset__c:
+     *   Standard → block when overall score >= 0.6  (HIGH/CRITICAL only)
+     *   Strict   → block when overall score >= 0.4  (MEDIUM and above)
+     *   Off      → returns null (no check performed)
+     *
+     * Fails open: any API error returns ThreatAssessment.safe() so agent execution is never
+     * blocked by a transient moderation API failure.
+     */
+    public override ThreatAssessment checkMessageSafety(String userMessage, LLMConfiguration__c llmConfig, AIAgentDefinition__c agentConfig) {
+        String preset = normalizePromptSafetyPreset(agentConfig?.PromptSafetyPreset__c);
+        if (preset == PRESET_OFF) {
+            return null;
+        }
+
+        if (String.isBlank(userMessage)) {
+            return ThreatAssessment.safe(userMessage);
+        }
+
+        try {
+            HttpRequest req = new HttpRequest();
+            req.setEndpoint('callout:' + llmConfig.NamedCredential__c + '/v1/moderations');
+            req.setMethod('POST');
+            req.setHeader('Content-Type', 'application/json; charset=utf-8');
+            req.setBody(JSON.serialize(new Map<String, Object>{ 'input' => userMessage }));
+            req.setTimeout(15000);
+
+            HttpResponse res = new Http().send(req);
+
+            if (res.getStatusCode() != 200) {
+                System.debug(LoggingLevel.WARN, LOG_PREFIX + 'Moderation API returned HTTP ' + res.getStatusCode() + '. Failing open.');
+                return ThreatAssessment.safe(userMessage);
+            }
+
+            Map<String, Object> responseMap = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
+            List<Object> results = (List<Object>) responseMap.get('results');
+            if (results == null || results.isEmpty()) {
+                return ThreatAssessment.safe(userMessage);
+            }
+
+            Map<String, Object> result = (Map<String, Object>) results[0];
+            Map<String, Object> categories = result.get('categories') instanceof Map<String, Object>
+                ? (Map<String, Object>) result.get('categories')
+                : new Map<String, Object>();
+            Map<String, Object> categoryScores = result.get('category_scores') instanceof Map<String, Object>
+                ? (Map<String, Object>) result.get('category_scores')
+                : new Map<String, Object>();
+
+            Decimal maxScore = 0.0;
+            List<ThreatAssessment.ThreatIndicator> indicators = new List<ThreatAssessment.ThreatIndicator>();
+
+            for (String cat : categoryScores.keySet()) {
+                Object scoreObj = categoryScores.get(cat);
+                Decimal score = scoreObj != null ? Decimal.valueOf(String.valueOf(scoreObj)) : 0.0;
+                if (score > maxScore) {
+                    maxScore = score;
+                }
+                if (Boolean.valueOf(String.valueOf(categories.get(cat))) == true) {
+                    indicators.add(
+                        new ThreatAssessment.ThreatIndicator(
+                            'Moderation',
+                            mapModerationCategoryToGroup(cat),
+                            cat,
+                            'OpenAI Moderation API flagged: ' + cat + ' (score: ' + score.setScale(4) + ')',
+                            score
+                        )
+                    );
+                }
+            }
+
+            ThreatAssessment assessment = ThreatAssessment.fromAnalysis(userMessage, maxScore, indicators);
+            Decimal blockThreshold = preset == PRESET_STRICT ? 0.4 : 0.6;
+            assessment.applyResponseMode('Block', blockThreshold);
+
+            System.debug(
+                LoggingLevel.INFO,
+                LOG_PREFIX +
+                    'Moderation check complete. Score: ' +
+                    maxScore.setScale(4) +
+                    ', Indicators: ' +
+                    indicators.size() +
+                    ', Action: ' +
+                    assessment.recommendedAction
+            );
+
+            return assessment;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, LOG_PREFIX + 'Moderation check threw exception: ' + e.getMessage() + '. Failing open.');
+            return ThreatAssessment.safe(userMessage);
+        }
+    }
+
+    private static String mapModerationCategoryToGroup(String category) {
+        if (category.startsWith('hate')) {
+            return 'Hate';
+        }
+        if (category.startsWith('harassment')) {
+            return 'Harassment';
+        }
+        if (category.startsWith('self-harm')) {
+            return 'SelfHarm';
+        }
+        if (category.startsWith('sexual')) {
+            return 'Sexual';
+        }
+        if (category.startsWith('violence')) {
+            return 'Violence';
+        }
+        return 'Other';
+    }
+
     @TestVisible
     private List<Map<String, String>> parseStructuredToolCalls(List<Object> rawToolCallsList) {
         List<Map<String, String>> actions = new List<Map<String, String>>();

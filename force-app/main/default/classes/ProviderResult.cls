@@ -26,6 +26,13 @@ public inherited sharing class ProviderResult {
     public String modelIdentifier { get; set; }
     @AuraEnabled
     public Long llmCalloutDurationMs { get; set; }
+    /**
+     * Populated by adapters that perform in-call safety filtering (e.g. Gemini SAFETY finishReason).
+     * LLMInteractionService checks this after sendMessage() and short-circuits to a safe response when non-null.
+     * Null for adapters that do pre-call checks (OpenAI) or have no explicit signal (Claude).
+     */
+    public ThreatAssessment safetyBlock { get; set; }
+
     public ProviderResult(
         String content,
         Integer promptTokens,

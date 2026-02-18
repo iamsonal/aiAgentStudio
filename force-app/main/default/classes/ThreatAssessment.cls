@@ -8,7 +8,8 @@
 
 /**
  * @description
- * ThreatAssessment is the result DTO from PromptSafetyService analysis. It contains
+ * ThreatAssessment is the result DTO from provider-native safety checks (e.g. OpenAI Moderation API,
+ * Gemini safety ratings). It contains
  * the aggregated threat score, threat level classification, individual indicators
  * detected, and the recommended action based on the agent's configuration.
  *

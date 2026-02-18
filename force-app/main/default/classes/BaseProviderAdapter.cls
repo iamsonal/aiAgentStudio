@@ -10,9 +10,37 @@
  * @description Base class for LLM provider adapters. Provides common HTTP execution, JSON parsing, and token extraction functionality.
  */
 public abstract inherited sharing class BaseProviderAdapter implements ILLMProviderAdapter {
+    // Shared preset constants for PromptSafetyPreset__c — available to all adapter subclasses
+    public static final String PRESET_OFF = 'Off';
+    public static final String PRESET_STANDARD = 'Standard';
+    public static final String PRESET_STRICT = 'Strict';
+
     protected virtual String getLogPrefix() {
         return '[BaseAdapter] ';
     }
+
+    /**
+     * @description Default safety pre-check — returns null (no native pre-check capability).
+     * Override in adapters that support a dedicated safety API (e.g. OpenAI Moderation).
+     */
+    public virtual ThreatAssessment checkMessageSafety(String userMessage, LLMConfiguration__c llmConfig, AIAgentDefinition__c agentConfig) {
+        return null;
+    }
+
+    /**
+     * @description Normalises a PromptSafetyPreset__c picklist value to one of the three canonical constants.
+     * Blank or unknown values default to PRESET_STANDARD.
+     */
+    public static String normalizePromptSafetyPreset(String preset) {
+        if (String.isBlank(preset) || preset.trim().equalsIgnoreCase(PRESET_OFF)) {
+            return PRESET_OFF;
+        }
+        if (preset.trim().equalsIgnoreCase(PRESET_STRICT)) {
+            return PRESET_STRICT;
+        }
+        return PRESET_STANDARD;
+    }
+
     public ProviderResult sendMessage(
         List<Map<String, Object>> messagesPayload,
         List<Map<String, Object>> toolsPayload,

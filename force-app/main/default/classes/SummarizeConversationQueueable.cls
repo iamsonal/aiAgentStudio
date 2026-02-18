@@ -38,7 +38,6 @@ public without sharing class SummarizeConversationQueueable implements Queueable
         LLMConfiguration__c llmConfigToUse = null;
         String promptTemplateToUse = '';
         PIIMaskingService maskingService = null;
-        PromptSafetyService safetyService = null;
         String currentJobId = (String) context.getJobId();
 
         AgentExecution__c execution = null;
@@ -86,7 +85,6 @@ public without sharing class SummarizeConversationQueueable implements Queueable
             }
 
             maskingService = PIIMaskingService.createForAgent(summarizationAgentConfig, this.executionId);
-            safetyService = PromptSafetyService.createForAgent(summarizationAgentConfig, this.executionId);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to load summarization configuration: ' + e.getMessage());
             return;
@@ -122,20 +120,22 @@ public without sharing class SummarizeConversationQueueable implements Queueable
             System.debug(LoggingLevel.DEBUG, logPrefix + 'Applied PII masking to summarization prompt.');
         }
 
-        if (safetyService != null) {
-            ThreatAssessment assessment = safetyService.checkMessage(outboundPrompt);
-            if (assessment.shouldBlock()) {
-                System.debug(LoggingLevel.WARN, logPrefix + 'Summarization prompt blocked by safety policy. Skipping summarization.');
-                return;
-            }
-            if (assessment.hasSanitizedContent()) {
-                outboundPrompt = assessment.getSanitizedContent();
-                System.debug(LoggingLevel.INFO, logPrefix + 'Summarization prompt sanitized by safety policy.');
-            }
-        }
-
         try {
             ILLMProviderAdapter adapter = LLMInteractionService.getLLMProviderAdapter(llmConfigToUse);
+
+            // Provider-native safety pre-check on the outbound summarization prompt.
+            ThreatAssessment safetyAssessment = adapter.checkMessageSafety(outboundPrompt, llmConfigToUse, summarizationAgentConfig);
+            if (safetyAssessment != null) {
+                if (safetyAssessment.shouldBlock()) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Summarization prompt blocked by provider safety pre-check. Skipping summarization.');
+                    this.clearSummarizationJobId(currentJobId, logPrefix);
+                    return;
+                }
+                if (safetyAssessment.hasSanitizedContent()) {
+                    outboundPrompt = safetyAssessment.getSanitizedContent();
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Summarization prompt sanitized by provider safety pre-check.');
+                }
+            }
             List<Map<String, Object>> messagesPayload = new List<Map<String, Object>>{
                 new Map<String, Object>{ 'role' => 'user', 'content' => outboundPrompt }
             };

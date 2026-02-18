@@ -142,13 +142,46 @@ private class PIIMaskingServiceTest {
     }
 
     @IsTest
-    static void testSession_DifferentPatternNamesUseDifferentTokens() {
+    static void testMaskText_CrossPatternDedup_SingleToken() {
+        // When schema-based masking and pattern-based masking both detect the same raw value
+        // (e.g. an email in a Confidential field AND in the message body), they must produce
+        // one token. This prevents the LLM from seeing the same PII under two different tokens.
+        PIIMaskingSession session = new PIIMaskingSession();
+
+        String schemaToken = session.getOrCreateToken('foo@bar.com', 'FIELD_EMAIL__C');
+        String patternToken = session.getOrCreateToken('foo@bar.com', 'EMAIL');
+
+        System.assertEquals(schemaToken, patternToken, 'Schema and pattern maskers detecting the same value must produce one token');
+        System.assertEquals(1, session.getUniqueMaskedCount(), 'Only one unique value should be tracked');
+        System.assertEquals('foo@bar.com', session.resolveToken(schemaToken), 'Token should resolve to original email');
+    }
+
+    @IsTest
+    static void testMaskText_CapturingGroupPattern_KeywordPreservedInMaskedText() {
+        // Keyword-anchored patterns (bank account, routing, DL, passport, etc.) use a capturing
+        // group so only the sensitive number is replaced — the keyword remains in the text.
+        // This gives the LLM context while keeping the value masked.
+        PIIPatternMatcher.clearCache();
+        PIIMaskingService service = new PIIMaskingService(PIIMaskingService.MODE_PATTERN_ONLY, new Set<String>{ 'Financial' }, null, null);
+
+        String input = 'Please verify routing 021000021 for the transfer';
+        String masked = service.maskText(input);
+
+        System.assert(masked.contains('routing'), 'Keyword "routing" must be preserved in masked text');
+        System.assert(masked.contains('[RTN:'), 'Routing number must be replaced with RTN token');
+        System.assert(!masked.contains('021000021'), 'Original routing number must not appear in masked text');
+
+        System.assertEquals(input, service.unmaskText(masked), 'Masked text must round-trip back to original');
+    }
+
+    @IsTest
+    static void testSession_SameValueDifferentPatternNames_SingleToken() {
         PIIMaskingSession session = new PIIMaskingSession();
         String ssnToken = session.getOrCreateToken('123-45-6789', 'SSN');
         String phoneToken = session.getOrCreateToken('123-45-6789', 'PHONE');
 
-        System.assertNotEquals(ssnToken, phoneToken, 'Same value with different pattern names should get different tokens');
-        System.assertEquals('123-45-6789', session.resolveToken(ssnToken), 'SSN token should resolve to original');
-        System.assertEquals('123-45-6789', session.resolveToken(phoneToken), 'PHONE token should resolve to original');
+        System.assertEquals(ssnToken, phoneToken, 'Same value with different pattern names should produce the same token (value-only dedup)');
+        System.assertEquals(1, session.getUniqueMaskedCount(), 'Only one unique value should be tracked in the session');
+        System.assertEquals('123-45-6789', session.resolveToken(ssnToken), 'Token should resolve to original value');
     }
 }

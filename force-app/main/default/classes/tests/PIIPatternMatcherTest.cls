@@ -90,4 +90,71 @@ private class PIIPatternMatcherTest {
 
         PIIPatternMatcher.setMaxTextLength(50000);
     }
+
+    @IsTest
+    static void testFindMatches_PhoneUS_NoMatchInsideLongerNumber() {
+        // The (?<!\d) lookbehind prevents Phone_US matching digit substrings inside longer numbers.
+        PIIPatternMatcher.clearCache();
+        PIIMaskingService service = new PIIMaskingService(PIIMaskingService.MODE_PATTERN_ONLY, new Set<String>{ 'Contact' }, null, null);
+
+        String safeInput = 'Order 12125551234567 is ready';
+        System.assertEquals(safeInput, service.maskText(safeInput), 'Digit substring inside a longer number must not be masked as a phone');
+
+        String phoneInput = 'Call us at 212-555-1234 for help';
+        System.assert(service.maskText(phoneInput).contains('[PHONE:'), 'Standalone US phone number must be masked');
+    }
+
+    @IsTest
+    static void testFindMatches_IBAN_Detected() {
+        PIIPatternMatcher.clearCache();
+        PIIMaskingService service = new PIIMaskingService(PIIMaskingService.MODE_PATTERN_ONLY, new Set<String>{ 'Financial' }, null, null);
+
+        String input = 'Transfer to IBAN GB29NWBK60161331926819 today';
+        String masked = service.maskText(input);
+
+        System.assert(masked.contains('[IBAN:'), 'IBAN should be detected and masked');
+        System.assert(masked.contains('IBAN'), 'IBAN keyword must be preserved in masked text');
+        System.assert(!masked.contains('GB29NWBK60161331926819'), 'IBAN value must not appear in masked text');
+        System.assertEquals(input, service.unmaskText(masked), 'IBAN masking must round-trip correctly');
+    }
+
+    @IsTest
+    static void testFindMatches_EIN_Detected() {
+        PIIPatternMatcher.clearCache();
+        PIIMaskingService service = new PIIMaskingService(PIIMaskingService.MODE_PATTERN_ONLY, new Set<String>{ 'Financial' }, null, null);
+
+        String input = 'Company EIN 12-3456789 is on file';
+        String masked = service.maskText(input);
+
+        System.assert(masked.contains('[EIN:'), 'EIN must be detected and masked');
+        System.assert(!masked.contains('12-3456789'), 'EIN value must not appear in masked text');
+        System.assertEquals(input, service.unmaskText(masked), 'EIN masking must round-trip correctly');
+    }
+
+    @IsTest
+    static void testFindMatches_NationalInsuranceUK_Detected() {
+        PIIPatternMatcher.clearCache();
+        PIIMaskingService service = new PIIMaskingService(PIIMaskingService.MODE_PATTERN_ONLY, new Set<String>{ 'Identity' }, null, null);
+
+        String input = 'NINO AB123456C is registered on the account';
+        String masked = service.maskText(input);
+
+        System.assert(masked.contains('[NIN:'), 'UK NIN must be detected and masked');
+        System.assert(!masked.contains('AB123456C'), 'NIN value must not appear in masked text');
+        System.assertEquals(input, service.unmaskText(masked), 'NIN masking must round-trip correctly');
+    }
+
+    @IsTest
+    static void testFindMatches_VIN_Detected() {
+        PIIPatternMatcher.clearCache();
+        PIIMaskingService service = new PIIMaskingService(PIIMaskingService.MODE_PATTERN_ONLY, new Set<String>{ 'Identity' }, null, null);
+
+        // VIN uses ISO 3779 charset (excludes I, O, Q); 17 chars
+        String input = 'VIN 1HGBH41JXMN109186 for the vehicle recall';
+        String masked = service.maskText(input);
+
+        System.assert(masked.contains('[VIN:'), 'VIN must be detected and masked');
+        System.assert(!masked.contains('1HGBH41JXMN109186'), 'VIN value must not appear in masked text');
+        System.assertEquals(input, service.unmaskText(masked), 'VIN masking must round-trip correctly');
+    }
 }

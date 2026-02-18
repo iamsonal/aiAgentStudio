@@ -10,8 +10,6 @@
  * @description Orchestrates LLM interaction lifecycle for a single execution turn. Manages prompt composition, payload formatting, and response parsing.
  */
 public inherited sharing class LLMInteractionService {
-    private static final Integer SAFETY_CONTEXT_MAX_HISTORY = 3;
-    private static final Integer SAFETY_CONTEXT_MAX_CHARS = 2000;
     @TestVisible
     private static Map<String, ILLMProviderAdapter> adapterInstanceCache = new Map<String, ILLMProviderAdapter>();
 
@@ -87,7 +85,7 @@ public inherited sharing class LLMInteractionService {
     private final Id currentPageRecordId;
     private final Boolean isFinalErrorTurn;
     private final IDecisionStepLogger.ILogger decisionLogger;
-    private List<ExecutionStep__c> pendingSafetyAuditSteps = new List<ExecutionStep__c>();
+
     public LLMInteractionService(
         Id executionId,
         Id usrId,
@@ -241,6 +239,50 @@ public inherited sharing class LLMInteractionService {
                 finalMessagesPayload.addAll(historyPayload);
             }
 
+            // Obtain adapter once — used for both the safety pre-check and the LLM call.
+            ILLMProviderAdapter adapter = LLMInteractionService.getLLMProviderAdapter(llmConfig);
+
+            // Provider-native safety pre-check.
+            // The adapter decides what "safety" means for its provider:
+            //   OpenAI  → calls /v1/moderations (same Named Credential, no new third parties)
+            //   Gemini  → returns null here; safety settings are injected into the LLM request body
+            //   Claude  → returns null; Constitutional AI handles it in-model
+            // A null return means no pre-check was performed — execution continues normally.
+            if (currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
+                ThreatAssessment safetyResult = adapter.checkMessageSafety(currentTurnUserMessage.content, llmConfig, agentConfig);
+                if (safetyResult != null) {
+                    if (this.decisionLogger != null) {
+                        this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_CHECK, new List<Object>{ safetyResult });
+                    }
+
+                    if (safetyResult.shouldBlock()) {
+                        System.debug(
+                            LoggingLevel.WARN,
+                            logPrefix +
+                                'Message blocked by provider safety pre-check. Score: ' +
+                                safetyResult.overallScore +
+                                ', Indicators: ' +
+                                safetyResult.getIndicatorCount()
+                        );
+                        if (this.decisionLogger != null) {
+                            this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_BLOCKED, new List<Object>{ safetyResult });
+                        }
+                        String safeMessage = safetyResult.getSafeMessage();
+                        ProviderResult safetyProviderResult = new ProviderResult(safeMessage, 0, 0, 0, null, null, null, 'safety-layer', 0);
+                        MessageData safetyMessageData = new MessageData();
+                        safetyMessageData.role = AIAgentConstants.ROLE_ASSISTANT;
+                        safetyMessageData.content = safeMessage;
+                        return new LLMInteractionResult(safetyProviderResult, safetyMessageData);
+                    }
+
+                    if (safetyResult.hasSanitizedContent()) {
+                        currentTurnUserMessage.content = safetyResult.getSanitizedContent();
+                        System.debug(LoggingLevel.INFO, logPrefix + 'Applied sanitization to user message per safety pre-check.');
+                    }
+                }
+            }
+
+            // Add the (possibly sanitized) current user message to the outbound payload.
             if (currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
                 LLMFormattingService.addMessageToPayload(
                     finalMessagesPayload,
@@ -251,132 +293,6 @@ public inherited sharing class LLMInteractionService {
                     logPrefix,
                     'Current User Turn'
                 );
-            }
-
-            PromptSafetyService safetyService = PromptSafetyService.createForAgent(agentConfig, this.executionId);
-            if (safetyService != null && currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
-                String originalUserMessage = currentTurnUserMessage.content;
-                ThreatAssessment safetyResult = safetyService.checkMessage(originalUserMessage);
-
-                if (this.decisionLogger != null) {
-                    this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_CHECK, new List<Object>{ safetyResult });
-                }
-
-                if (safetyService.isAuditLoggingEnabled()) {
-                    logPromptSafetyAudit(safetyResult, 'current', logPrefix);
-                }
-
-                if (safetyResult.shouldBlock()) {
-                    System.debug(
-                        LoggingLevel.WARN,
-                        logPrefix +
-                            'Message blocked by prompt safety service. Score: ' +
-                            safetyResult.overallScore +
-                            ', Indicators: ' +
-                            safetyResult.getIndicatorCount()
-                    );
-
-                    // Log as SAFETY_BLOCKED (not ERROR) - this is expected behavior, not a failure
-                    if (this.decisionLogger != null) {
-                        this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_BLOCKED, new List<Object>{ safetyResult });
-                    }
-
-                    // Return a SUCCESS result with safe response instead of failure
-                    // This allows ContentResponseHandler to process it as a normal content response
-                    // and complete the turn gracefully instead of failing
-                    String safeMessage = safetyResult.getSafeMessage();
-                    ProviderResult safetyProviderResult = new ProviderResult(
-                        safeMessage, // content
-                        0, // promptTokens (no LLM call made)
-                        0, // completionTokens
-                        0, // totalTokens
-                        null, // requestedActions (no tool calls)
-                        null, // rawToolCallsJson
-                        null, // rawAssistantMessageWithActionsJson
-                        'safety-layer', // modelIdentifier
-                        0 // llmCalloutDurationMs
-                    );
-
-                    MessageData safetyMessageData = new MessageData();
-                    safetyMessageData.role = AIAgentConstants.ROLE_ASSISTANT;
-                    safetyMessageData.content = safeMessage;
-
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Returning safe response to user: ' + safeMessage.left(100));
-                    flushPendingSafetyAuditSteps(logPrefix, false);
-                    return new LLMInteractionResult(safetyProviderResult, safetyMessageData);
-                }
-
-                if (safetyResult.hasSanitizedContent()) {
-                    currentTurnUserMessage.content = safetyResult.getSanitizedContent();
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Applied sanitization to user message. Original threats neutralized.');
-                }
-
-                if (safetyResult.flagged) {
-                    System.debug(
-                        LoggingLevel.INFO,
-                        logPrefix + 'Message flagged for review. Score: ' + safetyResult.overallScore + ', Indicators: ' + safetyResult.getIndicatorCount()
-                    );
-                }
-
-                String safetyContext = buildPromptSafetyContext(this.executionId, originalUserMessage, logPrefix);
-                if (String.isNotBlank(safetyContext)) {
-                    ThreatAssessment contextResult = safetyService.checkMessage(safetyContext);
-
-                    if (this.decisionLogger != null) {
-                        this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_CHECK, new List<Object>{ contextResult, 'context' });
-                    }
-
-                    if (safetyService.isAuditLoggingEnabled()) {
-                        logPromptSafetyAudit(contextResult, 'context', logPrefix);
-                    }
-
-                    if (contextResult.shouldBlock()) {
-                        System.debug(
-                            LoggingLevel.WARN,
-                            logPrefix +
-                                'Message blocked by prompt safety context check. Score: ' +
-                                contextResult.overallScore +
-                                ', Indicators: ' +
-                                contextResult.getIndicatorCount()
-                        );
-
-                        if (this.decisionLogger != null) {
-                            this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_BLOCKED, new List<Object>{ contextResult, 'context' });
-                        }
-
-                        String safeMessage = contextResult.getSafeMessage();
-                        ProviderResult safetyProviderResult = new ProviderResult(
-                            safeMessage, // content
-                            0, // promptTokens (no LLM call made)
-                            0, // completionTokens
-                            0, // totalTokens
-                            null, // requestedActions (no tool calls)
-                            null, // rawToolCallsJson
-                            null, // rawAssistantMessageWithActionsJson
-                            'safety-layer', // modelIdentifier
-                            0 // llmCalloutDurationMs
-                        );
-
-                        MessageData safetyMessageData = new MessageData();
-                        safetyMessageData.role = AIAgentConstants.ROLE_ASSISTANT;
-                        safetyMessageData.content = safeMessage;
-
-                        System.debug(LoggingLevel.INFO, logPrefix + 'Returning safe response to user (context check): ' + safeMessage.left(100));
-                        flushPendingSafetyAuditSteps(logPrefix, false);
-                        return new LLMInteractionResult(safetyProviderResult, safetyMessageData);
-                    }
-
-                    if (contextResult.flagged) {
-                        System.debug(
-                            LoggingLevel.INFO,
-                            logPrefix +
-                                'Message flagged for review by context check. Score: ' +
-                                contextResult.overallScore +
-                                ', Indicators: ' +
-                                contextResult.getIndicatorCount()
-                        );
-                    }
-                }
             }
 
             if (maskingService != null) {
@@ -414,7 +330,6 @@ public inherited sharing class LLMInteractionService {
 
             Long callStartTime = System.currentTimeMillis();
             try {
-                ILLMProviderAdapter adapter = LLMInteractionService.getLLMProviderAdapter(llmConfig);
                 ProviderResult llmApiResult = adapter.sendMessage(finalMessagesPayload, toolsPayload, llmConfig, agentConfig);
 
                 if (llmApiResult == null) {
@@ -422,6 +337,22 @@ public inherited sharing class LLMInteractionService {
                 }
                 Long callDuration = System.currentTimeMillis() - callStartTime;
                 System.debug(LoggingLevel.INFO, logPrefix + 'LLM call succeeded in ' + callDuration + 'ms. executionId=' + this.executionId);
+
+                // Handle in-call safety block (e.g. Gemini SAFETY finishReason).
+                // Adapters that detect server-side filtering set safetyBlock on the ProviderResult.
+                if (llmApiResult.safetyBlock != null) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Response blocked by provider in-call safety filter.');
+                    if (this.decisionLogger != null) {
+                        this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_CHECK, new List<Object>{ llmApiResult.safetyBlock });
+                        this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_BLOCKED, new List<Object>{ llmApiResult.safetyBlock });
+                    }
+                    String safeMessage = llmApiResult.safetyBlock.getSafeMessage();
+                    ProviderResult safetyProviderResult = new ProviderResult(safeMessage, 0, 0, 0, null, null, null, 'safety-layer', 0);
+                    MessageData safetyMessageData = new MessageData();
+                    safetyMessageData.role = AIAgentConstants.ROLE_ASSISTANT;
+                    safetyMessageData.content = safeMessage;
+                    return new LLMInteractionResult(safetyProviderResult, safetyMessageData);
+                }
 
                 if (this.decisionLogger != null) {
                     this.decisionLogger.log(IDecisionStepLogger.EventType.LLM_RESPONSE, new List<Object>{ llmApiResult, llmConfig });
@@ -460,8 +391,6 @@ public inherited sharing class LLMInteractionService {
                 llmApiResult.content = unmaskedContent;
                 llmApiResult.rawToolCallsJson = unmaskedToolCallsJson;
 
-                Boolean hasToolCalls = (llmApiResult.requestedActions != null && !llmApiResult.requestedActions.isEmpty());
-                flushPendingSafetyAuditSteps(logPrefix, hasToolCalls);
                 return new LLMInteractionResult(llmApiResult, asstMsgData);
             } catch (Exception callEx) {
                 Long callDuration = System.currentTimeMillis() - callStartTime;
@@ -482,7 +411,6 @@ public inherited sharing class LLMInteractionService {
                     this.decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ callEx });
                 }
 
-                flushPendingSafetyAuditSteps(logPrefix, false);
                 return new LLMInteractionResult('LLM Call Failed: ' + callEx.getMessage(), AIAgentConstants.ERR_CODE_LLM_CALL_FAILED, callEx);
             }
         } catch (Exception ex) {
@@ -497,12 +425,10 @@ public inherited sharing class LLMInteractionService {
                     this.executionId
             );
 
-            // Log error if decision logger is available
             if (this.decisionLogger != null) {
                 this.decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ ex });
             }
 
-            flushPendingSafetyAuditSteps(logPrefix, false);
             return new LLMInteractionResult('Interaction Setup Failed: ' + ex.getMessage(), AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex);
         }
     }
@@ -647,121 +573,6 @@ public inherited sharing class LLMInteractionService {
             return AgentExecutionService.getOrchestrator(agentConfig);
         } catch (AIAgentException.OrchestrationException e) {
             throw new LLMInteractionException(e.getMessage());
-        }
-    }
-
-    private String buildPromptSafetyContext(Id executionId, String currentMessage, String logPrefix) {
-        if (executionId == null || String.isBlank(currentMessage)) {
-            return null;
-        }
-
-        try {
-            ExecutionStepService executionStepService = new ExecutionStepService();
-            List<ExecutionStep__c> recentInputs = executionStepService.getHistory(
-                executionId,
-                SAFETY_CONTEXT_MAX_HISTORY,
-                'DESC',
-                new List<String>{ 'UserInput' },
-                false
-            );
-
-            if (recentInputs == null || recentInputs.isEmpty()) {
-                return null;
-            }
-
-            List<String> messages = new List<String>();
-            for (ExecutionStep__c step : recentInputs) {
-                if (String.isNotBlank(step.Content__c)) {
-                    messages.add(step.Content__c);
-                }
-            }
-
-            if (messages.isEmpty()) {
-                return null;
-            }
-
-            List<String> orderedMessages = new List<String>();
-            for (Integer i = messages.size() - 1; i >= 0; i--) {
-                orderedMessages.add(messages[i]);
-            }
-            orderedMessages.add(currentMessage);
-
-            String combined = String.join(orderedMessages, '\n');
-            if (combined.length() > SAFETY_CONTEXT_MAX_CHARS) {
-                combined = combined.right(SAFETY_CONTEXT_MAX_CHARS);
-            }
-
-            return combined;
-        } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to build prompt safety context: ' + e.getMessage());
-            return null;
-        }
-    }
-
-    private void logPromptSafetyAudit(ThreatAssessment assessment, String scope, String logPrefix) {
-        if (assessment == null || this.executionId == null) {
-            return;
-        }
-
-        try {
-            Map<String, Object> summary = assessment.getSummary();
-            summary.put('scope', scope);
-            summary.put('executionId', this.executionId);
-            summary.put('turnIdentifier', this.turnIdentifier);
-            summary.put('turnCount', this.currentTurnCount);
-
-            if (TransactionContext.getInstance().isDeferredDMLMode()) {
-                ExecutionStepService executionStepService = new ExecutionStepService();
-                executionStepService.createStep(
-                    this.executionId,
-                    'SystemEvent',
-                    'System',
-                    JSON.serialize(summary),
-                    'JSON',
-                    this.turnIdentifier,
-                    this.currentTurnCount
-                );
-                return;
-            }
-
-            ExecutionStep__c pendingStep = new ExecutionStep__c(
-                AgentExecution__c = this.executionId,
-                StepType__c = 'SystemEvent',
-                StepRole__c = 'System',
-                Content__c = JSON.serialize(summary),
-                ContentType__c = 'JSON',
-                Timestamp__c = Datetime.now(),
-                TurnIdentifier__c = this.turnIdentifier,
-                TurnCount__c = this.currentTurnCount,
-                IsInternal__c = false,
-                IsAsyncToolExecution__c = false
-            );
-            this.pendingSafetyAuditSteps.add(pendingStep);
-            System.debug(LoggingLevel.DEBUG, logPrefix + 'Queued prompt safety audit step for deferred insert.');
-        } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to log prompt safety audit: ' + e.getMessage());
-        }
-    }
-
-    private void flushPendingSafetyAuditSteps(String logPrefix, Boolean mayCallAgain) {
-        if (this.pendingSafetyAuditSteps == null || this.pendingSafetyAuditSteps.isEmpty()) {
-            return;
-        }
-
-        try {
-            if (TransactionContext.getInstance().isDeferredDMLMode() || mayCallAgain == true) {
-                for (ExecutionStep__c pendingStep : this.pendingSafetyAuditSteps) {
-                    TransactionContext.getInstance().bufferInsert(pendingStep);
-                }
-                System.debug(LoggingLevel.INFO, logPrefix + 'Buffered ' + this.pendingSafetyAuditSteps.size() + ' pending prompt safety audit step(s).');
-            } else {
-                insert this.pendingSafetyAuditSteps;
-                System.debug(LoggingLevel.INFO, logPrefix + 'Inserted ' + this.pendingSafetyAuditSteps.size() + ' pending prompt safety audit step(s).');
-            }
-        } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to flush prompt safety audit steps: ' + e.getMessage());
-        } finally {
-            this.pendingSafetyAuditSteps.clear();
         }
     }
 }

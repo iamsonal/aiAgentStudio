@@ -16,4 +16,16 @@ public interface ILLMProviderAdapter {
         LLMConfiguration__c llmConfig,
         AIAgentDefinition__c agentConfig
     );
+
+    /**
+     * @description Performs a provider-native safety pre-check on the user message before the LLM call.
+     * Adapters that support native safety (e.g. OpenAI Moderation API) override this.
+     * Adapters with no pre-check capability (e.g. Claude — safety is in-model) return null.
+     *
+     * @param userMessage     The raw user message to evaluate.
+     * @param llmConfig       The LLM configuration (provides Named Credential for callouts).
+     * @param agentConfig     The agent definition (provides PromptSafetyPreset__c).
+     * @return ThreatAssessment if a check was performed, null if the adapter has no pre-check capability.
+     */
+    ThreatAssessment checkMessageSafety(String userMessage, LLMConfiguration__c llmConfig, AIAgentDefinition__c agentConfig);
 }

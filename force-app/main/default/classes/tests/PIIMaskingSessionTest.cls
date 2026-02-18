@@ -12,7 +12,7 @@ private class PIIMaskingSessionTest {
         String token3 = session.getOrCreateToken('123-45-6789', 'EmployeeId');
 
         System.assertEquals(token1, token2, 'Same value and pattern should reuse token');
-        System.assertNotEquals(token1, token3, 'Different pattern should create a new token');
+        System.assertEquals(token1, token3, 'Same value with a different pattern name should reuse the existing token (value-only dedup)');
         System.assertEquals('123-45-6789', session.resolveToken(token1), 'Token should resolve to original value');
         System.assertEquals('unknown', session.resolveToken('unknown'), 'Unknown token should return input');
     }

@@ -468,25 +468,6 @@ public inherited sharing class PIIMaskingService {
         return String.isNotBlank(prefix) ? prefix : 'PII';
     }
 
-    /**
-     * @description Parses masking mode from string.
-     */
-    private static String parseMaskingMode(String modeString) {
-        if (String.isBlank(modeString)) {
-            return MODE_HYBRID;
-        }
-
-        String normalized = modeString.toUpperCase().replace('-', '_').replace(' ', '_');
-
-        if (normalized.contains('SCHEMA') && normalized.contains('ONLY')) {
-            return MODE_SCHEMA_ONLY;
-        } else if (normalized.contains('PATTERN') && normalized.contains('ONLY')) {
-            return MODE_PATTERN_ONLY;
-        }
-
-        return MODE_HYBRID;
-    }
-
     private static String normalizePreset(String presetValue) {
         if (String.isBlank(presetValue)) {
             // Default to Off when not explicitly configured on the agent.
@@ -500,25 +481,6 @@ public inherited sharing class PIIMaskingService {
             return PRESET_STRICT;
         }
         return PRESET_STANDARD;
-    }
-
-    /**
-     * @description Parses a semicolon-separated multi-select picklist value to a Set.
-     */
-    private static Set<String> parseMultiSelectPicklist(String picklistValue) {
-        if (String.isBlank(picklistValue)) {
-            return null;
-        }
-
-        Set<String> values = new Set<String>();
-        for (String value : picklistValue.split(';')) {
-            String trimmed = value.trim();
-            if (String.isNotBlank(trimmed)) {
-                values.add(trimmed);
-            }
-        }
-
-        return values.isEmpty() ? null : values;
     }
 
     // =========================================================================
