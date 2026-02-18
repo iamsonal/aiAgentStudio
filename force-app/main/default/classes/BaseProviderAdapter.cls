@@ -9,7 +9,7 @@
 /**
  * @description Base class for LLM provider adapters. Provides common HTTP execution, JSON parsing, and token extraction functionality.
  */
-public abstract class BaseProviderAdapter implements ILLMProviderAdapter {
+public abstract inherited sharing class BaseProviderAdapter implements ILLMProviderAdapter {
     protected virtual String getLogPrefix() {
         return '[BaseAdapter] ';
     }

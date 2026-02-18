@@ -164,51 +164,182 @@ public abstract with sharing class BaseAgentAction implements IAgentAction {
             String initialCode = dmlEx.getNumDml() > 0 ? dmlEx.getDmlStatusCode(0) : null;
             String firstDmlMsg = dmlEx.getNumDml() > 0 ? dmlEx.getDmlMessage(0) : ex.getMessage();
             String errorCode = mapStatusCodeToErrorCode(initialCode, AIAgentConstants.ERR_CODE_DML_ERROR);
-            return ActionOutcome.failure(errorCode, 'DML failed: ' + firstDmlMsg);
+            String errorMessage = 'DML failed: ' + firstDmlMsg;
+            return ActionOutcome.failureWithMeta(
+                errorCode,
+                errorMessage,
+                ActionOutcome.deriveErrorCategory(errorCode),
+                isRetryableException(ex, errorCode, errorMessage),
+                null
+            );
         }
         if (ex instanceof System.QueryException) {
             String msgLower = ex.getMessage().toLowerCase();
             String errCode = (msgLower.contains('security enforced') || msgLower.contains('insufficient access'))
                 ? AIAgentConstants.ERR_CODE_PERMISSION_DENIED
                 : AIAgentConstants.ERR_CODE_SOQL_ERROR;
-            return ActionOutcome.failure(errCode, 'Query failed: ' + ex.getMessage());
+            String errorMessage = 'Query failed: ' + ex.getMessage();
+            return ActionOutcome.failureWithMeta(
+                errCode,
+                errorMessage,
+                ActionOutcome.deriveErrorCategory(errCode),
+                isRetryableException(ex, errCode, errorMessage),
+                null
+            );
         }
         if (ex instanceof System.CalloutException) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'External callout failed: ' + ex.getMessage());
+            String errorCode = AIAgentConstants.ERR_CODE_CONNECT_API_ERROR;
+            String errorMessage = 'External callout failed: ' + ex.getMessage();
+            return ActionOutcome.failureWithMeta(
+                errorCode,
+                errorMessage,
+                ActionOutcome.deriveErrorCategory(errorCode),
+                isRetryableException(ex, errorCode, errorMessage),
+                null
+            );
         }
         if (ex instanceof System.LimitException) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_SYSTEM_LIMIT, 'System limit exceeded: ' + ex.getMessage());
+            String errorCode = AIAgentConstants.ERR_CODE_SYSTEM_LIMIT;
+            String errorMessage = 'System limit exceeded: ' + ex.getMessage();
+            return ActionOutcome.failureWithMeta(
+                errorCode,
+                errorMessage,
+                ActionOutcome.deriveErrorCategory(errorCode),
+                isRetryableException(ex, errorCode, errorMessage),
+                null
+            );
         }
 
         if (ex instanceof TypeCoercionService.TypeCoercionException) {
             TypeCoercionService.TypeCoercionException tce = (TypeCoercionService.TypeCoercionException) ex;
             if (String.isNotBlank(tce.correctionGuidance)) {
-                return ActionOutcome.failureWithGuidance(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, tce.getMessage(), tce.correctionGuidance);
+                return ActionOutcome.failureWithMeta(
+                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                    tce.getMessage(),
+                    AIAgentConstants.ERR_CATEGORY_VALIDATION,
+                    false,
+                    tce.correctionGuidance
+                );
             }
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, tce.getMessage());
+            return ActionOutcome.failureWithMeta(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                tce.getMessage(),
+                AIAgentConstants.ERR_CATEGORY_VALIDATION,
+                false,
+                null
+            );
         }
 
         if (ex instanceof ValidationException) {
             ValidationException ve = (ValidationException) ex;
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, ve.getMessage());
+            return ActionOutcome.failureWithMeta(
+                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                ve.getMessage(),
+                AIAgentConstants.ERR_CATEGORY_VALIDATION,
+                false,
+                null
+            );
         }
         if (ex instanceof ActionSecurityException) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ex.getMessage());
+            return ActionOutcome.failureWithMeta(
+                AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
+                ex.getMessage(),
+                AIAgentConstants.ERR_CATEGORY_PERMISSION,
+                false,
+                null
+            );
         }
         if (ex instanceof ActionHandlerNullException) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT, ex.getMessage());
+            String errorCode = AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT;
+            return ActionOutcome.failureWithMeta(
+                errorCode,
+                ex.getMessage(),
+                ActionOutcome.deriveErrorCategory(errorCode),
+                isRetryableException(ex, errorCode, ex.getMessage()),
+                null
+            );
         }
         if (ex instanceof LLMFormattingService.LlmPayloadException) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'LLM Data Error: ' + ex.getMessage());
+            String errorCode = AIAgentConstants.ERR_CODE_CONFIG_ERROR;
+            String errorMessage = 'LLM Data Error: ' + ex.getMessage();
+            return ActionOutcome.failureWithMeta(errorCode, errorMessage, ActionOutcome.deriveErrorCategory(errorCode), false, null);
         }
         if (ex.getTypeName().contains('ProviderException') || (ex instanceof AIAgentException && ex.getMessage().contains('LLM'))) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_LLM_CALL_FAILED, 'LLM Communication Failed: ' + ex.getMessage());
+            String errorCode = AIAgentConstants.ERR_CODE_LLM_CALL_FAILED;
+            String errorMessage = 'LLM Communication Failed: ' + ex.getMessage();
+            return ActionOutcome.failureWithMeta(
+                errorCode,
+                errorMessage,
+                ActionOutcome.deriveErrorCategory(errorCode),
+                isRetryableException(ex, errorCode, errorMessage),
+                null
+            );
         }
         if (ex instanceof CapabilityExecutionService.CapabilityExecutionException) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Action Setup Failed: ' + ex.getMessage());
+            String errorCode = AIAgentConstants.ERR_CODE_CONFIG_ERROR;
+            String errorMessage = 'Action Setup Failed: ' + ex.getMessage();
+            return ActionOutcome.failureWithMeta(errorCode, errorMessage, ActionOutcome.deriveErrorCategory(errorCode), false, null);
         }
 
-        return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, ex.getMessage());
+        String errorCode = AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
+        String errorMessage = ex.getMessage();
+        return ActionOutcome.failureWithMeta(
+            errorCode,
+            errorMessage,
+            ActionOutcome.deriveErrorCategory(errorCode),
+            isRetryableException(ex, errorCode, errorMessage),
+            null
+        );
+    }
+
+    private Boolean isRetryableException(Exception ex, String errorCode, String errorMessage) {
+        if (errorCode == AIAgentConstants.ERR_CODE_RECORD_LOCKED) {
+            return true;
+        }
+        if (errorCode == AIAgentConstants.ERR_CODE_LLM_CALL_FAILED || errorCode == AIAgentConstants.ERR_CODE_CONNECT_API_ERROR) {
+            return !isNonRetryableMessage(errorMessage);
+        }
+        if (ex instanceof System.CalloutException) {
+            return !isNonRetryableMessage(errorMessage);
+        }
+        return ActionOutcome.deriveRetryable(errorCode);
+    }
+
+    private Boolean isTransientMessage(String errorMessage) {
+        if (String.isBlank(errorMessage)) {
+            return false;
+        }
+        String msg = errorMessage.toLowerCase();
+
+        if (isNonRetryableMessage(errorMessage)) {
+            return false;
+        }
+
+        return msg.contains('timeout') ||
+            msg.contains('timed out') ||
+            msg.contains('temporarily unavailable') ||
+            msg.contains('rate limit') ||
+            msg.contains('too many requests') ||
+            msg.contains('connection') ||
+            msg.contains('network') ||
+            msg.contains('unavailable') ||
+            msg.contains('service') ||
+            msg.contains('502') ||
+            msg.contains('503') ||
+            msg.contains('504');
+    }
+
+    private Boolean isNonRetryableMessage(String errorMessage) {
+        if (String.isBlank(errorMessage)) {
+            return false;
+        }
+        String msg = errorMessage.toLowerCase();
+        return msg.contains('unauthorized') ||
+            msg.contains('forbidden') ||
+            msg.contains('authentication') ||
+            msg.contains('invalid') ||
+            msg.contains('bad request') ||
+            msg.contains('validation');
     }
 
     @TestVisible

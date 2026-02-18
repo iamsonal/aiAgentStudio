@@ -414,6 +414,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>ExecutionStep__c.ErrorCategory__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>ExecutionStep__c.EstimatedCostUSD__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -450,6 +455,11 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>ExecutionStep__c.IsResumed__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>ExecutionStep__c.IsRetryable__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>

@@ -9,7 +9,7 @@
 /**
  * @description Encapsulates all state, execution, and service dependencies required for a single LLM response processing turn.
  */
-public class OrchestrationContext {
+public inherited sharing class OrchestrationContext {
     public LLMInteractionService.LLMInteractionResult llmResult { get; private set; }
     public LLMInteractionService.MessageData userMessageData { get; private set; }
     public Id executionId { get; private set; }

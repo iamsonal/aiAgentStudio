@@ -454,6 +454,67 @@ private class AgentExecutionServiceTest {
         System.assertEquals(0, results.size(), 'Empty input should return empty output');
     }
 
+    /**
+     * C-3: Verifies that startExecutionFromFlow() preserves the 1:1 positional mapping required
+     * by Flow's @InvocableMethod contract when requests for different agents are interleaved.
+     * Before the fix, results were appended by agent group (A,A,B) instead of by input order (A,B,A).
+     */
+    @IsTest
+    static void testStartExecutionFromFlow_MixedAgents_PreservesInputOrder() {
+        // Two agents — one from setup, one created inline
+        AIAgentDefinition__c agentA = [
+            SELECT Id, DeveloperName__c, RequiresServiceUserContext__c
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c LIKE 'ExecSvc_Agent%'
+            LIMIT 1
+        ];
+        agentA.RequiresServiceUserContext__c = false;
+        update agentA;
+
+        LLMConfiguration__c llm = [SELECT Id FROM LLMConfiguration__c LIMIT 1];
+        AIAgentDefinition__c agentB = TestFactory.newAgentDefinition().withName('ExecSvc_AgentB_MixedOrder').withType('Conversational').withLLM(llm.Id).save();
+
+        List<Account> sources = [SELECT Id FROM Account WHERE Name LIKE 'ExecSvc Account%' ORDER BY Name LIMIT 3];
+
+        // Force prior DML so all requests route through queueable (avoids callout requirement)
+        insert new Account(Name = 'ExecSvc MixedOrder DML');
+
+        // Input order: [AgentA, AgentB, AgentA] — two different agents interleaved
+        AgentExecutionService.InvocableRequest reqA1 = new AgentExecutionService.InvocableRequest();
+        reqA1.agentName = agentA.DeveloperName__c;
+        reqA1.recordId = sources[0].Id;
+        reqA1.triggerSource = 'Flow';
+
+        AgentExecutionService.InvocableRequest reqB1 = new AgentExecutionService.InvocableRequest();
+        reqB1.agentName = agentB.DeveloperName__c;
+        reqB1.recordId = sources[1].Id;
+        reqB1.triggerSource = 'Flow';
+
+        AgentExecutionService.InvocableRequest reqA2 = new AgentExecutionService.InvocableRequest();
+        reqA2.agentName = agentA.DeveloperName__c;
+        reqA2.recordId = sources[0].Id;
+        reqA2.triggerSource = 'Flow';
+
+        List<AgentExecutionService.ExecutionResult> results = AgentExecutionService.startExecutionFromFlow(
+            new List<AgentExecutionService.InvocableRequest>{ reqA1, reqB1, reqA2 }
+        );
+
+        // Flow contract: exactly one result per input, in the same position
+        System.assertEquals(3, results.size(), 'Should return exactly one result per input request');
+
+        // All results must be non-null — no index was left as the null placeholder
+        System.assertNotEquals(null, results[0], 'Result[0] (AgentA first) must not be null');
+        System.assertNotEquals(null, results[1], 'Result[1] (AgentB) must not be null');
+        System.assertNotEquals(null, results[2], 'Result[2] (AgentA second) must not be null');
+
+        // Errors use the proper error constructor (success=false), not the success constructor
+        for (AgentExecutionService.ExecutionResult r : results) {
+            if (!r.success) {
+                System.assertNotEquals(null, r.errorCode, 'Failed results must carry an errorCode, not use the success constructor');
+            }
+        }
+    }
+
     // ========== Mock HTTP Responses ==========
 
     private class MockRestApiFailure implements HttpCalloutMock {

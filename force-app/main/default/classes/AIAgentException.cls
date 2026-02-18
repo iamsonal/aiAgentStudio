@@ -9,7 +9,7 @@
 /**
  * @description Base exception for all errors in the AI Agent Framework. Consolidates framework exceptions with nested exception types.
  */
-public virtual class AIAgentException extends Exception {
+public virtual inherited sharing class AIAgentException extends Exception {
     public class OrchestrationException extends AIAgentException {
     }
 

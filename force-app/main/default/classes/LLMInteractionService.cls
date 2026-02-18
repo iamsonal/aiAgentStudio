@@ -628,42 +628,15 @@ public inherited sharing class LLMInteractionService {
     /**
      * @description
      * Loads the appropriate orchestrator for an agent definition.
-     * Uses the same metadata-driven approach as AgentExecutionService.
+     * Delegates to AgentExecutionService.getOrchestrator() so the transaction-level static
+     * cache is used instead of issuing a per-call SOQL against AgentOrchestratorMapping__mdt.
      */
     private IAgentOrchestrator loadOrchestrator(AIAgentDefinition__c agentConfig) {
-        String agentType = agentConfig.AgentType__c;
-
-        if (String.isBlank(agentType)) {
-            throw new LLMInteractionException('AgentType__c is required on agent definition');
+        try {
+            return AgentExecutionService.getOrchestrator(agentConfig);
+        } catch (AIAgentException.OrchestrationException e) {
+            throw new LLMInteractionException(e.getMessage());
         }
-
-        List<AgentOrchestratorMapping__mdt> mappings = [
-            SELECT OrchestratorClassName__c
-            FROM AgentOrchestratorMapping__mdt
-            WHERE AgentType__c = :agentType AND IsActive__c = TRUE
-            LIMIT 1
-        ];
-
-        if (mappings.isEmpty()) {
-            throw new LLMInteractionException('No orchestrator mapping found for agent type: ' + agentType);
-        }
-
-        String orchestratorClassName = mappings[0].OrchestratorClassName__c;
-
-        Type orchestratorType = Type.forName(orchestratorClassName);
-        if (orchestratorType == null) {
-            throw new LLMInteractionException('Orchestrator class not found: ' + orchestratorClassName);
-        }
-
-        Object instanceObj = orchestratorType.newInstance();
-        if (!(instanceObj instanceof IAgentOrchestrator)) {
-            throw new LLMInteractionException('Class does not implement IAgentOrchestrator: ' + orchestratorClassName);
-        }
-
-        IAgentOrchestrator orchestrator = (IAgentOrchestrator) instanceObj;
-        orchestrator.configure(agentConfig);
-
-        return orchestrator;
     }
 
     private String buildPromptSafetyContext(Id executionId, String currentMessage, String logPrefix) {

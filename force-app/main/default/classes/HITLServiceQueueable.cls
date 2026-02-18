@@ -15,7 +15,7 @@
  * - FOLLOWUP_ONLY: Queue follow-up LLM call without tool execution (for rejection/decline/expiration)
  * - RESUME: Resume a failed/stuck execution in service user context
  */
-public class HITLServiceQueueable implements Queueable, Database.AllowsCallouts {
+public without sharing class HITLServiceQueueable implements Queueable, Database.AllowsCallouts {
     private static final String LOG_PREFIX = '[HITLServiceQueue] ';
 
     public enum OperationType {

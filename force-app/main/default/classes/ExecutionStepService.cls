@@ -681,6 +681,13 @@ public inherited sharing class ExecutionStepService {
                 metadata.put('isDependencyValidationFailure', true);
             }
 
+            Map<String, Object> errorMetadata = extractErrorMetadata(toolResult);
+            String errorCategory = (String) errorMetadata.get('errorCategory');
+            Boolean isRetryable = coerceBoolean(errorMetadata.get('isRetryable'));
+            if (isRetryable == null) {
+                isRetryable = false;
+            }
+
             ExecutionStep__c step = new ExecutionStep__c(
                 AgentExecution__c = executionId,
                 StepType__c = 'ToolResult',
@@ -705,8 +712,10 @@ public inherited sharing class ExecutionStepService {
                 LLMCalloutDurationMs__c = null,
                 AIAgentCapability__c = capabilityId,
                 IsResumed__c = isResumed != null ? isResumed : false,
-                IsDependencyValidationFailure__c = isDependencyValidationFailure != null ? isDependencyValidationFailure : false
+                IsDependencyValidationFailure__c = isDependencyValidationFailure != null ? isDependencyValidationFailure : false,
+                ErrorCategory__c = errorCategory
             );
+            applyRetryableField(step, isRetryable);
 
             // Multi-LLM optimization: Check if deferred DML mode is enabled
             if (TransactionContext.getInstance().isDeferredDMLMode()) {
@@ -776,7 +785,14 @@ public inherited sharing class ExecutionStepService {
             metadata.put('isDependencyValidationFailure', true);
         }
 
-        return new ExecutionStep__c(
+        Map<String, Object> errorMetadata = extractErrorMetadata(toolResult);
+        String errorCategory = (String) errorMetadata.get('errorCategory');
+        Boolean isRetryable = coerceBoolean(errorMetadata.get('isRetryable'));
+        if (isRetryable == null) {
+            isRetryable = false;
+        }
+
+        ExecutionStep__c step = new ExecutionStep__c(
             AgentExecution__c = executionId,
             StepType__c = 'ToolResult',
             StepRole__c = 'Tool',
@@ -800,8 +816,11 @@ public inherited sharing class ExecutionStepService {
             LLMCalloutDurationMs__c = null,
             AIAgentCapability__c = capabilityId,
             IsResumed__c = isResumed != null ? isResumed : false,
-            IsDependencyValidationFailure__c = isDependencyValidationFailure != null ? isDependencyValidationFailure : false
+            IsDependencyValidationFailure__c = isDependencyValidationFailure != null ? isDependencyValidationFailure : false,
+            ErrorCategory__c = errorCategory
         );
+        applyRetryableField(step, isRetryable);
+        return step;
     }
 
     public Id updateToolResultStep(Id executionId, String toolCallId, String toolResult, Long processingDuration) {
@@ -831,6 +850,14 @@ public inherited sharing class ExecutionStepService {
             step.HasResult__c = String.isNotBlank(toolResult);
             step.IsError__c = isError != null ? isError : false;
             step.Timestamp__c = Datetime.now();
+
+            Map<String, Object> errorMetadata = extractErrorMetadata(toolResult);
+            step.ErrorCategory__c = (String) errorMetadata.get('errorCategory');
+            Boolean isRetryable = coerceBoolean(errorMetadata.get('isRetryable'));
+            if (isRetryable == null) {
+                isRetryable = false;
+            }
+            applyRetryableField(step, isRetryable);
 
             Map<String, Object> metadata = new Map<String, Object>();
             if (String.isNotBlank(step.StepMetadata__c)) {
@@ -1276,6 +1303,86 @@ public inherited sharing class ExecutionStepService {
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error extracting next step suggestion: ' + e.getMessage());
             return null;
+        }
+    }
+
+    private static Map<String, Object> extractErrorMetadata(String toolResult) {
+        Map<String, Object> metadata = new Map<String, Object>{ 'errorCategory' => null, 'isRetryable' => null };
+        if (String.isBlank(toolResult)) {
+            return metadata;
+        }
+
+        try {
+            Object raw = JSON.deserializeUntyped(toolResult);
+            if (!(raw instanceof Map<String, Object>)) {
+                return metadata;
+            }
+            Map<String, Object> result = (Map<String, Object>) raw;
+            if (result.containsKey('errorCategory')) {
+                metadata.put('errorCategory', (String) result.get('errorCategory'));
+            }
+            if (result.containsKey('isRetryable')) {
+                Object retryableRaw = result.get('isRetryable');
+                metadata.put('isRetryable', coerceBoolean(retryableRaw));
+            }
+        } catch (Exception e) {
+        }
+
+        return metadata;
+    }
+
+    private static Boolean coerceBoolean(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        }
+        if (value instanceof String) {
+            String normalized = ((String) value).trim().toLowerCase();
+            if (normalized == 'true') {
+                return true;
+            }
+            if (normalized == 'false') {
+                return false;
+            }
+            return null;
+        }
+        if (value instanceof Integer || value instanceof Long || value instanceof Decimal) {
+            Decimal numVal = (value instanceof Decimal) ? (Decimal) value : Decimal.valueOf(String.valueOf(value));
+            if (numVal == 1) {
+                return true;
+            }
+            if (numVal == 0) {
+                return false;
+            }
+        }
+        return null;
+    }
+
+    private static void applyRetryableField(SObject record, Boolean isRetryable) {
+        if (record == null) {
+            return;
+        }
+
+        try {
+            Map<String, Schema.SObjectField> fields = record.getSObjectType().getDescribe().fields.getMap();
+            if (!fields.containsKey('IsRetryable__c')) {
+                return;
+            }
+
+            Schema.DisplayType fieldType = fields.get('IsRetryable__c').getDescribe().getType();
+            if (fieldType == Schema.DisplayType.Boolean) {
+                record.put('IsRetryable__c', isRetryable);
+                return;
+            }
+            if (fieldType == Schema.DisplayType.String) {
+                record.put('IsRetryable__c', String.valueOf(isRetryable));
+                return;
+            }
+
+            record.put('IsRetryable__c', isRetryable);
+        } catch (Exception e) {
         }
     }
 }

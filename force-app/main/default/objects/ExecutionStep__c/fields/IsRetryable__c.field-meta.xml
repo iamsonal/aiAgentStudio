@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsRetryable__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Indicates whether the error is considered retryable.</description>
+    <inlineHelpText>True if the error is transient and should be retried.</inlineHelpText>
+    <label>Is Retryable</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

@@ -29,7 +29,7 @@
  *     userMessage = assessment.getSanitizedContent();
  * }
  */
-public class ThreatAssessment {
+public inherited sharing class ThreatAssessment {
     /**
      * Threat level enumeration representing the severity of detected threats.
      * Used to determine the appropriate response action.

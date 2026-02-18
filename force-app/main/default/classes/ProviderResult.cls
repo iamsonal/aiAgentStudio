@@ -9,7 +9,7 @@
 /**
  * @description Data transfer object that encapsulates the full outcome of an LLM API call. Includes content, token usage, and tool requests.
  */
-public class ProviderResult {
+public inherited sharing class ProviderResult {
     @AuraEnabled
     public String content { get; set; }
     @AuraEnabled

@@ -29,7 +29,7 @@
  * String token3 = session.getOrCreateToken('987-65-4321', 'SSN');  // Returns [SSN:002] (different value)
  * String original = session.resolveToken('[SSN:001]');             // Returns '123-45-6789'
  */
-public class PIIMaskingSession {
+public inherited sharing class PIIMaskingSession {
     // Bidirectional mappings
     private Map<String, String> valueToToken; // Original value → masked token
     private Map<String, String> tokenToValue; // Masked token → original value

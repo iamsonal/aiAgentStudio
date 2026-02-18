@@ -9,7 +9,7 @@
 /**
  * @description Integration layer for the OpenAI Chat Completions API. Extends BaseProviderAdapter for OpenAI-specific request formatting and response parsing.
  */
-public class OpenAIProviderAdapter extends BaseProviderAdapter {
+public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter {
     private static final String LOG_PREFIX = '[OpenAIAdapter] ';
     private static final Integer DEFAULT_TIMEOUT_MS = 120000;
 

@@ -9,7 +9,7 @@
 /**
  * @description Simple HTTP client utility for Apex. Provides single-attempt HTTP callout execution with centralized logging.
  */
-public class HttpCalloutService {
+public inherited sharing class HttpCalloutService {
     public class CalloutConfig {
         public String logPrefix = '[HttpCalloutService] ';
 

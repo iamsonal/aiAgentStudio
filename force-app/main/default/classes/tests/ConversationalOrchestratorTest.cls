@@ -382,4 +382,55 @@ private class ConversationalOrchestratorTest {
         System.assertEquals('Failed', refreshed.ExecutionStatus__c, 'Failed sync retry should mark execution failed');
         System.assertEquals(AIAgentConstants.STATUS_FAILED, refreshed.ProcessingStatus__c, 'Failed sync retry should set failed status');
     }
+
+    /**
+     * C-8: Verifies that validateExecutionAccess() rejects an existingExecutionId that belongs to
+     * a different agent than the one the orchestrator was configured for.
+     * Without this check a user who owns an Idle execution for AgentA could drive it through
+     * AgentB's orchestrator by passing a mismatched existingExecutionId.
+     */
+    @IsTest
+    static void testStart_ExistingExecutionBelongingToWrongAgent_ThrowsAccessDenied() {
+        AIAgentDefinition__c agentA = [
+            SELECT Id, DeveloperName__c, LLMConfiguration__c
+            FROM AIAgentDefinition__c
+            LIMIT 1
+        ];
+
+        LLMConfiguration__c llm = [SELECT Id FROM LLMConfiguration__c LIMIT 1];
+        AIAgentDefinition__c agentB = TestFactory.newAgentDefinition().withName('CrossAgent_AgentB').withType('Conversational').withLLM(llm.Id).save();
+
+        // Create an Idle execution owned by the current user but bound to AgentA
+        AgentExecution__c executionForAgentA = TestFactory.newExecution()
+            .withAgent(agentA.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withStatus('Pending')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .withTurnIdentifier('turn-cross-001')
+            .save();
+
+        // Attempt to continue the AgentA execution through AgentB's orchestrator
+        AgentExecutionService.ExecutionPayload payload = TestFactory.newExecutionPayload()
+            .withUser(UserInfo.getUserId())
+            .withUserMessage('Injection attempt')
+            .withTurn('turn-cross-001')
+            .withExistingExecution(executionForAgentA.Id)
+            .withTriggerSource('UI')
+            .build();
+
+        ConversationalOrchestrator orchestratorB = new ConversationalOrchestrator(agentB);
+
+        Boolean threw = false;
+        try {
+            orchestratorB.start(agentB.DeveloperName__c, payload);
+        } catch (AIAgentException.OrchestrationException e) {
+            threw = true;
+            System.assert(
+                e.getMessage().contains('does not belong to the requested agent'),
+                'Exception message should indicate cross-agent mismatch: ' + e.getMessage()
+            );
+        }
+        System.assertEquals(true, threw, 'Passing an execution from a different agent should throw OrchestrationException');
+    }
 }

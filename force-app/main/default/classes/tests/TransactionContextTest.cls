@@ -130,4 +130,35 @@ private class TransactionContextTest {
 
         System.assertEquals(false, ctx.canContinueWithImmediateFollowUp(), 'Unsafe operations should block immediate follow-up');
     }
+
+    /**
+     * C-1: Verifies that reset() clears emailCountBeforeTool so a prior turn's email
+     * activity is not falsely attributed to the next turn.
+     */
+    @IsTest
+    static void testReset_ClearsEmailCountBeforeTool() {
+        TransactionContext.resetInstance();
+        TransactionContext ctx = TransactionContext.getInstance();
+
+        // Turn 1: snap baseline, send an email, confirm it is detected as unsafe.
+        ctx.resetTurnSafetyTracking();
+        Messaging.SingleEmailMessage email = new Messaging.SingleEmailMessage();
+        email.setToAddresses(new List<String>{ 'test@example.com' });
+        email.setSubject('Turn 1 email');
+        email.setPlainTextBody('Test body');
+        Messaging.sendEmail(new List<Messaging.SingleEmailMessage>{ email });
+        System.assertEquals(true, ctx.toolPerformedDMLOrCallout(), 'Turn 1 email should register as unsafe operation');
+
+        // Simulate the new-execution entry point (AgentExecutionService.startExecution resets context).
+        ctx.reset();
+
+        // Turn 2: re-snap the baseline after the reset.
+        // Because reset() now correctly zeroes emailCountBeforeTool, resetTurnSafetyTracking()
+        // picks up the current cumulative count as the new baseline.
+        ctx.resetTurnSafetyTracking();
+
+        // No new email sent in turn 2 — should not be detected as unsafe.
+        Boolean unsafeInTurn2 = ctx.toolPerformedDMLOrCallout();
+        System.assertEquals(false, unsafeInTurn2, 'Turn 2 with no new email should not be flagged as unsafe after reset()');
+    }
 }

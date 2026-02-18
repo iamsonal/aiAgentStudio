@@ -9,7 +9,7 @@
 /**
  * @description Immutable DTO that encapsulates contextual information for executing agent actions.
  */
-public class ActionContext {
+public inherited sharing class ActionContext {
     public Id executionId { get; private set; }
     public String executionType { get; private set; }
     public Id relatedRecordId { get; private set; }

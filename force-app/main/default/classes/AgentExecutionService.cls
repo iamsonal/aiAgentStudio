@@ -167,22 +167,33 @@ global inherited sharing class AgentExecutionService {
             return new List<ExecutionResult>();
         }
 
-        Map<String, List<Id>> agentToRecordIds = new Map<String, List<Id>>();
-        Map<String, InvocableRequest> agentToSampleRequest = new Map<String, InvocableRequest>();
-
-        for (InvocableRequest request : requests) {
-            if (!agentToRecordIds.containsKey(request.agentName)) {
-                agentToRecordIds.put(request.agentName, new List<Id>());
-                agentToSampleRequest.put(request.agentName, request);
+        // Track the original position of every request so results are placed back in the
+        // same order as inputs. Flow's @InvocableMethod contract requires a strict 1:1
+        // positional mapping — results[i] must correspond to requests[i].
+        Map<String, List<Integer>> agentToIndices = new Map<String, List<Integer>>();
+        for (Integer i = 0; i < requests.size(); i++) {
+            InvocableRequest request = requests[i];
+            if (!agentToIndices.containsKey(request.agentName)) {
+                agentToIndices.put(request.agentName, new List<Integer>());
             }
-            agentToRecordIds.get(request.agentName).add(request.recordId);
+            agentToIndices.get(request.agentName).add(i);
         }
 
+        // Pre-fill with nulls so we can assign by index position, not by append order.
         List<ExecutionResult> results = new List<ExecutionResult>();
-        for (String agentName : agentToRecordIds.keySet()) {
+        for (Integer i = 0; i < requests.size(); i++) {
+            results.add(null);
+        }
+
+        for (String agentName : agentToIndices.keySet()) {
+            List<Integer> indices = agentToIndices.get(agentName);
+            InvocableRequest sampleRequest = requests[indices[0]];
+
             try {
-                InvocableRequest sampleRequest = agentToSampleRequest.get(agentName);
-                List<Id> recordIds = agentToRecordIds.get(agentName);
+                List<Id> recordIds = new List<Id>();
+                for (Integer idx : indices) {
+                    recordIds.add(requests[idx].recordId);
+                }
 
                 ExecutionPayload payload = new ExecutionPayload();
                 payload.userId = UserInfo.getUserId();
@@ -191,14 +202,19 @@ global inherited sharing class AgentExecutionService {
                 payload.triggerSource = sampleRequest.triggerSource;
                 payload.turnIdentifier = UUID.randomUUID().toString();
 
-                ExecutionResult result = startExecution(agentName, payload);
-                for (Integer i = 0; i < recordIds.size(); i++) {
-                    results.add(result);
+                ExecutionResult batchResult = startExecution(agentName, payload);
+
+                // For single-record groups the executionId is populated on batchResult.
+                // For multi-record groups, execution records are created asynchronously via
+                // DLQ dispatch; callers needing per-record IDs should query
+                // AgentExecution__c WHERE BatchId__c = batchResult.message after processing.
+                for (Integer idx : indices) {
+                    results[idx] = batchResult;
                 }
             } catch (Exception e) {
-                List<Id> recordIds = agentToRecordIds.get(agentName);
-                for (Integer i = 0; i < recordIds.size(); i++) {
-                    results.add(new ExecutionResult('Failed to start execution: ' + e.getMessage()));
+                ExecutionResult errorResult = new ExecutionResult(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Failed to start execution: ' + e.getMessage());
+                for (Integer idx : indices) {
+                    results[idx] = errorResult;
                 }
             }
         }
@@ -486,6 +502,10 @@ global inherited sharing class AgentExecutionService {
         @InvocableVariable(Label='Error Message' Description='Detailed error information if the execution failed to start')
         global String errorMessage;
 
+        @AuraEnabled
+        @InvocableVariable(Label='Error Code' Description='Machine-readable error code for programmatic error handling')
+        global String errorCode;
+
         public ExecutionResult(Id executionId, String status, String message) {
             this.executionId = executionId;
             this.status = status;
@@ -493,8 +513,9 @@ global inherited sharing class AgentExecutionService {
             this.success = true;
         }
 
-        public ExecutionResult(String errorMessage) {
+        public ExecutionResult(String errorCode, String errorMessage) {
             this.success = false;
+            this.errorCode = errorCode;
             this.errorMessage = errorMessage;
         }
     }

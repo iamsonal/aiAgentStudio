@@ -9,7 +9,7 @@
 /**
  * @description Generic outcome container for agent actions with explicit success/failure states. Provides unified error handling.
  */
-public class ActionOutcome {
+public inherited sharing class ActionOutcome {
     @AuraEnabled
     public Boolean isSuccess { get; private set; }
 
@@ -27,17 +27,34 @@ public class ActionOutcome {
 
     @AuraEnabled
     public String correctionGuidance { get; private set; }
-    private ActionOutcome(Boolean isSuccess, Object data, String errorCode, String errorMessage, String correctionGuidance) {
+
+    @AuraEnabled
+    public String errorCategory { get; private set; }
+
+    @AuraEnabled
+    public Boolean isRetryable { get; private set; }
+
+    private ActionOutcome(
+        Boolean isSuccess,
+        Object data,
+        String errorCode,
+        String errorMessage,
+        String correctionGuidance,
+        String errorCategory,
+        Boolean isRetryable
+    ) {
         this.isSuccess = isSuccess;
         this.data = data;
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
         this.correctionGuidance = correctionGuidance;
+        this.errorCategory = errorCategory;
+        this.isRetryable = isRetryable;
         this.llmFriendlyMessage = formatLLMFriendlyMessage(isSuccess, errorCode, errorMessage, correctionGuidance);
     }
 
     public static ActionOutcome success(Object data) {
-        return new ActionOutcome(true, data, null, null, null);
+        return new ActionOutcome(true, data, null, null, null, null, null);
     }
 
     public static ActionOutcome success() {
@@ -45,15 +62,93 @@ public class ActionOutcome {
     }
 
     public static ActionOutcome failure(String errorCode, String errorMessage) {
-        return new ActionOutcome(false, null, errorCode, errorMessage, null);
+        String errorCategory = deriveErrorCategory(errorCode);
+        Boolean retryable = deriveRetryable(errorCode);
+        return new ActionOutcome(false, null, errorCode, errorMessage, null, errorCategory, retryable);
     }
 
     public static ActionOutcome failureWithGuidance(String errorCode, String errorMessage, String correctionGuidance) {
-        return new ActionOutcome(false, null, errorCode, errorMessage, correctionGuidance);
+        String errorCategory = deriveErrorCategory(errorCode);
+        Boolean retryable = deriveRetryable(errorCode);
+        return new ActionOutcome(false, null, errorCode, errorMessage, correctionGuidance, errorCategory, retryable);
     }
 
     public static ActionOutcome failure(String errorMessage) {
         return failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, errorMessage);
+    }
+
+    public static ActionOutcome failureWithMeta(String errorCode, String errorMessage, String errorCategory, Boolean isRetryable, String correctionGuidance) {
+        return new ActionOutcome(false, null, errorCode, errorMessage, correctionGuidance, errorCategory, isRetryable);
+    }
+
+    public static String deriveErrorCategory(String errorCode) {
+        if (String.isBlank(errorCode)) {
+            return AIAgentConstants.ERR_CATEGORY_UNKNOWN;
+        }
+
+        if (new Set<String>{ AIAgentConstants.ERR_CODE_INPUT_VALIDATION, AIAgentConstants.ERR_CODE_DEPENDENCY_VALIDATION }.contains(errorCode)) {
+            return AIAgentConstants.ERR_CATEGORY_VALIDATION;
+        }
+        if (errorCode == AIAgentConstants.ERR_CODE_PERMISSION_DENIED) {
+            return AIAgentConstants.ERR_CATEGORY_PERMISSION;
+        }
+        if (
+            new Set<String>{
+                    AIAgentConstants.ERR_CODE_DML_ERROR,
+                    AIAgentConstants.ERR_CODE_SOQL_ERROR,
+                    AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND,
+                    AIAgentConstants.ERR_CODE_RECORD_LOCKED
+                }
+                .contains(errorCode)
+        ) {
+            return AIAgentConstants.ERR_CATEGORY_DATA;
+        }
+        if (new Set<String>{ AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, AIAgentConstants.ERR_CODE_LLM_CALL_FAILED }.contains(errorCode)) {
+            return AIAgentConstants.ERR_CATEGORY_EXTERNAL;
+        }
+        if (
+            new Set<String>{
+                    AIAgentConstants.ERR_CODE_SYSTEM_LIMIT,
+                    AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED,
+                    AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                    AIAgentConstants.ERR_CODE_FLOW_FAULT,
+                    AIAgentConstants.ERR_CODE_COMPLETION_CAPABILITY_FAILED,
+                    AIAgentConstants.ERR_CODE_TOOL_RECOVERY_VIOLATION,
+                    AIAgentConstants.ERR_CODE_SAFETY_BLOCKED,
+                    AIAgentConstants.ERR_CODE_SAFETY_FLAGGED
+                }
+                .contains(errorCode)
+        ) {
+            return AIAgentConstants.ERR_CATEGORY_SYSTEM;
+        }
+        if (new Set<String>{ AIAgentConstants.ERR_CODE_CONFIG_ERROR, AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT }.contains(errorCode)) {
+            return AIAgentConstants.ERR_CATEGORY_CONFIG;
+        }
+        if (
+            new Set<String>{
+                    AIAgentConstants.ERR_CODE_USER_REJECTED,
+                    AIAgentConstants.ERR_CODE_CONFIRMATION_TIMEOUT,
+                    AIAgentConstants.ERR_CODE_CONFIRMATION_STATE_ERROR
+                }
+                .contains(errorCode)
+        ) {
+            return AIAgentConstants.ERR_CATEGORY_USER;
+        }
+
+        return AIAgentConstants.ERR_CATEGORY_UNKNOWN;
+    }
+
+    public static Boolean deriveRetryable(String errorCode) {
+        if (String.isBlank(errorCode)) {
+            return false;
+        }
+
+        return new Set<String>{
+                AIAgentConstants.ERR_CODE_RECORD_LOCKED,
+                AIAgentConstants.ERR_CODE_CONNECT_API_ERROR,
+                AIAgentConstants.ERR_CODE_LLM_CALL_FAILED
+            }
+            .contains(errorCode);
     }
 
     private String formatLLMFriendlyMessage(Boolean isSuccess, String errorCode, String errorMessage, String correctionGuidance) {
@@ -339,8 +434,8 @@ public class ActionOutcome {
 
     public override String toString() {
         return String.format(
-            'ActionOutcome[isSuccess={0}, errorCode={1}, errorMessage={2}]',
-            new List<String>{ String.valueOf(this.isSuccess), this.errorCode, this.errorMessage }
+            'ActionOutcome[isSuccess={0}, errorCode={1}, errorCategory={2}, retryable={3}, errorMessage={4}]',
+            new List<String>{ String.valueOf(this.isSuccess), this.errorCode, this.errorCategory, String.valueOf(this.isRetryable), this.errorMessage }
         );
     }
 }

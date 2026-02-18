@@ -510,7 +510,7 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
             if (OrchestrationService.shouldFailFast(capability, agentDefinition, toolOutcome, executionId, logPrefix)) {
                 AgentStateService agentStateSvc = new AgentStateService();
                 agentStateSvc.failTurn(executionId, newTurnIdentifier, toolOutcome.errorMessage, toolOutcome.errorCode, logPrefix);
-                return new AgentExecutionService.ExecutionResult('Tool retry failed: ' + toolOutcome.errorMessage);
+                return new AgentExecutionService.ExecutionResult(toolOutcome.errorCode, 'Tool retry failed: ' + toolOutcome.errorMessage);
             }
         }
 
@@ -754,7 +754,12 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
     }
 
     /**
-     * Validates that the user has access to the specified execution.
+     * Validates that the user has access to the specified execution and that the execution
+     * belongs to the agent this orchestrator was configured for.
+     *
+     * The agent-definition cross-check (below) prevents cross-agent injection: a user who
+     * legitimately owns an execution for AgentA cannot re-drive it through AgentB's
+     * orchestrator by passing a mismatched existingExecutionId.
      */
     private void validateExecutionAccess(Id executionId, Id userId) {
         List<AgentExecution__c> executions = [
@@ -771,6 +776,12 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
         AgentExecution__c execution = executions[0];
         if (execution.ProcessingStatus__c != AIAgentConstants.STATUS_IDLE && execution.ProcessingStatus__c != AIAgentConstants.STATUS_FAILED) {
             throw new AIAgentException.OrchestrationException('Execution is currently busy (Status: ' + execution.ProcessingStatus__c + ')');
+        }
+
+        // Verify the execution is bound to the same agent this orchestrator serves.
+        // configure() is always called before start(), so agentDefinition is guaranteed non-null here.
+        if (this.agentDefinition != null && execution.AIAgentDefinition__c != this.agentDefinition.Id) {
+            throw new AIAgentException.OrchestrationException('Execution ' + executionId + ' does not belong to the requested agent. Access denied.');
         }
     }
 
