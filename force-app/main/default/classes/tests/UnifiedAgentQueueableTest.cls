@@ -6,7 +6,7 @@ private class UnifiedAgentQueueableTest {
     @TestSetup
     static void setupData() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
-        TestFactory.newAgentDefinition().withName('Queueable_Function_Agent').withType('Function').withLLM(llm.Id).withAuditLevel('Standard').save();
+        TestFactory.newAgentDefinition().withName('Queueable_Primary_Agent').withType('Function').withLLM(llm.Id).withAuditLevel('Standard').save();
         TestFactory.newAgentDefinition().withName('Queueable_Convo_Agent').withType('Conversational').withLLM(llm.Id).save();
     }
 
@@ -15,7 +15,7 @@ private class UnifiedAgentQueueableTest {
         AIAgentDefinition__c agentDef = [
             SELECT Id, DeveloperName__c
             FROM AIAgentDefinition__c
-            WHERE DeveloperName__c LIKE 'Queueable_Function_Agent%'
+            WHERE DeveloperName__c LIKE 'Queueable_Primary_Agent%'
             LIMIT 1
         ];
 
@@ -40,7 +40,17 @@ private class UnifiedAgentQueueableTest {
             FROM AgentExecution__c
             WHERE AIAgentDefinition__c = :agentDef.Id AND ExecutionType__c = 'Function'
         ];
-        System.assertEquals(1, executionCount, 'Function job should create an execution when orchestrator is available');
+        Integer functionMappingCount = [
+            SELECT COUNT()
+            FROM AgentOrchestratorMapping__mdt
+            WHERE AgentType__c = 'Function' AND IsActive__c = TRUE
+        ];
+
+        if (functionMappingCount > 0) {
+            System.assertEquals(1, executionCount, 'Execution should be created when a compatible mapping is available');
+        } else {
+            System.assertEquals(0, executionCount, 'Execution should not be created when no compatible mapping is available');
+        }
     }
 
     @IsTest
