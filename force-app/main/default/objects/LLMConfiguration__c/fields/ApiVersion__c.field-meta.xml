@@ -3,7 +3,7 @@
     <fullName>ApiVersion__c</fullName>
     <description>Optional API version override for provider-specific endpoints or headers.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Examples: "2023-06-01" (Claude), "v1beta" (Gemini). Leave blank to use adapter defaults.</inlineHelpText>
+    <inlineHelpText>Optional version string passed to the provider endpoint. Leave blank to use adapter defaults.</inlineHelpText>
     <label>API Version</label>
     <length>50</length>
     <required>false</required>

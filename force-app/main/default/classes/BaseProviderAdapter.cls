@@ -13,7 +13,6 @@ public abstract inherited sharing class BaseProviderAdapter implements ILLMProvi
     // Shared preset constants for PromptSafetyPreset__c — available to all adapter subclasses
     public static final String PRESET_OFF = 'Off';
     public static final String PRESET_STANDARD = 'Standard';
-    public static final String PRESET_STRICT = 'Strict';
 
     protected virtual String getLogPrefix() {
         return '[BaseAdapter] ';
@@ -28,15 +27,13 @@ public abstract inherited sharing class BaseProviderAdapter implements ILLMProvi
     }
 
     /**
-     * @description Normalises a PromptSafetyPreset__c picklist value to one of the three canonical constants.
-     * Blank or unknown values default to PRESET_STANDARD.
+     * @description Normalises a PromptSafetyPreset__c picklist value to a canonical constant.
+     * Only two valid values exist: Off and Standard. Blank, unknown, or legacy 'Strict' values
+     * all map to PRESET_STANDARD so existing data is not broken when upgrading.
      */
     public static String normalizePromptSafetyPreset(String preset) {
         if (String.isBlank(preset) || preset.trim().equalsIgnoreCase(PRESET_OFF)) {
             return PRESET_OFF;
-        }
-        if (preset.trim().equalsIgnoreCase(PRESET_STRICT)) {
-            return PRESET_STRICT;
         }
         return PRESET_STANDARD;
     }

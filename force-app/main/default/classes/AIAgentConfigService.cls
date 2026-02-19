@@ -544,7 +544,7 @@ public inherited sharing class AIAgentConfigService {
      * This method provides centralized pricing calculation to avoid duplicate queries
      * across ExecutionStepService and AgentDecisionStepLogger.
      *
-     * @param modelIdentifier  The model identifier (e.g., gpt-4o, gpt-4o-mini, claude-3-5-sonnet)
+     * @param modelIdentifier  The model identifier (e.g., gpt-4o, gpt-4o-mini, gpt-5-nano)
      * @param promptTokens     Number of tokens in the prompt
      * @param completionTokens Number of tokens in the completion
      * @return                 The estimated cost in USD, or null if model is unknown or pricing not configured

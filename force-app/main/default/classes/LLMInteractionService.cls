@@ -243,11 +243,8 @@ public inherited sharing class LLMInteractionService {
             ILLMProviderAdapter adapter = LLMInteractionService.getLLMProviderAdapter(llmConfig);
 
             // Provider-native safety pre-check.
-            // The adapter decides what "safety" means for its provider:
-            //   OpenAI  → calls /v1/moderations (same Named Credential, no new third parties)
-            //   Gemini  → returns null here; safety settings are injected into the LLM request body
-            //   Claude  → returns null; Constitutional AI handles it in-model
-            // A null return means no pre-check was performed — execution continues normally.
+            // Adapters that support it (e.g. OpenAI → /v1/moderations) perform the check and return a ThreatAssessment.
+            // Adapters with no pre-check capability return null — execution continues normally.
             if (currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
                 ThreatAssessment safetyResult = adapter.checkMessageSafety(currentTurnUserMessage.content, llmConfig, agentConfig);
                 if (safetyResult != null) {
@@ -338,7 +335,7 @@ public inherited sharing class LLMInteractionService {
                 Long callDuration = System.currentTimeMillis() - callStartTime;
                 System.debug(LoggingLevel.INFO, logPrefix + 'LLM call succeeded in ' + callDuration + 'ms. executionId=' + this.executionId);
 
-                // Handle in-call safety block (e.g. Gemini SAFETY finishReason).
+                // Handle in-call safety block detected by the adapter (e.g. a refusal finish_reason).
                 // Adapters that detect server-side filtering set safetyBlock on the ProviderResult.
                 if (llmApiResult.safetyBlock != null) {
                     System.debug(LoggingLevel.WARN, logPrefix + 'Response blocked by provider in-call safety filter.');

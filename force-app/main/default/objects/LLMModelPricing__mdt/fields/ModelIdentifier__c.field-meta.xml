@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ModelIdentifier__c</fullName>
-    <description>The model identifier as returned by the LLM provider (e.g., gpt-4o, gpt-4o-mini, claude-3-5-sonnet-20241022)</description>
+    <description>The model identifier as returned by the LLM provider (e.g., gpt-4o, gpt-4o-mini, gpt-5-nano)</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
     <label>Model Identifier</label>

@@ -130,9 +130,12 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
      * @description Calls the OpenAI Moderation API (/v1/moderations) using the same Named Credential
      * as the chat completions endpoint. No new credentials or third-party services required.
      *
-     * Response mode is derived from PromptSafetyPreset__c:
-     *   Standard → block when overall score >= 0.6  (HIGH/CRITICAL only)
-     *   Strict   → block when overall score >= 0.4  (MEDIUM and above)
+     * The block decision is based solely on the API's `flagged` boolean — OpenAI's authoritative
+     * determination using its per-category internal thresholds. OpenAI's thresholds vary by category
+     * and are not publicly documented, so the `flagged` boolean is the most accurate signal available.
+     *
+     * Preset behaviour:
+     *   Standard → block if `flagged == true`
      *   Off      → returns null (no check performed)
      *
      * Fails open: any API error returns ThreatAssessment.safe() so agent execution is never
@@ -155,8 +158,10 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
             req.setHeader('Content-Type', 'application/json; charset=utf-8');
             req.setBody(JSON.serialize(new Map<String, Object>{ 'input' => userMessage }));
             req.setTimeout(15000);
+            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Moderation request body: ' + req.getBody());
 
             HttpResponse res = new Http().send(req);
+            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Moderation response (' + res.getStatusCode() + '): ' + res.getBody());
 
             if (res.getStatusCode() != 200) {
                 System.debug(LoggingLevel.WARN, LOG_PREFIX + 'Moderation API returned HTTP ' + res.getStatusCode() + '. Failing open.');
@@ -170,6 +175,15 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
             }
 
             Map<String, Object> result = (Map<String, Object>) results[0];
+
+            // The flagged boolean is OpenAI's authoritative determination. If not flagged, we are done.
+            Boolean apiFlag = result.get('flagged') instanceof Boolean ? (Boolean) result.get('flagged') : false;
+            if (!apiFlag) {
+                System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Moderation check: clean (flagged=false).');
+                return ThreatAssessment.safe(userMessage);
+            }
+
+            // Build indicators only for categories OpenAI itself flagged
             Map<String, Object> categories = result.get('categories') instanceof Map<String, Object>
                 ? (Map<String, Object>) result.get('categories')
                 : new Map<String, Object>();
@@ -179,40 +193,31 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
 
             Decimal maxScore = 0.0;
             List<ThreatAssessment.ThreatIndicator> indicators = new List<ThreatAssessment.ThreatIndicator>();
-
             for (String cat : categoryScores.keySet()) {
+                if (Boolean.valueOf(String.valueOf(categories.get(cat))) != true) {
+                    continue;
+                }
                 Object scoreObj = categoryScores.get(cat);
                 Decimal score = scoreObj != null ? Decimal.valueOf(String.valueOf(scoreObj)) : 0.0;
                 if (score > maxScore) {
                     maxScore = score;
                 }
-                if (Boolean.valueOf(String.valueOf(categories.get(cat))) == true) {
-                    indicators.add(
-                        new ThreatAssessment.ThreatIndicator(
-                            'Moderation',
-                            mapModerationCategoryToGroup(cat),
-                            cat,
-                            'OpenAI Moderation API flagged: ' + cat + ' (score: ' + score.setScale(4) + ')',
-                            score
-                        )
-                    );
-                }
+                indicators.add(
+                    new ThreatAssessment.ThreatIndicator(
+                        'Moderation',
+                        mapModerationCategoryToGroup(cat),
+                        cat,
+                        'OpenAI Moderation API flagged: ' + cat + ' (score: ' + score.setScale(4) + ')',
+                        score
+                    )
+                );
             }
 
+            // Pass threshold 0.0: block decision is already authoritative from apiFlag above.
             ThreatAssessment assessment = ThreatAssessment.fromAnalysis(userMessage, maxScore, indicators);
-            Decimal blockThreshold = preset == PRESET_STRICT ? 0.4 : 0.6;
-            assessment.applyResponseMode('Block', blockThreshold);
+            assessment.applyResponseMode('Block', 0.0);
 
-            System.debug(
-                LoggingLevel.INFO,
-                LOG_PREFIX +
-                    'Moderation check complete. Score: ' +
-                    maxScore.setScale(4) +
-                    ', Indicators: ' +
-                    indicators.size() +
-                    ', Action: ' +
-                    assessment.recommendedAction
-            );
+            System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Moderation check: blocked. maxScore=' + maxScore.setScale(4) + ', indicators=' + indicators.size());
 
             return assessment;
         } catch (Exception e) {

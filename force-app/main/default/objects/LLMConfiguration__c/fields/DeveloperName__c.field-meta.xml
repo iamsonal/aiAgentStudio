@@ -4,7 +4,7 @@
     <caseSensitive>false</caseSensitive>
     <description>Unique, machine-readable name used to reference this configuration in code, lookups, and Agent Definitions. Cannot contain spaces or special characters other than underscore.</description>
     <externalId>true</externalId>
-    <inlineHelpText>The unique identifier for this LLM setup (e.g., &apos;OpenAI_GPT4o_Default&apos;, &apos;Claude3_Sonnet_West&apos;). Used internally by the framework. Make it descriptive.</inlineHelpText>
+    <inlineHelpText>The unique identifier for this LLM setup (e.g., &apos;OpenAI_GPT4o_Mini&apos;, &apos;OpenAI_GPT5_Nano&apos;). Used internally by the framework. Make it descriptive.</inlineHelpText>
     <label>Developer Name</label>
     <length>255</length>
     <required>true</required>

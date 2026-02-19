@@ -808,19 +808,20 @@ public with sharing class AgentTestDataFactory {
 
         List<LLMConfiguration__c> configs = new List<LLMConfiguration__c>();
 
-        // GPT-4 (existing default)
-        LLMConfiguration__c gpt4Config = new LLMConfiguration__c(
-            Name = 'OpenAI GPT-4',
-            DeveloperName__c = 'OpenAI_GPT4',
+        // gpt-4o-mini: proven, reliable tool calling. Used as default for all showcase agents.
+        LLMConfiguration__c gpt4oMiniConfig = new LLMConfiguration__c(
+            Name = 'OpenAI GPT-4o Mini',
+            DeveloperName__c = 'OpenAI_GPT4o_Mini',
             ProviderAdapterClass__c = 'OpenAIProviderAdapter',
             NamedCredential__c = 'OpenAI_API',
             DefaultModelIdentifier__c = 'gpt-4o-mini',
             DefaultTemperature__c = 0.1,
+            MaxResponseTokens__c = 2048,
             IsActive__c = true
         );
-        configs.add(gpt4Config);
+        configs.add(gpt4oMiniConfig);
 
-        // GPT-5 Mini
+        // gpt-5-mini: cost-efficient GPT-5 for well-defined tasks
         LLMConfiguration__c gpt5MiniConfig = new LLMConfiguration__c(
             Name = 'OpenAI GPT-5 Mini',
             DeveloperName__c = 'OpenAI_GPT5_Mini',
@@ -828,32 +829,33 @@ public with sharing class AgentTestDataFactory {
             NamedCredential__c = 'OpenAI_API',
             DefaultModelIdentifier__c = 'gpt-5-mini',
             DefaultTemperature__c = 0.1,
+            MaxResponseTokens__c = 2048,
             IsActive__c = true
         );
         configs.add(gpt5MiniConfig);
 
-        // GPT-5 Nano
+        // gpt-5-nano: fastest, most cost-efficient GPT-5 — good starting point for simple agents
         LLMConfiguration__c gpt5NanoConfig = new LLMConfiguration__c(
             Name = 'OpenAI GPT-5 Nano',
             DeveloperName__c = 'OpenAI_GPT5_Nano',
             ProviderAdapterClass__c = 'OpenAIProviderAdapter',
             NamedCredential__c = 'OpenAI_API',
             DefaultModelIdentifier__c = 'gpt-5-nano',
-            DefaultTemperature__c = 0.2,
+            DefaultTemperature__c = 0.1,
+            MaxResponseTokens__c = 2048,
             IsActive__c = true
         );
         configs.add(gpt5NanoConfig);
 
         insert configs;
 
-        // Store all configs in idMap for reference
-        idMap.put('LLM Config', gpt4Config.Id);
-        idMap.put('LLM Config GPT4', gpt4Config.Id);
+        idMap.put('LLM Config', gpt4oMiniConfig.Id);
+        idMap.put('LLM Config GPT4o Mini', gpt4oMiniConfig.Id);
         idMap.put('LLM Config GPT5 Mini', gpt5MiniConfig.Id);
         idMap.put('LLM Config GPT5 Nano', gpt5NanoConfig.Id);
 
         System.debug('[LLM] ✓ Created ' + configs.size() + ' LLM configurations');
-        return gpt4Config; // Return default for backward compatibility
+        return gpt4oMiniConfig;
     }
 
     // ===================================================================================
@@ -879,6 +881,7 @@ public with sharing class AgentTestDataFactory {
             AuditLevel__c = 'Full',
             EnableParallelToolCalling__c = true,
             RequiresServiceUserContext__c = false,
+            PromptSafetyPreset__c = 'Standard',
             WelcomeMessageTemplate__c = 'Hello {User.FirstName}! I\'m your Customer Support Copilot. I can help you with cases, orders, and knowledge base searches. How can I assist you today?',
             IdentityPrompt__c = 'You are an expert customer support assistant for a B2B cloud software company. You help support agents resolve customer issues efficiently by searching knowledge, retrieving records, and creating cases.',
             InstructionsPrompt__c = 'Always be professional and helpful. When users ask about issues, search the knowledge base first. When creating cases, gather all necessary details. Always confirm important actions before executing them.',
@@ -1101,6 +1104,7 @@ public with sharing class AgentTestDataFactory {
             EnableParallelToolCalling__c = false,
             AsyncDispatchType__c = 'Low',
             // Security Settings
+            PromptSafetyPreset__c = 'Standard',
             IsActive__c = true
         );
         insert emailAgent;

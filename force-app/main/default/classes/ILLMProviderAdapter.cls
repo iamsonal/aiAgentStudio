@@ -20,7 +20,7 @@ public interface ILLMProviderAdapter {
     /**
      * @description Performs a provider-native safety pre-check on the user message before the LLM call.
      * Adapters that support native safety (e.g. OpenAI Moderation API) override this.
-     * Adapters with no pre-check capability (e.g. Claude — safety is in-model) return null.
+     * Adapters with no pre-check capability return null.
      *
      * @param userMessage     The raw user message to evaluate.
      * @param llmConfig       The LLM configuration (provides Named Credential for callouts).
