@@ -18,14 +18,12 @@ AI Agent Studio is built on a modular, plugin-based architecture using Strategy,
     All extend `BaseAgentOrchestrator` and implement `IAgentOrchestrator` interface.
   </Card>
   <Card title="LLM Providers" icon="seti:cloud">
-    **Multi-provider support**: OpenAI, Claude (addon), Gemini (addon). Extensible via `ILLMProviderAdapter` interface.
+    **Multi-provider support**: OpenAI (core), KimiK2 (addon), Claude (addon), Gemini (addon). Extensible via `ILLMProviderAdapter` interface.
     
-    `BaseProviderAdapter` provides common HTTP handling, retry logic, and error normalization.
+    `BaseProviderAdapter` provides common HTTP handling, retry logic, error normalization, and default `null` safety pre-check.
   </Card>
   <Card title="Actions" icon="seti:tools">
     **Standard actions**: GetRecordDetails, CreateRecord, UpdateRecord, FlowHandler, PostChatter.
-    
-    **Addon actions**: RunReport, SearchKnowledge, SendNotification.
     
     Extend `BaseAgentAction` implementing `IAgentAction` interface.
   </Card>
@@ -50,7 +48,7 @@ AI Agent Studio is built on a modular, plugin-based architecture using Strategy,
 
 3. **Security Checks**
    
-   **Prompt Safety**: `PromptSafetyService` runs 3-layer detection (pattern-based, heuristic, structural) with configurable response modes (Block/Sanitize/Flag/LogOnly).
+   **Prompt Safety**: `LLMInteractionService` calls `ILLMProviderAdapter.checkMessageSafety()` before the LLM call. Safety is provider-native—each adapter performs its own pre-check (e.g., OpenAI calls `/v1/moderations`). `BaseProviderAdapter` returns `null` by default (no pre-check). Skipped entirely when `PromptSafetyPreset__c` is `Off`.
    
    **PII Masking**: `PIIMaskingService` applies hybrid masking (schema-based + pattern-based) with deterministic token replacement.
 
@@ -137,7 +135,6 @@ AI Agent Studio is built on a modular, plugin-based architecture using Strategy,
 | `AgentJobEnqueuer` | Async job dispatch (Queueable vs Platform Event based on AsyncDispatchType__c) |
 | `AgentDecisionStepLogger` | Decision logging for storyboard UI explainability |
 | `TransactionContext` | Multi-LLM optimization, deferred DML mode, LLM call tracking, tool safety detection |
-| `PromptSafetyService` | Multi-layer jailbreak detection with configurable response modes |
 | `PIIMaskingService` | Hybrid PII masking (schema-based + pattern-based) with bidirectional unmask |
 | `ToolDependencyValidator` | Declarative tool sequencing constraint enforcement |
 | `AgentExecutionDispatcher` | DLQ-based dispatch for multi-record executions with BatchId correlation |
@@ -197,6 +194,7 @@ Detailed execution log for observability:
 **Token Economics**: `PromptTokens__c`, `CompletionTokens__c`, `TotalTokens__c`, `EstimatedCostUSD__c` (Cost tracking for budget monitoring).
 
   </TabItem>
+
 </Tabs>
 
 ## Advanced Patterns
