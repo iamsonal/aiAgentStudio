@@ -133,19 +133,12 @@ private class SummarizeConversationQueueableTest {
 
     @IsTest
     static void testSummarizationAppliesMaskingAndUnmaskingWhenEnabled() {
-        AIAgentFrameworkSettings__c settings = new AIAgentFrameworkSettings__c(
-            EnablePIIMasking__c = true,
-            EnablePromptSafety__c = true
-        );
-        insert settings;
-
         Test.setMock(HttpCalloutMock.class, new SummarizationMaskingMock());
 
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withLLM(llm.Id).build();
         agent.SummarizationChunkTurnCount__c = 1;
-        agent.PIIPatternCategories__c = 'Identity';
-        agent.PromptSafetyMode__c = 'LogOnly';
+        agent.PIIMaskingPreset__c = 'Standard';
         insert agent;
 
         AgentExecution__c execution = createExecution(agent.Id, 'Processing');
@@ -162,10 +155,7 @@ private class SummarizeConversationQueueableTest {
             FROM AgentExecution__c
             WHERE Id = :execution.Id
         ];
-        System.assert(
-            updatedExecution.ConversationSummary__c.contains('123-45-6789'),
-            'Summary should unmask PII tokens in the LLM response'
-        );
+        System.assert(updatedExecution.ConversationSummary__c.contains('123-45-6789'), 'Summary should unmask PII tokens in the LLM response');
         System.assertEquals(
             -1,
             updatedExecution.ConversationSummary__c.indexOf(lastSummarizationToken),
@@ -211,9 +201,7 @@ private class SummarizeConversationQueueableTest {
                 lastSummarizationToken = matcher.group(0);
             }
 
-            String summaryContent = lastSummarizationToken != null
-                ? 'Summary includes ' + lastSummarizationToken
-                : 'Summary includes no token';
+            String summaryContent = lastSummarizationToken != null ? 'Summary includes ' + lastSummarizationToken : 'Summary includes no token';
             MockHttpResponses.ResponseConfig response = MockHttpResponses.textResponse(summaryContent);
 
             HttpResponse res = new HttpResponse();

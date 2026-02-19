@@ -160,13 +160,8 @@ public class MockHttpResponses implements HttpCalloutMock {
         } else if (endpoint.contains('/ai/agent/resume') || endpoint.contains('/ai/agent/followup')) {
             // Agent resume/follow-up REST API mock
             return createResumeOrFollowUpResponse(req);
-        } else if (
-            endpoint.contains('/v1/chat/completions') ||
-            endpoint.contains('/v1/messages') ||
-            endpoint.contains('/v1beta/models/') ||
-            endpoint.contains(':generateContent')
-        ) {
-            // LLM API mock (OpenAI, Claude, Gemini)
+        } else if (endpoint.contains('/v1/chat/completions')) {
+            // LLM API mock (OpenAI-compatible)
             return createLLMResponse(req);
         } else if (endpoint.contains('/v1/embeddings')) {
             // Embeddings API mock
@@ -619,121 +614,6 @@ public class MockHttpResponses implements HttpCalloutMock {
         Map<String, Object> params = new Map<String, Object>{ 'recordData' => fields };
         String args = JSON.serialize(params);
         return toolCall('create_record', args);
-    }
-
-    // ===================================================================================
-    // ANTHROPIC CLAUDE RESPONSES
-    // ===================================================================================
-
-    /**
-     * @description Creates an Anthropic Claude-style text response
-     */
-    public static MockHttpResponses claudeTextResponse(String content) {
-        Map<String, Object> response = new Map<String, Object>{
-            'id' => 'msg_' + generateRandomId(),
-            'type' => 'message',
-            'role' => 'assistant',
-            'content' => new List<Object>{ new Map<String, Object>{ 'type' => 'text', 'text' => content } },
-            'model' => 'claude-3-opus-20240229',
-            'stop_reason' => 'end_turn',
-            'usage' => new Map<String, Object>{ 'input_tokens' => 100, 'output_tokens' => 50 }
-        };
-
-        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
-    }
-
-    /**
-     * @description Creates an Anthropic Claude-style tool use response
-     */
-    public static MockHttpResponses claudeToolUse(String toolName, String input) {
-        Map<String, Object> response = new Map<String, Object>{
-            'id' => 'msg_' + generateRandomId(),
-            'type' => 'message',
-            'role' => 'assistant',
-            'content' => new List<Object>{
-                new Map<String, Object>{
-                    'type' => 'tool_use',
-                    'id' => 'toolu_' + generateRandomId(),
-                    'name' => toolName,
-                    'input' => JSON.deserializeUntyped(input)
-                }
-            },
-            'model' => 'claude-3-opus-20240229',
-            'stop_reason' => 'tool_use',
-            'usage' => new Map<String, Object>{ 'input_tokens' => 150, 'output_tokens' => 75 }
-        };
-
-        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
-    }
-
-    // ===================================================================================
-    // GOOGLE GEMINI RESPONSES
-    // ===================================================================================
-
-    /**
-     * @description Creates a Google Gemini-style text response
-     */
-    public static MockHttpResponses geminiTextResponse(String content) {
-        Map<String, Object> response = new Map<String, Object>{
-            'candidates' => new List<Object>{
-                new Map<String, Object>{
-                    'content' => new Map<String, Object>{ 'parts' => new List<Object>{ new Map<String, Object>{ 'text' => content } }, 'role' => 'model' },
-                    'finishReason' => 'STOP'
-                }
-            },
-            'usageMetadata' => new Map<String, Object>{ 'promptTokenCount' => 100, 'candidatesTokenCount' => 50, 'totalTokenCount' => 150 }
-        };
-
-        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
-    }
-
-    /**
-     * @description Creates a Google Gemini-style function call response
-     */
-    public static MockHttpResponses geminiFunctionCall(String functionName, String argsJson) {
-        Map<String, Object> response = new Map<String, Object>{
-            'candidates' => new List<Object>{
-                new Map<String, Object>{
-                    'content' => new Map<String, Object>{
-                        'parts' => new List<Object>{
-                            new Map<String, Object>{
-                                'functionCall' => new Map<String, Object>{ 'name' => functionName, 'args' => JSON.deserializeUntyped(argsJson) }
-                            }
-                        },
-                        'role' => 'model'
-                    },
-                    'finishReason' => 'STOP'
-                }
-            },
-            'usageMetadata' => new Map<String, Object>{ 'promptTokenCount' => 150, 'candidatesTokenCount' => 75, 'totalTokenCount' => 225 }
-        };
-
-        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
-    }
-
-    /**
-     * @description Creates a Gemini response with both text and function call
-     */
-    public static MockHttpResponses geminiMixedResponse(String text, String functionName, String argsJson) {
-        Map<String, Object> response = new Map<String, Object>{
-            'candidates' => new List<Object>{
-                new Map<String, Object>{
-                    'content' => new Map<String, Object>{
-                        'parts' => new List<Object>{
-                            new Map<String, Object>{ 'text' => text },
-                            new Map<String, Object>{
-                                'functionCall' => new Map<String, Object>{ 'name' => functionName, 'args' => JSON.deserializeUntyped(argsJson) }
-                            }
-                        },
-                        'role' => 'model'
-                    },
-                    'finishReason' => 'STOP'
-                }
-            },
-            'usageMetadata' => new Map<String, Object>{ 'promptTokenCount' => 200, 'candidatesTokenCount' => 100, 'totalTokenCount' => 300 }
-        };
-
-        return new MockHttpResponses().withDefaultResponse(new ResponseConfig(200, JSON.serialize(response)));
     }
 
     // ===================================================================================

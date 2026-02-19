@@ -102,11 +102,9 @@ Prevents sensitive data from reaching LLM providers in raw form.
 **Configuration**:
 
 Per-agent via `AIAgentDefinition__c`:
-- `PIIMaskingMode__c`: Hybrid (both) / Schema-Only / Pattern-Only
-- `SensitiveClassifications__c`: Which Salesforce Data Classifications to mask (PII, Sensitive, Confidential, etc.)
-- `PIIPatternCategories__c`: Which regex pattern categories to enable
-
-Org-level via `AIAgentFrameworkSettings__c.EnablePIIMasking__c`
+- `PIIMaskingPreset__c`: Off / Standard / Strict
+  - Standard: Hybrid masking with common categories and classifications
+  - Strict: Hybrid masking with all categories and classifications
 
 **Pattern Coverage**:
 - **SSN**: `###-##-####` format with validation
@@ -135,21 +133,37 @@ Masked: "Update case for customer SSN [SSN:001]"
   </TabItem>
   <TabItem label="Prompt Safety">
 
-### Multi-Layered Jailbreak Protection
+### Provider-Native Safety Pre-Checks
 
-Protects against prompt injection and instruction override attacks using three detection layers.
+Prompt safety is delegated to each LLM provider adapter, ensuring the check matches the provider's own safety semantics rather than a generic pattern-matching layer.
 
-**Architecture**: `PromptSafetyService` orchestrates three analyzers. **Pattern-Based Detection** (`JailbreakPatternMatcher`) uses regex patterns from `JailbreakPattern__mdt` custom metadata to detect known attack signatures (DAN, jailbreak keywords, ignore instructions) with fast, deterministic detection. **Heuristic Analysis** (`PromptHeuristicAnalyzer`) detects instruction override ("ignore previous instructions"), role manipulation attempts ("you are now in developer mode"), delimiter injection (attempt to close/open prompt delimiters), and conversation reset attempts. **Structural Analysis** (`PromptStructureAnalyzer`) provides encoding detection (base64, hex, unicode escapes), N-gram similarity to known jailbreak patterns, and suspicious structure patterns.
+**Architecture**: `LLMInteractionService.prepareAndCallLLM()` calls `ILLMProviderAdapter.checkMessageSafety()` **before** the LLM call. `BaseProviderAdapter` returns `null` by default (no pre-check). Adapters that support a safety API override this method.
 
-**Threat Scoring**: Each analyzer returns score 0.0-1.0, combined into aggregate threat assessment. **NONE** 0.0-0.2 (safe), **LOW** 0.2-0.4 (minimal concern), **MEDIUM** 0.4-0.6 (suspicious), **HIGH** 0.6-0.8 (likely attack), **CRITICAL** 0.8-1.0 (definite attack).
+**Flow**:
+```
+LLMInteractionService.prepareAndCallLLM()
+  → adapter.checkMessageSafety()   // pre-call; null = no pre-check
+  → [if ThreatAssessment returned and shouldBlock()] → log + return safe error
+  → adapter.sendMessage()          // LLM call
+  → [if ProviderResult.safetyBlock != null] → log + return safe error
+  → normal response processing
+```
 
-**Response Modes** (per-agent configurable via `PromptSafetyMode__c`): **Block** rejects request entirely with safe error message where user sees generic denial and execution stops. **Sanitize** removes detected threats and continues with cleaned input where replacements are marked as `[REMOVED:<category>]` with recorded sanitized spans. **Flag** marks for review in audit logs and continues execution while creating AgentDecisionStep__c with threat details. **Log Only** records threat assessment and takes no action (for monitoring in non-production).
+**Provider Behaviours**:
 
-**Configuration**: Per-agent via `AIAgentDefinition__c` fields `PromptSafetyMode__c` (Block/Sanitize/Flag/LogOnly), `SafetyThreshold__c` (Threat score threshold 0.0-1.0 to trigger response), and `SafetyPatternCategories__c` (Which jailbreak categories to enable). Org-level via `AIAgentFrameworkSettings__c.EnablePromptSafety__c`.
+| Provider | Pre-Check | Notes |
+|----------|-----------|-------|
+| `OpenAIProviderAdapter` | Calls `/v1/moderations` — blocks if `flagged == true` | Provider-native |
+| `KimiK2ProviderAdapter` | None (inherits null default) | No pre-check |
+| Custom adapters | Override `checkMessageSafety()` to add | Fully extensible |
 
-**Optimizations**: Message-level caching (same message not re-analyzed within execution), early exit on high-severity pattern matches, and evaluation caps to prevent CPU time spikes.
+**Result DTO**: `ThreatAssessment` carries `score` (0.0–1.0), `threatLevel` (NONE/LOW/MEDIUM/HIGH/CRITICAL), `indicators` list, and `shouldBlock()` helper.
 
-**Detection Categories**: Role manipulation ("you are now", "pretend to be"), instruction override ("ignore previous", "forget your instructions"), delimiter injection (closing system prompt, opening new context), encoding attacks (base64, hex, unicode obfuscation), prompt leaking ("repeat your instructions"), and context manipulation ("this is a simulation", "hypothetically").
+**In-Call Safety**: Adapters can also set `ProviderResult.safetyBlock` when a post-response safety signal is detected (e.g., a refusal `finish_reason`). `LLMInteractionService` checks this after `sendMessage()` and short-circuits to a safe response when non-null.
+
+**Configuration**: Per-agent via `AIAgentDefinition__c.PromptSafetyPreset__c`:
+- `Off`: Skips the pre-check step entirely
+- `Standard`: Adapter performs its native check and blocks on positive signal
 
   </TabItem>
   <TabItem label="Tool Dependencies">
@@ -291,7 +305,7 @@ When `AIAgentDefinition__c.EnableToolReasoning__c` is enabled:
 
 3. **Enable Trust Layers Incrementally**
    
-   Start with LogOnly mode for prompt safety and PII masking. Monitor detection rates, tune thresholds, then enable Block/Sanitize modes.
+   Start with `PIIMaskingPreset__c = Standard` and `PromptSafetyPreset__c = Off` in your first sandbox deployment. Monitor agent behavior, then enable `PromptSafetyPreset__c = Standard` once you've validated the provider's safety checks are not producing false positives.
 
 4. **Route Sensitive Actions Through Approvals**
    
@@ -326,7 +340,7 @@ Before deploying agents to production:
 - [ ] Agents run as users with appropriate profiles/permission sets
 - [ ] Service user context configured (if needed) with minimal permissions
 - [ ] PII masking enabled with appropriate classifications and patterns
-- [ ] Prompt safety mode set to Block or Sanitize (not LogOnly) for production agents
+- [ ] Prompt safety preset set to Standard (not Off) for production agents that use a provider with native safety support
 - [ ] Sensitive actions routed through HITL approval workflows
 - [ ] Tool dependency validation enabled and graph reviewed by domain experts
 - [ ] Dashboard/alerts configured for execution monitoring

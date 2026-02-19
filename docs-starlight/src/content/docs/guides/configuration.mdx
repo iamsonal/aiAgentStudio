@@ -90,12 +90,8 @@ Start with agent + provider settings, then tune safety and performance as usage 
 
 | Field | Type | Description |
 |:------|:-----|:------------|
-| `PIIMaskingMode__c` | Picklist | Hybrid, Schema-Only, or Pattern-Only |
-| `SensitiveClassifications__c` | Multi-Select | Data classifications to mask |
-| `PIIPatternCategories__c` | Multi-Select | Regex pattern categories to enable |
-| `PromptSafetyMode__c` | Picklist | Block, Sanitize, Flag, or LogOnly |
-| `SafetyThreshold__c` | Number | Threat score threshold (0.0–1.0) |
-| `SafetyPatternCategories__c` | Multi-Select | Which jailbreak categories to enable |
+| `PIIMaskingPreset__c` | Picklist | Off, Standard, or Strict |
+| `PromptSafetyPreset__c` | Picklist | Off or Standard — delegates to the provider adapter's native safety pre-check |
 
 ---
 

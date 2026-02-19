@@ -9,7 +9,7 @@
 /**
  * @description Dispatcher that delegates all async agent execution to the appropriate IAgentOrchestrator implementation.
  */
-public class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts {
+public without sharing class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts {
     private final String jobType;
     private final Map<String, Object> payload;
 

@@ -89,12 +89,7 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AIAgentDefinition__c.PIIMaskingMode__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AIAgentDefinition__c.PIIPatternCategories__c</field>
+        <field>AIAgentDefinition__c.PIIMaskingPreset__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -104,27 +99,12 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AIAgentDefinition__c.PromptSafetyMode__c</field>
+        <field>AIAgentDefinition__c.PromptSafetyPreset__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
         <field>AIAgentDefinition__c.RequiresServiceUserContext__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AIAgentDefinition__c.SafetyPatternCategories__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AIAgentDefinition__c.SafetyThreshold__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AIAgentDefinition__c.SensitiveClassifications__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -434,6 +414,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>ExecutionStep__c.ErrorCategory__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>ExecutionStep__c.EstimatedCostUSD__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -470,6 +455,11 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>ExecutionStep__c.IsResumed__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>ExecutionStep__c.IsRetryable__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>

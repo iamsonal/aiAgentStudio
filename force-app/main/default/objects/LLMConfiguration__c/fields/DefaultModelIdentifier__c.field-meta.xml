@@ -3,7 +3,7 @@
     <fullName>DefaultModelIdentifier__c</fullName>
     <description>The specific model name exactly as required by the LLM provider&apos;s API for chat completions.</description>
     <externalId>false</externalId>
-    <inlineHelpText>e.g., &apos;gpt-4o-mini&apos;, &apos;claude-3-haiku-20240307&apos;. Must match the provider&apos;s documentation for the desired model.</inlineHelpText>
+    <inlineHelpText>e.g., &apos;gpt-4o-mini&apos;, &apos;gpt-5-nano&apos;. Must match the provider&apos;s documentation for the desired model.</inlineHelpText>
     <label>Default Model Identifier</label>
     <length>255</length>
     <required>true</required>

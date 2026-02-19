@@ -9,7 +9,7 @@
 /**
  * @description Core asynchronous action execution engine. Handles action processing lifecycle: validation, execution, result processing, and orchestration.
  */
-public class AsyncActionEngine implements Queueable, Database.AllowsCallouts {
+public without sharing class AsyncActionEngine implements Queueable, Database.AllowsCallouts {
     private final Id executionId;
     private final Id originalUserId;
     private final Id agentDefinitionId;

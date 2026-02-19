@@ -136,6 +136,8 @@ public inherited sharing class OrchestrationService {
                 Map<String, Object> errorOutput = new Map<String, Object>{
                     'isSuccess' => false,
                     'errorCode' => actionOutcome.errorCode,
+                    'errorCategory' => actionOutcome.errorCategory,
+                    'isRetryable' => actionOutcome.isRetryable,
                     'messageForUser' => actionOutcome.llmFriendlyMessage != null ? actionOutcome.llmFriendlyMessage : actionOutcome.errorMessage,
                     'data' => new Map<String, Object>()
                 };
@@ -214,12 +216,16 @@ public inherited sharing class OrchestrationService {
     /**
      * @description Determines if execution should fail immediately on tool error. Three-tier hierarchy: Capability.FailFastOnError__c, MaxToolRetries__c, or autonomous recovery.
      * Note: For Conversational and Email agents, MaxToolRetries is turn-scoped (resets each turn) to allow fresh attempts with new user messages.
+     *
+     * This overload accepts a preloadedFailureCount to avoid issuing a SOQL inside a loop.
+     * Pass -1 to fall back to the SOQL-based count (used for single-tool call sites).
      */
     public static Boolean shouldFailFast(
         AgentCapability__c capability,
         AIAgentDefinition__c agentDefinition,
         ActionOutcome toolOutcome,
         Id executionId,
+        Integer preloadedFailureCount,
         String logPrefix
     ) {
         if (toolOutcome == null || toolOutcome.isSuccess) {
@@ -234,10 +240,40 @@ public inherited sharing class OrchestrationService {
             return true;
         }
 
+        if (toolOutcome.isRetryable == false) {
+            if (agentDefinition.AgentType__c != 'Conversational' && agentDefinition.AgentType__c != 'Email') {
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix +
+                        '⚠️ FAIL-FAST (Tier 2): Tool error classified as non-retryable. ' +
+                        'Capability: ' +
+                        capability.CapabilityName__c +
+                        ', ErrorCode: ' +
+                        toolOutcome.errorCode +
+                        ', ErrorCategory: ' +
+                        toolOutcome.errorCategory
+                );
+                return true;
+            }
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix +
+                    '✓ NON-RETRYABLE ERROR (Tier 2): Conversational/Email agent will allow LLM recovery. ' +
+                    'Capability: ' +
+                    capability.CapabilityName__c +
+                    ', ErrorCode: ' +
+                    toolOutcome.errorCode
+            );
+        }
+
         // Tier 3: MaxToolRetries check - skip for Conversational and Email agents (allow LLM recovery)
         if (executionId != null && agentDefinition.AgentType__c != 'Conversational' && agentDefinition.AgentType__c != 'Email') {
             Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
-            Integer failureCount = countSuccessiveToolFailures(executionId, capability.CapabilityName__c, logPrefix);
+            // Use preloaded count when available (avoids per-tool SOQL in loops); -1 means fall back to SOQL.
+            Integer failureCount = (preloadedFailureCount >= 0)
+                ? preloadedFailureCount
+                : countSuccessiveToolFailures(executionId, capability.CapabilityName__c, logPrefix);
 
             if (failureCount >= maxRetries) {
                 System.debug(
@@ -269,6 +305,98 @@ public inherited sharing class OrchestrationService {
                 agentDefinition.AgentType__c
         );
         return false;
+    }
+
+    /**
+     * @description Backward-compatible single-tool overload. Delegates to the preloaded-count overload
+     * with -1 (fall back to SOQL). Retained for callers outside the batch-check loop.
+     */
+    public static Boolean shouldFailFast(
+        AgentCapability__c capability,
+        AIAgentDefinition__c agentDefinition,
+        ActionOutcome toolOutcome,
+        Id executionId,
+        String logPrefix
+    ) {
+        return shouldFailFast(capability, agentDefinition, toolOutcome, executionId, -1, logPrefix);
+    }
+
+    /**
+     * @description Bulk-loads successive failure counts for multiple tool names in a single SOQL.
+     * Eliminates N+1 queries when checking the fail-fast policy for a batch of failed tools.
+     *
+     * Returns a Map<toolName, successiveFailureCount>. Tools with no history return 0.
+     */
+    public static Map<String, Integer> loadSuccessiveFailureCounts(Id executionId, Set<String> toolNames, String logPrefix) {
+        Map<String, Integer> result = new Map<String, Integer>();
+        if (executionId == null || toolNames == null || toolNames.isEmpty()) {
+            return result;
+        }
+
+        try {
+            // Single SOQL for all tool names — replaces one-per-tool SOQL calls in loops
+            List<ExecutionStep__c> persistedSteps = [
+                SELECT StepType__c, ToolName__c, IsError__c, Timestamp__c
+                FROM ExecutionStep__c
+                WHERE AgentExecution__c = :executionId AND StepType__c IN ('ToolCall', 'ToolResult') AND ToolName__c IN :toolNames
+                ORDER BY Timestamp__c DESC, Id DESC
+                LIMIT 1000
+            ];
+
+            // Group persisted steps by tool name
+            Map<String, List<ExecutionStep__c>> persistedByTool = new Map<String, List<ExecutionStep__c>>();
+            for (ExecutionStep__c step : persistedSteps) {
+                if (!persistedByTool.containsKey(step.ToolName__c)) {
+                    persistedByTool.put(step.ToolName__c, new List<ExecutionStep__c>());
+                }
+                persistedByTool.get(step.ToolName__c).add(step);
+            }
+
+            // Group buffered (not-yet-persisted) steps by tool name
+            Map<String, List<ExecutionStep__c>> bufferedByTool = new Map<String, List<ExecutionStep__c>>();
+            for (ExecutionStep__c step : TransactionContext.getInstance().getBufferedExecutionSteps(executionId)) {
+                if (step.ToolName__c != null && toolNames.contains(step.ToolName__c) && (step.StepType__c == 'ToolCall' || step.StepType__c == 'ToolResult')) {
+                    if (!bufferedByTool.containsKey(step.ToolName__c)) {
+                        bufferedByTool.put(step.ToolName__c, new List<ExecutionStep__c>());
+                    }
+                    bufferedByTool.get(step.ToolName__c).add(step);
+                }
+            }
+
+            // For each tool: merge buffered (newest first) + persisted, then count successive failures
+            for (String toolName : toolNames) {
+                List<ExecutionStep__c> allSteps = new List<ExecutionStep__c>();
+
+                List<ExecutionStep__c> buffered = bufferedByTool.get(toolName);
+                if (buffered != null && !buffered.isEmpty()) {
+                    buffered.sort(new ExecutionStepTimestampComparator());
+                    allSteps.addAll(buffered);
+                }
+
+                List<ExecutionStep__c> persisted = persistedByTool.get(toolName);
+                if (persisted != null) {
+                    allSteps.addAll(persisted);
+                }
+
+                Integer failureCount = 0;
+                for (ExecutionStep__c step : allSteps) {
+                    if (step.StepType__c == 'ToolResult') {
+                        if (step.IsError__c == true) {
+                            failureCount++;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                result.put(toolName, failureCount);
+            }
+
+            System.debug(LoggingLevel.DEBUG, logPrefix + 'Bulk-loaded failure counts for ' + toolNames.size() + ' tool(s): ' + result);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error bulk-loading tool failure counts: ' + e.getMessage());
+        }
+
+        return result;
     }
 
     public static Integer countSuccessiveToolFailures(Id executionId, String toolName, String logPrefix) {

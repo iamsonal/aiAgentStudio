@@ -630,35 +630,33 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_CapabilityMissingName_Skipped() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM Skip').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Skip').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Skip').withType('Conversational').withLLM(llm.Id).save();
 
         AgentCapability__c cap = TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').build();
         cap.CapabilityName__c = '';
         insert cap;
 
-        List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, null);
-
-        System.assertEquals(0, tools.size(), 'Capability with blank name should be skipped');
+        List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, 'test-missing-name');
+        System.assertEquals(0, tools.size(), 'Capability with blank name should be skipped during tool formatting');
     }
 
     @IsTest
     static void testFormatTools_CapabilityMissingDescription_Skipped() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM NoDesc').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_NoDesc').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_NoDesc').withType('Conversational').withLLM(llm.Id).save();
 
         AgentCapability__c cap = TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').build();
         cap.Description__c = '';
         insert cap;
 
-        List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, null);
-
-        System.assertEquals(0, tools.size(), 'Capability with blank description should be skipped');
+        List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, 'test-missing-desc');
+        System.assertEquals(0, tools.size(), 'Capability with blank description should be skipped during tool formatting');
     }
 
     @IsTest
     static void testFormatTools_BlankParameterSchema_UsesDefaultEmptySchema() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM Schema').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Schema').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Schema').withType('Conversational').withLLM(llm.Id).save();
 
         AgentCapability__c cap = TestFactory.newCapability()
             .withAgent(agent.Id)
@@ -667,17 +665,22 @@ private class LLMFormattingServiceTest {
             .build();
         cap.ExposureLevel__c = 'External';
         cap.Parameters__c = '';
+        cap.ImplementationType__c = 'Standard';
+        cap.StandardActionType__c = 'CreateRecord';
         insert cap;
 
-        List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, null);
-
-        System.assertEquals(1, tools.size(), 'Capability with blank schema should use default and not be skipped');
+        List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, 'test-blank-schema');
+        System.assertEquals(1, tools.size(), 'Blank Parameters__c should fallback to default empty object schema');
+        Map<String, Object> functionDef = (Map<String, Object>) tools[0].get('function');
+        Map<String, Object> params = (Map<String, Object>) functionDef.get('parameters');
+        System.assertEquals('object', params.get('type'), 'Default schema should be object type');
+        System.assert(params.get('properties') instanceof Map<String, Object>, 'Default schema should include properties object');
     }
 
     @IsTest
     static void testFormatTools_InvalidParameterSchema_CapabilitySkipped() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM Bad').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Bad').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Bad').withType('Conversational').withLLM(llm.Id).save();
 
         AgentCapability__c cap = TestFactory.newCapability()
             .withAgent(agent.Id)
@@ -686,11 +689,12 @@ private class LLMFormattingServiceTest {
             .build();
         cap.ExposureLevel__c = 'External';
         cap.Parameters__c = '["not","an","object"]';
+        cap.ImplementationType__c = 'Standard';
+        cap.StandardActionType__c = 'CreateRecord';
         insert cap;
 
-        List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, null);
-
-        System.assertEquals(0, tools.size(), 'Capability with non-object schema should be skipped');
+        List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, 'test-bad-schema');
+        System.assertEquals(0, tools.size(), 'Capability with non-object Parameters__c should be skipped during tool formatting');
     }
 
     @IsTest
@@ -705,6 +709,8 @@ private class LLMFormattingServiceTest {
             .build();
         cap.ExposureLevel__c = 'External';
         cap.Parameters__c = '{"customKey":"customValue"}';
+        cap.ImplementationType__c = 'Standard';
+        cap.StandardActionType__c = 'CreateRecord';
         insert cap;
 
         List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, null);

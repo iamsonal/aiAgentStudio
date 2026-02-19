@@ -31,6 +31,7 @@ public inherited sharing class IDecisionStepLogger {
         // LLM interaction events
         LLM_REQUEST,
         LLM_RESPONSE,
+        PII_MASKING,
         SAFETY_CHECK,
         SAFETY_BLOCKED, // Prompt safety blocked a message (returns safe response, not error)
         // Context preparation events

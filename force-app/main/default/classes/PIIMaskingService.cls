@@ -44,6 +44,9 @@ public inherited sharing class PIIMaskingService {
     public static final String MODE_HYBRID = 'HYBRID';
     public static final String MODE_SCHEMA_ONLY = 'SCHEMA_ONLY';
     public static final String MODE_PATTERN_ONLY = 'PATTERN_ONLY';
+    private static final String PRESET_OFF = 'Off';
+    private static final String PRESET_STANDARD = 'Standard';
+    private static final String PRESET_STRICT = 'Strict';
 
     // Session for this service instance
     private PIIMaskingSession session;
@@ -124,30 +127,34 @@ public inherited sharing class PIIMaskingService {
             return null;
         }
 
-        // Check if PII masking is enabled at org level (from AIAgentFrameworkSettings__c)
-        Boolean enabled = AIAgentFrameworkSettings.isPIIMaskingEnabled();
-        if (!enabled) {
-            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'PII masking disabled at org level');
+        String preset = normalizePreset(agentConfig.PIIMaskingPreset__c);
+        if (preset == PRESET_OFF) {
+            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'PII masking disabled by preset');
             return null;
         }
 
-        // Parse masking mode
-        String mode = parseMaskingMode(agentConfig.PIIMaskingMode__c);
-
-        // Parse pattern categories
-        Set<String> patternCategories = parseMultiSelectPicklist(agentConfig.PIIPatternCategories__c);
-
-        // Parse sensitive classifications
-        Set<String> classifications = parseMultiSelectPicklist(agentConfig.SensitiveClassifications__c);
+        String mode = MODE_HYBRID;
+        Set<String> patternCategories = preset == PRESET_STANDARD ? new Set<String>{ 'Financial', 'Identity', 'Contact' } : null;
+        Set<String> classifications = preset == PRESET_STANDARD
+            ? new Set<String>{ 'Confidential', 'Restricted' }
+            : new Set<String>{ 'Confidential', 'Restricted', 'MissionCritical', 'Internal' };
 
         PIIMaskingService service = new PIIMaskingService(mode, patternCategories, classifications, executionId);
 
-        // Configure audit logging from org-level settings
-        service.auditLoggingEnabled = AIAgentFrameworkSettings.isPIIAuditLoggingEnabled();
+        // Audit logging always on for preset-driven masking
+        service.auditLoggingEnabled = true;
 
         System.debug(
             LoggingLevel.INFO,
-            LOG_PREFIX + 'Created service for agent: ' + agentConfig.DeveloperName__c + ', Mode: ' + mode + ', Audit: ' + service.auditLoggingEnabled
+            LOG_PREFIX +
+                'Created service for agent: ' +
+                agentConfig.DeveloperName__c +
+                ', Preset: ' +
+                preset +
+                ', Mode: ' +
+                mode +
+                ', Audit: ' +
+                service.auditLoggingEnabled
         );
 
         return service;
@@ -461,42 +468,19 @@ public inherited sharing class PIIMaskingService {
         return String.isNotBlank(prefix) ? prefix : 'PII';
     }
 
-    /**
-     * @description Parses masking mode from string.
-     */
-    private static String parseMaskingMode(String modeString) {
-        if (String.isBlank(modeString)) {
-            return MODE_HYBRID;
+    private static String normalizePreset(String presetValue) {
+        if (String.isBlank(presetValue)) {
+            // Default to Off when not explicitly configured on the agent.
+            return PRESET_OFF;
         }
-
-        String normalized = modeString.toUpperCase().replace('-', '_').replace(' ', '_');
-
-        if (normalized.contains('SCHEMA') && normalized.contains('ONLY')) {
-            return MODE_SCHEMA_ONLY;
-        } else if (normalized.contains('PATTERN') && normalized.contains('ONLY')) {
-            return MODE_PATTERN_ONLY;
+        String normalized = presetValue.trim();
+        if (normalized.equalsIgnoreCase(PRESET_OFF)) {
+            return PRESET_OFF;
         }
-
-        return MODE_HYBRID;
-    }
-
-    /**
-     * @description Parses a semicolon-separated multi-select picklist value to a Set.
-     */
-    private static Set<String> parseMultiSelectPicklist(String picklistValue) {
-        if (String.isBlank(picklistValue)) {
-            return null;
+        if (normalized.equalsIgnoreCase(PRESET_STRICT)) {
+            return PRESET_STRICT;
         }
-
-        Set<String> values = new Set<String>();
-        for (String value : picklistValue.split(';')) {
-            String trimmed = value.trim();
-            if (String.isNotBlank(trimmed)) {
-                values.add(trimmed);
-            }
-        }
-
-        return values.isEmpty() ? null : values;
+        return PRESET_STANDARD;
     }
 
     // =========================================================================

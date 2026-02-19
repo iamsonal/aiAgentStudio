@@ -95,7 +95,9 @@ public inherited sharing class PIIPatternMatcher {
 
     /**
      * @description Finds all PII matches in the given text.
-     * Returns matches sorted by position in text (for proper masking order).
+     * Returns matches in pattern-priority order (the order patterns are applied).
+     * Callers that need a specific positional order should sort the result themselves.
+     * PIIMaskingService.maskText() re-sorts ascending by startIndex before processing.
      *
      * @param text The text to search for PII
      * @return List of PIIMatch objects representing found PII
@@ -126,20 +128,34 @@ public inherited sharing class PIIPatternMatcher {
             System.Matcher m = cp.regex.matcher(text);
 
             while (m.find()) {
-                String matchedValue = m.group();
+                // When the pattern has a capturing group (group 1), use only the captured
+                // portion as the masked value and its positions for replacement. This preserves
+                // keyword context in the text (e.g. "routing: 123456789" becomes
+                // "routing: [RTN:001]" instead of "[RTN:001]"), preventing keyword doubling
+                // when the LLM restates context and improving LLM comprehension.
+                // Patterns without a capturing group mask the entire match as before.
+                String matchedValue;
+                Integer matchStart;
+                Integer matchEnd;
+                if (m.groupCount() > 0 && m.group(1) != null) {
+                    matchedValue = m.group(1);
+                    matchStart = m.start(1);
+                    matchEnd = m.end(1);
+                } else {
+                    matchedValue = m.group();
+                    matchStart = m.start();
+                    matchEnd = m.end();
+                }
 
                 // Skip if validation is required and fails
                 if (cp.requiresValidation && !validateMatch(matchedValue, cp.developerName)) {
                     continue;
                 }
 
-                PIIMatch match = new PIIMatch(matchedValue, cp.developerName, cp.maskFormat, cp.category, m.start(), m.end());
+                PIIMatch match = new PIIMatch(matchedValue, cp.developerName, cp.maskFormat, cp.category, matchStart, matchEnd);
                 allMatches.add(match);
             }
         }
-
-        // Sort by position (descending) for replacement from end to start
-        allMatches.sort(new PIIMatchComparator());
 
         return allMatches;
     }
@@ -338,20 +354,5 @@ public inherited sharing class PIIPatternMatcher {
         }
 
         return Math.mod(sum, 10) == 0;
-    }
-
-    // =========================================================================
-    // COMPARATOR FOR SORTING MATCHES
-    // =========================================================================
-
-    /**
-     * @description Comparator to sort PIIMatch objects by position (descending).
-     * Descending order allows replacement from end to start without index shifting.
-     */
-    private class PIIMatchComparator implements Comparator<PIIMatch> {
-        public Integer compare(PIIMatch a, PIIMatch b) {
-            // Sort descending by start index
-            return b.startIndex - a.startIndex;
-        }
     }
 }

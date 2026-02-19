@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-    <label>US Phone Number</label>
+    <label>IBAN</label>
     <protected>false</protected>
     <values>
         <field>Category__c</field>
-        <value xsi:type="xsd:string">Contact</value>
+        <value xsi:type="xsd:string">Financial</value>
     </values>
     <values>
         <field>Description__c</field>
-        <value xsi:type="xsd:string">Detects US phone numbers in various formats: (XXX) XXX-XXXX, XXX-XXX-XXXX, XXX.XXX.XXXX, +1XXXXXXXXXX. Negative lookbehind prevents matching digit substrings inside longer numbers.</value>
+        <value xsi:type="xsd:string">Detects International Bank Account Numbers (IBAN) when preceded by IBAN or international bank account keywords. Matches the 2-letter country code, 2 check digits, and 10-30 alphanumeric BBAN characters (total 14-34 chars).</value>
     </values>
     <values>
         <field>IsActive__c</field>
@@ -16,15 +16,15 @@
     </values>
     <values>
         <field>MaskFormat__c</field>
-        <value xsi:type="xsd:string">[PHONE:{index}]</value>
+        <value xsi:type="xsd:string">[IBAN:{index}]</value>
     </values>
     <values>
         <field>PatternRegex__c</field>
-        <value xsi:type="xsd:string">(?&lt;!\d)(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b</value>
+        <value xsi:type="xsd:string">(?i)\b(?:iban|international\s*bank\s*account)\b[#:\s]*([A-Z]{2}\d{2}[A-Z0-9]{10,30})\b</value>
     </values>
     <values>
         <field>Priority__c</field>
-        <value xsi:type="xsd:double">60.0</value>
+        <value xsi:type="xsd:double">22.0</value>
     </values>
     <values>
         <field>RequiresValidation__c</field>

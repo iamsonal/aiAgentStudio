@@ -10,8 +10,6 @@
  * @description Orchestrates LLM interaction lifecycle for a single execution turn. Manages prompt composition, payload formatting, and response parsing.
  */
 public inherited sharing class LLMInteractionService {
-    private static final Integer SAFETY_CONTEXT_MAX_HISTORY = 3;
-    private static final Integer SAFETY_CONTEXT_MAX_CHARS = 2000;
     @TestVisible
     private static Map<String, ILLMProviderAdapter> adapterInstanceCache = new Map<String, ILLMProviderAdapter>();
 
@@ -87,6 +85,7 @@ public inherited sharing class LLMInteractionService {
     private final Id currentPageRecordId;
     private final Boolean isFinalErrorTurn;
     private final IDecisionStepLogger.ILogger decisionLogger;
+
     public LLMInteractionService(
         Id executionId,
         Id usrId,
@@ -128,12 +127,21 @@ public inherited sharing class LLMInteractionService {
             Boolean useCachedContext = false;
             LLMRequestCache cachedRequest = null;
 
-            if (TransactionContext.getInstance().isDeferredDMLMode() && requestCacheByExecution.containsKey(this.executionId)) {
+            // Check if we can use cached context from a previous LLM call in the same transaction
+            // This is critical for multi-LLM optimization to avoid redundant context resolution
+            // Conditions:
+            // 1. Deferred DML mode is enabled (multi-LLM optimization active)
+            // 2. Turn count > 1 (not the first LLM call - first call must build and cache)
+            // 3. Cache exists for this execution ID (from previous turn in same transaction)
+            if (TransactionContext.getInstance().isDeferredDMLMode() && this.currentTurnCount > 1 && requestCacheByExecution.containsKey(this.executionId)) {
                 cachedRequest = requestCacheByExecution.get(this.executionId);
                 // Only use cache if it's from the same transaction (within reasonable time window)
                 if (cachedRequest != null && cachedRequest.systemPrompt != null) {
                     useCachedContext = true;
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Multi-LLM optimization: Using cached request context (saved system prompt rebuild)');
+                    System.debug(
+                        LoggingLevel.INFO,
+                        logPrefix + 'Multi-LLM optimization: Using cached request context (saved system prompt rebuild and context resolution)'
+                    );
                 }
             }
 
@@ -146,7 +154,7 @@ public inherited sharing class LLMInteractionService {
 
                 System.debug(
                     LoggingLevel.DEBUG,
-                    logPrefix + 'Loaded cached config: Agent=' + agentConfig.DeveloperName__c + ', LLM=' + llmConfig.DeveloperName__c
+                    logPrefix + 'Loaded cached config: Agent=' + agentConfig.DeveloperName__c + ', LLM=' + llmConfig.DeveloperName__c + ', User=' + this.userId
                 );
             } else {
                 agentConfig = AIAgentConfigService.getAgentDefinition(this.agentDefinitionId);
@@ -205,6 +213,8 @@ public inherited sharing class LLMInteractionService {
                     this.decisionLogger.log(IDecisionStepLogger.EventType.TOOLS_CONFIGURED, new List<Object>{ toolsPayload });
                 }
 
+                // Cache the request context for subsequent LLM calls in the same transaction
+                // This is critical for multi-LLM optimization to avoid rebuilding system prompt and context
                 if (TransactionContext.getInstance().isDeferredDMLMode()) {
                     LLMRequestCache newCache = new LLMRequestCache();
                     newCache.systemPrompt = finalSystemPrompt;
@@ -229,6 +239,47 @@ public inherited sharing class LLMInteractionService {
                 finalMessagesPayload.addAll(historyPayload);
             }
 
+            // Obtain adapter once — used for both the safety pre-check and the LLM call.
+            ILLMProviderAdapter adapter = LLMInteractionService.getLLMProviderAdapter(llmConfig);
+
+            // Provider-native safety pre-check.
+            // Adapters that support it (e.g. OpenAI → /v1/moderations) perform the check and return a ThreatAssessment.
+            // Adapters with no pre-check capability return null — execution continues normally.
+            if (currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
+                ThreatAssessment safetyResult = adapter.checkMessageSafety(currentTurnUserMessage.content, llmConfig, agentConfig);
+                if (safetyResult != null) {
+                    if (this.decisionLogger != null) {
+                        this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_CHECK, new List<Object>{ safetyResult });
+                    }
+
+                    if (safetyResult.shouldBlock()) {
+                        System.debug(
+                            LoggingLevel.WARN,
+                            logPrefix +
+                                'Message blocked by provider safety pre-check. Score: ' +
+                                safetyResult.overallScore +
+                                ', Indicators: ' +
+                                safetyResult.getIndicatorCount()
+                        );
+                        if (this.decisionLogger != null) {
+                            this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_BLOCKED, new List<Object>{ safetyResult });
+                        }
+                        String safeMessage = safetyResult.getSafeMessage();
+                        ProviderResult safetyProviderResult = new ProviderResult(safeMessage, 0, 0, 0, null, null, null, 'safety-layer', 0);
+                        MessageData safetyMessageData = new MessageData();
+                        safetyMessageData.role = AIAgentConstants.ROLE_ASSISTANT;
+                        safetyMessageData.content = safeMessage;
+                        return new LLMInteractionResult(safetyProviderResult, safetyMessageData);
+                    }
+
+                    if (safetyResult.hasSanitizedContent()) {
+                        currentTurnUserMessage.content = safetyResult.getSanitizedContent();
+                        System.debug(LoggingLevel.INFO, logPrefix + 'Applied sanitization to user message per safety pre-check.');
+                    }
+                }
+            }
+
+            // Add the (possibly sanitized) current user message to the outbound payload.
             if (currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
                 LLMFormattingService.addMessageToPayload(
                     finalMessagesPayload,
@@ -241,133 +292,32 @@ public inherited sharing class LLMInteractionService {
                 );
             }
 
-            PromptSafetyService safetyService = PromptSafetyService.createForAgent(agentConfig, this.executionId);
-            if (safetyService != null && currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
-                String originalUserMessage = currentTurnUserMessage.content;
-                ThreatAssessment safetyResult = safetyService.checkMessage(originalUserMessage);
-
-                if (this.decisionLogger != null) {
-                    this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_CHECK, new List<Object>{ safetyResult });
-                }
-
-                if (safetyService.isAuditLoggingEnabled()) {
-                    logPromptSafetyAudit(safetyResult, 'current', logPrefix);
-                }
-
-                if (safetyResult.shouldBlock()) {
-                    System.debug(
-                        LoggingLevel.WARN,
-                        logPrefix +
-                            'Message blocked by prompt safety service. Score: ' +
-                            safetyResult.overallScore +
-                            ', Indicators: ' +
-                            safetyResult.getIndicatorCount()
-                    );
-
-                    // Log as SAFETY_BLOCKED (not ERROR) - this is expected behavior, not a failure
-                    if (this.decisionLogger != null) {
-                        this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_BLOCKED, new List<Object>{ safetyResult });
-                    }
-
-                    // Return a SUCCESS result with safe response instead of failure
-                    // This allows ContentResponseHandler to process it as a normal content response
-                    // and complete the turn gracefully instead of failing
-                    String safeMessage = safetyResult.getSafeMessage();
-                    ProviderResult safetyProviderResult = new ProviderResult(
-                        safeMessage, // content
-                        0, // promptTokens (no LLM call made)
-                        0, // completionTokens
-                        0, // totalTokens
-                        null, // requestedActions (no tool calls)
-                        null, // rawToolCallsJson
-                        null, // rawAssistantMessageWithActionsJson
-                        'safety-layer', // modelIdentifier
-                        0 // llmCalloutDurationMs
-                    );
-
-                    MessageData safetyMessageData = new MessageData();
-                    safetyMessageData.role = AIAgentConstants.ROLE_ASSISTANT;
-                    safetyMessageData.content = safeMessage;
-
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Returning safe response to user: ' + safeMessage.left(100));
-                    return new LLMInteractionResult(safetyProviderResult, safetyMessageData);
-                }
-
-                if (safetyResult.hasSanitizedContent()) {
-                    currentTurnUserMessage.content = safetyResult.getSanitizedContent();
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Applied sanitization to user message. Original threats neutralized.');
-                }
-
-                if (safetyResult.flagged) {
-                    System.debug(
-                        LoggingLevel.INFO,
-                        logPrefix + 'Message flagged for review. Score: ' + safetyResult.overallScore + ', Indicators: ' + safetyResult.getIndicatorCount()
-                    );
-                }
-
-                String safetyContext = buildPromptSafetyContext(this.executionId, originalUserMessage, logPrefix);
-                if (String.isNotBlank(safetyContext)) {
-                    ThreatAssessment contextResult = safetyService.checkMessage(safetyContext);
-
-                    if (this.decisionLogger != null) {
-                        this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_CHECK, new List<Object>{ contextResult, 'context' });
-                    }
-
-                    if (safetyService.isAuditLoggingEnabled()) {
-                        logPromptSafetyAudit(contextResult, 'context', logPrefix);
-                    }
-
-                    if (contextResult.shouldBlock()) {
-                        System.debug(
-                            LoggingLevel.WARN,
-                            logPrefix +
-                                'Message blocked by prompt safety context check. Score: ' +
-                                contextResult.overallScore +
-                                ', Indicators: ' +
-                                contextResult.getIndicatorCount()
-                        );
-
-                        if (this.decisionLogger != null) {
-                            this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_BLOCKED, new List<Object>{ contextResult, 'context' });
-                        }
-
-                        String safeMessage = contextResult.getSafeMessage();
-                        ProviderResult safetyProviderResult = new ProviderResult(
-                            safeMessage, // content
-                            0, // promptTokens (no LLM call made)
-                            0, // completionTokens
-                            0, // totalTokens
-                            null, // requestedActions (no tool calls)
-                            null, // rawToolCallsJson
-                            null, // rawAssistantMessageWithActionsJson
-                            'safety-layer', // modelIdentifier
-                            0 // llmCalloutDurationMs
-                        );
-
-                        MessageData safetyMessageData = new MessageData();
-                        safetyMessageData.role = AIAgentConstants.ROLE_ASSISTANT;
-                        safetyMessageData.content = safeMessage;
-
-                        System.debug(LoggingLevel.INFO, logPrefix + 'Returning safe response to user (context check): ' + safeMessage.left(100));
-                        return new LLMInteractionResult(safetyProviderResult, safetyMessageData);
-                    }
-
-                    if (contextResult.flagged) {
-                        System.debug(
-                            LoggingLevel.INFO,
-                            logPrefix +
-                                'Message flagged for review by context check. Score: ' +
-                                contextResult.overallScore +
-                                ', Indicators: ' +
-                                contextResult.getIndicatorCount()
-                        );
-                    }
-                }
-            }
-
             if (maskingService != null) {
+                Integer maskingOpsBefore = null;
+                if (this.decisionLogger != null) {
+                    Map<String, Object> preStats = maskingService.getStatistics();
+                    Object preCount = preStats != null ? preStats.get('totalMaskingOperations') : null;
+                    if (preCount instanceof Integer) {
+                        maskingOpsBefore = (Integer) preCount;
+                    }
+                }
+
                 finalMessagesPayload = maskingService.maskMessagePayload(finalMessagesPayload);
                 System.debug(LoggingLevel.INFO, logPrefix + 'Applied PII masking to message payload. Mode: ' + maskingService.getMode());
+
+                if (this.decisionLogger != null) {
+                    Map<String, Object> stats = maskingService.getStatistics();
+                    Integer maskingOpsAfter = null;
+                    Object postCount = stats != null ? stats.get('totalMaskingOperations') : null;
+                    if (postCount instanceof Integer) {
+                        maskingOpsAfter = (Integer) postCount;
+                    }
+                    Integer appliedCount = null;
+                    if (maskingOpsBefore != null && maskingOpsAfter != null) {
+                        appliedCount = Math.max(0, maskingOpsAfter - maskingOpsBefore);
+                    }
+                    this.decisionLogger.log(IDecisionStepLogger.EventType.PII_MASKING, new List<Object>{ stats, appliedCount });
+                }
             }
 
             if (this.decisionLogger != null) {
@@ -377,7 +327,6 @@ public inherited sharing class LLMInteractionService {
 
             Long callStartTime = System.currentTimeMillis();
             try {
-                ILLMProviderAdapter adapter = LLMInteractionService.getLLMProviderAdapter(llmConfig);
                 ProviderResult llmApiResult = adapter.sendMessage(finalMessagesPayload, toolsPayload, llmConfig, agentConfig);
 
                 if (llmApiResult == null) {
@@ -385,6 +334,22 @@ public inherited sharing class LLMInteractionService {
                 }
                 Long callDuration = System.currentTimeMillis() - callStartTime;
                 System.debug(LoggingLevel.INFO, logPrefix + 'LLM call succeeded in ' + callDuration + 'ms. executionId=' + this.executionId);
+
+                // Handle in-call safety block detected by the adapter (e.g. a refusal finish_reason).
+                // Adapters that detect server-side filtering set safetyBlock on the ProviderResult.
+                if (llmApiResult.safetyBlock != null) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Response blocked by provider in-call safety filter.');
+                    if (this.decisionLogger != null) {
+                        this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_CHECK, new List<Object>{ llmApiResult.safetyBlock });
+                        this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_BLOCKED, new List<Object>{ llmApiResult.safetyBlock });
+                    }
+                    String safeMessage = llmApiResult.safetyBlock.getSafeMessage();
+                    ProviderResult safetyProviderResult = new ProviderResult(safeMessage, 0, 0, 0, null, null, null, 'safety-layer', 0);
+                    MessageData safetyMessageData = new MessageData();
+                    safetyMessageData.role = AIAgentConstants.ROLE_ASSISTANT;
+                    safetyMessageData.content = safeMessage;
+                    return new LLMInteractionResult(safetyProviderResult, safetyMessageData);
+                }
 
                 if (this.decisionLogger != null) {
                     this.decisionLogger.log(IDecisionStepLogger.EventType.LLM_RESPONSE, new List<Object>{ llmApiResult, llmConfig });
@@ -457,7 +422,6 @@ public inherited sharing class LLMInteractionService {
                     this.executionId
             );
 
-            // Log error if decision logger is available
             if (this.decisionLogger != null) {
                 this.decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ ex });
             }
@@ -598,116 +562,14 @@ public inherited sharing class LLMInteractionService {
     /**
      * @description
      * Loads the appropriate orchestrator for an agent definition.
-     * Uses the same metadata-driven approach as AgentExecutionService.
+     * Delegates to AgentExecutionService.getOrchestrator() so the transaction-level static
+     * cache is used instead of issuing a per-call SOQL against AgentOrchestratorMapping__mdt.
      */
     private IAgentOrchestrator loadOrchestrator(AIAgentDefinition__c agentConfig) {
-        String agentType = agentConfig.AgentType__c;
-
-        if (String.isBlank(agentType)) {
-            throw new LLMInteractionException('AgentType__c is required on agent definition');
-        }
-
-        List<AgentOrchestratorMapping__mdt> mappings = [
-            SELECT OrchestratorClassName__c
-            FROM AgentOrchestratorMapping__mdt
-            WHERE AgentType__c = :agentType AND IsActive__c = TRUE
-            LIMIT 1
-        ];
-
-        if (mappings.isEmpty()) {
-            throw new LLMInteractionException('No orchestrator mapping found for agent type: ' + agentType);
-        }
-
-        String orchestratorClassName = mappings[0].OrchestratorClassName__c;
-
-        Type orchestratorType = Type.forName(orchestratorClassName);
-        if (orchestratorType == null) {
-            throw new LLMInteractionException('Orchestrator class not found: ' + orchestratorClassName);
-        }
-
-        Object instanceObj = orchestratorType.newInstance();
-        if (!(instanceObj instanceof IAgentOrchestrator)) {
-            throw new LLMInteractionException('Class does not implement IAgentOrchestrator: ' + orchestratorClassName);
-        }
-
-        IAgentOrchestrator orchestrator = (IAgentOrchestrator) instanceObj;
-        orchestrator.configure(agentConfig);
-
-        return orchestrator;
-    }
-
-    private String buildPromptSafetyContext(Id executionId, String currentMessage, String logPrefix) {
-        if (executionId == null || String.isBlank(currentMessage)) {
-            return null;
-        }
-
         try {
-            ExecutionStepService executionStepService = new ExecutionStepService();
-            List<ExecutionStep__c> recentInputs = executionStepService.getHistory(
-                executionId,
-                SAFETY_CONTEXT_MAX_HISTORY,
-                'DESC',
-                new List<String>{ 'UserInput' },
-                false
-            );
-
-            if (recentInputs == null || recentInputs.isEmpty()) {
-                return null;
-            }
-
-            List<String> messages = new List<String>();
-            for (ExecutionStep__c step : recentInputs) {
-                if (String.isNotBlank(step.Content__c)) {
-                    messages.add(step.Content__c);
-                }
-            }
-
-            if (messages.isEmpty()) {
-                return null;
-            }
-
-            List<String> orderedMessages = new List<String>();
-            for (Integer i = messages.size() - 1; i >= 0; i--) {
-                orderedMessages.add(messages[i]);
-            }
-            orderedMessages.add(currentMessage);
-
-            String combined = String.join(orderedMessages, '\n');
-            if (combined.length() > SAFETY_CONTEXT_MAX_CHARS) {
-                combined = combined.right(SAFETY_CONTEXT_MAX_CHARS);
-            }
-
-            return combined;
-        } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to build prompt safety context: ' + e.getMessage());
-            return null;
-        }
-    }
-
-    private void logPromptSafetyAudit(ThreatAssessment assessment, String scope, String logPrefix) {
-        if (assessment == null || this.executionId == null) {
-            return;
-        }
-
-        try {
-            Map<String, Object> summary = assessment.getSummary();
-            summary.put('scope', scope);
-            summary.put('executionId', this.executionId);
-            summary.put('turnIdentifier', this.turnIdentifier);
-            summary.put('turnCount', this.currentTurnCount);
-
-            ExecutionStepService executionStepService = new ExecutionStepService();
-            executionStepService.createStep(
-                this.executionId,
-                'SystemEvent',
-                'System',
-                JSON.serialize(summary),
-                'JSON',
-                this.turnIdentifier,
-                this.currentTurnCount
-            );
-        } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to log prompt safety audit: ' + e.getMessage());
+            return AgentExecutionService.getOrchestrator(agentConfig);
+        } catch (AIAgentException.OrchestrationException e) {
+            throw new LLMInteractionException(e.getMessage());
         }
     }
 }

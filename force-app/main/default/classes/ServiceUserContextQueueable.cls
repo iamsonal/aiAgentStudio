@@ -19,7 +19,7 @@
  * - Optionally creates a stub execution record for immediate tracking
  * - Enqueues this job to perform the actual REST callout
  */
-public class ServiceUserContextQueueable implements Queueable, Database.AllowsCallouts {
+public without sharing class ServiceUserContextQueueable implements Queueable, Database.AllowsCallouts {
     private static final String LOG_PREFIX = '[ServiceUserCtxQueue] ';
 
     private Id stubExecutionId; // May be null if caller couldn't create

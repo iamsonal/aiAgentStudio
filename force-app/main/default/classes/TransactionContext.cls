@@ -291,6 +291,7 @@ public inherited sharing class TransactionContext {
     public void commitBuffer() {
         if (!this.insertBuffer.isEmpty()) {
             System.debug(LoggingLevel.INFO, '[TransactionContext] Committing ' + this.insertBuffer.size() + ' buffered inserts');
+            normalizeRetryableField(this.insertBuffer);
             insert this.insertBuffer;
             this.insertBuffer.clear();
         }
@@ -318,6 +319,34 @@ public inherited sharing class TransactionContext {
             }
         }
         return result;
+    }
+
+    /**
+     * Replaces a placeholder execution ID with the real one in all buffered SObject records.
+     *
+     * Used by AsyncFunctionOrchestrator when an execution is created mid-flow: the initial
+     * LLM call uses a temporary placeholder ID (no real AgentExecution__c exists yet), but
+     * services like LLMInteractionService buffer ExecutionStep__c records against that fake
+     * ID. Once the real execution is created, this method patches every buffered record so
+     * commitBuffer() doesn't fail with a key-prefix integrity exception.
+     *
+     * @param placeholderId The temporary ID used before the real execution existed
+     * @param realId        The actual AgentExecution__c ID to substitute in
+     */
+    public void replaceExecutionId(Id placeholderId, Id realId) {
+        if (placeholderId == null || realId == null || placeholderId == realId) {
+            return;
+        }
+        for (SObject record : this.insertBuffer) {
+            try {
+                Id current = (Id) record.get('AgentExecution__c');
+                if (current == placeholderId) {
+                    record.put('AgentExecution__c', realId);
+                }
+            } catch (Exception e) {
+                // Record type does not have AgentExecution__c; skip silently
+            }
+        }
     }
 
     // TOOL EXECUTION TRACKING (for dependency validation)
@@ -354,6 +383,61 @@ public inherited sharing class TransactionContext {
         return this.executedToolsByExecution.get(executionId);
     }
 
+    private static void normalizeRetryableField(List<SObject> records) {
+        if (records == null || records.isEmpty()) {
+            return;
+        }
+
+        for (SObject record : records) {
+            if (record == null) {
+                continue;
+            }
+
+            try {
+                Map<String, Schema.SObjectField> fields = record.getSObjectType().getDescribe().fields.getMap();
+                if (!fields.containsKey('IsRetryable__c')) {
+                    continue;
+                }
+
+                Object raw = record.get('IsRetryable__c');
+                if (raw == null) {
+                    continue;
+                }
+                if (raw instanceof Boolean) {
+                    continue;
+                }
+                if (raw instanceof String) {
+                    String normalized = ((String) raw).trim().toLowerCase();
+                    record.put('IsRetryable__c', normalizeRetryableValue(normalized, fields.get('IsRetryable__c').getDescribe().getType()));
+                    continue;
+                }
+                if (raw instanceof Integer || raw instanceof Long || raw instanceof Decimal) {
+                    Decimal numVal = (raw instanceof Decimal) ? (Decimal) raw : Decimal.valueOf(String.valueOf(raw));
+                    String normalized = (numVal == 1) ? 'true' : (numVal == 0) ? 'false' : '';
+                    record.put('IsRetryable__c', normalizeRetryableValue(normalized, fields.get('IsRetryable__c').getDescribe().getType()));
+                    continue;
+                }
+
+                record.put('IsRetryable__c', normalizeRetryableValue('', fields.get('IsRetryable__c').getDescribe().getType()));
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, '[TransactionContext] Failed to normalize IsRetryable__c: ' + e.getMessage());
+            }
+        }
+    }
+
+    private static Object normalizeRetryableValue(String normalized, Schema.DisplayType fieldType) {
+        if (fieldType == Schema.DisplayType.Boolean) {
+            return normalized == 'true';
+        }
+        if (fieldType == Schema.DisplayType.String) {
+            if (normalized == 'true' || normalized == 'false') {
+                return normalized;
+            }
+            return null;
+        }
+        return normalized == 'true';
+    }
+
     // LIFECYCLE MANAGEMENT
 
     /**
@@ -365,6 +449,7 @@ public inherited sharing class TransactionContext {
         this.llmCallCount = 0;
         this.dmlCountBeforeTool = 0;
         this.calloutCountBeforeTool = 0;
+        this.emailCountBeforeTool = 0;
         this.insertBuffer.clear();
         this.hasPreExistingExecution = false;
         this.executedToolsByExecution.clear();

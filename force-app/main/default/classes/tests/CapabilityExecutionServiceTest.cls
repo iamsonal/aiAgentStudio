@@ -129,6 +129,7 @@ private class CapabilityExecutionServiceTest {
         AgentCapability__c capability = TestFactory.newCapability().withAgent(setup.agentDefinition.Id).withName('test_apex_cap').build();
         capability.ImplementationType__c = 'Apex';
         capability.ImplementationDetail__c = 'NonExistentClass';
+        capability.Parameters__c = '{"type":"object","properties":{}}';
         insert capability;
 
         AgentExecution__c execution = TestFactory.newExecution()
@@ -247,10 +248,12 @@ private class CapabilityExecutionServiceTest {
     static void testExecuteSingleAction_StandardActionMissingType_ReturnsFailure() {
         TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
 
-        AgentCapability__c capability = TestFactory.newCapability().withAgent(setup.agentDefinition.Id).withName('std_missing_type').build();
-        capability.ImplementationType__c = 'Standard';
+        AgentCapability__c capability = TestFactory.newCapability()
+            .withAgent(setup.agentDefinition.Id)
+            .forCreateRecord('Account')
+            .withName('std_missing_type')
+            .save();
         capability.StandardActionType__c = null;
-        insert capability;
 
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
@@ -291,10 +294,14 @@ private class CapabilityExecutionServiceTest {
     static void testExecuteSingleAction_ApexMissingDetail_ReturnsFailure() {
         TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
 
-        AgentCapability__c capability = TestFactory.newCapability().withAgent(setup.agentDefinition.Id).withName('apex_missing_detail').build();
-        capability.ImplementationType__c = 'Apex';
-        capability.ImplementationDetail__c = null;
+        AgentCapability__c capability = TestFactory.newCapability()
+            .withAgent(setup.agentDefinition.Id)
+            .forCustomApex('NonExistentClass')
+            .withName('apex_missing_detail')
+            .build();
+        capability.Parameters__c = '{"type":"object","properties":{}}';
         insert capability;
+        capability.ImplementationDetail__c = null;
 
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
@@ -335,10 +342,12 @@ private class CapabilityExecutionServiceTest {
     static void testExecuteSingleAction_FlowMissingDetail_ReturnsFailure() {
         TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
 
-        AgentCapability__c capability = TestFactory.newCapability().withAgent(setup.agentDefinition.Id).withName('flow_missing_detail').build();
-        capability.ImplementationType__c = 'Flow';
+        AgentCapability__c capability = TestFactory.newCapability()
+            .withAgent(setup.agentDefinition.Id)
+            .forFlowHandler('Test_Flow')
+            .withName('flow_missing_detail')
+            .save();
         capability.ImplementationDetail__c = null;
-        insert capability;
 
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
@@ -382,6 +391,7 @@ private class CapabilityExecutionServiceTest {
         AgentCapability__c capability = TestFactory.newCapability().withAgent(setup.agentDefinition.Id).withName('unknown_standard_action').build();
         capability.ImplementationType__c = 'Standard';
         capability.StandardActionType__c = 'NonExistentStandardAction';
+        capability.Parameters__c = '{"type":"object","properties":{}}';
         insert capability;
 
         AgentExecution__c execution = TestFactory.newExecution()

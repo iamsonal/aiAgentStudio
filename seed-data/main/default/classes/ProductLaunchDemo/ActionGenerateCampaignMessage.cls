@@ -107,7 +107,7 @@ public with sharing class ActionGenerateCampaignMessage extends BaseAgentAction 
      * Generate personalized message content
      *
      * NOTE: This is a sophisticated simulation of AI content generation.
-     * In production, this would call an LLM API (OpenAI, Claude, etc.) to generate
+     * In production, this would call an LLM API (e.g. OpenAI) to generate
      * truly dynamic content. For demo purposes, we create highly contextual messages
      * that demonstrate the power of AI-driven personalization.
      */

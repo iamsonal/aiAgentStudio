@@ -36,6 +36,8 @@ private class ActionOutcomeTest {
         System.assertEquals(null, outcome.data);
         System.assertEquals('DML_ERROR', outcome.errorCode);
         System.assertEquals('Insert failed on Account.', outcome.errorMessage);
+        System.assertEquals(AIAgentConstants.ERR_CATEGORY_DATA, outcome.errorCategory, 'Should categorize DML errors as data');
+        System.assertEquals(false, outcome.isRetryable, 'DML errors should not be retryable by default');
         System.assertEquals(null, outcome.correctionGuidance);
         System.assertNotEquals(null, outcome.llmFriendlyMessage, 'Failure should generate LLM message');
     }
@@ -183,6 +185,7 @@ private class ActionOutcomeTest {
         // Should not contain the original DML code
         System.assert(!lockOutcome.llmFriendlyMessage.contains('UNABLE_TO_LOCK_ROW'), 'Should replace UNABLE_TO_LOCK_ROW');
         System.assert(lockOutcome.llmFriendlyMessage.toLowerCase().contains('locked'), 'Should contain friendly lock text');
+        System.assertEquals(true, lockOutcome.isRetryable, 'Record locked should be retryable');
 
         ActionOutcome valOutcome = ActionOutcome.failure('INPUT_VALIDATION', 'FIELD_CUSTOM_VALIDATION_EXCEPTION on the Amount field');
         System.assert(!valOutcome.llmFriendlyMessage.contains('FIELD_CUSTOM_VALIDATION_EXCEPTION'), 'Should replace validation exception code');
@@ -308,6 +311,7 @@ private class ActionOutcomeTest {
 
         System.assertNotEquals(null, outcome.llmFriendlyMessage);
         System.assert(outcome.llmFriendlyMessage.contains('unexpected error'), 'Unknown code should produce generic default');
+        System.assertEquals(AIAgentConstants.ERR_CATEGORY_UNKNOWN, outcome.errorCategory, 'Unknown code should map to unknown category');
     }
 
     @IsTest

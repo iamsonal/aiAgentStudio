@@ -9,7 +9,7 @@
 /**
  * @description Coordinates post-tool-execution follow-up LLM interactions. Handles follow-up LLM processing after async operations complete.
  */
-public class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
+public without sharing class FollowUpLLMEngine implements Queueable, Database.AllowsCallouts {
     private final Id executionId;
     private final Id userId;
     private final Id agentDefinitionId;

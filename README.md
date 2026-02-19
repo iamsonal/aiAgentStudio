@@ -55,7 +55,7 @@ AI Agent Studio is **free and open-source**. If you find it useful, consider sup
 
 This repository contains the **core AI Agent Framework only**. The `aiAgentStudioAddons` folder contains proprietary extensions not included in the open-source release.
 
-The core framework in `force-app` provides all fundamental capabilities for building conversational AI agents with OpenAI.
+The core framework in `force-app` provides all fundamental capabilities for building Conversational, Function, Workflow, and Email AI agents with OpenAI and other providers.
 
 ---
 
@@ -131,7 +131,7 @@ All operations run asynchronously using Platform Events or Queueables, ensuring 
 
 | Feature | Description |
 |:--------|:------------|
-| **Three Agent Types** | Conversational (chat), Function (single-task), Workflow (multi-agent orchestration) |
+| **Four Agent Types** | Conversational (chat), Function (single-task), Workflow (multi-agent orchestration), Email (thread processing) |
 | **Smart Memory** | Buffer window and summary-based conversation history |
 | **Built-in Security** | Automatic CRUD, FLS, and sharing rule enforcement |
 | **Standard Actions** | Create, update, query records, post to Chatter, execute Flows |
@@ -251,13 +251,15 @@ Once your API key is configured:
 **Core Components:**
 - `AgentExecutionService` - Main entry point for starting agent executions
 - `ConversationalOrchestrator` - Manages multi-turn chat conversations
-- `FunctionOrchestrator` - Handles single-task function agents
-- `WorkflowOrchestrator` - Coordinates multi-agent workflows
+- `FunctionOrchestrator` - Routes to sync/async function execution (addon)
+- `WorkflowOrchestrator` - Coordinates multi-agent workflows (addon)
+- `EmailOrchestrator` - Processes email threads with auto-reply (addon)
 - `LLMInteractionService` - Handles communication with AI providers
 - `CapabilityExecutionService` - Executes tools/actions securely
-- `OpenAIProviderAdapter` - OpenAI/Azure OpenAI integration
-- `ClaudeProviderAdapter` - Anthropic Claude integration
-- `GeminiProviderAdapter` - Google Gemini integration
+- `OpenAIProviderAdapter` - OpenAI/Azure OpenAI integration (core)
+- `KimiK2ProviderAdapter` - Kimi K2 integration (addon)
+- `ClaudeProviderAdapter` - Anthropic Claude integration (addon)
+- `GeminiProviderAdapter` - Google Gemini integration (addon)
 
 **Extension Points:**
 - `IAgentAction` - Build custom actions for any business logic
@@ -281,7 +283,7 @@ Once your API key is configured:
 
 ## 📄 License
 
-Copyright © 2025 Sonal
+Copyright © 2026 Sonal
 
 Licensed under **[Mozilla Public License 2.0](LICENSE)** (MPL-2.0)
 
@@ -291,7 +293,7 @@ Licensed under **[Mozilla Public License 2.0](LICENSE)** (MPL-2.0)
 
 <div align="center">
 
-**Made with 🤖 and 💡 in 2025**
+**Made with 🤖 and 💡 in 2026**
 
 *Empowering Salesforce teams to build intelligent AI experiences*
 

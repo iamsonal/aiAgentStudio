@@ -9,7 +9,7 @@
 /**
  * @description Data transfer object that encapsulates the full outcome of an LLM API call. Includes content, token usage, and tool requests.
  */
-public class ProviderResult {
+public inherited sharing class ProviderResult {
     @AuraEnabled
     public String content { get; set; }
     @AuraEnabled
@@ -26,6 +26,13 @@ public class ProviderResult {
     public String modelIdentifier { get; set; }
     @AuraEnabled
     public Long llmCalloutDurationMs { get; set; }
+    /**
+     * Populated by adapters that detect in-call safety filtering (e.g. a refusal finish_reason in the response).
+     * LLMInteractionService checks this after sendMessage() and short-circuits to a safe response when non-null.
+     * Null for adapters that only perform pre-call checks (e.g. OpenAI) or have no explicit in-response signal.
+     */
+    public ThreatAssessment safetyBlock { get; set; }
+
     public ProviderResult(
         String content,
         Integer promptTokens,

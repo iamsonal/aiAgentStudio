@@ -344,11 +344,13 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         for (Integer i = 0; i < requestedActions.size(); i++) {
             Map<String, String> actionMap = requestedActions[i];
 
-            try {
-                String toolCallId = actionMap.get('id');
-                String toolName = actionMap.get('name');
-                String toolArguments = actionMap.get('arguments');
+            // Extract primitive fields before the try block so the catch clause can report
+            // them accurately rather than silently dropping the tool call.
+            String toolCallId = actionMap.get('id');
+            String toolName = actionMap.get('name');
+            String toolArguments = actionMap.get('arguments');
 
+            try {
                 if (String.isBlank(toolCallId) || String.isBlank(toolName)) {
                     String errorMessage = 'Malformed tool call at index ' + i + ': missing id or name';
                     System.debug(LoggingLevel.WARN, logPrefix + errorMessage);
@@ -414,8 +416,12 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                         ')'
                 );
             } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Error parsing tool call at index ' + i + ': ' + e.getMessage());
-                continue;
+                // Surface the failure as an invalid tool call so the LLM receives explicit
+                // error feedback and execution steps are created for auditing.
+                // Previously this silently dropped the call with only a debug log.
+                String errorMessage = 'Unexpected error parsing tool call "' + toolName + '" at index ' + i + ': ' + e.getMessage();
+                System.debug(LoggingLevel.ERROR, logPrefix + errorMessage + '\n' + e.getStackTraceString());
+                parseResult.invalidRequests.add(new InvalidToolCall(toolCallId, toolName, toolArguments, errorMessage, true));
             }
         }
 
@@ -848,7 +854,13 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
             );
 
             String errorResult = JSON.serialize(
-                new Map<String, Object>{ 'isSuccess' => false, 'errorCode' => AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'messageForUser' => errorMessage }
+                new Map<String, Object>{
+                    'isSuccess' => false,
+                    'errorCode' => AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                    'errorCategory' => ActionOutcome.deriveErrorCategory(AIAgentConstants.ERR_CODE_CONFIG_ERROR),
+                    'isRetryable' => ActionOutcome.deriveRetryable(AIAgentConstants.ERR_CODE_CONFIG_ERROR),
+                    'messageForUser' => errorMessage
+                }
             );
 
             executionStepService.createToolResultStep(
@@ -1052,43 +1064,15 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
 
     /**
      * Loads the appropriate orchestrator for an agent definition.
+     * Delegates to AgentExecutionService.getOrchestrator() so the transaction-level static
+     * cache is used instead of issuing a per-call SOQL against AgentOrchestratorMapping__mdt.
      */
     private IAgentOrchestrator loadOrchestrator(AIAgentDefinition__c agentDef) {
-        String agentType = agentDef.AgentType__c;
-
-        if (String.isBlank(agentType)) {
-            throw new ToolProcessingException('AgentType__c is required on agent definition');
+        try {
+            return AgentExecutionService.getOrchestrator(agentDef);
+        } catch (AIAgentException.OrchestrationException e) {
+            throw new ToolProcessingException(e.getMessage());
         }
-
-        // Query orchestrator mapping
-        List<AgentOrchestratorMapping__mdt> mappings = [
-            SELECT OrchestratorClassName__c
-            FROM AgentOrchestratorMapping__mdt
-            WHERE AgentType__c = :agentType AND IsActive__c = TRUE
-            LIMIT 1
-        ];
-
-        if (mappings.isEmpty()) {
-            throw new ToolProcessingException('No orchestrator mapping found for agent type: ' + agentType);
-        }
-
-        String orchestratorClassName = mappings[0].OrchestratorClassName__c;
-
-        // Instantiate orchestrator
-        Type orchestratorType = Type.forName(orchestratorClassName);
-        if (orchestratorType == null) {
-            throw new ToolProcessingException('Orchestrator class not found: ' + orchestratorClassName);
-        }
-
-        Object instanceObj = orchestratorType.newInstance();
-        if (!(instanceObj instanceof IAgentOrchestrator)) {
-            throw new ToolProcessingException('Class does not implement IAgentOrchestrator: ' + orchestratorClassName);
-        }
-
-        IAgentOrchestrator orchestrator = (IAgentOrchestrator) instanceObj;
-        orchestrator.configure(agentDef);
-
-        return orchestrator;
     }
 
     // SYNCHRONOUS EXECUTION
@@ -1997,6 +1981,14 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
             failedCapabilities = AIAgentConfigService.getCapabilitiesByNames(context.agentDefinitionId, failedToolNames);
         }
 
+        // Pre-load successive failure counts for all failed tools in one SOQL (avoids per-tool SOQL
+        // inside shouldFailFast() and the redundant countSuccessiveToolFailures() call for the failure
+        // reason message — previously O(n) queries for n failing tools).
+        Map<String, Integer> preloadedFailureCounts = new Map<String, Integer>();
+        if (!failedToolNames.isEmpty() && agentDef.AgentType__c != 'Conversational' && agentDef.AgentType__c != 'Email') {
+            preloadedFailureCounts = OrchestrationService.loadSuccessiveFailureCounts(context.executionId, failedToolNames, logPrefix);
+        }
+
         // Now check fail-fast policy without additional SOQL queries
         Boolean shouldHalt = false;
         for (ToolExecutionResult result : syncResults) {
@@ -2008,12 +2000,19 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
 
             if (!result.outcome.isSuccess) {
                 AgentCapability__c capability = failedCapabilities.get(result.toolName);
-                if (capability != null && OrchestrationService.shouldFailFast(capability, agentDef, result.outcome, context.executionId, logPrefix)) {
+                // Pass preloaded count (-1 if not available) to avoid issuing a SOQL inside this loop
+                Integer preloadedCount = preloadedFailureCounts.containsKey(result.toolName) ? preloadedFailureCounts.get(result.toolName) : -1;
+                if (
+                    capability != null &&
+                    OrchestrationService.shouldFailFast(capability, agentDef, result.outcome, context.executionId, preloadedCount, logPrefix)
+                ) {
                     shouldHalt = true;
-                    // Determine the reason for failure (fail-fast policy or max retries exceeded)
+                    // Reuse the preloaded count for the failure reason message; no extra SOQL needed.
                     String failureReason = 'Tool execution failed';
                     Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
-                    Integer failureCount = OrchestrationService.countSuccessiveToolFailures(context.executionId, capability.CapabilityName__c, logPrefix);
+                    Integer failureCount = preloadedCount >= 0
+                        ? preloadedCount
+                        : OrchestrationService.countSuccessiveToolFailures(context.executionId, capability.CapabilityName__c, logPrefix);
                     if (failureCount >= maxRetries) {
                         failureReason =
                             'Tool "' +

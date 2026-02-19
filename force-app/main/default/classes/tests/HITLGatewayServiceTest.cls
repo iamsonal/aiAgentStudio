@@ -9,7 +9,7 @@ private class HITLGatewayServiceTest {
 
         AIAgentDefinition__c convoAgent = TestFactory.newAgentDefinition().withName('HITL_Convo_Agent').withType('Conversational').withLLM(llm.Id).save();
 
-        AIAgentDefinition__c functionAgent = TestFactory.newAgentDefinition().withName('HITL_Function_Agent').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c nonConversationalAgent = TestFactory.newAgentDefinition().withName('HITL_NonConvo_Agent').withType('Email').withLLM(llm.Id).save();
 
         AgentCapability__c approvalCap = TestFactory.newCapability()
             .withAgent(convoAgent.Id)
@@ -64,11 +64,11 @@ private class HITLGatewayServiceTest {
     }
 
     @IsTest
-    static void testEvaluate_ConfirmationInvalidForFunctionAgent() {
+    static void testEvaluate_ConfirmationInvalidForNonConversationalAgent() {
         AIAgentDefinition__c agent = [
             SELECT Id, AgentType__c, DeveloperName__c
             FROM AIAgentDefinition__c
-            WHERE DeveloperName__c LIKE 'HITL_Function_Agent%'
+            WHERE DeveloperName__c LIKE 'HITL_NonConvo_Agent%'
             LIMIT 1
         ];
         AgentCapability__c cap = [
@@ -88,7 +88,7 @@ private class HITLGatewayServiceTest {
         HITLGatewayService.HITLDecision decision = HITLGatewayService.evaluate(ctx);
 
         System.assertEquals(false, decision.requiresIntervention, 'Invalid config should not require intervention');
-        System.assertEquals(false, decision.isValidConfiguration, 'Confirmation on Function should be invalid');
+        System.assertEquals(false, decision.isValidConfiguration, 'Confirmation on non-conversational agent should be invalid');
         System.assert(String.isNotBlank(decision.configurationError), 'Configuration error should be populated');
     }
 
@@ -524,32 +524,35 @@ private class HITLGatewayServiceTest {
     }
 
     @IsTest
-    static void testEvaluate_ConfirmationThenApprovalWithFunctionAgent_IsInvalidConfig() {
-        AIAgentDefinition__c functionAgent = [
+    static void testEvaluate_ConfirmationThenApprovalWithNonConversationalAgent_IsInvalidConfig() {
+        AIAgentDefinition__c nonConversationalAgent = [
             SELECT Id, AgentType__c, DeveloperName__c
             FROM AIAgentDefinition__c
-            WHERE DeveloperName__c LIKE 'HITL_Function_Agent%'
+            WHERE DeveloperName__c LIKE 'HITL_NonConvo_Agent%'
             LIMIT 1
         ];
         AgentCapability__c confirmThenApproveCap = TestFactory.newCapability()
-            .withAgent(functionAgent.Id)
+            .withAgent(nonConversationalAgent.Id)
             .forFlowHandler('HITL_Confirm_Approve_Function')
             .withName('hitl_confirm_approve_func')
             .withHITLMode(HITLGatewayService.HITL_MODE_CONFIRMATION_THEN_APPROVAL)
-            .save();
+            .build();
 
         HITLGatewayService.HITLContext ctx = new HITLGatewayService.HITLContext();
         ctx.capability = confirmThenApproveCap;
-        ctx.agentDefinition = functionAgent;
+        ctx.agentDefinition = nonConversationalAgent;
         ctx.executionId = [SELECT Id FROM AgentExecution__c LIMIT 1].Id;
         ctx.turnIdentifier = 'turn-hitl-confirm-approve-func';
         ctx.toolCallId = 'call-confirm-approve-func-001';
 
         HITLGatewayService.HITLDecision decision = HITLGatewayService.evaluate(ctx);
 
-        System.assertEquals(false, decision.isValidConfiguration, 'ConfirmationThenApproval with Function agent should be invalid');
-        System.assert(decision.configurationError.contains('Conversational'), 'Error should mention Conversational requirement');
         System.assertEquals(false, decision.requiresIntervention, 'Invalid config should not require intervention');
+        System.assertEquals(false, decision.isValidConfiguration, 'ConfirmationThenApproval on non-conversational agent should be invalid');
+        System.assert(
+            String.isNotBlank(decision.configurationError) && decision.configurationError.contains('Conversational'),
+            'Error should mention Conversational requirement'
+        );
     }
 
     @IsTest

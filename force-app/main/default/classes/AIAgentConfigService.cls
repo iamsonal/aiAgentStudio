@@ -57,14 +57,9 @@ public inherited sharing class AIAgentConfigService {
         'SummarizerAgent__r.DeveloperName__c',
         'SummarizerAgent__r.LLMConfiguration__c',
         'SummarizerAgent__r.InstructionsPrompt__c',
-        // PII Masking Trust Layer configuration fields (enable/audit flags are in AIAgentFrameworkSettings__c)
-        'PIIMaskingMode__c',
-        'SensitiveClassifications__c',
-        'PIIPatternCategories__c',
-        // Prompt Safety Trust Layer configuration fields (enable/audit flags are in AIAgentFrameworkSettings__c)
-        'PromptSafetyMode__c',
-        'SafetyThreshold__c',
-        'SafetyPatternCategories__c'
+        // Trust Layer presets (simplified configuration)
+        'PIIMaskingPreset__c',
+        'PromptSafetyPreset__c'
     };
 
     private static final List<String> LLM_CONFIGURATION_FIELDS = new List<String>{
@@ -549,7 +544,7 @@ public inherited sharing class AIAgentConfigService {
      * This method provides centralized pricing calculation to avoid duplicate queries
      * across ExecutionStepService and AgentDecisionStepLogger.
      *
-     * @param modelIdentifier  The model identifier (e.g., gpt-4o, gpt-4o-mini, claude-3-5-sonnet)
+     * @param modelIdentifier  The model identifier (e.g., gpt-4o, gpt-4o-mini, gpt-5-nano)
      * @param promptTokens     Number of tokens in the prompt
      * @param completionTokens Number of tokens in the completion
      * @return                 The estimated cost in USD, or null if model is unknown or pricing not configured

@@ -439,6 +439,88 @@ private class OrchestrationServiceTest {
         System.assertEquals(account.Id, OrchestrationService.extractRecordIdFromOutcome(outcome), 'Should read Id from record map');
     }
 
+    /**
+     * C-4: Verifies loadSuccessiveFailureCounts() returns correct per-tool failure streaks
+     * in a single bulk query, handling tools with different histories correctly.
+     */
+    @IsTest
+    static void testLoadSuccessiveFailureCounts_MultipleTools_ReturnsCorrectCounts() {
+        TestFactory.AgentSetup setup = getSetup();
+
+        AIAgentDefinition__c functionAgent = TestFactory.newAgentDefinition()
+            .withName('BulkCount_Function_Agent')
+            .withType('Function')
+            .withLLM(setup.llmConfig.Id)
+            .save();
+
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(functionAgent.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Function')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
+            .withTurnIdentifier('turn-bulkcount-001')
+            .save();
+
+        AgentCapability__c capA = TestFactory.newCapability()
+            .withAgent(functionAgent.Id)
+            .forGetRecordDetails('Case', new List<String>{ 'Id' })
+            .withName('tool_alpha_bulk')
+            .save();
+
+        AgentCapability__c capB = TestFactory.newCapability()
+            .withAgent(functionAgent.Id)
+            .forGetRecordDetails('Case', new List<String>{ 'Id' })
+            .withName('tool_beta_bulk')
+            .save();
+
+        ExecutionStepService stepSvc = new ExecutionStepService();
+
+        // tool_alpha: 2 successive failures — streak = 2 (both most-recent steps are errors)
+        stepSvc.createToolResultStep(execution.Id, 'call-a-001', capA.CapabilityName__c, '{}', 'turn-bulkcount-001', 1, 0L, false, capA.Id, true);
+        stepSvc.createToolResultStep(execution.Id, 'call-a-002', capA.CapabilityName__c, '{}', 'turn-bulkcount-001', 1, 0L, false, capA.Id, true);
+
+        // tool_beta: 1 failure then 1 success — success is most recent, streak = 0.
+        // Steps are sorted DESC by Timestamp/Id, so the last-inserted step is evaluated first.
+        // Creating success last (larger Id) makes it the most recent; it breaks the streak immediately.
+        stepSvc.createToolResultStep(execution.Id, 'call-b-001', capB.CapabilityName__c, '{}', 'turn-bulkcount-001', 1, 0L, false, capB.Id, true); // older failure
+        stepSvc.createToolResultStep(execution.Id, 'call-b-002', capB.CapabilityName__c, '{}', 'turn-bulkcount-001', 1, 0L, false, capB.Id, false); // most-recent success → resets streak
+
+        Set<String> toolNames = new Set<String>{ capA.CapabilityName__c, capB.CapabilityName__c };
+        Map<String, Integer> counts = OrchestrationService.loadSuccessiveFailureCounts(execution.Id, toolNames, '[test] ');
+
+        System.assertEquals(2, counts.get(capA.CapabilityName__c), 'tool_alpha should have 2 successive failures');
+        System.assertEquals(0, counts.get(capB.CapabilityName__c), 'tool_beta streak should be 0: most recent step is a success which breaks the sequence');
+    }
+
+    /**
+     * C-4: Verifies that the preloaded-count overload of shouldFailFast() uses the supplied
+     * count directly and does not issue an additional SOQL.
+     */
+    @IsTest
+    static void testShouldFailFast_WithPreloadedCount_UsesPreloadedValue() {
+        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'preloaded_tool', FailFastOnError__c = false);
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function');
+
+        // Use a retryable failure so Tier 2 (non-retryable check) is bypassed and only
+        // Tier 3 (MaxToolRetries / preloaded count) is exercised.
+        ActionOutcome retryableFailure = ActionOutcome.failureWithMeta(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Transient failure', null, true, null);
+
+        Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
+
+        // Tier 3 guard requires a non-null executionId. The preloaded-count path (>= 0) never
+        // issues a SOQL, so a dummy Id from an unrelated object is safe here.
+        Id dummyId = UserInfo.getUserId();
+
+        // Preloaded count at the threshold — should trigger Tier 3 fail-fast
+        Boolean atMax = OrchestrationService.shouldFailFast(cap, agent, retryableFailure, dummyId, maxRetries, '[test] ');
+        System.assertEquals(true, atMax, 'Preloaded count at max retries should trigger Tier 3 fail-fast');
+
+        // Preloaded count strictly below threshold — should allow LLM recovery
+        Boolean belowMax = OrchestrationService.shouldFailFast(cap, agent, retryableFailure, dummyId, maxRetries - 1, '[test] ');
+        System.assertEquals(false, belowMax, 'Preloaded count below max retries should allow LLM recovery');
+    }
+
     private static TestFactory.AgentSetup getSetup() {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
