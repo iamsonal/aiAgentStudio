@@ -8,7 +8,7 @@
     </values>
     <values>
         <field>Description__c</field>
-        <value xsi:type="xsd:string">Detects US Social Security Numbers as 9 consecutive digits. Lower priority than dashed format to avoid false positives.</value>
+        <value xsi:type="xsd:string">Detects US Social Security Numbers as 9 consecutive digits preceded by SSN/social security/taxpayer ID keyword anchor. Validates against known invalid patterns. Lower priority than dashed format.</value>
     </values>
     <values>
         <field>IsActive__c</field>
@@ -20,7 +20,7 @@
     </values>
     <values>
         <field>PatternRegex__c</field>
-        <value xsi:type="xsd:string">\b(?!000|666|9\d{2})\d{3}(?!00)\d{2}(?!0000)\d{4}\b</value>
+        <value xsi:type="xsd:string">(?i)\b(?:ssn|social[\s\-]*security(?:\s*(?:number|no\.?|#))?|taxpayer[\s\-]*id)\b[:\s#]*((?!000|666|9\d{2})\d{3}[\s\-]?(?!00)\d{2}[\s\-]?(?!0000)\d{4})\b</value>
     </values>
     <values>
         <field>Priority__c</field>
@@ -28,6 +28,10 @@
     </values>
     <values>
         <field>RequiresValidation__c</field>
-        <value xsi:type="xsd:boolean">false</value>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>ValidatorType__c</field>
+        <value xsi:type="xsd:string">SSN_INVALID</value>
     </values>
 </CustomMetadata>

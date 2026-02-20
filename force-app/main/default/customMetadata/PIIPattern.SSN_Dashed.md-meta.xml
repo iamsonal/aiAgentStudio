@@ -8,7 +8,7 @@
     </values>
     <values>
         <field>Description__c</field>
-        <value xsi:type="xsd:string">Detects US Social Security Numbers in dashed format (XXX-XX-XXXX). This is the most common format for SSNs.</value>
+        <value xsi:type="xsd:string">Detects US Social Security Numbers in dashed format (XXX-XX-XXXX). Validates against known invalid patterns (reserved areas, known fakes, all-same-digit sequences).</value>
     </values>
     <values>
         <field>IsActive__c</field>
@@ -28,6 +28,10 @@
     </values>
     <values>
         <field>RequiresValidation__c</field>
-        <value xsi:type="xsd:boolean">false</value>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>ValidatorType__c</field>
+        <value xsi:type="xsd:string">SSN_INVALID</value>
     </values>
 </CustomMetadata>

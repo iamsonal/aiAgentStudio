@@ -157,4 +157,169 @@ private class PIIPatternMatcherTest {
         System.assert(!masked.contains('1HGBH41JXMN109186'), 'VIN value must not appear in masked text');
         System.assertEquals(input, service.unmaskText(masked), 'VIN masking must round-trip correctly');
     }
+
+    // =========================================================================
+    // IBAN_MOD97 Validator Tests
+    // =========================================================================
+
+    @IsTest
+    static void testIban_ValidChecksum_Passes() {
+        // GB29 NWBK 6016 1331 9268 19 — real UK IBAN with valid mod-97 checksum
+        System.assertEquals(true, PIIPatternMatcher.validateIbanMod97('GB29NWBK60161331926819'), 'Valid IBAN checksum should pass');
+        // DE89 3704 0044 0532 0130 00 — real German IBAN
+        System.assertEquals(true, PIIPatternMatcher.validateIbanMod97('DE89370400440532013000'), 'Valid German IBAN should pass');
+    }
+
+    @IsTest
+    static void testIban_InvalidChecksum_Blocked() {
+        // Flip one digit to invalidate the checksum
+        System.assertEquals(false, PIIPatternMatcher.validateIbanMod97('GB29NWBK60161331926820'), 'IBAN with wrong checksum should fail');
+        System.assertEquals(false, PIIPatternMatcher.validateIbanMod97(''), 'Blank IBAN should fail');
+        System.assertEquals(false, PIIPatternMatcher.validateIbanMod97(null), 'Null IBAN should fail');
+        System.assertEquals(false, PIIPatternMatcher.validateIbanMod97('TOOSHORT'), 'Too-short IBAN should fail');
+    }
+
+    @IsTest
+    static void testIban_SpacesAreStripped() {
+        // IBAN with spaces should still validate correctly
+        System.assertEquals(true, PIIPatternMatcher.validateIbanMod97('GB29 NWBK 6016 1331 9268 19'), 'IBAN with spaces should pass after stripping');
+    }
+
+    // =========================================================================
+    // SSN_INVALID Validator Tests
+    // =========================================================================
+
+    @IsTest
+    static void testSsn_ValidFormat_Passes() {
+        System.assertEquals(true, PIIPatternMatcher.validateSsnNotInvalid('123-45-6780'), 'Valid-format SSN should pass');
+        System.assertEquals(true, PIIPatternMatcher.validateSsnNotInvalid('301456789'), 'Valid SSN digits should pass');
+    }
+
+    @IsTest
+    static void testSsn_KnownFake_Blocked() {
+        // 078-05-1120 was in a Woolworth wallet display
+        System.assertEquals(false, PIIPatternMatcher.validateSsnNotInvalid('078051120'), 'Known-fake SSN 078051120 should be blocked');
+        System.assertEquals(false, PIIPatternMatcher.validateSsnNotInvalid('123456789'), 'Sequential SSN 123456789 should be blocked');
+        System.assertEquals(false, PIIPatternMatcher.validateSsnNotInvalid('987654321'), 'Reverse sequential SSN should be blocked');
+    }
+
+    @IsTest
+    static void testSsn_AllSameDigit_Blocked() {
+        System.assertEquals(false, PIIPatternMatcher.validateSsnNotInvalid('111111111'), 'All-same-digit SSN should be blocked');
+        System.assertEquals(false, PIIPatternMatcher.validateSsnNotInvalid('555555555'), 'All-same-digit SSN should be blocked');
+    }
+
+    @IsTest
+    static void testSsn_ReservedArea_Blocked() {
+        System.assertEquals(false, PIIPatternMatcher.validateSsnNotInvalid('000456789'), 'Area 000 SSN should be blocked');
+        System.assertEquals(false, PIIPatternMatcher.validateSsnNotInvalid('666456789'), 'Area 666 SSN should be blocked');
+        System.assertEquals(false, PIIPatternMatcher.validateSsnNotInvalid('900456789'), 'Area 9xx SSN should be blocked');
+    }
+
+    @IsTest
+    static void testSsn_ReservedGroupOrSerial_Blocked() {
+        System.assertEquals(false, PIIPatternMatcher.validateSsnNotInvalid('123001234'), 'Group 00 SSN should be blocked');
+        System.assertEquals(false, PIIPatternMatcher.validateSsnNotInvalid('123450000'), 'Serial 0000 SSN should be blocked');
+    }
+
+    @IsTest
+    static void testSsn_Plain_NoKeyword_NotMatched() {
+        // The PIIPattern.SSN_Plain regex now requires a keyword anchor; without it the 9-digit
+        // number should not be picked up by the SSN_Plain pattern.
+        PIIPatternMatcher.clearCache();
+        PIIPatternMatcher matcher = new PIIPatternMatcher(new Set<String>{ 'Identity' });
+
+        // 9 plain digits with no SSN keyword — SSN_Plain should not fire
+        // (SSN_Dashed still won't fire because there are no dashes)
+        List<PIIPatternMatcher.PIIMatch> matches = matcher.findMatches('Account 301456789 is overdue');
+        Boolean hasSsnMatch = false;
+        for (PIIPatternMatcher.PIIMatch m : matches) {
+            if (m.patternName == 'SSN_Plain') {
+                hasSsnMatch = true;
+            }
+        }
+        System.assertEquals(false, hasSsnMatch, 'SSN_Plain should not fire without a keyword anchor');
+    }
+
+    @IsTest
+    static void testSsn_Plain_WithKeyword_Matches() {
+        PIIPatternMatcher.clearCache();
+        PIIPatternMatcher matcher = new PIIPatternMatcher(new Set<String>{ 'Identity' });
+
+        List<PIIPatternMatcher.PIIMatch> matches = matcher.findMatches('SSN 301456789 is on file');
+        Boolean hasSsnMatch = false;
+        for (PIIPatternMatcher.PIIMatch m : matches) {
+            if (m.patternName == 'SSN_Plain') {
+                hasSsnMatch = true;
+            }
+        }
+        System.assertEquals(true, hasSsnMatch, 'SSN_Plain should fire when SSN keyword is present');
+    }
+
+    // =========================================================================
+    // ABA_CHECKSUM Validator Tests
+    // =========================================================================
+
+    @IsTest
+    static void testAbaRouting_ValidChecksum_Passes() {
+        // 021000021 — JPMorgan Chase, New York (public example, valid checksum)
+        System.assertEquals(true, PIIPatternMatcher.validateAbaChecksum('021000021'), 'Valid ABA routing number should pass');
+        // 111000025 — Federal Reserve Bank of Minneapolis
+        System.assertEquals(true, PIIPatternMatcher.validateAbaChecksum('111000025'), 'Valid ABA routing number should pass');
+    }
+
+    @IsTest
+    static void testAbaRouting_InvalidChecksum_Blocked() {
+        // Flip last digit to break checksum
+        System.assertEquals(false, PIIPatternMatcher.validateAbaChecksum('021000022'), 'ABA with wrong checksum should fail');
+        System.assertEquals(false, PIIPatternMatcher.validateAbaChecksum(''), 'Blank routing number should fail');
+        System.assertEquals(false, PIIPatternMatcher.validateAbaChecksum(null), 'Null routing number should fail');
+    }
+
+    @IsTest
+    static void testAbaRouting_InvalidFirstDigit_Blocked() {
+        // First digit 4 is not a valid Federal Reserve district prefix
+        System.assertEquals(false, PIIPatternMatcher.validateAbaChecksum('421000021'), 'ABA with invalid first digit should fail');
+        System.assertEquals(false, PIIPatternMatcher.validateAbaChecksum('521000021'), 'ABA with first digit 5 should fail');
+    }
+
+    @IsTest
+    static void testValidateAbaChecksum_EdgeCases() {
+        System.assertEquals(false, PIIPatternMatcher.validateAbaChecksum('12345678'), 'Wrong length should fail');
+        System.assertEquals(false, PIIPatternMatcher.validateAbaChecksum('1234567890'), 'Wrong length should fail');
+        // Test with spaces/dashes stripped
+        System.assertEquals(true, PIIPatternMatcher.validateAbaChecksum('021-000-021'), 'Routing number with dashes should pass after stripping');
+    }
+
+    // =========================================================================
+    // CreditCard Network Prefix Tests
+    // =========================================================================
+
+    @IsTest
+    static void testCreditCard_ValidNetworkPrefix_Passes() {
+        // Visa test number
+        System.assertEquals(true, PIIPatternMatcher.validateLuhn('4111111111111111'), 'Visa test number should pass Luhn');
+        // Mastercard test number
+        System.assertEquals(true, PIIPatternMatcher.validateLuhn('5500005555555559'), 'Mastercard test number should pass Luhn');
+        // Amex test number
+        System.assertEquals(true, PIIPatternMatcher.validateLuhn('378282246310005'), 'Amex test number should pass Luhn');
+    }
+
+    @IsTest
+    static void testCreditCard_NoNetworkPrefix_NotMatchedByRegex() {
+        // A 16-digit number with no valid prefix should not be matched by the tightened CreditCard regex.
+        // We test this at the pattern level directly.
+        PIIPatternMatcher.clearCache();
+        PIIPatternMatcher matcher = new PIIPatternMatcher(new Set<String>{ 'Financial' });
+
+        // Starts with 9 — no known card network prefix
+        List<PIIPatternMatcher.PIIMatch> matches = matcher.findMatches('Number 9111111111111111 on file');
+        Boolean hasCcMatch = false;
+        for (PIIPatternMatcher.PIIMatch m : matches) {
+            if (m.patternName == 'CreditCard') {
+                hasCcMatch = true;
+            }
+        }
+        System.assertEquals(false, hasCcMatch, 'CC regex should not match numbers without a valid network prefix');
+    }
 }
