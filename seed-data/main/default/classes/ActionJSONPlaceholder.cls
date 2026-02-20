@@ -4,7 +4,7 @@
  *
  * @extends BaseAgentAction
  */
-public class ActionHttpCallout extends BaseAgentAction {
+public class ActionJSONPlaceholder extends BaseAgentAction {
     // Hardcoded endpoint - JSONPlaceholder is a free fake REST API for testing
     private static final String ENDPOINT_URL = 'https://jsonplaceholder.typicode.com/posts';
 

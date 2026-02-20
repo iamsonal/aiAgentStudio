@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SupportedVariants__c</fullName>
+    <description>JSON array defining mutually exclusive operating modes for this action. When populated, the configurator shows a variant picker and only exposes the config fields and parameter fields relevant to the chosen variant. Each variant object must include: name (string), label (string), description (string), configFields (array, same format as ConfigSchema__c), parameterFields (array, same format as ParametersSchema__c), configJsonSchema (object), parametersJsonSchema (object). Actions without this field behave exactly as before.</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>JSON array of variant definitions. Example: [{"name":"direct","label":"Direct Content","description":"LLM provides subject and body","configFields":[...],"parameterFields":[...],"configJsonSchema":{...},"parametersJsonSchema":{...}}]</inlineHelpText>
+    <label>Supported Variants</label>
+    <length>131072</length>
+    <type>LongTextArea</type>
+    <visibleLines>10</visibleLines>
+</CustomField>

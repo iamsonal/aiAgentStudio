@@ -28,83 +28,163 @@
     </values>
     <values>
         <field>ConfigSchema__c</field>
-        <value xsi:type="xsd:string">[
-  {
-    &quot;name&quot;: &quot;fieldSetName&quot;,
-    &quot;type&quot;: &quot;string&quot;,
-    &quot;required&quot;: false,
-    &quot;help&quot;: &quot;Name of the FieldSet to use for field selection (e.g., \&quot;AI_Agent_Details\&quot;). Mutually exclusive with defaultFields. Create FieldSets in Setup &gt; Object Manager &gt; [Object] &gt; Field Sets.&quot;,
-    &quot;label&quot;: &quot;FieldSet Name&quot;,
-    &quot;placeholder&quot;: &quot;AI_Agent_Details&quot;,
-    &quot;displayType&quot;: &quot;fieldset&quot;
-  },
-  {
-    &quot;name&quot;: &quot;defaultFields&quot;,
-    &quot;type&quot;: &quot;array&quot;,
-    &quot;required&quot;: false,
-    &quot;help&quot;: &quot;Array of field API names to retrieve (e.g., [\&quot;Id\&quot;, \&quot;Name\&quot;, \&quot;Status\&quot;]). Mutually exclusive with fieldSetName. Use this for quick configuration without creating a FieldSet.&quot;,
-    &quot;label&quot;: &quot;Default Fields&quot;,
-    &quot;placeholder&quot;: &quot;[\&quot;Id\&quot;, \&quot;Name\&quot;, \&quot;Status\&quot;]&quot;
-  },
-  {
-    &quot;name&quot;: &quot;objectApiName&quot;,
-    &quot;type&quot;: &quot;string&quot;,
-    &quot;required&quot;: true,
-    &quot;help&quot;: &quot;Required: The API name of the SObject type (e.g., Account, Case). Used for identifier field lookups and validation.&quot;,
-    &quot;label&quot;: &quot;Object API Name&quot;,
-    &quot;placeholder&quot;: &quot;Case&quot;
-  }
-]</value>
+        <value xsi:type="xsd:string">[]</value>
     </values>
     <values>
         <field>ConfigJsonSchema__c</field>
-        <value xsi:type="xsd:string">{
-  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
-  &quot;type&quot;: &quot;object&quot;,
-  &quot;properties&quot;: {
-    &quot;fieldSetName&quot;: {
-      &quot;type&quot;: &quot;string&quot;,
-      &quot;description&quot;: &quot;Name of the FieldSet to use for field selection (e.g., \&quot;AI_Agent_Details\&quot;). Mutually exclusive with defaultFields. Create FieldSets in Setup &gt; Object Manager &gt; [Object] &gt; Field Sets.&quot;
-    },
-    &quot;defaultFields&quot;: {
-      &quot;type&quot;: &quot;array&quot;,
-      &quot;description&quot;: &quot;Array of field API names to retrieve (e.g., [\&quot;Id\&quot;, \&quot;Name\&quot;, \&quot;Status\&quot;]). Mutually exclusive with fieldSetName. Use this for quick configuration without creating a FieldSet.&quot;
-    },
-    &quot;objectApiName&quot;: {
-      &quot;type&quot;: &quot;string&quot;,
-      &quot;description&quot;: &quot;Required: The API name of the SObject type (e.g., Account, Case). Used for identifier field lookups and validation.&quot;
-    }
-  },
-  &quot;required&quot;: [
-    &quot;objectApiName&quot;
-  ]
-}</value>
+        <value xsi:type="xsd:string">{&quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: {}}</value>
     </values>
     <values>
         <field>ParametersSchema__c</field>
-        <value xsi:type="xsd:string">[
-  {
-    &quot;name&quot;: &quot;Id&quot;,
-    &quot;type&quot;: &quot;salesforce-id&quot;,
-    &quot;required&quot;: false,
-    &quot;help&quot;: &quot;The 18-character Salesforce ID (most reliable, always unique).&quot;,
-    &quot;label&quot;: &quot;Record ID&quot;,
-    &quot;placeholder&quot;: &quot;001000000000000AAA&quot;
-  }
-]</value>
+        <value xsi:type="xsd:string">[]</value>
     </values>
     <values>
         <field>ParametersJsonSchema__c</field>
-        <value xsi:type="xsd:string">{
-  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
-  &quot;type&quot;: &quot;object&quot;,
-  &quot;properties&quot;: {
-    &quot;Id&quot;: {
-      &quot;type&quot;: &quot;string&quot;,
-      &quot;description&quot;: &quot;The 18-character Salesforce ID (most reliable, always unique).&quot;,
-      &quot;format&quot;: &quot;salesforce-id&quot;
+        <value xsi:type="xsd:string">{&quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: {}}</value>
+    </values>
+    <values>
+        <field>SupportedVariants__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;field_list&quot;,
+    &quot;label&quot;: &quot;Field List&quot;,
+    &quot;description&quot;: &quot;Specify field API names directly in the backend configuration&quot;,
+    &quot;configFields&quot;: [
+      {
+        &quot;name&quot;: &quot;objectApiName&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: true,
+        &quot;help&quot;: &quot;Required: The API name of the SObject type (e.g., Account, Case). Used for identifier field lookups and validation.&quot;,
+        &quot;label&quot;: &quot;Object API Name&quot;,
+        &quot;placeholder&quot;: &quot;Case&quot;
+      },
+      {
+        &quot;name&quot;: &quot;defaultFields&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;Array of field API names to retrieve (e.g., [\&quot;Id\&quot;, \&quot;Name\&quot;, \&quot;Status\&quot;]). Use this for quick configuration without creating a FieldSet.&quot;,
+        &quot;label&quot;: &quot;Default Fields&quot;,
+        &quot;placeholder&quot;: &quot;[\&quot;Id\&quot;, \&quot;Name\&quot;, \&quot;Status\&quot;]&quot;
+      }
+    ],
+    &quot;parameterFields&quot;: [
+      {
+        &quot;name&quot;: &quot;Id&quot;,
+        &quot;type&quot;: &quot;salesforce-id&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;The 18-character Salesforce ID (most reliable, always unique).&quot;,
+        &quot;label&quot;: &quot;Record ID&quot;,
+        &quot;placeholder&quot;: &quot;001000000000000AAA&quot;
+      }
+    ],
+    &quot;configJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;objectApiName&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;description&quot;: &quot;Required: The API name of the SObject type (e.g., Account, Case). Used for identifier field lookups and validation.&quot;
+        },
+        &quot;defaultFields&quot;: {
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;description&quot;: &quot;Array of field API names to retrieve (e.g., [\&quot;Id\&quot;, \&quot;Name\&quot;, \&quot;Status\&quot;]). Use this for quick configuration without creating a FieldSet.&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;string&quot;
+          }
+        },
+        &quot;variant&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;enum&quot;: [
+            &quot;field_list&quot;
+          ]
+        }
+      },
+      &quot;required&quot;: [
+        &quot;objectApiName&quot;
+      ]
+    },
+    &quot;parametersJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;Id&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;description&quot;: &quot;The 18-character Salesforce ID (most reliable, always unique).&quot;,
+          &quot;format&quot;: &quot;salesforce-id&quot;
+        }
+      },
+      &quot;required&quot;: []
+    }
+  },
+  {
+    &quot;name&quot;: &quot;fieldset&quot;,
+    &quot;label&quot;: &quot;FieldSet&quot;,
+    &quot;description&quot;: &quot;Use a Salesforce FieldSet defined in Object Manager to control which fields are returned&quot;,
+    &quot;configFields&quot;: [
+      {
+        &quot;name&quot;: &quot;objectApiName&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: true,
+        &quot;help&quot;: &quot;Required: The API name of the SObject type (e.g., Account, Case). Used for identifier field lookups and validation.&quot;,
+        &quot;label&quot;: &quot;Object API Name&quot;,
+        &quot;placeholder&quot;: &quot;Case&quot;
+      },
+      {
+        &quot;name&quot;: &quot;fieldSetName&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;Developer name of the FieldSet to use for field selection (e.g., \&quot;AI_Agent_Details\&quot;). Create FieldSets in Setup &gt; Object Manager &gt; [Object] &gt; Field Sets.&quot;,
+        &quot;label&quot;: &quot;FieldSet Name&quot;,
+        &quot;placeholder&quot;: &quot;AI_Agent_Details&quot;,
+        &quot;displayType&quot;: &quot;fieldset&quot;
+      }
+    ],
+    &quot;parameterFields&quot;: [
+      {
+        &quot;name&quot;: &quot;Id&quot;,
+        &quot;type&quot;: &quot;salesforce-id&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;The 18-character Salesforce ID (most reliable, always unique).&quot;,
+        &quot;label&quot;: &quot;Record ID&quot;,
+        &quot;placeholder&quot;: &quot;001000000000000AAA&quot;
+      }
+    ],
+    &quot;configJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;objectApiName&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;description&quot;: &quot;Required: The API name of the SObject type (e.g., Account, Case). Used for identifier field lookups and validation.&quot;
+        },
+        &quot;fieldSetName&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;description&quot;: &quot;Developer name of the FieldSet to use for field selection (e.g., \&quot;AI_Agent_Details\&quot;). Create FieldSets in Setup &gt; Object Manager &gt; [Object] &gt; Field Sets.&quot;
+        },
+        &quot;variant&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;enum&quot;: [
+            &quot;fieldset&quot;
+          ]
+        }
+      },
+      &quot;required&quot;: [
+        &quot;objectApiName&quot;
+      ]
+    },
+    &quot;parametersJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;Id&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;description&quot;: &quot;The 18-character Salesforce ID (most reliable, always unique).&quot;,
+          &quot;format&quot;: &quot;salesforce-id&quot;
+        }
+      },
+      &quot;required&quot;: []
     }
   }
-}</value>
+]</value>
     </values>
 </CustomMetadata>

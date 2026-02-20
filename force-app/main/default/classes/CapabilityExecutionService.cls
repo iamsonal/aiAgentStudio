@@ -99,13 +99,7 @@ public inherited sharing class CapabilityExecutionService {
             } else if ('Apex'.equalsIgnoreCase(implType)) {
                 return instantiateAndCheckInterface(Type.forName(implDetail), implDetail);
             } else if ('Flow'.equalsIgnoreCase(implType)) {
-                final String FLOW_HANDLER_KEY = 'RunFlow';
-                StandardActionHandler__mdt flowHandlerMdt = standardHandlerCache.get(FLOW_HANDLER_KEY.toLowerCase());
-                if (flowHandlerMdt == null) {
-                    System.debug(LoggingLevel.ERROR, '[CapabilityExecutionService] No Flow handler registration found for key: "' + FLOW_HANDLER_KEY + '".');
-                    throw new CapabilityExecutionException('Flow handler registration not found for key: "' + FLOW_HANDLER_KEY + '".');
-                }
-                return instantiateAndCheckInterface(Type.forName(flowHandlerMdt.HandlerClassName__c), flowHandlerMdt.HandlerClassName__c);
+                return instantiateAndCheckInterface(Type.forName('ActionFlowHandler'), 'ActionFlowHandler');
             }
             // Note: No else needed - picklist only allows Standard, Apex, Flow
             return null; // Unreachable, but required for compiler
