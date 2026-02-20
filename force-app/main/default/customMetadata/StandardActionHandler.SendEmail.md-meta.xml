@@ -7,10 +7,6 @@
         <value xsi:type="xsd:string">Sends an outbound email via direct content or a Salesforce Email Template</value>
     </values>
     <values>
-        <field>GuidanceText__c</field>
-        <value xsi:type="xsd:string"></value>
-    </values>
-    <values>
         <field>HandlerClassName__c</field>
         <value xsi:type="xsd:string">ActionSendEmail</value>
     </values>
