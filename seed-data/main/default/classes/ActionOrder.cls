@@ -156,7 +156,7 @@ public class ActionOrder extends BaseAgentAction {
                 }
             }
         } catch (Exception e) {
-            throw new ValidationException('Invalid configuration JSON: ' + e.getMessage(), e);
+            throw new ValidationException('Invalid configuration JSON: ' + e.getMessage(), null, e);
         }
 
         if (String.isBlank(config.variant)) {

@@ -140,7 +140,7 @@ public with sharing class ActionPostChatter extends BaseAgentAction {
             this.config.feedType = (String) configMap.get('feedType');
             this.config.targetId = (String) configMap.get('targetId');
         } catch (Exception e) {
-            throw new ValidationException('Invalid configuration JSON: ' + e.getMessage(), e);
+            throw new ValidationException('Invalid configuration JSON: ' + e.getMessage(), null, e);
         }
 
         // Validate required fields

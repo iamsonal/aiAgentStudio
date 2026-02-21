@@ -191,8 +191,7 @@ public inherited sharing class ActionOutcome {
         }
 
         sanitized = sanitized.replaceAll('\\w+\\.\\w+\\(\\)', '');
-        sanitized = sanitized.replaceAll('[a-zA-Z0-9]{18}', '[Record ID]');
-        sanitized = sanitized.replaceAll('[a-zA-Z0-9]{15}', '[Record ID]');
+        sanitized = sanitized.replaceAll('\\b[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?\\b', '[Record ID]');
         sanitized = sanitized.replaceAll('\\w+Exception:\\s*', '');
         sanitized = sanitized.replaceAll('System\\.', '');
         sanitized = sanitized.replaceAll('(?i)insufficient access', 'you do not have permission');

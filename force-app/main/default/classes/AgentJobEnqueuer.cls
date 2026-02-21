@@ -14,7 +14,6 @@ public inherited sharing class AgentJobEnqueuer {
     }
 
     private final AgentStateService agentStateSvc;
-    private static Map<Id, String> agentAsyncDispatchTypeCache = new Map<Id, String>();
 
     public AgentJobEnqueuer() {
         this(new AgentStateService());
@@ -28,40 +27,21 @@ public inherited sharing class AgentJobEnqueuer {
 
     /**
      * Retrieves the AsyncDispatchType__c setting for a given agent definition.
-     * Uses a static cache to minimize SOQL queries within the same transaction.
+     * Delegates to AIAgentConfigService, which already queries and caches the full
+     * AIAgentDefinition__c (including AsyncDispatchType__c) for the transaction.
      *
      * @param agentDefId The ID of the agent definition.
-     * @return The AsyncDispatchType__c value ('High', 'Low', or null). Defaults to 'Low' if null or not found.
+     * @return The AsyncDispatchType__c value ('High' or 'Low'). Defaults to 'Low' if blank or not found.
      */
     private String getAgentAsyncDispatchType(Id agentDefId) {
         if (agentDefId == null) {
-            return 'Low'; // Default to Low if no agent definition is provided
+            return 'Low';
         }
-
-        // Check cache first
-        if (agentAsyncDispatchTypeCache.containsKey(agentDefId)) {
-            return agentAsyncDispatchTypeCache.get(agentDefId);
-        }
-
-        // Query the agent definition
         try {
-            List<AIAgentDefinition__c> agents = [
-                SELECT AsyncDispatchType__c
-                FROM AIAgentDefinition__c
-                WHERE Id = :agentDefId
-                LIMIT 1
-            ];
-
-            String asyncDispatchType = 'Low'; // Default to Low
-            if (!agents.isEmpty() && agents[0].AsyncDispatchType__c != null) {
-                asyncDispatchType = agents[0].AsyncDispatchType__c;
-            }
-
-            // Cache the result
-            agentAsyncDispatchTypeCache.put(agentDefId, asyncDispatchType);
-            return asyncDispatchType;
+            AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinition(agentDefId);
+            return String.isNotBlank(agentDef.AsyncDispatchType__c) ? agentDef.AsyncDispatchType__c : 'Low';
         } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, '[AgentJobEnqueuer] Failed to query agent async dispatch type setting: ' + e.getMessage() + '. Defaulting to Low.');
+            System.debug(LoggingLevel.WARN, '[AgentJobEnqueuer] Failed to retrieve agent async dispatch type: ' + e.getMessage() + '. Defaulting to Low.');
             return 'Low';
         }
     }

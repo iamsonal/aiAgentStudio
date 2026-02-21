@@ -83,7 +83,7 @@ public inherited sharing class PIIMaskingSession {
             return originalValue;
         }
 
-        String lookupKey = createLookupKey(originalValue, patternName);
+        String lookupKey = createLookupKey(originalValue);
 
         // Check if we already have a token for this value
         if (this.valueToToken.containsKey(lookupKey)) {
@@ -148,7 +148,7 @@ public inherited sharing class PIIMaskingSession {
         if (String.isBlank(originalValue)) {
             return false;
         }
-        String lookupKey = createLookupKey(originalValue, patternName);
+        String lookupKey = createLookupKey(originalValue);
         return this.valueToToken.containsKey(lookupKey);
     }
 
@@ -163,7 +163,7 @@ public inherited sharing class PIIMaskingSession {
         if (String.isBlank(originalValue)) {
             return null;
         }
-        String lookupKey = createLookupKey(originalValue, patternName);
+        String lookupKey = createLookupKey(originalValue);
         return this.valueToToken.get(lookupKey);
     }
 
@@ -219,12 +219,11 @@ public inherited sharing class PIIMaskingSession {
 
     /**
      * @description Creates a lookup key based solely on the raw value.
-     * Using value-only deduplication ensures that the same string detected by
-     * both schema-based and pattern-based maskers always resolves to one token,
-     * preventing the same PII from appearing as two different tokens in the LLM payload.
-     * The patternName parameter is retained in the signature so callers don't need to change.
+     * Value-only deduplication ensures that the same string detected by both
+     * schema-based and pattern-based maskers always resolves to one token,
+     * preventing duplicate tokens for the same PII value in the LLM payload.
      */
-    private String createLookupKey(String value, String patternName) {
+    private String createLookupKey(String value) {
         return value;
     }
 

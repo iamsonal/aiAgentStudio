@@ -165,6 +165,17 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
         // Convert identifier value to string for SOQL binding
         String identifierValueStr = String.valueOf(identifierValue);
 
+        // Guard: if no variant is set but both field-selection modes are configured, the intent is ambiguous
+        Boolean hasDefaultFields = config.defaultFields != null && !config.defaultFields.isEmpty();
+        Boolean hasFieldSetName = String.isNotBlank(config.fieldSetName);
+        if (String.isBlank(config.variant) && hasDefaultFields && hasFieldSetName) {
+            return ActionOutcome.failureWithGuidance(
+                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                'Ambiguous configuration: both "fieldSetName" and "defaultFields" are set without a variant.',
+                'Set "variant" to "fieldset" to use the FieldSet, or to "field_list" to use the defaultFields array.'
+            );
+        }
+
         // Get fields from FieldSet or defaultFields based on configured variant
         Set<String> fieldsToQuery = new Set<String>{ 'Id' }; // Always include Id
 
@@ -416,10 +427,6 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
             } catch (Exception e) {
                 System.debug(LoggingLevel.WARN, '[ActionGetRecordDetails] Failed to parse configuration JSON: ' + e.getMessage() + '. Using defaults.');
             }
-        }
-
-        if (String.isBlank(this.config.variant)) {
-            this.config.variant = 'field_list';
         }
     }
 }

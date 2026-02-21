@@ -225,7 +225,8 @@ public without sharing class AsyncActionEngine implements Queueable, Database.Al
             }
 
             // Validate turn limits and dispatch follow-up processing (per-agent override with org-wide fallback)
-            Integer maxTurns = AIAgentFrameworkSettings.getMaxProcessingCycles(agentDefinition.DeveloperName__c);
+            // Use the object overload to avoid a redundant SOQL — agentDefinition is already loaded
+            Integer maxTurns = AIAgentFrameworkSettings.getMaxProcessingCycles(agentDefinition);
             if ((this.currentTurnCount + 1) > maxTurns) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Maximum conversation turns exceeded (' + maxTurns + ') - terminating processing');
                 agentStateSvc.failTurn(

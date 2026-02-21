@@ -93,7 +93,7 @@ public abstract with sharing class BaseAgentAction implements IAgentAction {
                     throw new ValidationException('ActionConfiguration JSON must be a JSON Object (Map).');
                 }
             } catch (Exception e) {
-                throw new ValidationException('Invalid ActionConfiguration JSON: ' + e.getMessage(), e);
+                throw new ValidationException('Invalid ActionConfiguration JSON: ' + e.getMessage(), null, e);
             }
         }
     }
@@ -303,30 +303,6 @@ public abstract with sharing class BaseAgentAction implements IAgentAction {
             return !isNonRetryableMessage(errorMessage);
         }
         return ActionOutcome.deriveRetryable(errorCode);
-    }
-
-    private Boolean isTransientMessage(String errorMessage) {
-        if (String.isBlank(errorMessage)) {
-            return false;
-        }
-        String msg = errorMessage.toLowerCase();
-
-        if (isNonRetryableMessage(errorMessage)) {
-            return false;
-        }
-
-        return msg.contains('timeout') ||
-            msg.contains('timed out') ||
-            msg.contains('temporarily unavailable') ||
-            msg.contains('rate limit') ||
-            msg.contains('too many requests') ||
-            msg.contains('connection') ||
-            msg.contains('network') ||
-            msg.contains('unavailable') ||
-            msg.contains('service') ||
-            msg.contains('502') ||
-            msg.contains('503') ||
-            msg.contains('504');
     }
 
     private Boolean isNonRetryableMessage(String errorMessage) {

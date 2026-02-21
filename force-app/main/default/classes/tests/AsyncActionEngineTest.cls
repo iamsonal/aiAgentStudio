@@ -13,7 +13,15 @@ private class AsyncActionEngineTest {
     @IsTest
     static void testProcess_CreatesToolResultStep() {
         AgentCapability__c capability = [
-            SELECT Id, CapabilityName__c, ImplementationDetail__c, BackendConfiguration__c, StandardActionType__c, ImplementationType__c, AIAgentDefinition__c
+            SELECT
+                Id,
+                CapabilityName__c,
+                ImplementationDetail__c,
+                BackendConfiguration__c,
+                StandardActionType__c,
+                ImplementationType__c,
+                AIAgentDefinition__c,
+                Parameters__c
             FROM AgentCapability__c
             WHERE CapabilityName__c = 'async_create_account'
             LIMIT 1
@@ -197,7 +205,15 @@ private class AsyncActionEngineTest {
     @IsTest
     static void testProcess_MaxTurnsExceeded_FailsTurn() {
         AgentCapability__c capability = [
-            SELECT Id, CapabilityName__c, ImplementationDetail__c, BackendConfiguration__c, StandardActionType__c, ImplementationType__c, AIAgentDefinition__c
+            SELECT
+                Id,
+                CapabilityName__c,
+                ImplementationDetail__c,
+                BackendConfiguration__c,
+                StandardActionType__c,
+                ImplementationType__c,
+                AIAgentDefinition__c,
+                Parameters__c
             FROM AgentCapability__c
             WHERE CapabilityName__c = 'async_create_account'
             LIMIT 1
@@ -240,7 +256,15 @@ private class AsyncActionEngineTest {
     @IsTest
     static void testProcess_SuccessfulExecution_QueuesFollowUp() {
         AgentCapability__c capability = [
-            SELECT Id, CapabilityName__c, ImplementationDetail__c, BackendConfiguration__c, StandardActionType__c, ImplementationType__c, AIAgentDefinition__c
+            SELECT
+                Id,
+                CapabilityName__c,
+                ImplementationDetail__c,
+                BackendConfiguration__c,
+                StandardActionType__c,
+                ImplementationType__c,
+                AIAgentDefinition__c,
+                Parameters__c
             FROM AgentCapability__c
             WHERE CapabilityName__c = 'async_create_account'
             LIMIT 1

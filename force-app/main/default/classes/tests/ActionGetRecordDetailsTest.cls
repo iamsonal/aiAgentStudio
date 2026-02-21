@@ -271,7 +271,7 @@ private class ActionGetRecordDetailsTest {
     static void testInvalidFieldSet_ReturnsValidationError() {
         Account testAccount = [SELECT Id FROM Account LIMIT 1];
         ActionGetRecordDetails action = new ActionGetRecordDetails();
-        action.parseActionConfiguration('{"objectApiName": "Account", "fieldSetName": "NonExistent_FieldSet"}', '[TEST] ');
+        action.parseActionConfiguration('{"objectApiName": "Account", "variant": "fieldset", "fieldSetName": "NonExistent_FieldSet"}', '[TEST] ');
 
         Map<String, Object> params = new Map<String, Object>{ 'Id' => testAccount.Id };
 

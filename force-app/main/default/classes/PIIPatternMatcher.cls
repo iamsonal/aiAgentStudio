@@ -8,22 +8,20 @@
 
 /**
  * @description
- * PIIPatternMatcher detects Personally Identifiable Information (PII) in text using regex patterns
- * defined in PIIPattern__mdt custom metadata. Supports algorithmic validation for specific pattern
- * types via the ValidatorType__c field.
+ * Internal implementation class for PIIMaskingService. Detects PII in free text using regex
+ * patterns defined in PIIPattern__mdt custom metadata, with optional algorithmic validation.
+ *
+ * *** DO NOT instantiate or reference this class directly from outside the PII subsystem.
+ * All callers should go through PIIMaskingService, which is the sole public entry point. ***
  *
  * Supported ValidatorType__c values:
- *   LUHN        - Credit card Luhn checksum
- *   IBAN_MOD97  - IBAN ISO 13616 mod-97 checksum
- *   SSN_INVALID - SSN invalid-set blocking (known fakes, reserved areas, all-same-digit)
+ *   LUHN         - Credit card Luhn checksum
+ *   IBAN_MOD97   - IBAN ISO 13616 mod-97 checksum
+ *   SSN_INVALID  - SSN invalid-set blocking (known fakes, reserved areas, all-same-digit)
  *   ABA_CHECKSUM - ABA routing number 3-7-1 weighted checksum
  *
- * @example
- * PIIPatternMatcher matcher = new PIIPatternMatcher(new Set<String>{'Financial', 'Identity'});
- * List<PIIPatternMatcher.PIIMatch> matches = matcher.findMatches('My SSN is 123-45-6789');
- * // matches[0].matchedValue = '123-45-6789'
- * // matches[0].patternName = 'SSN_Dashed'
- * // matches[0].maskFormat = '[SSN:{index}]'
+ * The public static validator methods (validateLuhn, validateSsnNotInvalid, etc.) are exposed
+ * for direct unit testing only. Production code must not call them outside this class.
  */
 public inherited sharing class PIIPatternMatcher {
     // Cached patterns loaded from custom metadata
@@ -212,8 +210,16 @@ public inherited sharing class PIIPatternMatcher {
 
         if (cachedPatterns == null) {
             cachedPatterns = [
-                SELECT DeveloperName, MasterLabel, PatternRegex__c, MaskFormat__c,
-                       Category__c, Priority__c, IsActive__c, RequiresValidation__c, ValidatorType__c
+                SELECT
+                    DeveloperName,
+                    MasterLabel,
+                    PatternRegex__c,
+                    MaskFormat__c,
+                    Category__c,
+                    Priority__c,
+                    IsActive__c,
+                    RequiresValidation__c,
+                    ValidatorType__c
                 FROM PIIPattern__mdt
                 WHERE IsActive__c = TRUE
                 ORDER BY Priority__c ASC
@@ -433,7 +439,7 @@ public inherited sharing class PIIPatternMatcher {
         }
 
         // 3-7-1 weighted checksum
-        Integer[] weights = new Integer[]{ 3, 7, 1, 3, 7, 1, 3, 7, 1 };
+        Integer[] weights = new List<Integer>{ 3, 7, 1, 3, 7, 1, 3, 7, 1 };
         Integer sum = 0;
         for (Integer i = 0; i < 9; i++) {
             sum += Integer.valueOf(digits.substring(i, i + 1)) * weights[i];
