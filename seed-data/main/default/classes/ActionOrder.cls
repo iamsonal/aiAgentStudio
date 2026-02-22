@@ -106,7 +106,7 @@ public class ActionOrder extends BaseAgentAction {
             }
             return ActionOutcome.success(orders[0]);
         } catch (Exception e) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Error retrieving order: ' + e.getMessage());
+            return ActionOutcome.fromException(e);
         }
     }
 
@@ -126,7 +126,7 @@ public class ActionOrder extends BaseAgentAction {
             List<Order> orders = Database.query(soql);
             return ActionOutcome.success(new Map<String, Object>{ 'orders' => orders, 'count' => orders.size(), 'accountId' => accountId });
         } catch (Exception e) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Error searching orders: ' + e.getMessage());
+            return ActionOutcome.fromException(e);
         }
     }
 

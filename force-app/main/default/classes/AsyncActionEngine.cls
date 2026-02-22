@@ -211,21 +211,7 @@ public without sharing class AsyncActionEngine implements Queueable, Database.Al
 
                 System.debug(LoggingLevel.WARN, logPrefix + logMessage);
 
-                // Log as an Error step so UI can display it as a divider
-                String errorCode;
-                String errorTitle;
-                if (isToolTerminatingMode) {
-                    errorCode = 'TOOL_TERMINATING_MODE';
-                    errorTitle = 'Tool Execution Stopped';
-                } else if (failureCount >= maxRetries) {
-                    errorCode = 'MAX_TOOL_RETRIES_EXCEEDED';
-                    errorTitle = 'Tool Retry Limit Exceeded';
-                } else {
-                    errorCode = 'FAIL_FAST_POLICY';
-                    errorTitle = 'Tool Execution Stopped';
-                }
-
-                decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ this.capability, outcome });
+                decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ this.capability, outcome, maxRetries, failureCount });
 
                 agentStateSvc.failTurn(
                     this.executionId,

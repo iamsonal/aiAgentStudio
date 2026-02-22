@@ -181,8 +181,8 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
             return OrchestrationService.OUTCOME_COMPLETED;
         }
 
-        // Return null for other scenarios to use default behavior
-        return null;
+        // Delegate to base class for all other scenarios (e.g. CONTENT_ONLY_RESPONSE retry enforcement)
+        return super.evaluateToolOutcome(context, toolResults, scenario);
     }
 
     // QUEUEABLE JOB EXECUTION

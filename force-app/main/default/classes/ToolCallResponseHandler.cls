@@ -855,10 +855,10 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
 
             String errorResult = JSON.serialize(
                 new Map<String, Object>{
-                    'isSuccess' => false,
-                    'errorCode' => AIAgentConstants.ERR_CODE_CONFIG_ERROR,
-                    'errorCategory' => ActionOutcome.deriveErrorCategory(AIAgentConstants.ERR_CODE_CONFIG_ERROR),
-                    'messageForUser' => errorMessage
+                    'success' => false,
+                    'code' => AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                    'error' => errorMessage,
+                    'retryable' => ActionOutcome.isTransient(AIAgentConstants.ERR_CODE_CONFIG_ERROR)
                 }
             );
 
@@ -1846,9 +1846,10 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                     ExecutionStepService executionStepService = new ExecutionStepService();
                     String failureResult = JSON.serialize(
                         new Map<String, Object>{
-                            'isSuccess' => false,
-                            'errorCode' => AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
-                            'messageForUser' => 'Failed to queue async tool for execution: ' + e.getMessage()
+                            'success' => false,
+                            'code' => AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                            'error' => 'Failed to queue tool for execution: ' + e.getMessage(),
+                            'retryable' => false
                         }
                     );
                     executionStepService.createToolResultStep(

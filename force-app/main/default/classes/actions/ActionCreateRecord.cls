@@ -102,7 +102,7 @@ public with sharing class ActionCreateRecord extends BaseAgentAction {
         } catch (TypeCoercionService.TypeCoercionException typeEx) {
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Type coercion failed: ' + typeEx.getMessage());
             if (String.isNotBlank(typeEx.correctionGuidance)) {
-                return ActionOutcome.failureWithGuidance(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage(), typeEx.correctionGuidance);
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage(), typeEx.correctionGuidance);
             }
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
         } catch (Utils.ActionSecurityException secEx) {
@@ -306,14 +306,14 @@ public with sharing class ActionCreateRecord extends BaseAgentAction {
             } else if (recordTypeIdObj instanceof String) {
                 recordTypeId = Id.valueOf((String) recordTypeIdObj);
             } else {
-                return ActionOutcome.failureWithGuidance(
+                return ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                     'RecordTypeId must be a valid Salesforce ID',
                     'Expected: 18-character Salesforce ID (e.g., 012000000000001AAA) or 15-character ID (e.g., 012000000000001)'
                 );
             }
         } catch (Exception e) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Invalid RecordTypeId format: ' + recordTypeIdObj,
                 'Expected: 18-character Salesforce ID (e.g., 012000000000001AAA) or 15-character ID (e.g., 012000000000001)'

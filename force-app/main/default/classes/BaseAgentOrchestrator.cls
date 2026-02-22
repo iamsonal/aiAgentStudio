@@ -140,8 +140,99 @@ public inherited sharing abstract class BaseAgentOrchestrator implements IAgentO
         return '';
     }
 
+    /**
+     * @description Enforcement layer for retryable tool failures.
+     *
+     * When the LLM returns a text-only response (finish_reason:stop / CONTENT_ONLY_RESPONSE)
+     * while there are still unretried retryable tool failures in the current turn, this method
+     * detects them and injects a synthetic internal user message instructing the LLM to retry.
+     * Returning OUTCOME_IMMEDIATE_FOLLOWUP triggers another LLM cycle without consuming a new
+     * user turn. The loop continues until all pending retries are addressed or MaxProcessingCycles
+     * is reached, at which point the turn is failed.
+     *
+     * Sub-classes can call super.evaluateToolOutcome() first and then layer their own logic,
+     * or override completely to disable this enforcement for their agent type.
+     */
     public virtual String evaluateToolOutcome(OrchestrationContext context, List<ToolCallResponseHandler.ToolExecutionResult> toolResults, String scenario) {
-        return null;
+        // Enforcement only fires when the LLM produced a pure text response with no tool calls
+        if (!'CONTENT_ONLY_RESPONSE'.equals(scenario)) {
+            return null;
+        }
+
+        // Load the agent definition (cached by AIAgentConfigService)
+        AIAgentDefinition__c agentDef;
+        try {
+            agentDef = AIAgentConfigService.getAgentDefinition(context.agentDefinitionId);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, context.logPrefix + '[evaluateToolOutcome] Could not load agent definition: ' + e.getMessage());
+            return null;
+        }
+
+        // Retry enforcement only applies to Autonomous recovery mode
+        if (!'Autonomous'.equals(agentDef.ErrorRecoveryMode__c)) {
+            return null;
+        }
+
+        Integer maxCycles = AIAgentFrameworkSettings.getMaxProcessingCycles(agentDef);
+
+        // Detect unretried retryable failures for this turn
+        List<OrchestrationService.UnretriedFailure> failures = OrchestrationService.detectUnretriedFailures(
+            context.executionId,
+            context.agentDefinitionId,
+            context.turnIdentifier,
+            context.logPrefix
+        );
+
+        if (failures.isEmpty()) {
+            return null;
+        }
+
+        // We're at or beyond the cycle ceiling — fail the turn rather than loop forever
+        if (context.currentTurnCount >= maxCycles) {
+            System.debug(
+                LoggingLevel.WARN,
+                context.logPrefix +
+                    '[evaluateToolOutcome] Max processing cycles (' +
+                    maxCycles +
+                    ') reached with ' +
+                    failures.size() +
+                    ' unretried failure(s). Failing turn.'
+            );
+            context.agentStateSvc.failTurn(
+                context.executionId,
+                context.turnIdentifier,
+                'Agent reached the maximum processing cycle limit (' +
+                    maxCycles +
+                    ') while ' +
+                    failures.size() +
+                    ' tool(s) still had unretried retryable failures: ' +
+                    getFailureToolNames(failures),
+                AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED,
+                context.logPrefix
+            );
+            return OrchestrationService.OUTCOME_FAILED;
+        }
+
+        // Inject enforcement message and request another LLM cycle
+        System.debug(
+            LoggingLevel.INFO,
+            context.logPrefix +
+                '[evaluateToolOutcome] Injecting retry enforcement for ' +
+                failures.size() +
+                ' unretried tool(s): ' +
+                getFailureToolNames(failures)
+        );
+        new ExecutionStepService().createRetryEnforcementStep(context.executionId, failures, context.turnIdentifier, context.currentTurnCount);
+        context.decisionLogger.log(IDecisionStepLogger.EventType.RETRY_ENFORCEMENT, new List<Object>{ failures });
+        return OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP;
+    }
+
+    private static String getFailureToolNames(List<OrchestrationService.UnretriedFailure> failures) {
+        List<String> names = new List<String>();
+        for (OrchestrationService.UnretriedFailure f : failures) {
+            names.add(f.toolName);
+        }
+        return String.join(names, ', ');
     }
 
     public abstract void runAsync(Map<String, Object> payload, String logPrefix);

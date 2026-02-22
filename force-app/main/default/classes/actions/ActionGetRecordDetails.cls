@@ -98,7 +98,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
 
         // Validate object API name is configured (required for identifier lookups)
         if (String.isBlank(config.objectApiName)) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_CONFIG_ERROR,
                 'Configuration error: "objectApiName" is required',
                 'Provide the object API name in configuration (e.g., {"objectApiName": "Case"})'
@@ -116,7 +116,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
 
         // Check object-level read permission
         if (!objDescribe.isAccessible()) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
                 'Access Denied: You do not have permission to read ' + objectApiName + ' records.',
                 'Contact your Salesforce administrator to request read access to ' + objectApiName + ' records.'
@@ -137,7 +137,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
         }
 
         if (identifierField == null) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Missing identifier parameter. No valid parameter provided.',
                 'Provide one identifier field (e.g., {"Id": "001..."} or {"CaseNumber": "00001234"}). Check the Parameters schema for available options.'
@@ -153,7 +153,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
         }
 
         if (paramCount > 1) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Multiple identifier parameters provided. Expected exactly one.',
                 'Provide only ONE identifier field. You provided ' + paramCount + ' fields.'
@@ -169,7 +169,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
         Boolean hasDefaultFields = config.defaultFields != null && !config.defaultFields.isEmpty();
         Boolean hasFieldSetName = String.isNotBlank(config.fieldSetName);
         if (String.isBlank(config.variant) && hasDefaultFields && hasFieldSetName) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_CONFIG_ERROR,
                 'Ambiguous configuration: both "fieldSetName" and "defaultFields" are set without a variant.',
                 'Set "variant" to "fieldset" to use the FieldSet, or to "field_list" to use the defaultFields array.'
@@ -181,7 +181,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
 
         if ('fieldset'.equals(config.variant)) {
             if (String.isBlank(config.fieldSetName)) {
-                return ActionOutcome.failureWithGuidance(
+                return ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_CONFIG_ERROR,
                     'Configuration error: "fieldSetName" is required for the fieldset variant.',
                     'Provide a FieldSet developer name (e.g., "AI_Agent_Details") in the backend configuration.'
@@ -189,7 +189,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
             }
             List<String> fieldSetFields = getFieldsFromFieldSet(sObjectType, config.fieldSetName);
             if (fieldSetFields.isEmpty()) {
-                return ActionOutcome.failureWithGuidance(
+                return ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                     'FieldSet "' + config.fieldSetName + '" not found on object ' + objectApiName,
                     'The configured FieldSet does not exist. Available FieldSets can be found in Setup > Object Manager > ' +
@@ -202,7 +202,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
         } else {
             // field_list variant (default)
             if (config.defaultFields == null || config.defaultFields.isEmpty()) {
-                return ActionOutcome.failureWithGuidance(
+                return ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_CONFIG_ERROR,
                     'Configuration error: "defaultFields" is required for the field_list variant.',
                     'Provide an array of field API names (e.g., ["Id", "Name", "Status"]) in the backend configuration.'
@@ -214,7 +214,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
 
         // Validate identifier field is a real, accessible field (prevents injection)
         if (identifierField.contains('.')) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Invalid identifier field: ' + identifierField,
                 'Identifier field must be a direct field on ' + objectApiName + ' (e.g., "Id", "CaseNumber").'
@@ -223,7 +223,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
 
         SObjectField identifierToken = Utils.getFieldToken(sObjectType, identifierField);
         if (identifierToken == null) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Unknown identifier field "' + identifierField + '" for object ' + objectApiName,
                 'Use a valid identifier field for ' + objectApiName + ' (e.g., "Id", "CaseNumber").'
@@ -232,7 +232,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
 
         DescribeFieldResult identifierDescribe = identifierToken.getDescribe();
         if (!identifierDescribe.isAccessible()) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
                 'Access Denied: You do not have permission to read field ' + identifierDescribe.getName(),
                 'Contact your Salesforce administrator to request read access to ' + identifierDescribe.getName() + '.'
@@ -296,7 +296,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
             List<SObject> results = Database.queryWithBinds(soql, new Map<String, Object>{ 'identifierValueStr' => identifierValueStr }, AccessLevel.USER_MODE);
 
             if (results.isEmpty()) {
-                return ActionOutcome.failureWithGuidance(
+                return ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND,
                     'Record not found with ' + identifierField + ' = ' + identifierValueStr,
                     'No record exists with the provided identifier. Verify the value is correct.'
@@ -351,10 +351,10 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
 
             return ActionOutcome.success(response);
         } catch (QueryException qe) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Query failed: ' + qe.getMessage());
+            return ActionOutcome.fromException(qe);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[ActionGetRecordDetails] Unexpected error: ' + e.getMessage() + '\n' + e.getStackTraceString());
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Failed to retrieve record: ' + e.getMessage());
+            return ActionOutcome.fromException(e);
         }
     }
 

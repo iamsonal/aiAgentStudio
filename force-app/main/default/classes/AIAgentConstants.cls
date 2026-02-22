@@ -45,15 +45,6 @@ public inherited sharing class AIAgentConstants {
     public static final String ERR_CODE_SAFETY_FLAGGED = 'SAFETY_FLAGGED';
     public static final String ERR_CODE_DEPENDENCY_VALIDATION = 'DEPENDENCY_VALIDATION_ERROR';
 
-    public static final String ERR_CATEGORY_VALIDATION = 'validation';
-    public static final String ERR_CATEGORY_PERMISSION = 'permission';
-    public static final String ERR_CATEGORY_DATA = 'data';
-    public static final String ERR_CATEGORY_EXTERNAL = 'external';
-    public static final String ERR_CATEGORY_SYSTEM = 'system';
-    public static final String ERR_CATEGORY_CONFIG = 'config';
-    public static final String ERR_CATEGORY_USER = 'user';
-    public static final String ERR_CATEGORY_UNKNOWN = 'unknown';
-
     public static final String NEXT_EXPECTED_NONE = 'None';
 
     /**

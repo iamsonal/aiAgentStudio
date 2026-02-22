@@ -393,10 +393,9 @@ public with sharing class ActionPostChatter extends BaseAgentAction {
             System.debug(LoggingLevel.ERROR, '[ActionPostChatter] Chatter post failed: ' + enhancedMessage);
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, enhancedMessage);
         } catch (Exception ex) {
-            String enhancedMessage = 'Unexpected error posting to Chatter: ' + ex.getMessage();
-            System.debug(LoggingLevel.ERROR, '[ActionPostChatter] Unexpected error: ' + enhancedMessage);
+            System.debug(LoggingLevel.ERROR, '[ActionPostChatter] Unexpected error: ' + ex.getMessage());
             System.debug(LoggingLevel.DEBUG, '[ActionPostChatter] Exception stack trace: ' + ex.getStackTraceString());
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, enhancedMessage);
+            return ActionOutcome.fromException(ex);
         }
     }
 

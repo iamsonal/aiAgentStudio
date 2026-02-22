@@ -99,6 +99,121 @@ private class ContentResponseHandlerTest {
         System.assert(hasAgentResponse, 'Agent response step should be created');
     }
 
+    // ─── Retry enforcement tests ──────────────────────────────────────────────
+
+    /**
+     * @description When the LLM returns a text response while there are unretried retryable tool
+     *              failures in the current turn, ContentResponseHandler should return
+     *              OUTCOME_IMMEDIATE_FOLLOWUP and create an internal enforcement step.
+     *
+     *              Requires: agent has ErrorRecoveryMode__c='Autonomous', MaxProcessingCycles__c > 1
+     *              and a committed RetryPending=true step in the current turn.
+     */
+    @IsTest
+    static void testHandle_WithUnretriedRetryableFailure_InjectsEnforcementAndReturnsFollowUp() {
+        TestFactory.AgentSetup setup = getSetup();
+
+        // Configure agent for Autonomous recovery so enforcement triggers
+        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, ErrorRecoveryMode__c = 'Autonomous', MaxProcessingCycles__c = 10);
+
+        String turnId = 'turn-enf-crh-001';
+
+        // Create the ToolCall step whose arguments the enforcement message will reference
+        insert new ExecutionStep__c(
+            AgentExecution__c = setup.agentExecution.Id,
+            StepType__c = 'ToolCall',
+            StepRole__c = 'Assistant',
+            ToolCallId__c = 'call-crh-001',
+            ToolName__c = 'assign_to_queue',
+            ToolArguments__c = '{"queueDeveloperName":"Support_Queue"}',
+            TurnIdentifier__c = turnId,
+            TurnCount__c = 1,
+            Timestamp__c = Datetime.now().addSeconds(-15)
+        );
+
+        // Create a RetryPending=true failure step for the same tool in the same turn
+        insert new ExecutionStep__c(
+            AgentExecution__c = setup.agentExecution.Id,
+            StepType__c = 'ToolResult',
+            StepRole__c = 'Tool',
+            ToolCallId__c = 'call-crh-001',
+            ToolName__c = 'assign_to_queue',
+            IsError__c = true,
+            IsRetryable__c = true,
+            RetryPending__c = true,
+            TurnIdentifier__c = turnId,
+            TurnCount__c = 1,
+            Timestamp__c = Datetime.now().addSeconds(-14)
+        );
+
+        LLMInteractionService.LLMInteractionResult llmResult = TestFactory.createLlmTextResult('I have routed your case.');
+
+        OrchestrationContext context = TestFactory.newOrchestrationContext().withSetup(setup).withLlmResult(llmResult).withTurn(turnId, 1).build();
+
+        ContentResponseHandler handler = new ContentResponseHandler();
+        String outcome = handler.handle(context);
+
+        System.assertEquals(
+            OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP,
+            outcome,
+            'Should return IMMEDIATE_FOLLOWUP when unretried retryable failures exist in Autonomous mode'
+        );
+
+        // The enforcement step is buffered (deferred DML) — commit before querying
+        TransactionContext.getInstance().commitBuffer();
+
+        // Enforcement step is IsInternal__c = false so the LLM can see it in history
+        List<ExecutionStep__c> enforcementSteps = [
+            SELECT StepType__c, IsInternal__c, Content__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :setup.agentExecution.Id AND StepType__c = 'UserInput' AND IsInternal__c = FALSE AND TurnIdentifier__c = :turnId
+        ];
+        System.assertEquals(1, enforcementSteps.size(), 'Should have created one enforcement step');
+        System.assert(enforcementSteps[0].Content__c.contains('assign_to_queue'), 'Enforcement step content should reference the failed tool name');
+    }
+
+    /**
+     * @description In Fail Fast mode, ContentResponseHandler completes normally even if there are
+     *              RetryPending steps in the turn — enforcement is disabled for non-Autonomous agents.
+     */
+    @IsTest
+    static void testHandle_FailFastMode_WithRetryPendingFailure_CompletesNormally() {
+        TestFactory.AgentSetup setup = getSetup();
+
+        // Ensure agent is in Fail Fast mode
+        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, ErrorRecoveryMode__c = 'Fail Fast');
+
+        String turnId = 'turn-ff-crh-001';
+
+        // Create a RetryPending step (should be ignored in Fail Fast mode)
+        insert new ExecutionStep__c(
+            AgentExecution__c = setup.agentExecution.Id,
+            StepType__c = 'ToolResult',
+            StepRole__c = 'Tool',
+            ToolCallId__c = 'call-ff-001',
+            ToolName__c = 'get_case_details',
+            IsError__c = true,
+            IsRetryable__c = true,
+            RetryPending__c = true,
+            TurnIdentifier__c = turnId,
+            TurnCount__c = 1,
+            Timestamp__c = Datetime.now().addSeconds(-5)
+        );
+
+        LLMInteractionService.LLMInteractionResult llmResult = TestFactory.createLlmTextResult('Case was not retrieved.');
+
+        OrchestrationContext context = TestFactory.newOrchestrationContext().withSetup(setup).withLlmResult(llmResult).withTurn(turnId, 1).build();
+
+        ContentResponseHandler handler = new ContentResponseHandler();
+        String outcome = handler.handle(context);
+
+        System.assertEquals(
+            OrchestrationService.OUTCOME_COMPLETED,
+            outcome,
+            'Fail Fast mode should not trigger retry enforcement — text responses should complete normally'
+        );
+    }
+
     private static TestFactory.AgentSetup getSetup() {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];

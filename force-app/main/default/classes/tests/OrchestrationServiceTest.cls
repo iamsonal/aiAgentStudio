@@ -306,37 +306,61 @@ private class OrchestrationServiceTest {
 
     @IsTest
     static void testSerializeActionOutcome_ErrorIncludesGuidance() {
-        ActionOutcome outcome = ActionOutcome.failureWithGuidance('ERR_TEST', 'Failure', 'Try again');
+        ActionOutcome outcome = ActionOutcome.failure('ERR_TEST', 'Failure', 'Try again');
 
         String json = OrchestrationService.serializeActionOutcome(outcome, '[test] ');
-        System.assert(json.contains('"isSuccess":false'), 'Serialized output should indicate failure');
-        System.assert(json.contains('messageForUser'), 'Serialized output should include messageForUser');
-        System.assert(json.contains('Try again'), 'Serialized output should include correctionGuidance');
+        System.assert(json.contains('"success":false'), 'Serialized output should indicate failure');
+        System.assert(json.contains('"error"'), 'Serialized output should include error field');
+        System.assert(json.contains('Try again'), 'Serialized output should include guidance');
+        System.assert(!json.contains('messageForUser'), 'Should not include display-only messageForUser field');
+        System.assert(!json.contains('errorCategory'), 'Should not include framework-internal errorCategory');
+        System.assert(!json.contains('"errorCode"'), 'Should use code not errorCode in LLM payload');
+        System.assert(json.contains('"code"'), 'Should include code field for LLM context');
     }
 
     @IsTest
     static void testSerializeActionOutcome_NullOutcome_ReturnsErrorJson() {
         String json = OrchestrationService.serializeActionOutcome(null, '[test] ');
 
-        System.assert(json.contains('"isSuccess":false'), 'Null outcome should return error JSON');
-        System.assert(json.contains('did not return an outcome'), 'Should explain outcome was null');
+        System.assert(json.contains('"success":false'), 'Null outcome should return error JSON');
+        System.assert(json.contains('"retryable":false'), 'Null outcome should not be retryable');
     }
 
     @IsTest
-    static void testSerializeActionOutcome_SuccessWithNullData_ReturnsEmptyDataMap() {
+    static void testSerializeActionOutcome_SuccessWithNullData_ReturnsNoDataKey() {
         ActionOutcome outcome = ActionOutcome.success();
         String json = OrchestrationService.serializeActionOutcome(outcome, '[test] ');
 
-        System.assert(json.contains('"isSuccess":true'), 'Success should be indicated');
+        System.assert(json.contains('"success":true'), 'Success should be indicated');
+        System.assert(!json.contains('"data"'), 'Success with null data should omit data key');
     }
 
     @IsTest
-    static void testSerializeActionOutcome_FailureWithoutGuidance_OmitsGuidance() {
-        ActionOutcome outcome = ActionOutcome.failure('ERR_TEST', 'Something failed');
+    static void testSerializeActionOutcome_FailureWithGuidance_IncludesGuidanceKey() {
+        // correctionGuidance is always populated from ErrorHandlerConfig__mdt.LLMGuidance__c.
+        // It should appear under the 'guidance' key (not 'correctionGuidance') in the LLM payload.
+        ActionOutcome outcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Something failed');
         String json = OrchestrationService.serializeActionOutcome(outcome, '[test] ');
 
-        System.assert(json.contains('"isSuccess":false'), 'Should indicate failure');
-        System.assert(!json.contains('correctionGuidance'), 'Should not include guidance when not provided');
+        System.assert(json.contains('"success":false'), 'Should indicate failure');
+        System.assert(json.contains('"guidance"'), 'Metadata guidance should appear under the guidance key');
+        System.assert(!json.contains('correctionGuidance'), 'Internal field name correctionGuidance should not appear in LLM payload');
+    }
+
+    @IsTest
+    static void testSerializeActionOutcome_TransientError_RetryableTrue() {
+        ActionOutcome outcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Timeout');
+        String json = OrchestrationService.serializeActionOutcome(outcome, '[test] ');
+
+        System.assert(json.contains('"retryable":true'), 'Transient error code should produce retryable:true');
+    }
+
+    @IsTest
+    static void testSerializeActionOutcome_NonTransientError_RetryableFalse() {
+        ActionOutcome outcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Invalid input');
+        String json = OrchestrationService.serializeActionOutcome(outcome, '[test] ');
+
+        System.assert(json.contains('"retryable":false'), 'Non-transient error code should produce retryable:false');
     }
 
     @IsTest
@@ -390,9 +414,42 @@ private class OrchestrationServiceTest {
     static void testShouldFailFast_AutonomousMode_AllowsLLMRecovery() {
         AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
         AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Conversational', ErrorRecoveryMode__c = 'Autonomous');
-        ActionOutcome failure = ActionOutcome.failure('ERR', 'Failed');
+        // Must use a transient error code so the non-transient shortcut does not fire before the circuit breaker logic
+        ActionOutcome failure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient network error');
 
-        System.assertEquals(false, OrchestrationService.shouldFailFast(cap, agent, failure, null, '[test] '), 'Autonomous mode should allow LLM recovery');
+        System.assertEquals(
+            false,
+            OrchestrationService.shouldFailFast(cap, agent, failure, null, '[test] '),
+            'Autonomous mode with transient error should allow LLM recovery (circuit breaker not yet hit)'
+        );
+    }
+
+    @IsTest
+    static void testShouldFailFast_NonTransientError_FailsFastImmediately() {
+        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', ErrorRecoveryMode__c = 'Autonomous');
+        // Non-transient errors should fail fast even in Autonomous mode — retrying cannot resolve them
+        ActionOutcome permissionFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, 'Access denied');
+
+        System.assertEquals(
+            true,
+            OrchestrationService.shouldFailFast(cap, agent, permissionFailure, null, '[test] '),
+            'Non-transient error should fail fast regardless of recovery mode'
+        );
+
+        ActionOutcome inputFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Invalid argument');
+        System.assertEquals(
+            true,
+            OrchestrationService.shouldFailFast(cap, agent, inputFailure, null, '[test] '),
+            'INPUT_VALIDATION should fail fast — LLM must fix args, not retry same call'
+        );
+
+        ActionOutcome configFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Bad config');
+        System.assertEquals(
+            true,
+            OrchestrationService.shouldFailFast(cap, agent, configFailure, null, '[test] '),
+            'CONFIG_ERROR should fail fast — needs admin intervention'
+        );
     }
 
     @IsTest
@@ -498,7 +555,8 @@ private class OrchestrationServiceTest {
         AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'preloaded_tool');
         AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', ErrorRecoveryMode__c = 'Autonomous');
 
-        ActionOutcome retryableFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Transient failure');
+        // Must use a transient error code so the non-transient shortcut does not short-circuit before the preloaded count is evaluated
+        ActionOutcome retryableFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient network failure');
 
         Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
 
@@ -572,7 +630,8 @@ private class OrchestrationServiceTest {
             );
         }
 
-        ActionOutcome failure = ActionOutcome.failure('ERR_TEST', 'Tool failed again');
+        // Use a transient error to ensure the circuit breaker logic (not the non-transient shortcut) causes the halt
+        ActionOutcome failure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient tool failure');
 
         // Reload agent with full details
         AIAgentDefinition__c agentFull = [
@@ -583,7 +642,7 @@ private class OrchestrationServiceTest {
 
         Boolean result = OrchestrationService.shouldFailFast(capability, agentFull, failure, execution.Id, '[test] ');
 
-        System.assertEquals(true, result, 'Function agent with successive failures exceeding MaxToolRetries should fail fast (Tier 3)');
+        System.assertEquals(true, result, 'Function agent with successive transient failures exceeding MaxToolRetries should fail fast via circuit breaker');
     }
 
     /**
@@ -664,7 +723,8 @@ private class OrchestrationServiceTest {
     static void testShouldFailFast_AllAgentTypes_HitCircuitBreakerInAutonomousMode() {
         TestFactory.AgentSetup setup = getSetup();
         Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
-        ActionOutcome failure = ActionOutcome.failure('ERR_TEST', 'Tool failed');
+        // Use a transient error so the circuit breaker (not the non-transient shortcut) is what fires
+        ActionOutcome failure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient tool failure');
 
         for (String agentType : new List<String>{ 'Conversational', 'Email' }) {
             AIAgentDefinition__c agent = TestFactory.newAgentDefinition()
@@ -927,5 +987,155 @@ private class OrchestrationServiceTest {
                 agentType + ' agent with Fail Fast mode should halt immediately on any tool error'
             );
         }
+    }
+
+    // ─── detectUnretriedFailures tests ────────────────────────────────────────
+
+    /**
+     * @description detectUnretriedFailures returns an empty list when there are no
+     *              RetryPending=true steps in the turn.
+     */
+    @IsTest
+    static void testDetectUnretriedFailures_NoFailures_ReturnsEmpty() {
+        TestFactory.AgentSetup setup = getSetup();
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(setup.agentDefinition.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .withTurnIdentifier('turn-duf-001')
+            .save();
+
+        // No steps at all — expect empty
+        List<OrchestrationService.UnretriedFailure> result = OrchestrationService.detectUnretriedFailures(
+            execution.Id,
+            setup.agentDefinition.Id,
+            'turn-duf-001',
+            '[test] '
+        );
+
+        System.assertEquals(0, result.size(), 'Should return empty when no RetryPending steps exist');
+    }
+
+    /**
+     * @description detectUnretriedFailures returns the failed tool when a RetryPending=true
+     *              step exists with no subsequent success.
+     */
+    @IsTest
+    static void testDetectUnretriedFailures_WithRetryPendingFailure_ReturnsFailure() {
+        TestFactory.AgentSetup setup = getSetup();
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(setup.agentDefinition.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .withTurnIdentifier('turn-duf-002')
+            .save();
+
+        // Seed a ToolCall step with known arguments
+        insert new ExecutionStep__c(
+            AgentExecution__c = execution.Id,
+            StepType__c = 'ToolCall',
+            StepRole__c = 'Assistant',
+            ToolCallId__c = 'call-abc-001',
+            ToolName__c = 'assign_to_queue',
+            ToolArguments__c = '{"queueDeveloperName":"Support_Queue"}',
+            TurnIdentifier__c = 'turn-duf-002',
+            TurnCount__c = 1,
+            Timestamp__c = Datetime.now().addSeconds(-10)
+        );
+
+        // Seed a retryable failure step
+        insert new ExecutionStep__c(
+            AgentExecution__c = execution.Id,
+            StepType__c = 'ToolResult',
+            StepRole__c = 'Tool',
+            ToolCallId__c = 'call-abc-001',
+            ToolName__c = 'assign_to_queue',
+            IsError__c = true,
+            IsRetryable__c = true,
+            RetryPending__c = true,
+            TurnIdentifier__c = 'turn-duf-002',
+            TurnCount__c = 1,
+            Timestamp__c = Datetime.now().addSeconds(-9)
+        );
+
+        List<OrchestrationService.UnretriedFailure> result = OrchestrationService.detectUnretriedFailures(
+            execution.Id,
+            setup.agentDefinition.Id,
+            'turn-duf-002',
+            '[test] '
+        );
+
+        System.assertEquals(1, result.size(), 'Should detect the unretried failure');
+        System.assertEquals('assign_to_queue', result[0].toolName, 'Tool name should match');
+        System.assertEquals('call-abc-001', result[0].toolCallId, 'Tool call ID should match');
+        System.assertEquals('{"queueDeveloperName":"Support_Queue"}', result[0].originalArguments, 'Arguments should be populated from ToolCall step');
+    }
+
+    /**
+     * @description detectUnretriedFailures excludes a failed tool when a later success exists
+     *              for the same tool in the same turn (retry already happened).
+     */
+    @IsTest
+    static void testDetectUnretriedFailures_WhenRetrySucceeded_ExcludesFromResult() {
+        TestFactory.AgentSetup setup = getSetup();
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(setup.agentDefinition.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .withTurnIdentifier('turn-duf-003')
+            .save();
+
+        Datetime failureTs = Datetime.now().addSeconds(-20);
+        Datetime successTs = Datetime.now().addSeconds(-5);
+
+        insert new List<ExecutionStep__c>{
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolCallId__c = 'call-retry-001',
+                ToolName__c = 'assign_to_queue',
+                IsError__c = true,
+                IsRetryable__c = true,
+                RetryPending__c = true,
+                TurnIdentifier__c = 'turn-duf-003',
+                Timestamp__c = failureTs
+            ),
+            // Success (retry) for the same tool
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolCallId__c = 'call-retry-002',
+                ToolName__c = 'assign_to_queue',
+                IsError__c = false,
+                TurnIdentifier__c = 'turn-duf-003',
+                Timestamp__c = successTs
+            )
+        };
+
+        List<OrchestrationService.UnretriedFailure> result = OrchestrationService.detectUnretriedFailures(
+            execution.Id,
+            setup.agentDefinition.Id,
+            'turn-duf-003',
+            '[test] '
+        );
+
+        System.assertEquals(0, result.size(), 'Retry already succeeded — should not flag as unretried');
+    }
+
+    /**
+     * @description detectUnretriedFailures handles null executionId gracefully.
+     */
+    @IsTest
+    static void testDetectUnretriedFailures_NullExecutionId_ReturnsEmpty() {
+        List<OrchestrationService.UnretriedFailure> result = OrchestrationService.detectUnretriedFailures(null, null, 'turn-x', '[test] ');
+        System.assertEquals(0, result.size(), 'Null executionId should return empty list safely');
     }
 }

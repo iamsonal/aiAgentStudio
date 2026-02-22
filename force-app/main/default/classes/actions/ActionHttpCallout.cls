@@ -176,7 +176,7 @@ public with sharing class ActionHttpCallout extends BaseAgentAction {
             HttpResponse res = httpClient.send(req);
             return buildOutcome(res, url);
         } catch (System.CalloutException ce) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Callout failed: ' + ce.getMessage());
+            return ActionOutcome.fromException(ce);
         }
     }
 
@@ -199,7 +199,7 @@ public with sharing class ActionHttpCallout extends BaseAgentAction {
         }
 
         String errorDetail = String.isNotBlank(responseBody) ? responseBody.abbreviate(500) : '(empty body)';
-        return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'HTTP ' + statusCode + ' ' + res.getStatus() + ': ' + errorDetail);
+        return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'HTTP ' + statusCode + ' ' + res.getStatus() + ': ' + errorDetail);
     }
 
     // ===== CONFIGURATION =====

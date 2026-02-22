@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Action Handler Null Result</label>
+    <protected>false</protected>
+    <values>
+        <field>ErrorCategory__c</field>
+        <value xsi:type="xsd:string">config</value>
+    </values>
+    <values>
+        <field>IsTransient__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>DefaultMessage__c</field>
+        <value xsi:type="xsd:string">The action completed but did not return expected results.</value>
+    </values>
+    <values>
+        <field>LLMGuidance__c</field>
+        <value xsi:type="xsd:string">The action completed but did not return a result. This indicates a configuration issue in the action implementation. Inform the user and contact an administrator to review the action handler code. Do not retry.</value>
+    </values>
+</CustomMetadata>

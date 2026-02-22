@@ -338,7 +338,7 @@ public with sharing class ActionSendEmail extends BaseAgentAction {
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[ActionSendEmail] Unexpected error: ' + e.getMessage());
             System.debug(LoggingLevel.ERROR, '[ActionSendEmail] Stack trace: ' + e.getStackTraceString());
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Failed to send email: ' + e.getMessage());
+            return ActionOutcome.fromException(e);
         }
     }
 
@@ -442,13 +442,13 @@ public with sharing class ActionSendEmail extends BaseAgentAction {
                 }
                 String errorMsg = String.join(errors, '; ');
                 System.debug(LoggingLevel.ERROR, '[ActionSendEmail] Send failed: ' + errorMsg);
-                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Email delivery failed: ' + errorMsg);
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_ACTION_EXECUTION, 'Email delivery failed: ' + errorMsg);
             }
 
             return ActionOutcome.success(generateTrackingId());
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[ActionSendEmail] Unexpected error during send: ' + e.getMessage());
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Unexpected error sending email: ' + e.getMessage());
+            return ActionOutcome.fromException(e);
         }
     }
 

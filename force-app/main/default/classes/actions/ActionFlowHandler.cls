@@ -372,7 +372,7 @@ public with sharing class ActionFlowHandler extends BaseAgentAction {
 
             System.debug(LoggingLevel.ERROR, '[ActionFlowHandler] ' + enhancedMessage);
             System.debug(LoggingLevel.DEBUG, '[ActionFlowHandler] ' + ex.getStackTraceString());
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, enhancedMessage);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_FLOW_FAULT, enhancedMessage);
         }
     }
 
@@ -450,7 +450,7 @@ public with sharing class ActionFlowHandler extends BaseAgentAction {
             String faultMessage = (String) faultMessageValue;
             String enhancedError = 'Flow "' + flowApiName + '" reported failure via "' + FAULT_MESSAGE_VAR + '": ' + faultMessage;
             System.debug(LoggingLevel.ERROR, '[ActionFlowHandler] Flow reported failure: ' + enhancedError);
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, enhancedError);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_FLOW_FAULT, enhancedError);
         }
 
         // Build the result payload

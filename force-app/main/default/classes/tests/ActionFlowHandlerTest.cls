@@ -154,7 +154,7 @@ private class ActionFlowHandlerTest {
         ActionOutcome outcome = action.execute('{}', '{"param1": "test"}', createTestContext(TEST_FLOW_API_NAME));
 
         System.assertEquals(false, outcome.isSuccess);
-        System.assertEquals(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, outcome.errorCode);
+        System.assertEquals(AIAgentConstants.ERR_CODE_FLOW_FAULT, outcome.errorCode);
         System.assert(outcome.errorMessage.contains('faultMessage'), 'Error should mention faultMessage variable');
 
         ActionFlowHandler.mockFlowExecution = null;

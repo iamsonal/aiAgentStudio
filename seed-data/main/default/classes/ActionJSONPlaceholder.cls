@@ -61,12 +61,12 @@ public class ActionJSONPlaceholder extends BaseAgentAction {
 
             // Check for errors
             if (res.getStatusCode() >= 400) {
-                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'HTTP ' + res.getStatusCode() + ': ' + res.getStatus());
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'HTTP ' + res.getStatusCode() + ': ' + res.getStatus());
             }
 
             return ActionOutcome.success(result);
         } catch (Exception e) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Callout failed: ' + e.getMessage());
+            return ActionOutcome.fromException(e);
         }
     }
 

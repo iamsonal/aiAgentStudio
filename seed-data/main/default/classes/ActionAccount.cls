@@ -106,7 +106,7 @@ public class ActionAccount extends BaseAgentAction {
             }
             return ActionOutcome.success(accounts[0]);
         } catch (Exception e) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Error retrieving account: ' + e.getMessage());
+            return ActionOutcome.fromException(e);
         }
     }
 
@@ -129,7 +129,7 @@ public class ActionAccount extends BaseAgentAction {
             List<Account> accounts = Database.query(soql);
             return ActionOutcome.success(new Map<String, Object>{ 'accounts' => accounts, 'count' => accounts.size() });
         } catch (Exception e) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Error searching accounts: ' + e.getMessage());
+            return ActionOutcome.fromException(e);
         }
     }
 

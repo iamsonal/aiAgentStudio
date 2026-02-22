@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Connect API Error</label>
+    <protected>false</protected>
+    <values>
+        <field>ErrorCategory__c</field>
+        <value xsi:type="xsd:string">external</value>
+    </values>
+    <values>
+        <field>IsTransient__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>DefaultMessage__c</field>
+        <value xsi:type="xsd:string">Unable to connect to the external service.</value>
+    </values>
+    <values>
+        <field>LLMGuidance__c</field>
+        <value xsi:type="xsd:string">Retry this tool call immediately with the same arguments. If the error message indicates an authentication or permission problem, do not retry — inform the user that the external integration is misconfigured and needs administrator attention.</value>
+    </values>
+</CustomMetadata>

@@ -83,7 +83,7 @@ public with sharing class ActionUpdateRecord extends BaseAgentAction {
         // Extract recordId
         Object recordIdObj = params.get('recordId');
         if (recordIdObj == null) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Missing required parameter: "recordId"',
                 'Expected: 18-character Salesforce ID (e.g., 001000000000001AAA) or 15-character ID (e.g., 001000000000001)'
@@ -97,7 +97,7 @@ public with sharing class ActionUpdateRecord extends BaseAgentAction {
                 args.recordId = String.valueOf(recordIdObj);
             }
         } catch (Exception e) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Invalid recordId format: ' + recordIdObj,
                 'Expected: 18-character Salesforce ID (e.g., 001000000000001AAA) or 15-character ID (e.g., 001000000000001)'
@@ -131,7 +131,7 @@ public with sharing class ActionUpdateRecord extends BaseAgentAction {
         try {
             recordId = Id.valueOf(args.recordId);
         } catch (Exception e) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Invalid ID format for recordId: ' + args.recordId,
                 'Expected: 18-character Salesforce ID (e.g., 001000000000001AAA) or 15-character ID (e.g., 001000000000001)'
@@ -143,7 +143,7 @@ public with sharing class ActionUpdateRecord extends BaseAgentAction {
         if (String.isNotBlank(config.objectApiName)) {
             String actualObjectApiName = targetSObjectType.getDescribe().getName();
             if (!actualObjectApiName.equalsIgnoreCase(config.objectApiName)) {
-                return ActionOutcome.failureWithGuidance(
+                return ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                     'Object API name mismatch: Expected "' + config.objectApiName + '" but recordId "' + recordId + '" is for "' + actualObjectApiName + '"',
                     'Ensure the recordId matches the configured objectApiName "' + config.objectApiName + '"'
@@ -166,7 +166,7 @@ public with sharing class ActionUpdateRecord extends BaseAgentAction {
         } catch (TypeCoercionService.TypeCoercionException typeEx) {
             // Extract auto-generated correction guidance to help LLM self-correct format errors
             if (String.isNotBlank(typeEx.correctionGuidance)) {
-                return ActionOutcome.failureWithGuidance(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage(), typeEx.correctionGuidance);
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage(), typeEx.correctionGuidance);
             }
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
         } catch (Utils.ActionSecurityException secEx) {

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Tool Recovery Violation</label>
+    <protected>false</protected>
+    <values>
+        <field>ErrorCategory__c</field>
+        <value xsi:type="xsd:string">system</value>
+    </values>
+    <values>
+        <field>IsTransient__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>DefaultMessage__c</field>
+        <value xsi:type="xsd:string">The maximum retry limit for this tool has been exceeded.</value>
+    </values>
+    <values>
+        <field>LLMGuidance__c</field>
+        <value xsi:type="xsd:string">The tool has failed the maximum number of allowed times. The circuit breaker has activated. Inform the user that this operation cannot be completed and do not retry.</value>
+    </values>
+</CustomMetadata>

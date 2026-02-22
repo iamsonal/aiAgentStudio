@@ -200,10 +200,9 @@ public class ActionCalculateAccountHealth extends BaseAgentAction {
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR,
                 '[ActionCalculateAccountHealth] Error: ' + e.getMessage());
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                'Failed to calculate health score: ' + e.getMessage()
-            );
+            // fromException() classifies the exception type automatically —
+            // no need to specify an error code or worry about transience.
+            return ActionOutcome.fromException(e);
         }
     }
 
@@ -343,25 +342,93 @@ List<Account> accounts = [SELECT Id FROM Account]; // Missing USER_MODE
 
 #### Error Handling
 
+The framework uses `ActionOutcome` as the return type for all success and failure states. Error handling is built around two key concepts: **error codes** that drive machine-readable retry decisions, and **transience** that determines whether the LLM gets a chance to recover.
+
+**In catch blocks — always use `fromException()`:**
+
 ```apex
-// ✅ DO: Return structured errors with guidance
-return ActionOutcome.failureWithGuidance(
+// ✅ DO: Let the framework classify the exception type for you
+} catch (Exception e) {
+    return ActionOutcome.fromException(e);
+}
+
+// ✅ DO: Add domain-specific guidance when you have context to share
+} catch (Exception e) {
+    return ActionOutcome.fromException(e, 'Verify the queue developer name exists in this org');
+}
+
+// ❌ DON'T: Default to UNEXPECTED_ERROR — it is non-transient and the LLM will
+//           never see the error. The correct code is determined by exception type.
+} catch (Exception e) {
+    return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, e.getMessage());
+}
+```
+
+**For business-logic failures (no exception thrown):**
+
+```apex
+// ✅ DO: Use explicit error codes for non-exception failures
+if (records.isEmpty()) {
+    return ActionOutcome.failure(
+        AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND,
+        'No records found matching: ' + searchTerm
+    );
+}
+
+// Validation failures
+if (String.isBlank(args.accountId)) {
+    return ActionOutcome.failure(
+        AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+        'accountId is required'
+    );
+}
+
+// HTTP error responses
+if (res.getStatusCode() >= 400) {
+    return ActionOutcome.failure(
+        AIAgentConstants.ERR_CODE_CONNECT_API_ERROR,
+        'HTTP ' + res.getStatusCode() + ': ' + res.getStatus()
+    );
+}
+
+// Add correction guidance when it helps the LLM fix the problem
+return ActionOutcome.failure(
     AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
     'Invalid date format provided',
     'Expected format: YYYY-MM-DD. Example: 2024-03-15'
 );
-
-// ✅ DO: Use appropriate error codes
-// - ERR_CODE_INPUT_VALIDATION: Bad input from LLM
-// - ERR_CODE_PERMISSION_DENIED: Security/access issues
-// - ERR_CODE_RECORD_NOT_FOUND: Record doesn't exist
-// - ERR_CODE_DML_ERROR: Database operation failed
-// - ERR_CODE_CONFIG_ERROR: Admin configuration issue
-// - ERR_CODE_UNEXPECTED_ERROR: Catch-all for unknown errors
-
-// ❌ DON'T: Throw unhandled exceptions
-throw new AuraHandledException('Something went wrong'); // Bad!
 ```
+
+**How error codes affect framework behavior:**
+
+| Error code | Transient? | What happens |
+|:-----------|:----------:|:-------------|
+| `CONNECT_API_ERROR` | Yes | LLM receives the error and may retry |
+| `ACTION_EXECUTION_FAILED` | Yes | LLM receives the error and may retry |
+| `RECORD_LOCKED` | Yes | LLM receives the error and may retry |
+| `LLM_CALL_FAILED` | Yes | LLM receives the error and may retry |
+| `INPUT_VALIDATION` | No | Framework halts immediately — retrying won't fix bad input |
+| `PERMISSION_DENIED` | No | Framework halts immediately |
+| `CONFIG_ERROR` | No | Framework halts immediately |
+| `UNEXPECTED_ERROR` | No | Framework halts immediately |
+
+**How `fromException()` classifies by type:**
+
+| Exception type | Mapped error code |
+|:---------------|:-----------------|
+| `System.CalloutException` | `CONNECT_API_ERROR` (transient) |
+| `System.MathException`, `NullPointerException`, `ListException` | `ACTION_EXECUTION_FAILED` (transient) |
+| `System.TypeException`, `JSONException`, `StringException` | `INPUT_VALIDATION` |
+| `System.NoAccessException`, `SecurityException` | `PERMISSION_DENIED` |
+| `System.SObjectException` | `CONFIG_ERROR` |
+| `System.LimitException` | `SYSTEM_LIMIT_EXCEEDED` |
+| `System.QueryException` | `SOQL_ERROR` |
+| `DmlException` | `DML_ERROR` |
+| Everything else | `UNEXPECTED_ERROR` |
+
+<Aside type="note" title="DML and Query Exceptions">
+When `DmlException` or `QueryException` bubble up through the framework without being caught in your action code, `BaseAgentAction` performs deeper inspection — e.g., `UNABLE_TO_LOCK_ROW` maps to `RECORD_LOCKED` (transient), and queries failing due to `security enforced` map to `PERMISSION_DENIED`. If you catch these yourself and call `fromException()`, you get the base code without that inspection.
+</Aside>
 
 #### Parameter Handling
 
@@ -925,16 +992,16 @@ public class ActionWeatherLookup extends BaseAgentAction {
                     JSON.deserializeUntyped(res.getBody());
                 return ActionOutcome.success(weatherData);
             } else {
+                // Non-exception HTTP failure — use an explicit error code
                 return ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_CONNECT_API_ERROR,
                     'Weather API returned status: ' + res.getStatusCode()
                 );
             }
-        } catch (CalloutException e) {
-            return ActionOutcome.failure(
-                AIAgentConstants.ERR_CODE_CONNECT_API_ERROR,
-                'Failed to connect to Weather API: ' + e.getMessage()
-            );
+        } catch (Exception e) {
+            // fromException() maps CalloutException → CONNECT_API_ERROR (transient)
+            // so the LLM can decide whether to retry
+            return ActionOutcome.fromException(e);
         }
     }
 }
@@ -1015,6 +1082,86 @@ public class ActionGetCustomerOverview extends BaseAgentAction {
 
 ---
 
+## Error Handling In Depth
+
+### The `ActionOutcome` API
+
+All action methods return an `ActionOutcome`. There are three factory methods:
+
+```apex
+// Success — with or without data
+return ActionOutcome.success(myResultObject);
+return ActionOutcome.success();
+
+// Failure from an exception — auto-classifies by type
+return ActionOutcome.fromException(e);
+return ActionOutcome.fromException(e, 'Domain-specific correction hint');
+
+// Failure from business logic (no exception) — error code is required
+return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'accountId is required');
+return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Invalid format', 'Use YYYY-MM-DD');
+return ActionOutcome.failure(AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND, 'No records matched the search');
+```
+
+### How the Framework Uses Error Codes
+
+When an action returns a failure, the framework uses the error code to determine what to do next:
+
+```mermaid
+sequenceDiagram
+    participant Action as Your Action
+    participant Framework as Framework
+    participant LLM as LLM
+
+    Action->>Framework: ActionOutcome failure(errorCode)
+    Framework->>Framework: Determine error behavior
+    alt IsTransient = false
+        Framework-->>Framework: Halt immediately
+        Note over Framework: PERMISSION_DENIED, INPUT_VALIDATION,<br/>CONFIG_ERROR, UNEXPECTED_ERROR
+    else IsTransient = true AND ErrorRecoveryMode = Fail Fast
+        Framework-->>Framework: Halt immediately
+    else IsTransient = true AND retry count exceeded
+        Framework-->>Framework: Halt immediately
+    else IsTransient = true AND Autonomous mode
+        Framework->>LLM: Forward error result
+        Note over LLM: CONNECT_API_ERROR, ACTION_EXECUTION_FAILED,<br/>RECORD_LOCKED, LLM_CALL_FAILED
+        LLM-->>Framework: Retry tool / inform user / try another approach
+    end
+```
+
+The key insight: **the error code you return controls whether the LLM ever sees the error**. A `CalloutException` caught and returned via `fromException(e)` maps to `CONNECT_API_ERROR` (transient) — the LLM sees it and can retry. The same exception returned as `UNEXPECTED_ERROR` halts immediately without the LLM knowing what went wrong.
+
+### Agent-Level Recovery Mode
+
+The `ErrorRecoveryMode__c` field on `AIAgentDefinition__c` sets the recovery strategy at the agent level:
+
+| Value | Behavior |
+|:------|:---------|
+| `Autonomous` (default) | Transient errors are forwarded to the LLM for recovery decisions |
+| `Fail Fast` | Agent halts immediately on any error, regardless of transience |
+
+Use `Fail Fast` for agents where partial execution is worse than no execution (e.g., financial workflows, multi-step record mutations). Use `Autonomous` for conversational agents where the LLM recovering gracefully provides a better user experience.
+
+### Reference: All Error Codes
+
+| Constant | Code string | Transient | Category | Typical use |
+|:---------|:-----------|:---------:|:---------|:-----------|
+| `ERR_CODE_INPUT_VALIDATION` | `INPUT_VALIDATION` | No | validation | Bad LLM arguments |
+| `ERR_CODE_PERMISSION_DENIED` | `PERMISSION_DENIED` | No | permission | CRUD/FLS/sharing violation |
+| `ERR_CODE_RECORD_NOT_FOUND` | `RECORD_NOT_FOUND` | No | data | Query returned zero rows |
+| `ERR_CODE_DML_ERROR` | `DML_ERROR` | No | data | Insert/update/delete failed |
+| `ERR_CODE_RECORD_LOCKED` | `RECORD_LOCKED` | **Yes** | data | `UNABLE_TO_LOCK_ROW` |
+| `ERR_CODE_SOQL_ERROR` | `SOQL_ERROR` | No | data | Query syntax/permission |
+| `ERR_CODE_CONNECT_API_ERROR` | `CONNECT_API_ERROR` | **Yes** | external | HTTP / callout failure |
+| `ERR_CODE_ACTION_EXECUTION` | `ACTION_EXECUTION_FAILED` | **Yes** | system | Runtime error in action code |
+| `ERR_CODE_FLOW_FAULT` | `FLOW_FAULT` | No | system | Flow reported `$Flow.FaultMessage` |
+| `ERR_CODE_CONFIG_ERROR` | `CONFIG_ERROR` | No | config | Bad admin configuration |
+| `ERR_CODE_SYSTEM_LIMIT` | `SYSTEM_LIMIT_EXCEEDED` | No | system | Governor limit reached |
+| `ERR_CODE_LLM_CALL_FAILED` | `LLM_CALL_FAILED` | **Yes** | external | AI provider call failed |
+| `ERR_CODE_UNEXPECTED_ERROR` | `UNEXPECTED_ERROR` | No | system | Unknown — avoid using this |
+
+---
+
 ## Deployment Checklist
 
 ### Custom Action Deployment
@@ -1023,7 +1170,8 @@ public class ActionGetCustomerOverview extends BaseAgentAction {
 - [ ] `executeAction()` method implemented
 - [ ] `parseActionConfiguration()` overridden if needed
 - [ ] Security checks implemented (CRUD, FLS)
-- [ ] Error handling returns proper `ActionOutcome`
+- [ ] All catch blocks use `ActionOutcome.fromException(e)` — not `failure(ERR_CODE_UNEXPECTED_ERROR, ...)`
+- [ ] Business-logic failures use explicit error codes (not `UNEXPECTED_ERROR`)
 - [ ] Unit tests with >75% coverage
 - [ ] `AgentCapability__c` record created
 - [ ] Parameters JSON Schema defined

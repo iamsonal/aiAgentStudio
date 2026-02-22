@@ -115,49 +115,43 @@ public inherited sharing class OrchestrationService {
         }
     }
 
-    public static String serializeActionOutcome(ActionOutcome actionOutcome, String logPrefix) {
+    public static String serializeActionOutcome(ActionOutcome outcome, String logPrefix) {
         try {
-            if (actionOutcome == null) {
+            if (outcome == null) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Action outcome is null. Returning error response for LLM.');
-                return JSON.serialize(new Map<String, Object>{ 'isSuccess' => false, 'error' => 'Action execution did not return an outcome object.' });
+                return JSON.serialize(
+                    new Map<String, Object>{ 'success' => false, 'error' => 'Action execution did not return an outcome.', 'retryable' => false }
+                );
             }
 
-            if (actionOutcome.isSuccess) {
-                Map<String, Object> successOutput = new Map<String, Object>{ 'isSuccess' => true };
-
-                if (actionOutcome.data != null) {
-                    successOutput.put('data', actionOutcome.data);
-                } else {
-                    successOutput.put('data', new Map<String, Object>());
+            if (outcome.isSuccess) {
+                Map<String, Object> successOutput = new Map<String, Object>{ 'success' => true };
+                if (outcome.data != null) {
+                    successOutput.put('data', outcome.data);
                 }
-
                 return JSON.serialize(successOutput);
             } else {
+                // retryable is the machine-readable signal the LLM needs to decide whether to retry.
+                // code + error together give the LLM enough context to reason about the failure type.
+                // Stack traces and internal class names are already stripped from errorMessage.
+                String errorMsg = String.isNotBlank(outcome.errorMessage) ? outcome.errorMessage : 'An unexpected error occurred.';
+
                 Map<String, Object> errorOutput = new Map<String, Object>{
-                    'isSuccess' => false,
-                    'errorCode' => actionOutcome.errorCode,
-                    'errorCategory' => actionOutcome.errorCategory,
-                    'messageForUser' => actionOutcome.llmFriendlyMessage != null ? actionOutcome.llmFriendlyMessage : actionOutcome.errorMessage,
-                    'data' => new Map<String, Object>()
+                    'success' => false,
+                    'code' => outcome.errorCode,
+                    'error' => errorMsg,
+                    'retryable' => ActionOutcome.isTransient(outcome.errorCode)
                 };
 
-                if (String.isNotBlank(actionOutcome.correctionGuidance)) {
-                    errorOutput.put('correctionGuidance', actionOutcome.correctionGuidance);
+                if (String.isNotBlank(outcome.correctionGuidance)) {
+                    errorOutput.put('guidance', outcome.correctionGuidance);
                 }
 
                 return JSON.serialize(errorOutput);
             }
         } catch (Exception jsonEx) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to serialize action outcome for LLM. Error: ' + jsonEx.getMessage());
-            return JSON.serialize(
-                new Map<String, Object>{
-                    'isSuccess' => false,
-                    'error' => 'Failed to serialize action outcome data',
-                    'serialization_error_details' => jsonEx.getMessage(),
-                    'original_action_success_status' => actionOutcome?.isSuccess,
-                    'original_action_error_code' => actionOutcome?.errorCode
-                }
-            );
+            return JSON.serialize(new Map<String, Object>{ 'success' => false, 'error' => 'Failed to serialize action result.', 'retryable' => false });
         }
     }
 
@@ -245,7 +239,21 @@ public inherited sharing class OrchestrationService {
             return true;
         }
 
-        // Autonomous mode: global ceiling prevents infinite loops
+        // Non-transient errors cannot resolve on retry — fail immediately regardless of retry budget
+        if (!ActionOutcome.isTransient(toolOutcome.errorCode)) {
+            System.debug(
+                LoggingLevel.WARN,
+                logPrefix +
+                    'NON-TRANSIENT error: halting immediately. Tool: "' +
+                    capability.CapabilityName__c +
+                    '", ErrorCode: ' +
+                    toolOutcome.errorCode +
+                    ' (retrying would not resolve this error)'
+            );
+            return true;
+        }
+
+        // Autonomous mode: global ceiling prevents infinite loops on transient errors
         Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
         Integer failureCount = (preloadedFailureCount >= 0)
             ? preloadedFailureCount
@@ -482,6 +490,215 @@ public inherited sharing class OrchestrationService {
             }
         }
         return failureCount;
+    }
+
+    // ─── Retry Enforcement ────────────────────────────────────────────────────
+
+    /**
+     * @description Lightweight value object representing a tool that failed with a retryable
+     * error in the current turn but was not retried before the LLM returned a text response.
+     */
+    public class UnretriedFailure {
+        /** Developer name of the tool (ToolName__c on ExecutionStep__c). */
+        public String toolName;
+        /** ToolCallId that links to the original ToolCall step. */
+        public String toolCallId;
+        /** JSON arguments from the original ToolCall step so the LLM can replay the call. */
+        public String originalArguments;
+    }
+
+    /**
+     * @description Detects tool failures in the current turn that are retryable (RetryPending__c=true)
+     * but have NOT yet been retried. Also filters out any tools whose declared dependencies are not
+     * yet satisfied — those cannot be retried until the prerequisite tools succeed first.
+     *
+     * Merges both committed DB rows and in-memory buffered steps (deferred DML mode).
+     *
+     * @param executionId     AgentExecution__c ID
+     * @param agentDefinitionId  AIAgentDefinition__c ID for dependency-graph access
+     * @param turnIdentifier  Current turn identifier
+     * @param logPrefix       Caller-supplied log prefix for tracing
+     * @return List of UnretriedFailure instances (never null; empty when nothing to retry)
+     */
+    public static List<UnretriedFailure> detectUnretriedFailures(Id executionId, Id agentDefinitionId, String turnIdentifier, String logPrefix) {
+        List<UnretriedFailure> result = new List<UnretriedFailure>();
+        if (executionId == null || String.isBlank(turnIdentifier)) {
+            return result;
+        }
+
+        String pfx = logPrefix + '[detectUnretriedFailures] ';
+
+        // ── 1. Collect candidate failure steps ────────────────────────────────
+        // Use a Map keyed by ToolCallId to avoid duplicates when merging DB + buffer.
+        Map<String, ExecutionStep__c> failureByCallId = new Map<String, ExecutionStep__c>();
+
+        // Query committed steps from DB
+        for (ExecutionStep__c s : [
+            SELECT Id, ToolName__c, ToolCallId__c, Timestamp__c
+            FROM ExecutionStep__c
+            WHERE
+                AgentExecution__c = :executionId
+                AND TurnIdentifier__c = :turnIdentifier
+                AND StepType__c = 'ToolResult'
+                AND IsError__c = TRUE
+                AND IsRetryable__c = TRUE
+                AND RetryPending__c = TRUE
+        ]) {
+            if (String.isNotBlank(s.ToolCallId__c)) {
+                failureByCallId.put(s.ToolCallId__c, s);
+            }
+        }
+
+        // Merge buffered steps (deferred DML mode — not yet committed)
+        for (ExecutionStep__c s : TransactionContext.getInstance().getBufferedExecutionSteps(executionId)) {
+            if (
+                s.StepType__c == 'ToolResult' &&
+                s.TurnIdentifier__c == turnIdentifier &&
+                s.IsError__c == true &&
+                s.IsRetryable__c == true &&
+                s.RetryPending__c == true &&
+                String.isNotBlank(s.ToolCallId__c)
+            ) {
+                failureByCallId.put(s.ToolCallId__c, s);
+            }
+        }
+
+        if (failureByCallId.isEmpty()) {
+            System.debug(LoggingLevel.DEBUG, pfx + 'No RetryPending steps found for this turn.');
+            return result;
+        }
+
+        // ── 2. Check if any failure was actually retried ──────────────────────────
+        // A failure is considered "already retried" if ANY later ToolResult (success or
+        // failure) exists for the same tool name in this turn.  This covers repeated-failure
+        // scenarios: when enforcement fires, the LLM retries the tool and it fails again —
+        // the old pending entries should no longer appear (the new failure takes over).
+        Set<String> toolCallIdsToRemove = new Set<String>();
+        Set<String> failingToolNames = new Set<String>();
+        for (String callId : failureByCallId.keySet()) {
+            failingToolNames.add(failureByCallId.get(callId).ToolName__c);
+        }
+
+        // Track the latest ToolResult timestamp (any outcome) per tool name.
+        // Also separately track which tools have had at least one success
+        // (needed later for dependency satisfaction checks).
+        Map<String, Datetime> latestResultByToolName = new Map<String, Datetime>();
+        Set<String> successfulToolNames = new Set<String>();
+        for (ExecutionStep__c s : [
+            SELECT ToolName__c, Timestamp__c, IsError__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :executionId AND TurnIdentifier__c = :turnIdentifier AND StepType__c = 'ToolResult' AND ToolName__c IN :failingToolNames
+        ]) {
+            Datetime existing = latestResultByToolName.get(s.ToolName__c);
+            if (existing == null || (s.Timestamp__c != null && s.Timestamp__c > existing)) {
+                latestResultByToolName.put(s.ToolName__c, s.Timestamp__c);
+            }
+            if (!s.IsError__c) {
+                successfulToolNames.add(s.ToolName__c);
+            }
+        }
+        // Also check the in-memory buffer
+        for (ExecutionStep__c s : TransactionContext.getInstance().getBufferedExecutionSteps(executionId)) {
+            if (s.StepType__c == 'ToolResult' && s.TurnIdentifier__c == turnIdentifier && failingToolNames.contains(s.ToolName__c)) {
+                Datetime existing = latestResultByToolName.get(s.ToolName__c);
+                if (existing == null || (s.Timestamp__c != null && s.Timestamp__c > existing)) {
+                    latestResultByToolName.put(s.ToolName__c, s.Timestamp__c);
+                }
+                if (!s.IsError__c) {
+                    successfulToolNames.add(s.ToolName__c);
+                }
+            }
+        }
+
+        // Keep only the failures that are the LATEST result for their tool name
+        // (i.e. there is no newer result that proves a retry already happened)
+        for (String callId : failureByCallId.keySet()) {
+            ExecutionStep__c s = failureByCallId.get(callId);
+            Datetime latestTs = latestResultByToolName.get(s.ToolName__c);
+            if (latestTs != null && (s.Timestamp__c == null || latestTs > s.Timestamp__c)) {
+                toolCallIdsToRemove.add(callId);
+            }
+        }
+        for (String callId : toolCallIdsToRemove) {
+            failureByCallId.remove(callId);
+        }
+
+        if (failureByCallId.isEmpty()) {
+            System.debug(LoggingLevel.DEBUG, pfx + 'All RetryPending failures have a later result — tool(s) already retried.');
+            return result;
+        }
+
+        // ── 3. Fetch original ToolCall arguments (for enforcement message) ─────
+        Set<String> remainingCallIds = failureByCallId.keySet();
+        Map<String, String> argsByCallId = new Map<String, String>();
+        for (ExecutionStep__c tc : [
+            SELECT ToolCallId__c, ToolArguments__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :executionId AND TurnIdentifier__c = :turnIdentifier AND StepType__c = 'ToolCall' AND ToolCallId__c IN :remainingCallIds
+        ]) {
+            argsByCallId.put(tc.ToolCallId__c, tc.ToolArguments__c);
+        }
+        // Merge buffered ToolCall steps
+        for (ExecutionStep__c s : TransactionContext.getInstance().getBufferedExecutionSteps(executionId)) {
+            if (s.StepType__c == 'ToolCall' && s.TurnIdentifier__c == turnIdentifier && remainingCallIds.contains(s.ToolCallId__c)) {
+                argsByCallId.put(s.ToolCallId__c, s.ToolArguments__c);
+            }
+        }
+
+        // ── 4. Dependency filter ───────────────────────────────────────────────
+        // Only include failures whose own declared dependencies are currently satisfied.
+        // Tools with unsatisfied deps can't be retried until the dependency is fixed.
+        String graphJson = null;
+        Boolean depValidationEnabled = false;
+        if (agentDefinitionId != null) {
+            try {
+                AIAgentDefinition__c defn = AIAgentConfigService.getAgentDefinition(agentDefinitionId);
+                graphJson = defn.ToolDependencyGraph__c;
+                depValidationEnabled = defn.EnableDependencyValidation__c == true;
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, pfx + 'Could not load agent definition for dependency check: ' + e.getMessage());
+            }
+        }
+
+        ToolDependencyValidator.DependencyGraph depGraph = null;
+        if (depValidationEnabled && String.isNotBlank(graphJson)) {
+            try {
+                depGraph = ToolDependencyValidator.parseGraph(graphJson);
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, pfx + 'Could not parse ToolDependencyGraph__c: ' + e.getMessage());
+            }
+        }
+
+        // Build set of successfully executed tool names in this turn (for dependency satisfaction check)
+        Set<String> satisfiedTools = new Set<String>(successfulToolNames);
+
+        // ── 5. Build result list ───────────────────────────────────────────────
+        for (String callId : failureByCallId.keySet()) {
+            ExecutionStep__c s = failureByCallId.get(callId);
+            String tName = s.ToolName__c;
+
+            // Dependency filter: skip tools whose deps are not yet met
+            if (depGraph != null && depGraph.hasDependencies()) {
+                ToolDependencyValidator.ValidationResult vr = ToolDependencyValidator.validate(tName, satisfiedTools, graphJson);
+                if (!vr.allowed) {
+                    System.debug(
+                        LoggingLevel.DEBUG,
+                        pfx + 'Excluding ' + tName + ' from retry enforcement — dependencies not satisfied: ' + vr.missingDependencies
+                    );
+                    continue;
+                }
+            }
+
+            UnretriedFailure failure = new UnretriedFailure();
+            failure.toolName = tName;
+            failure.toolCallId = callId;
+            failure.originalArguments = argsByCallId.get(callId);
+            result.add(failure);
+            System.debug(LoggingLevel.DEBUG, pfx + 'Unretried retryable failure: ' + tName + ' (callId=' + callId + ')');
+        }
+
+        System.debug(LoggingLevel.INFO, pfx + 'Detected ' + result.size() + ' unretried retryable failure(s).');
+        return result;
     }
 
     /**
