@@ -86,6 +86,20 @@ public inherited sharing class AIAgentFrameworkSettings {
     }
 
     /**
+     * Gets the maximum processing cycles using an already-loaded AIAgentDefinition__c record.
+     * Prefer this overload when the agent definition is already in memory to avoid an extra SOQL.
+     *
+     * @param agentDef The already-loaded agent definition record (must include MaxProcessingCycles__c)
+     * @return The maximum number of processing cycles for the agent
+     */
+    public static Integer getMaxProcessingCycles(AIAgentDefinition__c agentDef) {
+        if (agentDef != null && agentDef.MaxProcessingCycles__c != null && agentDef.MaxProcessingCycles__c > 0) {
+            return Integer.valueOf(agentDef.MaxProcessingCycles__c);
+        }
+        return getDefaultMaxConversationTurns();
+    }
+
+    /**
      * Gets the maximum number of successive failures allowed for a tool before the execution
      * is automatically failed. Only applies to non-Conversational agents when using autonomous recovery.
      * Conversational agents let the LLM decide how to handle errors.

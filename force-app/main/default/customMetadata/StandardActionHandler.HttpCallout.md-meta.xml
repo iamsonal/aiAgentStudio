@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>HTTP Callout</label>
+    <protected>false</protected>
+    <values>
+        <field>Description__c</field>
+        <value xsi:type="xsd:string">Makes an authenticated HTTP callout to an external REST API using a Named Credential</value>
+    </values>
+    <values>
+        <field>HandlerClassName__c</field>
+        <value xsi:type="xsd:string">ActionHttpCallout</value>
+    </values>
+    <values>
+        <field>IsActive__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>IsStandardAction__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>RequiresSObject__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>ConfigSchema__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;namedCredential&quot;,
+    &quot;type&quot;: &quot;string&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;API name of the Salesforce Named Credential to use (e.g., \&quot;My_External_API\&quot;). The Named Credential supplies the base URL and handles all authentication — credentials are never exposed to the LLM.&quot;,
+    &quot;label&quot;: &quot;Named Credential&quot;,
+    &quot;placeholder&quot;: &quot;My_External_API&quot;
+  },
+  {
+    &quot;name&quot;: &quot;endpoint&quot;,
+    &quot;type&quot;: &quot;string&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;Relative path appended to the Named Credential base URL. Supports {placeholder} tokens that the LLM fills at runtime via pathVariables (e.g., \&quot;/v1/cases/{caseId}/comments\&quot;). Must start with \&quot;/\&quot;.&quot;,
+    &quot;label&quot;: &quot;Endpoint Path&quot;,
+    &quot;placeholder&quot;: &quot;/api/v1/cases/{caseId}&quot;
+  },
+  {
+    &quot;name&quot;: &quot;method&quot;,
+    &quot;type&quot;: &quot;string&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;HTTP verb for this capability. GET and DELETE ignore the body parameter; POST, PUT, and PATCH accept a JSON body from the LLM.&quot;,
+    &quot;label&quot;: &quot;HTTP Method&quot;,
+    &quot;picklistValues&quot;: [
+      &quot;GET&quot;,
+      &quot;POST&quot;,
+      &quot;PUT&quot;,
+      &quot;PATCH&quot;,
+      &quot;DELETE&quot;
+    ]
+  },
+  {
+    &quot;name&quot;: &quot;headers&quot;,
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;required&quot;: false,
+    &quot;help&quot;: &quot;Static headers sent with every request as a JSON object (e.g., {\&quot;Accept\&quot;: \&quot;application/json\&quot;, \&quot;X-Api-Version\&quot;: \&quot;2.0\&quot;}). Authentication headers come from the Named Credential automatically. Content-Type defaults to \&quot;application/json\&quot; for body-bearing methods if not set here.&quot;,
+    &quot;label&quot;: &quot;Request Headers&quot;
+  },
+  {
+    &quot;name&quot;: &quot;staticQueryParams&quot;,
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;required&quot;: false,
+    &quot;help&quot;: &quot;Key-value query parameters always appended to the URL as a JSON object (e.g., {\&quot;api_version\&quot;: \&quot;2.0\&quot;, \&quot;format\&quot;: \&quot;json\&quot;}). Merged with any queryParams the LLM provides at runtime.&quot;,
+    &quot;label&quot;: &quot;Static Query Parameters&quot;
+  },
+  {
+    &quot;name&quot;: &quot;timeout&quot;,
+    &quot;type&quot;: &quot;integer&quot;,
+    &quot;required&quot;: false,
+    &quot;help&quot;: &quot;Request timeout in milliseconds. Default 10000 (10 s), maximum 120000 (120 s).&quot;,
+    &quot;label&quot;: &quot;Timeout (ms)&quot;,
+    &quot;minValue&quot;: 1,
+    &quot;maxValue&quot;: 120000
+  }
+]</value>
+    </values>
+    <values>
+        <field>ConfigJsonSchema__c</field>
+        <value xsi:type="xsd:string">{
+  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;namedCredential&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;API name of the Salesforce Named Credential to use (e.g., \&quot;My_External_API\&quot;). The Named Credential supplies the base URL and handles all authentication — credentials are never exposed to the LLM.&quot;
+    },
+    &quot;endpoint&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;Relative path appended to the Named Credential base URL. Supports {placeholder} tokens that the LLM fills at runtime via pathVariables (e.g., \&quot;/v1/cases/{caseId}/comments\&quot;). Must start with \&quot;/\&quot;.&quot;
+    },
+    &quot;method&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;HTTP verb for this capability. GET and DELETE ignore the body parameter; POST, PUT, and PATCH accept a JSON body from the LLM.&quot;,
+      &quot;enum&quot;: [
+        &quot;GET&quot;,
+        &quot;POST&quot;,
+        &quot;PUT&quot;,
+        &quot;PATCH&quot;,
+        &quot;DELETE&quot;
+      ]
+    },
+    &quot;headers&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;description&quot;: &quot;Static headers sent with every request as a JSON object (e.g., {\&quot;Accept\&quot;: \&quot;application/json\&quot;, \&quot;X-Api-Version\&quot;: \&quot;2.0\&quot;}). Authentication headers come from the Named Credential automatically. Content-Type defaults to \&quot;application/json\&quot; for body-bearing methods if not set here.&quot;
+    },
+    &quot;staticQueryParams&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;description&quot;: &quot;Key-value query parameters always appended to the URL as a JSON object (e.g., {\&quot;api_version\&quot;: \&quot;2.0\&quot;, \&quot;format\&quot;: \&quot;json\&quot;}). Merged with any queryParams the LLM provides at runtime.&quot;
+    },
+    &quot;timeout&quot;: {
+      &quot;type&quot;: &quot;integer&quot;,
+      &quot;description&quot;: &quot;Request timeout in milliseconds. Default 10000 (10 s), maximum 120000 (120 s).&quot;,
+      &quot;minimum&quot;: 1,
+      &quot;maximum&quot;: 120000
+    }
+  },
+  &quot;required&quot;: [
+    &quot;namedCredential&quot;,
+    &quot;endpoint&quot;,
+    &quot;method&quot;
+  ]
+}</value>
+    </values>
+    <values>
+        <field>ParametersSchema__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;pathVariables&quot;,
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;required&quot;: false,
+    &quot;help&quot;: &quot;Key-value pairs that substitute {placeholder} tokens in the endpoint path. Values are URL-encoded automatically (e.g., {\&quot;caseId\&quot;: \&quot;500ABC123\&quot;} fills /cases/{caseId}).&quot;,
+    &quot;label&quot;: &quot;Path Variables&quot;
+  },
+  {
+    &quot;name&quot;: &quot;queryParams&quot;,
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;required&quot;: false,
+    &quot;help&quot;: &quot;Dynamic query parameters appended to the URL at runtime. Merged with Static Query Parameters from backend config. Duplicate keys from runtime override static values.&quot;,
+    &quot;label&quot;: &quot;Query Parameters&quot;
+  },
+  {
+    &quot;name&quot;: &quot;body&quot;,
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;required&quot;: false,
+    &quot;help&quot;: &quot;Structured JSON payload for POST, PUT, and PATCH requests. Serialized to a JSON string automatically. For GET and DELETE this parameter is ignored.&quot;,
+    &quot;label&quot;: &quot;Request Body&quot;
+  }
+]</value>
+    </values>
+    <values>
+        <field>ParametersJsonSchema__c</field>
+        <value xsi:type="xsd:string">{
+  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;pathVariables&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;description&quot;: &quot;Key-value pairs that substitute {placeholder} tokens in the endpoint path. Values are URL-encoded automatically (e.g., {\&quot;caseId\&quot;: \&quot;500ABC123\&quot;} fills /cases/{caseId}).&quot;
+    },
+    &quot;queryParams&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;description&quot;: &quot;Dynamic query parameters appended to the URL at runtime. Merged with Static Query Parameters from backend config. Duplicate keys from runtime override static values.&quot;
+    },
+    &quot;body&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;description&quot;: &quot;Structured JSON payload for POST, PUT, and PATCH requests. Serialized to a JSON string automatically. For GET and DELETE this parameter is ignored.&quot;
+    }
+  }
+}</value>
+    </values>
+</CustomMetadata>

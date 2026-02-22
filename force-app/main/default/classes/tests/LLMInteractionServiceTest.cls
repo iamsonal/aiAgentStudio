@@ -161,13 +161,13 @@ private class LLMInteractionServiceTest {
 
         LLMInteractionService.MessageData userMsg = new LLMInteractionService.MessageData();
         userMsg.role = AIAgentConstants.ROLE_USER;
-        userMsg.content = 'My SSN is 123-45-6789';
+        userMsg.content = 'My SSN is 371-22-4567';
 
         LLMInteractionService.LLMInteractionResult result = svc.prepareAndCallLLM(userMsg);
 
         System.assertEquals(true, result.isSuccess, 'Tool call response should succeed');
         System.assertEquals(1, result.providerResult.requestedActions.size(), 'Should parse one tool call');
-        System.assert(result.providerResult.requestedActions[0].get('arguments').contains('123-45-6789'), 'Tool arguments should be unmasked before execution');
+        System.assert(result.providerResult.requestedActions[0].get('arguments').contains('371-22-4567'), 'Tool arguments should be unmasked before execution');
     }
 
     @IsTest
@@ -389,7 +389,7 @@ private class LLMInteractionServiceTest {
 
         LLMInteractionService.MessageData userMsg = new LLMInteractionService.MessageData();
         userMsg.role = AIAgentConstants.ROLE_USER;
-        userMsg.content = 'My SSN is 123-45-6789';
+        userMsg.content = 'My SSN is 371-22-4567';
 
         LLMInteractionService.LLMInteractionResult result = svc.prepareAndCallLLM(userMsg);
 
@@ -404,7 +404,7 @@ private class LLMInteractionServiceTest {
             Object contentObj = msg.get('content');
             if (contentObj != null) {
                 String content = String.valueOf(contentObj);
-                if (content.contains('123-45-6789')) {
+                if (content.contains('371-22-4567')) {
                     rawSsnSentToLLM = true;
                 }
                 if (content.contains('[SSN:')) {

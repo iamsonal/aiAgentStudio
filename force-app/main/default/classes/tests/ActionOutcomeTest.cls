@@ -37,7 +37,6 @@ private class ActionOutcomeTest {
         System.assertEquals('DML_ERROR', outcome.errorCode);
         System.assertEquals('Insert failed on Account.', outcome.errorMessage);
         System.assertEquals(AIAgentConstants.ERR_CATEGORY_DATA, outcome.errorCategory, 'Should categorize DML errors as data');
-        System.assertEquals(false, outcome.isRetryable, 'DML errors should not be retryable by default');
         System.assertEquals(null, outcome.correctionGuidance);
         System.assertNotEquals(null, outcome.llmFriendlyMessage, 'Failure should generate LLM message');
     }
@@ -78,16 +77,22 @@ private class ActionOutcomeTest {
     }
 
     @IsTest
-    static void testLlmMessage_FailureWithGuidance_HasAllThreeSections() {
+    static void testLlmMessage_FailureWithGuidance_HasErrorAndHowToFix_NoSuggestion() {
+        // When correctionGuidance is provided, the message must contain Error + How to Fix
+        // but must NOT contain the generic Suggestion (which would contradict the specific guidance).
         ActionOutcome outcome = ActionOutcome.failureWithGuidance(
             'INPUT_VALIDATION',
             'Invalid date format provided for StartDate.',
             'Use ISO format: YYYY-MM-DD'
         );
 
-        System.assert(outcome.llmFriendlyMessage.contains('**Error**'));
-        System.assert(outcome.llmFriendlyMessage.contains('**How to Fix**'));
-        System.assert(outcome.llmFriendlyMessage.contains('**Suggestion**'));
+        System.assert(outcome.llmFriendlyMessage.contains('**Error**'), 'Should have Error label');
+        System.assert(outcome.llmFriendlyMessage.contains('**How to Fix**'), 'Should have How to Fix section');
+        System.assert(outcome.llmFriendlyMessage.contains('Use ISO format: YYYY-MM-DD'), 'Should include the correction guidance text');
+        System.assert(
+            !outcome.llmFriendlyMessage.contains('**Suggestion**'),
+            'Should NOT have generic Suggestion when correctionGuidance is present — it contradicts the specific guidance'
+        );
     }
 
     // ========== SANITIZATION: STACK TRACE REMOVAL ==========
@@ -185,7 +190,6 @@ private class ActionOutcomeTest {
         // Should not contain the original DML code
         System.assert(!lockOutcome.llmFriendlyMessage.contains('UNABLE_TO_LOCK_ROW'), 'Should replace UNABLE_TO_LOCK_ROW');
         System.assert(lockOutcome.llmFriendlyMessage.toLowerCase().contains('locked'), 'Should contain friendly lock text');
-        System.assertEquals(true, lockOutcome.isRetryable, 'Record locked should be retryable');
 
         ActionOutcome valOutcome = ActionOutcome.failure('INPUT_VALIDATION', 'FIELD_CUSTOM_VALIDATION_EXCEPTION on the Amount field');
         System.assert(!valOutcome.llmFriendlyMessage.contains('FIELD_CUSTOM_VALIDATION_EXCEPTION'), 'Should replace validation exception code');

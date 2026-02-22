@@ -40,6 +40,10 @@
                 <behavior>Edit</behavior>
                 <field>RequiresValidation__c</field>
             </layoutItems>
+            <layoutItems>
+                <behavior>Edit</behavior>
+                <field>ValidatorType__c</field>
+            </layoutItems>
         </layoutColumns>
         <style>TwoColumnsTopToBottom</style>
     </layoutSections>

@@ -137,7 +137,6 @@ public inherited sharing class OrchestrationService {
                     'isSuccess' => false,
                     'errorCode' => actionOutcome.errorCode,
                     'errorCategory' => actionOutcome.errorCategory,
-                    'isRetryable' => actionOutcome.isRetryable,
                     'messageForUser' => actionOutcome.llmFriendlyMessage != null ? actionOutcome.llmFriendlyMessage : actionOutcome.errorMessage,
                     'data' => new Map<String, Object>()
                 };
@@ -214,11 +213,16 @@ public inherited sharing class OrchestrationService {
     }
 
     /**
-     * @description Determines if execution should fail immediately on tool error. Three-tier hierarchy: Capability.FailFastOnError__c, MaxToolRetries__c, or autonomous recovery.
-     * Note: For Conversational and Email agents, MaxToolRetries is turn-scoped (resets each turn) to allow fresh attempts with new user messages.
+     * @description Determines if execution should halt on tool error.
      *
-     * This overload accepts a preloadedFailureCount to avoid issuing a SOQL inside a loop.
-     * Pass -1 to fall back to the SOQL-based count (used for single-tool call sites).
+     * Two checks only:
+     * 1. Agent-level mode: if ErrorRecoveryMode__c = 'Fail Fast', halt immediately.
+     * 2. Safety ceiling: if successive failure count >= global MaxToolRetries, halt to prevent infinite loops.
+     *
+     * In all other cases, the error flows to the LLM — the LLM decides recovery.
+     *
+     * Pass preloadedFailureCount >= 0 to skip the SOQL-based count (avoids N+1 queries in loops).
+     * Pass -1 to fall back to the SOQL-based count.
      */
     public static Boolean shouldFailFast(
         AgentCapability__c capability,
@@ -232,77 +236,49 @@ public inherited sharing class OrchestrationService {
             return false;
         }
 
-        if (capability.FailFastOnError__c == true) {
+        // Agent-level mode: Fail Fast halts immediately, no LLM recovery
+        if ('Fail Fast'.equals(agentDefinition.ErrorRecoveryMode__c)) {
             System.debug(
                 LoggingLevel.WARN,
-                logPrefix + '⚠️ FAIL-FAST (Tier 1): Capability "' + capability.CapabilityName__c + '" has FailFastOnError=true. Halting execution immediately.'
+                logPrefix + 'FAIL FAST mode: halting on tool error. Capability: "' + capability.CapabilityName__c + '", ErrorCode: ' + toolOutcome.errorCode
             );
             return true;
         }
 
-        if (toolOutcome.isRetryable == false) {
-            if (agentDefinition.AgentType__c != 'Conversational' && agentDefinition.AgentType__c != 'Email') {
-                System.debug(
-                    LoggingLevel.WARN,
-                    logPrefix +
-                        '⚠️ FAIL-FAST (Tier 2): Tool error classified as non-retryable. ' +
-                        'Capability: ' +
-                        capability.CapabilityName__c +
-                        ', ErrorCode: ' +
-                        toolOutcome.errorCode +
-                        ', ErrorCategory: ' +
-                        toolOutcome.errorCategory
-                );
-                return true;
-            }
+        // Autonomous mode: global ceiling prevents infinite loops
+        Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
+        Integer failureCount = (preloadedFailureCount >= 0)
+            ? preloadedFailureCount
+            : countSuccessiveToolFailures(executionId, capability.CapabilityName__c, logPrefix);
 
+        if (failureCount >= maxRetries) {
             System.debug(
-                LoggingLevel.INFO,
+                LoggingLevel.WARN,
                 logPrefix +
-                    '✓ NON-RETRYABLE ERROR (Tier 2): Conversational/Email agent will allow LLM recovery. ' +
-                    'Capability: ' +
+                    'CIRCUIT BREAKER: Tool "' +
                     capability.CapabilityName__c +
-                    ', ErrorCode: ' +
+                    '" halted after ' +
+                    failureCount +
+                    '/' +
+                    maxRetries +
+                    ' failures. ErrorCode: ' +
                     toolOutcome.errorCode
             );
-        }
-
-        // Tier 3: MaxToolRetries check - skip for Conversational and Email agents (allow LLM recovery)
-        if (executionId != null && agentDefinition.AgentType__c != 'Conversational' && agentDefinition.AgentType__c != 'Email') {
-            Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
-            // Use preloaded count when available (avoids per-tool SOQL in loops); -1 means fall back to SOQL.
-            Integer failureCount = (preloadedFailureCount >= 0)
-                ? preloadedFailureCount
-                : countSuccessiveToolFailures(executionId, capability.CapabilityName__c, logPrefix);
-
-            if (failureCount >= maxRetries) {
-                System.debug(
-                    LoggingLevel.WARN,
-                    logPrefix +
-                        '⚠️ FAIL-FAST (Tier 3): Tool "' +
-                        capability.CapabilityName__c +
-                        '" exceeded MaxToolRetries__c (' +
-                        maxRetries +
-                        '). ' +
-                        'Successive failures: ' +
-                        failureCount +
-                        '. Halting execution. ' +
-                        '(AgentType: ' +
-                        agentDefinition.AgentType__c +
-                        ')'
-                );
-                return true;
-            }
+            return true;
         }
 
         System.debug(
             LoggingLevel.INFO,
             logPrefix +
-                '✓ AUTONOMOUS RECOVERY (Tier 3): Passing error to LLM for handling. ' +
-                'Capability: ' +
+                'TO LLM: Tool "' +
                 capability.CapabilityName__c +
-                ', AgentType: ' +
-                agentDefinition.AgentType__c
+                '" failed (' +
+                toolOutcome.errorCode +
+                '). Failure ' +
+                failureCount +
+                '/' +
+                maxRetries +
+                '. LLM will decide recovery.'
         );
         return false;
     }
@@ -327,7 +303,24 @@ public inherited sharing class OrchestrationService {
      *
      * Returns a Map<toolName, successiveFailureCount>. Tools with no history return 0.
      */
+    /**
+     * @description Backward-compatible overload. Delegates to the resumeAfter overload with null timestamp.
+     */
     public static Map<String, Integer> loadSuccessiveFailureCounts(Id executionId, Set<String> toolNames, String logPrefix) {
+        return loadSuccessiveFailureCounts(executionId, toolNames, null, logPrefix);
+    }
+
+    /**
+     * @description Bulk-loads successive failure counts for multiple tool names in a single SOQL.
+     * Eliminates N+1 queries when checking the fail-fast policy for a batch of failed tools.
+     *
+     * When resumeAfter is non-null, only failures that occurred AFTER that timestamp are counted.
+     * This ensures pre-resume failures do not deplete the post-resume circuit breaker budget
+     * when a Function agent resumes with the same execution ID.
+     *
+     * Returns a Map<toolName, successiveFailureCount>. Tools with no history return 0.
+     */
+    public static Map<String, Integer> loadSuccessiveFailureCounts(Id executionId, Set<String> toolNames, Datetime resumeAfter, String logPrefix) {
         Map<String, Integer> result = new Map<String, Integer>();
         if (executionId == null || toolNames == null || toolNames.isEmpty()) {
             return result;
@@ -378,17 +371,7 @@ public inherited sharing class OrchestrationService {
                     allSteps.addAll(persisted);
                 }
 
-                Integer failureCount = 0;
-                for (ExecutionStep__c step : allSteps) {
-                    if (step.StepType__c == 'ToolResult') {
-                        if (step.IsError__c == true) {
-                            failureCount++;
-                        } else {
-                            break;
-                        }
-                    }
-                }
-                result.put(toolName, failureCount);
+                result.put(toolName, countSuccessiveFailuresFromSteps(allSteps, resumeAfter));
             }
 
             System.debug(LoggingLevel.DEBUG, logPrefix + 'Bulk-loaded failure counts for ' + toolNames.size() + ' tool(s): ' + result);
@@ -399,7 +382,21 @@ public inherited sharing class OrchestrationService {
         return result;
     }
 
+    /**
+     * @description Backward-compatible overload. Delegates to the resumeAfter overload with null timestamp.
+     */
     public static Integer countSuccessiveToolFailures(Id executionId, String toolName, String logPrefix) {
+        return countSuccessiveToolFailures(executionId, toolName, null, logPrefix);
+    }
+
+    /**
+     * @description Counts successive tool failures for a single tool, optionally scoped to after a resume timestamp.
+     *
+     * When resumeAfter is non-null, stops counting at the first step whose Timestamp__c is at or before
+     * resumeAfter. This resets the effective circuit breaker window for Function agents that resume
+     * with the same execution ID, so prior-session failures do not carry over.
+     */
+    public static Integer countSuccessiveToolFailures(Id executionId, String toolName, Datetime resumeAfter, String logPrefix) {
         if (executionId == null || String.isBlank(toolName)) {
             return 0;
         }
@@ -414,7 +411,7 @@ public inherited sharing class OrchestrationService {
                 LIMIT 100
             ];
 
-            // CRITICAL FIX: Also get buffered steps not yet committed to database.
+            // Also get buffered steps not yet committed to database.
             // In multi-LLM optimization mode, tool results are buffered in TransactionContext
             // and only committed at the end. Without this, retry counting doesn't see
             // failures from earlier cycles in the same transaction.
@@ -427,7 +424,6 @@ public inherited sharing class OrchestrationService {
 
             // Merge: buffered steps are newer (not yet persisted), so they come first
             List<ExecutionStep__c> allSteps = new List<ExecutionStep__c>();
-            // Sort buffered steps by timestamp DESC (newest first)
             bufferedSteps.sort(new ExecutionStepTimestampComparator());
             allSteps.addAll(bufferedSteps);
             allSteps.addAll(persistedSteps);
@@ -436,17 +432,7 @@ public inherited sharing class OrchestrationService {
                 return 0;
             }
 
-            Integer failureCount = 0;
-
-            for (ExecutionStep__c step : allSteps) {
-                if (step.StepType__c == 'ToolResult') {
-                    if (step.IsError__c == true) {
-                        failureCount++;
-                    } else {
-                        break;
-                    }
-                }
-            }
+            Integer failureCount = countSuccessiveFailuresFromSteps(allSteps, resumeAfter);
 
             System.debug(
                 LoggingLevel.DEBUG,
@@ -461,6 +447,7 @@ public inherited sharing class OrchestrationService {
                     persistedSteps.size() +
                     ', buffered: ' +
                     bufferedSteps.size() +
+                    (resumeAfter != null ? ', scoped after resume: ' + resumeAfter : '') +
                     ')'
             );
 
@@ -469,6 +456,32 @@ public inherited sharing class OrchestrationService {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error counting tool failures: ' + e.getMessage());
             return 0;
         }
+    }
+
+    /**
+     * @description Walks a pre-merged list of ExecutionStep__c records (sorted newest-first) and
+     * returns the count of consecutive ToolResult errors at the head of the list.
+     *
+     * Stops at the first success OR at the first step whose Timestamp__c is at or before resumeAfter
+     * (pre-resume steps are excluded from the count so that a human resume resets the effective
+     * circuit breaker window without requiring a new execution ID).
+     */
+    private static Integer countSuccessiveFailuresFromSteps(List<ExecutionStep__c> steps, Datetime resumeAfter) {
+        Integer failureCount = 0;
+        for (ExecutionStep__c step : steps) {
+            if (step.StepType__c == 'ToolResult') {
+                // Stop at the resume boundary — pre-resume failures don't count against the current window
+                if (resumeAfter != null && step.Timestamp__c != null && step.Timestamp__c <= resumeAfter) {
+                    break;
+                }
+                if (step.IsError__c == true) {
+                    failureCount++;
+                } else {
+                    break;
+                }
+            }
+        }
+        return failureCount;
     }
 
     /**

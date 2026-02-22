@@ -126,7 +126,7 @@ public inherited sharing class SystemPromptBuilder {
 
         String summary = getConversationSummary(executionId, agentConfig, logPrefix);
         if (String.isNotBlank(summary)) {
-            contextBlocks.add('<CONVERSATION_SUMMARY>\n' + summary.escapeHtml4() + '\n</CONVERSATION_SUMMARY>');
+            contextBlocks.add('<CONVERSATION_SUMMARY>\n' + sanitizeForDelimiter(stripInjectionPatterns(summary)) + '\n</CONVERSATION_SUMMARY>');
         }
 
         String formatStrategy = String.isNotBlank(agentConfig.ContextFormatStrategy__c) ? agentConfig.ContextFormatStrategy__c : null;
@@ -148,8 +148,8 @@ public inherited sharing class SystemPromptBuilder {
                         ContextFormattingService formatter = new ContextFormattingService();
 
                         ContextFormattingService.FormattingOptions formatOptions = new ContextFormattingService.FormattingOptions();
-                        if (this.piiMaskingService != null && this.piiMaskingService.getSchemaMasker() != null) {
-                            formatOptions.withPIIMasking(this.piiMaskingService.getSchemaMasker(), this.piiMaskingService.getSession());
+                        if (this.piiMaskingService != null) {
+                            formatOptions.withPIIMasking(this.piiMaskingService);
                             System.debug(LoggingLevel.DEBUG, logPrefix + 'PII schema masking enabled for context data formatting');
                         }
 
@@ -167,7 +167,9 @@ public inherited sharing class SystemPromptBuilder {
                         }
 
                         if (String.isNotBlank(formattedRecords)) {
-                            contextBlocks.add('<RESOLVED_CONTEXT_DATA>\n' + formattedRecords + '\n</RESOLVED_CONTEXT_DATA>');
+                            contextBlocks.add(
+                                '<RESOLVED_CONTEXT_DATA>\n' + sanitizeForDelimiter(stripInjectionPatterns(formattedRecords)) + '\n</RESOLVED_CONTEXT_DATA>'
+                            );
                             System.debug(
                                 LoggingLevel.INFO,
                                 logPrefix +
@@ -184,11 +186,9 @@ public inherited sharing class SystemPromptBuilder {
                             logPrefix + 'Failed to execute formatter for strategy: ' + formatStrategy + '. Error: ' + formatterEx.getMessage()
                         );
                         contextBlocks.add(
-                            '<CONTEXT_WARNING>Context formatting failed for ' +
-                                resolvedContext.recordsToLoad.size() +
-                                ' records. Responses may lack full record details. Error: ' +
+                            '<CONTEXT_WARNING>Context formatting failed: ' +
                                 formatterEx.getMessage() +
-                                '</CONTEXT_WARNING>'
+                                '. Responses may lack full record details.</CONTEXT_WARNING>'
                         );
                     }
                 } else {
@@ -196,16 +196,15 @@ public inherited sharing class SystemPromptBuilder {
                 }
 
                 if (String.isNotBlank(resolvedContext.longTermContextSummary)) {
-                    contextBlocks.add('<LONG_TERM_CONTEXT>\n' + resolvedContext.longTermContextSummary + '\n</LONG_TERM_CONTEXT>');
+                    contextBlocks.add(
+                        '<LONG_TERM_CONTEXT>\n' +
+                            sanitizeForDelimiter(stripInjectionPatterns(resolvedContext.longTermContextSummary)) +
+                            '\n</LONG_TERM_CONTEXT>'
+                    );
                 }
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to resolve context via ContextResolverService: ' + e.getMessage());
-                contextBlocks.add(
-                    '<CONTEXT_WARNING>Context resolution failed. Responses may lack full context about related records. ' +
-                        'Error: ' +
-                        e.getMessage() +
-                        '</CONTEXT_WARNING>'
-                );
+                contextBlocks.add('<CONTEXT_WARNING>Context data could not be loaded. Proceed with the information available.</CONTEXT_WARNING>');
             }
         }
 
@@ -256,13 +255,24 @@ public inherited sharing class SystemPromptBuilder {
 
     private String buildTemporalContext(Id conversationalUserId) {
         Datetime now = Datetime.now();
-        User u = [SELECT TimeZoneSidKey FROM User WHERE Id = :conversationalUserId];
+        String userTimezone = 'UTC';
+        try {
+            List<User> users = [SELECT TimeZoneSidKey FROM User WHERE Id = :conversationalUserId LIMIT 1];
+            if (!users.isEmpty() && String.isNotBlank(users[0].TimeZoneSidKey)) {
+                userTimezone = users[0].TimeZoneSidKey;
+            }
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.WARN,
+                '[SystemPromptBuilder] Could not load user timezone for ' + conversationalUserId + ', defaulting to UTC: ' + e.getMessage()
+            );
+        }
 
         List<String> contextLines = new List<String>{
             '- Current Date: ' + now.format('yyyy-MM-dd'),
             '- Current Day: ' + now.format('EEEE'),
-            '- Current Time (User TZ): ' + now.format('HH:mm:ss', u.TimeZoneSidKey),
-            '- User Timezone: ' + u.TimeZoneSidKey
+            '- Current Time (User TZ): ' + now.format('HH:mm:ss', userTimezone),
+            '- User Timezone: ' + userTimezone
         };
 
         return String.join(contextLines, '\n');
@@ -316,6 +326,36 @@ public inherited sharing class SystemPromptBuilder {
         }
 
         return String.join(parts, ' ');
+    }
+
+    /**
+     * @description Neutralises XML closing-tag sequences in user-controlled content before it is
+     * embedded inside an XML delimiter block.  Replaces '</' with '< /' so the LLM reads it as a
+     * visual artefact rather than a structural closing tag, preventing delimiter-escape injection.
+     */
+    @TestVisible
+    private static String sanitizeForDelimiter(String content) {
+        if (String.isBlank(content)) {
+            return content;
+        }
+        return content.replace('</', '< /');
+    }
+
+    /**
+     * @description Strips known prompt-injection payload markers from user-controlled context data
+     * after serialisation and before XML-delimiter wrapping.  The strip list is maintained in
+     * AIAgentConstants.PROMPT_INJECTION_PATTERNS so it can be reviewed and extended in one place.
+     */
+    @TestVisible
+    private static String stripInjectionPatterns(String content) {
+        if (String.isBlank(content)) {
+            return content;
+        }
+        String sanitized = content;
+        for (String pattern : AIAgentConstants.PROMPT_INJECTION_PATTERNS) {
+            sanitized = sanitized.replace(pattern, '');
+        }
+        return sanitized;
     }
 
     @TestVisible

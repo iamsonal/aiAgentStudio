@@ -8,10 +8,16 @@
 
 /**
  * @description
- * PIIMaskingService is the core orchestrator for the PII Masking Trust Layer. It provides a hybrid
- * masking approach combining Schema-based masking (using Salesforce Data Classification) with
- * Pattern-based masking (using regex patterns) to ensure sensitive data never leaves the org
- * in raw form when communicating with external LLMs.
+ * PIIMaskingService is the single public entry point for the PII Masking Trust Layer. It provides a
+ * hybrid masking approach combining Schema-based masking (Salesforce Data Classification) with
+ * Pattern-based masking (regex patterns) to ensure sensitive data never leaves the org in raw form
+ * when communicating with external LLMs.
+ *
+ * This class is the ONLY class external callers should reference. The two implementation helpers —
+ * PIIPatternMatcher (regex detection engine) and SchemaBasedMasker (field-classification engine) —
+ * are internal support classes. Callers should never instantiate or hold direct references to them.
+ * PIIMaskingSession is a companion value object that holds the bidirectional token map for a single
+ * execution; callers may read statistics from it via getSession(), but should not manipulate it.
  *
  * Key Features:
  * - Hybrid masking: Schema-based for SObject fields, Pattern-based for free text
@@ -38,6 +44,9 @@
  * String response = 'Found record for [SSN:001]';
  * String unmasked = service.unmaskText(response);
  * // unmasked = 'Found record for 123-45-6789'
+ *
+ * // Identify which fields on an SObject should be masked
+ * Set<String> sensitiveFields = service.getMaskedFields(Contact.SObjectType);
  */
 public inherited sharing class PIIMaskingService {
     // Masking mode constants
@@ -209,7 +218,11 @@ public inherited sharing class PIIMaskingService {
                 System.debug(
                     LoggingLevel.WARN,
                     LOG_PREFIX +
-                        'Skipping invalid PII match bounds: start=' +
+                        'Skipping overlapping/invalid PII match [pattern=' +
+                        match.patternName +
+                        ', category=' +
+                        match.category +
+                        ']: start=' +
                         match.startIndex +
                         ', end=' +
                         match.endIndex +
@@ -398,12 +411,21 @@ public inherited sharing class PIIMaskingService {
     }
 
     /**
-     * @description Gets the schema-based masker for direct field analysis.
+     * @description Returns the set of field API names (as returned by Schema) that this service
+     * would mask for the given SObject type. Delegates to the internal SchemaBasedMasker.
+     * Returns an empty set when schema masking is disabled (Pattern-Only mode) or the service
+     * has no schema masker configured.
      *
-     * @return The SchemaBasedMasker instance, or null if not configured
+     * Prefer this method over holding a direct reference to SchemaBasedMasker.
+     *
+     * @param sObjectType The SObject type to inspect
+     * @return Set of API field names that would be masked (may be empty, never null)
      */
-    public SchemaBasedMasker getSchemaMasker() {
-        return this.schemaMasker;
+    public Set<String> getMaskedFields(SObjectType sObjectType) {
+        if (!this.isEnabled || this.mode == MODE_PATTERN_ONLY || this.schemaMasker == null || sObjectType == null) {
+            return new Set<String>();
+        }
+        return this.schemaMasker.getMaskedFields(sObjectType);
     }
 
     // =========================================================================

@@ -85,7 +85,15 @@ private class CapabilityExecutionServiceTest {
     @IsTest
     static void testExecuteSingleAction_StandardAction_ExecutesSuccessfully() {
         AgentCapability__c capability = [
-            SELECT Id, CapabilityName__c, ImplementationDetail__c, StandardActionType__c, ImplementationType__c, AIAgentDefinition__c, BackendConfiguration__c
+            SELECT
+                Id,
+                CapabilityName__c,
+                ImplementationDetail__c,
+                StandardActionType__c,
+                ImplementationType__c,
+                AIAgentDefinition__c,
+                BackendConfiguration__c,
+                Parameters__c
             FROM AgentCapability__c
             WHERE CapabilityName__c = 'create_account_cap'
             LIMIT 1
@@ -435,7 +443,15 @@ private class CapabilityExecutionServiceTest {
         CapabilityExecutionService.clearCache_TestOnly();
 
         AgentCapability__c capability = [
-            SELECT Id, CapabilityName__c, ImplementationDetail__c, StandardActionType__c, ImplementationType__c, AIAgentDefinition__c, BackendConfiguration__c
+            SELECT
+                Id,
+                CapabilityName__c,
+                ImplementationDetail__c,
+                StandardActionType__c,
+                ImplementationType__c,
+                AIAgentDefinition__c,
+                BackendConfiguration__c,
+                Parameters__c
             FROM AgentCapability__c
             WHERE CapabilityName__c = 'create_account_cap'
             LIMIT 1
@@ -527,19 +543,21 @@ private class CapabilityExecutionServiceTest {
     }
 
     /**
-     * @description Tests that Flow implementation type throws exception when RunFlow handler is missing.
-     *              This simulates a scenario where the StandardActionHandler__mdt for RunFlow is not found.
+     * @description Tests that a Flow capability with a blank ImplementationDetail (flow API name)
+     *              throws a CapabilityExecutionException before attempting to instantiate any handler.
      */
     @IsTest
     static void testExecuteSingleAction_FlowHandlerNotFound_ThrowsException() {
         TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
 
-        // Create a Flow-type capability
+        // Use the factory builder to satisfy all validation rules, then blank ImplementationDetail__c
+        // in-memory to exercise the guard in createActionHandler (DML rules only fire at DML time).
         AgentCapability__c flowCapability = TestFactory.newCapability()
             .withAgent(setup.agentDefinition.Id)
-            .withName('test_flow_no_handler')
-            .forFlowHandler('TestFlowNoHandler')
+            .withName('test_flow_missing_detail')
+            .forFlowHandler('Placeholder_Flow')
             .save();
+        flowCapability.ImplementationDetail__c = null;
 
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
@@ -547,7 +565,7 @@ private class CapabilityExecutionServiceTest {
             .withExecutionType('Function')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
-            .withTurnIdentifier('turn-flow-no-handler')
+            .withTurnIdentifier('turn-flow-no-detail')
             .save();
 
         ActionContext context = new ActionContext(
@@ -558,15 +576,10 @@ private class CapabilityExecutionServiceTest {
             setup.agentDefinition.Id,
             flowCapability.Id,
             null,
-            'turn-flow-no-handler',
+            'turn-flow-no-detail',
             1,
             'Function'
         );
-
-        // Clear cache and manually set it up without RunFlow entry to simulate missing handler
-        CapabilityExecutionService.clearCache_TestOnly();
-        CapabilityExecutionService.standardHandlerCache = new Map<String, StandardActionHandler__mdt>();
-        CapabilityExecutionService.isCacheInitialized = true;
 
         CapabilityExecutionService service = new CapabilityExecutionService();
         Boolean exceptionThrown = false;
@@ -575,11 +588,10 @@ private class CapabilityExecutionServiceTest {
             service.executeSingleAction(flowCapability, '{}', context);
         } catch (CapabilityExecutionService.CapabilityExecutionException e) {
             exceptionThrown = true;
-            System.assert(e.getMessage().contains('Flow handler registration not found'), 'Should indicate flow handler not found: ' + e.getMessage());
-            System.assert(e.getMessage().contains('RunFlow'), 'Should mention RunFlow key');
+            System.assert(e.getMessage().contains('missing required Implementation Detail'), 'Should indicate the flow API name is missing: ' + e.getMessage());
         }
 
-        System.assert(exceptionThrown, 'Should throw CapabilityExecutionException when Flow handler not found');
+        System.assert(exceptionThrown, 'Should throw CapabilityExecutionException when Flow capability has no flow API name');
     }
 
     /**

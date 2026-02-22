@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Send Email</label>
+    <protected>false</protected>
+    <values>
+        <field>Description__c</field>
+        <value xsi:type="xsd:string">Sends an outbound email via direct content or a Salesforce Email Template</value>
+    </values>
+    <values>
+        <field>HandlerClassName__c</field>
+        <value xsi:type="xsd:string">ActionSendEmail</value>
+    </values>
+    <values>
+        <field>IsActive__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>IsStandardAction__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>RequiresSObject__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>ConfigSchema__c</field>
+        <value xsi:type="xsd:string">[]</value>
+    </values>
+    <values>
+        <field>ConfigJsonSchema__c</field>
+        <value xsi:type="xsd:string">{&quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: {}}</value>
+    </values>
+    <values>
+        <field>ParametersSchema__c</field>
+        <value xsi:type="xsd:string">[]</value>
+    </values>
+    <values>
+        <field>ParametersJsonSchema__c</field>
+        <value xsi:type="xsd:string">{&quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: {}}</value>
+    </values>
+    <values>
+        <field>SupportedVariants__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;direct&quot;,
+    &quot;label&quot;: &quot;Direct Content&quot;,
+    &quot;description&quot;: &quot;The LLM composes the email subject and body inline. Use this when you want full AI-generated email content.&quot;,
+    &quot;configFields&quot;: [
+      {
+        &quot;name&quot;: &quot;fromAddress&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Sender Display Name&quot;,
+        &quot;help&quot;: &quot;Display name shown as the email sender. Must be in \&quot;Name &lt;email@example.com&gt;\&quot; format (e.g. \&quot;Support Team &lt;support@acme.com&gt;\&quot;). Only the name portion is applied; the actual From address is governed by org-wide email settings.&quot;,
+        &quot;placeholder&quot;: &quot;Support Team &lt;support@acme.com&gt;&quot;
+      },
+      {
+        &quot;name&quot;: &quot;replyTo&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Reply-To Address&quot;,
+        &quot;help&quot;: &quot;Optional reply-to email address applied to all emails sent by this capability.&quot;,
+        &quot;placeholder&quot;: &quot;no-reply@acme.com&quot;
+      },
+      {
+        &quot;name&quot;: &quot;defaultToAddresses&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Default To Addresses&quot;,
+        &quot;help&quot;: &quot;Fallback recipient email addresses used when the LLM does not supply any toAddresses at runtime. If the LLM provides recipients, these defaults are ignored.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;defaultCcAddresses&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Always CC&quot;,
+        &quot;help&quot;: &quot;Email addresses always included in CC on every email (e.g. a compliance or audit mailbox). Merged with any CC addresses the LLM provides at runtime.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;defaultBccAddresses&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Always BCC&quot;,
+        &quot;help&quot;: &quot;Email addresses always included in BCC on every email. Merged with any BCC addresses the LLM provides at runtime.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;defaultWhatObjectId&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Default Related Record ID&quot;,
+        &quot;help&quot;: &quot;Salesforce record ID to associate the email activity with when Save as Activity is enabled. Supports $Context.RecordId to use the current record automatically. Overridden by whatObjectId provided at runtime.&quot;,
+        &quot;placeholder&quot;: &quot;$Context.RecordId&quot;
+      },
+      {
+        &quot;name&quot;: &quot;saveAsActivity&quot;,
+        &quot;type&quot;: &quot;boolean&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Save as Activity&quot;,
+        &quot;help&quot;: &quot;When true, the sent email is logged as an email activity. Requires a related record — set Default Related Record ID here or have the LLM provide a whatObjectId parameter. Defaults to false.&quot;
+      }
+    ],
+    &quot;parameterFields&quot;: [
+      {
+        &quot;name&quot;: &quot;toAddresses&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;To Addresses&quot;,
+        &quot;help&quot;: &quot;Recipient email addresses. Falls back to Default To Addresses in backend config if omitted. Maximum 100 total across To, CC, and BCC.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;subject&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: true,
+        &quot;label&quot;: &quot;Subject&quot;,
+        &quot;help&quot;: &quot;Email subject line. Maximum 255 characters.&quot;,
+        &quot;maxLength&quot;: 255
+      },
+      {
+        &quot;name&quot;: &quot;body&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: true,
+        &quot;label&quot;: &quot;Body&quot;,
+        &quot;help&quot;: &quot;Plain text email body. For HTML-formatted emails, use the Email Template variant instead.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;whatObjectId&quot;,
+        &quot;type&quot;: &quot;salesforce-id&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Related Record ID&quot;,
+        &quot;help&quot;: &quot;Optional Salesforce record ID (e.g. a Case or Opportunity ID) to associate this email with as an activity. Overrides Default Related Record ID in backend config. Only relevant when Save as Activity is enabled.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;ccAddresses&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;CC Addresses&quot;,
+        &quot;help&quot;: &quot;Optional CC recipient email addresses. Merged with any Always CC addresses configured in backend config.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;bccAddresses&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;BCC Addresses&quot;,
+        &quot;help&quot;: &quot;Optional BCC recipient email addresses. Merged with any Always BCC addresses configured in backend config.&quot;
+      }
+    ],
+    &quot;configJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;variant&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;enum&quot;: [&quot;direct&quot;] },
+        &quot;fromAddress&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Sender display name in Name &lt;email&gt; format.&quot; },
+        &quot;replyTo&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Reply-to email address.&quot; },
+        &quot;defaultToAddresses&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;email&quot; }, &quot;description&quot;: &quot;Fallback recipient addresses.&quot; },
+        &quot;defaultCcAddresses&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;email&quot; }, &quot;description&quot;: &quot;Always-included CC addresses.&quot; },
+        &quot;defaultBccAddresses&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;email&quot; }, &quot;description&quot;: &quot;Always-included BCC addresses.&quot; },
+        &quot;defaultWhatObjectId&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Fallback related record ID for activity logging.&quot; },
+        &quot;saveAsActivity&quot;: { &quot;type&quot;: &quot;boolean&quot;, &quot;description&quot;: &quot;Log email as activity.&quot; }
+      }
+    },
+    &quot;parametersJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;toAddresses&quot;: {
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;items&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;email&quot; },
+          &quot;description&quot;: &quot;Recipient email addresses. Falls back to defaultToAddresses in config if omitted.&quot;
+        },
+        &quot;subject&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Email subject line (max 255 characters).&quot;, &quot;maxLength&quot;: 255 },
+        &quot;body&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Plain text email body.&quot; },
+        &quot;whatObjectId&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;salesforce-id&quot;, &quot;description&quot;: &quot;Related record ID for activity logging.&quot; },
+        &quot;ccAddresses&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;email&quot; }, &quot;description&quot;: &quot;Optional CC recipient addresses.&quot; },
+        &quot;bccAddresses&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;email&quot; }, &quot;description&quot;: &quot;Optional BCC recipient addresses.&quot; }
+      },
+      &quot;required&quot;: [&quot;subject&quot;, &quot;body&quot;]
+    }
+  },
+  {
+    &quot;name&quot;: &quot;template&quot;,
+    &quot;label&quot;: &quot;Email Template&quot;,
+    &quot;description&quot;: &quot;A Salesforce Email Template provides the subject and body. The LLM supplies the target recipient record and optionally selects the template by name.&quot;,
+    &quot;configFields&quot;: [
+      {
+        &quot;name&quot;: &quot;fromAddress&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Sender Display Name&quot;,
+        &quot;help&quot;: &quot;Display name shown as the email sender. Must be in \&quot;Name &lt;email@example.com&gt;\&quot; format (e.g. \&quot;Support Team &lt;support@acme.com&gt;\&quot;). Only the name portion is applied; the actual From address is governed by org-wide email settings.&quot;,
+        &quot;placeholder&quot;: &quot;Support Team &lt;support@acme.com&gt;&quot;
+      },
+      {
+        &quot;name&quot;: &quot;replyTo&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Reply-To Address&quot;,
+        &quot;help&quot;: &quot;Optional reply-to email address applied to all emails sent by this capability.&quot;,
+        &quot;placeholder&quot;: &quot;no-reply@acme.com&quot;
+      },
+      {
+        &quot;name&quot;: &quot;defaultTemplateName&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Default Template Name&quot;,
+        &quot;help&quot;: &quot;DeveloperName of the Salesforce Email Template to use when the LLM does not supply a templateName argument. If neither is provided at runtime, the action returns a configuration error.&quot;,
+        &quot;placeholder&quot;: &quot;My_Welcome_Email_Template&quot;
+      },
+      {
+        &quot;name&quot;: &quot;defaultToAddresses&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Default To Addresses&quot;,
+        &quot;help&quot;: &quot;Fallback recipient email addresses used when the LLM does not supply any toAddresses at runtime. If the LLM provides recipients, these defaults are ignored.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;defaultCcAddresses&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Always CC&quot;,
+        &quot;help&quot;: &quot;Email addresses always included in CC on every email (e.g. a compliance or audit mailbox). Merged with any CC addresses the LLM provides at runtime.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;defaultBccAddresses&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Always BCC&quot;,
+        &quot;help&quot;: &quot;Email addresses always included in BCC on every email. Merged with any BCC addresses the LLM provides at runtime.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;defaultTargetObjectId&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Default Target Object ID&quot;,
+        &quot;help&quot;: &quot;Fallback Contact, Lead, or User ID for template merge field resolution. Supports $Context.RecordId to use the current record. Used when the LLM does not provide a targetObjectId at runtime.&quot;,
+        &quot;placeholder&quot;: &quot;$Context.RecordId&quot;
+      },
+      {
+        &quot;name&quot;: &quot;defaultWhatObjectId&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Default Related Record ID&quot;,
+        &quot;help&quot;: &quot;Salesforce record ID to associate the email activity with when Save as Activity is enabled. Supports $Context.RecordId to use the current record automatically. Overridden by whatObjectId provided at runtime.&quot;,
+        &quot;placeholder&quot;: &quot;$Context.RecordId&quot;
+      },
+      {
+        &quot;name&quot;: &quot;saveAsActivity&quot;,
+        &quot;type&quot;: &quot;boolean&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Save as Activity&quot;,
+        &quot;help&quot;: &quot;When true, the sent email is logged as an email activity on the target record. Defaults to false.&quot;
+      }
+    ],
+    &quot;parameterFields&quot;: [
+      {
+        &quot;name&quot;: &quot;toAddresses&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;To Addresses&quot;,
+        &quot;help&quot;: &quot;Recipient email addresses. Falls back to Default To Addresses in backend config if omitted. Maximum 100 total across To, CC, and BCC.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;targetObjectId&quot;,
+        &quot;type&quot;: &quot;salesforce-id&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Target Object ID&quot;,
+        &quot;help&quot;: &quot;ID of a Contact, Lead, or User record for template merge field resolution. Falls back to Default Target Object ID in backend config if omitted. Required at runtime if no backend default is set.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;templateName&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Template Name&quot;,
+        &quot;help&quot;: &quot;DeveloperName of the Salesforce Email Template to use. Overrides the Default Template Name in backend config.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;whatObjectId&quot;,
+        &quot;type&quot;: &quot;salesforce-id&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;Related Record ID&quot;,
+        &quot;help&quot;: &quot;Optional Salesforce record ID (e.g. Case, Opportunity) for additional merge fields and activity logging. Overrides Default Related Record ID in backend config.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;ccAddresses&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;CC Addresses&quot;,
+        &quot;help&quot;: &quot;Optional CC recipient email addresses. Merged with any Always CC addresses configured in backend config.&quot;
+      },
+      {
+        &quot;name&quot;: &quot;bccAddresses&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;label&quot;: &quot;BCC Addresses&quot;,
+        &quot;help&quot;: &quot;Optional BCC recipient email addresses. Merged with any Always BCC addresses configured in backend config.&quot;
+      }
+    ],
+    &quot;configJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;variant&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;enum&quot;: [&quot;template&quot;] },
+        &quot;fromAddress&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Sender display name in Name &lt;email&gt; format.&quot; },
+        &quot;replyTo&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Reply-to email address.&quot; },
+        &quot;defaultTemplateName&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Default email template DeveloperName.&quot; },
+        &quot;defaultToAddresses&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;email&quot; }, &quot;description&quot;: &quot;Fallback recipient addresses.&quot; },
+        &quot;defaultCcAddresses&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;email&quot; }, &quot;description&quot;: &quot;Always-included CC addresses.&quot; },
+        &quot;defaultBccAddresses&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;email&quot; }, &quot;description&quot;: &quot;Always-included BCC addresses.&quot; },
+        &quot;defaultTargetObjectId&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Fallback Contact/Lead/User ID for merge field resolution.&quot; },
+        &quot;defaultWhatObjectId&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Fallback related record ID for activity logging.&quot; },
+        &quot;saveAsActivity&quot;: { &quot;type&quot;: &quot;boolean&quot;, &quot;description&quot;: &quot;Log email as activity.&quot; }
+      }
+    },
+    &quot;parametersJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;toAddresses&quot;: {
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;items&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;email&quot; },
+          &quot;description&quot;: &quot;Recipient email addresses. Falls back to defaultToAddresses in config if omitted.&quot;
+        },
+        &quot;targetObjectId&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;format&quot;: &quot;salesforce-id&quot;,
+          &quot;description&quot;: &quot;Contact, Lead, or User ID for template merge fields. Falls back to defaultTargetObjectId in config if omitted.&quot;
+        },
+        &quot;templateName&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Email template DeveloperName. Overrides defaultTemplateName in config.&quot; },
+        &quot;whatObjectId&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;salesforce-id&quot;, &quot;description&quot;: &quot;Related record ID for additional merge fields and activity logging.&quot; },
+        &quot;ccAddresses&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;email&quot; }, &quot;description&quot;: &quot;Optional CC addresses.&quot; },
+        &quot;bccAddresses&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;email&quot; }, &quot;description&quot;: &quot;Optional BCC addresses.&quot; }
+      },
+      &quot;required&quot;: []
+    }
+  }
+]</value>
+    </values>
+</CustomMetadata>

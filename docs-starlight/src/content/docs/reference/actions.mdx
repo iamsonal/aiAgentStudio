@@ -64,7 +64,6 @@ Create an `AgentCapability__c` record:
 | `Parameters__c` | JSON Schema for LLM | See examples below |
 | `HITLMode__c` | Approval requirement | Blank (none), Confirmation, Approval, ConfirmationThenApproval |
 | `RunAsynchronously__c` | Execute in separate queueable | ☐ (unchecked for most) |
-| `FailFastOnError__c` | Stop immediately on error | ☐ (false = pass error to LLM) |
 
   </TabItem>
   <TabItem label="Backend Config">
@@ -540,9 +539,9 @@ Examples:
    
    Set `HITLMode__c` to Approval for UpdateRecord, DeleteRecord (custom), and any external integrations. Use Confirmation for CreateRecord.
 
-5. **Set Appropriate FailFast Behavior**
-   
-   For critical operations, set `FailFastOnError__c = true` to stop immediately on failure. For optional operations, leave false to let LLM handle errors.
+5. **Set Appropriate Error Recovery Mode**
+
+   For agents handling critical operations (e.g., payments), set `ErrorRecoveryMode__c = 'Fail Fast'` on the `AIAgentDefinition__c` to halt immediately on any tool failure. For all other agents, leave it as `Autonomous` to let the LLM decide recovery.
 
 6. **Limit Field Exposure**
    

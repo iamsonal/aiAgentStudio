@@ -4,7 +4,8 @@
     <columns>MasterLabel</columns>
     <columns>DeveloperName</columns>
     <columns>HandlerClassName__c</columns>
-    <columns>Description__c</columns>
+    <columns>RequiresSObject__c</columns>
+    <columns>IsStandardAction__c</columns>
     <columns>IsActive__c</columns>
     <filterScope>Everything</filterScope>
     <label>All</label>

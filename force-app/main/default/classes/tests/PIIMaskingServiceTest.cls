@@ -16,7 +16,7 @@ private class PIIMaskingServiceTest {
                     new Map<String, Object>{
                         'id' => 'call-1',
                         'type' => 'function',
-                        'function' => new Map<String, Object>{ 'name' => 'do_something', 'arguments' => '{"ssn":"123-45-6789"}' }
+                        'function' => new Map<String, Object>{ 'name' => 'do_something', 'arguments' => '{"ssn":"371-22-4567"}' }
                     }
                 }
             }
@@ -27,7 +27,7 @@ private class PIIMaskingServiceTest {
         Map<String, Object> func = (Map<String, Object>) maskedCall.get('function');
         String maskedArgs = (String) func.get('arguments');
 
-        System.assert(maskedArgs.contains('[SSN:'), 'Tool arguments should be masked in payload');
+        System.assert(maskedArgs.contains('[SSN:'), 'Tool arguments should be masked in payload. Masked: ' + maskedArgs);
     }
 
     @IsTest
@@ -46,7 +46,7 @@ private class PIIMaskingServiceTest {
         PIIPatternMatcher.clearCache();
         PIIMaskingService service = new PIIMaskingService(PIIMaskingService.MODE_PATTERN_ONLY, new Set<String>{ 'Identity' }, null, null);
 
-        String input = 'SSN 123-45-6789 appears twice: 123-45-6789';
+        String input = 'SSN 371-22-4567 appears twice: 371-22-4567';
         String masked = service.maskText(input);
 
         Integer firstTokenStart = masked.indexOf('[');

@@ -76,10 +76,41 @@ public inherited sharing class AgentStateService {
         Id userId,
         Id serviceUserId
     ) {
+        return createExecution(executionType, agentDefinitionId, triggerSource, triggerPayload, sourceRecordId, userId, serviceUserId, null, null);
+    }
+
+    /**
+     * Creates an AgentExecution__c record with an optional parent link and pre-set turn identifier,
+     * allowing child executions to be created in a single DML operation rather than insert + update.
+     *
+     * @param executionType      The type of execution (e.g. 'Function', 'Conversational')
+     * @param agentDefinitionId  The AIAgentDefinition__c record ID
+     * @param triggerSource      The trigger source label
+     * @param triggerPayload     Optional trigger payload text
+     * @param sourceRecordId     The source record being processed
+     * @param userId             The acting user ID
+     * @param serviceUserId      Optional service user ID
+     * @param parentExecutionId  Optional parent AgentExecution__c ID (for child executions)
+     * @param turnIdentifier     Optional pre-computed turn identifier; generated if null
+     * @return The Id of the newly inserted AgentExecution__c record
+     */
+    public Id createExecution(
+        String executionType,
+        Id agentDefinitionId,
+        String triggerSource,
+        String triggerPayload,
+        Id sourceRecordId,
+        Id userId,
+        Id serviceUserId,
+        Id parentExecutionId,
+        String turnIdentifier
+    ) {
         String logPrefix = LOG_PREFIX + '[createExecution] ';
 
         try {
-            String turnIdentifier = generateTurnIdentifier();
+            if (String.isBlank(turnIdentifier)) {
+                turnIdentifier = generateTurnIdentifier();
+            }
 
             AgentExecution__c execution = new AgentExecution__c(
                 ExecutionType__c = executionType,
@@ -93,7 +124,8 @@ public inherited sharing class AgentStateService {
                 CurrentTurnIdentifier__c = turnIdentifier,
                 ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
                 User__c = userId,
-                ServiceUser__c = serviceUserId
+                ServiceUser__c = serviceUserId,
+                ParentExecution__c = parentExecutionId
             );
 
             insert execution;

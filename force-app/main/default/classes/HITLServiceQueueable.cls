@@ -7,13 +7,38 @@
  */
 
 /**
- * @description Unified queueable job for operations that require service user context.
- * Routes through REST API via Named Credential to switch user context.
+ * @description Unified queueable job for HITL post-approval operations that must run under the
+ * service user identity (elevated permissions) rather than the approver's identity.
+ *
+ * ── ARCHITECTURAL CONSTRAINT: WHY THIS USES A SELF-CALLOUT ──────────────────────────────────
+ * Salesforce Apex has no native "run as <user>" API. The only way to execute code under a
+ * different user identity within the same org is to make an HTTP callout back to the org's
+ * own REST API using a Named Credential whose authentication is tied to the target user
+ * (ServiceUserNamedCredential__c on AIAgentDefinition__c).
+ *
+ * Pre-requisites that must be in place for this pattern to work:
+ *   1. A Connected App with "Run as" or JWT Bearer flow credentials for the service user.
+ *   2. A Named Credential (per agent definition) authenticated as the service user.
+ *   3. The target REST endpoints (ai/agent/hitl/execute, hitl/followup, ai/agent/resume)
+ *      configured in Remote Site Settings / CORS policy for the org's My Domain URL.
+ *   4. This class declared `without sharing` — it runs in the approver's Queueable context
+ *      but the tool execution is performed by the REST handler in the service user context.
+ *
+ * Trade-offs:
+ *   + Cleanly separates approver identity from execution identity.
+ *   + Reuses existing REST handlers — no duplicate logic.
+ *   - Consumes one HTTP callout limit (500/tx) per HITL operation.
+ *   - Adds ~200–500 ms of network latency for the loopback call.
+ *   - Requires Named Credential setup per agent, increasing operational overhead.
+ *   - If the Named Credential expires or the connected app is revoked, HITL silently fails.
+ *
+ * If Salesforce ever provides a first-class "run-as" Apex API this pattern should be removed.
+ * ────────────────────────────────────────────────────────────────────────────────────────────
  *
  * Supports three operation modes:
- * - EXECUTE_TOOL: Execute an approved HITL tool and optionally queue follow-up LLM
- * - FOLLOWUP_ONLY: Queue follow-up LLM call without tool execution (for rejection/decline/expiration)
- * - RESUME: Resume a failed/stuck execution in service user context
+ * - EXECUTE_TOOL:   Execute an approved HITL tool and optionally queue follow-up LLM call.
+ * - FOLLOWUP_ONLY: Queue a follow-up LLM call without tool execution (rejection/decline/expiry).
+ * - RESUME:        Resume a failed/stuck execution in service user context.
  */
 public without sharing class HITLServiceQueueable implements Queueable, Database.AllowsCallouts {
     private static final String LOG_PREFIX = '[HITLServiceQueue] ';

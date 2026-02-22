@@ -4,11 +4,7 @@
     <protected>false</protected>
     <values>
         <field>Description__c</field>
-        <value xsi:type="xsd:string">Demo action for retrieving Account records by ID or search term</value>
-    </values>
-    <values>
-        <field>GuidanceText__c</field>
-        <value xsi:type="xsd:string"></value>
+        <value xsi:type="xsd:string">Demo action for retrieving Account records by ID or name search</value>
     </values>
     <values>
         <field>HandlerClassName__c</field>
@@ -28,101 +24,143 @@
     </values>
     <values>
         <field>ConfigSchema__c</field>
-        <value xsi:type="xsd:string">[
-  {
-    &quot;name&quot;: &quot;operation&quot;,
-    &quot;type&quot;: &quot;string&quot;,
-    &quot;required&quot;: true,
-    &quot;help&quot;: &quot;The operation to perform&quot;,
-    &quot;label&quot;: &quot;Operation&quot;,
-    &quot;picklistValues&quot;: [
-      &quot;GET_BY_ID&quot;,
-      &quot;SEARCH_BY_ACCOUNT&quot;
-    ]
-  },
-  {
-    &quot;name&quot;: &quot;defaultFields&quot;,
-    &quot;type&quot;: &quot;array&quot;,
-    &quot;required&quot;: false,
-    &quot;help&quot;: &quot;List of field API names to return (default: Id, Name)&quot;,
-    &quot;label&quot;: &quot;Default Fields&quot;
-  },
-  {
-    &quot;name&quot;: &quot;maxResults&quot;,
-    &quot;type&quot;: &quot;integer&quot;,
-    &quot;required&quot;: false,
-    &quot;help&quot;: &quot;Maximum number of records to return for search operations&quot;,
-    &quot;label&quot;: &quot;Max Results&quot;,
-    &quot;minValue&quot;: 1,
-    &quot;maxValue&quot;: 200
-  }
-]</value>
+        <value xsi:type="xsd:string">[]</value>
     </values>
     <values>
         <field>ConfigJsonSchema__c</field>
-        <value xsi:type="xsd:string">{
-  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
-  &quot;type&quot;: &quot;object&quot;,
-  &quot;properties&quot;: {
-    &quot;operation&quot;: {
-      &quot;type&quot;: &quot;string&quot;,
-      &quot;description&quot;: &quot;The operation to perform&quot;,
-      &quot;enum&quot;: [
-        &quot;GET_BY_ID&quot;,
-        &quot;SEARCH_BY_ACCOUNT&quot;
-      ]
-    },
-    &quot;defaultFields&quot;: {
-      &quot;type&quot;: &quot;array&quot;,
-      &quot;description&quot;: &quot;List of field API names to return (default: Id, Name)&quot;
-    },
-    &quot;maxResults&quot;: {
-      &quot;type&quot;: &quot;integer&quot;,
-      &quot;description&quot;: &quot;Maximum number of records to return for search operations&quot;,
-      &quot;minimum&quot;: 1,
-      &quot;maximum&quot;: 200
-    }
-  },
-  &quot;required&quot;: [
-    &quot;operation&quot;
-  ]
-}</value>
+        <value xsi:type="xsd:string">{&quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: {}}</value>
     </values>
     <values>
         <field>ParametersSchema__c</field>
-        <value xsi:type="xsd:string">[
-  {
-    &quot;name&quot;: &quot;accountId&quot;,
-    &quot;type&quot;: &quot;salesforce-id&quot;,
-    &quot;required&quot;: false,
-    &quot;help&quot;: &quot;The Salesforce ID of the Account to retrieve (for GET_BY_ID operation)&quot;,
-    &quot;label&quot;: &quot;Account ID&quot;
-  },
-  {
-    &quot;name&quot;: &quot;searchTerm&quot;,
-    &quot;type&quot;: &quot;string&quot;,
-    &quot;required&quot;: false,
-    &quot;help&quot;: &quot;Search term to find Accounts by name (for SEARCH operation)&quot;,
-    &quot;label&quot;: &quot;Search Term&quot;
-  }
-]</value>
+        <value xsi:type="xsd:string">[]</value>
     </values>
     <values>
         <field>ParametersJsonSchema__c</field>
-        <value xsi:type="xsd:string">{
-  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
-  &quot;type&quot;: &quot;object&quot;,
-  &quot;properties&quot;: {
-    &quot;accountId&quot;: {
-      &quot;type&quot;: &quot;string&quot;,
-      &quot;description&quot;: &quot;The Salesforce ID of the Account to retrieve (for GET_BY_ID operation)&quot;,
-      &quot;format&quot;: &quot;salesforce-id&quot;
+        <value xsi:type="xsd:string">{&quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: {}}</value>
+    </values>
+    <values>
+        <field>SupportedVariants__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;get_by_id&quot;,
+    &quot;label&quot;: &quot;Get by ID&quot;,
+    &quot;description&quot;: &quot;Retrieve a single Account record by its Salesforce ID&quot;,
+    &quot;configFields&quot;: [
+      {
+        &quot;name&quot;: &quot;defaultFields&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;List of field API names to return (default: Id, Name)&quot;,
+        &quot;label&quot;: &quot;Default Fields&quot;
+      }
+    ],
+    &quot;parameterFields&quot;: [
+      {
+        &quot;name&quot;: &quot;accountId&quot;,
+        &quot;type&quot;: &quot;salesforce-id&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;The Salesforce ID of the Account to retrieve&quot;,
+        &quot;label&quot;: &quot;Account ID&quot;
+      }
+    ],
+    &quot;configJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;defaultFields&quot;: {
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;description&quot;: &quot;List of field API names to return (default: Id, Name)&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;string&quot;
+          }
+        },
+        &quot;variant&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;enum&quot;: [
+            &quot;get_by_id&quot;
+          ]
+        }
+      }
     },
-    &quot;searchTerm&quot;: {
-      &quot;type&quot;: &quot;string&quot;,
-      &quot;description&quot;: &quot;Search term to find Accounts by name (for SEARCH operation)&quot;
+    &quot;parametersJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;accountId&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;description&quot;: &quot;The Salesforce ID of the Account to retrieve&quot;,
+          &quot;format&quot;: &quot;salesforce-id&quot;
+        }
+      },
+      &quot;required&quot;: []
+    }
+  },
+  {
+    &quot;name&quot;: &quot;search&quot;,
+    &quot;label&quot;: &quot;Search Accounts&quot;,
+    &quot;description&quot;: &quot;Find Accounts by name or other search criteria&quot;,
+    &quot;configFields&quot;: [
+      {
+        &quot;name&quot;: &quot;defaultFields&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;List of field API names to return (default: Id, Name)&quot;,
+        &quot;label&quot;: &quot;Default Fields&quot;
+      },
+      {
+        &quot;name&quot;: &quot;maxResults&quot;,
+        &quot;type&quot;: &quot;integer&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;Maximum number of Accounts to return&quot;,
+        &quot;label&quot;: &quot;Max Results&quot;,
+        &quot;minValue&quot;: 1,
+        &quot;maxValue&quot;: 200
+      }
+    ],
+    &quot;parameterFields&quot;: [
+      {
+        &quot;name&quot;: &quot;searchTerm&quot;,
+        &quot;type&quot;: &quot;string&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;Name or partial name to search for Accounts&quot;,
+        &quot;label&quot;: &quot;Search Term&quot;
+      }
+    ],
+    &quot;configJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;defaultFields&quot;: {
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;description&quot;: &quot;List of field API names to return (default: Id, Name)&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;string&quot;
+          }
+        },
+        &quot;maxResults&quot;: {
+          &quot;type&quot;: &quot;integer&quot;,
+          &quot;description&quot;: &quot;Maximum number of Accounts to return&quot;
+        },
+        &quot;variant&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;enum&quot;: [
+            &quot;search&quot;
+          ]
+        }
+      }
+    },
+    &quot;parametersJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;searchTerm&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;description&quot;: &quot;Name or partial name to search for Accounts&quot;
+        }
+      },
+      &quot;required&quot;: []
     }
   }
-}</value>
+]</value>
     </values>
 </CustomMetadata>

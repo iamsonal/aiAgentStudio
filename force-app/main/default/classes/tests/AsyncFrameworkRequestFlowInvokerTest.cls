@@ -60,7 +60,6 @@ private class AsyncFrameworkRequestFlowInvokerTest {
                 'RunAsynchronously__c' => capability.RunAsynchronously__c,
                 'HITLMode__c' => capability.HITLMode__c,
                 'HITLNotificationPreference__c' => capability.HITLNotificationPreference__c,
-                'FailFastOnError__c' => capability.FailFastOnError__c,
                 'ExposureLevel__c' => capability.ExposureLevel__c,
                 'AIAgentDefinition__c' => capability.AIAgentDefinition__c
             }

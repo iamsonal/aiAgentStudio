@@ -155,7 +155,7 @@ private class SummarizeConversationQueueableTest {
             FROM AgentExecution__c
             WHERE Id = :execution.Id
         ];
-        System.assert(updatedExecution.ConversationSummary__c.contains('123-45-6789'), 'Summary should unmask PII tokens in the LLM response');
+        System.assert(updatedExecution.ConversationSummary__c.contains('371-22-4567'), 'Summary should unmask PII tokens in the LLM response');
         System.assertEquals(
             -1,
             updatedExecution.ConversationSummary__c.indexOf(lastSummarizationToken),
@@ -170,7 +170,7 @@ private class SummarizeConversationQueueableTest {
                 AgentExecution__c = executionId,
                 StepType__c = 'UserInput',
                 StepRole__c = 'User',
-                Content__c = 'My SSN is 123-45-6789',
+                Content__c = 'My SSN is 371-22-4567',
                 Timestamp__c = nowTime.addSeconds(-5),
                 TurnIdentifier__c = 'turn-2',
                 TurnCount__c = 2,

@@ -53,10 +53,9 @@ private class ContextFormattingServiceTest {
         Contact contact = new Contact(LastName = 'Masked', Birthdate = Date.newInstance(1990, 1, 1));
         insert contact;
 
-        SchemaBasedMasker masker = new SchemaBasedMasker().withFallbackPatterns(true);
-        PIIMaskingSession session = new PIIMaskingSession();
+        PIIMaskingService maskingService = new PIIMaskingService(PIIMaskingService.MODE_SCHEMA_ONLY, null, null, null);
         ContextFormattingService service = new ContextFormattingService();
-        ContextFormattingService.FormattingOptions options = new ContextFormattingService.FormattingOptions().withPIIMasking(masker, session);
+        ContextFormattingService.FormattingOptions options = new ContextFormattingService.FormattingOptions().withPIIMasking(maskingService);
 
         String output = service.formatContext(new List<SObject>{ contact }, '[test]', 'JSON', options);
 

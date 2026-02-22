@@ -22,9 +22,8 @@ public inherited sharing class ContextFormattingService {
         public Boolean excludeIdFields = false; // When true, skips all Salesforce ID fields for token efficiency
         public Set<String> excludeFields = new Set<String>();
 
-        // PII Masking support - uses schema-based masking via Data Classification
-        public SchemaBasedMasker piiMasker = null;
-        public PIIMaskingSession piiSession = null;
+        // PII Masking support - caller supplies the PIIMaskingService; internal helpers are not exposed.
+        public PIIMaskingService piiMaskingService = null;
 
         public FormattingOptions() {
         }
@@ -53,24 +52,23 @@ public inherited sharing class ContextFormattingService {
         /**
          * Enables PII masking for sensitive fields based on their Data Classification.
          * Fields marked as Confidential, Restricted, etc. will have their values replaced
-         * with tokens before being sent to external LLMs.
+         * with tokens before being sent to external LLMs. Pass the fully-configured
+         * PIIMaskingService; the session and schema masker are accessed internally.
          *
-         * @param masker The SchemaBasedMasker configured with sensitive classifications
-         * @param session The PIIMaskingSession for token generation and tracking
+         * @param maskingService The configured PIIMaskingService for this execution
          * @return This FormattingOptions instance for method chaining
          */
-        public FormattingOptions withPIIMasking(SchemaBasedMasker masker, PIIMaskingSession session) {
-            this.piiMasker = masker;
-            this.piiSession = session;
+        public FormattingOptions withPIIMasking(PIIMaskingService maskingService) {
+            this.piiMaskingService = maskingService;
             return this;
         }
 
         /**
          * Checks if PII masking is enabled for these options.
-         * @return True if both masker and session are configured
+         * @return True if a PIIMaskingService has been configured
          */
         public Boolean isPIIMaskingEnabled() {
-            return this.piiMasker != null && this.piiSession != null;
+            return this.piiMaskingService != null;
         }
 
         // Cache of pre-calculated sensitive fields per SObject type
@@ -99,7 +97,7 @@ public inherited sharing class ContextFormattingService {
 
             // Pre-calculate sensitive fields for this type
             Set<String> sensitiveFields = new Set<String>();
-            for (String fieldName : piiMasker.getMaskedFields(sObjectType)) {
+            for (String fieldName : piiMaskingService.getMaskedFields(sObjectType)) {
                 sensitiveFields.add(fieldName.toLowerCase());
             }
 
@@ -259,7 +257,7 @@ public inherited sharing class ContextFormattingService {
                 Object outputValue = fieldValue;
                 if (options.isPIIMaskingEnabled() && fieldValue != null && sensitiveFields.contains(fieldName.toLowerCase())) {
                     // Mask the field value
-                    outputValue = options.piiMasker.maskFieldValue(fieldValue, fieldName, options.piiSession);
+                    outputValue = options.piiMaskingService.maskFieldValue(fieldValue, fieldName);
                     System.debug(LoggingLevel.DEBUG, logPrefix + 'PII masked field: ' + fieldName);
                 }
                 recordData.put(fieldLabel, outputValue);
@@ -394,7 +392,7 @@ public inherited sharing class ContextFormattingService {
                 // Check if PII masking should be applied (using pre-calculated set)
                 Object outputValue = fieldValue;
                 if (options.isPIIMaskingEnabled() && fieldValue != null && sensitiveFields.contains(fieldName.toLowerCase())) {
-                    outputValue = options.piiMasker.maskFieldValue(fieldValue, fieldName, options.piiSession);
+                    outputValue = options.piiMaskingService.maskFieldValue(fieldValue, fieldName);
                 }
                 String valueStr = formatYamlValue(outputValue);
                 lines.add(indent + prefix + fieldLabel + ': ' + valueStr);
@@ -532,7 +530,7 @@ public inherited sharing class ContextFormattingService {
                 // Check if PII masking should be applied (using pre-calculated set)
                 Object outputValue = fieldValue;
                 if (options.isPIIMaskingEnabled() && fieldValue != null && sensitiveFields.contains(fieldName.toLowerCase())) {
-                    outputValue = options.piiMasker.maskFieldValue(fieldValue, fieldName, options.piiSession);
+                    outputValue = options.piiMaskingService.maskFieldValue(fieldValue, fieldName);
                     System.debug(LoggingLevel.DEBUG, logPrefix + 'PII masked related field: ' + fullPath);
                 }
 

@@ -8,32 +8,23 @@
 
 /**
  * @description
- * SchemaBasedMasker uses Salesforce's native Data Classification (Compliance Categorization) to identify
- * sensitive fields that should be masked before sending to external LLMs. This leverages the org's existing
- * data governance setup through the FieldDefinition object.
+ * Internal implementation class for PIIMaskingService. Uses Salesforce's native Data Classification
+ * (Compliance Categorization) to identify sensitive SObject fields that should be masked before
+ * sending payloads to external LLMs.
  *
- * Key Features:
- * - Queries FieldDefinition.SecurityClassification for field sensitivity
- * - Configurable set of classifications that trigger masking
- * - Caches field classifications for performance
- * - Integrates with PIIMaskingSession for consistent token management
- * - Falls back to field name pattern matching if classification is not set
+ * *** DO NOT instantiate or reference this class directly from outside the PII subsystem.
+ * All callers should go through PIIMaskingService, which is the sole public entry point. ***
+ *
+ * Concretely: PIIMaskingService.shouldMaskField() and PIIMaskingService.maskFieldValue() delegate
+ * to this class internally. ContextFormattingService uses PIIMaskingService.getMaskedFields() to
+ * obtain the field set — it never holds a direct reference to SchemaBasedMasker.
  *
  * Salesforce Data Classifications:
- * - Confidential: Highly sensitive data (SSN, financial data)
- * - Restricted: Limited access data
+ * - Confidential:   Highly sensitive data (SSN, financial data)
+ * - Restricted:     Limited access data
  * - MissionCritical: Business critical data
- * - Internal: Internal use only
- * - Public: No restrictions
- *
- * @example
- * Set<String> sensitiveClassifications = new Set<String>{'Confidential', 'Restricted'};
- * SchemaBasedMasker masker = new SchemaBasedMasker(sensitiveClassifications);
- * PIIMaskingSession session = new PIIMaskingSession();
- *
- * if (masker.shouldMaskField('Contact', 'SSN__c')) {
- *     String maskedValue = masker.maskFieldValue('123-45-6789', 'SSN__c', session);
- * }
+ * - Internal:       Internal use only
+ * - Public:         No restrictions
  */
 public inherited sharing class SchemaBasedMasker {
     // Set of classifications that trigger masking

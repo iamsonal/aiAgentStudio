@@ -8,7 +8,7 @@
     </values>
     <values>
         <field>Description__c</field>
-        <value xsi:type="xsd:string">Detects drivers license numbers when preceded by DL, license, or driver keywords. Matches alphanumeric sequences of 5-15 characters.</value>
+        <value xsi:type="xsd:string">Detects drivers license numbers when preceded by DL or driver/drivers license keywords. Matches alphanumeric sequences of 5-15 characters.</value>
     </values>
     <values>
         <field>IsActive__c</field>
@@ -20,7 +20,7 @@
     </values>
     <values>
         <field>PatternRegex__c</field>
-        <value xsi:type="xsd:string">(?i)\b(?:dl|driver(?:'s)?\s*license|drivers?\s*license|license)\b[#:\s]*([A-Z0-9]{5,15})\b</value>
+        <value xsi:type="xsd:string">(?i)\b(?:dl|driver(?:'s)?\s*license|drivers?\s*license)\b[#:\s]*([A-Z0-9]{5,15})\b</value>
     </values>
     <values>
         <field>Priority__c</field>

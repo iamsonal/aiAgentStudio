@@ -7,7 +7,15 @@
  */
 
 /**
- * @description Centralized gateway for all Human-in-the-Loop (HITL) decisions. Handles Confirmation, Approval, and ConfirmationThenApproval modes.
+ * @description Centralized gateway for all Human-in-the-Loop (HITL) decisions.
+ *
+ * Supported modes:
+ *   - Confirmation            — No system record created; handled entirely via LLM prompt injection.
+ *   - Approval                — Creates a PendingHITLAction__c and submits it to an Approval Process.
+ *   - ConfirmationThenApproval — Like Approval, but requires prior chat confirmation from the user.
+ *   - ConditionalApproval     — The LLM decides at runtime whether approval is needed.
+ *                               Call evaluate() first to validate configuration, then
+ *                               evaluateConditionalApproval() when the LLM signals approval is required.
  */
 public with sharing class HITLGatewayService {
     public static final String HITL_MODE_CONFIRMATION = 'Confirmation';
@@ -258,9 +266,9 @@ public with sharing class HITLGatewayService {
         }
 
         if (hitlMode == HITL_MODE_CONDITIONAL_APPROVAL) {
-            // ConditionalApproval mode: LLM decides at execution time via _requiresApproval parameter
-            // evaluate() just validates the configuration - actual routing happens in ToolCallResponseHandler
-            System.debug(LoggingLevel.DEBUG, debugPrefix + 'ConditionalApproval mode configured - LLM will decide if approval needed');
+            // Configuration is valid. The LLM decides at execution time via _requiresApproval.
+            // If the LLM signals approval is needed, the caller must then invoke evaluateConditionalApproval().
+            System.debug(LoggingLevel.DEBUG, debugPrefix + 'ConditionalApproval mode configured - call evaluateConditionalApproval() if LLM requests approval');
             return createProceedDecision();
         }
 
@@ -274,8 +282,32 @@ public with sharing class HITLGatewayService {
         return createInvalidConfigDecision(errorMsg);
     }
 
-    public static HITLResult initiateHITL(HITLContext context, HITLDecision decision) {
+    /**
+     * @description Produces an Approval intervention decision for ConditionalApproval mode.
+     *
+     * Call this method when the LLM has signalled (via the _requiresApproval parameter) that
+     * the current tool invocation requires human approval. The returned decision can be passed
+     * directly to initiateHITL().
+     *
+     * This keeps ConditionalApproval routing inside the gateway rather than scattering it
+     * across response-handler code.
+     *
+     * @param context A fully populated HITLContext (validate() will be called internally).
+     * @return An HITLDecision set to Approval intervention.
+     */
+    public static HITLDecision evaluateConditionalApproval(HITLContext context) {
         context.validate();
+        System.debug(
+            LoggingLevel.INFO,
+            context.logPrefix +
+                '[evaluateConditionalApproval] LLM-driven approval required for capability: ' +
+                context.capability.CapabilityName__c +
+                (String.isNotBlank(context.llmApprovalReason) ? '. Reason: ' + context.llmApprovalReason : '')
+        );
+        return createInterventionDecision(HITL_MODE_APPROVAL);
+    }
+
+    public static HITLResult initiateHITL(HITLContext context, HITLDecision decision) {
         String debugPrefix = context.logPrefix + '[initiateHITL] ';
 
         if (!decision.requiresIntervention) {
@@ -287,15 +319,12 @@ public with sharing class HITLGatewayService {
         }
 
         try {
-            if (decision.hitlMode == HITL_MODE_CONFIRMATION) {
-                // Confirmation mode should not reach here - it's handled via prompt injection
-                return createFailureResult('Confirmation mode does not require system intervention. This is handled via prompt injection.');
-            } else if (decision.hitlMode == HITL_MODE_APPROVAL) {
+            if (decision.hitlMode == HITL_MODE_APPROVAL) {
                 return initiateApproval(context, debugPrefix);
             } else if (decision.hitlMode == HITL_MODE_CONFIRMATION_THEN_APPROVAL) {
                 return initiateConfirmationThenApproval(context, debugPrefix);
             } else {
-                return createFailureResult('Unknown HITL mode: ' + decision.hitlMode);
+                return createFailureResult('Unknown HITL mode for initiation: ' + decision.hitlMode);
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, debugPrefix + 'Failed to initiate HITL: ' + e.getMessage() + '\n' + e.getStackTraceString());

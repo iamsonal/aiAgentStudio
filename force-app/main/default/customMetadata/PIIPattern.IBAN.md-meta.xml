@@ -8,7 +8,7 @@
     </values>
     <values>
         <field>Description__c</field>
-        <value xsi:type="xsd:string">Detects International Bank Account Numbers (IBAN) when preceded by IBAN or international bank account keywords. Matches the 2-letter country code, 2 check digits, and 10-30 alphanumeric BBAN characters (total 14-34 chars).</value>
+        <value xsi:type="xsd:string">Detects International Bank Account Numbers (IBAN) when preceded by IBAN or international bank account keywords. Validates ISO 13616 mod-97 checksum to eliminate false positives.</value>
     </values>
     <values>
         <field>IsActive__c</field>
@@ -28,6 +28,10 @@
     </values>
     <values>
         <field>RequiresValidation__c</field>
-        <value xsi:type="xsd:boolean">false</value>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>ValidatorType__c</field>
+        <value xsi:type="xsd:string">IBAN_MOD97</value>
     </values>
 </CustomMetadata>

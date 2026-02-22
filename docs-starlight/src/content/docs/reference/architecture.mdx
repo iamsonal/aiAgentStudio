@@ -167,7 +167,7 @@ Tool/function definitions:
 
 **Schema**: `Parameters__c` (JSON Schema for LLM defining expected arguments), `BackendConfiguration__c` (Admin config JSON passed to action implementation).
 
-**Execution**: `RunAsynchronously__c` (Execute in separate queueable), `FailFastOnError__c` (Immediate failure on error vs pass to LLM), `HITLMode__c` (Human-in-the-loop mode: Disabled/Confirmation/Approval/ConfirmationThenApproval), `ExposureLevel__c` (External visible to LLM / Internal framework only / Disabled).
+**Execution**: `RunAsynchronously__c` (Execute in separate queueable), `HITLMode__c` (Human-in-the-loop mode: Disabled/Confirmation/Approval/ConfirmationThenApproval), `ExposureLevel__c` (External visible to LLM / Internal framework only / Disabled). Error recovery is controlled at the agent level via `AIAgentDefinition__c.ErrorRecoveryMode__c` (Autonomous / Fail Fast).
 
   </TabItem>
   <TabItem label="AgentExecution__c">
