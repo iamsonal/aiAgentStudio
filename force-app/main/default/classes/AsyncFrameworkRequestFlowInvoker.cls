@@ -82,7 +82,6 @@ public with sharing class AsyncFrameworkRequestFlowInvoker {
         capability.RunAsynchronously__c = (Boolean) capabilityMap.get('RunAsynchronously__c');
         capability.HITLMode__c = (String) capabilityMap.get('HITLMode__c');
         capability.HITLNotificationPreference__c = (String) capabilityMap.get('HITLNotificationPreference__c');
-        capability.FailFastOnError__c = (Boolean) capabilityMap.get('FailFastOnError__c');
         capability.ExposureLevel__c = (String) capabilityMap.get('ExposureLevel__c');
         capability.AIAgentDefinition__c = (Id) capabilityMap.get('AIAgentDefinition__c');
 

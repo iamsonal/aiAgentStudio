@@ -858,7 +858,6 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                     'isSuccess' => false,
                     'errorCode' => AIAgentConstants.ERR_CODE_CONFIG_ERROR,
                     'errorCategory' => ActionOutcome.deriveErrorCategory(AIAgentConstants.ERR_CODE_CONFIG_ERROR),
-                    'isRetryable' => ActionOutcome.deriveRetryable(AIAgentConstants.ERR_CODE_CONFIG_ERROR),
                     'messageForUser' => errorMessage
                 }
             );
@@ -1929,7 +1928,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
 
         // All tools were synchronous - check for tool-terminating mode
         AgentExecution__c execution = [
-            SELECT IsToolTerminatingMode__c, ExecutionStatus__c
+            SELECT IsToolTerminatingMode__c, ExecutionStatus__c, LastFunctionResumeTimestamp__c
             FROM AgentExecution__c
             WHERE Id = :context.executionId
             LIMIT 1
@@ -1983,9 +1982,16 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         // Pre-load successive failure counts for all failed tools in one SOQL (avoids per-tool SOQL
         // inside shouldFailFast() and the redundant countSuccessiveToolFailures() call for the failure
         // reason message — previously O(n) queries for n failing tools).
+        // Pass LastFunctionResumeTimestamp__c so that pre-resume failures don't consume the
+        // post-resume circuit breaker budget on resumed Function agent executions.
         Map<String, Integer> preloadedFailureCounts = new Map<String, Integer>();
-        if (!failedToolNames.isEmpty() && agentDef.AgentType__c != 'Conversational' && agentDef.AgentType__c != 'Email') {
-            preloadedFailureCounts = OrchestrationService.loadSuccessiveFailureCounts(context.executionId, failedToolNames, logPrefix);
+        if (!failedToolNames.isEmpty()) {
+            preloadedFailureCounts = OrchestrationService.loadSuccessiveFailureCounts(
+                context.executionId,
+                failedToolNames,
+                execution.LastFunctionResumeTimestamp__c,
+                logPrefix
+            );
         }
 
         // Now check fail-fast policy without additional SOQL queries

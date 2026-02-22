@@ -1160,8 +1160,7 @@ public with sharing class AgentTestDataFactory {
                     }
                 ),
                 ExposureLevel__c = 'External',
-                RunAsynchronously__c = false,
-                FailFastOnError__c = false
+                RunAsynchronously__c = false
             )
         );
 
@@ -1188,8 +1187,7 @@ public with sharing class AgentTestDataFactory {
                     }
                 ),
                 ExposureLevel__c = 'External',
-                RunAsynchronously__c = false,
-                FailFastOnError__c = false
+                RunAsynchronously__c = false
             )
         );
 

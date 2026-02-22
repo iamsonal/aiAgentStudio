@@ -169,11 +169,6 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AgentCapability__c.FailFastOnError__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
         <field>AgentCapability__c.HITLMode__c</field>
         <readable>true</readable>
     </fieldPermissions>

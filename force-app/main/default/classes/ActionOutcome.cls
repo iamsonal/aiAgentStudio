@@ -31,30 +31,18 @@ public inherited sharing class ActionOutcome {
     @AuraEnabled
     public String errorCategory { get; private set; }
 
-    @AuraEnabled
-    public Boolean isRetryable { get; private set; }
-
-    private ActionOutcome(
-        Boolean isSuccess,
-        Object data,
-        String errorCode,
-        String errorMessage,
-        String correctionGuidance,
-        String errorCategory,
-        Boolean isRetryable
-    ) {
+    private ActionOutcome(Boolean isSuccess, Object data, String errorCode, String errorMessage, String correctionGuidance, String errorCategory) {
         this.isSuccess = isSuccess;
         this.data = data;
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
         this.correctionGuidance = correctionGuidance;
         this.errorCategory = errorCategory;
-        this.isRetryable = isRetryable;
         this.llmFriendlyMessage = formatLLMFriendlyMessage(isSuccess, errorCode, errorMessage, correctionGuidance);
     }
 
     public static ActionOutcome success(Object data) {
-        return new ActionOutcome(true, data, null, null, null, null, null);
+        return new ActionOutcome(true, data, null, null, null, null);
     }
 
     public static ActionOutcome success() {
@@ -62,23 +50,19 @@ public inherited sharing class ActionOutcome {
     }
 
     public static ActionOutcome failure(String errorCode, String errorMessage) {
-        String errorCategory = deriveErrorCategory(errorCode);
-        Boolean retryable = deriveRetryable(errorCode);
-        return new ActionOutcome(false, null, errorCode, errorMessage, null, errorCategory, retryable);
+        return new ActionOutcome(false, null, errorCode, errorMessage, null, deriveErrorCategory(errorCode));
     }
 
     public static ActionOutcome failureWithGuidance(String errorCode, String errorMessage, String correctionGuidance) {
-        String errorCategory = deriveErrorCategory(errorCode);
-        Boolean retryable = deriveRetryable(errorCode);
-        return new ActionOutcome(false, null, errorCode, errorMessage, correctionGuidance, errorCategory, retryable);
+        return new ActionOutcome(false, null, errorCode, errorMessage, correctionGuidance, deriveErrorCategory(errorCode));
     }
 
     public static ActionOutcome failure(String errorMessage) {
         return failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, errorMessage);
     }
 
-    public static ActionOutcome failureWithMeta(String errorCode, String errorMessage, String errorCategory, Boolean isRetryable, String correctionGuidance) {
-        return new ActionOutcome(false, null, errorCode, errorMessage, correctionGuidance, errorCategory, isRetryable);
+    public static ActionOutcome failureWithMeta(String errorCode, String errorMessage, String errorCategory, String correctionGuidance) {
+        return new ActionOutcome(false, null, errorCode, errorMessage, correctionGuidance, errorCategory);
     }
 
     public static String deriveErrorCategory(String errorCode) {
@@ -138,19 +122,6 @@ public inherited sharing class ActionOutcome {
         return AIAgentConstants.ERR_CATEGORY_UNKNOWN;
     }
 
-    public static Boolean deriveRetryable(String errorCode) {
-        if (String.isBlank(errorCode)) {
-            return false;
-        }
-
-        return new Set<String>{
-                AIAgentConstants.ERR_CODE_RECORD_LOCKED,
-                AIAgentConstants.ERR_CODE_CONNECT_API_ERROR,
-                AIAgentConstants.ERR_CODE_LLM_CALL_FAILED
-            }
-            .contains(errorCode);
-    }
-
     private String formatLLMFriendlyMessage(Boolean isSuccess, String errorCode, String errorMessage, String correctionGuidance) {
         if (isSuccess) {
             return null; // No LLM message needed for success cases
@@ -161,10 +132,7 @@ public inherited sharing class ActionOutcome {
         String suggestion = getErrorSuggestion(errorCode);
 
         if (String.isNotBlank(correctionGuidance)) {
-            return String.format(
-                '{0} **Error**: {1}\n\n**How to Fix**: {2}\n\n**Suggestion**: {3}',
-                new List<String>{ emoji, userFriendlyError, correctionGuidance, suggestion }
-            );
+            return String.format('{0} **Error**: {1}\n\n**How to Fix**: {2}', new List<String>{ emoji, userFriendlyError, correctionGuidance });
         }
 
         return String.format('{0} **Error**: {1}\n\n**Suggestion**: {2}', new List<String>{ emoji, userFriendlyError, suggestion });
@@ -433,8 +401,8 @@ public inherited sharing class ActionOutcome {
 
     public override String toString() {
         return String.format(
-            'ActionOutcome[isSuccess={0}, errorCode={1}, errorCategory={2}, retryable={3}, errorMessage={4}]',
-            new List<String>{ String.valueOf(this.isSuccess), this.errorCode, this.errorCategory, String.valueOf(this.isRetryable), this.errorMessage }
+            'ActionOutcome[isSuccess={0}, errorCode={1}, errorCategory={2}, errorMessage={3}]',
+            new List<String>{ String.valueOf(this.isSuccess), this.errorCode, this.errorCategory, this.errorMessage }
         );
     }
 }

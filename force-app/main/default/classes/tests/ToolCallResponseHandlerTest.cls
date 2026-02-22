@@ -317,8 +317,10 @@ private class ToolCallResponseHandlerTest {
         AgentCapability__c failFastCapability = TestFactory.newCapability().forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' }).build();
         failFastCapability.CapabilityName__c = 'failfast_case_' + String.valueOf(Datetime.now().getTime());
         failFastCapability.AIAgentDefinition__c = setup.agentDefinition.Id;
-        failFastCapability.FailFastOnError__c = true;
         insert failFastCapability;
+
+        // Set agent to Fail Fast mode — halts immediately on any tool error
+        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, ErrorRecoveryMode__c = 'Fail Fast');
 
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)

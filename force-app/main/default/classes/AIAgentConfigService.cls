@@ -59,7 +59,9 @@ public inherited sharing class AIAgentConfigService {
         'SummarizerAgent__r.InstructionsPrompt__c',
         // Trust Layer presets (simplified configuration)
         'PIIMaskingPreset__c',
-        'PromptSafetyPreset__c'
+        'PromptSafetyPreset__c',
+        // Error handling
+        'ErrorRecoveryMode__c'
     };
 
     private static final List<String> LLM_CONFIGURATION_FIELDS = new List<String>{
@@ -89,7 +91,6 @@ public inherited sharing class AIAgentConfigService {
         'HITLMode__c', // Unified HITL mode field (blank=no HITL, Confirmation, Approval, ConfirmationThenApproval)
         'HITLNotificationPreference__c', // Controls when to send notifications for HITL actions
         'TrackConfidence__c', // Enable AI confidence score tracking (0-100) for this capability
-        'FailFastOnError__c',
         'ExposureLevel__c'
     };
 

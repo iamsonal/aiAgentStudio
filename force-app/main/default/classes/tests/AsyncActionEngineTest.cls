@@ -116,8 +116,10 @@ private class AsyncActionEngineTest {
             .withName('async_failfast_' + String.valueOf(Datetime.now().getTime()))
             .async()
             .build();
-        failFastCap.FailFastOnError__c = true;
         insert failFastCap;
+
+        // Set agent to Fail Fast mode — halts immediately on any tool error
+        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, ErrorRecoveryMode__c = 'Fail Fast');
 
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
