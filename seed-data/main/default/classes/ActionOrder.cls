@@ -1,12 +1,15 @@
 /**
  * @description Demo action for retrieving Order records. Used by AgentTestDataFactory for showcasing agents.
- * Supports GET_BY_ID and SEARCH_BY_ACCOUNT operations with configurable fields.
+ * Supports get_by_id and search_by_account variants with configurable fields.
  *
  * @ActionLabel Get Order Details
  * @ActionDescription Demo action for retrieving Order records by ID or Account
  * @ActionRequiresSObject false
  * @ActionIsActive true
  * @ActionIsStandard false
+ * @ActionHasVariants true
+ * @ActionVariant get_by_id | Get by ID | Retrieve a single Order record by its Salesforce ID
+ * @ActionVariant search_by_account | Search by Account | Find all Orders belonging to a given Account
  *
  * @extends BaseAgentAction
  */
@@ -21,7 +24,8 @@ public class ActionOrder extends BaseAgentAction {
          * @FieldLabel Order ID
          * @FieldType salesforce-id
          * @FieldRequired false
-         * @FieldHelp The Salesforce ID of the Order to retrieve (for GET_BY_ID operation)
+         * @FieldVariant get_by_id
+         * @FieldHelp The Salesforce ID of the Order to retrieve
          */
         public String orderId;
 
@@ -29,7 +33,8 @@ public class ActionOrder extends BaseAgentAction {
          * @FieldLabel Account ID
          * @FieldType salesforce-id
          * @FieldRequired false
-         * @FieldHelp The Account ID to search Orders for (for SEARCH_BY_ACCOUNT operation)
+         * @FieldVariant search_by_account
+         * @FieldHelp The Account ID to find all related Orders for
          */
         public String accountId;
     }
@@ -39,13 +44,12 @@ public class ActionOrder extends BaseAgentAction {
      */
     public class ConfigDTO {
         /**
-         * @FieldLabel Operation
+         * @FieldSystem true
+         * @FieldLabel Variant
          * @FieldType string
-         * @FieldRequired true
-         * @FieldHelp The operation to perform
-         * @FieldPicklistValues GET_BY_ID,SEARCH_BY_ACCOUNT
+         * @FieldHelp Operating mode: "get_by_id" or "search_by_account". Managed by the variant picker UI.
          */
-        public String operation;
+        public String variant;
 
         /**
          * @FieldLabel Default Fields
@@ -59,7 +63,8 @@ public class ActionOrder extends BaseAgentAction {
          * @FieldLabel Max Results
          * @FieldType integer
          * @FieldRequired false
-         * @FieldHelp Maximum number of records to return for search operations
+         * @FieldVariant search_by_account
+         * @FieldHelp Maximum number of Orders to return
          * @FieldMinValue 1
          * @FieldMaxValue 200
          */
@@ -67,33 +72,30 @@ public class ActionOrder extends BaseAgentAction {
     }
 
     /**
-     * @description Main entry point for Order operations
-     * @param params Raw parameters
-     * @return ActionOutcome with Order data or error
+     * @description Main entry point — dispatches to the configured variant
      */
     public override ActionOutcome executeAction(Map<String, Object> params) {
         ArgumentsDTO args = new ArgumentsDTO();
         args.orderId = (String) params.get('orderId');
         args.accountId = (String) params.get('accountId');
 
-        if (config.operation == 'GET_BY_ID') {
+        if ('get_by_id'.equals(config.variant)) {
             return getOrderById(args.orderId);
-        } else if (config.operation == 'SEARCH_BY_ACCOUNT') {
+        } else if ('search_by_account'.equals(config.variant)) {
             return searchOrdersByAccount(args.accountId);
         } else {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Unsupported operation: ' + config.operation);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Unsupported variant: "' + config.variant + '"');
         }
     }
 
-    /**
-     * Retrieves a single order by ID
-     */
     private ActionOutcome getOrderById(String orderId) {
         if (String.isBlank(orderId)) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'orderId is required for GET_BY_ID operation');
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, '"orderId" is required for the get_by_id variant');
         }
 
-        List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty() ? config.defaultFields : new List<String>{ 'Id', 'OrderNumber' };
+        List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty()
+            ? config.defaultFields
+            : new List<String>{ 'Id', 'OrderNumber' };
 
         String soql = 'SELECT ' + String.join(fields, ', ') + ' FROM Order WHERE Id = :orderId LIMIT 1';
 
@@ -102,22 +104,20 @@ public class ActionOrder extends BaseAgentAction {
             if (orders.isEmpty()) {
                 return ActionOutcome.failure(AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND, 'Order not found: ' + orderId);
             }
-
             return ActionOutcome.success(orders[0]);
         } catch (Exception e) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Error retrieving order: ' + e.getMessage());
+            return ActionOutcome.fromException(e);
         }
     }
 
-    /**
-     * Searches for orders by account
-     */
     private ActionOutcome searchOrdersByAccount(String accountId) {
         if (String.isBlank(accountId)) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'accountId is required for SEARCH_BY_ACCOUNT operation');
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, '"accountId" is required for the search_by_account variant');
         }
 
-        List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty() ? config.defaultFields : new List<String>{ 'Id', 'OrderNumber' };
+        List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty()
+            ? config.defaultFields
+            : new List<String>{ 'Id', 'OrderNumber' };
 
         Integer maxResults = config.maxResults != null ? config.maxResults : 10;
         String soql = 'SELECT ' + String.join(fields, ', ') + ' FROM Order WHERE AccountId = :accountId LIMIT :maxResults';
@@ -126,21 +126,16 @@ public class ActionOrder extends BaseAgentAction {
             List<Order> orders = Database.query(soql);
             return ActionOutcome.success(new Map<String, Object>{ 'orders' => orders, 'count' => orders.size(), 'accountId' => accountId });
         } catch (Exception e) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Error searching orders: ' + e.getMessage());
+            return ActionOutcome.fromException(e);
         }
     }
 
-    /**
-     * @description Parses action configuration JSON
-     * @param actionConfigurationJson JSON configuration string
-     * @param logPrefix Prefix for debug logging
-     */
     @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         this.config = new ConfigDTO();
 
         if (String.isBlank(actionConfigurationJson)) {
-            this.config.operation = 'GET_BY_ID';
+            this.config.variant = 'get_by_id';
             this.config.defaultFields = new List<String>{ 'Id', 'OrderNumber' };
             this.config.maxResults = 10;
             return;
@@ -149,17 +144,8 @@ public class ActionOrder extends BaseAgentAction {
         try {
             Map<String, Object> configMap = (Map<String, Object>) JSON.deserializeUntyped(actionConfigurationJson);
 
-            this.config.operation = (String) configMap.get('operation');
-
-            if (configMap.containsKey('defaultFields')) {
-                Object fieldsObj = configMap.get('defaultFields');
-                if (fieldsObj instanceof List<Object>) {
-                    this.config.defaultFields = new List<String>();
-                    for (Object field : (List<Object>) fieldsObj) {
-                        this.config.defaultFields.add(String.valueOf(field));
-                    }
-                }
-            }
+            this.config.variant = ActionConfigUtils.getOptionalString(configMap, 'variant');
+            this.config.defaultFields = ActionConfigUtils.getOptionalStringList(configMap, 'defaultFields');
 
             if (configMap.containsKey('maxResults')) {
                 Object maxResultsObj = configMap.get('maxResults');
@@ -170,13 +156,13 @@ public class ActionOrder extends BaseAgentAction {
                 }
             }
         } catch (Exception e) {
-            throw new ValidationException('Invalid configuration JSON: ' + e.getMessage(), e);
+            throw new ValidationException('Invalid configuration JSON: ' + e.getMessage(), null, e);
         }
 
-        if (String.isBlank(config.operation)) {
-            config.operation = 'GET_BY_ID';
+        if (String.isBlank(config.variant)) {
+            config.variant = 'get_by_id';
         }
-        if (config.defaultFields == null) {
+        if (config.defaultFields == null || config.defaultFields.isEmpty()) {
             config.defaultFields = new List<String>{ 'Id', 'OrderNumber' };
         }
         if (config.maxResults == null) {

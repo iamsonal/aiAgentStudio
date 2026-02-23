@@ -414,27 +414,27 @@ private class BaseAgentActionTest {
     // ========== DML STATUS CODE MAPPING (direct) ==========
 
     @IsTest
-    static void testMapStatusCodeToErrorCode_AllMappings() {
-        // Use a concrete subclass to access the @TestVisible private method
-        TestAction action = new TestAction();
-
-        // Specific status code mappings
-        System.assertEquals(AIAgentConstants.ERR_CODE_RECORD_LOCKED, action.mapStatusCodeToErrorCode('UNABLE_TO_LOCK_ROW', 'DEFAULT'));
-        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, action.mapStatusCodeToErrorCode('FIELD_CUSTOM_VALIDATION_EXCEPTION', 'DEFAULT'));
-        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, action.mapStatusCodeToErrorCode('REQUIRED_FIELD_MISSING', 'DEFAULT'));
-        System.assertEquals(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, action.mapStatusCodeToErrorCode('INSUFFICIENT_ACCESS_OR_READONLY', 'DEFAULT'));
-        System.assertEquals(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, action.mapStatusCodeToErrorCode('CANNOT_INSERT_UPDATE_ACTIVATE_ENTITY', 'DEFAULT'));
-        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, action.mapStatusCodeToErrorCode('INVALID_CROSS_REFERENCE_KEY', 'DEFAULT'));
-        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, action.mapStatusCodeToErrorCode('INVALID_FIELD_FOR_INSERT_UPDATE', 'DEFAULT'));
-        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, action.mapStatusCodeToErrorCode('INVALID_ID_FIELD', 'DEFAULT'));
-        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, action.mapStatusCodeToErrorCode('STRING_TOO_LONG', 'DEFAULT'));
-        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, action.mapStatusCodeToErrorCode('DUPLICATE_VALUE', 'DEFAULT'));
-        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, action.mapStatusCodeToErrorCode('FIELD_FILTER_VALIDATION_EXCEPTION', 'DEFAULT'));
-        System.assertEquals(AIAgentConstants.ERR_CODE_DML_ERROR, action.mapStatusCodeToErrorCode('DELETE_FAILED', 'DEFAULT'));
-
-        // Null and unknown fall back to default
-        System.assertEquals('MY_DEFAULT', action.mapStatusCodeToErrorCode(null, 'MY_DEFAULT'), 'Null status should return default');
-        System.assertEquals('MY_DEFAULT', action.mapStatusCodeToErrorCode('SOME_UNKNOWN_CODE', 'MY_DEFAULT'), 'Unknown status should return default');
+    static void testClassifyDmlStatusCode_AllMappings() {
+        // DML status code classification now lives in ActionOutcome (shared by both
+        // BaseAgentAction.mapExceptionToOutcome and ActionOutcome.fromException/classifyException)
+        System.assertEquals(AIAgentConstants.ERR_CODE_RECORD_LOCKED, ActionOutcome.classifyDmlStatusCode('UNABLE_TO_LOCK_ROW'));
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, ActionOutcome.classifyDmlStatusCode('FIELD_CUSTOM_VALIDATION_EXCEPTION'));
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, ActionOutcome.classifyDmlStatusCode('REQUIRED_FIELD_MISSING'));
+        System.assertEquals(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ActionOutcome.classifyDmlStatusCode('INSUFFICIENT_ACCESS_OR_READONLY'));
+        System.assertEquals(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, ActionOutcome.classifyDmlStatusCode('CANNOT_INSERT_UPDATE_ACTIVATE_ENTITY'));
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, ActionOutcome.classifyDmlStatusCode('INVALID_CROSS_REFERENCE_KEY'));
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, ActionOutcome.classifyDmlStatusCode('INVALID_FIELD_FOR_INSERT_UPDATE'));
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, ActionOutcome.classifyDmlStatusCode('INVALID_ID_FIELD'));
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, ActionOutcome.classifyDmlStatusCode('STRING_TOO_LONG'));
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, ActionOutcome.classifyDmlStatusCode('DUPLICATE_VALUE'));
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, ActionOutcome.classifyDmlStatusCode('FIELD_FILTER_VALIDATION_EXCEPTION'));
+        System.assertEquals(AIAgentConstants.ERR_CODE_DML_ERROR, ActionOutcome.classifyDmlStatusCode('DELETE_FAILED'));
+        System.assertEquals(AIAgentConstants.ERR_CODE_DML_ERROR, ActionOutcome.classifyDmlStatusCode(null), 'Null status should return DML_ERROR');
+        System.assertEquals(
+            AIAgentConstants.ERR_CODE_DML_ERROR,
+            ActionOutcome.classifyDmlStatusCode('SOME_UNKNOWN_CODE'),
+            'Unknown status should return DML_ERROR'
+        );
     }
 
     // ========== toString ==========

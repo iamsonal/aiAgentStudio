@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RetryPending__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>True when this ToolResult step failed with a retryable error and the tool has not yet been retried in the current turn. Set to false when a subsequent successful result is recorded for the same tool name.</description>
+    <externalId>false</externalId>
+    <label>Retry Pending</label>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

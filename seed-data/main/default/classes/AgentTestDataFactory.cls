@@ -1121,6 +1121,7 @@ public with sharing class AgentTestDataFactory {
                 StandardActionType__c = 'GetRecordDetails',
                 BackendConfiguration__c = JSON.serialize(
                     new Map<String, Object>{
+                        'variant' => 'field_list',
                         'objectApiName' => 'Case',
                         'defaultFields' => new List<String>{
                             'Id',
@@ -1159,8 +1160,7 @@ public with sharing class AgentTestDataFactory {
                     }
                 ),
                 ExposureLevel__c = 'External',
-                RunAsynchronously__c = false,
-                FailFastOnError__c = false
+                RunAsynchronously__c = false
             )
         );
 
@@ -1187,8 +1187,7 @@ public with sharing class AgentTestDataFactory {
                     }
                 ),
                 ExposureLevel__c = 'External',
-                RunAsynchronously__c = false,
-                FailFastOnError__c = false
+                RunAsynchronously__c = false
             )
         );
 
@@ -1267,7 +1266,7 @@ public with sharing class AgentTestDataFactory {
 
         for (AgentCapability__c cap : capabilities) {
             cap.ImplementationType__c = 'Apex';
-            cap.ImplementationDetail__c = 'ActionHttpCallout';
+            cap.ImplementationDetail__c = 'ActionJSONPlaceholder';
             cap.RunAsynchronously__c = true;
             cap.HITLMode__c = null;
             cap.BackendConfiguration__c = null;

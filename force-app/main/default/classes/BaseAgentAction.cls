@@ -93,7 +93,7 @@ public abstract with sharing class BaseAgentAction implements IAgentAction {
                     throw new ValidationException('ActionConfiguration JSON must be a JSON Object (Map).');
                 }
             } catch (Exception e) {
-                throw new ValidationException('Invalid ActionConfiguration JSON: ' + e.getMessage(), e);
+                throw new ValidationException('Invalid ActionConfiguration JSON: ' + e.getMessage(), null, e);
             }
         }
     }
@@ -159,213 +159,108 @@ public abstract with sharing class BaseAgentAction implements IAgentAction {
 
     private ActionOutcome mapExceptionToOutcome(Exception ex, String logPrefix) {
         System.debug(LoggingLevel.ERROR, logPrefix + 'Exception during action execution - Type: ' + ex.getTypeName() + ', Message: ' + ex.getMessage());
+
+        // Complex: require message or field inspection — logic must stay in Apex
         if (ex instanceof DmlException) {
             DmlException dmlEx = (DmlException) ex;
-            String initialCode = dmlEx.getNumDml() > 0 ? dmlEx.getDmlStatusCode(0) : null;
+            String statusCode = dmlEx.getNumDml() > 0 ? dmlEx.getDmlStatusCode(0) : null;
             String firstDmlMsg = dmlEx.getNumDml() > 0 ? dmlEx.getDmlMessage(0) : ex.getMessage();
-            String errorCode = mapStatusCodeToErrorCode(initialCode, AIAgentConstants.ERR_CODE_DML_ERROR);
-            String errorMessage = 'DML failed: ' + firstDmlMsg;
-            return ActionOutcome.failureWithMeta(
-                errorCode,
-                errorMessage,
-                ActionOutcome.deriveErrorCategory(errorCode),
-                isRetryableException(ex, errorCode, errorMessage),
-                null
-            );
+            String errorCode = ActionOutcome.classifyDmlStatusCode(statusCode);
+            String guidance = (errorCode == AIAgentConstants.ERR_CODE_INPUT_VALIDATION)
+                ? 'A Salesforce validation rule or field constraint prevented this operation. Review the field values you provided: check for invalid picklist values, required fields, duplicate values, or cross-object field constraints, then re-invoke with corrected arguments.'
+                : 'A database error prevented saving. Check for validation rules, required fields, duplicate values, or field permissions that may be blocking this record update.';
+            return ActionOutcome.failure(errorCode, 'DML failed: ' + firstDmlMsg, guidance);
         }
+
         if (ex instanceof System.QueryException) {
             String msgLower = ex.getMessage().toLowerCase();
-            String errCode = (msgLower.contains('security enforced') || msgLower.contains('insufficient access'))
-                ? AIAgentConstants.ERR_CODE_PERMISSION_DENIED
-                : AIAgentConstants.ERR_CODE_SOQL_ERROR;
-            String errorMessage = 'Query failed: ' + ex.getMessage();
-            return ActionOutcome.failureWithMeta(
-                errCode,
-                errorMessage,
-                ActionOutcome.deriveErrorCategory(errCode),
-                isRetryableException(ex, errCode, errorMessage),
-                null
-            );
-        }
-        if (ex instanceof System.CalloutException) {
-            String errorCode = AIAgentConstants.ERR_CODE_CONNECT_API_ERROR;
-            String errorMessage = 'External callout failed: ' + ex.getMessage();
-            return ActionOutcome.failureWithMeta(
-                errorCode,
-                errorMessage,
-                ActionOutcome.deriveErrorCategory(errorCode),
-                isRetryableException(ex, errorCode, errorMessage),
-                null
-            );
-        }
-        if (ex instanceof System.LimitException) {
-            String errorCode = AIAgentConstants.ERR_CODE_SYSTEM_LIMIT;
-            String errorMessage = 'System limit exceeded: ' + ex.getMessage();
-            return ActionOutcome.failureWithMeta(
-                errorCode,
-                errorMessage,
-                ActionOutcome.deriveErrorCategory(errorCode),
-                isRetryableException(ex, errorCode, errorMessage),
-                null
-            );
+            Boolean isPermission = msgLower.contains('security enforced') || msgLower.contains('insufficient access');
+            String errCode = isPermission ? AIAgentConstants.ERR_CODE_PERMISSION_DENIED : AIAgentConstants.ERR_CODE_SOQL_ERROR;
+            String guidance = isPermission
+                ? 'This query failed due to field- or object-level security. The running user does not have access to one or more fields or objects in this query. Inform the user that the data cannot be retrieved due to access restrictions.'
+                : 'Unable to retrieve the requested data. Verify the record exists and you have permission to view it, or try refining your search criteria.';
+            return ActionOutcome.failure(errCode, 'Query failed: ' + ex.getMessage(), guidance);
         }
 
         if (ex instanceof TypeCoercionService.TypeCoercionException) {
             TypeCoercionService.TypeCoercionException tce = (TypeCoercionService.TypeCoercionException) ex;
-            if (String.isNotBlank(tce.correctionGuidance)) {
-                return ActionOutcome.failureWithMeta(
-                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                    tce.getMessage(),
-                    AIAgentConstants.ERR_CATEGORY_VALIDATION,
-                    false,
-                    tce.correctionGuidance
-                );
-            }
-            return ActionOutcome.failureWithMeta(
-                AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
-                tce.getMessage(),
-                AIAgentConstants.ERR_CATEGORY_VALIDATION,
-                false,
-                null
-            );
+            String guidance = String.isNotBlank(tce.correctionGuidance)
+                ? tce.correctionGuidance
+                : 'The argument value you provided has an incorrect type or format. Check the tool schema for the expected type of each parameter and re-invoke with corrected arguments.';
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, tce.getMessage(), guidance);
         }
 
         if (ex instanceof ValidationException) {
             ValidationException ve = (ValidationException) ex;
-            return ActionOutcome.failureWithMeta(
+            String fieldHint = String.isNotBlank(ve.fieldName) ? ' Field: ' + ve.fieldName + '.' : '';
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 ve.getMessage(),
-                AIAgentConstants.ERR_CATEGORY_VALIDATION,
-                false,
-                null
+                'The arguments you provided are invalid.' +
+                    fieldHint +
+                    ' Check the tool schema for required fields and valid value formats, then re-invoke with corrected arguments.'
             );
         }
+
+        // Simple instanceof → error code + specific guidance (category from metadata)
         if (ex instanceof ActionSecurityException) {
-            return ActionOutcome.failureWithMeta(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
                 ex.getMessage(),
-                AIAgentConstants.ERR_CATEGORY_PERMISSION,
-                false,
-                null
+                'This operation requires permissions that are not available to the current user. Inform the user that this action cannot be completed due to access restrictions.'
             );
         }
+
         if (ex instanceof ActionHandlerNullException) {
-            String errorCode = AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT;
-            return ActionOutcome.failureWithMeta(
-                errorCode,
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT,
                 ex.getMessage(),
-                ActionOutcome.deriveErrorCategory(errorCode),
-                isRetryableException(ex, errorCode, ex.getMessage()),
-                null
+                'The action completed but did not return a result. This indicates a configuration issue in the action implementation. Inform the user and contact an administrator to review the action handler code.'
             );
         }
+
         if (ex instanceof LLMFormattingService.LlmPayloadException) {
-            String errorCode = AIAgentConstants.ERR_CODE_CONFIG_ERROR;
-            String errorMessage = 'LLM Data Error: ' + ex.getMessage();
-            return ActionOutcome.failureWithMeta(errorCode, errorMessage, ActionOutcome.deriveErrorCategory(errorCode), false, null);
-        }
-        if (ex.getTypeName().contains('ProviderException') || (ex instanceof AIAgentException && ex.getMessage().contains('LLM'))) {
-            String errorCode = AIAgentConstants.ERR_CODE_LLM_CALL_FAILED;
-            String errorMessage = 'LLM Communication Failed: ' + ex.getMessage();
-            return ActionOutcome.failureWithMeta(
-                errorCode,
-                errorMessage,
-                ActionOutcome.deriveErrorCategory(errorCode),
-                isRetryableException(ex, errorCode, errorMessage),
-                null
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                'LLM Data Error: ' + ex.getMessage(),
+                'There is a data formatting configuration issue. Contact an administrator to review the LLM payload configuration.'
             );
         }
+
+        if (ex.getTypeName().contains('ProviderException') || (ex instanceof AIAgentException && ex.getMessage().contains('LLM'))) {
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_LLM_CALL_FAILED,
+                'LLM Communication Failed: ' + ex.getMessage(),
+                'The AI service call failed. This may be a transient issue. You can inform the user and ask if they would like to try again.'
+            );
+        }
+
         if (ex instanceof CapabilityExecutionService.CapabilityExecutionException) {
-            String errorCode = AIAgentConstants.ERR_CODE_CONFIG_ERROR;
-            String errorMessage = 'Action Setup Failed: ' + ex.getMessage();
-            return ActionOutcome.failureWithMeta(errorCode, errorMessage, ActionOutcome.deriveErrorCategory(errorCode), false, null);
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                'Action Setup Failed: ' + ex.getMessage(),
+                'The action could not be initialized due to a configuration problem. Contact an administrator to review the capability configuration.'
+            );
         }
 
-        String errorCode = AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
-        String errorMessage = ex.getMessage();
-        return ActionOutcome.failureWithMeta(
-            errorCode,
-            errorMessage,
-            ActionOutcome.deriveErrorCategory(errorCode),
-            isRetryableException(ex, errorCode, errorMessage),
-            null
-        );
-    }
-
-    private Boolean isRetryableException(Exception ex, String errorCode, String errorMessage) {
-        if (errorCode == AIAgentConstants.ERR_CODE_RECORD_LOCKED) {
-            return true;
-        }
-        if (errorCode == AIAgentConstants.ERR_CODE_LLM_CALL_FAILED || errorCode == AIAgentConstants.ERR_CODE_CONNECT_API_ERROR) {
-            return !isNonRetryableMessage(errorMessage);
-        }
         if (ex instanceof System.CalloutException) {
-            return !isNonRetryableMessage(errorMessage);
-        }
-        return ActionOutcome.deriveRetryable(errorCode);
-    }
-
-    private Boolean isTransientMessage(String errorMessage) {
-        if (String.isBlank(errorMessage)) {
-            return false;
-        }
-        String msg = errorMessage.toLowerCase();
-
-        if (isNonRetryableMessage(errorMessage)) {
-            return false;
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_CONNECT_API_ERROR,
+                'External callout failed: ' + ex.getMessage(),
+                'The external service call failed. If the error indicates an authentication or authorization problem, inform the user that the integration is misconfigured. Otherwise, this may be a transient network issue — you can ask the user if they would like to retry.'
+            );
         }
 
-        return msg.contains('timeout') ||
-            msg.contains('timed out') ||
-            msg.contains('temporarily unavailable') ||
-            msg.contains('rate limit') ||
-            msg.contains('too many requests') ||
-            msg.contains('connection') ||
-            msg.contains('network') ||
-            msg.contains('unavailable') ||
-            msg.contains('service') ||
-            msg.contains('502') ||
-            msg.contains('503') ||
-            msg.contains('504');
-    }
-
-    private Boolean isNonRetryableMessage(String errorMessage) {
-        if (String.isBlank(errorMessage)) {
-            return false;
+        if (ex instanceof System.LimitException) {
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_SYSTEM_LIMIT,
+                'System limit exceeded: ' + ex.getMessage(),
+                'A Salesforce governor limit was reached. Try simplifying the request, processing fewer records at once, or contact an administrator to review governor limit usage for this operation.'
+            );
         }
-        String msg = errorMessage.toLowerCase();
-        return msg.contains('unauthorized') ||
-            msg.contains('forbidden') ||
-            msg.contains('authentication') ||
-            msg.contains('invalid') ||
-            msg.contains('bad request') ||
-            msg.contains('validation');
-    }
 
-    @TestVisible
-    private String mapStatusCodeToErrorCode(String statusCodeStr, String defaultCode) {
-        if (statusCodeStr == null)
-            return defaultCode;
-
-        if (statusCodeStr == 'UNABLE_TO_LOCK_ROW')
-            return AIAgentConstants.ERR_CODE_RECORD_LOCKED;
-        if (statusCodeStr == 'FIELD_CUSTOM_VALIDATION_EXCEPTION')
-            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
-        if (statusCodeStr == 'REQUIRED_FIELD_MISSING')
-            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
-        if (statusCodeStr == 'INSUFFICIENT_ACCESS_OR_READONLY' || statusCodeStr == 'CANNOT_INSERT_UPDATE_ACTIVATE_ENTITY')
-            return AIAgentConstants.ERR_CODE_PERMISSION_DENIED;
-        if (statusCodeStr == 'INVALID_CROSS_REFERENCE_KEY' || statusCodeStr == 'INVALID_FIELD_FOR_INSERT_UPDATE' || statusCodeStr == 'INVALID_ID_FIELD')
-            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
-        if (statusCodeStr == 'STRING_TOO_LONG')
-            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
-        if (statusCodeStr == 'DUPLICATE_VALUE')
-            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
-        if (statusCodeStr == 'FIELD_FILTER_VALIDATION_EXCEPTION')
-            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
-        if (statusCodeStr == 'DELETE_FAILED')
-            return AIAgentConstants.ERR_CODE_DML_ERROR;
-
-        return defaultCode;
+        // For all remaining standard Apex exceptions, delegate to ActionOutcome.fromException()
+        // which classifies by type and resolves guidance from ErrorHandlerConfig__mdt metadata.
+        return ActionOutcome.fromException(ex);
     }
 }

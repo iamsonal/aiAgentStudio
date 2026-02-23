@@ -187,6 +187,36 @@ public with sharing class CaseProcessingWorkflowFactory {
                 System.debug('[Queues] ✓ Assigned Case object to ' + queueSobjectsToCreate.size() + ' queues');
             }
 
+            // Add current user to all queues
+            Id currentUserId = UserInfo.getUserId();
+            List<Id> allQueueIds = new List<Id>();
+            for (Group q : allQueues) {
+                allQueueIds.add(q.Id);
+            }
+
+            Set<Id> alreadyMemberOfQueueIds = new Set<Id>();
+            for (GroupMember gm : [
+                SELECT GroupId
+                FROM GroupMember
+                WHERE GroupId IN :allQueueIds AND UserOrGroupId = :currentUserId
+            ]) {
+                alreadyMemberOfQueueIds.add(gm.GroupId);
+            }
+
+            List<GroupMember> membersToCreate = new List<GroupMember>();
+            for (Id queueId : allQueueIds) {
+                if (!alreadyMemberOfQueueIds.contains(queueId)) {
+                    membersToCreate.add(new GroupMember(GroupId = queueId, UserOrGroupId = currentUserId));
+                }
+            }
+
+            if (!membersToCreate.isEmpty()) {
+                insert membersToCreate;
+                System.debug('[Queues] ✓ Added current user to ' + membersToCreate.size() + ' queues');
+            } else {
+                System.debug('[Queues] ✓ Current user already a member of all queues');
+            }
+
             System.debug('========================================');
             System.debug('QUEUE SETUP COMPLETE');
             System.debug('Now run: CaseProcessingWorkflowFactory.executeDemo();');
@@ -747,7 +777,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'Apex',
                 null,
                 'ActionCaseProcessing',
-                '{"operation":"assign_to_queue"}',
+                '{"variant":"assign_to_queue"}',
                 null,
                 false,
                 'External'
@@ -763,7 +793,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'Apex',
                 null,
                 'ActionCaseProcessing',
-                '{"operation":"create_case_comment"}',
+                '{"variant":"create_case_comment"}',
                 null,
                 false,
                 'External'
@@ -779,7 +809,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'Apex',
                 null,
                 'ActionCaseProcessing',
-                '{"operation":"attach_knowledge_articles"}',
+                '{"variant":"attach_knowledge_articles"}',
                 null,
                 false,
                 'External'
@@ -846,7 +876,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'Apex',
                 null,
                 'ActionCaseProcessing',
-                '{"operation":"get_queue_members"}',
+                '{"variant":"get_queue_members"}',
                 null,
                 false,
                 'External'
@@ -869,7 +899,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'Apex',
                 null,
                 'ActionCaseProcessing',
-                '{"operation":"get_user_workload"}',
+                '{"variant":"get_user_workload"}',
                 null,
                 false,
                 'External'
@@ -885,7 +915,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'Apex',
                 null,
                 'ActionCaseProcessing',
-                '{"operation":"get_account_case_history"}',
+                '{"variant":"get_account_case_history"}',
                 null,
                 false,
                 'External'
@@ -937,7 +967,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'Apex',
                 null,
                 'ActionCaseProcessing',
-                '{"operation":"send_email"}',
+                '{"variant":"send_email"}',
                 null,
                 false,
                 'External'
@@ -1048,7 +1078,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'Apex',
                 null,
                 'ActionCaseProcessing',
-                '{"operation":"notify_account_team"}',
+                '{"variant":"notify_account_team"}',
                 null,
                 false,
                 'External'
@@ -1064,7 +1094,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'Apex',
                 null,
                 'ActionCaseProcessing',
-                '{"operation":"recommend_proactive_outreach"}',
+                '{"variant":"recommend_proactive_outreach"}',
                 null,
                 false,
                 'External'

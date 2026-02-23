@@ -855,11 +855,10 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
 
             String errorResult = JSON.serialize(
                 new Map<String, Object>{
-                    'isSuccess' => false,
-                    'errorCode' => AIAgentConstants.ERR_CODE_CONFIG_ERROR,
-                    'errorCategory' => ActionOutcome.deriveErrorCategory(AIAgentConstants.ERR_CODE_CONFIG_ERROR),
-                    'isRetryable' => ActionOutcome.deriveRetryable(AIAgentConstants.ERR_CODE_CONFIG_ERROR),
-                    'messageForUser' => errorMessage
+                    'success' => false,
+                    'code' => AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                    'error' => errorMessage,
+                    'retryable' => ActionOutcome.isTransient(AIAgentConstants.ERR_CODE_CONFIG_ERROR)
                 }
             );
 
@@ -946,15 +945,14 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                 hitlContext.llmApprovalReason = extractApprovalReason(approvalTool);
             }
 
-            // Evaluate HITL requirement
-            // For ConditionalApproval mode, LLM already decided via _requiresApproval parameter
-            // So we create an Approval decision directly without calling evaluate()
+            // Evaluate HITL requirement through the gateway for all modes.
+            // For ConditionalApproval, the LLM already signalled approval is needed via _requiresApproval,
+            // so we use the dedicated evaluateConditionalApproval() path which keeps that routing decision
+            // inside the gateway rather than here.
             HITLGatewayService.HITLDecision decision;
             if (hitlContext.isConditionalApproval) {
-                // LLM decided approval is needed - create intervention decision
-                decision = HITLGatewayService.createInterventionDecision(HITLGatewayService.HITL_MODE_APPROVAL);
+                decision = HITLGatewayService.evaluateConditionalApproval(hitlContext);
             } else {
-                // Standard Approval or ConfirmationThenApproval - evaluate normally
                 decision = HITLGatewayService.evaluate(hitlContext);
             }
 
@@ -1848,9 +1846,10 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                     ExecutionStepService executionStepService = new ExecutionStepService();
                     String failureResult = JSON.serialize(
                         new Map<String, Object>{
-                            'isSuccess' => false,
-                            'errorCode' => AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
-                            'messageForUser' => 'Failed to queue async tool for execution: ' + e.getMessage()
+                            'success' => false,
+                            'code' => AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                            'error' => 'Failed to queue tool for execution: ' + e.getMessage(),
+                            'retryable' => false
                         }
                     );
                     executionStepService.createToolResultStep(
@@ -1930,7 +1929,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
 
         // All tools were synchronous - check for tool-terminating mode
         AgentExecution__c execution = [
-            SELECT IsToolTerminatingMode__c, ExecutionStatus__c
+            SELECT IsToolTerminatingMode__c, ExecutionStatus__c, LastFunctionResumeTimestamp__c
             FROM AgentExecution__c
             WHERE Id = :context.executionId
             LIMIT 1
@@ -1984,9 +1983,16 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         // Pre-load successive failure counts for all failed tools in one SOQL (avoids per-tool SOQL
         // inside shouldFailFast() and the redundant countSuccessiveToolFailures() call for the failure
         // reason message — previously O(n) queries for n failing tools).
+        // Pass LastFunctionResumeTimestamp__c so that pre-resume failures don't consume the
+        // post-resume circuit breaker budget on resumed Function agent executions.
         Map<String, Integer> preloadedFailureCounts = new Map<String, Integer>();
-        if (!failedToolNames.isEmpty() && agentDef.AgentType__c != 'Conversational' && agentDef.AgentType__c != 'Email') {
-            preloadedFailureCounts = OrchestrationService.loadSuccessiveFailureCounts(context.executionId, failedToolNames, logPrefix);
+        if (!failedToolNames.isEmpty()) {
+            preloadedFailureCounts = OrchestrationService.loadSuccessiveFailureCounts(
+                context.executionId,
+                failedToolNames,
+                execution.LastFunctionResumeTimestamp__c,
+                logPrefix
+            );
         }
 
         // Now check fail-fast policy without additional SOQL queries
@@ -2050,8 +2056,8 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         }
 
         // Enforce max turn limit (per-agent override with org-wide fallback)
-        // Reuse agentDef from line 996 (already loaded for fail-fast policy check)
-        Integer maxTurns = AIAgentFrameworkSettings.getMaxProcessingCycles(agentDef.DeveloperName__c);
+        // Use the object overload to avoid a redundant SOQL — agentDef is already loaded
+        Integer maxTurns = AIAgentFrameworkSettings.getMaxProcessingCycles(agentDef);
         if ((context.currentTurnCount + 1) > maxTurns) {
             String limitErrorMsg = 'Maximum processing cycles (' + maxTurns + ') exceeded.';
             context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, limitErrorMsg, AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED, logPrefix);

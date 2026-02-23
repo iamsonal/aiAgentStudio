@@ -45,14 +45,29 @@ public inherited sharing class AIAgentConstants {
     public static final String ERR_CODE_SAFETY_FLAGGED = 'SAFETY_FLAGGED';
     public static final String ERR_CODE_DEPENDENCY_VALIDATION = 'DEPENDENCY_VALIDATION_ERROR';
 
-    public static final String ERR_CATEGORY_VALIDATION = 'validation';
-    public static final String ERR_CATEGORY_PERMISSION = 'permission';
-    public static final String ERR_CATEGORY_DATA = 'data';
-    public static final String ERR_CATEGORY_EXTERNAL = 'external';
-    public static final String ERR_CATEGORY_SYSTEM = 'system';
-    public static final String ERR_CATEGORY_CONFIG = 'config';
-    public static final String ERR_CATEGORY_USER = 'user';
-    public static final String ERR_CATEGORY_UNKNOWN = 'unknown';
-
     public static final String NEXT_EXPECTED_NONE = 'None';
+
+    /**
+     * Patterns stripped from user-controlled context data (Salesforce field values, context provider
+     * output) before that data is embedded in the LLM system prompt.
+     *
+     * These are known prompt-injection payload markers: LLM role-boundary tokens, chat-template
+     * delimiters, and separator sequences commonly used to fake section boundaries in adversarial
+     * record field values.  The list is intentionally kept here so it can be reviewed, audited, and
+     * extended in one place without touching application logic.
+     *
+     * Stripping is applied AFTER serialisation (JSON/YAML) and BEFORE XML-delimiter wrapping, so it
+     * covers all format strategies without modifying ContextFormattingService.
+     */
+    public static final List<String> PROMPT_INJECTION_PATTERNS = new List<String>{
+        '<|im_start|>', // ChatML system/user/assistant role boundary (OpenAI tiktoken format)
+        '<|im_end|>', // ChatML end-of-turn marker
+        '<|endoftext|>', // GPT-2/3 special end-of-document token
+        '[INST]', // Llama 2 / Mistral instruction open tag
+        '[/INST]', // Llama 2 / Mistral instruction close tag
+        '<<SYS>>', // Llama 2 system block open tag
+        '<</SYS>>', // Llama 2 system block close tag
+        '###', // Few-shot separator widely used in injection payloads
+        '\n---\n' // Markdown horizontal rule used to fake prompt section boundaries
+    };
 }

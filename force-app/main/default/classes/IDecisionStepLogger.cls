@@ -42,7 +42,9 @@ public inherited sharing class IDecisionStepLogger {
         FINAL_RESPONSE,
         USER_INPUT,
         // Resume events (manual intervention)
-        AGENT_RESUMED
+        AGENT_RESUMED,
+        // Framework enforcement events
+        RETRY_ENFORCEMENT // Framework detected LLM ignored retryable failure(s) and injected a retry instruction
     }
 
     /**

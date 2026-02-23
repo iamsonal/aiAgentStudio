@@ -35,6 +35,7 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
             if (payload.existingExecutionId != null) {
                 validateExecutionAccess(payload.existingExecutionId, payload.userId);
                 executionId = payload.existingExecutionId;
+                logPrefix = LOG_PREFIX + '[Agent:' + agentDeveloperName + '][Exec:' + executionId + '] ';
 
                 if (shouldExecuteSynchronously(payload, logPrefix)) {
                     System.debug(LoggingLevel.INFO, logPrefix + 'Executing initial LLM call synchronously (callout-safe)');
@@ -63,9 +64,10 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
                     payload.userId,
                     payload.serviceUserId
                 );
+                logPrefix = LOG_PREFIX + '[Agent:' + agentDeveloperName + '][Exec:' + executionId + '] ';
             }
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Created/updated execution: ' + executionId);
+            System.debug(LoggingLevel.INFO, logPrefix + 'Created/updated execution');
 
             // Determine async strategy based ONLY on AsyncDispatchType__c
             String asyncDispatchType = agentDefinition.AsyncDispatchType__c != null ? agentDefinition.AsyncDispatchType__c : 'Low';
@@ -179,8 +181,8 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
             return OrchestrationService.OUTCOME_COMPLETED;
         }
 
-        // Return null for other scenarios to use default behavior
-        return null;
+        // Delegate to base class for all other scenarios (e.g. CONTENT_ONLY_RESPONSE retry enforcement)
+        return super.evaluateToolOutcome(context, toolResults, scenario);
     }
 
     // QUEUEABLE JOB EXECUTION

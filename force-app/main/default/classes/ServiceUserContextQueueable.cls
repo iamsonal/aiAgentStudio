@@ -7,17 +7,37 @@
  */
 
 /**
- * @description Queueable job that routes agent execution to service user context via REST API.
- * Used when HTTP callout cannot be made directly (e.g., DML has already occurred in the transaction).
+ * @description Queueable job that routes agent execution to the service user context by making
+ * a loopback REST callout to this org's own REST API endpoint.
  *
- * This class solves the "callout after DML" problem by deferring the REST callout to a fresh
- * transaction where no DML has occurred yet. The REST endpoint then executes in the service
- * user context with elevated permissions.
+ * ── ARCHITECTURAL CONSTRAINT: WHY THIS USES A SELF-CALLOUT ──────────────────────────────────
+ * Salesforce Apex has no native "run as <user>" API. To execute agent logic under the service
+ * user identity (RequiresServiceUserContext__c = true on the agent definition), the only
+ * supported mechanism is a callout to the org's own REST API using a Named Credential whose
+ * authentication is bound to the service user account.
  *
- * Usage:
- * - When AgentExecutionService detects prior DML and RequiresServiceUserContext = true
- * - Optionally creates a stub execution record for immediate tracking
- * - Enqueues this job to perform the actual REST callout
+ * This class also solves a secondary platform constraint: Apex prohibits HTTP callouts after
+ * DML in the same transaction ("callout after DML" error). By enqueueing this Queueable the
+ * callout is deferred to a fresh transaction where no prior DML exists.
+ *
+ * Pre-requisites:
+ *   1. A Connected App with JWT Bearer flow or equivalent for the service user.
+ *   2. ServiceUserNamedCredential__c populated on AIAgentDefinition__c.
+ *   3. The /services/apexrest/ai/agent/process/ endpoint allowed in Remote Site Settings.
+ *   4. This class declared `without sharing` — it only builds and fires the HTTP request;
+ *      all privileged DML happens inside the REST handler running as the service user.
+ *
+ * Trade-offs:
+ *   + Isolates privileged record access to the service user without a separate managed package.
+ *   + Decouples the calling context (any user triggering an agent) from execution identity.
+ *   - Consumes one HTTP callout limit per agent invocation that requires service-user context.
+ *   - Adds latency (~200–500 ms loopback) on every such invocation.
+ *   - A stub AgentExecution__c record may be created before the REST call succeeds; if the
+ *     call fails, the stub must be marked Failed (see handleFailure).
+ *   - Requires Named Credential maintenance per agent definition.
+ *
+ * If Salesforce ever provides a first-class "run-as" Apex API this pattern should be removed.
+ * ────────────────────────────────────────────────────────────────────────────────────────────
  */
 public without sharing class ServiceUserContextQueueable implements Queueable, Database.AllowsCallouts {
     private static final String LOG_PREFIX = '[ServiceUserCtxQueue] ';

@@ -13,7 +13,15 @@ private class AsyncActionEngineTest {
     @IsTest
     static void testProcess_CreatesToolResultStep() {
         AgentCapability__c capability = [
-            SELECT Id, CapabilityName__c, ImplementationDetail__c, BackendConfiguration__c, StandardActionType__c, ImplementationType__c, AIAgentDefinition__c
+            SELECT
+                Id,
+                CapabilityName__c,
+                ImplementationDetail__c,
+                BackendConfiguration__c,
+                StandardActionType__c,
+                ImplementationType__c,
+                AIAgentDefinition__c,
+                Parameters__c
             FROM AgentCapability__c
             WHERE CapabilityName__c = 'async_create_account'
             LIMIT 1
@@ -108,8 +116,10 @@ private class AsyncActionEngineTest {
             .withName('async_failfast_' + String.valueOf(Datetime.now().getTime()))
             .async()
             .build();
-        failFastCap.FailFastOnError__c = true;
         insert failFastCap;
+
+        // Set agent to Fail Fast mode — halts immediately on any tool error
+        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, ErrorRecoveryMode__c = 'Fail Fast');
 
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
@@ -197,7 +207,15 @@ private class AsyncActionEngineTest {
     @IsTest
     static void testProcess_MaxTurnsExceeded_FailsTurn() {
         AgentCapability__c capability = [
-            SELECT Id, CapabilityName__c, ImplementationDetail__c, BackendConfiguration__c, StandardActionType__c, ImplementationType__c, AIAgentDefinition__c
+            SELECT
+                Id,
+                CapabilityName__c,
+                ImplementationDetail__c,
+                BackendConfiguration__c,
+                StandardActionType__c,
+                ImplementationType__c,
+                AIAgentDefinition__c,
+                Parameters__c
             FROM AgentCapability__c
             WHERE CapabilityName__c = 'async_create_account'
             LIMIT 1
@@ -240,7 +258,15 @@ private class AsyncActionEngineTest {
     @IsTest
     static void testProcess_SuccessfulExecution_QueuesFollowUp() {
         AgentCapability__c capability = [
-            SELECT Id, CapabilityName__c, ImplementationDetail__c, BackendConfiguration__c, StandardActionType__c, ImplementationType__c, AIAgentDefinition__c
+            SELECT
+                Id,
+                CapabilityName__c,
+                ImplementationDetail__c,
+                BackendConfiguration__c,
+                StandardActionType__c,
+                ImplementationType__c,
+                AIAgentDefinition__c,
+                Parameters__c
             FROM AgentCapability__c
             WHERE CapabilityName__c = 'async_create_account'
             LIMIT 1

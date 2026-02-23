@@ -12,8 +12,6 @@
  * @ActionDescription Updates an existing Salesforce record with field-level security checks
  * @ActionRequiresSObject true
  * @ActionIsActive true
- * @ActionGuidance
- * <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6;"><div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px; border-radius: 8px 8px 0 0; margin: -8px -8px 16px -8px;"><h2 style="margin: 0; font-size: 18px; font-weight: 600;">📝 Update Record</h2><p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">Modify existing Salesforce records with automatic field-level security and intelligent defaults</p></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">⚙️ Configuration Required</h3><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">Object API Name</strong><br/><span style="font-size: 11px; color: #6c757d;">Optional</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">When specified, validates that the recordId matches this object type. Useful for type safety in specific scenarios.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">"Case", "Account", "CustomObject__c"</code></td></tr><tr><td style="padding: 8px;"><strong style="color: #495057;">Default Field Values</strong><br/><span style="font-size: 11px; color: #6c757d;">Optional</span></td><td style="padding: 8px; color: #6c757d;">JSON object with field API names and default values applied to every record update. These are merged with AI-provided values.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{ "Status": "In Progress", "Origin": "AI Agent" }</code></td></tr></table></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">📋 Runtime Parameters</h3><p style="margin: 8px 0; font-size: 13px; color: #6c757d;">The AI will provide these parameters when calling this action:</p><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">recordId</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">The 18-character Salesforce ID of the record to update. 15-character IDs are automatically converted.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">"001xxxxxxxxxxxxxxx"</code></td></tr><tr><td style="padding: 8px;"><strong style="color: #495057;">recordData</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; color: #6c757d;">JSON object containing field API names and their new values. These are merged with your configured default values.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{ "Priority": "High", "Subject": "Updated" }</code></td></tr></table></div><div style="background: #e7f1ff; border-left: 4px solid #0066cc; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #004085;"><strong>💡 How it works:</strong> AI-provided values in recordData are merged with your configured default values. If the AI provides a field that exists in defaults, the AI value takes precedence. Field-level security is automatically enforced.</p></div></div>
  *
  * @extends BaseAgentAction
  */
@@ -85,7 +83,7 @@ public with sharing class ActionUpdateRecord extends BaseAgentAction {
         // Extract recordId
         Object recordIdObj = params.get('recordId');
         if (recordIdObj == null) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Missing required parameter: "recordId"',
                 'Expected: 18-character Salesforce ID (e.g., 001000000000001AAA) or 15-character ID (e.g., 001000000000001)'
@@ -99,7 +97,7 @@ public with sharing class ActionUpdateRecord extends BaseAgentAction {
                 args.recordId = String.valueOf(recordIdObj);
             }
         } catch (Exception e) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Invalid recordId format: ' + recordIdObj,
                 'Expected: 18-character Salesforce ID (e.g., 001000000000001AAA) or 15-character ID (e.g., 001000000000001)'
@@ -133,7 +131,7 @@ public with sharing class ActionUpdateRecord extends BaseAgentAction {
         try {
             recordId = Id.valueOf(args.recordId);
         } catch (Exception e) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Invalid ID format for recordId: ' + args.recordId,
                 'Expected: 18-character Salesforce ID (e.g., 001000000000001AAA) or 15-character ID (e.g., 001000000000001)'
@@ -145,7 +143,7 @@ public with sharing class ActionUpdateRecord extends BaseAgentAction {
         if (String.isNotBlank(config.objectApiName)) {
             String actualObjectApiName = targetSObjectType.getDescribe().getName();
             if (!actualObjectApiName.equalsIgnoreCase(config.objectApiName)) {
-                return ActionOutcome.failureWithGuidance(
+                return ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                     'Object API name mismatch: Expected "' + config.objectApiName + '" but recordId "' + recordId + '" is for "' + actualObjectApiName + '"',
                     'Ensure the recordId matches the configured objectApiName "' + config.objectApiName + '"'
@@ -168,7 +166,7 @@ public with sharing class ActionUpdateRecord extends BaseAgentAction {
         } catch (TypeCoercionService.TypeCoercionException typeEx) {
             // Extract auto-generated correction guidance to help LLM self-correct format errors
             if (String.isNotBlank(typeEx.correctionGuidance)) {
-                return ActionOutcome.failureWithGuidance(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage(), typeEx.correctionGuidance);
+                return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage(), typeEx.correctionGuidance);
             }
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, typeEx.getMessage());
         } catch (Utils.ActionSecurityException secEx) {

@@ -7,7 +7,9 @@
  */
 
 /**
- * @description Generic outcome container for agent actions with explicit success/failure states. Provides unified error handling.
+ * @description Generic outcome container for agent actions with explicit success/failure states.
+ * Error attributes (category, default message, LLM guidance, transience) are driven by
+ * ErrorHandlerConfig__mdt — one record per error code, keyed by DeveloperName.
  */
 public inherited sharing class ActionOutcome {
     @AuraEnabled
@@ -31,148 +33,210 @@ public inherited sharing class ActionOutcome {
     @AuraEnabled
     public String errorCategory { get; private set; }
 
-    @AuraEnabled
-    public Boolean isRetryable { get; private set; }
+    // ---------------------------------------------------------------------------
+    // Metadata cache — zero-SOQL via getAll(), loaded once per transaction
+    // ---------------------------------------------------------------------------
+    @TestVisible
+    private static Map<String, ErrorHandlerConfig__mdt> errorConfigCache;
 
-    private ActionOutcome(
-        Boolean isSuccess,
-        Object data,
-        String errorCode,
-        String errorMessage,
-        String correctionGuidance,
-        String errorCategory,
-        Boolean isRetryable
-    ) {
+    @TestVisible
+    public static ErrorHandlerConfig__mdt getErrorConfig(String errorCode) {
+        if (errorConfigCache == null) {
+            errorConfigCache = ErrorHandlerConfig__mdt.getAll();
+        }
+        if (String.isBlank(errorCode)) {
+            return errorConfigCache.get(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR);
+        }
+        ErrorHandlerConfig__mdt cfg = errorConfigCache.get(errorCode);
+        return cfg != null ? cfg : errorConfigCache.get(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Constructor (private — use factory methods)
+    // ---------------------------------------------------------------------------
+    private ActionOutcome(Boolean isSuccess, Object data, String errorCode, String errorMessage, String correctionGuidance) {
         this.isSuccess = isSuccess;
         this.data = data;
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
-        this.correctionGuidance = correctionGuidance;
-        this.errorCategory = errorCategory;
-        this.isRetryable = isRetryable;
-        this.llmFriendlyMessage = formatLLMFriendlyMessage(isSuccess, errorCode, errorMessage, correctionGuidance);
+
+        if (!isSuccess) {
+            ErrorHandlerConfig__mdt cfg = getErrorConfig(errorCode);
+            this.errorCategory = cfg?.ErrorCategory__c ?? 'unknown';
+            String effectiveGuidance = String.isNotBlank(correctionGuidance) ? correctionGuidance : cfg?.LLMGuidance__c;
+            this.correctionGuidance = effectiveGuidance;
+            this.llmFriendlyMessage = formatLLMFriendlyMessage(errorCode, errorMessage, effectiveGuidance);
+        }
     }
 
+    // ---------------------------------------------------------------------------
+    // Factory API
+    // ---------------------------------------------------------------------------
+
     public static ActionOutcome success(Object data) {
-        return new ActionOutcome(true, data, null, null, null, null, null);
+        return new ActionOutcome(true, data, null, null, null);
     }
 
     public static ActionOutcome success() {
         return success(null);
     }
 
+    /**
+     * @description Standard failure with error code, message, and optional correction guidance.
+     * Category and default LLM guidance are resolved from ErrorHandlerConfig__mdt.
+     * If correctionGuidance is provided it overrides the metadata default.
+     */
+    public static ActionOutcome failure(String errorCode, String errorMessage, String correctionGuidance) {
+        return new ActionOutcome(false, null, errorCode, errorMessage, correctionGuidance);
+    }
+
     public static ActionOutcome failure(String errorCode, String errorMessage) {
-        String errorCategory = deriveErrorCategory(errorCode);
-        Boolean retryable = deriveRetryable(errorCode);
-        return new ActionOutcome(false, null, errorCode, errorMessage, null, errorCategory, retryable);
+        return new ActionOutcome(false, null, errorCode, errorMessage, null);
     }
 
-    public static ActionOutcome failureWithGuidance(String errorCode, String errorMessage, String correctionGuidance) {
-        String errorCategory = deriveErrorCategory(errorCode);
-        Boolean retryable = deriveRetryable(errorCode);
-        return new ActionOutcome(false, null, errorCode, errorMessage, correctionGuidance, errorCategory, retryable);
+    // ---------------------------------------------------------------------------
+    // Framework utility
+    // ---------------------------------------------------------------------------
+
+    /**
+     * @description Resolves the error category for a given error code via metadata.
+     * Used by framework services that need to persist the category to ExecutionStep__c.
+     */
+    public static String deriveCategory(String errorCode) {
+        return getErrorConfig(errorCode)?.ErrorCategory__c ?? 'unknown';
     }
 
-    public static ActionOutcome failure(String errorMessage) {
-        return failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, errorMessage);
+    /**
+     * @description Returns whether the error code is classified as transient (can resolve on retry).
+     * Used by shouldFailFast() to make machine-readable retry decisions independent of LLM text.
+     */
+    public static Boolean isTransient(String errorCode) {
+        ErrorHandlerConfig__mdt cfg = getErrorConfig(errorCode);
+        return cfg?.IsTransient__c == true;
     }
 
-    public static ActionOutcome failureWithMeta(String errorCode, String errorMessage, String errorCategory, Boolean isRetryable, String correctionGuidance) {
-        return new ActionOutcome(false, null, errorCode, errorMessage, correctionGuidance, errorCategory, isRetryable);
+    /**
+     * @description Creates an ActionOutcome from an exception, automatically classifying the
+     * error code from the exception type. Category and LLM guidance are resolved from metadata.
+     *
+     * Use this in action catch blocks — no need to remember error codes:
+     *   } catch (Exception e) {
+     *       return ActionOutcome.fromException(e);
+     *   }
+     */
+    public static ActionOutcome fromException(Exception ex) {
+        return fromException(ex, null);
     }
 
-    public static String deriveErrorCategory(String errorCode) {
-        if (String.isBlank(errorCode)) {
-            return AIAgentConstants.ERR_CATEGORY_UNKNOWN;
-        }
-
-        if (new Set<String>{ AIAgentConstants.ERR_CODE_INPUT_VALIDATION, AIAgentConstants.ERR_CODE_DEPENDENCY_VALIDATION }.contains(errorCode)) {
-            return AIAgentConstants.ERR_CATEGORY_VALIDATION;
-        }
-        if (errorCode == AIAgentConstants.ERR_CODE_PERMISSION_DENIED) {
-            return AIAgentConstants.ERR_CATEGORY_PERMISSION;
-        }
-        if (
-            new Set<String>{
-                    AIAgentConstants.ERR_CODE_DML_ERROR,
-                    AIAgentConstants.ERR_CODE_SOQL_ERROR,
-                    AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND,
-                    AIAgentConstants.ERR_CODE_RECORD_LOCKED
-                }
-                .contains(errorCode)
-        ) {
-            return AIAgentConstants.ERR_CATEGORY_DATA;
-        }
-        if (new Set<String>{ AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, AIAgentConstants.ERR_CODE_LLM_CALL_FAILED }.contains(errorCode)) {
-            return AIAgentConstants.ERR_CATEGORY_EXTERNAL;
-        }
-        if (
-            new Set<String>{
-                    AIAgentConstants.ERR_CODE_SYSTEM_LIMIT,
-                    AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED,
-                    AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
-                    AIAgentConstants.ERR_CODE_FLOW_FAULT,
-                    AIAgentConstants.ERR_CODE_COMPLETION_CAPABILITY_FAILED,
-                    AIAgentConstants.ERR_CODE_TOOL_RECOVERY_VIOLATION,
-                    AIAgentConstants.ERR_CODE_SAFETY_BLOCKED,
-                    AIAgentConstants.ERR_CODE_SAFETY_FLAGGED
-                }
-                .contains(errorCode)
-        ) {
-            return AIAgentConstants.ERR_CATEGORY_SYSTEM;
-        }
-        if (new Set<String>{ AIAgentConstants.ERR_CODE_CONFIG_ERROR, AIAgentConstants.ERR_CODE_ACTION_HANDLER_NULL_RESULT }.contains(errorCode)) {
-            return AIAgentConstants.ERR_CATEGORY_CONFIG;
-        }
-        if (
-            new Set<String>{
-                    AIAgentConstants.ERR_CODE_USER_REJECTED,
-                    AIAgentConstants.ERR_CODE_CONFIRMATION_TIMEOUT,
-                    AIAgentConstants.ERR_CODE_CONFIRMATION_STATE_ERROR
-                }
-                .contains(errorCode)
-        ) {
-            return AIAgentConstants.ERR_CATEGORY_USER;
-        }
-
-        return AIAgentConstants.ERR_CATEGORY_UNKNOWN;
+    /**
+     * @description Creates an ActionOutcome from an exception with optional domain-specific
+     * correction guidance that overrides the metadata default.
+     *
+     *   } catch (Exception e) {
+     *       return ActionOutcome.fromException(e, 'Failed to assign case to queue');
+     *   }
+     */
+    public static ActionOutcome fromException(Exception ex, String correctionGuidance) {
+        String errorCode = classifyException(ex);
+        return failure(errorCode, ex.getMessage(), correctionGuidance);
     }
 
-    public static Boolean deriveRetryable(String errorCode) {
-        if (String.isBlank(errorCode)) {
-            return false;
+    /**
+     * @description Maps a standard Apex exception type to the appropriate framework error code.
+     * DmlException and QueryException are fully inspected (status codes, message content) so that
+     * codes like RECORD_LOCKED and PERMISSION_DENIED are correctly classified regardless of whether
+     * the exception is caught in action code or bubbles up through BaseAgentAction.
+     */
+    @TestVisible
+    static String classifyException(Exception ex) {
+        if (ex instanceof System.CalloutException)
+            return AIAgentConstants.ERR_CODE_CONNECT_API_ERROR;
+        if (ex instanceof System.LimitException)
+            return AIAgentConstants.ERR_CODE_SYSTEM_LIMIT;
+        if (ex instanceof System.MathException)
+            return AIAgentConstants.ERR_CODE_ACTION_EXECUTION;
+        if (ex instanceof System.NullPointerException)
+            return AIAgentConstants.ERR_CODE_ACTION_EXECUTION;
+        if (ex instanceof System.SObjectException)
+            return AIAgentConstants.ERR_CODE_CONFIG_ERROR;
+        if (ex instanceof System.TypeException)
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+        if (ex instanceof System.JSONException)
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+        if (ex instanceof System.NoAccessException)
+            return AIAgentConstants.ERR_CODE_PERMISSION_DENIED;
+        if (ex instanceof System.SecurityException)
+            return AIAgentConstants.ERR_CODE_PERMISSION_DENIED;
+        if (ex instanceof System.SearchException)
+            return AIAgentConstants.ERR_CODE_SOQL_ERROR;
+        if (ex instanceof System.ListException)
+            return AIAgentConstants.ERR_CODE_ACTION_EXECUTION;
+        if (ex instanceof System.StringException)
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+
+        if (ex instanceof DmlException) {
+            DmlException dmlEx = (DmlException) ex;
+            String statusCode = dmlEx.getNumDml() > 0 ? dmlEx.getDmlStatusCode(0) : null;
+            return classifyDmlStatusCode(statusCode);
         }
 
-        return new Set<String>{
-                AIAgentConstants.ERR_CODE_RECORD_LOCKED,
-                AIAgentConstants.ERR_CODE_CONNECT_API_ERROR,
-                AIAgentConstants.ERR_CODE_LLM_CALL_FAILED
-            }
-            .contains(errorCode);
+        if (ex instanceof System.QueryException) {
+            String msgLower = ex.getMessage().toLowerCase();
+            return (msgLower.contains('security enforced') || msgLower.contains('insufficient access'))
+                ? AIAgentConstants.ERR_CODE_PERMISSION_DENIED
+                : AIAgentConstants.ERR_CODE_SOQL_ERROR;
+        }
+
+        return AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR;
     }
 
-    private String formatLLMFriendlyMessage(Boolean isSuccess, String errorCode, String errorMessage, String correctionGuidance) {
-        if (isSuccess) {
-            return null; // No LLM message needed for success cases
-        }
+    /**
+     * @description Maps a DML status code string to the appropriate framework error code.
+     * Shared by classifyException() and BaseAgentAction.mapExceptionToOutcome() so that
+     * DML classification is consistent whether exceptions are caught in action code or
+     * bubble up through the framework.
+     */
+    public static String classifyDmlStatusCode(String statusCode) {
+        if (statusCode == null)
+            return AIAgentConstants.ERR_CODE_DML_ERROR;
+        if (statusCode == 'UNABLE_TO_LOCK_ROW')
+            return AIAgentConstants.ERR_CODE_RECORD_LOCKED;
+        if (statusCode == 'FIELD_CUSTOM_VALIDATION_EXCEPTION')
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+        if (statusCode == 'REQUIRED_FIELD_MISSING')
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+        if (statusCode == 'INSUFFICIENT_ACCESS_OR_READONLY' || statusCode == 'CANNOT_INSERT_UPDATE_ACTIVATE_ENTITY')
+            return AIAgentConstants.ERR_CODE_PERMISSION_DENIED;
+        if (statusCode == 'INVALID_CROSS_REFERENCE_KEY' || statusCode == 'INVALID_FIELD_FOR_INSERT_UPDATE' || statusCode == 'INVALID_ID_FIELD')
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+        if (statusCode == 'STRING_TOO_LONG')
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+        if (statusCode == 'DUPLICATE_VALUE')
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+        if (statusCode == 'FIELD_FILTER_VALIDATION_EXCEPTION')
+            return AIAgentConstants.ERR_CODE_INPUT_VALIDATION;
+        if (statusCode == 'DELETE_FAILED')
+            return AIAgentConstants.ERR_CODE_DML_ERROR;
+        return AIAgentConstants.ERR_CODE_DML_ERROR;
+    }
 
-        String emoji = getErrorEmoji(errorCode);
+    // ---------------------------------------------------------------------------
+    // Private formatting helpers
+    // ---------------------------------------------------------------------------
+
+    private String formatLLMFriendlyMessage(String errorCode, String errorMessage, String correctionGuidance) {
         String userFriendlyError = sanitizeErrorMessage(errorCode, errorMessage);
-        String suggestion = getErrorSuggestion(errorCode);
 
         if (String.isNotBlank(correctionGuidance)) {
-            return String.format(
-                '{0} **Error**: {1}\n\n**How to Fix**: {2}\n\n**Suggestion**: {3}',
-                new List<String>{ emoji, userFriendlyError, correctionGuidance, suggestion }
-            );
+            return String.format('**Error**: {0}\n\n**How to Fix**: {1}', new List<String>{ userFriendlyError, correctionGuidance });
         }
 
-        return String.format('{0} **Error**: {1}\n\n**Suggestion**: {2}', new List<String>{ emoji, userFriendlyError, suggestion });
+        return String.format('**Error**: {0}', new List<String>{ userFriendlyError });
     }
 
     private String sanitizeErrorMessage(String errorCode, String rawErrorMessage) {
         if (String.isBlank(rawErrorMessage)) {
-            return getDefaultErrorMessage(errorCode);
+            return getDefaultMessage(errorCode);
         }
 
         String sanitized = rawErrorMessage;
@@ -191,8 +255,7 @@ public inherited sharing class ActionOutcome {
         }
 
         sanitized = sanitized.replaceAll('\\w+\\.\\w+\\(\\)', '');
-        sanitized = sanitized.replaceAll('[a-zA-Z0-9]{18}', '[Record ID]');
-        sanitized = sanitized.replaceAll('[a-zA-Z0-9]{15}', '[Record ID]');
+        sanitized = sanitized.replaceAll('\\b[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?\\b', '[Record ID]');
         sanitized = sanitized.replaceAll('\\w+Exception:\\s*', '');
         sanitized = sanitized.replaceAll('System\\.', '');
         sanitized = sanitized.replaceAll('(?i)insufficient access', 'you do not have permission');
@@ -209,7 +272,7 @@ public inherited sharing class ActionOutcome {
         }
 
         if (String.isBlank(sanitized) || sanitized.length() < 10) {
-            return getDefaultErrorMessage(errorCode);
+            return getDefaultMessage(errorCode);
         }
 
         sanitized = sanitized.trim();
@@ -223,219 +286,15 @@ public inherited sharing class ActionOutcome {
         return sanitized;
     }
 
-    private String getDefaultErrorMessage(String errorCode) {
-        if (errorCode == null) {
-            return 'An unexpected error occurred while processing your request.';
-        }
-
-        switch on errorCode {
-            when 'INPUT_VALIDATION' {
-                return 'The provided information is invalid or incomplete.';
-            }
-            when 'CONFIG_ERROR' {
-                return 'There is a configuration issue with this feature.';
-            }
-            when 'PERMISSION_DENIED' {
-                return 'You do not have the necessary permissions to perform this action.';
-            }
-            when 'DML_ERROR' {
-                return 'Unable to save the changes to the database.';
-            }
-            when 'SOQL_ERROR' {
-                return 'Unable to retrieve the requested information from the database.';
-            }
-            when 'RECORD_NOT_FOUND' {
-                return 'The requested record could not be found.';
-            }
-            when 'RECORD_LOCKED' {
-                return 'This record is currently being edited by another user.';
-            }
-            when 'CONNECT_API_ERROR' {
-                return 'Unable to connect to the external service.';
-            }
-            when 'LLM_CALL_FAILED' {
-                return 'The AI service is temporarily unavailable.';
-            }
-            when 'ACTION_EXECUTION_FAILED' {
-                return 'The requested action could not be completed.';
-            }
-            when 'FLOW_FAULT' {
-                return 'An error occurred in the automated process flow.';
-            }
-            when 'MAX_TURNS_EXCEEDED' {
-                return 'This conversation has exceeded the maximum allowed interactions.';
-            }
-            when 'SYSTEM_LIMIT_EXCEEDED' {
-                return 'A system resource limit has been reached.';
-            }
-            when 'USER_REJECTED_ACTION' {
-                return 'You declined to proceed with this action.';
-            }
-            when 'CONFIRMATION_TIMEOUT' {
-                return 'The confirmation request timed out without a response.';
-            }
-            when 'CONFIRMATION_STATE_ERROR' {
-                return 'There was an issue with the confirmation process.';
-            }
-            when 'COMPLETION_CAPABILITY_FAILED' {
-                return 'Unable to complete the final step of this process.';
-            }
-            when 'ACTION_HANDLER_NULL_RESULT' {
-                return 'The action completed but did not return expected results.';
-            }
-            when else {
-                return 'An unexpected error occurred while processing your request.';
-            }
-        }
-    }
-
-    private String getErrorEmoji(String errorCode) {
-        if (errorCode == null)
-            return '⚠️';
-
-        switch on errorCode {
-            when 'INPUT_VALIDATION' {
-                return '❌';
-            }
-            when 'CONFIG_ERROR' {
-                return '⚙️';
-            }
-            when 'PERMISSION_DENIED' {
-                return '🔒';
-            }
-            when 'DML_ERROR' {
-                return '💾';
-            }
-            when 'SOQL_ERROR' {
-                return '🗄️';
-            }
-            when 'RECORD_NOT_FOUND' {
-                return '🔍';
-            }
-            when 'RECORD_LOCKED' {
-                return '🔐';
-            }
-            when 'CONNECT_API_ERROR' {
-                return '🔌';
-            }
-            when 'LLM_CALL_FAILED' {
-                return '🤖';
-            }
-            when 'ACTION_EXECUTION_FAILED' {
-                return '⚡';
-            }
-            when 'FLOW_FAULT' {
-                return '🔄';
-            }
-            when 'MAX_TURNS_EXCEEDED' {
-                return '🔢';
-            }
-            when 'SYSTEM_LIMIT_EXCEEDED' {
-                return '⏱️';
-            }
-            when 'USER_REJECTED_ACTION' {
-                return '🚫';
-            }
-            when 'CONFIRMATION_TIMEOUT' {
-                return '⏰';
-            }
-            when 'CONFIRMATION_STATE_ERROR' {
-                return '🔀';
-            }
-            when 'COMPLETION_CAPABILITY_FAILED' {
-                return '🏁';
-            }
-            when 'ACTION_HANDLER_NULL_RESULT' {
-                return '❓';
-            }
-            when 'UNEXPECTED_ERROR' {
-                return '⚠️';
-            }
-            when else {
-                return '⚠️';
-            }
-        }
-    }
-
-    /**
-     * @description Provides contextual, actionable suggestions based on error type.
-     * Each suggestion should guide the user or LLM toward resolution.
-     *
-     * @param errorCode The error code to provide suggestions for
-     * @return Helpful suggestion text for the error type
-     */
-    private String getErrorSuggestion(String errorCode) {
-        if (errorCode == null)
-            return 'Please check the input parameters and try again.';
-
-        switch on errorCode {
-            when 'INPUT_VALIDATION' {
-                return 'Verify all required fields are provided with valid values. Check for missing or incorrectly formatted data.';
-            }
-            when 'CONFIG_ERROR' {
-                return 'This feature requires administrative configuration. Please contact your Salesforce administrator to review the setup.';
-            }
-            when 'PERMISSION_DENIED' {
-                return 'You need additional permissions to perform this action. Contact your administrator to request access, or try a different approach.';
-            }
-            when 'DML_ERROR' {
-                return 'Check for validation rules, required fields, duplicate values, or field permissions that may be preventing this operation.';
-            }
-            when 'SOQL_ERROR' {
-                return 'Unable to retrieve data. Verify the record exists and you have permission to view it, or try refining your search criteria.';
-            }
-            when 'RECORD_NOT_FOUND' {
-                return 'The record may have been deleted or you may not have access. Verify the record ID and your permissions.';
-            }
-            when 'RECORD_LOCKED' {
-                return 'Please wait for the other user to finish their edits, or try again in a few moments.';
-            }
-            when 'CONNECT_API_ERROR' {
-                return 'Check your internet connection or try again in a few moments. If the issue persists, contact your administrator.';
-            }
-            when 'LLM_CALL_FAILED' {
-                return 'The AI service is experiencing issues. Please try again in a moment. If problems continue, contact your administrator.';
-            }
-            when 'ACTION_EXECUTION_FAILED' {
-                return 'This action encountered an unexpected issue. Try rephrasing your request or breaking it into smaller steps.';
-            }
-            when 'FLOW_FAULT' {
-                return 'The automated process encountered an error. Contact your administrator to review the flow configuration.';
-            }
-            when 'MAX_TURNS_EXCEEDED' {
-                return 'This conversation is too long. Consider starting a new conversation or summarizing your remaining questions.';
-            }
-            when 'SYSTEM_LIMIT_EXCEEDED' {
-                return 'A Salesforce resource limit was reached. Try simplifying your request or contact your administrator to review system limits.';
-            }
-            when 'USER_REJECTED_ACTION' {
-                return 'You chose not to proceed. If you\'d like to try something else, let me know how I can help.';
-            }
-            when 'CONFIRMATION_TIMEOUT' {
-                return 'The request for confirmation expired. If you\'d still like to proceed, please make the request again.';
-            }
-            when 'CONFIRMATION_STATE_ERROR' {
-                return 'There was a problem processing your confirmation. Please try your request again from the beginning.';
-            }
-            when 'COMPLETION_CAPABILITY_FAILED' {
-                return 'The final step couldn\'t be completed. The main work may have succeeded, but final notifications or updates failed.';
-            }
-            when 'ACTION_HANDLER_NULL_RESULT' {
-                return 'The action completed but didn\'t provide expected results. This may indicate a configuration issue - contact your administrator.';
-            }
-            when 'UNEXPECTED_ERROR' {
-                return 'An unexpected error occurred. Try rephrasing your request or contact your administrator if the issue continues.';
-            }
-            when else {
-                return 'An unexpected error occurred. Please try again or contact your administrator if the issue persists.';
-            }
-        }
+    private String getDefaultMessage(String errorCode) {
+        ErrorHandlerConfig__mdt cfg = getErrorConfig(errorCode);
+        return String.isNotBlank(cfg?.DefaultMessage__c) ? cfg.DefaultMessage__c : 'An unexpected error occurred while processing your request.';
     }
 
     public override String toString() {
         return String.format(
-            'ActionOutcome[isSuccess={0}, errorCode={1}, errorCategory={2}, retryable={3}, errorMessage={4}]',
-            new List<String>{ String.valueOf(this.isSuccess), this.errorCode, this.errorCategory, String.valueOf(this.isRetryable), this.errorMessage }
+            'ActionOutcome[isSuccess={0}, errorCode={1}, errorCategory={2}, errorMessage={3}]',
+            new List<String>{ String.valueOf(this.isSuccess), this.errorCode, this.errorCategory, this.errorMessage }
         );
     }
 }

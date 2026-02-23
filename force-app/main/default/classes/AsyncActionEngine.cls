@@ -144,37 +144,50 @@ public without sharing class AsyncActionEngine implements Queueable, Database.Al
                 !outcome.isSuccess // isError = !isSuccess
             );
 
-            // FAIL-FAST CHECK: Apply three-tier error handling policy
-            // This ensures async tools respect the same error handling policy as sync tools
+            // FAIL-FAST CHECK: Apply error handling policy
+            // Pre-load execution state and failure count once (on failure only) so that:
+            //   a) IsToolTerminatingMode__c and LastFunctionResumeTimestamp__c share one SOQL
+            //   b) The failure count is scoped to the post-resume window, preventing pre-resume
+            //      failures from depleting the circuit breaker budget on resumed executions.
             AIAgentDefinition__c agentDefinition = AIAgentConfigService.getAgentDefinition(this.agentDefinitionId);
-            Boolean shouldFailFast = OrchestrationService.shouldFailFast(this.capability, agentDefinition, outcome, this.executionId, logPrefix);
-
-            // TOOL-TERMINATING MODE OVERRIDE: If execution is in tool-terminating mode,
-            // tool failures should fail immediately since no follow-up LLM call is planned
+            Integer preloadedFailureCount = -1;
             Boolean isToolTerminatingMode = false;
-            if (!outcome.isSuccess && !shouldFailFast) {
-                // Only check tool-terminating mode if we would normally attempt autonomous recovery
+            if (!outcome.isSuccess) {
                 AgentExecution__c executionRecord = [
-                    SELECT IsToolTerminatingMode__c
+                    SELECT IsToolTerminatingMode__c, LastFunctionResumeTimestamp__c
                     FROM AgentExecution__c
                     WHERE Id = :this.executionId
                     LIMIT 1
                 ];
                 isToolTerminatingMode = executionRecord.IsToolTerminatingMode__c == true;
+                preloadedFailureCount = OrchestrationService.countSuccessiveToolFailures(
+                    this.executionId,
+                    this.capability.CapabilityName__c,
+                    executionRecord.LastFunctionResumeTimestamp__c,
+                    logPrefix
+                );
+            }
 
-                if (isToolTerminatingMode) {
-                    shouldFailFast = true; // Override autonomous recovery
-                    System.debug(
-                        LoggingLevel.INFO,
-                        logPrefix + 'Tool-terminating mode detected. Overriding autonomous recovery - failing execution immediately.'
-                    );
-                }
+            Boolean shouldFailFast = OrchestrationService.shouldFailFast(
+                this.capability,
+                agentDefinition,
+                outcome,
+                this.executionId,
+                preloadedFailureCount,
+                logPrefix
+            );
+
+            if (isToolTerminatingMode && !shouldFailFast) {
+                shouldFailFast = true;
+                System.debug(LoggingLevel.INFO, logPrefix + 'Tool-terminating mode detected. Overriding autonomous recovery - failing execution immediately.');
             }
 
             if (!outcome.isSuccess && shouldFailFast) {
                 // Tool failed and policy requires immediate failure (could be fail-fast or max retries exceeded)
                 Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
-                Integer failureCount = OrchestrationService.countSuccessiveToolFailures(this.executionId, this.capability.CapabilityName__c, logPrefix);
+                Integer failureCount = preloadedFailureCount >= 0
+                    ? preloadedFailureCount
+                    : OrchestrationService.countSuccessiveToolFailures(this.executionId, this.capability.CapabilityName__c, logPrefix);
                 String failureReason;
                 String logMessage;
 
@@ -198,21 +211,7 @@ public without sharing class AsyncActionEngine implements Queueable, Database.Al
 
                 System.debug(LoggingLevel.WARN, logPrefix + logMessage);
 
-                // Log as an Error step so UI can display it as a divider
-                String errorCode;
-                String errorTitle;
-                if (isToolTerminatingMode) {
-                    errorCode = 'TOOL_TERMINATING_MODE';
-                    errorTitle = 'Tool Execution Stopped';
-                } else if (failureCount >= maxRetries) {
-                    errorCode = 'MAX_TOOL_RETRIES_EXCEEDED';
-                    errorTitle = 'Tool Retry Limit Exceeded';
-                } else {
-                    errorCode = 'FAIL_FAST_POLICY';
-                    errorTitle = 'Tool Execution Stopped';
-                }
-
-                decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ this.capability, outcome });
+                decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ this.capability, outcome, maxRetries, failureCount });
 
                 agentStateSvc.failTurn(
                     this.executionId,
@@ -225,7 +224,8 @@ public without sharing class AsyncActionEngine implements Queueable, Database.Al
             }
 
             // Validate turn limits and dispatch follow-up processing (per-agent override with org-wide fallback)
-            Integer maxTurns = AIAgentFrameworkSettings.getMaxProcessingCycles(agentDefinition.DeveloperName__c);
+            // Use the object overload to avoid a redundant SOQL — agentDefinition is already loaded
+            Integer maxTurns = AIAgentFrameworkSettings.getMaxProcessingCycles(agentDefinition);
             if ((this.currentTurnCount + 1) > maxTurns) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Maximum conversation turns exceeded (' + maxTurns + ') - terminating processing');
                 agentStateSvc.failTurn(

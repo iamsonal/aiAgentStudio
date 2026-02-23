@@ -317,8 +317,10 @@ private class ToolCallResponseHandlerTest {
         AgentCapability__c failFastCapability = TestFactory.newCapability().forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' }).build();
         failFastCapability.CapabilityName__c = 'failfast_case_' + String.valueOf(Datetime.now().getTime());
         failFastCapability.AIAgentDefinition__c = setup.agentDefinition.Id;
-        failFastCapability.FailFastOnError__c = true;
         insert failFastCapability;
+
+        // Set agent to Fail Fast mode — halts immediately on any tool error
+        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, ErrorRecoveryMode__c = 'Fail Fast');
 
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
@@ -738,7 +740,7 @@ private class ToolCallResponseHandlerTest {
             LIMIT 1
         ];
         System.assertEquals(true, errorStep.IsError__c, 'Queue failure should create an error tool result');
-        System.assert(errorStep.ToolResult__c.contains('Failed to queue async tool'), 'Tool result should include queue failure message');
+        System.assert(errorStep.ToolResult__c.contains('Failed to queue tool for execution'), 'Tool result should include queue failure message');
     }
 
     @IsTest
@@ -999,7 +1001,7 @@ private class ToolCallResponseHandlerTest {
         ];
         System.assertEquals(true, blockedResult.IsDependencyValidationFailure__c, 'Tool should be marked as dependency validation failure');
         System.assertEquals(false, blockedResult.IsError__c, 'Blocked tool should NOT be marked as error (it is a blocked attempt, not an execution error)');
-        System.assert(blockedResult.ToolResult__c.contains('isSuccess'), 'Blocked outcome should be serialized');
+        System.assert(blockedResult.ToolResult__c.contains('"success"'), 'Blocked outcome should be serialized');
     }
 
     /**

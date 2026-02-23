@@ -306,37 +306,61 @@ private class OrchestrationServiceTest {
 
     @IsTest
     static void testSerializeActionOutcome_ErrorIncludesGuidance() {
-        ActionOutcome outcome = ActionOutcome.failureWithGuidance('ERR_TEST', 'Failure', 'Try again');
+        ActionOutcome outcome = ActionOutcome.failure('ERR_TEST', 'Failure', 'Try again');
 
         String json = OrchestrationService.serializeActionOutcome(outcome, '[test] ');
-        System.assert(json.contains('"isSuccess":false'), 'Serialized output should indicate failure');
-        System.assert(json.contains('messageForUser'), 'Serialized output should include messageForUser');
-        System.assert(json.contains('Try again'), 'Serialized output should include correctionGuidance');
+        System.assert(json.contains('"success":false'), 'Serialized output should indicate failure');
+        System.assert(json.contains('"error"'), 'Serialized output should include error field');
+        System.assert(json.contains('Try again'), 'Serialized output should include guidance');
+        System.assert(!json.contains('messageForUser'), 'Should not include display-only messageForUser field');
+        System.assert(!json.contains('errorCategory'), 'Should not include framework-internal errorCategory');
+        System.assert(!json.contains('"errorCode"'), 'Should use code not errorCode in LLM payload');
+        System.assert(json.contains('"code"'), 'Should include code field for LLM context');
     }
 
     @IsTest
     static void testSerializeActionOutcome_NullOutcome_ReturnsErrorJson() {
         String json = OrchestrationService.serializeActionOutcome(null, '[test] ');
 
-        System.assert(json.contains('"isSuccess":false'), 'Null outcome should return error JSON');
-        System.assert(json.contains('did not return an outcome'), 'Should explain outcome was null');
+        System.assert(json.contains('"success":false'), 'Null outcome should return error JSON');
+        System.assert(json.contains('"retryable":false'), 'Null outcome should not be retryable');
     }
 
     @IsTest
-    static void testSerializeActionOutcome_SuccessWithNullData_ReturnsEmptyDataMap() {
+    static void testSerializeActionOutcome_SuccessWithNullData_ReturnsNoDataKey() {
         ActionOutcome outcome = ActionOutcome.success();
         String json = OrchestrationService.serializeActionOutcome(outcome, '[test] ');
 
-        System.assert(json.contains('"isSuccess":true'), 'Success should be indicated');
+        System.assert(json.contains('"success":true'), 'Success should be indicated');
+        System.assert(!json.contains('"data"'), 'Success with null data should omit data key');
     }
 
     @IsTest
-    static void testSerializeActionOutcome_FailureWithoutGuidance_OmitsGuidance() {
-        ActionOutcome outcome = ActionOutcome.failure('ERR_TEST', 'Something failed');
+    static void testSerializeActionOutcome_FailureWithGuidance_IncludesGuidanceKey() {
+        // correctionGuidance is always populated from ErrorHandlerConfig__mdt.LLMGuidance__c.
+        // It should appear under the 'guidance' key (not 'correctionGuidance') in the LLM payload.
+        ActionOutcome outcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Something failed');
         String json = OrchestrationService.serializeActionOutcome(outcome, '[test] ');
 
-        System.assert(json.contains('"isSuccess":false'), 'Should indicate failure');
-        System.assert(!json.contains('correctionGuidance'), 'Should not include guidance when not provided');
+        System.assert(json.contains('"success":false'), 'Should indicate failure');
+        System.assert(json.contains('"guidance"'), 'Metadata guidance should appear under the guidance key');
+        System.assert(!json.contains('correctionGuidance'), 'Internal field name correctionGuidance should not appear in LLM payload');
+    }
+
+    @IsTest
+    static void testSerializeActionOutcome_TransientError_RetryableTrue() {
+        ActionOutcome outcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Timeout');
+        String json = OrchestrationService.serializeActionOutcome(outcome, '[test] ');
+
+        System.assert(json.contains('"retryable":true'), 'Transient error code should produce retryable:true');
+    }
+
+    @IsTest
+    static void testSerializeActionOutcome_NonTransientError_RetryableFalse() {
+        ActionOutcome outcome = ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Invalid input');
+        String json = OrchestrationService.serializeActionOutcome(outcome, '[test] ');
+
+        System.assert(json.contains('"retryable":false'), 'Non-transient error code should produce retryable:false');
     }
 
     @IsTest
@@ -362,8 +386,8 @@ private class OrchestrationServiceTest {
 
     @IsTest
     static void testShouldFailFast_SuccessOutcome_ReturnsFalse() {
-        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool', FailFastOnError__c = true);
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function');
+        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', ErrorRecoveryMode__c = 'Autonomous');
         ActionOutcome success = ActionOutcome.success();
 
         System.assertEquals(false, OrchestrationService.shouldFailFast(cap, agent, success, null, '[test] '), 'Success outcome should never fail fast');
@@ -371,31 +395,60 @@ private class OrchestrationServiceTest {
 
     @IsTest
     static void testShouldFailFast_NullOutcome_ReturnsFalse() {
-        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool', FailFastOnError__c = false);
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function');
+        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', ErrorRecoveryMode__c = 'Autonomous');
 
         System.assertEquals(false, OrchestrationService.shouldFailFast(cap, agent, null, null, '[test] '), 'Null outcome should return false');
     }
 
     @IsTest
-    static void testShouldFailFast_FailFastEnabled_ReturnsTrue() {
-        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool', FailFastOnError__c = true);
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function');
+    static void testShouldFailFast_FailFastMode_ReturnsTrue() {
+        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', ErrorRecoveryMode__c = 'Fail Fast');
         ActionOutcome failure = ActionOutcome.failure('ERR', 'Failed');
 
-        System.assertEquals(true, OrchestrationService.shouldFailFast(cap, agent, failure, null, '[test] '), 'FailFastOnError should immediately return true');
+        System.assertEquals(true, OrchestrationService.shouldFailFast(cap, agent, failure, null, '[test] '), 'Fail Fast mode should immediately return true');
     }
 
     @IsTest
-    static void testShouldFailFast_ConversationalAgent_AllowsLLMRecovery() {
-        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool', FailFastOnError__c = false);
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Conversational');
-        ActionOutcome failure = ActionOutcome.failure('ERR', 'Failed');
+    static void testShouldFailFast_AutonomousMode_AllowsLLMRecovery() {
+        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Conversational', ErrorRecoveryMode__c = 'Autonomous');
+        // Must use a transient error code so the non-transient shortcut does not fire before the circuit breaker logic
+        ActionOutcome failure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient network error');
 
         System.assertEquals(
             false,
             OrchestrationService.shouldFailFast(cap, agent, failure, null, '[test] '),
-            'Conversational agents should allow LLM recovery'
+            'Autonomous mode with transient error should allow LLM recovery (circuit breaker not yet hit)'
+        );
+    }
+
+    @IsTest
+    static void testShouldFailFast_NonTransientError_FailsFastImmediately() {
+        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', ErrorRecoveryMode__c = 'Autonomous');
+        // Non-transient errors should fail fast even in Autonomous mode — retrying cannot resolve them
+        ActionOutcome permissionFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, 'Access denied');
+
+        System.assertEquals(
+            true,
+            OrchestrationService.shouldFailFast(cap, agent, permissionFailure, null, '[test] '),
+            'Non-transient error should fail fast regardless of recovery mode'
+        );
+
+        ActionOutcome inputFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Invalid argument');
+        System.assertEquals(
+            true,
+            OrchestrationService.shouldFailFast(cap, agent, inputFailure, null, '[test] '),
+            'INPUT_VALIDATION should fail fast — LLM must fix args, not retry same call'
+        );
+
+        ActionOutcome configFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Bad config');
+        System.assertEquals(
+            true,
+            OrchestrationService.shouldFailFast(cap, agent, configFailure, null, '[test] '),
+            'CONFIG_ERROR should fail fast — needs admin intervention'
         );
     }
 
@@ -499,22 +552,20 @@ private class OrchestrationServiceTest {
      */
     @IsTest
     static void testShouldFailFast_WithPreloadedCount_UsesPreloadedValue() {
-        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'preloaded_tool', FailFastOnError__c = false);
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function');
+        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'preloaded_tool');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', ErrorRecoveryMode__c = 'Autonomous');
 
-        // Use a retryable failure so Tier 2 (non-retryable check) is bypassed and only
-        // Tier 3 (MaxToolRetries / preloaded count) is exercised.
-        ActionOutcome retryableFailure = ActionOutcome.failureWithMeta(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Transient failure', null, true, null);
+        // Must use a transient error code so the non-transient shortcut does not short-circuit before the preloaded count is evaluated
+        ActionOutcome retryableFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient network failure');
 
         Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
 
-        // Tier 3 guard requires a non-null executionId. The preloaded-count path (>= 0) never
-        // issues a SOQL, so a dummy Id from an unrelated object is safe here.
+        // The preloaded-count path (>= 0) never issues a SOQL, so a dummy Id is safe here.
         Id dummyId = UserInfo.getUserId();
 
-        // Preloaded count at the threshold — should trigger Tier 3 fail-fast
+        // Preloaded count at the threshold — should trigger circuit breaker
         Boolean atMax = OrchestrationService.shouldFailFast(cap, agent, retryableFailure, dummyId, maxRetries, '[test] ');
-        System.assertEquals(true, atMax, 'Preloaded count at max retries should trigger Tier 3 fail-fast');
+        System.assertEquals(true, atMax, 'Preloaded count at max retries should trigger circuit breaker');
 
         // Preloaded count strictly below threshold — should allow LLM recovery
         Boolean belowMax = OrchestrationService.shouldFailFast(cap, agent, retryableFailure, dummyId, maxRetries - 1, '[test] ');
@@ -534,14 +585,13 @@ private class OrchestrationServiceTest {
     }
 
     /**
-     * @description Tests that MaxToolRetries check (Tier 3) causes fail-fast for Function agents
-     *              after successive tool failures exceed the threshold.
+     * @description Tests that the global MaxToolRetries circuit breaker fires for any agent type
+     *              in Autonomous mode after successive tool failures exceed the threshold.
      */
     @IsTest
     static void testShouldFailFast_FunctionAgentExceedsMaxRetries_ReturnsTrue() {
         TestFactory.AgentSetup setup = getSetup();
 
-        // Create a Function agent (not Conversational/Email)
         AIAgentDefinition__c functionAgent = TestFactory.newAgentDefinition()
             .withName('Function_FailFast_Agent')
             .withType('Function')
@@ -580,18 +630,19 @@ private class OrchestrationServiceTest {
             );
         }
 
-        ActionOutcome failure = ActionOutcome.failure('ERR_TEST', 'Tool failed again');
+        // Use a transient error to ensure the circuit breaker logic (not the non-transient shortcut) causes the halt
+        ActionOutcome failure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient tool failure');
 
         // Reload agent with full details
         AIAgentDefinition__c agentFull = [
-            SELECT Id, AgentType__c
+            SELECT Id, AgentType__c, ErrorRecoveryMode__c
             FROM AIAgentDefinition__c
             WHERE Id = :functionAgent.Id
         ];
 
         Boolean result = OrchestrationService.shouldFailFast(capability, agentFull, failure, execution.Id, '[test] ');
 
-        System.assertEquals(true, result, 'Function agent with successive failures exceeding MaxToolRetries should fail fast (Tier 3)');
+        System.assertEquals(true, result, 'Function agent with successive transient failures exceeding MaxToolRetries should fail fast via circuit breaker');
     }
 
     /**
@@ -663,106 +714,428 @@ private class OrchestrationServiceTest {
     }
 
     /**
-     * @description Tests that Conversational and Email agents skip MaxToolRetries check (Tier 3)
-     *              and allow LLM recovery even with multiple failures.
+     * @description Verifies that the MaxToolRetries circuit breaker is agent-type agnostic.
+     *              Conversational and Email agents in Autonomous mode must hit the circuit breaker
+     *              once successive failures exceed the global threshold — there is no special exemption
+     *              based on agent type. ErrorRecoveryMode__c is the sole controlling factor.
      */
     @IsTest
-    static void testShouldFailFast_ConversationalAndEmailAgents_SkipMaxRetries() {
+    static void testShouldFailFast_AllAgentTypes_HitCircuitBreakerInAutonomousMode() {
+        TestFactory.AgentSetup setup = getSetup();
+        Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
+        // Use a transient error so the circuit breaker (not the non-transient shortcut) is what fires
+        ActionOutcome failure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient tool failure');
+
+        for (String agentType : new List<String>{ 'Conversational', 'Email' }) {
+            AIAgentDefinition__c agent = TestFactory.newAgentDefinition()
+                .withName(agentType + '_CircuitBreaker_Agent')
+                .withType(agentType)
+                .withLLM(setup.llmConfig.Id)
+                .save();
+
+            AgentExecution__c exec = TestFactory.newExecution()
+                .withAgent(agent.Id)
+                .withUser(UserInfo.getUserId())
+                .withExecutionType(agentType)
+                .withStatus('Processing')
+                .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
+                .withTurnIdentifier('turn-cb-' + agentType.toLowerCase() + '-001')
+                .save();
+
+            AgentCapability__c cap = TestFactory.newCapability()
+                .withAgent(agent.Id)
+                .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
+                .withName('cap_cb_' + agentType.toLowerCase())
+                .save();
+
+            ExecutionStepService stepService = new ExecutionStepService();
+            for (Integer i = 1; i <= maxRetries + 2; i++) {
+                stepService.createToolResultStep(
+                    exec.Id,
+                    'call-cb-' + agentType.toLowerCase() + '-00' + i,
+                    cap.CapabilityName__c,
+                    '{"error":"Failed"}',
+                    'turn-cb-' + agentType.toLowerCase() + '-001',
+                    1,
+                    0L,
+                    false,
+                    cap.Id,
+                    true
+                );
+            }
+
+            AIAgentDefinition__c agentFull = [
+                SELECT Id, AgentType__c, ErrorRecoveryMode__c
+                FROM AIAgentDefinition__c
+                WHERE Id = :agent.Id
+            ];
+
+            Boolean result = OrchestrationService.shouldFailFast(cap, agentFull, failure, exec.Id, '[test] ');
+
+            System.assertEquals(
+                true,
+                result,
+                agentType +
+                ' agent in Autonomous mode should hit the circuit breaker after exceeding MaxToolRetries — agent type does not exempt any agent from the global ceiling'
+            );
+        }
+    }
+
+    /**
+     * @description Verifies that countSuccessiveToolFailures() scopes to failures AFTER the resume
+     *              timestamp when resumeAfter is provided. Pre-resume failures must not count against
+     *              the post-resume circuit breaker budget.
+     */
+    @IsTest
+    static void testCountSuccessiveToolFailures_WithResumeAfter_ScopsToPostResumeWindow() {
         TestFactory.AgentSetup setup = getSetup();
 
-        // Test Conversational agent
-        AIAgentDefinition__c convoAgent = TestFactory.newAgentDefinition()
-            .withName('Conversational_Retry_Agent')
-            .withType('Conversational')
-            .withLLM(setup.llmConfig.Id)
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(setup.agentDefinition.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Function')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
+            .withTurnIdentifier('turn-scope-resume-001')
             .save();
 
-        AgentExecution__c convoExec = TestFactory.newExecution()
-            .withAgent(convoAgent.Id)
+        AgentCapability__c capability = [
+            SELECT Id, CapabilityName__c
+            FROM AgentCapability__c
+            WHERE AIAgentDefinition__c = :setup.agentDefinition.Id
+            LIMIT 1
+        ];
+
+        ExecutionStepService stepSvc = new ExecutionStepService();
+        Datetime beforeResume = Datetime.now().addSeconds(-60);
+        Datetime afterResume = Datetime.now().addSeconds(-10);
+
+        // Two failures BEFORE resume — these must not be counted
+        ExecutionStep__c preFail1 = new ExecutionStep__c(
+            AgentExecution__c = execution.Id,
+            StepType__c = 'ToolResult',
+            StepRole__c = 'Tool',
+            ToolName__c = capability.CapabilityName__c,
+            IsError__c = true,
+            Timestamp__c = beforeResume.addSeconds(-10)
+        );
+        ExecutionStep__c preFail2 = new ExecutionStep__c(
+            AgentExecution__c = execution.Id,
+            StepType__c = 'ToolResult',
+            StepRole__c = 'Tool',
+            ToolName__c = capability.CapabilityName__c,
+            IsError__c = true,
+            Timestamp__c = beforeResume.addSeconds(-5)
+        );
+        // One failure AFTER resume — only this one should count
+        ExecutionStep__c postFail = new ExecutionStep__c(
+            AgentExecution__c = execution.Id,
+            StepType__c = 'ToolResult',
+            StepRole__c = 'Tool',
+            ToolName__c = capability.CapabilityName__c,
+            IsError__c = true,
+            Timestamp__c = afterResume
+        );
+        insert new List<ExecutionStep__c>{ preFail1, preFail2, postFail };
+
+        // Without resume scoping: all 3 successive failures counted
+        Integer allFailures = OrchestrationService.countSuccessiveToolFailures(execution.Id, capability.CapabilityName__c, '[test] ');
+        System.assertEquals(3, allFailures, 'Without resume scoping all 3 successive failures should be counted');
+
+        // With resume scoping at beforeResume: only the 1 post-resume failure should count
+        Integer scopedFailures = OrchestrationService.countSuccessiveToolFailures(execution.Id, capability.CapabilityName__c, beforeResume, '[test] ');
+        System.assertEquals(1, scopedFailures, 'With resumeAfter, only failures after the resume timestamp should count');
+    }
+
+    /**
+     * @description Verifies that a success step between pre- and post-resume failures still correctly
+     *              resets the consecutive count, even when resume scoping is active.
+     */
+    @IsTest
+    static void testCountSuccessiveToolFailures_WithResumeAfter_SuccessStillResetsStreak() {
+        TestFactory.AgentSetup setup = getSetup();
+
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(setup.agentDefinition.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Function')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
+            .withTurnIdentifier('turn-scope-success-001')
+            .save();
+
+        AgentCapability__c capability = [
+            SELECT Id, CapabilityName__c
+            FROM AgentCapability__c
+            WHERE AIAgentDefinition__c = :setup.agentDefinition.Id
+            LIMIT 1
+        ];
+
+        Datetime resumeTs = Datetime.now().addSeconds(-30);
+
+        // Steps newest-first after resume: fail → success → fail
+        // The success in the middle breaks the streak so count should be 1 (only the most recent fail)
+        ExecutionStep__c fail2 = new ExecutionStep__c(
+            AgentExecution__c = execution.Id,
+            StepType__c = 'ToolResult',
+            StepRole__c = 'Tool',
+            ToolName__c = capability.CapabilityName__c,
+            IsError__c = true,
+            Timestamp__c = Datetime.now().addSeconds(-5) // newest
+        );
+        ExecutionStep__c success = new ExecutionStep__c(
+            AgentExecution__c = execution.Id,
+            StepType__c = 'ToolResult',
+            StepRole__c = 'Tool',
+            ToolName__c = capability.CapabilityName__c,
+            IsError__c = false,
+            Timestamp__c = Datetime.now().addSeconds(-15) // middle
+        );
+        ExecutionStep__c fail1 = new ExecutionStep__c(
+            AgentExecution__c = execution.Id,
+            StepType__c = 'ToolResult',
+            StepRole__c = 'Tool',
+            ToolName__c = capability.CapabilityName__c,
+            IsError__c = true,
+            Timestamp__c = Datetime.now().addSeconds(-20) // oldest post-resume
+        );
+        insert new List<ExecutionStep__c>{ fail2, success, fail1 };
+
+        Integer count = OrchestrationService.countSuccessiveToolFailures(execution.Id, capability.CapabilityName__c, resumeTs, '[test] ');
+        System.assertEquals(1, count, 'Success step between failures should reset the streak even with resume scoping');
+    }
+
+    /**
+     * @description Verifies loadSuccessiveFailureCounts() applies the same resume-after scoping
+     *              as countSuccessiveToolFailures() when resumeAfter is provided.
+     */
+    @IsTest
+    static void testLoadSuccessiveFailureCounts_WithResumeAfter_ScopsToPostResumeWindow() {
+        TestFactory.AgentSetup setup = getSetup();
+
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(setup.agentDefinition.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Function')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
+            .withTurnIdentifier('turn-bulk-scope-001')
+            .save();
+
+        AgentCapability__c capability = [
+            SELECT Id, CapabilityName__c
+            FROM AgentCapability__c
+            WHERE AIAgentDefinition__c = :setup.agentDefinition.Id
+            LIMIT 1
+        ];
+
+        Datetime resumeTs = Datetime.now().addSeconds(-30);
+
+        // 2 pre-resume failures + 1 post-resume failure
+        insert new List<ExecutionStep__c>{
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolName__c = capability.CapabilityName__c,
+                IsError__c = true,
+                Timestamp__c = resumeTs.addSeconds(-20)
+            ),
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolName__c = capability.CapabilityName__c,
+                IsError__c = true,
+                Timestamp__c = resumeTs.addSeconds(-10)
+            ),
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolName__c = capability.CapabilityName__c,
+                IsError__c = true,
+                Timestamp__c = resumeTs.addSeconds(10)
+            )
+        };
+
+        Map<String, Integer> counts = OrchestrationService.loadSuccessiveFailureCounts(
+            execution.Id,
+            new Set<String>{ capability.CapabilityName__c },
+            resumeTs,
+            '[test] '
+        );
+
+        System.assertEquals(1, counts.get(capability.CapabilityName__c), 'Bulk failure count should respect resumeAfter and return only post-resume failures');
+    }
+
+    /**
+     * @description Verifies that Fail Fast mode halts immediately for non-Function agent types.
+     *              ErrorRecoveryMode__c = Fail Fast must apply uniformly regardless of AgentType__c.
+     */
+    @IsTest
+    static void testShouldFailFast_FailFastMode_AppliesToAllAgentTypes() {
+        ActionOutcome failure = ActionOutcome.failure('ERR_TEST', 'Tool failed');
+
+        for (String agentType : new List<String>{ 'Conversational', 'Email', 'Workflow', 'Function' }) {
+            AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'cap_ff_' + agentType.toLowerCase());
+            AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = agentType, ErrorRecoveryMode__c = 'Fail Fast');
+
+            System.assertEquals(
+                true,
+                OrchestrationService.shouldFailFast(cap, agent, failure, null, '[test] '),
+                agentType + ' agent with Fail Fast mode should halt immediately on any tool error'
+            );
+        }
+    }
+
+    // ─── detectUnretriedFailures tests ────────────────────────────────────────
+
+    /**
+     * @description detectUnretriedFailures returns an empty list when there are no
+     *              RetryPending=true steps in the turn.
+     */
+    @IsTest
+    static void testDetectUnretriedFailures_NoFailures_ReturnsEmpty() {
+        TestFactory.AgentSetup setup = getSetup();
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
             .withExecutionType('Conversational')
             .withStatus('Processing')
-            .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
-            .withTurnIdentifier('turn-convo-retry-001')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .withTurnIdentifier('turn-duf-001')
             .save();
 
-        AgentCapability__c capability = TestFactory.newCapability()
-            .withAgent(convoAgent.Id)
-            .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
-            .withName('test_capability_convo_retry')
-            .save();
+        // No steps at all — expect empty
+        List<OrchestrationService.UnretriedFailure> result = OrchestrationService.detectUnretriedFailures(
+            execution.Id,
+            setup.agentDefinition.Id,
+            'turn-duf-001',
+            '[test] '
+        );
 
-        // Create many successive failures (way more than MaxToolRetries)
-        ExecutionStepService stepService = new ExecutionStepService();
-        for (Integer i = 1; i <= 10; i++) {
-            stepService.createToolResultStep(
-                convoExec.Id,
-                'call-convo-retry-00' + i,
-                capability.CapabilityName__c,
-                '{"error":"Failed"}',
-                'turn-convo-retry-001',
-                1,
-                0L,
-                false,
-                capability.Id,
-                true // IsError = true
-            );
-        }
+        System.assertEquals(0, result.size(), 'Should return empty when no RetryPending steps exist');
+    }
 
-        ActionOutcome failure = ActionOutcome.failure('ERR_TEST', 'Tool failed');
-
-        AIAgentDefinition__c convoAgentFull = [
-            SELECT Id, AgentType__c
-            FROM AIAgentDefinition__c
-            WHERE Id = :convoAgent.Id
-        ];
-
-        Boolean convoResult = OrchestrationService.shouldFailFast(capability, convoAgentFull, failure, convoExec.Id, '[test] ');
-
-        System.assertEquals(false, convoResult, 'Conversational agent should skip MaxToolRetries check and allow LLM recovery (Tier 3)');
-
-        // Test Email agent
-        AIAgentDefinition__c emailAgent = TestFactory.newAgentDefinition().withName('Email_Retry_Agent').withType('Email').withLLM(setup.llmConfig.Id).save();
-
-        AgentExecution__c emailExec = TestFactory.newExecution()
-            .withAgent(emailAgent.Id)
+    /**
+     * @description detectUnretriedFailures returns the failed tool when a RetryPending=true
+     *              step exists with no subsequent success.
+     */
+    @IsTest
+    static void testDetectUnretriedFailures_WithRetryPendingFailure_ReturnsFailure() {
+        TestFactory.AgentSetup setup = getSetup();
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Email')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
-            .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
-            .withTurnIdentifier('turn-email-retry-001')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .withTurnIdentifier('turn-duf-002')
             .save();
 
-        AgentCapability__c emailCap = TestFactory.newCapability()
-            .withAgent(emailAgent.Id)
-            .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
-            .withName('test_capability_email_retry')
+        // Seed a ToolCall step with known arguments
+        insert new ExecutionStep__c(
+            AgentExecution__c = execution.Id,
+            StepType__c = 'ToolCall',
+            StepRole__c = 'Assistant',
+            ToolCallId__c = 'call-abc-001',
+            ToolName__c = 'assign_to_queue',
+            ToolArguments__c = '{"queueDeveloperName":"Support_Queue"}',
+            TurnIdentifier__c = 'turn-duf-002',
+            TurnCount__c = 1,
+            Timestamp__c = Datetime.now().addSeconds(-10)
+        );
+
+        // Seed a retryable failure step
+        insert new ExecutionStep__c(
+            AgentExecution__c = execution.Id,
+            StepType__c = 'ToolResult',
+            StepRole__c = 'Tool',
+            ToolCallId__c = 'call-abc-001',
+            ToolName__c = 'assign_to_queue',
+            IsError__c = true,
+            IsRetryable__c = true,
+            RetryPending__c = true,
+            TurnIdentifier__c = 'turn-duf-002',
+            TurnCount__c = 1,
+            Timestamp__c = Datetime.now().addSeconds(-9)
+        );
+
+        List<OrchestrationService.UnretriedFailure> result = OrchestrationService.detectUnretriedFailures(
+            execution.Id,
+            setup.agentDefinition.Id,
+            'turn-duf-002',
+            '[test] '
+        );
+
+        System.assertEquals(1, result.size(), 'Should detect the unretried failure');
+        System.assertEquals('assign_to_queue', result[0].toolName, 'Tool name should match');
+        System.assertEquals('call-abc-001', result[0].toolCallId, 'Tool call ID should match');
+        System.assertEquals('{"queueDeveloperName":"Support_Queue"}', result[0].originalArguments, 'Arguments should be populated from ToolCall step');
+    }
+
+    /**
+     * @description detectUnretriedFailures excludes a failed tool when a later success exists
+     *              for the same tool in the same turn (retry already happened).
+     */
+    @IsTest
+    static void testDetectUnretriedFailures_WhenRetrySucceeded_ExcludesFromResult() {
+        TestFactory.AgentSetup setup = getSetup();
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(setup.agentDefinition.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .withTurnIdentifier('turn-duf-003')
             .save();
 
-        // Create many successive failures
-        for (Integer i = 1; i <= 10; i++) {
-            stepService.createToolResultStep(
-                emailExec.Id,
-                'call-email-retry-00' + i,
-                emailCap.CapabilityName__c,
-                '{"error":"Failed"}',
-                'turn-email-retry-001',
-                1,
-                0L,
-                false,
-                emailCap.Id,
-                true // IsError = true
-            );
-        }
+        Datetime failureTs = Datetime.now().addSeconds(-20);
+        Datetime successTs = Datetime.now().addSeconds(-5);
 
-        AIAgentDefinition__c emailAgentFull = [
-            SELECT Id, AgentType__c
-            FROM AIAgentDefinition__c
-            WHERE Id = :emailAgent.Id
-        ];
+        insert new List<ExecutionStep__c>{
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolCallId__c = 'call-retry-001',
+                ToolName__c = 'assign_to_queue',
+                IsError__c = true,
+                IsRetryable__c = true,
+                RetryPending__c = true,
+                TurnIdentifier__c = 'turn-duf-003',
+                Timestamp__c = failureTs
+            ),
+            // Success (retry) for the same tool
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolCallId__c = 'call-retry-002',
+                ToolName__c = 'assign_to_queue',
+                IsError__c = false,
+                TurnIdentifier__c = 'turn-duf-003',
+                Timestamp__c = successTs
+            )
+        };
 
-        Boolean emailResult = OrchestrationService.shouldFailFast(emailCap, emailAgentFull, failure, emailExec.Id, '[test] ');
+        List<OrchestrationService.UnretriedFailure> result = OrchestrationService.detectUnretriedFailures(
+            execution.Id,
+            setup.agentDefinition.Id,
+            'turn-duf-003',
+            '[test] '
+        );
 
-        System.assertEquals(false, emailResult, 'Email agent should skip MaxToolRetries check and allow LLM recovery (Tier 3)');
+        System.assertEquals(0, result.size(), 'Retry already succeeded — should not flag as unretried');
+    }
+
+    /**
+     * @description detectUnretriedFailures handles null executionId gracefully.
+     */
+    @IsTest
+    static void testDetectUnretriedFailures_NullExecutionId_ReturnsEmpty() {
+        List<OrchestrationService.UnretriedFailure> result = OrchestrationService.detectUnretriedFailures(null, null, 'turn-x', '[test] ');
+        System.assertEquals(0, result.size(), 'Null executionId should return empty list safely');
     }
 }

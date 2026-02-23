@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>User Rejected Action</label>
+    <protected>false</protected>
+    <values>
+        <field>ErrorCategory__c</field>
+        <value xsi:type="xsd:string">user</value>
+    </values>
+    <values>
+        <field>IsTransient__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>DefaultMessage__c</field>
+        <value xsi:type="xsd:string">You declined to proceed with this action.</value>
+    </values>
+    <values>
+        <field>LLMGuidance__c</field>
+        <value xsi:type="xsd:string">The user chose not to proceed. Acknowledge their decision and ask how you can help otherwise. Do not retry the rejected action.</value>
+    </values>
+</CustomMetadata>

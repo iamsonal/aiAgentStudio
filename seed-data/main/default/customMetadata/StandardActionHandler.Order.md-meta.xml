@@ -7,10 +7,6 @@
         <value xsi:type="xsd:string">Demo action for retrieving Order records by ID or Account</value>
     </values>
     <values>
-        <field>GuidanceText__c</field>
-        <value xsi:type="xsd:string"></value>
-    </values>
-    <values>
         <field>HandlerClassName__c</field>
         <value xsi:type="xsd:string">ActionOrder</value>
     </values>
@@ -28,102 +24,144 @@
     </values>
     <values>
         <field>ConfigSchema__c</field>
-        <value xsi:type="xsd:string">[
-  {
-    &quot;name&quot;: &quot;operation&quot;,
-    &quot;type&quot;: &quot;string&quot;,
-    &quot;required&quot;: true,
-    &quot;help&quot;: &quot;The operation to perform&quot;,
-    &quot;label&quot;: &quot;Operation&quot;,
-    &quot;picklistValues&quot;: [
-      &quot;GET_BY_ID&quot;,
-      &quot;SEARCH_BY_ACCOUNT&quot;
-    ]
-  },
-  {
-    &quot;name&quot;: &quot;defaultFields&quot;,
-    &quot;type&quot;: &quot;array&quot;,
-    &quot;required&quot;: false,
-    &quot;help&quot;: &quot;List of field API names to return (default: Id, OrderNumber)&quot;,
-    &quot;label&quot;: &quot;Default Fields&quot;
-  },
-  {
-    &quot;name&quot;: &quot;maxResults&quot;,
-    &quot;type&quot;: &quot;integer&quot;,
-    &quot;required&quot;: false,
-    &quot;help&quot;: &quot;Maximum number of records to return for search operations&quot;,
-    &quot;label&quot;: &quot;Max Results&quot;,
-    &quot;minValue&quot;: 1,
-    &quot;maxValue&quot;: 200
-  }
-]</value>
+        <value xsi:type="xsd:string">[]</value>
     </values>
     <values>
         <field>ConfigJsonSchema__c</field>
-        <value xsi:type="xsd:string">{
-  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
-  &quot;type&quot;: &quot;object&quot;,
-  &quot;properties&quot;: {
-    &quot;operation&quot;: {
-      &quot;type&quot;: &quot;string&quot;,
-      &quot;description&quot;: &quot;The operation to perform&quot;,
-      &quot;enum&quot;: [
-        &quot;GET_BY_ID&quot;,
-        &quot;SEARCH_BY_ACCOUNT&quot;
-      ]
-    },
-    &quot;defaultFields&quot;: {
-      &quot;type&quot;: &quot;array&quot;,
-      &quot;description&quot;: &quot;List of field API names to return (default: Id, OrderNumber)&quot;
-    },
-    &quot;maxResults&quot;: {
-      &quot;type&quot;: &quot;integer&quot;,
-      &quot;description&quot;: &quot;Maximum number of records to return for search operations&quot;,
-      &quot;minimum&quot;: 1,
-      &quot;maximum&quot;: 200
-    }
-  },
-  &quot;required&quot;: [
-    &quot;operation&quot;
-  ]
-}</value>
+        <value xsi:type="xsd:string">{&quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: {}}</value>
     </values>
     <values>
         <field>ParametersSchema__c</field>
-        <value xsi:type="xsd:string">[
-  {
-    &quot;name&quot;: &quot;orderId&quot;,
-    &quot;type&quot;: &quot;salesforce-id&quot;,
-    &quot;required&quot;: false,
-    &quot;help&quot;: &quot;The Salesforce ID of the Order to retrieve (for GET_BY_ID operation)&quot;,
-    &quot;label&quot;: &quot;Order ID&quot;
-  },
-  {
-    &quot;name&quot;: &quot;accountId&quot;,
-    &quot;type&quot;: &quot;salesforce-id&quot;,
-    &quot;required&quot;: false,
-    &quot;help&quot;: &quot;The Account ID to search Orders for (for SEARCH_BY_ACCOUNT operation)&quot;,
-    &quot;label&quot;: &quot;Account ID&quot;
-  }
-]</value>
+        <value xsi:type="xsd:string">[]</value>
     </values>
     <values>
         <field>ParametersJsonSchema__c</field>
-        <value xsi:type="xsd:string">{
-  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
-  &quot;type&quot;: &quot;object&quot;,
-  &quot;properties&quot;: {
-    &quot;orderId&quot;: {
-      &quot;type&quot;: &quot;string&quot;,
-      &quot;description&quot;: &quot;The Salesforce ID of the Order to retrieve (for GET_BY_ID operation)&quot;,
-      &quot;format&quot;: &quot;salesforce-id&quot;
+        <value xsi:type="xsd:string">{&quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: {}}</value>
+    </values>
+    <values>
+        <field>SupportedVariants__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;get_by_id&quot;,
+    &quot;label&quot;: &quot;Get by ID&quot;,
+    &quot;description&quot;: &quot;Retrieve a single Order record by its Salesforce ID&quot;,
+    &quot;configFields&quot;: [
+      {
+        &quot;name&quot;: &quot;defaultFields&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;List of field API names to return (default: Id, OrderNumber)&quot;,
+        &quot;label&quot;: &quot;Default Fields&quot;
+      }
+    ],
+    &quot;parameterFields&quot;: [
+      {
+        &quot;name&quot;: &quot;orderId&quot;,
+        &quot;type&quot;: &quot;salesforce-id&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;The Salesforce ID of the Order to retrieve&quot;,
+        &quot;label&quot;: &quot;Order ID&quot;
+      }
+    ],
+    &quot;configJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;defaultFields&quot;: {
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;description&quot;: &quot;List of field API names to return (default: Id, OrderNumber)&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;string&quot;
+          }
+        },
+        &quot;variant&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;enum&quot;: [
+            &quot;get_by_id&quot;
+          ]
+        }
+      }
     },
-    &quot;accountId&quot;: {
-      &quot;type&quot;: &quot;string&quot;,
-      &quot;description&quot;: &quot;The Account ID to search Orders for (for SEARCH_BY_ACCOUNT operation)&quot;,
-      &quot;format&quot;: &quot;salesforce-id&quot;
+    &quot;parametersJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;orderId&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;description&quot;: &quot;The Salesforce ID of the Order to retrieve&quot;,
+          &quot;format&quot;: &quot;salesforce-id&quot;
+        }
+      },
+      &quot;required&quot;: []
+    }
+  },
+  {
+    &quot;name&quot;: &quot;search_by_account&quot;,
+    &quot;label&quot;: &quot;Search by Account&quot;,
+    &quot;description&quot;: &quot;Find all Orders belonging to a given Account&quot;,
+    &quot;configFields&quot;: [
+      {
+        &quot;name&quot;: &quot;defaultFields&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;List of field API names to return (default: Id, OrderNumber)&quot;,
+        &quot;label&quot;: &quot;Default Fields&quot;
+      },
+      {
+        &quot;name&quot;: &quot;maxResults&quot;,
+        &quot;type&quot;: &quot;integer&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;Maximum number of Orders to return&quot;,
+        &quot;label&quot;: &quot;Max Results&quot;,
+        &quot;minValue&quot;: 1,
+        &quot;maxValue&quot;: 200
+      }
+    ],
+    &quot;parameterFields&quot;: [
+      {
+        &quot;name&quot;: &quot;accountId&quot;,
+        &quot;type&quot;: &quot;salesforce-id&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;The Account ID to find all related Orders for&quot;,
+        &quot;label&quot;: &quot;Account ID&quot;
+      }
+    ],
+    &quot;configJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;defaultFields&quot;: {
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;description&quot;: &quot;List of field API names to return (default: Id, OrderNumber)&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;string&quot;
+          }
+        },
+        &quot;maxResults&quot;: {
+          &quot;type&quot;: &quot;integer&quot;,
+          &quot;description&quot;: &quot;Maximum number of Orders to return&quot;
+        },
+        &quot;variant&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;enum&quot;: [
+            &quot;search_by_account&quot;
+          ]
+        }
+      }
+    },
+    &quot;parametersJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;accountId&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;description&quot;: &quot;The Account ID to find all related Orders for&quot;,
+          &quot;format&quot;: &quot;salesforce-id&quot;
+        }
+      },
+      &quot;required&quot;: []
     }
   }
-}</value>
+]</value>
     </values>
 </CustomMetadata>

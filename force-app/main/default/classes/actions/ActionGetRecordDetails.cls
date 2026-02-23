@@ -12,8 +12,9 @@
  * @ActionDescription Retrieves any Salesforce record by ID or unique identifier field
  * @ActionRequiresSObject true
  * @ActionIsActive true
- * @ActionGuidance
- * <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6;"><div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px; border-radius: 8px 8px 0 0; margin: -8px -8px 16px -8px;"><h2 style="margin: 0; font-size: 18px; font-weight: 600;">🔍 Get Record Details</h2><p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">Generic record retrieval with flexible field selection and smart identifier lookups</p></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">⚙️ Configuration</h3><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">objectApiName</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">The API name of the object type (e.g., "Case", "Account"). This is required for identifier field lookups.</td></tr><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef;"><strong style="color: #495057;">defaultFields</strong></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">Array of field API names to retrieve (e.g., ["Id", "Name", "Status"]).<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">["Id", "CaseNumber", "Subject", "Status"]</code></td></tr></table></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">📋 Runtime Parameters</h3><p style="margin: 8px 0; font-size: 13px; color: #6c757d;">AI provides ONE parameter from the Parameters schema:</p><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><code style="background: #f1f3f5; padding: 8px; display: block; border-radius: 3px; font-size: 12px;">{"Id": "001XXXXXXXXXXXX"}</code><code style="background: #f1f3f5; padding: 8px; display: block; border-radius: 3px; font-size: 12px; margin-top: 8px;">{"CaseNumber": "00001234"}</code></div><div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #0c5460;"><strong>💡 Adding Identifier Fields:</strong> Add fields to ArgumentsDTO with annotations, run generate-action-metadata.js, and deploy. The AI will automatically see new lookup options!</p></div><div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #856404;"><strong>💡 Best Practice:</strong> Use <strong>Id</strong> when available (fastest). Use other identifiers when the user provides human-readable values like case numbers or email addresses.</p></div><div style="background: #e7f1ff; border-left: 4px solid #0066cc; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #004085;"><strong>🔒 Security:</strong> Respects object-level and field-level security. Fields the running user cannot access will be automatically filtered out. The AI receives only data the user has permission to view.</p></div></div>
+ * @ActionHasVariants true
+ * @ActionVariant field_list | Field List | Specify field API names directly in the backend configuration
+ * @ActionVariant fieldset | FieldSet | Use a Salesforce FieldSet defined in Object Manager to control which fields are returned
  *
  * @extends BaseAgentAction
  */
@@ -40,21 +41,12 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
      */
     public class ConfigDTO {
         /**
-         * @FieldLabel FieldSet Name
+         * @FieldSystem true
+         * @FieldLabel Variant
          * @FieldType string
-         * @FieldDisplayType fieldset
-         * @FieldPlaceholder AI_Agent_Details
-         * @FieldHelp Name of the FieldSet to use for field selection (e.g., "AI_Agent_Details"). Mutually exclusive with defaultFields. Create FieldSets in Setup > Object Manager > [Object] > Field Sets.
+         * @FieldHelp Field retrieval mode: "field_list" (explicit field array) or "fieldset" (Salesforce FieldSet). Managed by the variant picker UI.
          */
-        public String fieldSetName;
-
-        /**
-         * @FieldLabel Default Fields
-         * @FieldType array
-         * @FieldPlaceholder ["Id", "Name", "Status"]
-         * @FieldHelp Array of field API names to retrieve (e.g., ["Id", "Name", "Status"]). Mutually exclusive with fieldSetName. Use this for quick configuration without creating a FieldSet.
-         */
-        public List<String> defaultFields;
+        public String variant;
 
         /**
          * @FieldLabel Object API Name
@@ -64,6 +56,25 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
          * @FieldHelp Required: The API name of the SObject type (e.g., Account, Case). Used for identifier field lookups and validation.
          */
         public String objectApiName;
+
+        /**
+         * @FieldLabel Default Fields
+         * @FieldType array
+         * @FieldVariant field_list
+         * @FieldPlaceholder ["Id", "Name", "Status"]
+         * @FieldHelp Array of field API names to retrieve (e.g., ["Id", "Name", "Status"]). Use this for quick configuration without creating a FieldSet.
+         */
+        public List<String> defaultFields;
+
+        /**
+         * @FieldLabel FieldSet Name
+         * @FieldType string
+         * @FieldVariant fieldset
+         * @FieldDisplayType fieldset
+         * @FieldPlaceholder AI_Agent_Details
+         * @FieldHelp Developer name of the FieldSet to use for field selection (e.g., "AI_Agent_Details"). Create FieldSets in Setup > Object Manager > [Object] > Field Sets.
+         */
+        public String fieldSetName;
     }
 
     /**
@@ -87,7 +98,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
 
         // Validate object API name is configured (required for identifier lookups)
         if (String.isBlank(config.objectApiName)) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_CONFIG_ERROR,
                 'Configuration error: "objectApiName" is required',
                 'Provide the object API name in configuration (e.g., {"objectApiName": "Case"})'
@@ -105,7 +116,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
 
         // Check object-level read permission
         if (!objDescribe.isAccessible()) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
                 'Access Denied: You do not have permission to read ' + objectApiName + ' records.',
                 'Contact your Salesforce administrator to request read access to ' + objectApiName + ' records.'
@@ -126,7 +137,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
         }
 
         if (identifierField == null) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Missing identifier parameter. No valid parameter provided.',
                 'Provide one identifier field (e.g., {"Id": "001..."} or {"CaseNumber": "00001234"}). Check the Parameters schema for available options.'
@@ -142,7 +153,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
         }
 
         if (paramCount > 1) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Multiple identifier parameters provided. Expected exactly one.',
                 'Provide only ONE identifier field. You provided ' + paramCount + ' fields.'
@@ -154,34 +165,31 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
         // Convert identifier value to string for SOQL binding
         String identifierValueStr = String.valueOf(identifierValue);
 
-        // Validate configuration: either fieldSetName OR defaultFields must be provided
-        Boolean hasFieldSet = String.isNotBlank(config.fieldSetName);
+        // Guard: if no variant is set but both field-selection modes are configured, the intent is ambiguous
         Boolean hasDefaultFields = config.defaultFields != null && !config.defaultFields.isEmpty();
-
-        if (!hasFieldSet && !hasDefaultFields) {
-            return ActionOutcome.failureWithGuidance(
+        Boolean hasFieldSetName = String.isNotBlank(config.fieldSetName);
+        if (String.isBlank(config.variant) && hasDefaultFields && hasFieldSetName) {
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_CONFIG_ERROR,
-                'Configuration error: Either "fieldSetName" or "defaultFields" must be provided.',
-                'Provide a FieldSet name (e.g., {"fieldSetName": "AI_Agent_Details"}) OR an array of field API names (e.g., {"defaultFields": ["Id", "Name", "Status"]}).'
+                'Ambiguous configuration: both "fieldSetName" and "defaultFields" are set without a variant.',
+                'Set "variant" to "fieldset" to use the FieldSet, or to "field_list" to use the defaultFields array.'
             );
         }
 
-        if (hasFieldSet && hasDefaultFields) {
-            return ActionOutcome.failureWithGuidance(
-                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
-                'Configuration error: Both "fieldSetName" and "defaultFields" are provided. Use only one.',
-                'Choose either a FieldSet (fieldSetName) OR a field list (defaultFields), not both.'
-            );
-        }
-
-        // Get fields from FieldSet or defaultFields
+        // Get fields from FieldSet or defaultFields based on configured variant
         Set<String> fieldsToQuery = new Set<String>{ 'Id' }; // Always include Id
 
-        if (!String.isBlank(config.fieldSetName)) {
-            // Use FieldSet
+        if ('fieldset'.equals(config.variant)) {
+            if (String.isBlank(config.fieldSetName)) {
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                    'Configuration error: "fieldSetName" is required for the fieldset variant.',
+                    'Provide a FieldSet developer name (e.g., "AI_Agent_Details") in the backend configuration.'
+                );
+            }
             List<String> fieldSetFields = getFieldsFromFieldSet(sObjectType, config.fieldSetName);
             if (fieldSetFields.isEmpty()) {
-                return ActionOutcome.failureWithGuidance(
+                return ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                     'FieldSet "' + config.fieldSetName + '" not found on object ' + objectApiName,
                     'The configured FieldSet does not exist. Available FieldSets can be found in Setup > Object Manager > ' +
@@ -192,14 +200,21 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
             fieldsToQuery.addAll(fieldSetFields);
             System.debug(LoggingLevel.INFO, '[ActionGetRecordDetails] Using FieldSet: ' + config.fieldSetName + ', Fields: ' + fieldSetFields.size());
         } else {
-            // Use defaultFields
+            // field_list variant (default)
+            if (config.defaultFields == null || config.defaultFields.isEmpty()) {
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                    'Configuration error: "defaultFields" is required for the field_list variant.',
+                    'Provide an array of field API names (e.g., ["Id", "Name", "Status"]) in the backend configuration.'
+                );
+            }
             fieldsToQuery.addAll(config.defaultFields);
             System.debug(LoggingLevel.INFO, '[ActionGetRecordDetails] Using defaultFields: ' + config.defaultFields);
         }
 
         // Validate identifier field is a real, accessible field (prevents injection)
         if (identifierField.contains('.')) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Invalid identifier field: ' + identifierField,
                 'Identifier field must be a direct field on ' + objectApiName + ' (e.g., "Id", "CaseNumber").'
@@ -208,7 +223,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
 
         SObjectField identifierToken = Utils.getFieldToken(sObjectType, identifierField);
         if (identifierToken == null) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
                 'Unknown identifier field "' + identifierField + '" for object ' + objectApiName,
                 'Use a valid identifier field for ' + objectApiName + ' (e.g., "Id", "CaseNumber").'
@@ -217,7 +232,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
 
         DescribeFieldResult identifierDescribe = identifierToken.getDescribe();
         if (!identifierDescribe.isAccessible()) {
-            return ActionOutcome.failureWithGuidance(
+            return ActionOutcome.failure(
                 AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
                 'Access Denied: You do not have permission to read field ' + identifierDescribe.getName(),
                 'Contact your Salesforce administrator to request read access to ' + identifierDescribe.getName() + '.'
@@ -281,7 +296,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
             List<SObject> results = Database.queryWithBinds(soql, new Map<String, Object>{ 'identifierValueStr' => identifierValueStr }, AccessLevel.USER_MODE);
 
             if (results.isEmpty()) {
-                return ActionOutcome.failureWithGuidance(
+                return ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND,
                     'Record not found with ' + identifierField + ' = ' + identifierValueStr,
                     'No record exists with the provided identifier. Verify the value is correct.'
@@ -336,10 +351,10 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
 
             return ActionOutcome.success(response);
         } catch (QueryException qe) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Query failed: ' + qe.getMessage());
+            return ActionOutcome.fromException(qe);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[ActionGetRecordDetails] Unexpected error: ' + e.getMessage() + '\n' + e.getStackTraceString());
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Failed to retrieve record: ' + e.getMessage());
+            return ActionOutcome.fromException(e);
         }
     }
 
@@ -391,33 +406,18 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
 
         if (String.isNotBlank(actionConfigurationJson)) {
             try {
-                // Deserialize as untyped map to handle optional fields
                 Map<String, Object> configMap = (Map<String, Object>) JSON.deserializeUntyped(actionConfigurationJson);
 
-                // Extract fieldSetName if provided
-                if (configMap.containsKey('fieldSetName')) {
-                    this.config.fieldSetName = (String) configMap.get('fieldSetName');
-                }
-
-                // Extract defaultFields if provided
-                if (configMap.containsKey('defaultFields')) {
-                    Object defaultFieldsObj = configMap.get('defaultFields');
-                    if (defaultFieldsObj instanceof List<Object>) {
-                        this.config.defaultFields = new List<String>();
-                        for (Object item : (List<Object>) defaultFieldsObj) {
-                            this.config.defaultFields.add(String.valueOf(item));
-                        }
-                    }
-                }
-
-                // Extract objectApiName if provided
-                if (configMap.containsKey('objectApiName')) {
-                    this.config.objectApiName = (String) configMap.get('objectApiName');
-                }
+                this.config.variant = ActionConfigUtils.getOptionalString(configMap, 'variant');
+                this.config.objectApiName = ActionConfigUtils.getOptionalString(configMap, 'objectApiName');
+                this.config.fieldSetName = ActionConfigUtils.getOptionalString(configMap, 'fieldSetName');
+                this.config.defaultFields = ActionConfigUtils.getOptionalStringList(configMap, 'defaultFields');
 
                 System.debug(
                     LoggingLevel.DEBUG,
-                    '[ActionGetRecordDetails] Configuration parsed. FieldSet: ' +
+                    '[ActionGetRecordDetails] Configuration parsed. Variant: ' +
+                        config.variant +
+                        ', FieldSet: ' +
                         config.fieldSetName +
                         ', DefaultFields: ' +
                         config.defaultFields +

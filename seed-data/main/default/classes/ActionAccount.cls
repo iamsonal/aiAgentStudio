@@ -1,12 +1,15 @@
 /**
  * @description Demo action for retrieving Account records. Used by AgentTestDataFactory for showcasing agents.
- * Supports GET_BY_ID and SEARCH operations with configurable fields.
+ * Supports get_by_id and search variants with configurable fields.
  *
  * @ActionLabel Get Account Details
- * @ActionDescription Demo action for retrieving Account records by ID or search term
+ * @ActionDescription Demo action for retrieving Account records by ID or name search
  * @ActionRequiresSObject false
  * @ActionIsActive true
  * @ActionIsStandard false
+ * @ActionHasVariants true
+ * @ActionVariant get_by_id | Get by ID | Retrieve a single Account record by its Salesforce ID
+ * @ActionVariant search | Search Accounts | Find Accounts by name or other search criteria
  *
  * @extends BaseAgentAction
  */
@@ -21,7 +24,8 @@ public class ActionAccount extends BaseAgentAction {
          * @FieldLabel Account ID
          * @FieldType salesforce-id
          * @FieldRequired false
-         * @FieldHelp The Salesforce ID of the Account to retrieve (for GET_BY_ID operation)
+         * @FieldVariant get_by_id
+         * @FieldHelp The Salesforce ID of the Account to retrieve
          */
         public String accountId;
 
@@ -29,7 +33,8 @@ public class ActionAccount extends BaseAgentAction {
          * @FieldLabel Search Term
          * @FieldType string
          * @FieldRequired false
-         * @FieldHelp Search term to find Accounts by name (for SEARCH operation)
+         * @FieldVariant search
+         * @FieldHelp Name or partial name to search for Accounts
          */
         public String searchTerm;
     }
@@ -39,13 +44,12 @@ public class ActionAccount extends BaseAgentAction {
      */
     public class ConfigDTO {
         /**
-         * @FieldLabel Operation
+         * @FieldSystem true
+         * @FieldLabel Variant
          * @FieldType string
-         * @FieldRequired true
-         * @FieldHelp The operation to perform
-         * @FieldPicklistValues GET_BY_ID,SEARCH_BY_ACCOUNT
+         * @FieldHelp Operating mode: "get_by_id" or "search". Managed by the variant picker UI.
          */
-        public String operation;
+        public String variant;
 
         /**
          * @FieldLabel Default Fields
@@ -59,7 +63,8 @@ public class ActionAccount extends BaseAgentAction {
          * @FieldLabel Max Results
          * @FieldType integer
          * @FieldRequired false
-         * @FieldHelp Maximum number of records to return for search operations
+         * @FieldVariant search
+         * @FieldHelp Maximum number of Accounts to return
          * @FieldMinValue 1
          * @FieldMaxValue 200
          */
@@ -67,33 +72,30 @@ public class ActionAccount extends BaseAgentAction {
     }
 
     /**
-     * @description Main entry point for Account operations
-     * @param params Raw parameters
-     * @return ActionOutcome with Account data or error
+     * @description Main entry point — dispatches to the configured variant
      */
     public override ActionOutcome executeAction(Map<String, Object> params) {
         ArgumentsDTO args = new ArgumentsDTO();
         args.accountId = (String) params.get('accountId');
         args.searchTerm = (String) params.get('searchTerm');
 
-        if (config.operation == 'GET_BY_ID') {
+        if ('get_by_id'.equals(config.variant)) {
             return getAccountById(args.accountId);
-        } else if (config.operation == 'SEARCH_BY_ACCOUNT') {
+        } else if ('search'.equals(config.variant)) {
             return searchAccounts(args.searchTerm);
         } else {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Unsupported operation: ' + config.operation);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Unsupported variant: "' + config.variant + '"');
         }
     }
 
-    /**
-     * Retrieves a single account by ID
-     */
     private ActionOutcome getAccountById(String accountId) {
         if (String.isBlank(accountId)) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'accountId is required for GET_BY_ID operation');
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, '"accountId" is required for the get_by_id variant');
         }
 
-        List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty() ? config.defaultFields : new List<String>{ 'Id', 'Name' };
+        List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty()
+            ? config.defaultFields
+            : new List<String>{ 'Id', 'Name' };
 
         String soql = 'SELECT ' + String.join(fields, ', ') + ' FROM Account WHERE Id = :accountId LIMIT 1';
 
@@ -102,18 +104,16 @@ public class ActionAccount extends BaseAgentAction {
             if (accounts.isEmpty()) {
                 return ActionOutcome.failure(AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND, 'Account not found: ' + accountId);
             }
-
             return ActionOutcome.success(accounts[0]);
         } catch (Exception e) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Error retrieving account: ' + e.getMessage());
+            return ActionOutcome.fromException(e);
         }
     }
 
-    /**
-     * Searches for accounts by name or other criteria
-     */
     private ActionOutcome searchAccounts(String searchTerm) {
-        List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty() ? config.defaultFields : new List<String>{ 'Id', 'Name' };
+        List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty()
+            ? config.defaultFields
+            : new List<String>{ 'Id', 'Name' };
 
         Integer maxResults = config.maxResults != null ? config.maxResults : 10;
         String soql = 'SELECT ' + String.join(fields, ', ') + ' FROM Account';
@@ -129,21 +129,16 @@ public class ActionAccount extends BaseAgentAction {
             List<Account> accounts = Database.query(soql);
             return ActionOutcome.success(new Map<String, Object>{ 'accounts' => accounts, 'count' => accounts.size() });
         } catch (Exception e) {
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, 'Error searching accounts: ' + e.getMessage());
+            return ActionOutcome.fromException(e);
         }
     }
 
-    /**
-     * @description Parses action configuration JSON
-     * @param actionConfigurationJson JSON configuration string
-     * @param logPrefix Prefix for debug logging
-     */
     @TestVisible
     protected override void parseActionConfiguration(String actionConfigurationJson, String logPrefix) {
         this.config = new ConfigDTO();
 
         if (String.isBlank(actionConfigurationJson)) {
-            this.config.operation = 'GET_BY_ID';
+            this.config.variant = 'get_by_id';
             this.config.defaultFields = new List<String>{ 'Id', 'Name' };
             this.config.maxResults = 10;
             return;
@@ -152,17 +147,8 @@ public class ActionAccount extends BaseAgentAction {
         try {
             Map<String, Object> configMap = (Map<String, Object>) JSON.deserializeUntyped(actionConfigurationJson);
 
-            this.config.operation = (String) configMap.get('operation');
-
-            if (configMap.containsKey('defaultFields')) {
-                Object fieldsObj = configMap.get('defaultFields');
-                if (fieldsObj instanceof List<Object>) {
-                    this.config.defaultFields = new List<String>();
-                    for (Object field : (List<Object>) fieldsObj) {
-                        this.config.defaultFields.add(String.valueOf(field));
-                    }
-                }
-            }
+            this.config.variant = ActionConfigUtils.getOptionalString(configMap, 'variant');
+            this.config.defaultFields = ActionConfigUtils.getOptionalStringList(configMap, 'defaultFields');
 
             if (configMap.containsKey('maxResults')) {
                 Object maxResultsObj = configMap.get('maxResults');
@@ -173,13 +159,13 @@ public class ActionAccount extends BaseAgentAction {
                 }
             }
         } catch (Exception e) {
-            throw new ValidationException('Invalid configuration JSON: ' + e.getMessage(), e);
+            throw new ValidationException('Invalid configuration JSON: ' + e.getMessage(), null, e);
         }
 
-        if (String.isBlank(config.operation)) {
-            config.operation = 'GET_BY_ID';
+        if (String.isBlank(config.variant)) {
+            config.variant = 'get_by_id';
         }
-        if (config.defaultFields == null) {
+        if (config.defaultFields == null || config.defaultFields.isEmpty()) {
             config.defaultFields = new List<String>{ 'Id', 'Name' };
         }
         if (config.maxResults == null) {

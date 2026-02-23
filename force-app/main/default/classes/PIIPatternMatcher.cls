@@ -8,23 +8,20 @@
 
 /**
  * @description
- * PIIPatternMatcher detects Personally Identifiable Information (PII) in text using regex patterns
- * defined in PIIPattern__mdt custom metadata. Supports additional validation for specific patterns
- * like credit card numbers (Luhn algorithm).
+ * Internal implementation class for PIIMaskingService. Detects PII in free text using regex
+ * patterns defined in PIIPattern__mdt custom metadata, with optional algorithmic validation.
  *
- * Key Features:
- * - Pattern-based detection using configurable regex patterns
- * - Priority ordering to handle overlapping patterns correctly
- * - Category filtering to enable/disable groups of patterns
- * - Luhn algorithm validation for credit card numbers
- * - Cached pattern loading for performance
+ * *** DO NOT instantiate or reference this class directly from outside the PII subsystem.
+ * All callers should go through PIIMaskingService, which is the sole public entry point. ***
  *
- * @example
- * PIIPatternMatcher matcher = new PIIPatternMatcher(new Set<String>{'Financial', 'Identity'});
- * List<PIIPatternMatcher.PIIMatch> matches = matcher.findMatches('My SSN is 123-45-6789');
- * // matches[0].matchedValue = '123-45-6789'
- * // matches[0].patternName = 'SSN_Dashed'
- * // matches[0].maskFormat = '[SSN:{index}]'
+ * Supported ValidatorType__c values:
+ *   LUHN         - Credit card Luhn checksum
+ *   IBAN_MOD97   - IBAN ISO 13616 mod-97 checksum
+ *   SSN_INVALID  - SSN invalid-set blocking (known fakes, reserved areas, all-same-digit)
+ *   ABA_CHECKSUM - ABA routing number 3-7-1 weighted checksum
+ *
+ * The public static validator methods (validateLuhn, validateSsnNotInvalid, etc.) are exposed
+ * for direct unit testing only. Production code must not call them outside this class.
  */
 public inherited sharing class PIIPatternMatcher {
     // Cached patterns loaded from custom metadata
@@ -37,22 +34,31 @@ public inherited sharing class PIIPatternMatcher {
     private List<CompiledPattern> compiledPatterns;
 
     // CPU safeguard: Maximum text length for pattern matching
-    // Regex matching against very large texts (e.g., 50KB email bodies) with multiple patterns
-    // can consume excessive CPU time and risk hitting Apex governor limits.
-    // Default: 50,000 characters (~50KB). Set to 0 to disable limit.
     @TestVisible
     private static Integer MAX_TEXT_LENGTH_FOR_PATTERN_MATCHING = 50000;
+
+    // Known invalid SSNs (historically used in advertisements / test data)
+    private static final Set<String> KNOWN_INVALID_SSNS = new Set<String>{
+        '078051120', // Woolworth wallet insert SSN
+        '123456789',
+        '987654321',
+        '219099999',
+        '457555462'
+    };
+
+    // Valid first digits for ABA routing numbers (Federal Reserve districts)
+    private static final Set<String> ABA_VALID_FIRST_DIGITS = new Set<String>{ '0', '1', '2', '3', '6', '7', '8' };
 
     /**
      * @description Represents a detected PII match in text.
      */
     public class PIIMatch {
-        public String matchedValue { get; set; } // The actual matched text
-        public String patternName { get; set; } // Name of the pattern that matched
-        public String maskFormat { get; set; } // Format string for the mask token
-        public String category { get; set; } // Category of the pattern
-        public Integer startIndex { get; set; } // Position in original text
-        public Integer endIndex { get; set; } // End position in original text
+        public String matchedValue { get; set; }
+        public String patternName { get; set; }
+        public String maskFormat { get; set; }
+        public String category { get; set; }
+        public Integer startIndex { get; set; }
+        public Integer endIndex { get; set; }
 
         public PIIMatch(String value, String name, String format, String cat, Integer start, Integer endIdx) {
             this.matchedValue = value;
@@ -74,6 +80,7 @@ public inherited sharing class PIIPatternMatcher {
         public String category;
         public Integer priority;
         public Boolean requiresValidation;
+        public String validatorType;
     }
 
     /**
@@ -85,8 +92,7 @@ public inherited sharing class PIIPatternMatcher {
 
     /**
      * @description Creates a matcher with specific categories enabled.
-     * @param categories Set of category names to enable (e.g., {'Financial', 'Identity'})
-     *                   Pass null or empty set to enable all categories.
+     * @param categories Set of category names to enable. Pass null to enable all.
      */
     public PIIPatternMatcher(Set<String> categories) {
         this.enabledCategories = categories;
@@ -95,12 +101,6 @@ public inherited sharing class PIIPatternMatcher {
 
     /**
      * @description Finds all PII matches in the given text.
-     * Returns matches in pattern-priority order (the order patterns are applied).
-     * Callers that need a specific positional order should sort the result themselves.
-     * PIIMaskingService.maskText() re-sorts ascending by startIndex before processing.
-     *
-     * @param text The text to search for PII
-     * @return List of PIIMatch objects representing found PII
      */
     public List<PIIMatch> findMatches(String text) {
         List<PIIMatch> allMatches = new List<PIIMatch>();
@@ -109,8 +109,6 @@ public inherited sharing class PIIPatternMatcher {
             return allMatches;
         }
 
-        // CPU safeguard: Skip pattern matching for excessively large text
-        // This prevents CPU timeout when processing large email bodies or documents
         if (MAX_TEXT_LENGTH_FOR_PATTERN_MATCHING > 0 && text.length() > MAX_TEXT_LENGTH_FOR_PATTERN_MATCHING) {
             System.debug(
                 LoggingLevel.WARN,
@@ -123,17 +121,10 @@ public inherited sharing class PIIPatternMatcher {
             return allMatches;
         }
 
-        // Apply each pattern in priority order
         for (CompiledPattern cp : this.compiledPatterns) {
             System.Matcher m = cp.regex.matcher(text);
 
             while (m.find()) {
-                // When the pattern has a capturing group (group 1), use only the captured
-                // portion as the masked value and its positions for replacement. This preserves
-                // keyword context in the text (e.g. "routing: 123456789" becomes
-                // "routing: [RTN:001]" instead of "[RTN:001]"), preventing keyword doubling
-                // when the LLM restates context and improving LLM comprehension.
-                // Patterns without a capturing group mask the entire match as before.
                 String matchedValue;
                 Integer matchStart;
                 Integer matchEnd;
@@ -142,18 +133,16 @@ public inherited sharing class PIIPatternMatcher {
                     matchStart = m.start(1);
                     matchEnd = m.end(1);
                 } else {
-                    matchedValue = m.group();
-                    matchStart = m.start();
-                    matchEnd = m.end();
+                    matchedValue = m.group(0);
+                    matchStart = m.start(0);
+                    matchEnd = m.end(0);
                 }
 
-                // Skip if validation is required and fails
-                if (cp.requiresValidation && !validateMatch(matchedValue, cp.developerName)) {
+                if (cp.requiresValidation && !runValidator(matchedValue, cp.validatorType)) {
                     continue;
                 }
 
-                PIIMatch match = new PIIMatch(matchedValue, cp.developerName, cp.maskFormat, cp.category, matchStart, matchEnd);
-                allMatches.add(match);
+                allMatches.add(new PIIMatch(matchedValue, cp.developerName, cp.maskFormat, cp.category, matchStart, matchEnd));
             }
         }
 
@@ -162,17 +151,12 @@ public inherited sharing class PIIPatternMatcher {
 
     /**
      * @description Checks if text contains any PII patterns.
-     * More efficient than findMatches() when you only need a boolean result.
-     *
-     * @param text The text to check
-     * @return True if any PII is detected
      */
     public Boolean containsPII(String text) {
         if (String.isBlank(text) || this.compiledPatterns.isEmpty()) {
             return false;
         }
 
-        // CPU safeguard: Skip for excessively large text
         if (MAX_TEXT_LENGTH_FOR_PATTERN_MATCHING > 0 && text.length() > MAX_TEXT_LENGTH_FOR_PATTERN_MATCHING) {
             System.debug(LoggingLevel.WARN, '[PIIPatternMatcher] Text exceeds max length (' + text.length() + ' chars). Skipping containsPII check.');
             return false;
@@ -181,9 +165,9 @@ public inherited sharing class PIIPatternMatcher {
         for (CompiledPattern cp : this.compiledPatterns) {
             System.Matcher m = cp.regex.matcher(text);
             while (m.find()) {
-                // If validation is required, check it
                 if (cp.requiresValidation) {
-                    if (validateMatch(m.group(), cp.developerName)) {
+                    String val = (m.groupCount() > 0 && m.group(1) != null) ? m.group(1) : m.group(0);
+                    if (runValidator(val, cp.validatorType)) {
                         return true;
                     }
                 } else {
@@ -195,77 +179,54 @@ public inherited sharing class PIIPatternMatcher {
         return false;
     }
 
-    /**
-     * @description Gets the categories enabled for this matcher.
-     *
-     * @return Set of enabled category names, or null if all are enabled
-     */
     public Set<String> getEnabledCategories() {
         return this.enabledCategories;
     }
 
-    /**
-     * @description Gets the count of active patterns loaded.
-     *
-     * @return Number of compiled patterns
-     */
     public Integer getPatternCount() {
         return this.compiledPatterns != null ? this.compiledPatterns.size() : 0;
     }
 
-    /**
-     * @description Clears the cached patterns to force reload on next instantiation.
-     * Useful for testing or when metadata has been updated.
-     */
     @TestVisible
     public static void clearCache() {
         cachedPatterns = null;
     }
 
-    /**
-     * @description Sets the maximum text length for pattern matching (CPU safeguard).
-     * Set to 0 to disable the limit entirely.
-     * Default is 50,000 characters (~50KB).
-     *
-     * @param maxLength Maximum text length in characters, or 0 to disable
-     */
     @TestVisible
     public static void setMaxTextLength(Integer maxLength) {
         MAX_TEXT_LENGTH_FOR_PATTERN_MATCHING = maxLength != null ? maxLength : 50000;
     }
 
-    /**
-     * @description Gets the current maximum text length for pattern matching.
-     *
-     * @return Current max length setting
-     */
     public static Integer getMaxTextLength() {
         return MAX_TEXT_LENGTH_FOR_PATTERN_MATCHING;
     }
 
     // =========================================================================
-    // PATTERN LOADING AND COMPILATION
+    // PATTERN LOADING
     // =========================================================================
 
-    /**
-     * @description Loads patterns from custom metadata and compiles them.
-     */
     private void loadAndCompilePatterns() {
         this.compiledPatterns = new List<CompiledPattern>();
 
-        // Load from cache or query
         if (cachedPatterns == null) {
             cachedPatterns = [
-                SELECT DeveloperName, MasterLabel, PatternRegex__c, MaskFormat__c, Category__c, Priority__c, IsActive__c, RequiresValidation__c
+                SELECT
+                    DeveloperName,
+                    MasterLabel,
+                    PatternRegex__c,
+                    MaskFormat__c,
+                    Category__c,
+                    Priority__c,
+                    IsActive__c,
+                    RequiresValidation__c,
+                    ValidatorType__c
                 FROM PIIPattern__mdt
                 WHERE IsActive__c = TRUE
                 ORDER BY Priority__c ASC
             ];
         }
 
-        // Compile patterns, filtering by category
         for (PIIPattern__mdt pattern : cachedPatterns) {
-            // Skip if category filtering is enabled and this category isn't included
             if (this.enabledCategories != null && !this.enabledCategories.isEmpty() && !this.enabledCategories.contains(pattern.Category__c)) {
                 continue;
             }
@@ -278,10 +239,9 @@ public inherited sharing class PIIPatternMatcher {
                 cp.category = pattern.Category__c;
                 cp.priority = pattern.Priority__c != null ? Integer.valueOf(pattern.Priority__c) : 100;
                 cp.requiresValidation = pattern.RequiresValidation__c == true;
-
+                cp.validatorType = pattern.ValidatorType__c;
                 this.compiledPatterns.add(cp);
             } catch (Exception e) {
-                // Log but don't fail - skip invalid patterns
                 System.debug(LoggingLevel.ERROR, '[PIIPatternMatcher] Failed to compile pattern "' + pattern.DeveloperName + '": ' + e.getMessage());
             }
         }
@@ -290,36 +250,43 @@ public inherited sharing class PIIPatternMatcher {
     }
 
     // =========================================================================
-    // VALIDATION METHODS
+    // VALIDATOR DISPATCH
     // =========================================================================
 
     /**
-     * @description Validates a match using pattern-specific validation logic.
-     *
-     * @param matchedValue The value to validate
-     * @param patternName The pattern name to determine validation type
-     * @return True if validation passes or is not applicable
+     * @description Dispatches to the appropriate algorithmic validator based on ValidatorType__c.
+     * Returns true if the value is valid (should be masked), false if it should be rejected.
+     * Unknown validator types pass through as valid.
      */
-    private Boolean validateMatch(String matchedValue, String patternName) {
-        if (String.isBlank(matchedValue)) {
-            return false;
+    private Boolean runValidator(String value, String validatorType) {
+        if (String.isBlank(validatorType)) {
+            return true;
         }
-
-        // Credit card patterns require Luhn validation
-        if (patternName != null && patternName.toLowerCase().contains('credit')) {
-            return validateLuhn(matchedValue);
+        switch on validatorType {
+            when 'LUHN' {
+                return validateLuhn(value);
+            }
+            when 'IBAN_MOD97' {
+                return validateIbanMod97(value);
+            }
+            when 'SSN_INVALID' {
+                return validateSsnNotInvalid(value);
+            }
+            when 'ABA_CHECKSUM' {
+                return validateAbaChecksum(value);
+            }
+            when else {
+                return true;
+            }
         }
-
-        // Add other validations here as needed
-        return true;
     }
 
+    // =========================================================================
+    // VALIDATORS
+    // =========================================================================
+
     /**
-     * @description Validates a number using the Luhn algorithm (checksum for credit cards).
-     * The Luhn algorithm is used to validate credit card numbers and other identification numbers.
-     *
-     * @param numberStr The number string to validate (can contain spaces/dashes)
-     * @return True if the number passes Luhn validation
+     * @description Validates a credit card number using the Luhn algorithm.
      */
     @TestVisible
     public static Boolean validateLuhn(String numberStr) {
@@ -327,10 +294,8 @@ public inherited sharing class PIIPatternMatcher {
             return false;
         }
 
-        // Remove all non-digit characters
         String digits = numberStr.replaceAll('[^0-9]', '');
 
-        // Must have at least 13 digits for a valid credit card
         if (digits.length() < 13 || digits.length() > 19) {
             return false;
         }
@@ -338,19 +303,146 @@ public inherited sharing class PIIPatternMatcher {
         Integer sum = 0;
         Boolean alternate = false;
 
-        // Process from right to left
         for (Integer i = digits.length() - 1; i >= 0; i--) {
             Integer digit = Integer.valueOf(digits.substring(i, i + 1));
-
             if (alternate) {
                 digit *= 2;
                 if (digit > 9) {
                     digit -= 9;
                 }
             }
-
             sum += digit;
             alternate = !alternate;
+        }
+
+        return Math.mod(sum, 10) == 0;
+    }
+
+    /**
+     * @description Validates an IBAN using the ISO 13616 mod-97 checksum algorithm.
+     * Processes digit-by-digit to avoid integer overflow (Apex has no BigInteger).
+     */
+    @TestVisible
+    public static Boolean validateIbanMod97(String iban) {
+        if (String.isBlank(iban)) {
+            return false;
+        }
+
+        // Strip spaces and uppercase
+        String cleaned = iban.replaceAll('\\s', '').toUpperCase();
+
+        // Minimum IBAN length is 15 (Norway), maximum is 34
+        if (cleaned.length() < 15 || cleaned.length() > 34) {
+            return false;
+        }
+
+        // Move first 4 chars to end: e.g. GB29NWBK... → NWBK...GB29
+        String rearranged = cleaned.substring(4) + cleaned.substring(0, 4);
+
+        // Convert letters to digits: A=10, B=11, ... Z=35
+        String numericString = '';
+        for (Integer i = 0; i < rearranged.length(); i++) {
+            String ch = rearranged.substring(i, i + 1);
+            Integer code = ch.charAt(0);
+            if (code >= 65 && code <= 90) {
+                // A=65 → 10, so offset = code - 55
+                numericString += String.valueOf(code - 55);
+            } else {
+                numericString += ch;
+            }
+        }
+
+        // Compute mod 97 using running remainder to avoid overflow
+        Integer remainder = 0;
+        for (Integer i = 0; i < numericString.length(); i++) {
+            Integer digit = Integer.valueOf(numericString.substring(i, i + 1));
+            remainder = Math.mod(remainder * 10 + digit, 97);
+        }
+
+        return remainder == 1;
+    }
+
+    /**
+     * @description Validates that an SSN is not in the known-invalid set.
+     * Returns true if the SSN is structurally plausible (should be masked),
+     * false if it is a known fake, reserved, or degenerate value.
+     * Mirrors Presidio's UsSsnRecognizer.invalidate_result logic.
+     */
+    @TestVisible
+    public static Boolean validateSsnNotInvalid(String ssn) {
+        if (String.isBlank(ssn)) {
+            return false;
+        }
+
+        String digits = ssn.replaceAll('[^0-9]', '');
+        if (digits.length() != 9) {
+            return false;
+        }
+
+        String area = digits.substring(0, 3);
+        String grp = digits.substring(3, 5);
+        String serial = digits.substring(5, 9);
+
+        // Block reserved areas
+        if (area == '000' || area == '666') {
+            return false;
+        }
+        // Block 900-999 (ITINs start with 9 — handled by separate pattern)
+        if (area.substring(0, 1) == '9') {
+            return false;
+        }
+
+        // Block reserved group and serial values
+        if (grp == '00' || serial == '0000') {
+            return false;
+        }
+
+        // Block all-same-digit sequences (e.g. 111111111, 222222222)
+        Boolean allSame = true;
+        for (Integer i = 1; i < 9; i++) {
+            if (digits.substring(i, i + 1) != digits.substring(0, 1)) {
+                allSame = false;
+                break;
+            }
+        }
+        if (allSame) {
+            return false;
+        }
+
+        // Block known invalid SSNs used in advertisements and test data
+        if (KNOWN_INVALID_SSNS.contains(digits)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @description Validates a US ABA routing number using the standard 3-7-1 weighted checksum.
+     * The weighted sum 3*d0 + 7*d1 + d2 + 3*d3 + 7*d4 + d5 + 3*d6 + 7*d7 + d8 must be
+     * divisible by 10. Also validates the first digit is a legal Federal Reserve prefix.
+     */
+    @TestVisible
+    public static Boolean validateAbaChecksum(String routing) {
+        if (String.isBlank(routing)) {
+            return false;
+        }
+
+        String digits = routing.replaceAll('[^0-9]', '');
+        if (digits.length() != 9) {
+            return false;
+        }
+
+        // First digit must be a valid Federal Reserve district prefix
+        if (!ABA_VALID_FIRST_DIGITS.contains(digits.substring(0, 1))) {
+            return false;
+        }
+
+        // 3-7-1 weighted checksum
+        Integer[] weights = new List<Integer>{ 3, 7, 1, 3, 7, 1, 3, 7, 1 };
+        Integer sum = 0;
+        for (Integer i = 0; i < 9; i++) {
+            sum += Integer.valueOf(digits.substring(i, i + 1)) * weights[i];
         }
 
         return Math.mod(sum, 10) == 0;

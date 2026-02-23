@@ -497,71 +497,20 @@ public inherited sharing class ExecutionStepService {
         Id capabilityId,
         Boolean isError
     ) {
-        String logPrefix = LOG_PREFIX + '[createToolResultStep] ';
-
-        try {
-            Map<String, Object> metadata = new Map<String, Object>();
-            if (processingDuration != null) {
-                metadata.put('processingDuration', processingDuration);
-            }
-            if (isAsyncToolExecution != null) {
-                metadata.put('isAsyncToolExecution', isAsyncToolExecution);
-            }
-
-            ExecutionStep__c step = new ExecutionStep__c(
-                AgentExecution__c = executionId,
-                StepType__c = 'ToolResult',
-                StepRole__c = 'Tool',
-                Content__c = null,
-                ContentType__c = 'JSON',
-                Timestamp__c = Datetime.now(),
-                TurnIdentifier__c = turnIdentifier,
-                TurnCount__c = turnCount,
-                ToolCallId__c = toolCallId,
-                ToolName__c = toolName,
-                ToolResult__c = toolResult,
-                HasResult__c = String.isNotBlank(toolResult),
-                IsError__c = isError != null ? isError : false,
-                ProcessingDuration__c = processingDuration,
-                IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false,
-                StepMetadata__c = !metadata.isEmpty() ? JSON.serialize(metadata) : null,
-                PromptTokens__c = null,
-                CompletionTokens__c = null,
-                TotalTokens__c = null,
-                ModelIdentifier__c = null,
-                LLMCalloutDurationMs__c = null,
-                AIAgentCapability__c = capabilityId,
-                IsResumed__c = false // Default to false for existing method
-            );
-
-            // Multi-LLM optimization: Check if deferred DML mode is enabled
-            if (TransactionContext.getInstance().isDeferredDMLMode()) {
-                TransactionContext.getInstance().bufferInsert(step);
-                System.debug(LoggingLevel.DEBUG, logPrefix + 'Buffered tool result step for deferred insert. Tool: ' + toolName);
-                return null;
-            }
-
-            insert step;
-
-            System.debug(
-                LoggingLevel.DEBUG,
-                logPrefix +
-                    'Created tool result step: ' +
-                    step.Id +
-                    ' for tool: ' +
-                    toolName +
-                    ' (async=' +
-                    isAsyncToolExecution +
-                    ', isError=' +
-                    step.IsError__c +
-                    ')'
-            );
-
-            return step.Id;
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create tool result step: ' + e.getMessage());
-            throw new ExecutionStepException('Failed to create tool result step: ' + e.getMessage());
-        }
+        return createToolResultStep(
+            executionId,
+            toolCallId,
+            toolName,
+            toolResult,
+            turnIdentifier,
+            turnCount,
+            processingDuration,
+            isAsyncToolExecution,
+            capabilityId,
+            isError,
+            false,
+            false
+        );
     }
 
     public Id createToolResultStep(
@@ -577,76 +526,20 @@ public inherited sharing class ExecutionStepService {
         Boolean isError,
         Boolean isResumed
     ) {
-        String logPrefix = LOG_PREFIX + '[createToolResultStep] ';
-
-        try {
-            Map<String, Object> metadata = new Map<String, Object>();
-            if (processingDuration != null) {
-                metadata.put('processingDuration', processingDuration);
-            }
-            if (isAsyncToolExecution != null) {
-                metadata.put('isAsyncToolExecution', isAsyncToolExecution);
-            }
-
-            ExecutionStep__c step = new ExecutionStep__c(
-                AgentExecution__c = executionId,
-                StepType__c = 'ToolResult',
-                StepRole__c = 'Tool',
-                Content__c = null,
-                ContentType__c = 'JSON',
-                Timestamp__c = Datetime.now(),
-                TurnIdentifier__c = turnIdentifier,
-                TurnCount__c = turnCount,
-                ToolCallId__c = toolCallId,
-                ToolName__c = toolName,
-                ToolResult__c = toolResult,
-                HasResult__c = String.isNotBlank(toolResult),
-                IsError__c = isError != null ? isError : false,
-                ProcessingDuration__c = processingDuration,
-                IsAsyncToolExecution__c = isAsyncToolExecution != null ? isAsyncToolExecution : false,
-                StepMetadata__c = !metadata.isEmpty() ? JSON.serialize(metadata) : null,
-                PromptTokens__c = null,
-                CompletionTokens__c = null,
-                TotalTokens__c = null,
-                ModelIdentifier__c = null,
-                LLMCalloutDurationMs__c = null,
-                AIAgentCapability__c = capabilityId,
-                IsResumed__c = isResumed != null ? isResumed : false
-            );
-
-            // Multi-LLM optimization: Check if deferred DML mode is enabled
-            if (TransactionContext.getInstance().isDeferredDMLMode()) {
-                TransactionContext.getInstance().bufferInsert(step);
-                System.debug(
-                    LoggingLevel.DEBUG,
-                    logPrefix + 'Buffered tool result step for deferred insert. Tool: ' + toolName + ' IsResumed: ' + (isResumed == true)
-                );
-                return null;
-            }
-
-            insert step;
-
-            System.debug(
-                LoggingLevel.DEBUG,
-                logPrefix +
-                    'Created tool result step: ' +
-                    step.Id +
-                    ' for tool: ' +
-                    toolName +
-                    ' (async=' +
-                    isAsyncToolExecution +
-                    ', isError=' +
-                    step.IsError__c +
-                    ', isResumed=' +
-                    (isResumed == true) +
-                    ')'
-            );
-
-            return step.Id;
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create tool result step: ' + e.getMessage());
-            throw new ExecutionStepException('Failed to create tool result step: ' + e.getMessage());
-        }
+        return createToolResultStep(
+            executionId,
+            toolCallId,
+            toolName,
+            toolResult,
+            turnIdentifier,
+            turnCount,
+            processingDuration,
+            isAsyncToolExecution,
+            capabilityId,
+            isError,
+            isResumed,
+            false
+        );
     }
 
     /**
@@ -688,6 +581,8 @@ public inherited sharing class ExecutionStepService {
                 isRetryable = false;
             }
 
+            Boolean isActualError = isError == true && isDependencyValidationFailure != true;
+
             ExecutionStep__c step = new ExecutionStep__c(
                 AgentExecution__c = executionId,
                 StepType__c = 'ToolResult',
@@ -713,7 +608,8 @@ public inherited sharing class ExecutionStepService {
                 AIAgentCapability__c = capabilityId,
                 IsResumed__c = isResumed != null ? isResumed : false,
                 IsDependencyValidationFailure__c = isDependencyValidationFailure != null ? isDependencyValidationFailure : false,
-                ErrorCategory__c = errorCategory
+                ErrorCategory__c = errorCategory,
+                RetryPending__c = isActualError && isRetryable == true
             );
             applyRetryableField(step, isRetryable);
 
@@ -726,7 +622,9 @@ public inherited sharing class ExecutionStepService {
                         'Buffered tool result step for deferred insert. Tool: ' +
                         toolName +
                         ' isDependencyFailure: ' +
-                        (isDependencyValidationFailure == true)
+                        (isDependencyValidationFailure == true) +
+                        ' retryPending: ' +
+                        (isActualError && isRetryable == true)
                 );
                 return null;
             }
@@ -746,6 +644,8 @@ public inherited sharing class ExecutionStepService {
                     step.IsError__c +
                     ', isDependencyFailure=' +
                     (isDependencyValidationFailure == true) +
+                    ', retryPending=' +
+                    step.RetryPending__c +
                     ')'
             );
 
@@ -792,6 +692,8 @@ public inherited sharing class ExecutionStepService {
             isRetryable = false;
         }
 
+        Boolean isActualError = isError == true && isDependencyValidationFailure != true;
+
         ExecutionStep__c step = new ExecutionStep__c(
             AgentExecution__c = executionId,
             StepType__c = 'ToolResult',
@@ -817,7 +719,8 @@ public inherited sharing class ExecutionStepService {
             AIAgentCapability__c = capabilityId,
             IsResumed__c = isResumed != null ? isResumed : false,
             IsDependencyValidationFailure__c = isDependencyValidationFailure != null ? isDependencyValidationFailure : false,
-            ErrorCategory__c = errorCategory
+            ErrorCategory__c = errorCategory,
+            RetryPending__c = isActualError && isRetryable == true
         );
         applyRetryableField(step, isRetryable);
         return step;
@@ -858,6 +761,7 @@ public inherited sharing class ExecutionStepService {
                 isRetryable = false;
             }
             applyRetryableField(step, isRetryable);
+            step.RetryPending__c = isError == true && isRetryable == true;
 
             Map<String, Object> metadata = new Map<String, Object>();
             if (String.isNotBlank(step.StepMetadata__c)) {
@@ -886,6 +790,57 @@ public inherited sharing class ExecutionStepService {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update tool result step: ' + e.getMessage());
             throw new ExecutionStepException('Failed to update tool result step: ' + e.getMessage());
         }
+    }
+
+    /**
+     * @description Injects a framework enforcement message into the conversation history
+     * when the LLM returned a text response without retrying one or more failed retryable tools.
+     * The step is marked IsInternal__c=true so it is hidden in the Storyboard UI but included
+     * in the LLM message history (user role) to instruct the model to retry.
+     *
+     * @param executionId  The AgentExecution__c ID
+     * @param failures     List of unretried retryable failures from OrchestrationService
+     * @param turnIdentifier  Current turn identifier
+     * @param turnCount    Current turn/cycle count
+     */
+    public void createRetryEnforcementStep(Id executionId, List<OrchestrationService.UnretriedFailure> failures, String turnIdentifier, Integer turnCount) {
+        if (failures == null || failures.isEmpty()) {
+            return;
+        }
+
+        List<String> lines = new List<String>{
+            '[Framework] The following tool(s) failed with retryable errors and were not retried.',
+            'You MUST call each tool again with its original arguments before completing.',
+            ''
+        };
+        for (OrchestrationService.UnretriedFailure f : failures) {
+            String argStr = String.isNotBlank(f.originalArguments) ? f.originalArguments : '{}';
+            lines.add('- ' + f.toolName + ': ' + argStr);
+        }
+
+        String content = String.join(lines, '\n');
+
+        ExecutionStep__c step = new ExecutionStep__c(
+            AgentExecution__c = executionId,
+            StepType__c = 'UserInput',
+            StepRole__c = 'User',
+            Content__c = content,
+            ContentType__c = 'Text',
+            Timestamp__c = Datetime.now(),
+            TurnIdentifier__c = turnIdentifier,
+            TurnCount__c = turnCount,
+            IsInternal__c = false
+        );
+
+        // Always buffer — never insert directly.
+        // Salesforce prohibits callouts after uncommitted DML in the same transaction. In
+        // IMMEDIATE_FOLLOWUP mode the next LLM cycle follows immediately in the same queueable, so a
+        // direct insert would cause a CalloutException on the very next HTTP request.
+        // TransactionContext.getBufferedExecutionSteps() is called by getHistory() to merge buffered
+        // steps into the DB-queried history, so the LLM will see this instruction without needing a
+        // DB commit first.
+        TransactionContext.getInstance().bufferInsert(step);
+        System.debug(LoggingLevel.DEBUG, LOG_PREFIX + '[createRetryEnforcementStep] Buffered enforcement step for ' + failures.size() + ' unretried tool(s).');
     }
 
     public Id createErrorStep(Id executionId, String errorMessage, String errorCode, String turnIdentifier, Integer turnCount) {
@@ -1318,12 +1273,9 @@ public inherited sharing class ExecutionStepService {
                 return metadata;
             }
             Map<String, Object> result = (Map<String, Object>) raw;
-            if (result.containsKey('errorCategory')) {
-                metadata.put('errorCategory', (String) result.get('errorCategory'));
-            }
-            if (result.containsKey('isRetryable')) {
-                Object retryableRaw = result.get('isRetryable');
-                metadata.put('isRetryable', coerceBoolean(retryableRaw));
+
+            if (result.containsKey('retryable')) {
+                metadata.put('isRetryable', coerceBoolean(result.get('retryable')));
             }
         } catch (Exception e) {
         }

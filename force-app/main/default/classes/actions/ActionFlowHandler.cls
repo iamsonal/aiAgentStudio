@@ -12,8 +12,7 @@
  * @ActionDescription Executes a Salesforce Flow and returns its output
  * @ActionRequiresSObject false
  * @ActionIsActive false
- * @ActionGuidance
- * <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6;"><div style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white; padding: 16px; border-radius: 8px 8px 0 0; margin: -8px -8px 16px -8px;"><h2 style="margin: 0; font-size: 18px; font-weight: 600;">⚡ Execute Flow</h2><p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">Execute a Salesforce Flow with input/output variables</p></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">⚙️ Configuration Required</h3><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">Implementation Detail</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">Select the Flow to execute using the picker. Only shows <strong>Autolaunched Flows</strong> that are active.<br/><span style="font-size: 12px; font-style: italic;">The Flow's API name will be stored in the configuration.</span></td></tr><tr><td style="padding: 8px;"><strong style="color: #495057;">Default Input Values</strong><br/><span style="font-size: 11px; color: #6c757d;">Optional</span></td><td style="padding: 8px; color: #6c757d;">JSON object with default values for Flow input variables. These are merged with AI-provided values.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{ "varName": "defaultValue" }</code></td></tr></table></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">📋 Flow Requirements</h3><ul style="margin: 8px 0; padding-left: 20px; font-size: 13px; color: #6c757d;"><li style="margin-bottom: 8px;"><strong style="color: #495057;">Flow Type:</strong> Must be an <strong>Autolaunched Flow</strong> (not Screen Flow or Record-Triggered Flow)</li><li style="margin-bottom: 8px;"><strong style="color: #495057;">Status:</strong> Flow must be <strong>Active</strong> to be executable</li><li style="margin-bottom: 8px;"><strong style="color: #495057;">Input Variables:</strong> Mark variables as "Available for input" in Flow Builder</li><li style="margin-bottom: 8px;"><strong style="color: #495057;">Output Variables:</strong> Mark variables as "Available for output" to return values to AI</li></ul><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">📤 Supported Data Types</h3><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 6px; border-bottom: 1px solid #e9ecef; width: 35%;"><span style="color: #28a745;">✓</span> Text, Number, Boolean</td><td style="padding: 6px; border-bottom: 1px solid #e9ecef;"><span style="color: #28a745;">✓</span> Date, DateTime</td></tr><tr><td style="padding: 6px; border-bottom: 1px solid #e9ecef;"><span style="color: #28a745;">✓</span> Record (SObject)</td><td style="padding: 6px; border-bottom: 1px solid #e9ecef;"><span style="color: #28a745;">✓</span> Record Collections</td></tr><tr><td style="padding: 6px;"><span style="color: #28a745;">✓</span> Text/Number Collections</td><td style="padding: 6px;"><span style="color: #ffc107;">⚠</span> Apex-Defined Types (limited)</td></tr></table></div><div style="background: #e7f1ff; border-left: 4px solid #0066cc; padding: 12px; margin: 12px 0; border-radius: 4px;"><p style="margin: 0; font-size: 13px; color: #004085;"><strong>💡 How it works:</strong> The AI reads your Flow's variable names and descriptions to understand what inputs to provide. Clear variable names and descriptions help the AI use your Flow correctly.</p></div></div>
+ * @ActionInternal true
  */
 public with sharing class ActionFlowHandler extends BaseAgentAction {
     private static final String FAULT_MESSAGE_VAR = 'faultMessage';
@@ -373,7 +372,7 @@ public with sharing class ActionFlowHandler extends BaseAgentAction {
 
             System.debug(LoggingLevel.ERROR, '[ActionFlowHandler] ' + enhancedMessage);
             System.debug(LoggingLevel.DEBUG, '[ActionFlowHandler] ' + ex.getStackTraceString());
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, enhancedMessage);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_FLOW_FAULT, enhancedMessage);
         }
     }
 
@@ -451,7 +450,7 @@ public with sharing class ActionFlowHandler extends BaseAgentAction {
             String faultMessage = (String) faultMessageValue;
             String enhancedError = 'Flow "' + flowApiName + '" reported failure via "' + FAULT_MESSAGE_VAR + '": ' + faultMessage;
             System.debug(LoggingLevel.ERROR, '[ActionFlowHandler] Flow reported failure: ' + enhancedError);
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, enhancedError);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_FLOW_FAULT, enhancedError);
         }
 
         // Build the result payload

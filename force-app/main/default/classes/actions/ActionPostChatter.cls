@@ -12,8 +12,6 @@
  * @ActionDescription Posts a message to a Chatter feed with support for mentions and topics
  * @ActionRequiresSObject false
  * @ActionIsActive true
- * @ActionGuidance
- * <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6;"><div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 16px; border-radius: 8px 8px 0 0; margin: -8px -8px 16px -8px;"><h2 style="margin: 0; font-size: 18px; font-weight: 600;">💬 Post to Chatter</h2><p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">Post messages to Chatter feeds (record, user, or group)</p></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">⚙️ Configuration Options</h3><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">Default Target ID</strong><br/><span style="font-size: 11px; color: #6c757d;">Optional</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">Default Salesforce ID for the feed target (record, user, or group). Can be overridden at runtime.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">"005..." (User) or "001..." (Record) or "0F9..." (Group)</code></td></tr><tr><td style="padding: 8px;"><strong style="color: #495057;">Message Template</strong><br/><span style="font-size: 11px; color: #6c757d;">Optional</span></td><td style="padding: 8px; color: #6c757d;">Optional message template with placeholders for AI to fill in. Leave blank to let AI compose freely.</td></tr></table></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">📋 Runtime Parameters</h3><p style="margin: 8px 0; font-size: 13px; color: #6c757d;">The AI will provide these parameters when calling this action:</p><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">targetId</strong><br/><span style="font-size: 11px; color: #dc3545;">Required*</span></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">18-character Salesforce ID of the target feed. Can be a record ID, user ID (005), or group ID (0F9).<br/><span style="font-size: 11px; font-style: italic;">*Not required if Default Target ID is configured</span></td></tr><tr><td style="padding: 8px;"><strong style="color: #495057;">message</strong><br/><span style="font-size: 11px; color: #dc3545;">Required</span></td><td style="padding: 8px; color: #6c757d;">Message text (max 10,000 characters). Can include @mentions and #topics.<br/><code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">"Case escalated {@005xxx} please review"</code></td></tr></table></div><h3 style="font-size: 15px; color: #212529; margin: 16px 0 8px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 4px;">✨ Message Formatting</h3><div style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; margin: 12px 0;"><table style="width: 100%; font-size: 13px;"><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef; width: 30%;"><strong style="color: #495057;">@Mentions</strong></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">Use <code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{@005xxxxxxxxxxxxxxx}</code> to mention users or groups. The mentioned user will be notified.</td></tr><tr><td style="padding: 8px; border-bottom: 1px solid #e9ecef;"><strong style="color: #495057;">#Topics</strong></td><td style="padding: 8px; border-bottom: 1px solid #e9ecef; color: #6c757d;">Add hashtags (max 25 characters each) for categorization: <code style="background: #f1f3f5; padding: 2px 6px; border-radius: 3px; font-size: 11px;">#Escalation #Urgent</code></td></tr><tr><td style="padding: 8px;"><strong style="color: #495057;">URLs</strong></td><td style="padding: 8px; color: #6c757d;">URLs are automatically converted to clickable links in the Chatter post.</td></tr></table></div></div>
  *
  * @extends BaseAgentAction
  */
@@ -142,7 +140,7 @@ public with sharing class ActionPostChatter extends BaseAgentAction {
             this.config.feedType = (String) configMap.get('feedType');
             this.config.targetId = (String) configMap.get('targetId');
         } catch (Exception e) {
-            throw new ValidationException('Invalid configuration JSON: ' + e.getMessage(), e);
+            throw new ValidationException('Invalid configuration JSON: ' + e.getMessage(), null, e);
         }
 
         // Validate required fields
@@ -395,10 +393,9 @@ public with sharing class ActionPostChatter extends BaseAgentAction {
             System.debug(LoggingLevel.ERROR, '[ActionPostChatter] Chatter post failed: ' + enhancedMessage);
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, enhancedMessage);
         } catch (Exception ex) {
-            String enhancedMessage = 'Unexpected error posting to Chatter: ' + ex.getMessage();
-            System.debug(LoggingLevel.ERROR, '[ActionPostChatter] Unexpected error: ' + enhancedMessage);
+            System.debug(LoggingLevel.ERROR, '[ActionPostChatter] Unexpected error: ' + ex.getMessage());
             System.debug(LoggingLevel.DEBUG, '[ActionPostChatter] Exception stack trace: ' + ex.getStackTraceString());
-            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, enhancedMessage);
+            return ActionOutcome.fromException(ex);
         }
     }
 

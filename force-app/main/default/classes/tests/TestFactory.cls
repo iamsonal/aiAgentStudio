@@ -441,8 +441,7 @@ public class TestFactory {
             CapabilityName__c = 'test_capability_' + generateRandomString(6),
             Description__c = 'Test capability for unit testing',
             ExposureLevel__c = 'External',
-            RunAsynchronously__c = false,
-            FailFastOnError__c = false
+            RunAsynchronously__c = false
         );
 
         public CapabilityBuilder withAgent(Id agentId) {

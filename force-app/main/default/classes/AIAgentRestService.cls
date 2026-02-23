@@ -159,8 +159,7 @@ global with sharing class AIAgentRestService {
                 }
             }
 
-            // Handle triggerPayload (stored as JSON string)
-            // Note: triggerPayload is passed through as-is; orchestrators will deserialize as needed
+            payload.triggerPayload = requestData.triggerPayload;
 
             System.debug(
                 LoggingLevel.INFO,

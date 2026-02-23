@@ -30,6 +30,11 @@ public inherited sharing class CapabilityExecutionService {
             throw new IllegalArgumentException('AgentCapability and ActionContext are required.');
         }
 
+        ActionOutcome validationFailure = validateRequiredParameters(capability, llmArgumentsJson, logPrefix);
+        if (validationFailure != null) {
+            return validationFailure;
+        }
+
         try {
             // ImplementationType__c is a restricted picklist with only: Standard, Apex, Flow
             System.debug(LoggingLevel.INFO, logPrefix + 'Executing ' + capability.ImplementationType__c + ' capability: ' + capability.CapabilityName__c);
@@ -99,13 +104,7 @@ public inherited sharing class CapabilityExecutionService {
             } else if ('Apex'.equalsIgnoreCase(implType)) {
                 return instantiateAndCheckInterface(Type.forName(implDetail), implDetail);
             } else if ('Flow'.equalsIgnoreCase(implType)) {
-                final String FLOW_HANDLER_KEY = 'RunFlow';
-                StandardActionHandler__mdt flowHandlerMdt = standardHandlerCache.get(FLOW_HANDLER_KEY.toLowerCase());
-                if (flowHandlerMdt == null) {
-                    System.debug(LoggingLevel.ERROR, '[CapabilityExecutionService] No Flow handler registration found for key: "' + FLOW_HANDLER_KEY + '".');
-                    throw new CapabilityExecutionException('Flow handler registration not found for key: "' + FLOW_HANDLER_KEY + '".');
-                }
-                return instantiateAndCheckInterface(Type.forName(flowHandlerMdt.HandlerClassName__c), flowHandlerMdt.HandlerClassName__c);
+                return instantiateAndCheckInterface(Type.forName('ActionFlowHandler'), 'ActionFlowHandler');
             }
             // Note: No else needed - picklist only allows Standard, Apex, Flow
             return null; // Unreachable, but required for compiler
@@ -123,6 +122,65 @@ public inherited sharing class CapabilityExecutionService {
             );
             throw new CapabilityExecutionException('Failed to instantiate handler "' + logIdentifier + '": ' + e.getMessage(), e);
         }
+    }
+
+    /**
+     * @description Validates that all fields listed in the capability's JSON Schema "required" array are
+     * present and non-null in the LLM-supplied arguments. Returns a structured failure outcome if any
+     * required field is missing so the LLM receives an actionable INPUT_VALIDATION error rather than
+     * a NullPointerException from deep inside the action handler.
+     *
+     * @return null if validation passes, or an ActionOutcome.failure if required fields are absent.
+     */
+    @TestVisible
+    private static ActionOutcome validateRequiredParameters(AgentCapability__c capability, String llmArgumentsJson, String logPrefix) {
+        if (String.isBlank(capability.Parameters__c)) {
+            return null;
+        }
+
+        Map<String, Object> schema;
+        try {
+            schema = (Map<String, Object>) JSON.deserializeUntyped(capability.Parameters__c);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Could not parse Parameters__c as JSON schema, skipping required-field validation: ' + e.getMessage());
+            return null;
+        }
+
+        List<Object> required = (List<Object>) schema.get('required');
+        if (required == null || required.isEmpty()) {
+            return null;
+        }
+
+        Map<String, Object> args = new Map<String, Object>();
+        if (String.isNotBlank(llmArgumentsJson)) {
+            try {
+                args = (Map<String, Object>) JSON.deserializeUntyped(llmArgumentsJson);
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Could not parse llmArgumentsJson, skipping required-field validation: ' + e.getMessage());
+                return null;
+            }
+        }
+
+        List<String> missing = new List<String>();
+        for (Object req : required) {
+            String fieldName = (String) req;
+            if (!args.containsKey(fieldName) || args.get(fieldName) == null) {
+                missing.add(fieldName);
+            }
+        }
+
+        if (missing.isEmpty()) {
+            return null;
+        }
+
+        String msg =
+            'Missing required parameter(s) for capability "' +
+            capability.CapabilityName__c +
+            '": ' +
+            String.join(missing, ', ') +
+            '. Please provide all required fields and retry.';
+        System.debug(LoggingLevel.WARN, logPrefix + msg);
+        return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, msg);
     }
 
     private static void ensureCacheInitialized() {
