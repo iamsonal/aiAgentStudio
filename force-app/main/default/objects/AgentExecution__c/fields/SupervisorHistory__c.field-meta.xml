@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SupervisorHistory__c</fullName>
+    <description>JSON array of accumulated supervisor LLM messages across rounds for Supervised workflow mode. Contains user/assistant/tool turns in OpenAI message format. Used to provide full conversation context to the supervisor on each re-invocation. Truncated with a rolling window when it exceeds the field limit.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Accumulated supervisor conversation history as JSON. Only used in Supervised workflow mode.</inlineHelpText>
+    <label>Supervisor History</label>
+    <length>32768</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>5</visibleLines>
+</CustomField>

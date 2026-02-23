@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PendingWorkflowChildCount__c</fullName>
+    <defaultValue>0</defaultValue>
+    <description>Tracks the number of pending child agent executions dispatched in the current supervisor round. Used for atomic fan-in coordination in Supervised workflow mode. Decremented atomically with FOR UPDATE when each child completes; when reaching zero, the next supervisor turn is enqueued. Analogous to PendingAsyncToolCount__c for async tools.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Number of child agents still pending completion for the current supervisor round. Only used in Supervised workflow mode.</inlineHelpText>
+    <label>Pending Workflow Child Count</label>
+    <precision>4</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>
