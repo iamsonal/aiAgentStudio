@@ -14,7 +14,7 @@ hero:
       variant: minimal
 ---
 
-import { Aside, Badge, Card, CardGrid, Icon, LinkButton, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, LinkButton, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 <div class="hero-shell">
   <div class="hero-kicker">Built for governed enterprise AI on Salesforce</div>
@@ -24,7 +24,7 @@ import { Aside, Badge, Card, CardGrid, Icon, LinkButton, LinkCard, Steps, TabIte
   <div class="hero-grid">
     <div class="stat-tile"><strong>4 Agent Types</strong><br />Conversational, Function, Workflow, and Email orchestrators.</div>
     <div class="stat-tile"><strong>Trust Layers</strong><br />PII masking, prompt safety, and dependency validation.</div>
-    <div class="stat-tile"><strong>Multi-Provider</strong><br />OpenAI, Claude, Gemini with extensible adapters.</div>
+    <div class="stat-tile"><strong>Multi-Provider</strong><br />OpenAI built-in. Any OpenAI-compatible API works out of the box. Extend for others.</div>
   </div>
 </div>
 
@@ -34,16 +34,7 @@ This public repository contains the core framework. The `aiAgentStudioAddons` pa
 
 ## What It Does
 
-AI Agent Studio is a **production-grade orchestration system** for AI agents on Salesforce. It handles:
-
-- **LLM interactions** with multiple providers (OpenAI, Claude, Gemini)
-- **Tool execution** with governed access to Salesforce data
-- **Memory management** across multi-turn conversations
-- **Multi-agent workflows** with state machines and coordination
-- **Email thread processing** with automatic reply generation
-- **Human-in-the-loop** approvals for sensitive operations
-- **Security controls** including PII masking and prompt injection detection
-- **Observability** with execution traces, token tracking, and cost analytics
+AI Agent Studio is a **production-grade orchestration system** for AI agents on Salesforce. It handles LLM interactions, tool execution, memory management, multi-agent workflows, email processing, human-in-the-loop approvals, security controls, and observability — all natively on the Salesforce platform with no external infrastructure.
 
 ## Why AI Agent Studio
 
@@ -52,27 +43,13 @@ AI Agent Studio is a **production-grade orchestration system** for AI agents on 
     Built with Strategy + Factory + Chain of Responsibility patterns. Modular plugin-based design scales from single conversations to high-throughput enterprise deployments.
   </Card>
   <Card title="Security & Governance First" icon="seti:lock">
-    Automatic CRUD/FLS/sharing enforcement, PII masking, prompt safety checks, tool dependency validation, and comprehensive audit trails. Agents run in user context with no privilege escalation.
+    Automatic CRUD/FLS/sharing enforcement, PII masking, provider-native prompt safety, tool dependency validation, and comprehensive audit trails. Agents run in user context with no privilege escalation.
   </Card>
   <Card title="Extensible at Every Layer" icon="seti:code">
-    Custom actions for business logic, context providers for dynamic data, LLM provider adapters, custom orchestrators, and configurable memory strategies.
+    Custom actions for business logic, context providers for dynamic data, LLM provider adapters, custom orchestrators, and configurable memory strategies — extend only what you need.
   </Card>
   <Card title="Observable by Design" icon="seti:graph-line">
-    Execution storyboard UI, decision step logging, tool rationale capture, token and cost tracking. Built-in visibility for monitoring reliability and business impact.
-  </Card>
-</CardGrid>
-
-## Who It Is For
-
-<CardGrid>
-  <Card title="Admins" icon="seti:settings">
-    Configure AI behavior, capability access, and approvals without writing code.
-  </Card>
-  <Card title="Managers" icon="seti:graph-line">
-    Monitor reliability, risk, and business impact with observable agent operations.
-  </Card>
-  <Card title="Developers" icon="seti:code">
-    Extend with custom actions, context providers, and LLM adapters.
+    Execution storyboard UI, tool rationale capture, token and cost tracking. Built-in visibility for monitoring reliability and business impact.
   </Card>
 </CardGrid>
 
@@ -93,32 +70,14 @@ AI Agent Studio is a **production-grade orchestration system** for AI agents on 
   </Card>
 </CardGrid>
 
-## Security & Trust
-
-The framework implements multiple layers of security and trust controls:
-
-**Platform-Native Security**: Agents run in user context, CRUD/FLS automatically enforced, sharing rules respected, all actions logged.
-
-**PII Masking**: Hybrid approach using Salesforce Data Classification and regex patterns. Sensitive data masked before LLM calls, automatically unmasked in responses.
-
-**Prompt Safety**: Multi-layered jailbreak detection using pattern matching, heuristic analysis, and structural analysis. Configurable response modes (Block/Sanitize/Flag).
-
-**Tool Dependencies**: Declarative sequencing prevents illogical tool order (e.g., sending email before creating record). LLM-generated dependency graph approved by admins, enforced at runtime.
-
-**Human-in-the-Loop**: Configurable approval workflows for sensitive operations with Confirmation, Approval, or hybrid modes.
-
-<LinkButton href="reference/security/" icon="right-arrow">Security Deep Dive</LinkButton>
-
 ## Key Features
 
 <Tabs>
   <TabItem label="Performance">
 
-**Multi-LLM Optimization**: Deferred DML pattern enables multiple LLM calls within a single transaction when tools don't perform DML or callouts. Reduces latency and async job overhead.
+**Scalable Async Processing**: Platform Events for high-throughput production environments. Resilient processing with priority ordering, exponential backoff, and automatic recovery.
 
-**Dead Letter Queue**: Resilient multi-record processing with priority ordering, exponential backoff, stale job recovery, and trigger-based chaining. Scales to any volume.
-
-**Platform Events**: High-throughput async dispatch for production environments with thousands of concurrent users.
+**Efficient LLM Batching**: Multiple LLM calls can be processed within a single transaction when tool execution allows it, reducing latency and job overhead.
 
   </TabItem>
   <TabItem label="Observability">
@@ -129,7 +88,7 @@ The framework implements multiple layers of security and trust controls:
 
 **Token & Cost Tracking**: Per-step tracking of prompt/completion tokens and estimated costs. Build dashboards to monitor spend.
 
-**Decision Logging**: Complete audit trail of user inputs, LLM responses, tool calls, and results for compliance and troubleshooting.
+**Audit Trail**: Complete log of user inputs, LLM responses, tool calls, and results for compliance and troubleshooting.
 
   </TabItem>
   <TabItem label="Extensibility">
@@ -138,7 +97,7 @@ The framework implements multiple layers of security and trust controls:
 
 **Context Providers**: Supply dynamic data to agents via `IAgentContextProvider`. Bulk-safe queries with security enforcement.
 
-**LLM Providers**: Add new LLM providers by extending `BaseProviderAdapter`. OpenAI included, Claude and Gemini in addons.
+**LLM Providers**: `OpenAIProviderAdapter` ships in core and works with any OpenAI-compatible API (Azure OpenAI, Groq, Together AI, Ollama, and more). `VertexAIProviderAdapter` for Google Vertex AI / Gemini is in addons. Add any other provider by extending `BaseProviderAdapter`.
 
 **Memory Strategies**: Implement custom memory management via `IMemoryManager`. BufferWindow and SummaryBuffer included.
 
@@ -162,7 +121,7 @@ You can have a working first agent in about 30 minutes.
 6. Place the chat component on a Lightning page and test.
 </Steps>
 
-<p><Icon name="rocket" /> Start with the guided setup and iterate from observability data.</p>
+Start with the guided setup and iterate from observability data.
 
 <LinkButton href="getting-started/" icon="right-arrow">Launch Setup Guide</LinkButton>
 

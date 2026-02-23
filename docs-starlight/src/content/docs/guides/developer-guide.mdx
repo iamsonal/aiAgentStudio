@@ -3,7 +3,7 @@ title: Developer Guide
 description: Build custom actions and context providers.
 ---
 
-import { Aside, Badge, FileTree, LinkButton } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, FileTree, LinkButton, LinkCard, Steps } from '@astrojs/starlight/components';
 
 # Developer Guide
 
@@ -34,10 +34,14 @@ Start with a minimal custom action, validate with tests, then expand behavior an
 
 ## Overview
 
-The AI Agent Framework provides two primary extension points for developers:
-
-1. **Custom Actions** - Extend agent capabilities with custom business logic
-2. **Agent Context Providers** - Supply dynamic context data to agents during conversations
+<CardGrid>
+  <Card title="Custom Actions" icon="seti:gear">
+    Extend agent capabilities with custom business logic. Implement `IAgentAction` (extend `BaseAgentAction`) to give agents new tools — external API calls, multi-object operations, calculations, or anything Apex can do.
+  </Card>
+  <Card title="Context Providers" icon="seti:db">
+    Supply dynamic data to agents before each conversation turn. Implement `IAgentContextProvider` to automatically inject related records, user context, or aggregated data into the system prompt.
+  </Card>
+</CardGrid>
 
 Both extension points follow consistent patterns for security, error handling, and integration with the framework.
 
@@ -96,11 +100,20 @@ Custom actions allow agents to perform operations beyond the standard CRUD actio
 
 ### When to Create a Custom Action
 
-- Complex business logic that spans multiple objects
-- Integration with external systems or APIs
-- Custom validation or transformation logic
-- Operations requiring specific transaction handling
-- Specialized calculations or data processing
+<CardGrid>
+  <Card title="Complex Business Logic" icon="seti:apex">
+    Operations spanning multiple objects, custom validation, or transformation logic that exceeds what standard actions provide.
+  </Card>
+  <Card title="External Integrations" icon="seti:cloud">
+    Callouts to external APIs, webhooks, or third-party services that the agent needs to interact with.
+  </Card>
+  <Card title="Specialized Processing" icon="seti:gear">
+    Custom calculations, scoring models, data enrichment, or workflow decisions that require Apex code.
+  </Card>
+  <Card title="Transaction Control" icon="seti:config">
+    Operations needing specific DML ordering, async dispatch, or platform event publishing.
+  </Card>
+</CardGrid>
 
 ### Architecture Overview
 
@@ -483,11 +496,20 @@ Context providers supply dynamic, relevant data to agents during conversations. 
 
 ### When to Create a Context Provider
 
-- Provide related records automatically (e.g., open cases for an account)
-- Supply user-specific context (e.g., user's team, territory, preferences)
-- Aggregate data from multiple sources
-- Apply business-specific filtering logic
-- Provide computed or derived context
+<CardGrid>
+  <Card title="Related Records" icon="seti:db">
+    Automatically inject open cases, opportunities, or activities for the record the user is viewing — no explicit query needed.
+  </Card>
+  <Card title="User Context" icon="seti:settings">
+    Supply the agent with the current user's team, territory, preferences, or role-specific data.
+  </Card>
+  <Card title="Aggregated Data" icon="seti:graph-line">
+    Combine data from multiple sources or objects into labeled context blocks the LLM can reason over.
+  </Card>
+  <Card title="Derived Context" icon="seti:config">
+    Computed values, business-specific filters, or enriched data that the LLM should always have available.
+  </Card>
+</CardGrid>
 
 ### Architecture Overview
 
@@ -1164,32 +1186,40 @@ Use `Fail Fast` for agents where partial execution is worse than no execution (e
 
 ## Deployment Checklist
 
-### Custom Action Deployment
-
-- [ ] Apex class extends `BaseAgentAction`
-- [ ] `executeAction()` method implemented
-- [ ] `parseActionConfiguration()` overridden if needed
-- [ ] Security checks implemented (CRUD, FLS)
-- [ ] All catch blocks use `ActionOutcome.fromException(e)` — not `failure(ERR_CODE_UNEXPECTED_ERROR, ...)`
-- [ ] Business-logic failures use explicit error codes (not `UNEXPECTED_ERROR`)
-- [ ] Unit tests with >75% coverage
-- [ ] `AgentCapability__c` record created
-- [ ] Parameters JSON Schema defined
-- [ ] Backend Configuration JSON defined (if needed)
-- [ ] Capability description is clear and specific
-
-### Context Provider Deployment
-
-- [ ] Apex class implements `IAgentContextProvider`
-- [ ] `getContext()` method implemented
-- [ ] All SOQL uses `WITH USER_MODE`
-- [ ] Bulk-safe queries (no queries in loops)
-- [ ] Reasonable LIMIT clauses
-- [ ] Unit tests with >75% coverage
-- [ ] `AgentContextConfig__c` record created
-- [ ] `ApplicableSObjectTypes__c` configured correctly
-- [ ] `RequiresRecordContext__c` set appropriately
-- [ ] `ExecutionOrder__c` set for proper sequencing
+<CardGrid>
+  <Card title="Custom Action — Code" icon="seti:apex">
+    - [ ] Extends `BaseAgentAction`
+    - [ ] `executeAction()` implemented
+    - [ ] `parseActionConfiguration()` overridden if needed
+    - [ ] Security checks in place (CRUD, FLS)
+    - [ ] Catch blocks use `fromException(e)`, not `failure(UNEXPECTED_ERROR, ...)`
+    - [ ] Business-logic failures use explicit error codes
+    - [ ] Unit tests with >75% coverage
+  </Card>
+  <Card title="Custom Action — Metadata" icon="seti:config">
+    - [ ] `AgentCapability__c` record created
+    - [ ] `ImplementationType__c = Apex`
+    - [ ] `ImplementationDetail__c` matches class name exactly
+    - [ ] Parameters JSON Schema defined
+    - [ ] Backend Configuration JSON defined (if needed)
+    - [ ] Capability description is clear, specific, and includes when NOT to use
+  </Card>
+  <Card title="Context Provider — Code" icon="seti:db">
+    - [ ] Implements `IAgentContextProvider`
+    - [ ] `getContext()` implemented
+    - [ ] All SOQL uses `WITH USER_MODE`
+    - [ ] Bulk-safe (no queries inside loops)
+    - [ ] Reasonable `LIMIT` clauses
+    - [ ] Unit tests with >75% coverage
+  </Card>
+  <Card title="Context Provider — Metadata" icon="seti:config">
+    - [ ] `AgentContextConfig__c` record created
+    - [ ] `ApplicableSObjectTypes__c` configured correctly
+    - [ ] `RequiresRecordContext__c` set appropriately
+    - [ ] `ExecutionOrder__c` set for proper sequencing
+    - [ ] `IsActive__c = true`
+  </Card>
+</CardGrid>
 
 ---
 
@@ -1197,30 +1227,38 @@ Use `Fail Fast` for agents where partial execution is worse than no execution (e
 
 ### Action Not Executing
 
-1. Check `AgentCapability__c.IsActive__c` is `true`
-2. Verify `ImplementationType__c` is `Apex`
-3. Confirm `ImplementationDetail__c` matches class name exactly
-4. Check debug logs for instantiation errors
+<Steps>
+1. Check `AgentCapability__c.IsActive__c` is `true`.
+2. Verify `ImplementationType__c` is `Apex`.
+3. Confirm `ImplementationDetail__c` matches the class name exactly (case-sensitive).
+4. Enable debug logging and reproduce — look for instantiation errors.
+</Steps>
 
 ### Permission Errors
 
-1. Verify user has CRUD on target objects
-2. Check Field-Level Security settings
-3. Review sharing rules
-4. Ensure `WITH USER_MODE` is used in queries
+<Steps>
+1. Verify the running user has CRUD on target objects.
+2. Check Field-Level Security for the queried fields.
+3. Review sharing rules for the affected records.
+4. Ensure all SOQL uses `WITH USER_MODE`.
+</Steps>
 
 ### Context Not Loading
 
-1. Check `AgentContextConfig__c.IsActive__c` is `true`
-2. Verify `ApplicableSObjectTypes__c` includes the record type
-3. Confirm `RequiresRecordContext__c` matches your use case
-4. Check `ExecutionOrder__c` for proper sequencing
-5. Review debug logs for provider errors
+<Steps>
+1. Check `AgentContextConfig__c.IsActive__c` is `true`.
+2. Verify `ApplicableSObjectTypes__c` includes the record type in context.
+3. Confirm `RequiresRecordContext__c` matches your use case.
+4. Check `ExecutionOrder__c` — providers run in order; earlier ones may suppress later ones.
+5. Review debug logs for provider errors.
+</Steps>
 
 ### LLM Not Using Action
 
-1. Improve capability description - be specific about when to use
-2. Add examples in the description
-3. Verify Parameters JSON Schema is correct
-4. Check that parameter descriptions are clear
-5. Lower LLM temperature for more predictable behavior
+<Steps>
+1. Improve the capability description — be specific about when to use and when NOT to use.
+2. Add concrete examples in the description.
+3. Verify the Parameters JSON Schema is valid.
+4. Ensure parameter descriptions clearly explain what each field expects.
+5. Lower LLM temperature (try 0.3–0.5) for more predictable tool selection.
+</Steps>

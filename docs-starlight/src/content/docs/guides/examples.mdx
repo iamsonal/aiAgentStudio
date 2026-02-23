@@ -3,7 +3,7 @@ title: Use Cases and Examples
 description: Real-world scenarios and implementation patterns.
 ---
 
-import { Badge, Card, CardGrid, LinkButton } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, LinkButton, LinkCard, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # Use Cases & Examples
 
@@ -30,18 +30,14 @@ Help desk agent that searches cases, updates status, and creates tasks.
 
 ### Agent Configuration
 
-| Setting | Value |
-|:--------|:------|
-| Agent Type | Conversational |
-| Memory Strategy | BufferWindow |
-| History Limit | 10 |
-
-**Identity Prompt**:
-```
-You are a customer support assistant for the service team.
-You help agents find case information, update case status, and create follow-up tasks.
-Always be helpful and professional.
-```
+<CardGrid>
+  <Card title="Conversational" icon="chat">
+    **Memory**: BufferWindow · **History Limit**: 10 turns
+  </Card>
+  <Card title="Identity Prompt" icon="seti:text">
+    Customer support assistant for the service team — finds cases, updates status, creates follow-up tasks.
+  </Card>
+</CardGrid>
 
 **Instructions Prompt**:
 ```
@@ -53,7 +49,9 @@ Always be helpful and professional.
 
 ### Capabilities
 
-**Search Cases**
+<Tabs>
+  <TabItem label="Search Cases">
+
 ```json
 {
   "capabilityName": "search_cases",
@@ -67,7 +65,9 @@ Always be helpful and professional.
 }
 ```
 
-**Update Case**
+  </TabItem>
+  <TabItem label="Update Case">
+
 ```json
 {
   "capabilityName": "update_case",
@@ -81,7 +81,9 @@ Always be helpful and professional.
 }
 ```
 
-**Create Follow-up Task**
+  </TabItem>
+  <TabItem label="Create Follow-up Task">
+
 ```json
 {
   "capabilityName": "create_followup",
@@ -97,6 +99,9 @@ Always be helpful and professional.
   }
 }
 ```
+
+  </TabItem>
+</Tabs>
 
 ### Sample Conversation
 
@@ -129,22 +134,20 @@ Sales copilot that helps reps find leads, opportunities, and manage their pipeli
 
 ### Agent Configuration
 
-| Setting | Value |
-|:--------|:------|
-| Agent Type | Conversational |
-| Memory Strategy | SummaryBuffer |
-| History Limit | 15 |
-
-**Identity Prompt**:
-```
-You are a sales assistant helping account executives manage their pipeline.
-You can find accounts, contacts, opportunities, and help with sales tasks.
-Be proactive in suggesting next steps.
-```
+<CardGrid>
+  <Card title="Conversational" icon="chat">
+    **Memory**: SummaryBuffer · **History Limit**: 15 turns
+  </Card>
+  <Card title="Identity Prompt" icon="seti:text">
+    Sales assistant for account executives — finds accounts, contacts, opportunities, and suggests next steps.
+  </Card>
+</CardGrid>
 
 ### Capabilities
 
-**Search Opportunities**
+<Tabs>
+  <TabItem label="Search Opportunities">
+
 ```json
 {
   "capabilityName": "search_opportunities",
@@ -156,7 +159,9 @@ Be proactive in suggesting next steps.
 }
 ```
 
-**Search Contacts**
+  </TabItem>
+  <TabItem label="Search Contacts">
+
 ```json
 {
   "capabilityName": "search_contacts",
@@ -168,7 +173,9 @@ Be proactive in suggesting next steps.
 }
 ```
 
-**Log Activity**
+  </TabItem>
+  <TabItem label="Log Activity">
+
 ```json
 {
   "capabilityName": "log_activity",
@@ -185,27 +192,30 @@ Be proactive in suggesting next steps.
 }
 ```
 
+  </TabItem>
+</Tabs>
+
 ---
 
 ## Best Practices
 
-### Capability Design
-
-1. **One purpose per capability** - Don't combine search and update
-2. **Clear descriptions** - Tell the AI exactly when to use it
-3. **Appropriate parameters** - Only expose what's needed
-4. **Enable approval** - For any data modifications
-
-### Prompt Engineering
-
-1. **Be specific** about the agent's role
-2. **Include constraints** (what NOT to do)
-3. **Provide examples** of good responses
-4. **Set expectations** for tone and format
-
-### Testing
-
-1. **Test edge cases** - Empty results, errors, permissions
-2. **Test with real users** - Different profiles and permissions
-3. **Monitor decision steps** - Verify AI reasoning
-4. **Iterate on prompts** - Refine based on actual usage
+<CardGrid>
+  <Card title="Capability Design" icon="seti:gear">
+    - **One purpose per capability** — don't combine search and update
+    - **Clear descriptions** — tell the AI exactly when to use it
+    - **Appropriate parameters** — only expose what's needed
+    - **Enable approval** — for any data modifications
+  </Card>
+  <Card title="Prompt Engineering" icon="seti:text">
+    - **Be specific** about the agent's role
+    - **Include constraints** — what NOT to do
+    - **Provide examples** of good responses
+    - **Set expectations** for tone and format
+  </Card>
+  <Card title="Testing" icon="approve-check">
+    - **Test edge cases** — empty results, errors, permissions
+    - **Test with real users** — different profiles and permissions
+    - **Monitor decision steps** — verify AI reasoning
+    - **Iterate on prompts** — refine based on actual usage
+  </Card>
+</CardGrid>

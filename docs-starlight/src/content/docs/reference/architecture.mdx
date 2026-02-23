@@ -3,7 +3,7 @@ title: Architecture
 description: Runtime architecture and orchestration model.
 ---
 
-import { Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 # Architecture Overview
 
@@ -18,7 +18,7 @@ AI Agent Studio is built on a modular, plugin-based architecture using Strategy,
     All extend `BaseAgentOrchestrator` and implement `IAgentOrchestrator` interface.
   </Card>
   <Card title="LLM Providers" icon="seti:cloud">
-    **Multi-provider support**: OpenAI (core), KimiK2 (addon), Claude (addon), Gemini (addon). Extensible via `ILLMProviderAdapter` interface.
+    **Multi-provider support**: `OpenAIProviderAdapter` ships in core and works with OpenAI and any OpenAI-compatible API. `VertexAIProviderAdapter` for Google Vertex AI / Gemini is in addons. Implement `ILLMProviderAdapter` (extend `BaseProviderAdapter`) to add any other provider.
     
     `BaseProviderAdapter` provides common HTTP handling, retry logic, error normalization, and default `null` safety pre-check.
   </Card>
@@ -44,7 +44,7 @@ AI Agent Studio is built on a modular, plugin-based architecture using Strategy,
 
 2. **Orchestrator Routing**
    
-   `AgentExecutionService.getOrchestrator()` uses `AgentOrchestratorMapping__mdt` to route by agent type to ConversationalOrchestrator, FunctionOrchestrator, WorkflowOrchestrator, or EmailOrchestrator.
+   `AgentExecutionService` routes by agent type to the appropriate orchestrator (Conversational, Function, Workflow, or Email).
 
 3. **Security Checks**
    
@@ -66,7 +66,7 @@ AI Agent Studio is built on a modular, plugin-based architecture using Strategy,
    
    **Tool Reasoning**: If enabled, adds `_rationale` parameter to all tools for explainability.
    
-   **Provider Call**: Routes to `ILLMProviderAdapter` implementation (OpenAIProviderAdapter, ClaudeProviderAdapter, GeminiProviderAdapter).
+   **Provider Call**: Routes to the `ILLMProviderAdapter` implementation named in `LLMConfiguration__c.ProviderAdapterClass__c` (e.g. `OpenAIProviderAdapter`, `VertexAIProviderAdapter`, or a custom adapter).
    
    **Response Parsing**: Normalizes provider-specific responses into `ProviderResult`.
 
@@ -95,51 +95,56 @@ AI Agent Studio is built on a modular, plugin-based architecture using Strategy,
    
    **Execution Records**: `AgentStateService` manages `AgentExecution__c` lifecycle with status tracking (Idle/Processing/Completed/Failed/Cancelled).
    
-   **Step Logging**: `ExecutionStepService` creates `ExecutionStep__c` for detailed execution trace (UserInput/AgentResponse/ToolCall/ToolResult/Error).
+   **Step Logging**: Detailed execution trace captured per step — user inputs, LLM requests/responses, tool calls, tool results, and errors. Token counts and estimated cost recorded per step.
    
-   **Decision Steps**: `AgentDecisionStepLogger` creates `AgentDecisionStep__c` for UI storyboard display.
-   
-   **Turn Tracking**: `CurrentTurnIdentifier__c` enables stale execution detection via `StaleJobDetector`.
+   **Storyboard Data**: High-level decision steps written for the Execution Storyboard UI, providing a user-friendly visual timeline.
 
 9. **Async Continuation**
    
-   **Follow-up LLM**: `FollowUpLLMEngine` handles multi-turn responses, supports deferred DML optimization.
-   
-   **Async Actions**: `AsyncActionEngine` executes long-running tools in separate queueable.
-   
-   **Multi-LLM Optimization**: `TransactionContext` tracks DML/callout operations to determine if immediate follow-up is possible.
+   After tool execution the framework determines whether to continue in the same transaction or defer to a new async job, depending on whether DML or callouts occurred. Long-running tools execute in a separate queueable.
 
 10. **Completion**
     
-    **Status Update**: `AgentStateService.updateStatus()` commits buffered DML (if deferred mode enabled) and sets terminal state.
+    **Status Update**: Terminal state set (`Completed` or `Failed`). Any buffered writes are committed.
     
-    **Events**: Publishes `AgentResponse__e` Platform Event for conversational agents.
-    
-    **Workflow Callbacks**: For child agents, triggers `onChildComplete()` on parent orchestrator.
+    **Events**: `AgentResponse__e` Platform Event published for conversational agents, triggering the UI to refresh.
 
 </Steps>
 
 ## Key Services
 
-| Service | Responsibility |
-|---------|---------------|
-| `AgentExecutionService` | Entry point, orchestrator routing, service user context switching |
-| `OrchestrationService` | LLM response processing, handler selection (ToolCallResponseHandler vs ContentResponseHandler) |
-| `LLMInteractionService` | LLM communication, prompt building, provider adapter routing |
-| `AgentStateService` | Execution lifecycle management, status updates, Platform Event publishing |
-| `CapabilityExecutionService` | Tool/action execution, handler factory (Standard/Apex/Flow) |
-| `ContextManagerService` | Context ledger, memory strategy selection (BufferWindow vs SummaryBuffer) |
-| `AIAgentConfigService` | Configuration repository (agents, capabilities, context providers) |
-| `ExecutionStepService` | Execution step CRUD, deferred DML buffering |
-| `TypeCoercionService` | Type conversion with FLS enforcement for SObject fields |
-| `AgentJobEnqueuer` | Async job dispatch (Queueable vs Platform Event based on AsyncDispatchType__c) |
-| `AgentDecisionStepLogger` | Decision logging for storyboard UI explainability |
-| `TransactionContext` | Multi-LLM optimization, deferred DML mode, LLM call tracking, tool safety detection |
-| `PIIMaskingService` | Hybrid PII masking (schema-based + pattern-based) with bidirectional unmask |
-| `ToolDependencyValidator` | Declarative tool sequencing constraint enforcement |
-| `AgentExecutionDispatcher` | DLQ-based dispatch for multi-record executions with BatchId correlation |
-| `AgentExecutionWorker` | DLQ worker with self-pull pattern and FOR UPDATE locking |
-| `StaleJobDetector` | Scheduled recovery of stuck executions (checks ProcessingStartedAt__c) |
+<CardGrid>
+  <Card title="AgentExecutionService" icon="rocket">
+    Entry point for all execution types. Handles orchestrator routing via `AgentOrchestratorMapping__mdt` and service user context switching.
+  </Card>
+  <Card title="OrchestrationService" icon="seti:settings">
+    LLM response processing and handler selection — `ToolCallResponseHandler` vs `ContentResponseHandler`. Three-tier error policy.
+  </Card>
+  <Card title="LLMInteractionService" icon="seti:cloud">
+    LLM communication, system prompt assembly, PII masking, safety pre-check, and provider adapter routing.
+  </Card>
+  <Card title="CapabilityExecutionService" icon="seti:gear">
+    Tool/action execution with handler factory for Standard, Apex, and Flow implementations. HITL gateway routing.
+  </Card>
+  <Card title="AgentStateService" icon="seti:db">
+    Execution lifecycle management (`Idle → Processing → Completed/Failed`), status updates, and `AgentResponse__e` event publishing.
+  </Card>
+  <Card title="ContextManagerService" icon="seti:text">
+    Conversation history retrieval via `IMemoryManager` (BufferWindow or SummaryBuffer). Context ledger management.
+  </Card>
+  <Card title="AIAgentConfigService" icon="seti:config">
+    Configuration repository — agents, capabilities, context providers, and LLM configurations. Cached for performance.
+  </Card>
+  <Card title="PIIMaskingService" icon="seti:lock">
+    Hybrid PII masking (Salesforce Data Classification + regex patterns). Deterministic token replacement with bidirectional unmask.
+  </Card>
+  <Card title="Async Dispatch" icon="seti:clock">
+    Async job dispatch via Queueable or Platform Event, based on `AsyncDispatchType__c`. Handles both single-agent and multi-agent workflow dispatch.
+  </Card>
+  <Card title="StaleJobDetector" icon="warning">
+    Scheduled recovery of stuck executions. Detects stalled jobs and re-queues them automatically.
+  </Card>
+</CardGrid>
 
 ## Configuration Objects
 
@@ -174,13 +179,11 @@ Tool/function definitions:
 
 Execution tracking:
 
-**Status Fields**: `ExecutionStatus__c` (Idle/Processing/Completed/Failed/Cancelled for lifecycle-level), `ProcessingStatus__c` (Idle/Processing/Awaiting Action/Awaiting Followup/Failed for turn-level), `CurrentTurnIdentifier__c` (Stale execution detection via StaleJobDetector).
+**Status Fields**: `ExecutionStatus__c` (Idle/Processing/Completed/Failed/Cancelled for lifecycle-level), `ProcessingStatus__c` (Idle/Processing/Awaiting Action/Awaiting Followup/Failed for turn-level).
 
 **Context**: `SourceRecordId__c` (Context record like Account or Case), `OriginalUserId__c` (User who initiated execution), `ServiceUserId__c` (Service user if RequiresServiceUserContext__c).
 
-**Multi-Record DLQ**: `BatchId__c` (Correlation ID for grouping related executions), `Priority__c` (Execution priority where higher = more urgent, default 0), `ProcessingStartedAt__c` (Timestamp when worker started for stale detection), `RetryCount__c`, `MaxRetries__c`, `NextRetryAt__c` (Exponential backoff tracking).
-
-**Async Coordination**: `PendingAsyncToolCount__c` (Atomic counter for async tool tracking).
+**Multi-Record Processing**: `BatchId__c` (Correlation ID for grouping related executions), `Priority__c` (Execution priority), `RetryCount__c`, `MaxRetries__c`, `NextRetryAt__c` (Exponential backoff tracking).
 
   </TabItem>
   <TabItem label="ExecutionStep__c">
@@ -199,42 +202,35 @@ Detailed execution log for observability:
 
 ## Advanced Patterns
 
-### Multi-LLM Optimization (Deferred DML)
+<CardGrid>
+  <Card title="Efficient LLM Batching" icon="rocket">
+    When tool execution doesn't require DML or external callouts, the framework can process multiple LLM turns within a single transaction, reducing latency and async job overhead.
+  </Card>
+  <Card title="Resilient Multi-Record Processing" icon="seti:flow">
+    Multi-record batch executions use a resilient dispatch pattern with priority ordering, exponential backoff, progress tracking, and automatic recovery of stalled jobs.
+  </Card>
+  <Card title="Tool Dependency Validation" icon="seti:git">
+    Declarative tool sequencing prevents the LLM from calling tools in an illogical order.
 
-Enables multiple LLM calls within a single transaction when intervening tools don't perform DML or callouts.
+    **Flow**: LLM generates a dependency graph → admin reviews and approves → system enforces at runtime.
 
-**Flow**: Entry enables deferred DML → ExecutionStepService buffers inserts → After each LLM call, check eligibility → If safe: continue in same transaction → On completion: commit all buffered DML
-
-**Eligibility**: Deferred mode enabled + Pre-existing execution + No DML/callouts + Under max LLM calls limit
-
-**Benefits**: Reduced latency (no queueable delays), fewer async jobs, faster UX
-
-### Dead Letter Queue Architecture
-
-Multi-record executions use DLQ pattern for resilient processing at scale.
-
-**Flow**: Dispatcher creates AgentExecution__c records with BatchId__c → Enqueue limited workers → Worker claims with FOR UPDATE → Process → On completion, trigger chains next pending record → Workers exhaust naturally
-
-**Features**: Priority ordering (Priority__c DESC), exponential backoff (NextRetryAt__c), stale job recovery (StaleJobDetector), progress tracking (getBatchProgress)
-
-### Tool Dependency Validation
-
-Declarative tool sequencing prevents workflow hallucinations.
-
-**Flow**: LLM generates dependency graph → Admin approves → System enforces at runtime
-
-**Two-Phase**: Pre-flight validation + topological sort → Runtime validation during execution
-
-**Circuit Breaker**: Tracks violations, fails if threshold exceeded
+    **Two-Phase**: Pre-flight validation with topological sort → runtime enforcement during execution.
+  </Card>
+</CardGrid>
 
 ## Observability
 
-**Storyboard UI**: `AgentStoryboardController` provides data for LWC components (agentStoryboard, agentExecutionView, workflowView, agentStoryboardStep)
-
-**Execution Trace**: ExecutionStep__c records capture complete interaction history with token tracking
-
-**Decision Timeline**: AgentDecisionStep__c provides user-friendly execution visualization
-
-**Tool Reasoning**: When enabled, captures LLM rationale for tool selection for transparency
-
-**Cost Analytics**: Token and cost tracking per step enables budget monitoring and optimization
+<CardGrid>
+  <Card title="Storyboard UI" icon="seti:graph-line">
+    `AgentStoryboardController` powers the LWC components (`agentStoryboard`, `agentExecutionView`, `workflowView`, `agentStoryboardStep`) with a visual timeline of the full execution.
+  </Card>
+  <Card title="Execution Trace" icon="seti:log">
+    `ExecutionStep__c` records capture every interaction — user input, LLM response, tool calls, tool results, and errors — with per-step token counts.
+  </Card>
+  <Card title="Tool Reasoning" icon="seti:text">
+    When `EnableToolReasoning__c` is on, the LLM's rationale for selecting each tool is stored in `ToolRationale__c` for transparency and debugging.
+  </Card>
+  <Card title="Cost Analytics" icon="seti:db">
+    Per-step `PromptTokens__c`, `CompletionTokens__c`, and `EstimatedCostUSD__c` enable budget monitoring dashboards and cost-per-interaction reporting.
+  </Card>
+</CardGrid>

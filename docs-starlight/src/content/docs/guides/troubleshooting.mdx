@@ -3,7 +3,7 @@ title: Troubleshooting
 description: Common issues and resolutions.
 ---
 
-import { Aside, LinkButton, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import { Aside, Card, CardGrid, LinkButton, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # Troubleshooting
 
@@ -19,45 +19,44 @@ Validate credentials first, then permissions, then model behavior, then performa
 
 ## Agent Not Responding
 
-### Symptoms
-- Chat shows loading indefinitely
-- No response after sending message
-- Timeout errors
-
-### Solutions
+**Symptoms**: Chat shows loading indefinitely · No response after sending message · Timeout errors
 
 **Check Named Credential**
-1. Go to Setup → Named Credentials
-2. Verify the credential is active
-3. Test the connection
+<Steps>
+1. Go to **Setup → Named Credentials**.
+2. Verify the credential is active.
+3. Test the connection.
+</Steps>
 
 **Verify API Key**
-1. Check API key is valid and not expired
-2. Verify account has available credits
-3. Test key directly with provider's API
+<Steps>
+1. Check that the API key is valid and not expired.
+2. Verify the account has available credits.
+3. Test the key directly with the provider's API.
+</Steps>
 
 **Check Agent Status**
-1. Open the AI Agent Definition
-2. Ensure `IsActive__c` is checked
-3. Verify `LLMConfiguration__c` is set
+<Steps>
+1. Open the AI Agent Definition.
+2. Ensure `IsActive__c` is checked.
+3. Verify `LLMConfiguration__c` is set.
+</Steps>
 
 **Review Debug Logs**
-1. Enable debug logging for your user
-2. Reproduce the issue
-3. Check for errors in the log
+<Steps>
+1. Enable debug logging for your user in **Setup → Debug Logs**.
+2. Reproduce the issue.
+3. Check for errors in the log.
+</Steps>
 
 ---
 
 ## Permission Denied Errors
 
-### Symptoms
-- "Insufficient privileges" messages
-- Agent can't access certain records
-- Fields missing from responses
-
-### Solutions
+**Symptoms**: "Insufficient privileges" messages · Agent can't access certain records · Fields missing from responses
 
 **Check Object Permissions**
+
 ```sql
 -- Query to check user's object access
 SELECT Id, Name, Profile.Name
@@ -68,68 +67,60 @@ WHERE Id = :userId
 Then verify the profile/permission set grants CRUD on target objects.
 
 **Check Field-Level Security**
-1. Go to Setup → Object Manager → [Object] → Fields
-2. Click on the field
-3. Check "Field-Level Security"
-4. Ensure user's profile has access
+<Steps>
+1. Go to **Setup → Object Manager → [Object] → Fields**.
+2. Click on the field.
+3. Click **Field-Level Security**.
+4. Ensure the user's profile has access.
+</Steps>
 
 **Check Sharing Rules**
-1. Go to Setup → Sharing Settings
-2. Review OWD for the object
-3. Check sharing rules
-4. Verify user has access to specific records
+<Steps>
+1. Go to **Setup → Sharing Settings**.
+2. Review OWD for the object.
+3. Check sharing rules and verify the user has access to specific records.
+</Steps>
 
 ---
 
 ## High CPU Time / Timeouts
 
-### Symptoms
-- "CPU time limit exceeded" errors
-- Slow responses
-- Incomplete executions
+**Symptoms**: "CPU time limit exceeded" errors · Slow responses · Incomplete executions
 
-### Solutions
-
-**Reduce History**
-- Lower `HistoryTurnLimit__c` (try 5-7)
-- Switch to `SummaryBuffer` memory strategy
-
-**Simplify Capabilities**
-- Reduce number of active capabilities
-- Simplify parameter schemas
-- Shorten descriptions
-
-**Use Async Processing**
-- Set `AsyncDispatchType__c` to "High"
-- Enable `RunAsynchronously__c` on heavy capabilities
-
-**Optimize Queries**
-- Add indexes to frequently queried fields
-- Limit fields in `BackendConfiguration__c`
-- Use selective filters
+<CardGrid>
+  <Card title="Reduce History" icon="seti:clock">
+    Lower `HistoryTurnLimit__c` (try 5–7). Switch to `SummaryBuffer` memory strategy to compress older turns.
+  </Card>
+  <Card title="Simplify Capabilities" icon="seti:gear">
+    Reduce the number of active capabilities. Simplify parameter schemas and shorten descriptions.
+  </Card>
+  <Card title="Use Async Processing" icon="rocket">
+    Set `AsyncDispatchType__c` to `High`. Enable `RunAsynchronously__c` on heavy capabilities.
+  </Card>
+  <Card title="Optimize Queries" icon="seti:db">
+    Add indexes to frequently queried fields. Limit fields in `BackendConfiguration__c` and use selective filters.
+  </Card>
+</CardGrid>
 
 ---
 
 ## Unexpected Tool Calls
 
-### Symptoms
-- Agent uses wrong capability
-- Agent calls tools unnecessarily
-- Inconsistent behavior
-
-### Solutions
+**Symptoms**: Agent uses wrong capability · Agent calls tools unnecessarily · Inconsistent behavior
 
 **Improve Descriptions**
 
 <Tabs>
-  <TabItem label="Poor Example">
+  <TabItem label="Poor example">
 
 ```text
 Gets contacts
 ```
 
+Too vague — the model will choose tools inconsistently or ignore them entirely.
+
   </TabItem>
-  <TabItem label="Better Example">
+  <TabItem label="Better example">
 
 ```text
 Search for contacts by name, email, or account.
@@ -140,11 +131,7 @@ Do NOT use for creating contacts or searching accounts.
   </TabItem>
 </Tabs>
 
-Too vague descriptions cause the model to choose tools inconsistently.
-
-
-
-**Add Examples**
+**Add Examples to Descriptions**
 ```
 Examples of when to use:
 - "Find John Smith's contact info"
@@ -152,36 +139,25 @@ Examples of when to use:
 - "Look up contacts with @gmail.com emails"
 ```
 
-**Lower Temperature**
-- Reduce `Temperature__c` in LLM Configuration
-- Try 0.3-0.5 for more predictable behavior
-
-**Review Parameters**
-- Ensure JSON Schema is valid
-- Add clear descriptions to each parameter
-- Use enums where appropriate
+**Other Fixes**
+- **Lower Temperature** — reduce `Temperature__c` to 0.3–0.5 for more predictable tool selection
+- **Review Parameters** — ensure JSON Schema is valid, add clear descriptions to each parameter, use enums where appropriate
 
 ---
 
 ## Context Lost Between Turns
 
-### Symptoms
-- Agent forgets previous messages
-- Asks for information already provided
-- Doesn't maintain conversation flow
-
-### Solutions
+**Symptoms**: Agent forgets previous messages · Asks for information already provided · Doesn't maintain conversation flow
 
 **Check Memory Strategy**
-1. Open AI Agent Definition
-2. Verify `MemoryStrategy__c` is set
-3. Try `BufferWindow` for precise context
-
-**Increase History Limit**
-- Raise `HistoryTurnLimit__c` (try 10-15)
-- Balance with token costs
+<Steps>
+1. Open AI Agent Definition.
+2. Verify `MemoryStrategy__c` is set (`BufferWindow` for precise context).
+3. Raise `HistoryTurnLimit__c` (try 10–15).
+</Steps>
 
 **Verify Execution Steps**
+
 ```sql
 SELECT Id, UserMessage__c, AssistantMessage__c
 FROM ExecutionStep__c
@@ -195,22 +171,12 @@ Ensure steps are being created for each turn.
 
 ## JSON Parse Errors
 
-### Symptoms
-- "Invalid JSON" errors
-- Capability configuration failures
-- Parameter validation errors
+**Symptoms**: "Invalid JSON" errors · Capability configuration failures · Parameter validation errors
 
-### Solutions
-
-**Validate JSON**
-Use a JSON validator to check:
-- `BackendConfiguration__c`
-- `Parameters__c`
-
-**Common Issues**
+Use a JSON validator to check `BackendConfiguration__c` and `Parameters__c`. Common mistakes:
 
 <Tabs>
-  <TabItem label="Trailing Comma (Invalid)">
+  <TabItem label="Trailing comma (invalid)">
 
 ```json
 {
@@ -228,7 +194,7 @@ Use a JSON validator to check:
 ```
 
   </TabItem>
-  <TabItem label="Single Quotes (Invalid)">
+  <TabItem label="Single quotes (invalid)">
 
 ```json
 {
@@ -239,87 +205,50 @@ Use a JSON validator to check:
   </TabItem>
 </Tabs>
 
-
-
 ---
 
 ## Debug Tips
 
-### 1. Check Decision Steps
-
-Query `AgentDecisionStep__c` to see exactly what happened:
-
-```sql
-SELECT
-  UserInput__c,
-  LLMRequest__c,
-  LLMResponse__c,
-  ToolCalls__c,
-  ToolResults__c,
-  ErrorMessage__c
-FROM AgentDecisionStep__c
-WHERE AgentExecution__c = :executionId
-ORDER BY CreatedDate ASC
-```
-
-### 2. Enable Debug Logging
-
-1. Setup → Debug Logs
-2. Add your user
-3. Set levels:
-   - Apex Code: DEBUG
-   - Callout: DEBUG
-   - System: DEBUG
-
-### 3. Test Capabilities Individually
-
-Use Developer Console or Workbench to test capabilities in isolation:
-
-```apex
-// Test a capability directly
-AgentCapability__c cap = [SELECT Id FROM AgentCapability__c WHERE CapabilityName__c = 'search_contacts'];
-Map<String, Object> params = new Map<String, Object>{
-    'lastName' => 'Smith'
-};
-// Execute and check results
-```
-
-### 4. Monitor Token Usage
-
-```sql
-SELECT
-  SUM(TokensUsed__c) totalTokens,
-  COUNT(Id) interactions,
-  AVG(TokensUsed__c) avgTokens
-FROM AgentDecisionStep__c
-WHERE CreatedDate = TODAY
-GROUP BY AgentExecution__r.AIAgentDefinition__c
-```
-
-### 5. Check Platform Events
-
-If using High Concurrency mode:
-1. Setup → Platform Events
-2. Check event delivery status
-3. Review any failed deliveries
+<CardGrid>
+  <Card title="1. Use the Execution Storyboard" icon="seti:log">
+    Open the **Execution Storyboard** UI for the affected `AgentExecution__c` record. It shows the full decision timeline — what the LLM received, what it responded, which tools were called, and any errors — without needing to write SOQL.
+  </Card>
+  <Card title="2. Enable Debug Logging" icon="seti:shell">
+    Go to **Setup → Debug Logs**, add your user, and set Apex Code, Callout, and System all to `DEBUG`. Reproduce the issue and examine the log.
+  </Card>
+  <Card title="3. Test Capabilities Individually" icon="seti:gear">
+    Use Developer Console to invoke a capability in isolation before wiring it to an agent. This isolates whether the issue is in the tool itself or in the LLM's routing.
+  </Card>
+  <Card title="4. Monitor Token Usage" icon="seti:graph-line">
+    Token counts and estimated costs are recorded per execution step. Build a report or dashboard on the execution data objects to track spend by agent, user, or day.
+  </Card>
+  <Card title="5. Check Platform Events" icon="rocket">
+    If using High Concurrency mode: **Setup → Platform Events** → check event delivery status and review any failed deliveries.
+  </Card>
+</CardGrid>
 
 ---
 
 ## Getting Help
 
-### Before Asking for Help
+Gather this information before opening an issue:
 
-Gather this information:
 <Steps>
-1. Agent configuration (type, memory, history limit)
-2. Capability configuration (description, parameters)
-3. Error messages (exact text)
-4. Decision step data (if available)
-5. Debug log excerpts (relevant sections)
+1. Agent configuration (type, memory strategy, history limit).
+2. Capability configuration (description, parameters JSON).
+3. Exact error messages.
+4. Decision step data (query above).
+5. Relevant debug log excerpts.
 </Steps>
 
-### Resources
-
-- [GitHub Issues](https://github.com/iamsonal/aiAgentStudio/issues) - Report bugs
-- [GitHub Discussions](https://github.com/iamsonal/aiAgentStudio/discussions) - Ask questions
-- [Salesforce Developer Forums](https://developer.salesforce.com/forums) - General Salesforce help
+<CardGrid>
+  <LinkCard title="GitHub Issues" href="https://github.com/iamsonal/aiAgentStudio/issues">
+    Report bugs with reproduction steps.
+  </LinkCard>
+  <LinkCard title="GitHub Discussions" href="https://github.com/iamsonal/aiAgentStudio/discussions">
+    Ask questions and share patterns.
+  </LinkCard>
+  <LinkCard title="Salesforce Developer Forums" href="https://developer.salesforce.com/forums">
+    General Salesforce platform help.
+  </LinkCard>
+</CardGrid>

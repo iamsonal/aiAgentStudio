@@ -16,7 +16,7 @@ AI Agent Studio implements defense-in-depth security with multiple layers of pro
     User context execution, CRUD/FLS enforcement, sharing rules, field-level access control with type coercion.
   </Card>
   <Card title="Trust Layers" icon="seti:shield">
-    PII masking before LLM calls, prompt injection detection, tool dependency validation, declarative sequencing constraints.
+    PII masking before LLM calls, provider-native prompt safety pre-checks, tool dependency validation, and declarative sequencing constraints.
   </Card>
   <Card title="Human-in-the-Loop" icon="seti:gear">
     Configurable approval workflows with Confirmation, Approval, and hybrid modes. Atomic state tracking with PendingHITLAction__c.
@@ -153,8 +153,8 @@ LLMInteractionService.prepareAndCallLLM()
 
 | Provider | Pre-Check | Notes |
 |----------|-----------|-------|
-| `OpenAIProviderAdapter` | Calls `/v1/moderations` — blocks if `flagged == true` | Provider-native |
-| `KimiK2ProviderAdapter` | None (inherits null default) | No pre-check |
+| `OpenAIProviderAdapter` | Calls `/v1/moderations` — blocks if `flagged == true` | Provider-native; also works for any OpenAI-compatible API that exposes `/v1/moderations` |
+| `VertexAIProviderAdapter` | None (inherits null default) | Relies on Vertex AI's in-call safety filters instead |
 | Custom adapters | Override `checkMessageSafety()` to add | Fully extensible |
 
 **Result DTO**: `ThreatAssessment` carries `score` (0.0–1.0), `threatLevel` (NONE/LOW/MEDIUM/HIGH/CRITICAL), `indicators` list, and `shouldBlock()` helper.
@@ -164,7 +164,8 @@ LLMInteractionService.prepareAndCallLLM()
 **Configuration**: Per-agent via `AIAgentDefinition__c.PromptSafetyPreset__c`:
 - `Off`: Skips the pre-check step entirely
 - `Standard`: Adapter performs its native check and blocks on positive signal
-  </TabItem>
+
+</TabItem>
   <TabItem label="Tool Dependencies">
 
 ### Declarative Tool Sequencing
@@ -233,7 +234,20 @@ Prevents workflow hallucinations where LLM calls tools in illogical order.
 
 Configurable approval requirements for sensitive actions via `AgentCapability__c.HITLMode__c`.
 
-**Modes**: **Disabled** means no HITL and action executes immediately. **Confirmation** has LLM ask user for confirmation in chat before executing. **Approval** uses formal approval process via `PendingHITLAction__c` with notification. **ConfirmationThenApproval** requires both confirmation AND formal approval.
+<CardGrid>
+  <Card title="Disabled" icon="approve-check">
+    No HITL. Action executes immediately when the LLM calls it.
+  </Card>
+  <Card title="Confirmation" icon="chat">
+    LLM asks the user for confirmation in chat before executing. No formal approval record created.
+  </Card>
+  <Card title="Approval" icon="seti:settings">
+    Formal approval process via `PendingHITLAction__c`. Execution pauses until an approver acts. Notification sent based on `HITLNotificationPreference__c`.
+  </Card>
+  <Card title="ConfirmationThenApproval" icon="warning">
+    Requires both in-chat confirmation from the user AND a formal approval. Highest gate for critical operations.
+  </Card>
+</CardGrid>
 
 **Notification Preferences** (`HITLNotificationPreference__c`): **Always Notify** sends notifications for approvals, rejections, and errors (default). **Notify on Rejection Only** only sends notifications when actions are rejected.
 
@@ -249,40 +263,40 @@ Configurable approval requirements for sensitive actions via `AgentCapability__c
 
 ### Execution Traces
 
-**ExecutionStep__c**: Detailed execution log capturing:
-- User input, LLM requests/responses, tool calls, tool results, errors
-- Token counts (prompt, completion, total) and estimated cost
-- Tool rationale (if `EnableToolReasoning__c`)
-- Turn identifiers for grouping steps
+Every agent execution produces a detailed, immutable log capturing:
+- User input, LLM requests/responses, tool calls, tool results, and errors
+- Token counts (prompt, completion, total) and estimated cost per step
+- Tool rationale when `EnableToolReasoning__c` is enabled
 
-**AgentDecisionStep__c**: User-friendly decision timeline for storyboard UI:
-- High-level steps (ToolCall/TextResponse/Error)
-- Success/failure indicators
-- Tool rationale display
+The **Execution Storyboard** UI surfaces a user-friendly decision timeline from this data — showing high-level steps, success/failure indicators, and tool rationale for transparency.
 
 ### Tool Reasoning & Explainability
 
 When `AIAgentDefinition__c.EnableToolReasoning__c` is enabled:
 
-1. Framework adds required `_rationale` parameter to all tools in LLM schema
-2. LLM must provide reasoning for each tool call
-3. `LLMFormattingService.extractAndStripRationale()` extracts rationale, removes from arguments
-4. Stored in `ExecutionStep__c.ToolRationale__c` and `AgentDecisionStep__c.ToolRationale__c`
-5. Displayed in `agentStoryboardStep` component for user visibility
+1. The framework adds a required `_rationale` parameter to all tools in the LLM schema
+2. The LLM must provide its reasoning for each tool call
+3. The rationale is extracted and stored separately from the tool arguments
+4. Displayed in the Execution Storyboard for user visibility and audit
 
-**Benefits**:
-- **Explainability**: End users understand why agent took actions
-- **Debugging**: Developers see LLM reasoning for tool selection
-- **Compliance**: Audit trails show decision rationale
-- **Accuracy**: Forces LLM to think through tool selection, improves quality
+<CardGrid>
+  <Card title="Explainability" icon="seti:text">
+    End users can see exactly why the agent chose each action, building trust and transparency.
+  </Card>
+  <Card title="Debugging" icon="seti:log">
+    Developers can inspect LLM reasoning for unexpected tool selections during development and support.
+  </Card>
+  <Card title="Compliance" icon="seti:lock">
+    Audit trails include decision rationale, satisfying compliance requirements for automated AI decisions.
+  </Card>
+  <Card title="Accuracy" icon="approve-check">
+    Forces the LLM to reason through tool selection before committing, which measurably improves tool call quality.
+  </Card>
+</CardGrid>
 
 ### Token Tracking & Cost Analytics
 
-**Per-Step Tracking**: `ExecutionStep__c` captures:
-- `PromptTokens__c`: Input tokens consumed
-- `CompletionTokens__c`: Output tokens generated
-- `TotalTokens__c`: Sum of prompt + completion
-- `EstimatedCostUSD__c`: Calculated cost based on model pricing
+**Per-Step Tracking**: Each step records input tokens, output tokens, total tokens, and estimated cost based on model pricing.
 
 **Aggregation**: Build dashboards to track:
 - Total cost per agent, per user, per day
@@ -312,7 +326,7 @@ When `AIAgentDefinition__c.EnableToolReasoning__c` is enabled:
 
 5. **Monitor Execution Anomalies**
    
-   Build dashboards on ExecutionStep__c and AgentDecisionStep__c. Alert on:
+   Build dashboards on execution data. Alert on:
    - High failure rates
    - Sudden token cost spikes
    - Prompt safety violations
@@ -334,19 +348,33 @@ When `AIAgentDefinition__c.EnableToolReasoning__c` is enabled:
 
 ## Security Checklist
 
-Before deploying agents to production:
-
-- [ ] Agents run as users with appropriate profiles/permission sets
-- [ ] Service user context configured (if needed) with minimal permissions
-- [ ] PII masking enabled with appropriate classifications and patterns
-- [ ] Prompt safety preset set to Standard (not Off) for production agents that use a provider with native safety support
-- [ ] Sensitive actions routed through HITL approval workflows
-- [ ] Tool dependency validation enabled and graph reviewed by domain experts
-- [ ] Dashboard/alerts configured for execution monitoring
-- [ ] Audit trail retention policy established for ExecutionStep__c records
-- [ ] Token budget limits and cost alerts configured
-- [ ] User training completed on HITL approval responsibilities
-
 <Aside type="caution" title="Production Deployment">
 Always test security controls in sandbox with production data volumes before deploying to production. Monitor closely during initial rollout and be prepared to disable agents quickly if issues arise.
 </Aside>
+
+<CardGrid>
+  <Card title="Platform Security" icon="seti:lock">
+    - [ ] Agents run as users with appropriate profiles/permission sets
+    - [ ] Service user context configured (if needed) with minimal permissions
+    - [ ] All custom actions use `WITH USER_MODE` in SOQL
+    - [ ] DML operations use `Security.stripInaccessible()`
+  </Card>
+  <Card title="Trust Layers" icon="seti:shield">
+    - [ ] PII masking enabled (`Standard` or `Strict`) with appropriate classifications
+    - [ ] Prompt safety preset set to `Standard` for production agents using a provider with native safety support
+    - [ ] Tool dependency validation enabled for agents with ordered workflows
+    - [ ] Dependency graph reviewed by domain experts before enabling
+  </Card>
+  <Card title="Human-in-the-Loop" icon="approve-check">
+    - [ ] Sensitive actions (deletions, financial ops, external integrations) routed through HITL
+    - [ ] Approval notification preferences configured
+    - [ ] Approver access to source records verified
+    - [ ] User training completed on HITL approval responsibilities
+  </Card>
+  <Card title="Monitoring & Audit" icon="seti:graph-line">
+    - [ ] Dashboard/alerts configured for execution monitoring
+    - [ ] Audit trail retention policy established for `ExecutionStep__c`
+    - [ ] Token budget limits and cost alerts configured
+    - [ ] High failure rate and HITL rejection rate alerts set up
+  </Card>
+</CardGrid>
