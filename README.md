@@ -147,7 +147,7 @@ All operations run asynchronously using Platform Events or Queueables, ensuring 
 |:----------|:----------------|
 | **Security concerns with AI** | Runs in user context with automatic CRUD/FLS enforcement. No privilege escalation. Full audit trail. |
 | **Integration complexity** | Native Salesforce - no external servers, middleware, or data sync. Works with your existing org. |
-| **Vendor lock-in** | Bring your own LLM. OpenAI included, easily add Claude, Gemini, or others via adapter pattern. |
+| **Vendor lock-in** | Bring your own LLM. OpenAI ships in core. Any OpenAI-compatible API works out of the box. Extend `BaseProviderAdapter` for other formats. |
 | **Scalability** | Async processing handles thousands of concurrent conversations. Choose Platform Events or Queueables. |
 | **Customization needs** | Extensible architecture with interfaces for custom actions, context providers, and memory strategies. |
 | **Governance & compliance** | Every interaction logged to `AgentDecisionStep__c`. See exactly what the AI decided and why. |
@@ -176,7 +176,7 @@ Install directly via package URL:
 
 After installation:
 - Assign permission sets: `AIAgentStudioConfigurator` (for admins), `AIAgentStudioEndUser` (for users)
-- Configure your LLM provider (OpenAI, Claude, or Gemini)
+- Configure your LLM provider (OpenAI or any OpenAI-compatible API)
 - Create your first agent
 
 **Option 2: CumulusCI (Best for Development & Testing)**
@@ -231,7 +231,7 @@ The framework includes pre-configured OpenAI named credentials. You just need to
 
 The `OpenAILLM` named credential is now ready to use with the framework.
 
-> **Note**: If you're using Claude or Gemini, similar external credentials may be included. Check the [Configuration Guide](https://iamsonal.github.io/aiAgentStudio/guides/configuration/) for details on other LLM providers.
+> **Tip**: `OpenAIProviderAdapter` works with any OpenAI-compatible API — Azure OpenAI, Groq, Together AI, Ollama, and more — just by pointing the Named Credential to a different URL. For non-OpenAI APIs (e.g. Google Vertex AI), check the [Configuration Guide](https://iamsonal.github.io/aiAgentStudio/guides/configuration/).
 
 ### Setup
 
@@ -256,10 +256,9 @@ Once your API key is configured:
 - `EmailOrchestrator` - Processes email threads with auto-reply (addon)
 - `LLMInteractionService` - Handles communication with AI providers
 - `CapabilityExecutionService` - Executes tools/actions securely
-- `OpenAIProviderAdapter` - OpenAI/Azure OpenAI integration (core)
-- `KimiK2ProviderAdapter` - Kimi K2 integration (addon)
-- `ClaudeProviderAdapter` - Anthropic Claude integration (addon)
-- `GeminiProviderAdapter` - Google Gemini integration (addon)
+- `OpenAIProviderAdapter` - OpenAI and any OpenAI-compatible API (core)
+- `VertexAIProviderAdapter` - Google Vertex AI / Gemini (addon)
+- `ILLMProviderAdapter` / `BaseProviderAdapter` - extend to add any other provider
 
 **Extension Points:**
 - `IAgentAction` - Build custom actions for any business logic
