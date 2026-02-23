@@ -3,7 +3,7 @@ title: Configuration
 description: Complete reference for agent and capability settings.
 ---
 
-import { Aside, Badge, Card, CardGrid, LinkButton, Steps } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, LinkButton, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # Configuration Guide
 
@@ -53,10 +53,14 @@ Start with agent + provider settings, then tune safety and performance as usage 
 
 ### Memory Strategies
 
-| Strategy | Description | Best For |
-|:---------|:------------|:---------|
-| `BufferWindow` | Keeps last N turns verbatim | Short conversations, precise context |
-| `SummaryBuffer` | Summarizes older turns | Long conversations, cost optimization |
+<CardGrid>
+  <Card title="BufferWindow" icon="seti:clock">
+    Keeps the last N turns verbatim. Best for short conversations where precise recent context matters.
+  </Card>
+  <Card title="SummaryBuffer" icon="seti:text">
+    Summarizes older turns while keeping recent ones verbatim. Best for long conversations and cost optimization.
+  </Card>
+</CardGrid>
 
 ### Behavior Settings
 
@@ -97,23 +101,24 @@ Start with agent + provider settings, then tune safety and performance as usage 
 
 ## Async Dispatch Types
 
-### High Concurrency (Platform Events)
+<CardGrid>
+  <Card title="High — Platform Events" icon="rocket">
+    **Best for**: Production environments with many concurrent users.
 
-Best for production environments with many concurrent users.
+    - Handles thousands of simultaneous conversations
+    - Event-driven, highly scalable architecture
+    - Better throughput under governor limits
+    - Harder to debug (no synchronous log trail)
+  </Card>
+  <Card title="Low — Queueables" icon="seti:gear">
+    **Best for**: Development, testing, and debugging.
 
-- Handles thousands of simultaneous conversations
-- Event-driven architecture
-- Better scalability
-- Harder to debug
-
-### Low Concurrency (Queueables)
-
-Best for development, testing, and debugging.
-
-- Sequential processing
-- Full debug log support
-- Guaranteed execution order
-- Limited concurrent executions
+    - Sequential processing with full debug log support
+    - Guaranteed execution order
+    - Easy to trace in Developer Console
+    - Limited concurrent executions
+  </Card>
+</CardGrid>
 
 ---
 
@@ -130,11 +135,17 @@ Best for development, testing, and debugging.
 
 ### Temperature Guide
 
-| Value | Behavior | Use Case |
-|:------|:---------|:---------|
-| 0.0 - 0.3 | Deterministic, focused | Data retrieval, classification |
-| 0.4 - 0.7 | Balanced | General assistance |
-| 0.8 - 1.0 | Creative, varied | Content generation |
+<CardGrid>
+  <Card title="0.0 – 0.3 · Deterministic" icon="seti:config">
+    Focused, consistent output. Use for data retrieval, classification, and structured extraction where predictability matters.
+  </Card>
+  <Card title="0.4 – 0.7 · Balanced" icon="approve-check">
+    Natural-sounding responses with reasonable variety. The right default for general-purpose assistants.
+  </Card>
+  <Card title="0.8 – 1.0 · Creative" icon="star">
+    Varied, imaginative output. Use for content generation, brainstorming, and conversational personas where diversity is desirable.
+  </Card>
+</CardGrid>
 
 ---
 
@@ -150,11 +161,17 @@ Best for development, testing, and debugging.
 
 ### Implementation Types
 
-| Type | Description | Use Case |
-|:-----|:------------|:---------|
-| `Standard` | Built-in actions | Common Salesforce operations |
-| `Apex` | Custom Apex class | Complex business logic |
-| `Flow` | Salesforce Flow | No-code automation |
+<CardGrid>
+  <Card title="Standard" icon="seti:settings">
+    Built-in actions for common Salesforce operations: GetRecordDetails, CreateRecord, UpdateRecord, FlowHandler, PostChatter, and more.
+  </Card>
+  <Card title="Apex" icon="seti:apex">
+    Custom Apex class implementing `IAgentAction`. Full access to Salesforce data, callouts, and complex business logic.
+  </Card>
+  <Card title="Flow" icon="seti:flow">
+    Salesforce Flow invocation. Ideal for no-code automation reuse. Set the Flow API name in `ImplementationDetail__c`.
+  </Card>
+</CardGrid>
 
 ### Execution Settings
 
@@ -178,7 +195,8 @@ Best for development, testing, and debugging.
 
 The capability description is crucial for the AI to understand when to use a tool.
 
-### Good Description Example
+<Tabs>
+  <TabItem label="Good example">
 
 ```
 Search for contacts in Salesforce by name, email, or account.
@@ -192,11 +210,17 @@ Do NOT use when:
 - User wants to create a new contact (use create_contact instead)
 ```
 
-### Bad Description Example
+  </TabItem>
+  <TabItem label="Bad example">
 
 ```
 Gets contacts
 ```
+
+Vague descriptions cause the LLM to misuse or ignore the capability. Always specify **when to use**, **when not to use**, and the **expected inputs**.
+
+  </TabItem>
+</Tabs>
 
 ---
 
@@ -204,7 +228,8 @@ Gets contacts
 
 Parameters use [JSON Schema](https://json-schema.org/) format.
 
-### Basic Example
+<Tabs>
+  <TabItem label="Basic">
 
 ```json
 {
@@ -218,7 +243,8 @@ Parameters use [JSON Schema](https://json-schema.org/) format.
 }
 ```
 
-### With Required Fields
+  </TabItem>
+  <TabItem label="With required fields">
 
 ```json
 {
@@ -237,7 +263,8 @@ Parameters use [JSON Schema](https://json-schema.org/) format.
 }
 ```
 
-### With Enums
+  </TabItem>
+  <TabItem label="With enums">
 
 ```json
 {
@@ -252,7 +279,8 @@ Parameters use [JSON Schema](https://json-schema.org/) format.
 }
 ```
 
-### Complex Example
+  </TabItem>
+  <TabItem label="Complex">
 
 ```json
 {
@@ -287,11 +315,15 @@ Parameters use [JSON Schema](https://json-schema.org/) format.
 }
 ```
 
+  </TabItem>
+</Tabs>
+
 ---
 
 ## Backend Configuration Examples
 
-### GetRecords Action
+<Tabs>
+  <TabItem label="GetRecords">
 
 ```json
 {
@@ -301,7 +333,8 @@ Parameters use [JSON Schema](https://json-schema.org/) format.
 }
 ```
 
-### CreateRecord Action
+  </TabItem>
+  <TabItem label="CreateRecord">
 
 ```json
 {
@@ -313,7 +346,8 @@ Parameters use [JSON Schema](https://json-schema.org/) format.
 }
 ```
 
-### Flow Action
+  </TabItem>
+  <TabItem label="Flow">
 
 For Flow implementation, set `ImplementationType__c` to `Flow` and put the Flow API name in `ImplementationDetail__c`.
 
@@ -324,3 +358,6 @@ For Flow implementation, set `ImplementationType__c` to `Flow` and put the Flow 
   }
 }
 ```
+
+  </TabItem>
+</Tabs>

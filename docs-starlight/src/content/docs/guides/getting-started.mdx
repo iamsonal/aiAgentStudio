@@ -3,16 +3,16 @@ title: Getting Started
 description: Deploy and configure your first AI agent.
 ---
 
-import { Card, CardGrid, Steps } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 
 # Getting Started
 
 Complete guide to deploying and configuring your first AI agent.
 
-> [!TIP]
-> Fastest path: run `cci flow run dev_org --org dev` with [CumulusCI](https://cumulusci.readthedocs.io/en/stable/get-started.html).  
-> Manual path: clone repo, deploy with SF CLI, create Named Credential, create LLM Config, create Agent, add capabilities, add chat component.
+<Aside type="tip" title="Fastest path">
+Run `cci flow run dev_org --org dev` with [CumulusCI](https://cumulusci.readthedocs.io/en/stable/get-started.html) to get a fully configured scratch org in one command.
+</Aside>
 
 ## Setup Flow
 
@@ -26,38 +26,38 @@ Complete guide to deploying and configuring your first AI agent.
 </Steps>
 
 <CardGrid>
-  <Card title="Configuration Reference" href="../configuration/">
+  <LinkCard title="Configuration Reference" href="../configuration/">
     Field-level settings for agents, safety controls, and runtime behavior.
-  </Card>
-  <Card title="Developer Guide" href="../developer-guide/">
+  </LinkCard>
+  <LinkCard title="Developer Guide" href="../developer-guide/">
     Build custom actions and context providers.
-  </Card>
-  <Card title="Troubleshooting" href="../troubleshooting/">
+  </LinkCard>
+  <LinkCard title="Troubleshooting" href="../troubleshooting/">
     Diagnose setup and runtime issues quickly.
-  </Card>
+  </LinkCard>
 </CardGrid>
 
 
 ## Prerequisites
 
-> [!TIP]
-> Start with a Sandbox org for initial setup and testing.
-
-Before you begin, ensure you have:
-
-- **Salesforce org** (Sandbox recommended for initial setup)
-- **System Administrator access** or equivalent permissions
-- **API key** from an AI provider:
-  - [OpenAI](https://platform.openai.com/api-keys)
-  - [Anthropic Claude](https://console.anthropic.com/)
-  - [Google Gemini](https://ai.google.dev/)
-- **Salesforce CLI** installed ([Installation Guide](https://developer.salesforce.com/tools/salesforcecli))
+<CardGrid>
+  <Card title="Salesforce Org" icon="seti:salesforce">
+    Sandbox recommended for initial setup and testing. System Administrator access or equivalent permissions.
+  </Card>
+  <Card title="AI Provider API Key" icon="seti:key">
+    [OpenAI](https://platform.openai.com/api-keys) or any OpenAI-compatible service. [Google AI Studio](https://ai.google.dev/) for Gemini via `VertexAIProviderAdapter` (addon).
+  </Card>
+  <Card title="Salesforce CLI" icon="seti:shell">
+    Required for source-based deployments. [Install here](https://developer.salesforce.com/tools/salesforcecli). CumulusCI users also need the [CumulusCI CLI](https://cumulusci.readthedocs.io/en/stable/get-started.html).
+  </Card>
+</CardGrid>
 
 ---
 
 ## Step 1: Deploy the Framework
 
-### Option 1: CumulusCI (Recommended for Scratch Orgs)
+<Tabs>
+  <TabItem label="CumulusCI (Recommended)">
 
 [CumulusCI](https://cumulusci.readthedocs.io/en/stable/get-started/) provides the fastest way to get started with a fully configured scratch org.
 
@@ -89,7 +89,8 @@ cci org browser dev
 
 You'll have working sample agents ready to test. Explore the `seed-data` folder and `AgentTestDataFactory` class to see what gets created.
 
-### Option 2: Salesforce CLI (Manual Setup)
+  </TabItem>
+  <TabItem label="Salesforce CLI">
 
 For existing orgs or when you need more control over the deployment:
 
@@ -105,16 +106,21 @@ sf org login web -a your-org-alias
 sf project deploy start -d force-app/main/default -o your-org-alias
 ```
 
+  </TabItem>
+</Tabs>
+
 ---
 
 ## Step 2: Configure Named Credentials
 
-> [!CAUTION]
-> Never commit API keys to source control. Named Credentials keep secrets out of metadata.
+<Aside type="caution">
+Never commit API keys to source control. Named Credentials keep secrets out of metadata.
+</Aside>
 
 Named Credentials securely store your AI provider API keys.
 
-### For OpenAI
+<Tabs>
+  <TabItem label="OpenAI">
 
 1. Go to **Setup → Named Credentials → New**
 2. Configure:
@@ -127,25 +133,38 @@ Named Credentials securely store your AI provider API keys.
    - **Header Name**: `Authorization`
    - **Header Value**: `Bearer YOUR_API_KEY`
 
-### For Claude (Anthropic)
+  </TabItem>
+  <TabItem label="OpenAI-compatible APIs">
+
+`OpenAIProviderAdapter` works with any API that speaks the OpenAI chat completions format — Azure OpenAI, Groq, Together AI, Ollama, or a self-hosted model server. Just change the Named Credential URL to point at the provider's endpoint:
 
 1. Go to **Setup → Named Credentials → New**
 2. Configure:
-   - **Label**: `Claude API`
-   - **Name**: `Claude_API`
-   - **URL**: `https://api.anthropic.com`
-3. Add header:
-   - **Header Name**: `x-api-key`
-   - **Header Value**: `YOUR_API_KEY`
+   - **Label**: `My Provider API`
+   - **Name**: `MyProvider_API`
+   - **URL**: `https://YOUR_PROVIDER_BASE_URL` (e.g. `https://api.groq.com`)
+3. Add the appropriate auth header (typically `Authorization: Bearer YOUR_API_KEY`)
+4. In your `LLMConfiguration__c` record set `ProviderAdapterClass__c = OpenAIProviderAdapter`
 
-### For Gemini (Google)
+  </TabItem>
+  <TabItem label="Google Vertex AI / Gemini">
 
-1. Go to **Setup → Named Credentials → New**
-2. Configure:
-   - **Label**: `Gemini API`
-   - **Name**: `Gemini_API`
-   - **URL**: `https://generativelanguage.googleapis.com`
-3. Add your API key as a query parameter or header per Google's requirements
+The `VertexAIProviderAdapter` (in `aiAgentStudioAddons`) handles the Gemini content format. Two Named Credentials ship with it:
+
+| Named Credential | URL | Use case |
+|:----------------|:----|:---------|
+| `GoogleAI_API` | `https://generativelanguage.googleapis.com/v1beta/models` | Google AI Studio (API key) |
+| `VertexAI_API` | `https://{region}-aiplatform.googleapis.com/.../models` | Google Cloud Vertex AI |
+
+For both, use the `VertexAIEC` External Credential and provide your `x-goog-api-key` as the secret. Set `ProviderAdapterClass__c = VertexAIProviderAdapter` in your `LLMConfiguration__c`.
+
+  </TabItem>
+  <TabItem label="Other providers">
+
+For providers with a non-OpenAI API format, extend `BaseProviderAdapter` and implement `buildProviderRequest()` and `parseProviderResponse()`. The framework instantiates adapters dynamically via the `ProviderAdapterClass__c` field, so no framework code changes are needed.
+
+  </TabItem>
+</Tabs>
 
 ---
 
@@ -169,11 +188,11 @@ LLM Configurations define how to connect to your AI provider.
 
 ### Available Provider Adapters
 
-| Provider | Adapter Class | Models |
-|:---------|:--------------|:-------|
-| OpenAI | `OpenAIProviderAdapter` | gpt-4o, gpt-4o-mini |
-
-Additional provider adapters are available in the addon package. You can also create your own by extending `BaseProviderAdapter`.
+| Provider | Adapter Class | Location |
+|:---------|:--------------|:---------|
+| OpenAI + any OpenAI-compatible API | `OpenAIProviderAdapter` | Core |
+| Google Vertex AI / Gemini | `VertexAIProviderAdapter` | Addon |
+| Custom | Extend `BaseProviderAdapter` | Your code |
 
 ---
 
@@ -220,12 +239,12 @@ You are professional, concise, and always confirm before making changes.
 
 ## Step 5: Add Capabilities
 
-> [!NOTE]
-> Capabilities are the tools your agent can use. Start with read-only capabilities, then add write capabilities.
+<Aside type="note">
+Capabilities are the tools your agent can use. Start with read-only capabilities, then add write capabilities with approvals.
+</Aside>
 
-Capabilities define what actions your agent can perform.
-
-### Example: Search Contacts
+<Tabs>
+  <TabItem label="Search Contacts">
 
 1. Open **App Launcher → Agent Capabilities**
 2. Click **New**
@@ -271,7 +290,8 @@ Capabilities define what actions your agent can perform.
 }
 ```
 
-### Example: Create Task
+  </TabItem>
+  <TabItem label="Create Task">
 
 | Field | Value |
 |:------|:------|
@@ -315,17 +335,21 @@ Parameters:
 }
 ```
 
+  </TabItem>
+</Tabs>
+
 ---
 
 ## Step 6: Add Chat Component to a Page
 
-1. Go to **Setup → Lightning App Builder**
-2. Edit an existing page or create a new one
-3. Find **aiAssistantChat** in the components panel
-4. Drag it onto your page
-5. Configure the component:
-   - **Agent Developer Name**: `Sales_Assistant`
-6. **Save** and **Activate** the page
+<Steps>
+1. Go to **Setup → Lightning App Builder**.
+2. Edit an existing page or create a new one.
+3. Find **aiAssistantChat** in the components panel.
+4. Drag it onto your page.
+5. Set **Agent Developer Name** to `Sales_Assistant`.
+6. Click **Save** and **Activate** the page.
+</Steps>
 
 ---
 
@@ -354,10 +378,23 @@ Agent: ✓ Task created successfully!
 
 ## Next Steps
 
-Now that you have a working agent, explore:
-
-- [Configuration Guide](../configuration/) - Deep dive into all settings
-- [Standard Actions](../../reference/actions/) - All available built-in actions
-- [Custom Actions](../developer-guide/#custom-actions) - Build your own capabilities
-- [Security](../../reference/security/) - Permissions and best practices
-- [Troubleshooting](../troubleshooting/) - Common issues and solutions
+<CardGrid>
+  <LinkCard title="Configuration Reference" href="../configuration/">
+    Deep dive into all agent, capability, safety, and runtime settings.
+  </LinkCard>
+  <LinkCard title="Standard Actions" href="../../reference/actions/">
+    All built-in actions with configuration examples and best practices.
+  </LinkCard>
+  <LinkCard title="Custom Actions" href="../developer-guide/#custom-actions">
+    Build your own capabilities with `IAgentAction`.
+  </LinkCard>
+  <LinkCard title="Security" href="../../reference/security/">
+    Permissions, PII masking, and governance best practices.
+  </LinkCard>
+  <LinkCard title="Troubleshooting" href="../troubleshooting/">
+    Common issues and solutions for setup and runtime problems.
+  </LinkCard>
+  <LinkCard title="Examples" href="../examples/">
+    Complete agent configurations ready to deploy.
+  </LinkCard>
+</CardGrid>
