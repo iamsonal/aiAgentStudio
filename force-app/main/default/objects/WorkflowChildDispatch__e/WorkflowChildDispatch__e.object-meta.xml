@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
-    <deploymentStatus>Deployed</deploymentStatus>
-    <description>Platform Event used to dispatch individual child agent executions within a Supervised workflow. Published by the supervisor Queueable for High-dispatch agents, enabling true parallel fan-out without violating Queueable chaining limits.</description>
-    <eventType>HighVolume</eventType>
-    <label>Workflow Child Dispatch</label>
-    <pluralLabel>Workflow Child Dispatches</pluralLabel>
-    <publishBehavior>PublishImmediately</publishBehavior>
-</CustomObject>

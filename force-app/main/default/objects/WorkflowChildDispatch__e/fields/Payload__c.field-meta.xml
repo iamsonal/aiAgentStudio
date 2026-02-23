@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
-    <fullName>Payload__c</fullName>
-    <description>JSON-serialized payload containing all parameters needed to enqueue the child agent Queueable job (childExecutionId, parentExecutionId, agentType, agentDefinitionId, userId, turnIdentifier, userMessage, sourceRecordId).</description>
-    <label>Payload</label>
-    <length>131072</length>
-    <type>LongTextArea</type>
-    <visibleLines>3</visibleLines>
-</CustomField>
