@@ -380,9 +380,7 @@ public inherited sharing class AgentJobEnqueuer {
                 );
                 Database.SaveResult sr = EventBus.publish(event);
                 if (!sr.isSuccess()) {
-                    throw new AgentJobEnqueuerException(
-                        'EventBus.publish failed for WorkflowSupervisor: ' + JSON.serialize(sr.getErrors())
-                    );
+                    throw new AgentJobEnqueuerException('EventBus.publish failed for WorkflowSupervisor: ' + JSON.serialize(sr.getErrors()));
                 }
                 System.debug(LoggingLevel.INFO, logPrefix + '[AgentJobEnqueuer] Published WorkflowSupervisor Platform Event for exec=' + parentExecutionId);
             } else {
@@ -397,73 +395,14 @@ public inherited sharing class AgentJobEnqueuer {
                 } else {
                     jobId = System.enqueueJob(new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_WORKFLOW_SUPERVISOR, jobPayload));
                 }
-                System.debug(LoggingLevel.INFO, logPrefix + '[AgentJobEnqueuer] Enqueued WorkflowSupervisor Queueable (JobId=' + jobId + ') for exec=' + parentExecutionId);
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix + '[AgentJobEnqueuer] Enqueued WorkflowSupervisor Queueable (JobId=' + jobId + ') for exec=' + parentExecutionId
+                );
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + '[AgentJobEnqueuer] Failed to enqueue supervisor turn: ' + e.getMessage());
             throw new DispatchException('Failed to enqueue supervisor turn', e);
-        }
-    }
-
-    /**
-     * Enqueues a single child agent execution for a Supervised workflow round.
-     * For High dispatch: publishes a WorkflowChildDispatch__e Platform Event (enables true N-way parallel fan-out).
-     * For Low dispatch: enqueues a direct Queueable (only safe for N=1 per Queueable context; use sparingly for fan-out > 1).
-     *
-     * @param jobPayload        The full job payload map for the WorkflowChild job
-     * @param parentExecutionId The parent workflow AgentExecution__c ID
-     * @param agentDefinitionId The workflow (parent) agent definition ID — determines dispatch type
-     * @param logPrefix         Logging prefix for debug output
-     */
-    public void enqueueWorkflowChild(Map<String, Object> jobPayload, Id parentExecutionId, Id agentDefinitionId, String logPrefix) {
-        try {
-            String asyncDispatchType = this.getAgentAsyncDispatchType(agentDefinitionId);
-
-            if ('High'.equalsIgnoreCase(asyncDispatchType)) {
-                WorkflowChildDispatch__e event = new WorkflowChildDispatch__e(
-                    ParentExecutionId__c = String.valueOf(parentExecutionId),
-                    Payload__c = JSON.serialize(jobPayload)
-                );
-                Database.SaveResult sr = EventBus.publish(event);
-                if (!sr.isSuccess()) {
-                    throw new AgentJobEnqueuerException(
-                        'EventBus.publish failed for WorkflowChildDispatch: ' + JSON.serialize(sr.getErrors())
-                    );
-                }
-                System.debug(
-                    LoggingLevel.INFO,
-                    logPrefix +
-                        '[AgentJobEnqueuer] Published WorkflowChildDispatch Platform Event for child=' +
-                        jobPayload.get('childExecutionId') +
-                        ' parent=' +
-                        parentExecutionId
-                );
-            } else {
-                // Low dispatch: direct Queueable enqueue.
-                // NOTE: Only ONE System.enqueueJob() is permitted per Queueable execute() context.
-                // The caller (WorkflowOrchestrator.runSupervisorTurn) must ensure this is called
-                // at most once per transaction when dispatching from a Queueable context.
-                AsyncOptions asyncOptions = getAsyncOptions(logPrefix);
-                Id jobId;
-                if (asyncOptions != null) {
-                    jobId = System.enqueueJob(new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_WORKFLOW_CHILD, jobPayload), asyncOptions);
-                } else {
-                    jobId = System.enqueueJob(new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_WORKFLOW_CHILD, jobPayload));
-                }
-                System.debug(
-                    LoggingLevel.INFO,
-                    logPrefix +
-                        '[AgentJobEnqueuer] Enqueued WorkflowChild Queueable (JobId=' +
-                        jobId +
-                        ') for child=' +
-                        jobPayload.get('childExecutionId') +
-                        ' parent=' +
-                        parentExecutionId
-                );
-            }
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + '[AgentJobEnqueuer] Failed to enqueue workflow child: ' + e.getMessage());
-            throw new DispatchException('Failed to enqueue workflow child', e);
         }
     }
 
@@ -479,7 +418,7 @@ public inherited sharing class AgentJobEnqueuer {
      * @param logPrefix A logging prefix for debug output.
      * @return AsyncOptions with configured stack depth, or null if already set in parent chain.
      */
-    private AsyncOptions getAsyncOptions(String logPrefix) {
+    public AsyncOptions getAsyncOptions(String logPrefix) {
         // TEST CONTEXT GUARD: hasMaxStackDepth() throws error in tests
         // "hasMaxStackDepth is not allowed outside a Queueable of Finalizer execution"
         if (Test.isRunningTest()) {

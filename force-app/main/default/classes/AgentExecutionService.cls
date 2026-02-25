@@ -200,6 +200,7 @@ global inherited sharing class AgentExecutionService {
                 payload.sourceRecordIds = recordIds;
                 payload.userMessage = sampleRequest.userMessage;
                 payload.triggerSource = sampleRequest.triggerSource;
+                payload.triggerPayload = sampleRequest.triggerPayload;
                 payload.turnIdentifier = UUID.randomUUID().toString();
 
                 ExecutionResult batchResult = startExecution(agentName, payload);
@@ -317,6 +318,12 @@ global inherited sharing class AgentExecutionService {
 
         @InvocableVariable(Label='Trigger Source' Description='Optional identifier for tracking where the execution originated (e.g., "Case Creation Flow")')
         global String triggerSource;
+
+        @InvocableVariable(
+            Label='Trigger Payload'
+            Description='Optional JSON string with additional context passed to the orchestrator (e.g., {"emailMessageId":"..."})'
+        )
+        global String triggerPayload;
     }
 
     /**

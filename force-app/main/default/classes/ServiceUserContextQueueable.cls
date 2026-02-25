@@ -21,7 +21,7 @@
  * callout is deferred to a fresh transaction where no prior DML exists.
  *
  * Pre-requisites:
- *   1. A Connected App with JWT Bearer flow or equivalent for the service user.
+ *   1. A External Client App with JWT Bearer flow or equivalent for the service user.
  *   2. ServiceUserNamedCredential__c populated on AIAgentDefinition__c.
  *   3. The /services/apexrest/ai/agent/process/ endpoint allowed in Remote Site Settings.
  *   4. This class declared `without sharing` — it only builds and fires the HTTP request;

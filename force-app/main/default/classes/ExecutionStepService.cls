@@ -1041,6 +1041,42 @@ public inherited sharing class ExecutionStepService {
 
             if (turnResults.isEmpty()) {
                 System.debug(LoggingLevel.DEBUG, logPrefix + 'No turns found for execution: ' + executionId);
+                // No committed turns, but buffered steps from the current in-flight turn may exist
+                // (IMMEDIATE_FOLLOWUP Cycle 2+ scenario — deferred DML not yet committed).
+                if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                    List<ExecutionStep__c> bufferedSteps = TransactionContext.getInstance().getBufferedExecutionSteps(executionId);
+                    if (!bufferedSteps.isEmpty()) {
+                        List<ExecutionStep__c> filtered = new List<ExecutionStep__c>();
+                        for (ExecutionStep__c step : bufferedSteps) {
+                            if (!includeInternal && step.IsInternal__c == true) {
+                                continue;
+                            }
+                            if (step.TurnIdentifier__c == null) {
+                                continue;
+                            }
+                            filtered.add(step);
+                        }
+                        if (!filtered.isEmpty()) {
+                            System.debug(
+                                LoggingLevel.DEBUG,
+                                logPrefix +
+                                    'Multi-LLM optimization: No DB turns found; returning ' +
+                                    filtered.size() +
+                                    ' buffered steps for current in-flight turn'
+                            );
+                            List<ExecutionStepWrapper> wrappers = new List<ExecutionStepWrapper>();
+                            for (ExecutionStep__c step : filtered) {
+                                wrappers.add(new ExecutionStepWrapper(step, false));
+                            }
+                            wrappers.sort();
+                            List<ExecutionStep__c> sortedFiltered = new List<ExecutionStep__c>();
+                            for (ExecutionStepWrapper w : wrappers) {
+                                sortedFiltered.add(w.step);
+                            }
+                            return sortedFiltered;
+                        }
+                    }
+                }
                 return new List<ExecutionStep__c>();
             }
 
@@ -1068,7 +1104,53 @@ public inherited sharing class ExecutionStepService {
             stepsQuery += 'ORDER BY Timestamp__c ASC, Id ASC';
 
             System.debug(LoggingLevel.DEBUG, logPrefix + 'Retrieved ' + turnIdentifiers.size() + ' complete turns for execution: ' + executionId);
-            return Database.query(stepsQuery);
+            List<ExecutionStep__c> dbResults = Database.query(stepsQuery);
+
+            // Merge buffered steps so that IMMEDIATE_FOLLOWUP Cycle 2+ sees current-turn context.
+            // When deferred DML is active, the current turn's steps (user input, tool call, tool
+            // result) are in TransactionContext.insertBuffer and not yet in the DB.  getHistory()
+            // already does this merge; we mirror the same logic here so the turn-limited path
+            // behaves consistently.
+            if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                List<ExecutionStep__c> bufferedSteps = TransactionContext.getInstance().getBufferedExecutionSteps(executionId);
+
+                if (!bufferedSteps.isEmpty()) {
+                    List<ExecutionStep__c> filteredBuffered = new List<ExecutionStep__c>();
+                    for (ExecutionStep__c step : bufferedSteps) {
+                        if (!includeInternal && step.IsInternal__c == true) {
+                            continue;
+                        }
+                        if (step.TurnIdentifier__c == null) {
+                            continue;
+                        }
+                        filteredBuffered.add(step);
+                    }
+
+                    if (!filteredBuffered.isEmpty()) {
+                        System.debug(
+                            LoggingLevel.DEBUG,
+                            logPrefix + 'Multi-LLM optimization: Merging ' + filteredBuffered.size() + ' buffered steps into turn-limited history'
+                        );
+
+                        List<ExecutionStepWrapper> wrappers = new List<ExecutionStepWrapper>();
+                        for (ExecutionStep__c step : dbResults) {
+                            wrappers.add(new ExecutionStepWrapper(step, false));
+                        }
+                        for (ExecutionStep__c step : filteredBuffered) {
+                            wrappers.add(new ExecutionStepWrapper(step, false));
+                        }
+                        wrappers.sort();
+
+                        List<ExecutionStep__c> merged = new List<ExecutionStep__c>();
+                        for (ExecutionStepWrapper w : wrappers) {
+                            merged.add(w.step);
+                        }
+                        return merged;
+                    }
+                }
+            }
+
+            return dbResults;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to retrieve complete turns: ' + e.getMessage());
             throw new ExecutionStepException('Failed to retrieve complete turns: ' + e.getMessage());

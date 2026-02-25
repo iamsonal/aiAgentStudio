@@ -17,7 +17,7 @@
  * (ServiceUserNamedCredential__c on AIAgentDefinition__c).
  *
  * Pre-requisites that must be in place for this pattern to work:
- *   1. A Connected App with "Run as" or JWT Bearer flow credentials for the service user.
+ *   1. A External Client App with "Run as" or JWT Bearer flow credentials for the service user.
  *   2. A Named Credential (per agent definition) authenticated as the service user.
  *   3. The target REST endpoints (ai/agent/hitl/execute, hitl/followup, ai/agent/resume)
  *      configured in Remote Site Settings / CORS policy for the org's My Domain URL.
@@ -30,7 +30,7 @@
  *   - Consumes one HTTP callout limit (500/tx) per HITL operation.
  *   - Adds ~200–500 ms of network latency for the loopback call.
  *   - Requires Named Credential setup per agent, increasing operational overhead.
- *   - If the Named Credential expires or the connected app is revoked, HITL silently fails.
+ *   - If the Named Credential expires or the External Client app is revoked, HITL silently fails.
  *
  * If Salesforce ever provides a first-class "run-as" Apex API this pattern should be removed.
  * ────────────────────────────────────────────────────────────────────────────────────────────

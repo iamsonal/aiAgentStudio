@@ -10,8 +10,23 @@
  * Provides AI agents with full case context including:
  * - Case Details: Core case fields, account, contact, and owner information
  * - Case Comments: Internal notes and customer communications (nested)
- * - Email Messages: Email thread history - incoming/outgoing (nested)
+ * - Email Messages: Email thread history (nested) — disable via includeEmails:false
  * - Case History: Meaningful field changes and audit trail (nested, filtered)
+ *
+ * **Configuration (via AgentContextConfig__c.ImplementationConfigJson__c):**
+ * ```json
+ * {
+ *   "historyLimit": 20,
+ *   "commentsLimit": 20,
+ *   "emailsLimit": 10,
+ *   "includeEmails": true
+ * }
+ * ```
+ *
+ * Set `"includeEmails": false` when EmailThreadContext is also registered for this agent.
+ * EmailThreadContext provides better email context (ASC order, body truncation, configurable
+ * filtering) and including emails in both providers sends every email to the LLM twice,
+ * wasting tokens and growing the prompt on every reply in a thread.
  *
  * Example Output Structure (when formatted as JSON):
  * {
@@ -22,8 +37,7 @@
  *     "history": [
  *       { "field": "Priority", "oldValue": "Low", "newValue": "Medium" }
  *     ],
- *     "comments": [...],
- *     "emails": [...]
+ *     "comments": [...]
  *   }]
  * }
  *
@@ -36,6 +50,7 @@ public class CaseContext implements IAgentContextProvider {
     private static final Integer DEFAULT_HISTORY_LIMIT = 20;
     private static final Integer DEFAULT_COMMENTS_LIMIT = 20;
     private static final Integer DEFAULT_EMAILS_LIMIT = 10;
+    private static final Boolean DEFAULT_INCLUDE_EMAILS = true;
 
     /**
      * @description Retrieves Case context for the given anchor IDs with hierarchical related data.
@@ -58,6 +73,7 @@ public class CaseContext implements IAgentContextProvider {
         Integer historyLimit = DEFAULT_HISTORY_LIMIT;
         Integer commentsLimit = DEFAULT_COMMENTS_LIMIT;
         Integer emailsLimit = DEFAULT_EMAILS_LIMIT;
+        Boolean includeEmails = DEFAULT_INCLUDE_EMAILS;
 
         if (String.isNotBlank(configurationJson)) {
             try {
@@ -71,69 +87,110 @@ public class CaseContext implements IAgentContextProvider {
                 if (config.containsKey('emailsLimit')) {
                     emailsLimit = (Integer) config.get('emailsLimit');
                 }
+                if (config.containsKey('includeEmails')) {
+                    includeEmails = (Boolean) config.get('includeEmails');
+                }
             } catch (Exception e) {
                 System.debug(LoggingLevel.WARN, '[CaseContext] Failed to parse configurationJson: ' + e.getMessage());
             }
         }
 
         try {
-            // Query Case records with ALL related data using subqueries
-            // This preserves hierarchical relationships - children are embedded in parent
-            List<Case> cases = [
-                SELECT
-                    // Core Case fields
-                    Id,
-                    CaseNumber,
-                    Subject,
-                    Description,
-                    Status,
-                    Priority,
-                    Origin,
-                    Type,
-                    Reason,
-                    CreatedDate,
-                    ClosedDate,
-                    // Parent lookups - ContextFormattingService will flatten these with path notation
-                    Account.Name,
-                    Contact.Name,
-                    Contact.Email,
-                    Owner.Name,
-                    // Child relationship: Case History (filtered to meaningful changes)
-                    // Note: 'created' events are filtered out for token efficiency
-                    // OldValue/NewValue cannot be filtered in SOQL (polymorphic fields)
-                    (
-                        SELECT Id, Field, OldValue, NewValue, CreatedDate, CreatedBy.Name
-                        FROM Histories
-                        WHERE Field != 'created'
-                        ORDER BY CreatedDate DESC
-                        LIMIT :historyLimit
-                    ),
-                    // Child relationship: Case Comments
-                    (
-                        SELECT Id, CommentBody, IsPublished, CreatedDate, CreatedBy.Name
-                        FROM CaseComments
-                        ORDER BY CreatedDate DESC
-                        LIMIT :commentsLimit
-                    ),
-                    // Child relationship: Email Messages (text body only, no HTML for token efficiency)
-                    (
-                        SELECT Id, Subject, TextBody, FromAddress, FromName, ToAddress, Incoming, MessageDate, Status
-                        FROM EmailMessages
-                        ORDER BY MessageDate DESC
-                        LIMIT :emailsLimit
-                    )
-                FROM Case
-                WHERE Id IN :anchorIds
-                WITH USER_MODE
-                LIMIT 200
-            ];
+            List<Case> cases;
+
+            if (includeEmails) {
+                // Full query including Email Messages sub-query.
+                // Use includeEmails:false in configurationJson when EmailThreadContext is also
+                // registered — having both providers means every email reaches the LLM twice.
+                cases = [
+                    SELECT
+                        Id,
+                        CaseNumber,
+                        Subject,
+                        Description,
+                        Status,
+                        Priority,
+                        Origin,
+                        Type,
+                        Reason,
+                        CreatedDate,
+                        ClosedDate,
+                        Account.Name,
+                        Contact.Name,
+                        Contact.Email,
+                        Owner.Name,
+                        (
+                            SELECT Id, Field, OldValue, NewValue, CreatedDate, CreatedBy.Name
+                            FROM Histories
+                            WHERE Field != 'created'
+                            ORDER BY CreatedDate DESC
+                            LIMIT :historyLimit
+                        ),
+                        (
+                            SELECT Id, CommentBody, IsPublished, CreatedDate, CreatedBy.Name
+                            FROM CaseComments
+                            ORDER BY CreatedDate DESC
+                            LIMIT :commentsLimit
+                        ),
+                        // Text body only — no HTML — for token efficiency
+                        (
+                            SELECT Id, Subject, TextBody, FromAddress, FromName, ToAddress, Incoming, MessageDate, Status
+                            FROM EmailMessages
+                            ORDER BY MessageDate DESC
+                            LIMIT :emailsLimit
+                        )
+                    FROM Case
+                    WHERE Id IN :anchorIds
+                    WITH USER_MODE
+                    LIMIT 200
+                ];
+            } else {
+                // Emails excluded — EmailThreadContext is the designated email provider for this agent.
+                cases = [
+                    SELECT
+                        Id,
+                        CaseNumber,
+                        Subject,
+                        Description,
+                        Status,
+                        Priority,
+                        Origin,
+                        Type,
+                        Reason,
+                        CreatedDate,
+                        ClosedDate,
+                        Account.Name,
+                        Contact.Name,
+                        Contact.Email,
+                        Owner.Name,
+                        (
+                            SELECT Id, Field, OldValue, NewValue, CreatedDate, CreatedBy.Name
+                            FROM Histories
+                            WHERE Field != 'created'
+                            ORDER BY CreatedDate DESC
+                            LIMIT :historyLimit
+                        ),
+                        (
+                            SELECT Id, CommentBody, IsPublished, CreatedDate, CreatedBy.Name
+                            FROM CaseComments
+                            ORDER BY CreatedDate DESC
+                            LIMIT :commentsLimit
+                        )
+                    FROM Case
+                    WHERE Id IN :anchorIds
+                    WITH USER_MODE
+                    LIMIT 200
+                ];
+            }
 
             if (!cases.isEmpty()) {
-                // Single key with hierarchical data - ContextFormattingService handles child relationships
                 result.put('Cases', cases);
             }
 
-            System.debug('[CaseContext] Retrieved ' + cases.size() + ' case(s) with nested related records for ' + anchorIds.size() + ' anchor(s)');
+            System.debug(
+                '[CaseContext] Retrieved ' + cases.size() + ' case(s) for ' + anchorIds.size() +
+                ' anchor(s). includeEmails=' + includeEmails
+            );
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[CaseContext] Error retrieving cases: ' + e.getMessage());
         }
