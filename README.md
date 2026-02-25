@@ -193,7 +193,7 @@ This single command:
 - Assigns required permission sets (`AIAgentStudioConfigurator`, `AIAgentStudioEndUser`)
 - Enables Knowledge user and assigns `KnowledgeDemo` permission set
 - Creates comprehensive sample data (agents, capabilities, test records)
-- Sets up a Connected App for API access
+- Sets up a External Client App for API access
 
 **Option 3: Salesforce CLI (Source-Based)**
 

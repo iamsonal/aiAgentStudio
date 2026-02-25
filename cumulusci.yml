@@ -67,15 +67,15 @@ flows:
                     apex: "AgentTestDataFactory.createComprehensiveShowcase();"
             7.1:
                 task: command
-                description: Deploy addons and set up Connected App (if available)
+                description: Deploy addons and set up External Client App (if available)
                 options:
                     command: |
-                        if [ -f "aiAgentStudioAddons/main/default/classes/CreateAgentStudioConnectedApp.cls" ]; then
-                            echo "Addons found - deploying and configuring Connected App..."
+                        if [ -f "aiAgentStudioAddons/main/default/classes/AgentStudioAuthSetup.cls" ]; then
+                            echo "Addons found - deploying and configuring External Client App..."
                             cci task run deploy_addons --org dev
-                            cci task run execute_anon --org dev --apex "CreateAgentStudioConnectedApp.setup();"
+                            cci task run execute_anon --org dev --apex "AgentStudioAuthSetup.setup();"
                         else
-                            echo "Addons not available - skipping Connected App setup (this is expected for public repo)"
+                            echo "Addons not available - skipping External Client App setup (this is expected for public repo)"
                         fi
 
 orgs:
