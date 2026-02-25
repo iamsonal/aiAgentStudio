@@ -284,6 +284,8 @@ public inherited sharing class AgentStateService {
 
         // Publish AgentResponse__e event for UI notification
         publishAgentResponseEvent(executionId, true, finalAssistantMessageId, null, turnIdentifier, logPrefix);
+
+        AgentNotificationService.notify(executionId, AgentNotificationService.EVENT_TURN_COMPLETED);
     }
 
     /**
@@ -303,6 +305,8 @@ public inherited sharing class AgentStateService {
 
         // Publish AgentResponse__e event for UI notification of failure
         publishAgentResponseEvent(executionId, false, null, errorMessage, turnIdentifier, logPrefix);
+
+        AgentNotificationService.notify(executionId, AgentNotificationService.EVENT_EXECUTION_FAILED);
     }
 
     // STATUS UPDATE (Public for direct callers)

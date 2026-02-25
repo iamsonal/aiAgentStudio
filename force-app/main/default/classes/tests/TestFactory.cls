@@ -398,6 +398,16 @@ public class TestFactory {
             return this;
         }
 
+        public AgentDefinitionBuilder withWorkflowMode(String mode) {
+            record.WorkflowMode__c = mode;
+            return this;
+        }
+
+        public AgentDefinitionBuilder withMaxSupervisorRounds(Integer rounds) {
+            record.MaxSupervisorRounds__c = rounds;
+            return this;
+        }
+
         public AgentDefinitionBuilder inactive() {
             record.IsActive__c = false;
             return this;

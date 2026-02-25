@@ -2,8 +2,8 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>EnableParallelToolCalling__c</fullName>
     <defaultValue>false</defaultValue>
-    <description>When checked, allows the LLM to request multiple independent tool executions in a single turn. This can improve performance for complex user requests but requires the backend to handle potential governor limit stacking. Leave unchecked for simpler, sequential tool execution.</description>
-    <inlineHelpText>Enable this to allow the AI to perform multiple actions at once (e.g., &apos;find a contact AND get their recent cases&apos;). Only enable for agents whose synchronous tools are lightweight and unlikely to exceed governor limits when combined in a single transaction.</inlineHelpText>
+    <description>Allows the LLM to call multiple tools in a single turn. Improves performance for complex requests but risks governor limit stacking. Has no effect on Workflow agents — parallel tool calling is always disabled for the supervisor LLM.</description>
+    <inlineHelpText>Allow the AI to perform multiple actions at once. Not applicable for Workflow agents — always leave unchecked for those.</inlineHelpText>
     <label>Enable Parallel Tool Calling</label>
     <trackTrending>false</trackTrending>
     <type>Checkbox</type>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EmailReplyMode__c</fullName>
+    <description>Controls how the Email Agent sends replies AutoRespond sends the LLM reply text automatically as an email reply ReviewAndSend requires the LLM to explicitly call the send_email capability and enables HITL approval multi-step enrichment and conditional sending RouteOnly classifies and enriches records with no outbound email reply and is used for spam filtering internal routing and ops workflows</description>
+    <inlineHelpText>AutoRespond auto-sends LLM reply ReviewAndSend requires LLM to call send_email and supports HITL and conditional send RouteOnly classifies and routes with no email reply</inlineHelpText>
+    <label>Email Reply Mode</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Auto Respond</fullName>
+                <default>true</default>
+                <label>Auto Respond</label>
+            </value>
+            <value>
+                <fullName>Review And Send</fullName>
+                <default>false</default>
+                <label>Review And Send</label>
+            </value>
+            <value>
+                <fullName>Route Only</fullName>
+                <default>false</default>
+                <label>Route Only</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -355,6 +355,58 @@ public inherited sharing class AgentJobEnqueuer {
     }
 
     /**
+     * Enqueues a supervisor turn for a Supervised workflow execution.
+     * Routes to Platform Events (High dispatch) or a direct Queueable (Low/null dispatch).
+     *
+     * @param parentExecutionId  The parent workflow AgentExecution__c ID
+     * @param agentDefinitionId  The workflow agent definition ID
+     * @param payload            Map with all supervisor turn context (userMessage, userId, sourceRecordId, supervisorRound, turnIdentifier)
+     * @param logPrefix          Logging prefix for debug output
+     */
+    public void enqueueSupervisorTurn(Id parentExecutionId, Id agentDefinitionId, Map<String, Object> payload, String logPrefix) {
+        try {
+            String asyncDispatchType = this.getAgentAsyncDispatchType(agentDefinitionId);
+
+            if ('High'.equalsIgnoreCase(asyncDispatchType)) {
+                Map<String, Object> eventPayload = new Map<String, Object>(payload);
+                eventPayload.put('parentExecutionId', parentExecutionId);
+                eventPayload.put('agentDefinitionId', agentDefinitionId);
+
+                AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
+                    AgentExecutionId__c = parentExecutionId,
+                    TurnIdentifier__c = (String) payload.get('turnIdentifier'),
+                    JobType__c = UnifiedAgentQueueable.JOB_TYPE_WORKFLOW_SUPERVISOR,
+                    Payload__c = JSON.serialize(eventPayload)
+                );
+                Database.SaveResult sr = EventBus.publish(event);
+                if (!sr.isSuccess()) {
+                    throw new AgentJobEnqueuerException('EventBus.publish failed for WorkflowSupervisor: ' + JSON.serialize(sr.getErrors()));
+                }
+                System.debug(LoggingLevel.INFO, logPrefix + '[AgentJobEnqueuer] Published WorkflowSupervisor Platform Event for exec=' + parentExecutionId);
+            } else {
+                Map<String, Object> jobPayload = new Map<String, Object>(payload);
+                jobPayload.put('parentExecutionId', parentExecutionId);
+                jobPayload.put('agentDefinitionId', agentDefinitionId);
+
+                AsyncOptions asyncOptions = getAsyncOptions(logPrefix);
+                Id jobId;
+                if (asyncOptions != null) {
+                    jobId = System.enqueueJob(new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_WORKFLOW_SUPERVISOR, jobPayload), asyncOptions);
+                } else {
+                    jobId = System.enqueueJob(new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_WORKFLOW_SUPERVISOR, jobPayload));
+                }
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix + '[AgentJobEnqueuer] Enqueued WorkflowSupervisor Queueable (JobId=' + jobId + ') for exec=' + parentExecutionId
+                );
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + '[AgentJobEnqueuer] Failed to enqueue supervisor turn: ' + e.getMessage());
+            throw new DispatchException('Failed to enqueue supervisor turn', e);
+        }
+    }
+
+    /**
      * Creates AsyncOptions for queueable job enqueueing.
      * Automatically derives MaximumQueueableStackDepth from MaxProcessingCycles + buffer
      * to ensure the platform limit never interferes with the business limit.
@@ -366,7 +418,7 @@ public inherited sharing class AgentJobEnqueuer {
      * @param logPrefix A logging prefix for debug output.
      * @return AsyncOptions with configured stack depth, or null if already set in parent chain.
      */
-    private AsyncOptions getAsyncOptions(String logPrefix) {
+    public AsyncOptions getAsyncOptions(String logPrefix) {
         // TEST CONTEXT GUARD: hasMaxStackDepth() throws error in tests
         // "hasMaxStackDepth is not allowed outside a Queueable of Finalizer execution"
         if (Test.isRunningTest()) {

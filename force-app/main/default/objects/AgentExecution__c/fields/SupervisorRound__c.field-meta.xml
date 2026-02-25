@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SupervisorRound__c</fullName>
+    <defaultValue>0</defaultValue>
+    <description>Current supervisor round number for Supervised workflow mode. Incremented each time the supervisor LLM is invoked. Used for observability, storyboard display, and circuit breaker enforcement (MaxSupervisorRounds__c).</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Current supervisor iteration round. Increments each time the supervisor LLM runs. Only used in Supervised workflow mode.</inlineHelpText>
+    <label>Supervisor Round</label>
+    <precision>4</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

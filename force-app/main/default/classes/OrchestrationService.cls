@@ -231,7 +231,9 @@ public inherited sharing class OrchestrationService {
         }
 
         // Agent-level mode: Fail Fast halts immediately, no LLM recovery
-        if ('Fail Fast'.equals(agentDefinition.ErrorRecoveryMode__c)) {
+        // Use getPopulatedFieldsAsMap() so callers that pass a partially-queried record don't throw SObjectException.
+        String errorRecoveryMode = (String) agentDefinition.getPopulatedFieldsAsMap().get('ErrorRecoveryMode__c');
+        if ('Fail Fast'.equals(errorRecoveryMode)) {
             System.debug(
                 LoggingLevel.WARN,
                 logPrefix + 'FAIL FAST mode: halting on tool error. Capability: "' + capability.CapabilityName__c + '", ErrorCode: ' + toolOutcome.errorCode

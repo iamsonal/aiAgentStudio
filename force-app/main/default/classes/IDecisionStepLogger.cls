@@ -44,7 +44,9 @@ public inherited sharing class IDecisionStepLogger {
         // Resume events (manual intervention)
         AGENT_RESUMED,
         // Framework enforcement events
-        RETRY_ENFORCEMENT // Framework detected LLM ignored retryable failure(s) and injected a retry instruction
+        RETRY_ENFORCEMENT, // Framework detected LLM ignored retryable failure(s) and injected a retry instruction
+        // Supervised workflow events
+        SUPERVISOR_DECISION // Supervisor LLM made a routing decision in Supervised workflow mode
     }
 
     /**

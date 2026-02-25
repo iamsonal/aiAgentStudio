@@ -61,7 +61,14 @@ public inherited sharing class AIAgentConfigService {
         'PIIMaskingPreset__c',
         'PromptSafetyPreset__c',
         // Error handling
-        'ErrorRecoveryMode__c'
+        'ErrorRecoveryMode__c',
+        // Workflow orchestration mode
+        'WorkflowMode__c',
+        'MaxSupervisorRounds__c',
+        // Email agent configuration
+        'EmailReplyMode__c',
+        'EmailParentObject__c',
+        'EmailTerminalStatuses__c'
     };
 
     private static final List<String> LLM_CONFIGURATION_FIELDS = new List<String>{
