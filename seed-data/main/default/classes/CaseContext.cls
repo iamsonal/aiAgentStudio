@@ -187,10 +187,7 @@ public class CaseContext implements IAgentContextProvider {
                 result.put('Cases', cases);
             }
 
-            System.debug(
-                '[CaseContext] Retrieved ' + cases.size() + ' case(s) for ' + anchorIds.size() +
-                ' anchor(s). includeEmails=' + includeEmails
-            );
+            System.debug('[CaseContext] Retrieved ' + cases.size() + ' case(s) for ' + anchorIds.size() + ' anchor(s). includeEmails=' + includeEmails);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[CaseContext] Error retrieving cases: ' + e.getMessage());
         }

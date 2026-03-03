@@ -19,6 +19,7 @@ public inherited sharing class TransactionContext {
     private List<SObject> insertBuffer;
     private Boolean hasPreExistingExecution;
     private Map<Id, Set<String>> executedToolsByExecution;
+    private Map<Id, Set<String>> lockedBranchesByExecution;
 
     /**
      * Sticky flag that tracks if ANY tool in this turn performed DML or callouts.
@@ -37,6 +38,7 @@ public inherited sharing class TransactionContext {
         this.insertBuffer = new List<SObject>();
         this.hasPreExistingExecution = false;
         this.executedToolsByExecution = new Map<Id, Set<String>>();
+        this.lockedBranchesByExecution = new Map<Id, Set<String>>();
         this.unsafeOperationsOccurredThisTurn = false;
     }
 
@@ -349,11 +351,11 @@ public inherited sharing class TransactionContext {
         }
     }
 
-    // TOOL EXECUTION TRACKING (for dependency validation)
+    // TOOL EXECUTION TRACKING (for flow graph eligibility)
 
     /**
      * Tracks a tool as executed for a given execution within this transaction.
-     * Used for same-transaction dependency validation before steps are persisted to DB.
+     * Used for same-transaction flow graph eligibility before steps are persisted to DB.
      *
      * @param executionId The AgentExecution__c ID
      * @param toolName The name of the tool that was executed successfully
@@ -371,7 +373,7 @@ public inherited sharing class TransactionContext {
 
     /**
      * Gets the set of tools executed in this transaction for a given execution.
-     * Used for dependency validation to include tools that haven't been persisted yet.
+     * Used for flow graph eligibility computation to include tools not yet persisted.
      *
      * @param executionId The AgentExecution__c ID
      * @return Set of tool names executed in this transaction, or null if none
@@ -381,6 +383,40 @@ public inherited sharing class TransactionContext {
             return null;
         }
         return this.executedToolsByExecution.get(executionId);
+    }
+
+    // EXCLUSIVE PATH LOCKING (for Tool Flow Graph)
+
+    /**
+     * Locks a tool name from being eligible in future flow graph computations.
+     * Used when an exclusive rule fires: the chosen tool's siblings are locked out.
+     *
+     * @param executionId The AgentExecution__c ID
+     * @param toolName    The tool name to lock out (sibling in an exclusive rule)
+     */
+    public void lockBranch(Id executionId, String toolName) {
+        if (executionId == null || String.isBlank(toolName)) {
+            return;
+        }
+        if (!this.lockedBranchesByExecution.containsKey(executionId)) {
+            this.lockedBranchesByExecution.put(executionId, new Set<String>());
+        }
+        this.lockedBranchesByExecution.get(executionId).add(toolName);
+        System.debug(LoggingLevel.DEBUG, '[TransactionContext] Locked exclusive branch tool: ' + toolName + ' for execution: ' + executionId);
+    }
+
+    /**
+     * Returns the set of tool names locked out for a given execution.
+     * These tools must not appear in the eligible set for flow graph computations.
+     *
+     * @param executionId The AgentExecution__c ID
+     * @return Set of locked tool names, or an empty set if none
+     */
+    public Set<String> getLockedBranches(Id executionId) {
+        if (executionId == null || !this.lockedBranchesByExecution.containsKey(executionId)) {
+            return new Set<String>();
+        }
+        return this.lockedBranchesByExecution.get(executionId);
     }
 
     private static void normalizeRetryableField(List<SObject> records) {
@@ -453,6 +489,7 @@ public inherited sharing class TransactionContext {
         this.insertBuffer.clear();
         this.hasPreExistingExecution = false;
         this.executedToolsByExecution.clear();
+        this.lockedBranchesByExecution.clear();
         this.unsafeOperationsOccurredThisTurn = false;
         System.debug(LoggingLevel.DEBUG, '[TransactionContext] Context reset to initial state');
     }

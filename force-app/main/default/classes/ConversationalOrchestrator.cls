@@ -508,15 +508,17 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
         );
 
         if (!toolOutcome.isSuccess) {
-            // Check fail-fast
-            if (OrchestrationService.shouldFailFast(capability, agentDefinition, toolOutcome, executionId, logPrefix)) {
-                AgentStateService agentStateSvc = new AgentStateService();
-                agentStateSvc.failTurn(executionId, newTurnIdentifier, toolOutcome.errorMessage, toolOutcome.errorCode, logPrefix);
-                return new AgentExecutionService.ExecutionResult(toolOutcome.errorCode, 'Tool retry failed: ' + toolOutcome.errorMessage);
-            }
+            // For a user-initiated manual retry, always fail immediately regardless of the
+            // shouldFailFast setting. The agent has already been given one extra chance via
+            // the resume; silently continuing to an LLM call without telling the user the
+            // retry still failed would be confusing. The LLM also has no context about the
+            // retry failure without an explicit error turn.
+            AgentStateService agentStateSvc = new AgentStateService();
+            agentStateSvc.failTurn(executionId, newTurnIdentifier, toolOutcome.errorMessage, toolOutcome.errorCode, logPrefix);
+            return new AgentExecutionService.ExecutionResult(executionId, AIAgentConstants.STATUS_PROCESSING, 'Tool retry failed: ' + toolOutcome.errorMessage);
         }
 
-        // Continue with follow-up LLM call
+        // Tool succeeded — let the LLM see the result and continue the conversation.
         return continueWithLLMCall(executionId, execution, newTurnIdentifier, resumePoint, logPrefix);
     }
 

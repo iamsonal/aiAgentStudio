@@ -543,8 +543,7 @@ public inherited sharing class ExecutionStepService {
     }
 
     /**
-     * @description Creates a tool result step with dependency validation failure flag.
-     * Used when a tool is blocked due to missing dependencies (not a real execution error).
+     * @description Creates a tool result step.
      */
     public Id createToolResultStep(
         Id executionId,
@@ -558,7 +557,7 @@ public inherited sharing class ExecutionStepService {
         Id capabilityId,
         Boolean isError,
         Boolean isResumed,
-        Boolean isDependencyValidationFailure
+        Boolean unusedParam
     ) {
         String logPrefix = LOG_PREFIX + '[createToolResultStep] ';
 
@@ -570,9 +569,6 @@ public inherited sharing class ExecutionStepService {
             if (isAsyncToolExecution != null) {
                 metadata.put('isAsyncToolExecution', isAsyncToolExecution);
             }
-            if (isDependencyValidationFailure == true) {
-                metadata.put('isDependencyValidationFailure', true);
-            }
 
             Map<String, Object> errorMetadata = extractErrorMetadata(toolResult);
             String errorCategory = (String) errorMetadata.get('errorCategory');
@@ -581,7 +577,7 @@ public inherited sharing class ExecutionStepService {
                 isRetryable = false;
             }
 
-            Boolean isActualError = isError == true && isDependencyValidationFailure != true;
+            Boolean isActualError = isError == true;
 
             ExecutionStep__c step = new ExecutionStep__c(
                 AgentExecution__c = executionId,
@@ -607,7 +603,6 @@ public inherited sharing class ExecutionStepService {
                 LLMCalloutDurationMs__c = null,
                 AIAgentCapability__c = capabilityId,
                 IsResumed__c = isResumed != null ? isResumed : false,
-                IsDependencyValidationFailure__c = isDependencyValidationFailure != null ? isDependencyValidationFailure : false,
                 ErrorCategory__c = errorCategory,
                 RetryPending__c = isActualError && isRetryable == true
             );
@@ -618,13 +613,7 @@ public inherited sharing class ExecutionStepService {
                 TransactionContext.getInstance().bufferInsert(step);
                 System.debug(
                     LoggingLevel.DEBUG,
-                    logPrefix +
-                        'Buffered tool result step for deferred insert. Tool: ' +
-                        toolName +
-                        ' isDependencyFailure: ' +
-                        (isDependencyValidationFailure == true) +
-                        ' retryPending: ' +
-                        (isActualError && isRetryable == true)
+                    logPrefix + 'Buffered tool result step for deferred insert. Tool: ' + toolName + ' retryPending: ' + (isActualError && isRetryable == true)
                 );
                 return null;
             }
@@ -642,8 +631,6 @@ public inherited sharing class ExecutionStepService {
                     isAsyncToolExecution +
                     ', isError=' +
                     step.IsError__c +
-                    ', isDependencyFailure=' +
-                    (isDependencyValidationFailure == true) +
                     ', retryPending=' +
                     step.RetryPending__c +
                     ')'
@@ -672,7 +659,7 @@ public inherited sharing class ExecutionStepService {
         Id capabilityId,
         Boolean isError,
         Boolean isResumed,
-        Boolean isDependencyValidationFailure
+        Boolean unusedParam
     ) {
         Map<String, Object> metadata = new Map<String, Object>();
         if (processingDuration != null) {
@@ -680,9 +667,6 @@ public inherited sharing class ExecutionStepService {
         }
         if (isAsyncToolExecution != null) {
             metadata.put('isAsyncToolExecution', isAsyncToolExecution);
-        }
-        if (isDependencyValidationFailure == true) {
-            metadata.put('isDependencyValidationFailure', true);
         }
 
         Map<String, Object> errorMetadata = extractErrorMetadata(toolResult);
@@ -692,7 +676,7 @@ public inherited sharing class ExecutionStepService {
             isRetryable = false;
         }
 
-        Boolean isActualError = isError == true && isDependencyValidationFailure != true;
+        Boolean isActualError = isError == true;
 
         ExecutionStep__c step = new ExecutionStep__c(
             AgentExecution__c = executionId,
@@ -718,7 +702,6 @@ public inherited sharing class ExecutionStepService {
             LLMCalloutDurationMs__c = null,
             AIAgentCapability__c = capabilityId,
             IsResumed__c = isResumed != null ? isResumed : false,
-            IsDependencyValidationFailure__c = isDependencyValidationFailure != null ? isDependencyValidationFailure : false,
             ErrorCategory__c = errorCategory,
             RetryPending__c = isActualError && isRetryable == true
         );

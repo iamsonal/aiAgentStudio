@@ -93,9 +93,7 @@ public class ActionAccount extends BaseAgentAction {
             return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, '"accountId" is required for the get_by_id variant');
         }
 
-        List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty()
-            ? config.defaultFields
-            : new List<String>{ 'Id', 'Name' };
+        List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty() ? config.defaultFields : new List<String>{ 'Id', 'Name' };
 
         String soql = 'SELECT ' + String.join(fields, ', ') + ' FROM Account WHERE Id = :accountId LIMIT 1';
 
@@ -111,9 +109,7 @@ public class ActionAccount extends BaseAgentAction {
     }
 
     private ActionOutcome searchAccounts(String searchTerm) {
-        List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty()
-            ? config.defaultFields
-            : new List<String>{ 'Id', 'Name' };
+        List<String> fields = config.defaultFields != null && !config.defaultFields.isEmpty() ? config.defaultFields : new List<String>{ 'Id', 'Name' };
 
         Integer maxResults = config.maxResults != null ? config.maxResults : 10;
         String soql = 'SELECT ' + String.join(fields, ', ') + ' FROM Account';

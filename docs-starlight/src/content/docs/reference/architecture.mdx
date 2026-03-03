@@ -74,7 +74,7 @@ AI Agent Studio is built on a modular, plugin-based architecture using Strategy,
    
    `OrchestrationService.processLlmResult()` selects handler based on response type:
    
-   - **Tool Calls**: `ToolCallResponseHandler` validates dependencies (if enabled), executes tools, manages async dispatch
+   - **Tool Calls**: `ToolCallResponseHandler` executes eligible tools (filtered by Tool Flow Graph if enabled), manages async dispatch
    - **Content Only**: `ContentResponseHandler` processes text responses, handles email replies for EmailOrchestrator
    
    **Three-Tier Error Policy**: Capability FailFast → MaxRetries → Pass to LLM for recovery
@@ -159,9 +159,9 @@ Core agent configuration:
 
 **Security & Trust**: `PIIMaskingPreset__c` (Off/Standard/Strict), `PromptSafetyPreset__c` (Off/Standard/Strict).
 
-**Performance**: `AsyncDispatchType__c` (High for Platform Events / Low for Queueable), `MaxProcessingCycles__c` (Max LLM turns per execution), `EnableDependencyValidation__c` (Enforce tool dependency graph).
+**Performance**: `AsyncDispatchType__c` (High for Platform Events / Low for Queueable), `MaxProcessingCycles__c` (Max LLM turns per execution), `EnableToolFlowGraph__c` (Enforce Tool Flow Graph at runtime).
 
-**Workflow**: `ToolDependencyGraph__c` (JSON dependency graph for validation).
+**Tool Flow**: `ToolFlowGraph__c` (JSON flow graph defining entry tools and typed transitions).
 
   </TabItem>
   <TabItem label="AgentCapability__c">
@@ -181,6 +181,8 @@ Execution tracking:
 
 **Status Fields**: `ExecutionStatus__c` (Idle/Processing/Completed/Failed/Cancelled for lifecycle-level), `ProcessingStatus__c` (Idle/Processing/Awaiting Action/Awaiting Followup/Failed for turn-level).
 
+**Turn Coordination**: `CurrentTurnIdentifier__c` (Optimistic concurrency token for the active turn; carried by async jobs to detect stale work), `AsyncToolTurnIdentifier__c` (Turn token for the in-flight async tool batch while awaiting completions), `OriginalTurnIdentifier__c` (Previous turn token when the current turn is rotated during resume/recovery).
+
 **Context**: `SourceRecordId__c` (Context record like Account or Case), `OriginalUserId__c` (User who initiated execution), `ServiceUserId__c` (Service user if RequiresServiceUserContext__c).
 
 **Multi-Record Processing**: `BatchId__c` (Correlation ID for grouping related executions), `Priority__c` (Execution priority), `RetryCount__c`, `MaxRetries__c`, `NextRetryAt__c` (Exponential backoff tracking).
@@ -190,7 +192,7 @@ Execution tracking:
 
 Detailed execution log for observability:
 
-**Step Metadata**: `StepType__c` (UserInput/AgentResponse/ToolCall/ToolResult/Error), `StepRole__c` (User/Assistant/Tool), `TurnIdentifier__c` (Groups steps by LLM turn).
+**Step Metadata**: `StepType__c` (UserInput/AgentResponse/ToolCall/ToolResult/Error), `StepRole__c` (User/Assistant/Tool), `TurnIdentifier__c` (Groups steps by LLM turn; typically matches `AgentExecution__c.CurrentTurnIdentifier__c` while the turn is active).
 
 **Content**: `Content__c` (Step payload/result data), `ToolRationale__c` (LLM reasoning for tool selection if EnableToolReasoning__c), `IsAsyncToolExecution__c` (Async execution flag).
 
@@ -209,12 +211,12 @@ Detailed execution log for observability:
   <Card title="Resilient Multi-Record Processing" icon="seti:flow">
     Multi-record batch executions use a resilient dispatch pattern with priority ordering, exponential backoff, progress tracking, and automatic recovery of stalled jobs.
   </Card>
-  <Card title="Tool Dependency Validation" icon="seti:git">
-    Declarative tool sequencing prevents the LLM from calling tools in an illogical order.
+  <Card title="Tool Flow Graph" icon="seti:git">
+    Declarative workflow control limits the LLM to only the tools eligible at the current step — preventing out-of-order calls and enabling deterministic branching.
 
-    **Flow**: LLM generates a dependency graph → admin reviews and approves → system enforces at runtime.
+    **Design-time**: Generate a flow graph (entry tools + typed transitions) via LLM analysis or manual editing in the visual editor.
 
-    **Two-Phase**: Pre-flight validation with topological sort → runtime enforcement during execution.
+    **Runtime**: `ToolFlowGraphService` computes the eligible tool set on every LLM call. Exclusive path locking ensures branch choices are permanent.
   </Card>
 </CardGrid>
 

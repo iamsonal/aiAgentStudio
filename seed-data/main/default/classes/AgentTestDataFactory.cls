@@ -77,7 +77,7 @@ public with sharing class AgentTestDataFactory {
             update ordersToDeactivate;
         }
 
-//        delete [SELECT Id FROM AgentDecisionStep__c];
+        //        delete [SELECT Id FROM AgentDecisionStep__c];
         delete [SELECT Id FROM ExecutionStep__c];
         delete [SELECT Id FROM AgentExecution__c];
         delete [SELECT Id FROM AgentWorkflowStep__c];
@@ -1105,15 +1105,10 @@ public with sharing class AgentTestDataFactory {
             AgentType__c = 'Email',
             LLMConfiguration__c = llmConfigId,
             EmailReplyMode__c = 'Auto Respond',
-            // Routing: EmailMessageAgentTrigger routes Case EmailMessages to this agent via EmailParentObject__c.
-            // Change to 'Lead', 'Contact', or a custom object API name to handle a different object type.
             EmailParentObject__c = 'Case',
-            // Cycle detection: when a new email arrives and the Case has one of these statuses,
-            // a fresh conversation cycle starts instead of resuming the existing execution.
             EmailTerminalStatuses__c = 'Closed,Solved',
             IdentityPrompt__c = 'You are a professional customer support agent for Acme Corporation handling inbound customer emails.',
-            InstructionsPrompt__c =
-                'The CONTEXT block already contains the full case details (Contact, Account, Status, Priority) and email thread — you do NOT need to call any tool to look them up.\n' +
+            InstructionsPrompt__c = 'The CONTEXT block already contains the full case details (Contact, Account, Status, Priority) and email thread — you do NOT need to call any tool to look them up.\n' +
                 'For each inbound email: call search_knowledge if the customer has a product or how-to question → call update_case if the priority or status needs adjusting → draft a concise, professional reply.\n' +
                 'For spam, auto-replies, or abuse: call update_case to log it and stop — do not draft a reply.',
             MemoryStrategy__c = 'Buffer Window',
@@ -1131,37 +1126,46 @@ public with sharing class AgentTestDataFactory {
         List<AgentCapability__c> capabilities = new List<AgentCapability__c>();
 
         // 1. Search knowledge — find KB articles before composing a reply
-        capabilities.add(new AgentCapability__c(
-            AIAgentDefinition__c = emailAgent.Id,
-            CapabilityName__c = 'search_knowledge',
-            Description__c = 'Searches the Knowledge Base for articles relevant to the customer\'s question. Call this before drafting a reply when the customer asks a how-to or troubleshooting question.',
-            ImplementationType__c = 'Standard',
-            StandardActionType__c = 'SearchKnowledge',
-            BackendConfiguration__c = '{}',
-            Parameters__c = '{"type":"object","properties":{"searchQuery":{"type":"string","description":"Keywords or question from the customer email"},"maxResults":{"type":"integer","description":"Max articles to return (default 3)"}},"required":["searchQuery"]}',
-            ExposureLevel__c = 'External',
-            RunAsynchronously__c = false
-        ));
+        capabilities.add(
+            new AgentCapability__c(
+                AIAgentDefinition__c = emailAgent.Id,
+                CapabilityName__c = 'search_knowledge',
+                Description__c = 'Searches the Knowledge Base for articles relevant to the customer\'s question. Call this before drafting a reply when the customer asks a how-to or troubleshooting question.',
+                ImplementationType__c = 'Standard',
+                StandardActionType__c = 'SearchKnowledge',
+                BackendConfiguration__c = '{}',
+                Parameters__c = '{"type":"object","properties":{"searchQuery":{"type":"string","description":"Keywords or question from the customer email"},"maxResults":{"type":"integer","description":"Max articles to return (default 3)"}},"required":["searchQuery"]}',
+                ExposureLevel__c = 'External',
+                RunAsynchronously__c = false
+            )
+        );
 
         // 2. Update case — adjust priority, status, or category based on email content
-        capabilities.add(new AgentCapability__c(
-            AIAgentDefinition__c = emailAgent.Id,
-            CapabilityName__c = 'update_case',
-            Description__c = 'Updates case fields (Priority, Status, Type, Reason) based on email content. Use the Case ID from the CURRENT EMAIL block. Call this before drafting a reply if the case needs adjustment.',
-            ImplementationType__c = 'Standard',
-            StandardActionType__c = 'UpdateRecord',
-            BackendConfiguration__c = '{"objectApiName":"Case"}',
-            Parameters__c = JSON.serialize(new Map<String, Object>{
-                'type' => 'object',
-                'properties' => new Map<String, Object>{
-                    'recordId' => new Map<String, Object>{ 'type' => 'string', 'description' => '18-character Case ID from the CURRENT EMAIL block' },
-                    'recordData' => new Map<String, Object>{ 'type' => 'object', 'description' => 'Map of fields to update, e.g. Priority, Status, Type, Reason' }
-                },
-                'required' => new List<String>{ 'recordId', 'recordData' }
-            }),
-            ExposureLevel__c = 'External',
-            RunAsynchronously__c = false
-        ));
+        capabilities.add(
+            new AgentCapability__c(
+                AIAgentDefinition__c = emailAgent.Id,
+                CapabilityName__c = 'update_case',
+                Description__c = 'Updates case fields (Priority, Status, Type, Reason) based on email content. Use the Case ID from the CURRENT EMAIL block. Call this before drafting a reply if the case needs adjustment.',
+                ImplementationType__c = 'Standard',
+                StandardActionType__c = 'UpdateRecord',
+                BackendConfiguration__c = '{"objectApiName":"Case"}',
+                Parameters__c = JSON.serialize(
+                    new Map<String, Object>{
+                        'type' => 'object',
+                        'properties' => new Map<String, Object>{
+                            'recordId' => new Map<String, Object>{ 'type' => 'string', 'description' => '18-character Case ID from the CURRENT EMAIL block' },
+                            'recordData' => new Map<String, Object>{
+                                'type' => 'object',
+                                'description' => 'Map of fields to update, e.g. Priority, Status, Type, Reason'
+                            }
+                        },
+                        'required' => new List<String>{ 'recordId', 'recordData' }
+                    }
+                ),
+                ExposureLevel__c = 'External',
+                RunAsynchronously__c = false
+            )
+        );
 
         insert capabilities;
 

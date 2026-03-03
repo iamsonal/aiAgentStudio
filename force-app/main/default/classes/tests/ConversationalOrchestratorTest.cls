@@ -276,7 +276,6 @@ private class ConversationalOrchestratorTest {
             ToolName__c = capability.CapabilityName__c,
             ToolResult__c = '{"isSuccess":false}',
             IsError__c = true,
-            IsDependencyValidationFailure__c = false,
             TurnIdentifier__c = 'turn-failed-001',
             TurnCount__c = 1,
             Timestamp__c = Datetime.now().addMinutes(-1)
@@ -333,7 +332,7 @@ private class ConversationalOrchestratorTest {
             StepRole__c = 'Assistant',
             ToolCallId__c = 'call-sync-failed-001',
             ToolName__c = capability.CapabilityName__c,
-            ToolArguments__c = '{"recordData":{"Name":"Retry Sync Account"}}',
+            ToolArguments__c = '{}',
             TurnIdentifier__c = 'turn-sync-failed-001',
             TurnCount__c = 1,
             Timestamp__c = Datetime.now().addMinutes(-2)
@@ -348,7 +347,6 @@ private class ConversationalOrchestratorTest {
             ToolName__c = capability.CapabilityName__c,
             ToolResult__c = '{"isSuccess":false}',
             IsError__c = true,
-            IsDependencyValidationFailure__c = false,
             TurnIdentifier__c = 'turn-sync-failed-001',
             TurnCount__c = 1,
             Timestamp__c = Datetime.now().addMinutes(-1)

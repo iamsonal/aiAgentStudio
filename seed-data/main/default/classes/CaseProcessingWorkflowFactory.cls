@@ -692,12 +692,11 @@ public with sharing class CaseProcessingWorkflowFactory {
      * Capabilities (lean): classify_and_update_case, search_knowledge_base, assign_to_queue
      */
     private static Id createCaseTriageAgent(Id llmConfigId) {
-        String instructionsPrompt = 'Analyze the case using provided context (Case, Account, Contact, Entitlement).\n\n' +
-            '1) Detect spam and low-quality submissions.\n' +
-            '2) Classify and set Case fields with `classify_and_update_case`.\n' +
-            '3) Route case to the correct queue with `assign_to_queue`.\n' +
-            '4) Search knowledge with `search_knowledge_base` using 2-4 keywords from Subject.\n' +
-            'Keep execution concise and deterministic.';
+        String instructionsPrompt =
+            'You triage incoming support cases before they reach a rep.\n\n' +
+            'Classify the issue accurately, then route to the correct queue ' +
+            'and surface relevant knowledge articles. Classification must be complete before routing — ' +
+            'the case Type determines which team handles it.';
 
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Case Triage & Routing Agent',
@@ -730,13 +729,10 @@ public with sharing class CaseProcessingWorkflowFactory {
             createCapability(
                 agent.Id,
                 'classify_and_update_case',
-                'Updates Case classification fields based on triage analysis.\n\n' +
-                    '**Fields to update:**\n' +
-                    '- Type: Mechanical, Electrical, Electronic, Structural, Other\n' +
-                    '- Priority: High, Medium, Low\n' +
-                    '- Status: New, Working, Escalated, Closed\n' +
-                    '- Reason: Installation, Equipment Complexity, Performance, Breakdown, Equipment Design, Feedback, Other\n\n' +
-                    '**When to use:** After analyzing case description and context. Use this to set classification before routing.',
+                'Records your triage decision by setting the case classification fields.\n\n' +
+                    'Set Type based on the nature of the issue, Priority based on urgency and customer tier, ' +
+                    'Status to reflect current state, and Reason to capture the root cause category.\n\n' +
+                    'The Type field determines which support team receives this case — set it accurately.',
                 '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"Case ID from context. MUST start with 500."},"recordData":{"type":"object","properties":{"Type":{"type":"string","description":"Type","enum":["Mechanical","Electrical","Electronic","Structural","Other"]},"Priority":{"type":"string","description":"Priority","enum":["High","Medium","Low"]},"Status":{"type":"string","description":"Status","enum":["New","Working","Escalated","Closed"]},"Reason":{"type":"string","description":"Case Reason","enum":["Installation","Equipment Complexity","Performance","Breakdown","Equipment Design","Feedback","Other"]}}}},"required":["recordId","recordData"]}',
                 'Standard',
                 'UpdateRecord',
@@ -749,11 +745,10 @@ public with sharing class CaseProcessingWorkflowFactory {
             createCapability(
                 agent.Id,
                 'search_knowledge_base',
-                'Searches Salesforce Knowledge for relevant troubleshooting articles and solutions.\n\n' +
-                    '**Returns:** Articles with Title, Summary, ArticleNumber, URL\n\n' +
-                    '**Search strategy:** Extract 2-4 key terms from case Subject (e.g., "SAP integration error" → "SAP integration").\n\n' +
-                    '**When to use:** After classification, before routing. Find articles that can help rep or customer resolve faster.\n\n' +
-                    '**Limit:** Return top 5 results, most relevant first.',
+                'Finds knowledge articles relevant to this case.\n\n' +
+                    'Returns articles with Title, Summary, ArticleNumber, and URL. ' +
+                    'Use 2-4 key terms from the case Subject. Run alongside routing so the rep has ' +
+                    'solutions ready when they open the case.',
                 '{"type":"object","properties":{"searchQuery":{"type":"string","description":"2-4 keywords from case Subject or Description","examples":["password reset","SAP integration error","billing invoice"]},"maxResults":{"type":"integer","description":"Max articles to return (default 5)","default":5,"minimum":1,"maximum":10}},"required":["searchQuery"]}',
                 'Apex',
                 null,
@@ -766,13 +761,11 @@ public with sharing class CaseProcessingWorkflowFactory {
             createCapability(
                 agent.Id,
                 'assign_to_queue',
-                'Routes case to appropriate support queue based on classification.\n\n' +
-                    '**Available Queues:**\n' +
-                    '- Engineering_Support_Queue - Technical issues, bugs, integrations, errors\n' +
-                    '- Finance_Support_Queue - Billing, invoicing, payments, credits\n' +
-                    '- Product_Support_Queue - Product questions, features, how-to\n\n' +
-                    '**Workflow:** Classify case first, then route to correct queue.\n\n' +
-                    '**Note:** Provide the queue DeveloperName, not the ID. The system will look up the queue ID automatically.',
+                'Routes the case to the support team responsible for this issue type.\n\n' +
+                    '- Engineering_Support_Queue — Technical issues, bugs, integrations, errors\n' +
+                    '- Finance_Support_Queue — Billing, invoicing, payments, credits\n' +
+                    '- Product_Support_Queue — Product questions, features, how-to\n\n' +
+                    'Route based on the case Type. Routing without a completed classification will result in the wrong queue.',
                 '{"type":"object","properties":{"caseId":{"type":"string","format":"salesforce-id","description":"Case ID. MUST start with 500."},"queueDeveloperName":{"type":"string","description":"Queue developer name","enum":["Engineering_Support_Queue","Finance_Support_Queue","Product_Support_Queue"]}},"required":["caseId","queueDeveloperName"]}',
                 'Apex',
                 null,
@@ -815,10 +808,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'External'
             )
         };
-        capabilities = filterCapabilitiesByName(
-            capabilities,
-            new Set<String>{ 'classify_and_update_case', 'search_knowledge_base', 'assign_to_queue' }
-        );
+        capabilities = filterCapabilitiesByName(capabilities, new Set<String>{ 'classify_and_update_case', 'search_knowledge_base', 'assign_to_queue' });
         insert capabilities;
 
         System.debug('[Agent] ✓ Triage & Routing Agent created with ' + capabilities.size() + ' capabilities');
@@ -831,11 +821,11 @@ public with sharing class CaseProcessingWorkflowFactory {
      * Capabilities (lean): get_queue_members, get_user_workload, assign_case_to_user, send_customer_acknowledgment
      */
     private static Id createCaseAssignmentAgent(Id llmConfigId) {
-        String instructionsPrompt = 'Assign case ownership with a deterministic flow.\n\n' +
-            '1) Get queue members with `get_queue_members`.\n' +
-            '2) Compare workload using `get_user_workload`.\n' +
-            '3) Assign to best rep using `assign_case_to_user` and set Status="Working".\n' +
-            '4) Send customer confirmation email using `send_customer_acknowledgment`.';
+        String instructionsPrompt =
+            'You assign newly triaged cases to the right support rep and confirm receipt with the customer.\n\n' +
+            'Find the rep in the assigned queue with the lightest workload. If the account has a rep ' +
+            'relationship from recent cases, prefer continuity. Once assigned, send the customer a ' +
+            'brief confirmation with the expected response time based on their SLA tier.';
 
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Case Assignment & Notification Agent',
@@ -868,10 +858,9 @@ public with sharing class CaseProcessingWorkflowFactory {
             createCapability(
                 agent.Id,
                 'get_queue_members',
-                'Retrieves all active users in the case\'s assigned queue.\n\n' +
-                    '**Returns:** List of queue members with User ID, Name, current open case count, skills (if available).\n\n' +
-                    '**Purpose:** Identify available reps in the queue for assignment decision.\n\n' +
-                    '**Note:** Case must already be assigned to a queue (from Triage agent).',
+                'Returns all active members of the specified queue with their User ID and name.\n\n' +
+                    'Use this to identify available reps before comparing workload. ' +
+                    'The queue name comes from the case\'s current owner queue.',
                 '{"type":"object","properties":{"queueDeveloperName":{"type":"string","description":"Queue developer name: Engineering_Support_Queue, Finance_Support_Queue, or Product_Support_Queue","enum":["Engineering_Support_Queue","Finance_Support_Queue","Product_Support_Queue"]}},"required":["queueDeveloperName"]}',
                 'Apex',
                 null,
@@ -884,17 +873,8 @@ public with sharing class CaseProcessingWorkflowFactory {
             createCapability(
                 agent.Id,
                 'get_user_workload',
-                'Retrieves current workload for specified users (open case counts).\n\n' +
-                    '**Returns:** For each user: open cases count.\n\n' +
-                    '**Purpose:** Avoid overloading reps. Choose rep with lowest open case count.\n\n' +
-                    '**CRITICAL WORKFLOW - YOU MUST FOLLOW THIS SEQUENCE:**\n' +
-                    '1. First call get_queue_members (e.g., {"queueDeveloperName": "Engineering_Support_Queue"})\n' +
-                    '2. Extract userIds from the response: look for response.members array, each member has a userId field\n' +
-                    '3. Then call THIS tool with those userIds: {"userIds": ["005xxx...", "005yyy..."]}\n\n' +
-                    '**Example workflow:**\n' +
-                    'Step 1: get_queue_members returns {"members": [{"userId": "005ABC", "name": "John"}, {"userId": "005XYZ", "name": "Jane"}]}\n' +
-                    'Step 2: Extract ["005ABC", "005XYZ"]\n' +
-                    'Step 3: Call get_user_workload with {"userIds": ["005ABC", "005XYZ"]}',
+                'Returns the current open case count for each specified user.\n\n' +
+                'Pass the User IDs from the queue members list. Assign to the rep with the fewest open cases.',
                 '{"type":"object","properties":{"userIds":{"type":"array","items":{"type":"string","format":"salesforce-id","pattern":"^005[a-zA-Z0-9]{15}$"},"description":"Array of User IDs from get_queue_members response. Extract from response.members[].userId. MUST have at least 1 ID.","minItems":1,"examples":[["005DL00000J5jrnYAB","005DL00000J5jroYAB"]]}},"required":["userIds"]}',
                 'Apex',
                 null,
@@ -907,10 +887,9 @@ public with sharing class CaseProcessingWorkflowFactory {
             createCapability(
                 agent.Id,
                 'get_account_case_history',
-                'Retrieves recent cases for this account (last 90 days) to identify rep continuity.\n\n' +
-                    '**Returns:** Recent cases with Owner, Subject, Status, Resolution.\n\n' +
-                    '**Purpose:** If a rep has successfully handled previous cases for this customer, prefer assigning to same rep for continuity.\n\n' +
-                    '**Use case:** VIP accounts, complex technical issues, relationship building.',
+                'Returns cases for this account from the last 90 days, including Owner, Subject, Status, and Resolution.\n\n' +
+                    'If a rep has a track record with this customer, prefer assigning to them for continuity — ' +
+                    'especially for VIP accounts and recurring technical issues.',
                 '{"type":"object","properties":{"accountId":{"type":"string","format":"salesforce-id","description":"Account ID from case context. MUST start with 001.","pattern":"^001[a-zA-Z0-9]{15}$"},"maxResults":{"type":"integer","description":"Max cases to return (default 10)","default":10,"minimum":1,"maximum":50}},"required":["accountId"]}',
                 'Apex',
                 null,
@@ -923,10 +902,9 @@ public with sharing class CaseProcessingWorkflowFactory {
             createCapability(
                 agent.Id,
                 'assign_case_to_user',
-                'Assigns case to selected support rep and updates status.\n\n' +
-                    '**What it does:** Updates Case.OwnerId to chosen user, sets Status to "Working".\n\n' +
-                    '**When to use:** After selecting best rep based on skills, workload, and history.\n\n' +
-                    '**Critical:** Use valid User ID (starts with 005) from get_queue_members response.',
+                'Assigns the case to the chosen rep and sets Status to Working.\n\n' +
+                    'Use after reviewing workload and history to select the best fit. ' +
+                    'Only assign reps who are members of the case\'s current queue.',
                 '{"type":"object","properties":{"recordId":{"type":"string","format":"salesforce-id","description":"Case ID. MUST start with 500.","pattern":"^500[a-zA-Z0-9]{15}$"},"recordData":{"type":"object","properties":{"OwnerId":{"type":"string","format":"salesforce-id","description":"User ID of rep to assign to. MUST start with 005.","pattern":"^005[a-zA-Z0-9]{15}$"},"Status":{"type":"string","enum":["Working"],"const":"Working"}},"required":["OwnerId","Status"]}},"required":["recordId","recordData"]}',
                 'Standard',
                 'UpdateRecord',
@@ -939,12 +917,9 @@ public with sharing class CaseProcessingWorkflowFactory {
             createCapability(
                 agent.Id,
                 'send_rep_notification',
-                'Sends in-app notification (bell icon) to assigned rep with case details.\n\n' +
-                    '**Content:**\n' +
-                    '- Title: "New Case Assigned: [Priority] - [Customer Name]"\n' +
-                    '- Body: Case number, customer, priority, brief summary (50-100 words), SLA deadline\n' +
-                    '- Highlight urgency for Critical/High priority\n\n' +
-                    '**Delivery:** Instant notification in Salesforce (bell icon + optional email).',
+                'Sends an in-app notification to the assigned rep alerting them of the new case.\n\n' +
+                    'Include the case number, customer name, priority, a brief issue summary, and the SLA deadline. ' +
+                    'Lead with urgency for High priority cases.',
                 '{"type":"object","properties":{"recipientIds":{"type":"array","items":{"type":"string","format":"salesforce-id","pattern":"^005[a-zA-Z0-9]{15}$"},"description":"User IDs to notify (assigned rep)","minItems":1,"maxItems":1},"title":{"type":"string","maxLength":255,"description":"Notification title"},"body":{"type":"string","maxLength":1000,"description":"Notification body with case details"},"targetId":{"type":"string","format":"salesforce-id","description":"Case ID to link notification to","pattern":"^500[a-zA-Z0-9]{15}$"}},"required":["recipientIds","title","body","targetId"]}',
                 'Apex',
                 null,
@@ -957,12 +932,9 @@ public with sharing class CaseProcessingWorkflowFactory {
             createCapability(
                 agent.Id,
                 'send_customer_acknowledgment',
-                'Sends customer-facing email: "Your case has been received and assigned."\n\n' +
-                    '**Content:**\n' +
-                    '- Case number, assigned rep name\n' +
-                    '- Expected response time based on SLA tier (Premium 4hr, Standard 24hr, Basic 48hr)\n' +
-                    '- Professional, branded template\n\n' +
-                    '**Purpose:** Customer gets immediate confirmation, knows who\'s handling their case.',
+                'Sends a confirmation email to the customer that their case has been received and assigned.\n\n' +
+                    'Include the case number, the rep\'s name, and the expected response time based on their ' +
+                    'SLA tier (Premium: 4 hours, Standard: 24 hours, Basic: 48 hours).',
                 '{"type":"object","properties":{"toAddress":{"type":"string","format":"email","description":"Customer email address (from Contact context)"},"subject":{"type":"string","maxLength":255,"description":"Email subject line"},"body":{"type":"string","description":"Email body content"},"ccAddresses":{"type":"array","items":{"type":"string","format":"email"},"description":"CC email addresses (optional)"}},"required":["toAddress","subject","body"]}',
                 'Apex',
                 null,
@@ -975,10 +947,9 @@ public with sharing class CaseProcessingWorkflowFactory {
             createCapability(
                 agent.Id,
                 'create_followup_task',
-                'Creates follow-up Task for assigned rep with SLA-based due date.\n\n' +
-                    '**Purpose:** Ensure urgent cases don\'t slip through cracks. Task reminds rep of SLA deadline.\n\n' +
-                    '**When to use:** For High priority cases with tight SLAs (Premium 4hr, Standard 24hr).\n\n' +
-                    '**Task details:** Subject: "Follow up on Case #[CaseNumber]", Due: 80% of SLA time (e.g., 3.2 hours for 4hr SLA), Priority: High, Status: Not Started',
+                'Creates a follow-up task for the assigned rep to ensure the case is touched before SLA breach.\n\n' +
+                    'Use for High priority cases. Set the due date to 80% of the SLA window ' +
+                    '(e.g., 3.2 hours for a 4-hour SLA) so the rep has time to act before the deadline.',
                 '{"type":"object","properties":{"recordData":{"type":"object","properties":{"Subject":{"type":"string","description":"Task subject"},"ActivityDate":{"type":"string","format":"date","description":"Due date (YYYY-MM-DD format)"},"WhatId":{"type":"string","format":"salesforce-id","description":"Case ID to link task to","pattern":"^500[a-zA-Z0-9]{15}$"},"OwnerId":{"type":"string","format":"salesforce-id","description":"Assigned rep User ID","pattern":"^005[a-zA-Z0-9]{15}$"},"Priority":{"type":"string","enum":["High"],"const":"High"},"Status":{"type":"string","enum":["Not Started"],"const":"Not Started"}},"required":["Subject","ActivityDate","WhatId","OwnerId"]}},"required":["recordData"]}',
                 'Standard',
                 'CreateRecord',
@@ -1017,20 +988,11 @@ public with sharing class CaseProcessingWorkflowFactory {
             EnableParallelToolCalling__c = true,
             ContextFormatStrategy__c = 'Structured Text',
             IdentityPrompt__c = 'You are an Escalation Manager for high-value and critical cases. You ensure executive visibility and coordinate cross-functional teams.',
-            InstructionsPrompt__c = '**IMPORTANT: This agent is designed for high-value cases ONLY.**\n\n' +
-                '**FIRST, ASSESS IF YOU SHOULD ACT:**\n' +
-                '- Check Case Priority: Must be "High" (standard Salesforce has High/Medium/Low)\n' +
-                '- If High priority: Check Account.AnnualRevenue >= $1,000,000\n' +
-                '- If case does NOT meet criteria (e.g., Priority=Medium/Low, or Priority=High but revenue <$1M), respond: "This case does not require escalation. Skipping escalation agent." and STOP.\n\n' +
-                '**IF CASE MEETS CRITERIA (High Priority + $1M+ Revenue), PROCEED:**\n\n' +
-                '**1. ESCALATE TO MANAGEMENT:**\n' +
-                '- Create escalation task for Support Manager: `create_escalation_task`\n' +
-                '- Task should include: case summary, customer value, business impact, urgency\n' +
-                '- Priority: High, Due: TODAY\n\n' +
-                '**2. NOTIFY ACCOUNT TEAM:**\n' +
-                '- Alert Customer Success Manager / Account Executive: `notify_account_team`\n' +
-                '- Purpose: Keep account owner aware of high-priority customer issues\n' +
-                '- Use for: $1M+ accounts, relationship risk, potential churn'
+            InstructionsPrompt__c = 'You handle executive visibility for high-value cases.\n\n' +
+                'Only act if the case is High priority AND the account\'s annual revenue is $1M or more. ' +
+                'If either condition is not met, respond briefly that escalation is not required and stop.\n\n' +
+                'For qualifying cases: alert the support manager and notify the account team so the right ' +
+                'people are aware before the customer escalates it themselves.'
         );
         insert agent;
 
@@ -1051,13 +1013,8 @@ public with sharing class CaseProcessingWorkflowFactory {
             createCapability(
                 agent.Id,
                 'create_escalation_task',
-                'Creates high-priority task for Support Manager to review escalated case.\n\n' +
-                    '**Task details:**\n' +
-                    '- Subject: "ESCALATION: [Customer Name] - [Issue Summary]"\n' +
-                    '- Description: Case details, customer value, business impact, severity rationale\n' +
-                    '- Priority: High, Status: Not Started, Due: TODAY\n' +
-                    '- Assigned to: Support Manager\n\n' +
-                    '**When to use:** All critical/high-value cases that reach this agent.',
+                'Creates a high-priority task for the Support Manager to review the escalated case today.\n\n' +
+                'Include the case summary, the customer\'s business impact, and why this warrants management attention.',
                 '{"type":"object","properties":{"recordData":{"type":"object","properties":{"Subject":{"type":"string","maxLength":255,"description":"Escalation task subject"},"Description":{"type":"string","description":"Case details, customer value, business impact"},"ActivityDate":{"type":"string","format":"date","description":"Due date (TODAY, YYYY-MM-DD format)"},"WhatId":{"type":"string","format":"salesforce-id","description":"Case ID","pattern":"^500[a-zA-Z0-9]{15}$"},"OwnerId":{"type":"string","format":"salesforce-id","description":"Support Manager User ID","pattern":"^005[a-zA-Z0-9]{15}$"},"Priority":{"type":"string","enum":["High"],"const":"High"},"Status":{"type":"string","enum":["Not Started"],"const":"Not Started"},"Type":{"type":"string","const":"Escalation Review"}},"required":["Subject","Description","ActivityDate","WhatId","OwnerId"]}},"required":["recordData"]}',
                 'Standard',
                 'CreateRecord',
@@ -1070,10 +1027,9 @@ public with sharing class CaseProcessingWorkflowFactory {
             createCapability(
                 agent.Id,
                 'notify_account_team',
-                'Sends notification to Account Owner (Customer Success Manager / Account Executive) about critical case.\n\n' +
-                    '**Content:** Case number, customer name, issue severity, assigned rep, action needed (monitor for escalation).\n\n' +
-                    '**Purpose:** Keep account team aware of issues with their accounts, especially relationship risks.\n\n' +
-                    '**When to use:** $1M+ accounts, relationship-sensitive issues, potential churn risks.',
+                'Notifies the Account Owner (Customer Success Manager or Account Executive) of a critical case on their account.\n\n' +
+                    'Include the case number, issue summary, assigned rep, and any relationship risk factors. ' +
+                    'The account owner needs to know before the customer calls them directly.',
                 '{"type":"object","properties":{"accountId":{"type":"string","format":"salesforce-id","description":"Account ID (to find Account Owner). MUST start with 001.","pattern":"^001[a-zA-Z0-9]{15}$"},"title":{"type":"string","maxLength":255,"description":"Notification title"},"body":{"type":"string","maxLength":1000,"description":"Notification body with case details"}},"required":["accountId","title","body"]}',
                 'Apex',
                 null,
@@ -1100,10 +1056,7 @@ public with sharing class CaseProcessingWorkflowFactory {
                 'External'
             )
         };
-        capabilities = filterCapabilitiesByName(
-            capabilities,
-            new Set<String>{ 'create_escalation_task', 'notify_account_team' }
-        );
+        capabilities = filterCapabilitiesByName(capabilities, new Set<String>{ 'create_escalation_task', 'notify_account_team' });
         insert capabilities;
 
         System.debug('[Agent] ✓ High-Value Escalation Agent created with ' + capabilities.size() + ' capabilities (CONDITIONAL)');

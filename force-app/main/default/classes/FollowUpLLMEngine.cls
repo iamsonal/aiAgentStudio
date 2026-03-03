@@ -72,7 +72,13 @@ public without sharing class FollowUpLLMEngine implements Queueable, Database.Al
         try {
             // Validate execution and turn state before proceeding
             AgentStateService agentStateService = new AgentStateService();
-            AgentExecution__c execution = agentStateService.validateAndGetExecution(this.executionId, this.turnIdentifier);
+            AgentExecution__c execution;
+            try {
+                execution = agentStateService.validateAndGetExecution(this.executionId, this.turnIdentifier);
+            } catch (AgentStateService.StaleExecutionException staleEx) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Stale follow-up job detected. Skipping processing. ' + staleEx.getMessage());
+                return;
+            }
             if (execution == null || execution.ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_FOLLOWUP) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Execution state mismatch or stale job detected. Aborting follow-up processing.');
                 return;

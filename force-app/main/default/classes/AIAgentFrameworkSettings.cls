@@ -16,7 +16,6 @@ public inherited sharing class AIAgentFrameworkSettings {
     private static final Integer FINAL_DEFAULT_BulkConcurrencyLimit = 5;
     private static final Integer FINAL_DEFAULT_BulkFailureThreshold = 5;
     private static final Integer FINAL_DEFAULT_MaxLLMCallsPerTransaction = 2;
-    private static final Integer FINAL_DEFAULT_MaxDependencyViolations = 3;
     private static final Boolean FINAL_DEFAULT_EnableDecisionStepLogging = true;
     private static final Boolean FINAL_DEFAULT_ExtendQueueableChainLimit = false;
     public static AIAgentFrameworkSettings__c getInstance() {
@@ -225,11 +224,6 @@ public inherited sharing class AIAgentFrameworkSettings {
      *
      * @return The maximum dependency violations allowed before execution fails.
      */
-    public static Integer getMaxDependencyViolations() {
-        // Currently using hardcoded default - could be added to custom setting if needed
-        return FINAL_DEFAULT_MaxDependencyViolations;
-    }
-
     /**
      * Determines if AsyncOptions should be used to extend queueable chain limits.
      * Enable this setting in orgs with 5-chain limits (scratch/developer/trial orgs).

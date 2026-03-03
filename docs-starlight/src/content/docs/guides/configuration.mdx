@@ -71,8 +71,8 @@ Start with agent + provider settings, then tune safety and performance as usage 
 | `EnableActionTransparency__c` | Checkbox | Show tool execution details to users |
 | `EnableToolReasoning__c` | Checkbox | Require LLM to explain tool selection for better transparency |
 | `AuditLevel__c` | Picklist | None, Standard, or Detailed logging |
-| `EnableDependencyValidation__c` | Checkbox | Enforce tool dependency graph at runtime |
-| `ToolDependencyGraph__c` | Long Text | JSON dependency graph (approved) |
+| `EnableToolFlowGraph__c` | Checkbox | Enforce the Tool Flow Graph at runtime — LLM only sees tools eligible at the current step |
+| `ToolFlowGraph__c` | Long Text | JSON Tool Flow Graph defining entry tools and typed transitions (`sequential`, `parallel`, `exclusive`) |
 | `EnableNextStepSuggestion__c` | Checkbox | Injects `_nextStepSuggestion` into tools (experimental) |
 
 ### Performance Settings

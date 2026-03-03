@@ -15,7 +15,22 @@ public inherited sharing class AgentStateService {
     // Cache for execution type to avoid repeated queries
     private Map<Id, String> executionTypeCache = new Map<Id, String>();
 
-    public class AgentStateException extends AIAgentException {
+    public virtual class AgentStateException extends AIAgentException {
+    }
+
+    /**
+     * @description Specialized exception used when an async job detects its turn identifier is stale.
+     * Callers should treat this as a no-op (skip processing) rather than a terminal failure.
+     */
+    public class StaleExecutionException extends AgentStateException {
+        public String expectedTurnIdentifier { get; private set; }
+        public String actualTurnIdentifier { get; private set; }
+
+        public StaleExecutionException(String message, String expectedTurnIdentifier, String actualTurnIdentifier) {
+            super(message);
+            this.expectedTurnIdentifier = expectedTurnIdentifier;
+            this.actualTurnIdentifier = actualTurnIdentifier;
+        }
     }
 
     /**
@@ -176,13 +191,18 @@ public inherited sharing class AgentStateService {
 
             // Check for stale execution if turn identifier provided
             if (String.isNotBlank(expectedTurnIdentifier) && !expectedTurnIdentifier.equals(execution.CurrentTurnIdentifier__c)) {
-                throw new AgentStateException(
-                    'Stale execution detected. Expected turn: ' + expectedTurnIdentifier + ', Actual: ' + execution.CurrentTurnIdentifier__c
+                throw new StaleExecutionException(
+                    'Stale execution detected. Expected turn: ' + expectedTurnIdentifier + ', Actual: ' + execution.CurrentTurnIdentifier__c,
+                    expectedTurnIdentifier,
+                    execution.CurrentTurnIdentifier__c
                 );
             }
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Validated execution: ' + executionId);
             return execution;
+        } catch (AgentStateException ase) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to validate execution: ' + ase.getMessage());
+            throw ase;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to validate execution: ' + e.getMessage());
             throw new AgentStateException('Failed to validate execution: ' + e.getMessage());

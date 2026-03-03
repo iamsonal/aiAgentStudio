@@ -39,7 +39,7 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AIAgentDefinition__c.EnableDependencyValidation__c</field>
+        <field>AIAgentDefinition__c.EnableToolFlowGraph__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -129,12 +129,7 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AIAgentDefinition__c.ToolDependencyGraphWarnings__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AIAgentDefinition__c.ToolDependencyGraph__c</field>
+        <field>AIAgentDefinition__c.ToolFlowGraph__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -430,11 +425,6 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>ExecutionStep__c.IsAsyncToolExecution__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ExecutionStep__c.IsDependencyValidationFailure__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
