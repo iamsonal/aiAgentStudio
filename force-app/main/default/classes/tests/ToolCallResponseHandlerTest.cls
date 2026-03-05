@@ -822,7 +822,7 @@ private class ToolCallResponseHandlerTest {
     }
 
     /**
-     * @description Tests approval required for Function/Workflow agents updates status to awaiting action.
+     * @description Tests approval required for Function agents updates status to awaiting action.
      *              Covers lines 1042-1050 for default approval handling.
      */
     @IsTest

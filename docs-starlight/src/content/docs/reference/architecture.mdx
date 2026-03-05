@@ -13,9 +13,11 @@ AI Agent Studio is built on a modular, plugin-based architecture using Strategy,
 
 <CardGrid>
   <Card title="Orchestrators" icon="seti:settings">
-    **Four execution patterns**: Conversational (multi-turn chat), Function (single-task with sync/async routing), Workflow (multi-agent state machines), Email (thread processing with auto-reply).
-    
+    **Three agent types**: Conversational (multi-turn chat), Function (single-task with sync/async routing), Email (thread processing with auto-reply).
+
     All extend `BaseAgentOrchestrator` and implement `IAgentOrchestrator` interface.
+
+    **Sequential Pipelines** are a separate standalone concept: `SequentialPipelineOrchestrator` chains multiple agents step-by-step via `PipelineDefinition__c` metadata — not an agent type, but a higher-level composition pattern.
   </Card>
   <Card title="LLM Providers" icon="seti:cloud">
     **Multi-provider support**: `OpenAIProviderAdapter` ships in core and works with OpenAI and any OpenAI-compatible API. `VertexAIProviderAdapter` for Google Vertex AI / Gemini is in addons. Implement `ILLMProviderAdapter` (extend `BaseProviderAdapter`) to add any other provider.
@@ -44,7 +46,7 @@ AI Agent Studio is built on a modular, plugin-based architecture using Strategy,
 
 2. **Orchestrator Routing**
    
-   `AgentExecutionService` routes by agent type to the appropriate orchestrator (Conversational, Function, Workflow, or Email).
+   `AgentExecutionService` routes by agent type to the appropriate orchestrator (Conversational, Function, or Email). Sequential pipelines are started separately via `SequentialPipelineOrchestrator.startPipeline()`.
 
 3. **Security Checks**
    
@@ -153,7 +155,7 @@ AI Agent Studio is built on a modular, plugin-based architecture using Strategy,
 
 Core agent configuration:
 
-**Identity & Behavior**: `AgentType__c` (Conversational/Function/Workflow/Email), `IdentityPrompt__c` and `InstructionsPrompt__c` (System prompt components), `EnableToolReasoning__c` (Require LLM to explain tool selection), `EnableParallelToolCalling__c` (Allow multiple tools per response).
+**Identity & Behavior**: `AgentType__c` (Conversational/Function/Email), `IdentityPrompt__c` and `InstructionsPrompt__c` (System prompt components), `EnableToolReasoning__c` (Require LLM to explain tool selection), `EnableParallelToolCalling__c` (Allow multiple tools per response).
 
 **Memory & Context**: `LLMConfiguration__c` (LLM provider settings lookup), `MemoryStrategy__c` (Buffer Window/Summary Buffer), `HistoryTurnLimit__c` (Number of turns to remember).
 
@@ -168,7 +170,7 @@ Core agent configuration:
 
 Tool/function definitions:
 
-**Basic Config**: `CapabilityName__c` (Tool name exposed to LLM), `Description__c` (When and how to use this tool - critical for LLM guidance), `ImplementationType__c` (Standard/Apex/Flow), `StandardActionType__c` (Maps to StandardActionHandler__mdt), `ImplementationDetail__c` (Apex class name or Flow API name).
+**Basic Config**: `CapabilityName__c` (Tool name exposed to LLM), `Description__c` (When and how to use this tool - critical for LLM guidance), `ImplementationType__c` (Standard/Apex/Flow/**Agent**), `StandardActionType__c` (Maps to StandardActionHandler__mdt), `ImplementationDetail__c` (Apex class name, Flow API name, or child agent's `DeveloperName__c` for Agent type).
 
 **Schema**: `Parameters__c` (JSON Schema for LLM defining expected arguments), `BackendConfiguration__c` (Admin config JSON passed to action implementation).
 
@@ -211,6 +213,16 @@ Detailed execution log for observability:
   <Card title="Resilient Multi-Record Processing" icon="seti:flow">
     Multi-record batch executions use a resilient dispatch pattern with priority ordering, exponential backoff, progress tracking, and automatic recovery of stalled jobs.
   </Card>
+  <Card title="Agent-as-Capability" icon="seti:git">
+    Set `AgentCapability__c.ImplementationType__c = 'Agent'` and point `ImplementationDetail__c` at a child agent's developer name. The **LLM decides** when to invoke the sub-agent as a tool — the child runs in a separate transaction and its result flows back into the parent conversation.
+
+    Always routes through `AsyncFunctionOrchestrator`. The child execution carries `TriggerSource__c = 'AgentCapability'` and a `ParentExecution__c` link.
+  </Card>
+  <Card title="Sequential Pipelines" icon="seti:flow">
+    `SequentialPipelineOrchestrator` executes a fixed sequence of agents defined in `PipelineDefinition__c` / `PipelineStep__c` metadata. Each step spawns a child agent; completion advances to the next step. Progress tracked in `PipelineRunStep__c`.
+
+    Use pipelines when the sequence is predetermined. Use Agent-as-Capability when the sub-agent invocation should be LLM-directed.
+  </Card>
   <Card title="Tool Flow Graph" icon="seti:git">
     Declarative workflow control limits the LLM to only the tools eligible at the current step — preventing out-of-order calls and enabling deterministic branching.
 
@@ -224,7 +236,7 @@ Detailed execution log for observability:
 
 <CardGrid>
   <Card title="Storyboard UI" icon="seti:graph-line">
-    `AgentStoryboardController` powers the LWC components (`agentStoryboard`, `agentExecutionView`, `workflowView`, `agentStoryboardStep`) with a visual timeline of the full execution.
+    `AgentStoryboardController` powers the LWC components (`agentStoryboard`, `agentExecutionView`, `workflowView`, `agentStoryboardStep`) with a visual timeline of the full execution, including pipeline and sub-agent hierarchies.
   </Card>
   <Card title="Execution Trace" icon="seti:log">
     `ExecutionStep__c` records capture every interaction — user input, LLM response, tool calls, tool results, and errors — with per-step token counts.

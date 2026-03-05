@@ -303,7 +303,7 @@ global inherited sharing class AgentExecutionService {
      * @description Flow-friendly request wrapper for @InvocableMethod.
      */
     global class InvocableRequest {
-        @InvocableVariable(Label='Agent Name' Description='The developer name of the AI agent to execute (e.g., Case_Processing_Workflow)' Required=true)
+        @InvocableVariable(Label='Agent Name' Description='The developer name of the AI agent to execute (e.g., Case_Triage_Agent)' Required=true)
         global String agentName;
 
         @InvocableVariable(

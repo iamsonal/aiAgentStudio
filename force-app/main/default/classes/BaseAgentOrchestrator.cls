@@ -20,7 +20,7 @@ public inherited sharing abstract class BaseAgentOrchestrator implements IAgentO
         public Integer lastTurnCount;
         public String toolCallId;
         public String toolName;
-        public String stepName; // For workflow orchestrators
+        public String stepName; // For pipeline/multi-agent orchestrators
         public String previousStatus;
         public Map<String, Object> metadata;
 
@@ -105,7 +105,7 @@ public inherited sharing abstract class BaseAgentOrchestrator implements IAgentO
             // the first updateStatus() inside executeResume() gets silently skipped for
             // ConversationalOrchestrator and EmailOrchestrator (which rely on updateStatus()
             // to stamp the new turn ID rather than doing a direct DML first like Function and
-            // Workflow orchestrators do). The enqueued follow-up job then carries the new turn
+            // Pipeline orchestrators do). The enqueued follow-up job then carries the new turn
             // ID while the DB still has the old one, causing a StaleExecutionException.
             //
             // Fix: forcibly clear both fields here so the null-branch of the turn guard
@@ -113,7 +113,7 @@ public inherited sharing abstract class BaseAgentOrchestrator implements IAgentO
             if ('Failed'.equals(execution.ExecutionStatus__c) && String.isNotBlank(execution.CurrentTurnIdentifier__c)) {
                 update new AgentExecution__c(Id = executionId, CurrentTurnIdentifier__c = null, AsyncToolTurnIdentifier__c = null);
                 // Do NOT null the in-memory execution.CurrentTurnIdentifier__c here.
-                // WorkflowOrchestrator and FunctionOrchestrator override generateResumeIdentifier()
+                // FunctionOrchestrator overrides generateResumeIdentifier()
                 // to read execution.CurrentTurnIdentifier__c and PRESERVE it as the new turn ID.
                 // Nulling it would cause them to generate a fresh UUID and break their resume logic.
                 // Only the DB record needs to be null so the turn-safe guard's null-branch fires.
@@ -360,7 +360,7 @@ public inherited sharing abstract class BaseAgentOrchestrator implements IAgentO
             if (resumePoint.resumeType == ResumeType.RETRY_FAILED_TOOL) {
                 description += '. Retrying failed tool: ' + resumePoint.toolName;
             } else if (resumePoint.resumeType == ResumeType.RETRY_STEP) {
-                description += '. Retrying workflow step: ' + resumePoint.stepName;
+                description += '. Retrying pipeline step: ' + resumePoint.stepName;
             } else {
                 description += '. Continuing with LLM call';
             }

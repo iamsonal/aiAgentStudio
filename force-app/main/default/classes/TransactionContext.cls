@@ -100,7 +100,7 @@ public inherited sharing class TransactionContext {
 
     /**
      * Sets whether a pre-existing execution record was provided at the start of this transaction.
-     * When true, indicates the execution was created in a previous transaction (workflow/bulk context).
+     * When true, indicates the execution was created in a previous transaction (pipeline/bulk context).
      * When false, indicates the execution will be created during this transaction.
      *
      * This flag is used by canContinueWithImmediateFollowUp() to ensure that newly created

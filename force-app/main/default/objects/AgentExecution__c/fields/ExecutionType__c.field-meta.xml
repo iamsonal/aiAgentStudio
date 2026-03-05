@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ExecutionType__c</fullName>
-    <description>Defines the type of agent execution: Conversational (chat), Function (one-shot task), Workflow (multi-agent orchestration).</description>
+    <description>Defines the type of agent execution: Conversational (chat), Function (one-shot task), Pipeline (sequential multi-agent orchestration), Email.</description>
     <inlineHelpText>Select the execution pattern for this agent run.</inlineHelpText>
     <label>Execution Type</label>
     <required>true</required>
@@ -23,9 +23,9 @@
                 <label>Function</label>
             </value>
             <value>
-                <fullName>Workflow</fullName>
+                <fullName>Pipeline</fullName>
                 <default>false</default>
-                <label>Workflow</label>
+                <label>Pipeline</label>
             </value>
             <value>
                 <fullName>Email</fullName>

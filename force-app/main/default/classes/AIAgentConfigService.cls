@@ -61,9 +61,6 @@ public inherited sharing class AIAgentConfigService {
         'PromptSafetyPreset__c',
         // Error handling
         'ErrorRecoveryMode__c',
-        // Workflow orchestration mode
-        'WorkflowMode__c',
-        'MaxSupervisorRounds__c',
         // Email agent configuration
         'EmailReplyMode__c',
         'EmailParentObject__c',

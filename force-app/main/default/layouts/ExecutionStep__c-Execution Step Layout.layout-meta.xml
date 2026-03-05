@@ -82,10 +82,6 @@
             </layoutItems>
             <layoutItems>
                 <behavior>Readonly</behavior>
-                <field>IsDependencyValidationFailure__c</field>
-            </layoutItems>
-            <layoutItems>
-                <behavior>Readonly</behavior>
                 <field>IsAsyncToolExecution__c</field>
             </layoutItems>
         </layoutColumns>

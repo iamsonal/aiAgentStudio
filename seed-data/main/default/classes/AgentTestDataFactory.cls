@@ -7,10 +7,6 @@
  * 2. Function Agents:
  *    - Case Summarizer (tool-terminating: 0 tools, pure LLM text generation)
  *    - Lead Qualifier (tool-terminating: 1 tool, LLM as router)
- *    - Opportunity Assistant (iterative: 2+ tools, multi-turn agentic)
- * 3. Workflow Agent - Case Processing Workflow (orchestrates 2 Function agents with max 3 capabilities each):
- *    - Step 1: Case Analysis Agent (3 capabilities: get_account, get_orders, update_case_priority)
- *    - Step 2: Case Resolution & Notification Agent (3 capabilities: search_knowledge, create_task, post_to_chatter)
  *
  * **Prerequisites:**
  * 1. Named Credential 'OpenAI_API' must exist
@@ -80,7 +76,6 @@ public with sharing class AgentTestDataFactory {
         //        delete [SELECT Id FROM AgentDecisionStep__c];
         delete [SELECT Id FROM ExecutionStep__c];
         delete [SELECT Id FROM AgentExecution__c];
-        delete [SELECT Id FROM AgentWorkflowStep__c];
         delete [SELECT Id FROM AgentCapability__c];
         delete [SELECT Id FROM AgentContextConfig__c];
         delete [SELECT Id FROM AIAgentDefinition__c];

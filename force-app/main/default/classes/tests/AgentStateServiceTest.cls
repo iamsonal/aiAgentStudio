@@ -145,6 +145,54 @@ private class AgentStateServiceTest {
     }
 
     @IsTest
+    static void testSyncFinalizeExecution_RecoversStaleTurn() {
+        AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
+        update new AgentExecution__c(
+            Id = execution.Id,
+            CurrentTurnIdentifier__c = 'old-turn-001',
+            ExecutionStatus__c = 'Processing',
+            ProcessingStatus__c = AIAgentConstants.STATUS_PROCESSING
+        );
+
+        AgentStateService svc = new AgentStateService();
+        svc.syncFinalizeExecution(execution.Id, 'new-turn-001', AIAgentConstants.STATUS_IDLE, '[Test] ');
+
+        AgentExecution__c updated = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, CurrentTurnIdentifier__c, EndTime__c
+            FROM AgentExecution__c
+            WHERE Id = :execution.Id
+        ];
+        System.assertEquals('Completed', updated.ExecutionStatus__c, 'syncFinalizeExecution should set status to Completed');
+        System.assertEquals(AIAgentConstants.STATUS_IDLE, updated.ProcessingStatus__c, 'syncFinalizeExecution should set processing status to Idle');
+        System.assertEquals('new-turn-001', updated.CurrentTurnIdentifier__c, 'syncFinalizeExecution should stamp the new turn identifier');
+        System.assertNotEquals(null, updated.EndTime__c, 'syncFinalizeExecution should set EndTime for terminal state');
+    }
+
+    @IsTest
+    static void testSyncFinalizeExecution_NoopWhenTurnAlreadyStamped() {
+        AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
+        update new AgentExecution__c(
+            Id = execution.Id,
+            CurrentTurnIdentifier__c = 'already-stamped-001',
+            ExecutionStatus__c = 'Completed',
+            ProcessingStatus__c = AIAgentConstants.STATUS_IDLE
+        );
+
+        AgentStateService svc = new AgentStateService();
+        svc.syncFinalizeExecution(execution.Id, 'already-stamped-001', AIAgentConstants.STATUS_IDLE, '[Test] ');
+
+        // No DML should have occurred - verify state is unchanged
+        AgentExecution__c unchanged = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, CurrentTurnIdentifier__c
+            FROM AgentExecution__c
+            WHERE Id = :execution.Id
+        ];
+        System.assertEquals('Completed', unchanged.ExecutionStatus__c, 'No-op: status should remain Completed');
+        System.assertEquals(AIAgentConstants.STATUS_IDLE, unchanged.ProcessingStatus__c, 'No-op: processing status should remain Idle');
+        System.assertEquals('already-stamped-001', unchanged.CurrentTurnIdentifier__c, 'No-op: turn identifier should remain unchanged');
+    }
+
+    @IsTest
     static void testIsContextTrackingEnabled_ByExecutionType() {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE DeveloperName__c LIKE 'StateSvc_Agent%' LIMIT 1];
 

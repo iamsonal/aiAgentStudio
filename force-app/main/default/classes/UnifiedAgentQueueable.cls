@@ -14,8 +14,6 @@ public without sharing class UnifiedAgentQueueable implements Queueable, Databas
     private final Map<String, Object> payload;
 
     public static final String JOB_TYPE_FUNCTION = 'Function';
-    public static final String JOB_TYPE_WORKFLOW_CHILD = 'WorkflowChild';
-    public static final String JOB_TYPE_WORKFLOW_SUPERVISOR = 'WorkflowSupervisor';
     public static final String JOB_TYPE_CONVERSATIONAL = 'Conversational';
     public static final String JOB_TYPE_EMAIL = 'Email';
     public UnifiedAgentQueueable(String jobType, Map<String, Object> payload) {
@@ -27,13 +25,7 @@ public without sharing class UnifiedAgentQueueable implements Queueable, Databas
             throw new UnifiedQueueableException('Payload is required for UnifiedAgentQueueable');
         }
 
-        Set<String> validJobTypes = new Set<String>{
-            JOB_TYPE_FUNCTION,
-            JOB_TYPE_WORKFLOW_CHILD,
-            JOB_TYPE_WORKFLOW_SUPERVISOR,
-            JOB_TYPE_CONVERSATIONAL,
-            JOB_TYPE_EMAIL
-        };
+        Set<String> validJobTypes = new Set<String>{ JOB_TYPE_FUNCTION, JOB_TYPE_CONVERSATIONAL, JOB_TYPE_EMAIL };
         if (!validJobTypes.contains(jobType)) {
             throw new UnifiedQueueableException('Invalid job type: ' + jobType + '. Must be one of: ' + String.join(new List<String>(validJobTypes), ', '));
         }
@@ -70,12 +62,7 @@ public without sharing class UnifiedAgentQueueable implements Queueable, Databas
             Id executionIdToUpdate = null;
             String errorMessage = e.getMessage();
 
-            if (jobType == JOB_TYPE_WORKFLOW_CHILD) {
-                executionIdToUpdate = (Id) payload.get('childExecutionId');
-            } else if (jobType == JOB_TYPE_WORKFLOW_SUPERVISOR) {
-                // Supervisor failures fail the parent execution
-                executionIdToUpdate = (Id) payload.get('parentExecutionId');
-            } else if (jobType == JOB_TYPE_CONVERSATIONAL || jobType == JOB_TYPE_EMAIL) {
+            if (jobType == JOB_TYPE_CONVERSATIONAL || jobType == JOB_TYPE_EMAIL) {
                 executionIdToUpdate = (Id) payload.get('executionId');
             }
 
@@ -121,29 +108,6 @@ public without sharing class UnifiedAgentQueueable implements Queueable, Databas
 
         if (jobType == JOB_TYPE_CONVERSATIONAL || jobType == JOB_TYPE_EMAIL) {
             agentDefinitionId = (Id) payload.get('agentDefinitionId');
-        } else if (jobType == JOB_TYPE_WORKFLOW_CHILD || jobType == JOB_TYPE_WORKFLOW_SUPERVISOR) {
-            // For supervisor jobs, agentDefinitionId may be directly in the payload
-            if (payload.containsKey('agentDefinitionId') && payload.get('agentDefinitionId') != null) {
-                agentDefinitionId = (Id) payload.get('agentDefinitionId');
-            } else {
-                Id parentExecutionId = (Id) payload.get('parentExecutionId');
-                if (parentExecutionId == null) {
-                    throw new UnifiedQueueableException('parentExecutionId is required for ' + jobType + ' job type');
-                }
-
-                List<AgentExecution__c> parentExecs = [
-                    SELECT AIAgentDefinition__c
-                    FROM AgentExecution__c
-                    WHERE Id = :parentExecutionId
-                    LIMIT 1
-                ];
-
-                if (parentExecs.isEmpty()) {
-                    throw new UnifiedQueueableException('Parent execution not found: ' + parentExecutionId);
-                }
-
-                agentDefinitionId = parentExecs[0].AIAgentDefinition__c;
-            }
         } else if (jobType == JOB_TYPE_FUNCTION) {
             String agentDeveloperName = (String) payload.get('agentDeveloperName');
             if (String.isBlank(agentDeveloperName)) {

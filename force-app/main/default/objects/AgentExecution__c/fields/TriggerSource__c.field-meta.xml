@@ -43,9 +43,9 @@
                 <label>Apex</label>
             </value>
             <value>
-                <fullName>Workflow</fullName>
+                <fullName>Pipeline</fullName>
                 <default>false</default>
-                <label>Workflow</label>
+                <label>Pipeline</label>
             </value>
             <value>
                 <fullName>Test</fullName>
@@ -61,6 +61,11 @@
                 <fullName>Batch</fullName>
                 <default>false</default>
                 <label>Batch</label>
+            </value>
+            <value>
+                <fullName>AgentCapability</fullName>
+                <default>false</default>
+                <label>Agent Capability</label>
             </value>
         </valueSetDefinition>
     </valueSet>

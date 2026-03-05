@@ -39,7 +39,12 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
 
                 if (shouldExecuteSynchronously(payload, logPrefix)) {
                     System.debug(LoggingLevel.INFO, logPrefix + 'Executing initial LLM call synchronously (callout-safe)');
-                    return executeSynchronously(executionId, payload, logPrefix);
+                    AgentExecutionService.ExecutionResult syncResult = executeSynchronously(executionId, payload, logPrefix);
+                    // Sync path cannot pre-stamp the turn identifier before callouts (Apex DML-before-callout restriction).
+                    // completeTurnSuccessfully() inside may have been silently skipped by the stale check.
+                    // Finalize the execution status now that all callouts are complete.
+                    new AgentStateService().syncFinalizeExecution(executionId, payload.turnIdentifier, syncResult.status, logPrefix);
+                    return syncResult;
                 }
 
                 AgentStateService agentStateSvc = new AgentStateService();
@@ -62,7 +67,9 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
                     executionLabel,
                     payload.sourceRecordId,
                     payload.userId,
-                    payload.serviceUserId
+                    payload.serviceUserId,
+                    null, // parentExecutionId
+                    payload.turnIdentifier // pre-set so async updateStatus(Processing) passes the stale check
                 );
                 logPrefix = LOG_PREFIX + '[Agent:' + agentDeveloperName + '][Exec:' + executionId + '] ';
             }
@@ -114,10 +121,115 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
         return Limits.getDMLStatements() == 0 && Limits.getDMLRows() == 0 && Limits.getEmailInvocations() == 0;
     }
 
-    // CAPABILITY QUERY METHODS
+    // CHILD AGENT COMPLETION (agent-as-capability)
 
-    // Note: ConversationalOrchestrator does not override onChildComplete()
-    // because it uses ConversationalQueueable/ProcessLLMMessage events instead of callbacks
+    /**
+     * @description Called by AgentExecutionTriggerHandler when a child agent execution completes.
+     * Maps the child's result back to the original tool call, creates a ToolResult execution step,
+     * and delegates to OrchestrationService.onAsyncToolCompleted() for counter management and
+     * follow-up LLM invocation.
+     */
+    public override void onChildComplete(Id executionId, Map<String, Object> asyncPayload) {
+        String logPrefix = '[ConversationalOrchestrator][onChildComplete] ';
+
+        Id childExecutionId = (Id) asyncPayload.get('childExecutionId');
+        Boolean success = (Boolean) asyncPayload.get('success');
+        String response = (String) asyncPayload.get('response');
+        String errorMessage = (String) asyncPayload.get('errorMessage');
+        String completedAgent = (String) asyncPayload.get('completedAgent');
+
+        System.debug(
+            LoggingLevel.INFO,
+            logPrefix +
+                'Child agent completed: ' +
+                completedAgent +
+                ', Success: ' +
+                success +
+                ', ChildExecId: ' +
+                childExecutionId +
+                ', ParentExecId: ' +
+                executionId
+        );
+
+        String toolCallId = null;
+        String toolName = null;
+        try {
+            AgentExecution__c childExec = [
+                SELECT TriggerPayload__c
+                FROM AgentExecution__c
+                WHERE Id = :childExecutionId
+                LIMIT 1
+            ];
+
+            if (String.isNotBlank(childExec.TriggerPayload__c)) {
+                Map<String, Object> triggerData = (Map<String, Object>) JSON.deserializeUntyped(childExec.TriggerPayload__c);
+                toolCallId = (String) triggerData.get('toolCallId');
+                toolName = (String) triggerData.get('toolName');
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Could not retrieve toolCallId from child execution: ' + e.getMessage());
+        }
+
+        if (String.isBlank(toolCallId)) {
+            toolCallId = String.valueOf(childExecutionId);
+        }
+        if (String.isBlank(toolName)) {
+            toolName = completedAgent;
+        }
+
+        AgentExecution__c parentExec = [
+            SELECT CurrentTurnIdentifier__c
+            FROM AgentExecution__c
+            WHERE Id = :executionId
+            LIMIT 1
+        ];
+
+        String turnIdentifier = parentExec.CurrentTurnIdentifier__c;
+        Integer currentTurnCount = 0;
+
+        String resultContent;
+        Boolean isError = false;
+        if (success) {
+            resultContent = JSON.serialize(
+                new Map<String, Object>{
+                    'success' => true,
+                    'agent' => completedAgent,
+                    'result' => String.isNotBlank(response) ? response : 'Agent completed successfully.'
+                }
+            );
+        } else {
+            isError = true;
+            resultContent = JSON.serialize(
+                new Map<String, Object>{
+                    'success' => false,
+                    'agent' => completedAgent,
+                    'error' => String.isNotBlank(errorMessage) ? errorMessage : 'Agent execution failed.',
+                    'code' => asyncPayload.get('errorCode')
+                }
+            );
+        }
+
+        try {
+            ExecutionStepService executionStepService = new ExecutionStepService();
+            executionStepService.createToolResultStep(
+                executionId,
+                toolCallId,
+                toolName,
+                resultContent,
+                turnIdentifier,
+                currentTurnCount,
+                0L,
+                true,
+                null,
+                isError
+            );
+            System.debug(LoggingLevel.INFO, logPrefix + 'Created ToolResult step for agent capability: ' + toolName);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create ToolResult step: ' + e.getMessage());
+        }
+
+        OrchestrationService.onAsyncToolCompleted(executionId, turnIdentifier, currentTurnCount, toolCallId, logPrefix);
+    }
 
     // LLM CUSTOMIZATION HOOKS (override from BaseAgentOrchestrator)
 

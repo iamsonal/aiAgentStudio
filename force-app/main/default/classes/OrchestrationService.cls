@@ -241,21 +241,9 @@ public inherited sharing class OrchestrationService {
             return true;
         }
 
-        // Non-transient errors cannot resolve on retry — fail immediately regardless of retry budget
-        if (!ActionOutcome.isTransient(toolOutcome.errorCode)) {
-            System.debug(
-                LoggingLevel.WARN,
-                logPrefix +
-                    'NON-TRANSIENT error: halting immediately. Tool: "' +
-                    capability.CapabilityName__c +
-                    '", ErrorCode: ' +
-                    toolOutcome.errorCode +
-                    ' (retrying would not resolve this error)'
-            );
-            return true;
-        }
-
-        // Autonomous mode: global ceiling prevents infinite loops on transient errors
+        // Safety ceiling: prevents infinite retry loops regardless of error transience
+        // Non-transient errors (RECORD_NOT_FOUND, INPUT_VALIDATION, etc.) also reach this check —
+        // they won't be retried by a well-behaved LLM, but the ceiling still protects against edge cases.
         Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
         Integer failureCount = (preloadedFailureCount >= 0)
             ? preloadedFailureCount

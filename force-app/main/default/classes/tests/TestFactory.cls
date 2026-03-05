@@ -194,95 +194,6 @@ public class TestFactory {
     }
 
     // ===================================================================================
-    // FRAMEWORK OBJECTS - WORKFLOW SETUP
-    // ===================================================================================
-
-    public static WorkflowSetupBuilder createWorkflowSetup() {
-        return new WorkflowSetupBuilder();
-    }
-
-    public class WorkflowSetupBuilder {
-        private WorkflowSetup setup = new WorkflowSetup();
-        private Integer stepCount = 2;
-        private Boolean createExecution = false;
-
-        public WorkflowSetupBuilder() {
-            setup.llmConfig = newLLMConfiguration().build();
-            setup.workflowAgent = newAgentDefinition().withType('Workflow').build();
-            setup.childAgents = new List<AIAgentDefinition__c>();
-            setup.steps = new List<AgentWorkflowStep__c>();
-        }
-
-        public WorkflowSetupBuilder withLLM(LLMConfiguration__c llm) {
-            setup.llmConfig = llm;
-            return this;
-        }
-
-        public WorkflowSetupBuilder withWorkflowAgent(AIAgentDefinition__c workflowAgent) {
-            setup.workflowAgent = workflowAgent;
-            return this;
-        }
-
-        public WorkflowSetupBuilder withStepCount(Integer count) {
-            stepCount = count;
-            return this;
-        }
-
-        public WorkflowSetupBuilder withChildAgent(AIAgentDefinition__c childAgent) {
-            setup.childAgents.add(childAgent);
-            return this;
-        }
-
-        public WorkflowSetupBuilder withExecution() {
-            createExecution = true;
-            return this;
-        }
-
-        public WorkflowSetup save() {
-            insert setup.llmConfig;
-
-            setup.workflowAgent.LLMConfiguration__c = setup.llmConfig.Id;
-            insert setup.workflowAgent;
-
-            if (setup.childAgents.isEmpty()) {
-                for (Integer i = 1; i <= stepCount; i++) {
-                    AIAgentDefinition__c childAgent = newAgentDefinition()
-                        .withName('Workflow_Step_' + i + '_' + generateRandomString(6))
-                        .withType('Function')
-                        .withLLM(setup.llmConfig.Id)
-                        .build();
-                    setup.childAgents.add(childAgent);
-                }
-            }
-
-            insert setup.childAgents;
-
-            Integer order = 1;
-            for (AIAgentDefinition__c child : setup.childAgents) {
-                setup.steps.add(
-                    new AgentWorkflowStep__c(WorkflowAgent__c = setup.workflowAgent.Id, ChildAgent__c = child.Id, ExecutionOrder__c = order, IsActive__c = true)
-                );
-                order++;
-            }
-            if (!setup.steps.isEmpty()) {
-                insert setup.steps;
-            }
-
-            if (createExecution) {
-                setup.execution = new AgentExecution__c(
-                    User__c = UserInfo.getUserId(),
-                    AIAgentDefinition__c = setup.workflowAgent.Id,
-                    ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
-                    ExecutionType__c = 'Workflow'
-                );
-                insert setup.execution;
-            }
-
-            return setup;
-        }
-    }
-
-    // ===================================================================================
     // LLM CONFIGURATION BUILDERS
     // ===================================================================================
 
@@ -395,16 +306,6 @@ public class TestFactory {
 
         public AgentDefinitionBuilder withAuditLevel(String auditLevel) {
             record.AuditLevel__c = auditLevel;
-            return this;
-        }
-
-        public AgentDefinitionBuilder withWorkflowMode(String mode) {
-            record.WorkflowMode__c = mode;
-            return this;
-        }
-
-        public AgentDefinitionBuilder withMaxSupervisorRounds(Integer rounds) {
-            record.MaxSupervisorRounds__c = rounds;
             return this;
         }
 
@@ -550,6 +451,17 @@ public class TestFactory {
         public CapabilityBuilder forCustomApex(String className) {
             record.ImplementationType__c = 'Apex';
             record.ImplementationDetail__c = className;
+            record.Parameters__c = '{"type":"object","properties":{}}';
+            return this;
+        }
+
+        public CapabilityBuilder forChildAgent(String childAgentDeveloperName) {
+            record.CapabilityName__c = 'invoke_' + childAgentDeveloperName.toLowerCase();
+            record.Description__c = 'Delegates execution to child agent: ' + childAgentDeveloperName;
+            record.ImplementationType__c = 'Agent';
+            record.ImplementationDetail__c = childAgentDeveloperName;
+            record.Parameters__c = '{"type":"object","properties":{"request":{"type":"string","description":"Instructions for the child agent"}}}';
+            record.RunAsynchronously__c = false;
             return this;
         }
 
@@ -1219,7 +1131,7 @@ public class TestFactory {
     /**
      * @description Generates a random alphanumeric string
      */
-    private static String generateRandomString(Integer length) {
+    public static String generateRandomString(Integer length) {
         String chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
         String result = '';
         for (Integer i = 0; i < length; i++) {
@@ -1285,13 +1197,5 @@ public class TestFactory {
         public AIAgentDefinition__c agentDefinition { get; set; }
         public AgentExecution__c execution { get; set; }
         public List<AgentCapability__c> capabilities { get; set; }
-    }
-
-    public class WorkflowSetup {
-        public LLMConfiguration__c llmConfig { get; set; }
-        public AIAgentDefinition__c workflowAgent { get; set; }
-        public AgentExecution__c execution { get; set; }
-        public List<AIAgentDefinition__c> childAgents { get; set; }
-        public List<AgentWorkflowStep__c> steps { get; set; }
     }
 }

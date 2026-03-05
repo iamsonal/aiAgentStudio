@@ -48,7 +48,6 @@
     <testClassName>TestFactory</testClassName>
     <testClassName>ThreatAssessmentTest</testClassName>
     <testClassName>ToolCallResponseHandlerTest</testClassName>
-    <testClassName>ToolFlowGenerationServiceTest</testClassName>
     <testClassName>ToolFlowGraphServiceTest</testClassName>
     <testClassName>TransactionContextTest</testClassName>
     <testClassName>TypeCoercionServiceTest</testClassName>

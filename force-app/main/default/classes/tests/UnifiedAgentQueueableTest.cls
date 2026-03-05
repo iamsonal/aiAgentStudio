@@ -123,39 +123,16 @@ private class UnifiedAgentQueueableTest {
     }
 
     @IsTest
-    static void testWorkflowChildJobType_MissingParentExecution_FailsChild() {
-        AIAgentDefinition__c agentDef = [
-            SELECT Id
-            FROM AIAgentDefinition__c
-            WHERE DeveloperName__c LIKE 'Queueable_Convo_Agent%'
-            LIMIT 1
-        ];
-
-        AgentExecution__c childExecution = TestFactory.newExecution()
-            .withAgent(agentDef.Id)
-            .withUser(UserInfo.getUserId())
-            .withExecutionType('Workflow')
-            .withStatus('Processing')
-            .withProcessingStatus(AIAgentConstants.STATUS_PROCESSING)
-            .withTurnIdentifier('turn-queueable-wf-001')
-            .save();
-
-        Map<String, Object> payload = new Map<String, Object>{
-            'childExecutionId' => childExecution.Id
-            // parentExecutionId intentionally missing
-        };
+    static void testInvalidJobType_ThrowsException() {
+        Map<String, Object> payload = new Map<String, Object>{ 'executionId' => null };
 
         Test.startTest();
-        System.enqueueJob(new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_WORKFLOW_CHILD, payload));
+        try {
+            new UnifiedAgentQueueable('InvalidJobType', payload);
+            System.assert(false, 'Should have thrown exception for invalid job type');
+        } catch (UnifiedAgentQueueable.UnifiedQueueableException e) {
+            System.assert(e.getMessage().contains('Invalid job type'), 'Error should mention invalid job type');
+        }
         Test.stopTest();
-
-        AgentExecution__c updated = [
-            SELECT ExecutionStatus__c, ProcessingStatus__c, ErrorMessage__c
-            FROM AgentExecution__c
-            WHERE Id = :childExecution.Id
-        ];
-        System.assertEquals('Failed', updated.ExecutionStatus__c, 'Missing parent execution should fail child');
-        System.assertEquals(AIAgentConstants.STATUS_IDLE, updated.ProcessingStatus__c, 'Processing status should be Idle on failure');
-        System.assert(String.isNotBlank(updated.ErrorMessage__c), 'Error message should be set');
     }
 }

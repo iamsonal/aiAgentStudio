@@ -189,6 +189,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
             List<ToolCallRequest> confirmationTools = toolGroups.get('confirmation');
             List<ToolCallRequest> syncTools = toolGroups.get('sync');
             List<ToolCallRequest> asyncTools = toolGroups.get('async');
+            List<ToolCallRequest> agentTools = toolGroups.get('agent');
 
             System.debug(
                 LoggingLevel.INFO,
@@ -200,7 +201,9 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                     ', Sync: ' +
                     syncTools.size() +
                     ', Async: ' +
-                    asyncTools.size()
+                    asyncTools.size() +
+                    ', Agent: ' +
+                    agentTools.size()
             );
 
             Id savedUserMessageId = null;
@@ -258,6 +261,11 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                 queueAsyncTools(context, asyncTools, decisionLogger, logPrefix);
             }
 
+            // Queue agent capabilities as child executions (async by nature)
+            if (!agentTools.isEmpty()) {
+                queueAgentCapabilities(context, agentTools, decisionLogger, logPrefix);
+            }
+
             // Now handle approval tools - pause execution until approved
             // The sync tool results are already persisted in ExecutionStep__c records
             // and will be retrieved when HITL resumes to aggregate all results for LLM
@@ -274,10 +282,11 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                 );
             }
 
+            Integer pendingAsyncCount = asyncTools.size() + agentTools.size();
             return determineNextOrchestrationStep(
                 context,
                 syncResults,
-                asyncTools,
+                pendingAsyncCount,
                 savedAssistantMessageId,
                 assistantData != null ? assistantData.content : null,
                 logPrefix
@@ -421,6 +430,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                 'asyncTools' => groups.get('async').size(),
                 'approvalTools' => groups.get('approval').size(),
                 'confirmationTools' => groups.get('confirmation').size(),
+                'agentTools' => groups.get('agent').size(),
                 'tools' => new List<Map<String, Object>>()
             };
 
@@ -545,10 +555,18 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
             'approval' => new List<ToolCallRequest>(),
             'confirmation' => new List<ToolCallRequest>(),
             'sync' => new List<ToolCallRequest>(),
-            'async' => new List<ToolCallRequest>()
+            'async' => new List<ToolCallRequest>(),
+            'agent' => new List<ToolCallRequest>()
         };
 
         for (ToolCallRequest tool : toolRequests) {
+            // Agent capabilities always route to the 'agent' group regardless of HITL/async settings.
+            // They follow the pipeline child execution pattern, not the standard tool execution path.
+            if (tool.capability != null && 'Agent'.equalsIgnoreCase(tool.capability.ImplementationType__c)) {
+                groups.get('agent').add(tool);
+                continue;
+            }
+
             // Check for ConditionalApproval mode first - LLM decides if approval is needed
             if (tool.hitlMode == HITLGatewayService.HITL_MODE_CONDITIONAL_APPROVAL) {
                 Boolean requiresApproval = checkLLMApprovalRequest(tool);
@@ -1033,7 +1051,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         }
 
         // Default behavior for orchestrators that don't override handleToolCompletion
-        // (Function/Workflow agents): just pause execution until approval resolved
+        // (Function agents): just pause execution until approval resolved
         context.agentStateSvc.updateStatus(
             context.executionId,
             'Awaiting Action',
@@ -1393,6 +1411,164 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         }
     }
 
+    /**
+     * Queues agent capabilities as child AgentExecution__c records.
+     * Each agent tool call spawns an independent child execution linked to the parent via
+     * ParentExecution__c, mirroring the pipeline child execution pattern but initiated by
+     * the LLM's tool call rather than a pipeline step definition.
+     *
+     * The toolCallId is stored in TriggerPayload__c on the child execution so that when the
+     * child completes, the parent orchestrator can map the result back to the original tool call.
+     */
+    private void queueAgentCapabilities(
+        OrchestrationContext context,
+        List<ToolCallRequest> agentTools,
+        IDecisionStepLogger.ILogger decisionLogger,
+        String logPrefix
+    ) {
+        System.debug(LoggingLevel.INFO, logPrefix + 'Queuing ' + agentTools.size() + ' agent capability tool(s) as child executions');
+
+        Integer successfullyQueued = 0;
+        List<String> failedTools = new List<String>();
+        List<String> failureReasons = new List<String>();
+
+        // Pause for async processing: agent capabilities are tracked alongside standard async tools
+        context.agentStateSvc.pauseForAsyncActionWithTracking(context.executionId, context.turnIdentifier, agentTools.size(), 'Agent Capabilities', logPrefix);
+
+        for (ToolCallRequest toolRequest : agentTools) {
+            try {
+                String childAgentName = toolRequest.capability.ImplementationDetail__c;
+                if (String.isBlank(childAgentName)) {
+                    throw new ToolProcessingException(
+                        'Agent capability "' + toolRequest.toolName + '" is missing ImplementationDetail__c (child agent DeveloperName)'
+                    );
+                }
+
+                AIAgentDefinition__c childAgentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(childAgentName);
+                if (childAgentDef == null) {
+                    throw new ToolProcessingException('Child agent definition not found: ' + childAgentName);
+                }
+
+                String baseTurn = String.isNotBlank(context.turnIdentifier)
+                    ? context.turnIdentifier
+                    : EncodingUtil.convertToHex(Crypto.generateAesKey(128)).left(32);
+                String childTurn = baseTurn + '-agent-' + toolRequest.toolCallId;
+
+                // Store toolCallId in TriggerPayload so onChildComplete() can map back to the tool call
+                String triggerPayload = JSON.serialize(
+                    new Map<String, String>{
+                        'toolCallId' => toolRequest.toolCallId,
+                        'toolName' => toolRequest.toolName,
+                        'parentExecutionId' => context.executionId
+                    }
+                );
+
+                AgentStateService agentStateSvc = new AgentStateService();
+                Id childExecutionId = agentStateSvc.createExecution(
+                    childAgentDef.AgentType__c,
+                    childAgentDef.Id,
+                    'AgentCapability',
+                    triggerPayload,
+                    context.currentPageRecordId,
+                    context.originalUserId,
+                    null,
+                    context.executionId,
+                    childTurn
+                );
+
+                // Build payload for the child agent worker
+                AgentExecutionService.ExecutionPayload childPayload = new AgentExecutionService.ExecutionPayload();
+                childPayload.userId = context.originalUserId;
+                childPayload.sourceRecordId = context.currentPageRecordId;
+                childPayload.turnIdentifier = childTurn;
+                childPayload.triggerSource = 'AgentCapability';
+                childPayload.existingExecutionId = childExecutionId;
+                childPayload.userMessage = toolRequest.toolArguments;
+
+                System.enqueueJob(new AgentExecutionWorker(childAgentName, childPayload));
+
+                successfullyQueued++;
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix +
+                        'Queued agent capability "' +
+                        toolRequest.toolName +
+                        '" as child execution ' +
+                        childExecutionId +
+                        ' (child agent: ' +
+                        childAgentName +
+                        ')'
+                );
+            } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to queue agent capability ' + toolRequest.toolName + ': ' + e.getMessage());
+                failedTools.add(toolRequest.toolName);
+
+                String actualErrorMessage = e.getMessage();
+                if (e.getCause() != null && String.isNotBlank(e.getCause().getMessage())) {
+                    actualErrorMessage = e.getCause().getMessage();
+                }
+                failureReasons.add(actualErrorMessage);
+
+                // Decrement the counter for this failed queue to prevent execution hang
+                try {
+                    OrchestrationService.decrementAsyncToolCounter(
+                        context.executionId,
+                        context.turnIdentifier,
+                        context.currentTurnCount,
+                        toolRequest.toolCallId,
+                        logPrefix + '[AgentQueueFailureRecovery] '
+                    );
+                } catch (Exception decrementEx) {
+                    System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to decrement counter after agent queue failure: ' + decrementEx.getMessage());
+                }
+
+                // Create a failure tool result so LLM knows this agent tool failed
+                try {
+                    ExecutionStepService executionStepService = new ExecutionStepService();
+                    String failureResult = JSON.serialize(
+                        new Map<String, Object>{
+                            'success' => false,
+                            'code' => AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                            'error' => 'Failed to spawn child agent execution: ' + e.getMessage(),
+                            'retryable' => false
+                        }
+                    );
+                    executionStepService.createToolResultStep(
+                        context.executionId,
+                        toolRequest.toolCallId,
+                        toolRequest.toolName,
+                        failureResult,
+                        context.turnIdentifier,
+                        context.currentTurnCount,
+                        0L,
+                        true,
+                        toolRequest.capability.Id,
+                        true
+                    );
+                } catch (Exception stepEx) {
+                    System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create error step for failed agent queue: ' + stepEx.getMessage());
+                }
+            }
+        }
+
+        if (!failedTools.isEmpty()) {
+            System.debug(
+                LoggingLevel.WARN,
+                logPrefix +
+                    'Agent capability queuing completed with failures. Queued: ' +
+                    successfullyQueued +
+                    '/' +
+                    agentTools.size() +
+                    '. Failed: ' +
+                    String.join(failedTools, ', ')
+            );
+
+            if (decisionLogger != null) {
+                decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ failedTools, failureReasons });
+            }
+        }
+    }
+
     // ORCHESTRATION FLOW
 
     /**
@@ -1401,14 +1577,14 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
     private String determineNextOrchestrationStep(
         OrchestrationContext context,
         List<ToolExecutionResult> syncResults,
-        List<ToolCallRequest> asyncTools,
+        Integer pendingAsyncCount,
         Id savedAssistantMessageId,
         String assistantMessageContent,
         String logPrefix
     ) {
-        // If there are async tools, wait for them to complete
-        if (!asyncTools.isEmpty()) {
-            System.debug(LoggingLevel.INFO, logPrefix + 'Async tools queued, returning QUEUED_ACTION outcome');
+        // If there are async tools or agent capabilities in flight, wait for them to complete
+        if (pendingAsyncCount > 0) {
+            System.debug(LoggingLevel.INFO, logPrefix + pendingAsyncCount + ' async operations queued, returning QUEUED_ACTION outcome');
             publishTransientAssistantMessage(context.executionId, savedAssistantMessageId, assistantMessageContent, logPrefix);
             return OrchestrationService.OUTCOME_QUEUED_ACTION;
         }
@@ -1578,7 +1754,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         System.debug(LoggingLevel.INFO, logPrefix + 'Multi-LLM optimization not applicable, queueing follow-up');
 
         // Commit page context to ledger (Conversational agents only)
-        // Skip for Function/Workflow agents since:
+        // Skip for Function agents since:
         // 1. Context was already resolved upfront from the recordId
         // 2. Function agents don't need multi-turn context tracking
         // 3. Reduces unnecessary DML for stateless execution patterns

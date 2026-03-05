@@ -23,7 +23,7 @@ private class ToolFlowGraphServiceTest {
     }
 
     private static Map<String, Object> rule(Object fromVal, String ruleType, List<String> toVal) {
-        return new Map<String, Object>{ 'from' => fromVal, 'type' => ruleType, 'to' => toVal };
+        return new Map<String, Object>{ 'fromTools' => fromVal, 'type' => ruleType, 'toTools' => toVal };
     }
 
     // ── parseGraph ──────────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ private class ToolFlowGraphServiceTest {
 
     @IsTest
     static void testParseGraph_FromAsString_NormalisedToList() {
-        String json = '{"version":"3.0","entry":["tool_a"],"flow":[{"from":"tool_a","type":"sequential","to":["tool_b"]}]}';
+        String json = '{"version":"3.0","entry":["tool_a"],"flow":[{"fromTools":"tool_a","type":"sequential","toTools":["tool_b"]}]}';
         ToolFlowGraphService.FlowGraph g = ToolFlowGraphService.parseGraph(json);
         System.assertEquals(1, g.flow.size());
         System.assertEquals(1, g.flow[0].fromTools.size());
@@ -46,7 +46,7 @@ private class ToolFlowGraphServiceTest {
 
     @IsTest
     static void testParseGraph_FromAsArray_JoinGate() {
-        String json = '{"version":"3.0","entry":["a","b"],"flow":[{"from":["a","b"],"type":"sequential","to":["c"]}]}';
+        String json = '{"version":"3.0","entry":["a","b"],"flow":[{"fromTools":["a","b"],"type":"sequential","toTools":["c"]}]}';
         ToolFlowGraphService.FlowGraph g = ToolFlowGraphService.parseGraph(json);
         System.assertEquals(1, g.flow.size());
         System.assert(g.flow[0].isJoinGate(), 'Array from with 2 items should be a join gate');

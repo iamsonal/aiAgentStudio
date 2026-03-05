@@ -1,5 +1,5 @@
 /**
- * @description Consolidated context provider for Case Processing Workflow agents.
+ * @description Consolidated context provider for Case Processing agents.
  *
  * Provides all necessary context for case triage, assignment, and escalation in a single provider:
  * - Case: Full case details with related history, comments, emails
@@ -8,7 +8,7 @@
  * - Entitlement: Active support contracts and SLA tiers
  *
  * This replaces the need for separate "enrichment" agents or multiple context providers.
- * All child agents in the workflow receive this consolidated context automatically.
+ * All child agents in the pipeline receive this consolidated context automatically.
  *
  * Example Output Structure (formatted as JSON):
  * {

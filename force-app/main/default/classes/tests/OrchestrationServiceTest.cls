@@ -414,41 +414,50 @@ private class OrchestrationServiceTest {
     static void testShouldFailFast_AutonomousMode_AllowsLLMRecovery() {
         AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
         AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Conversational', ErrorRecoveryMode__c = 'Autonomous');
-        // Must use a transient error code so the non-transient shortcut does not fire before the circuit breaker logic
-        ActionOutcome failure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient network error');
 
+        // Transient errors flow to LLM
+        ActionOutcome transientFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient network error');
         System.assertEquals(
             false,
-            OrchestrationService.shouldFailFast(cap, agent, failure, null, '[test] '),
+            OrchestrationService.shouldFailFast(cap, agent, transientFailure, null, '[test] '),
             'Autonomous mode with transient error should allow LLM recovery (circuit breaker not yet hit)'
         );
-    }
 
-    @IsTest
-    static void testShouldFailFast_NonTransientError_FailsFastImmediately() {
-        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', ErrorRecoveryMode__c = 'Autonomous');
-        // Non-transient errors should fail fast even in Autonomous mode — retrying cannot resolve them
-        ActionOutcome permissionFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, 'Access denied');
-
+        // Non-transient data errors also flow to LLM — they should not halt execution
+        ActionOutcome recordNotFound = ActionOutcome.failure(AIAgentConstants.ERR_CODE_RECORD_NOT_FOUND, 'No record found');
         System.assertEquals(
-            true,
-            OrchestrationService.shouldFailFast(cap, agent, permissionFailure, null, '[test] '),
-            'Non-transient error should fail fast regardless of recovery mode'
+            false,
+            OrchestrationService.shouldFailFast(cap, agent, recordNotFound, null, '[test] '),
+            'RECORD_NOT_FOUND is non-transient but should flow to LLM so it can respond gracefully'
         );
 
         ActionOutcome inputFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'Invalid argument');
         System.assertEquals(
-            true,
+            false,
             OrchestrationService.shouldFailFast(cap, agent, inputFailure, null, '[test] '),
-            'INPUT_VALIDATION should fail fast — LLM must fix args, not retry same call'
+            'INPUT_VALIDATION should flow to LLM so it can correct its arguments'
         );
 
+        ActionOutcome permissionFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_PERMISSION_DENIED, 'Access denied');
+        System.assertEquals(
+            false,
+            OrchestrationService.shouldFailFast(cap, agent, permissionFailure, null, '[test] '),
+            'PERMISSION_DENIED should flow to LLM so it can inform the user'
+        );
+    }
+
+    @IsTest
+    static void testShouldFailFast_NonTransientError_FlowsToLLMInAutonomousMode() {
+        AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', ErrorRecoveryMode__c = 'Autonomous');
+
+        // Non-transient errors should reach the LLM in Autonomous mode — the LLM decides recovery.
+        // isTransient only informs retry logic; it should not gate whether the LLM sees the result.
         ActionOutcome configFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, 'Bad config');
         System.assertEquals(
-            true,
+            false,
             OrchestrationService.shouldFailFast(cap, agent, configFailure, null, '[test] '),
-            'CONFIG_ERROR should fail fast — needs admin intervention'
+            'Non-transient errors should flow to LLM in Autonomous mode — only Fail Fast mode halts immediately'
         );
     }
 
@@ -977,7 +986,7 @@ private class OrchestrationServiceTest {
     static void testShouldFailFast_FailFastMode_AppliesToAllAgentTypes() {
         ActionOutcome failure = ActionOutcome.failure('ERR_TEST', 'Tool failed');
 
-        for (String agentType : new List<String>{ 'Conversational', 'Email', 'Workflow', 'Function' }) {
+        for (String agentType : new List<String>{ 'Conversational', 'Email', 'Function' }) {
             AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'cap_ff_' + agentType.toLowerCase());
             AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = agentType, ErrorRecoveryMode__c = 'Fail Fast');
 
