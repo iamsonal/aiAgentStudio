@@ -74,7 +74,7 @@ public with sharing class AgentNotificationService {
 
     private static void createDraftReviewTask(Id sourceId, Schema.SObjectType sot) {
         try {
-            String sotApiName = sot.getDescribe().getName();
+            String sotApiName = String.escapeSingleQuotes(sot.getDescribe().getName());
             SObject record = Database.query('SELECT OwnerId, Name FROM ' + sotApiName + ' WHERE Id = :sourceId LIMIT 1');
             String taskSubject = 'Review AI draft reply — ' + sot.getDescribe().getLabel() + ': ' + (String) record.get('Name');
 
