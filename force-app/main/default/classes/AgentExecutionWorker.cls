@@ -115,6 +115,7 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                 followUpPayload.turnIdentifier = execution.CurrentTurnIdentifier__c;
                 followUpPayload.triggerSource = payload.triggerSource != null ? payload.triggerSource : 'DLQ';
                 followUpPayload.existingExecutionId = execution.Id;
+                followUpPayload.userMessage = payload.userMessage;
 
                 System.enqueueJob(new AgentExecutionWorker(agentName, followUpPayload));
                 return;
@@ -274,6 +275,7 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
             execPayload.turnIdentifier = execution.CurrentTurnIdentifier__c;
             execPayload.triggerSource = payload.triggerSource != null ? payload.triggerSource : 'DLQ';
             execPayload.existingExecutionId = execution.Id;
+            execPayload.userMessage = payload.userMessage;
 
             // Execute orchestration
             orchestrator.start(agentName, execPayload);

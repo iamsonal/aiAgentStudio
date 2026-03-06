@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>HandlerClassName__c</fullName>
+    <description>The Apex class name that implements this action&apos;s logic. Must extend BaseAgentAction and implement executeAction(). Used by CapabilityExecutionService to instantiate the handler at runtime.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Apex class name without namespace prefix. Must extend BaseAgentAction. Examples: ActionCreateRecord, ActionUpdateRecord, ActionFlowHandler. Used by the framework to instantiate and execute this action.</inlineHelpText>
     <label>Handler Class Name</label>
     <length>255</length>
     <required>false</required>

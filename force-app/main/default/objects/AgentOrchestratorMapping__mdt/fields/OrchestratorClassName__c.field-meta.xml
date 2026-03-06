@@ -4,6 +4,7 @@
     <description>The fully qualified Apex class name of the orchestrator implementation (must implement IAgentOrchestrator)</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Apex class name without namespace prefix. Must implement IAgentOrchestrator. Examples: ConversationalOrchestrator, FunctionOrchestrator, EmailOrchestrator.</inlineHelpText>
     <label>Orchestrator Class Name</label>
     <length>255</length>
     <required>true</required>

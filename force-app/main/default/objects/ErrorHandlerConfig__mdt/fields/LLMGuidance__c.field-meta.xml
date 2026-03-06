@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>LLMGuidance__c</fullName>
+    <description>Instructional text injected into the LLM prompt when this error category is encountered. Guides the LLM on how to handle or communicate the error to the end user.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Prompt text added to the LLM context when this error occurs. Example: A permission error occurred. Apologize and tell the user they may not have access to this record.</inlineHelpText>
     <label>LLM Guidance</label>
     <length>2000</length>
     <required>false</required>

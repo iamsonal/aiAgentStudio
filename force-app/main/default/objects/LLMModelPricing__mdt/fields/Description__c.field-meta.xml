@@ -4,6 +4,7 @@
     <description>Description of the model including capabilities, context window, and notes</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Optional notes about this model: context window size, capability tier, recommended use cases, or known limitations. Example: 128k context, best for complex reasoning tasks.</inlineHelpText>
     <label>Description</label>
     <length>32768</length>
     <type>LongTextArea</type>

@@ -4,6 +4,7 @@
     <description>The model identifier as returned by the LLM provider (e.g., gpt-4o, gpt-4o-mini, gpt-5-nano)</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Exact model name string returned in the LLM API response. Must match precisely for cost tracking to work. Examples: gpt-4o, gpt-4o-mini, claude-3-5-sonnet-20241022.</inlineHelpText>
     <label>Model Identifier</label>
     <length>100</length>
     <required>true</required>

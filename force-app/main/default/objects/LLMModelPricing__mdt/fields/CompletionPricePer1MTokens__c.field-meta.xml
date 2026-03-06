@@ -4,6 +4,7 @@
     <description>Price per 1 million completion/output tokens in USD</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>USD cost per 1,000,000 output (completion) tokens. Check the provider&apos;s pricing page for the current rate. Example: GPT-4o output = 10.000000.</inlineHelpText>
     <label>Completion Price Per 1M Tokens ($)</label>
     <precision>18</precision>
     <required>true</required>

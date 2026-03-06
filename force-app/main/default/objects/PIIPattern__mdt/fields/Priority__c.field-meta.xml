@@ -5,6 +5,7 @@
     <description>Detection priority order. Lower numbers are processed first. Use this to ensure specific patterns (like credit cards) are matched before more general patterns (like phone numbers). Default is 100.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Lower number = runs first. Set specific/narrow patterns (e.g., credit card=10) before broad ones (e.g., phone=100) to prevent partial overlaps. Default: 100.</inlineHelpText>
     <label>Priority</label>
     <precision>5</precision>
     <required>false</required>
