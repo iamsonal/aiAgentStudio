@@ -151,7 +151,7 @@ public inherited sharing class LLMFormattingService {
 
                 String hitlMode = cap.HITLMode__c;
                 if (hitlMode == HITLGatewayService.HITL_MODE_CONFIRMATION || hitlMode == HITLGatewayService.HITL_MODE_CONFIRMATION_THEN_APPROVAL) {
-                    String confirmationSuffix = '\n\nRequires user confirmation before execution.';
+                    String confirmationSuffix = AIAgentConstants.TOOL_HITL_CONFIRMATION_SUFFIX;
                     if (!capabilityDesc.containsIgnoreCase('confirm') && !capabilityDesc.containsIgnoreCase('approval')) {
                         capabilityDesc += confirmationSuffix;
                         System.debug(
@@ -253,10 +253,7 @@ public inherited sharing class LLMFormattingService {
             paramSchema.put('properties', properties);
         }
 
-        Map<String, Object> rationaleDef = new Map<String, Object>{
-            'type' => 'string',
-            'description' => 'REQUIRED: Explain step-by-step WHY you are selecting this specific tool and how it directly addresses the user\'s request. Be specific about what user need this tool fulfills.'
-        };
+        Map<String, Object> rationaleDef = new Map<String, Object>{ 'type' => 'string', 'description' => AIAgentConstants.TOOL_PARAM_DESC_RATIONALE };
 
         properties.put(TOOL_RATIONALE_PARAM_NAME, rationaleDef);
 
@@ -299,7 +296,7 @@ public inherited sharing class LLMFormattingService {
         // Add _requiresApproval parameter
         Map<String, Object> requiresApprovalDef = new Map<String, Object>{
             'type' => 'boolean',
-            'description' => 'Set to true if this action requires manager approval based on the conditional approval rules in the capability description. Analyze the context data (account revenue, risk level, transaction amount, etc.) to determine if approval is needed per the rules specified.',
+            'description' => AIAgentConstants.TOOL_PARAM_DESC_REQUIRES_APPROVAL,
             'default' => false
         };
         properties.put('_requiresApproval', requiresApprovalDef);
@@ -307,7 +304,7 @@ public inherited sharing class LLMFormattingService {
         // Add _approvalReason parameter
         Map<String, Object> approvalReasonDef = new Map<String, Object>{
             'type' => 'string',
-            'description' => 'REQUIRED when _requiresApproval=true. Provide a clear, specific explanation of why approval is needed, referencing the relevant approval rule and including concrete data points (e.g., "Enterprise account with $75M annual revenue exceeds $50M approval threshold. Strategic $500k deal with CEO engagement."). This explanation will be shown to the approver.'
+            'description' => AIAgentConstants.TOOL_PARAM_DESC_APPROVAL_REASON
         };
         properties.put('_approvalReason', approvalReasonDef);
 
@@ -342,7 +339,7 @@ public inherited sharing class LLMFormattingService {
             'type' => 'number',
             'minimum' => 0,
             'maximum' => 100,
-            'description' => 'REQUIRED: Your confidence score for this action (0-100). Consider: Do you have all needed data? Are the parameters clear and valid? Is this the right tool for the task? Are there any ambiguities? Rate your certainty: ' +
+            'description' => AIAgentConstants.TOOL_PARAM_DESC_CONFIDENCE_PREFIX +
             thresholdGuidance +
             '.'
         };
@@ -384,7 +381,7 @@ public inherited sharing class LLMFormattingService {
         Map<String, Object> nextStepDef = new Map<String, Object>{
             'type' => 'string',
             'maxLength' => 255,
-            'description' => 'OPTIONAL: Suggest the next logical action in 5-10 words (e.g., "Schedule follow-up call" or "Send welcome email"). You may reference a tool name or describe a general business action. This is experimental and used for analytics only.'
+            'description' => AIAgentConstants.TOOL_PARAM_DESC_NEXT_STEP
         };
         properties.put(TOOL_NEXT_STEP_SUGGESTION_PARAM_NAME, nextStepDef);
 
@@ -812,7 +809,7 @@ public inherited sharing class LLMFormattingService {
     private static List<ConfidenceThreshold__mdt> getConfidenceThresholds() {
         if (cachedConfidenceThresholds == null) {
             cachedConfidenceThresholds = [
-                SELECT Category__c, MinScore__c, DisplayLabel__c, Color__c, LLMGuidance__c, SortOrder__c
+                SELECT Category__c, MinScore__c, Color__c, SortOrder__c
                 FROM ConfidenceThreshold__mdt
                 WHERE IsActive__c = TRUE
                 ORDER BY MinScore__c DESC
@@ -824,14 +821,13 @@ public inherited sharing class LLMFormattingService {
     /**
      * Build LLM guidance string from confidence thresholds
      * Used to dynamically generate _confidence parameter description
-     * @return Formatted guidance (e.g., "90-100 (very confident, all clear), 70-89 (confident, minor gaps), ...")
+     * @return Formatted guidance (e.g., "90-100 (very confident), 70-89 (confident), ...")
      */
     private static String getConfidenceLLMGuidance() {
         List<ConfidenceThreshold__mdt> thresholds = getConfidenceThresholds();
 
         if (thresholds.isEmpty()) {
-            // Fallback if no custom metadata configured
-            return '90-100 (very confident, all clear), 70-89 (confident, minor gaps), 50-69 (uncertain, missing data), below 50 (not confident, should clarify)';
+            return '90-100 (very confident), 70-89 (confident), 50-69 (uncertain), 0-49 (not confident)';
         }
 
         List<String> guidanceParts = new List<String>();
@@ -839,21 +835,15 @@ public inherited sharing class LLMFormattingService {
         for (Integer i = 0; i < thresholds.size(); i++) {
             ConfidenceThreshold__mdt current = thresholds[i];
 
-            // Determine range for this threshold
             String range;
             if (i == 0) {
-                // Highest threshold - goes to 100
                 range = String.valueOf(current.MinScore__c.intValue()) + '-100';
             } else {
-                // Calculate upper bound from next lower threshold
-                ConfidenceThreshold__mdt next = thresholds[i - 1];
-                Decimal upperBound = next.MinScore__c - 1;
+                Decimal upperBound = thresholds[i - 1].MinScore__c - 1;
                 range = String.valueOf(current.MinScore__c.intValue()) + '-' + String.valueOf(upperBound.intValue());
             }
 
-            // Add guidance if available
-            String guidance = String.isNotBlank(current.LLMGuidance__c) ? current.LLMGuidance__c : current.DisplayLabel__c.toLowerCase();
-            guidanceParts.add(range + ' (' + guidance + ')');
+            guidanceParts.add(range + ' (' + current.Category__c.toLowerCase() + ')');
         }
 
         return String.join(guidanceParts, ', ');
@@ -874,7 +864,6 @@ public inherited sharing class LLMFormattingService {
                 new Map<String, Object>{
                     'category' => threshold.Category__c,
                     'minScore' => threshold.MinScore__c,
-                    'displayLabel' => threshold.DisplayLabel__c,
                     'color' => threshold.Color__c,
                     'sortOrder' => Integer.valueOf(threshold.SortOrder__c)
                 }
@@ -921,7 +910,7 @@ public inherited sharing class LLMFormattingService {
 
         for (ConfidenceThreshold__mdt threshold : thresholds) {
             if (confidence >= threshold.MinScore__c) {
-                return threshold.DisplayLabel__c;
+                return threshold.Category__c;
             }
         }
 

@@ -4,10 +4,9 @@
     <columns>MasterLabel</columns>
     <columns>Category__c</columns>
     <columns>MinScore__c</columns>
-    <columns>DisplayLabel__c</columns>
     <columns>Color__c</columns>
-    <columns>IsActive__c</columns>
     <columns>SortOrder__c</columns>
+    <columns>IsActive__c</columns>
     <filterScope>Everything</filterScope>
     <filters>
         <field>IsActive__c</field>
@@ -15,4 +14,5 @@
         <value>1</value>
     </filters>
     <label>All</label>
+    <language>en_US</language>
 </ListView>

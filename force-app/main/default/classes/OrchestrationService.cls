@@ -119,9 +119,7 @@ public inherited sharing class OrchestrationService {
         try {
             if (outcome == null) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Action outcome is null. Returning error response for LLM.');
-                return JSON.serialize(
-                    new Map<String, Object>{ 'success' => false, 'error' => 'Action execution did not return an outcome.', 'retryable' => false }
-                );
+                return JSON.serialize(new Map<String, Object>{ 'success' => false, 'error' => AIAgentConstants.ERR_MSG_NULL_OUTCOME, 'retryable' => false });
             }
 
             if (outcome.isSuccess) {
@@ -134,7 +132,7 @@ public inherited sharing class OrchestrationService {
                 // retryable is the machine-readable signal the LLM needs to decide whether to retry.
                 // code + error together give the LLM enough context to reason about the failure type.
                 // Stack traces and internal class names are already stripped from errorMessage.
-                String errorMsg = String.isNotBlank(outcome.errorMessage) ? outcome.errorMessage : 'An unexpected error occurred.';
+                String errorMsg = String.isNotBlank(outcome.errorMessage) ? outcome.errorMessage : AIAgentConstants.ERR_MSG_UNEXPECTED;
 
                 Map<String, Object> errorOutput = new Map<String, Object>{
                     'success' => false,
@@ -151,7 +149,7 @@ public inherited sharing class OrchestrationService {
             }
         } catch (Exception jsonEx) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to serialize action outcome for LLM. Error: ' + jsonEx.getMessage());
-            return JSON.serialize(new Map<String, Object>{ 'success' => false, 'error' => 'Failed to serialize action result.', 'retryable' => false });
+            return JSON.serialize(new Map<String, Object>{ 'success' => false, 'error' => AIAgentConstants.ERR_MSG_SERIALIZE_FAILED, 'retryable' => false });
         }
     }
 

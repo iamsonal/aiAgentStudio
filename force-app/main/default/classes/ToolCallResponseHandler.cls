@@ -768,11 +768,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
             String blockedMessage = JSON.serialize(
                 new Map<String, Object>{
                     'status' => 'blocked',
-                    'error' => 'Tool call to \'' +
-                    tool.toolName +
-                    '\' was blocked due to insufficient confidence (score: ' +
-                    effectiveConfidence +
-                    '). Gather more information or ask for clarification before retrying.',
+                    'error' => String.format(AIAgentConstants.TOOL_RESULT_CONFIDENCE_BLOCKED_TEMPLATE, new List<Object>{ tool.toolName, effectiveConfidence }),
                     'toolName' => tool.toolName,
                     'confidenceScore' => effectiveConfidence
                 }
@@ -1239,7 +1235,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
             String placeholderResult = JSON.serialize(
                 new Map<String, Object>{
                     'status' => 'pending_approval',
-                    'message' => 'This action is pending approval. It will be executed once approved.',
+                    'message' => AIAgentConstants.TOOL_RESULT_PENDING_APPROVAL,
                     'pendingActionId' => hitlResult.pendingActionId,
                     'toolName' => approvalTool.toolName
                 }

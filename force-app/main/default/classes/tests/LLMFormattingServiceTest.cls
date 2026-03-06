@@ -740,7 +740,6 @@ private class LLMFormattingServiceTest {
         for (Map<String, Object> entry : result) {
             System.assert(entry.containsKey('category'), 'Each entry should have category');
             System.assert(entry.containsKey('minScore'), 'Each entry should have minScore');
-            System.assert(entry.containsKey('displayLabel'), 'Each entry should have displayLabel');
             System.assert(entry.containsKey('color'), 'Each entry should have color');
             System.assert(entry.containsKey('sortOrder'), 'Each entry should have sortOrder');
         }
@@ -861,10 +860,14 @@ private class LLMFormattingServiceTest {
     }
 
     @IsTest
-    static void testBuildConfidenceInstructions_NullThreshold_ReturnsNull() {
+    static void testBuildConfidenceInstructions_NullThreshold_StillInjectsGuidance() {
+        // Tracking-only mode (no enforcement threshold) should still inject confidence guidance
+        // so the LLM knows to provide scores. MinConfidenceThreshold__c only gates blocking,
+        // not whether guidance is sent.
         AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', EnableConfidenceTracking__c = true, MinConfidenceThreshold__c = null);
         String result = LLMInteractionService.buildConfidenceInstructions(agent, '[Test] ');
-        System.assertEquals(null, result, 'Should return null when threshold is null');
+        System.assertNotEquals(null, result, 'Should still inject guidance when tracking is enabled but no threshold is set');
+        System.assert(result.contains('lookup or search'), 'Function agent guidance should mention lookup tools even without a threshold');
     }
 
     @IsTest

@@ -194,12 +194,7 @@ public inherited sharing class LLMInteractionService {
                 }
 
                 if (this.isFinalErrorTurn) {
-                    String finalErrorInstruction =
-                        '\n\n# CRITICAL INSTRUCTIONS\n\n' +
-                        'The last tool you tried to use failed. Inform the user of this failure based on the history. ' +
-                        'Then, check if you have an alternative tool and propose it as the next step. ' +
-                        'Do not use any tools now; only generate a text response.';
-                    finalSystemPrompt += finalErrorInstruction;
+                    finalSystemPrompt += AIAgentConstants.PROMPT_SECTION_CRITICAL_INSTRUCTIONS + AIAgentConstants.PROMPT_ERROR_RECOVERY;
                     System.debug(LoggingLevel.WARN, logPrefix + 'Injecting error recovery instructions into system prompt for failed tool use.');
                 }
 
@@ -513,39 +508,23 @@ public inherited sharing class LLMInteractionService {
         if (agentConfig?.EnableConfidenceTracking__c != true) {
             return null;
         }
-        if (agentConfig.MinConfidenceThreshold__c == null) {
-            return null;
-        }
 
         String agentType = agentConfig.AgentType__c;
 
         String guidance;
         if ('Conversational'.equalsIgnoreCase(agentType)) {
-            guidance =
-                'Always report an honest confidence score that reflects your actual certainty. ' +
-                'If you are missing key information or have significant ambiguity about a tool call, ' +
-                'ask the user for clarification rather than proceeding with incomplete data.';
+            guidance = AIAgentConstants.PROMPT_CONFIDENCE_GUIDANCE_CONVERSATIONAL;
         } else if ('Email'.equalsIgnoreCase(agentType)) {
-            guidance =
-                'Always report an honest confidence score that reflects your actual certainty. ' +
-                'If you are missing key information or have significant ambiguity about a tool call, ' +
-                'request the missing details in your email reply rather than proceeding with incomplete data.';
+            guidance = AIAgentConstants.PROMPT_CONFIDENCE_GUIDANCE_EMAIL;
         } else {
-            guidance =
-                'Always report an honest confidence score that reflects your actual certainty. ' +
-                'If you are uncertain or missing information needed for a tool call, ' +
-                'use available lookup or search tools to gather additional context before proceeding.';
+            guidance = AIAgentConstants.PROMPT_CONFIDENCE_GUIDANCE_FUNCTION;
         }
 
-        System.debug(
-            LoggingLevel.DEBUG,
-            logPrefix +
-                'Confidence guidance instructions injected for agent type "' +
-                agentType +
-                '" with threshold ' +
-                agentConfig.MinConfidenceThreshold__c.intValue()
-        );
-        return '\n\n# CONFIDENCE GUIDANCE\n\n' + guidance;
+        String thresholdNote = agentConfig.MinConfidenceThreshold__c != null
+            ? ' with enforcement threshold ' + agentConfig.MinConfidenceThreshold__c.intValue()
+            : ' (tracking only, no enforcement threshold)';
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'Confidence guidance instructions injected for agent type "' + agentType + '"' + thresholdNote);
+        return AIAgentConstants.PROMPT_SECTION_CONFIDENCE_GUIDANCE + guidance;
     }
 
     private String getOrchestratorPromptAdditions(

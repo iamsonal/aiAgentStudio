@@ -4,23 +4,16 @@
     <protected>false</protected>
     <values>
         <field>Category__c</field>
-        <value xsi:type="xsd:string">NotConfident</value>
+        <value xsi:type="xsd:string">Not Confident</value>
     </values>
     <values>
         <field>Color__c</field>
         <value xsi:type="xsd:string">#ea001e</value>
     </values>
-    <values>
-        <field>DisplayLabel__c</field>
-        <value xsi:type="xsd:string">Not Confident</value>
-    </values>
+
     <values>
         <field>IsActive__c</field>
         <value xsi:type="xsd:boolean">true</value>
-    </values>
-    <values>
-        <field>LLMGuidance__c</field>
-        <value xsi:type="xsd:string">not confident, should clarify</value>
     </values>
     <values>
         <field>MinScore__c</field>

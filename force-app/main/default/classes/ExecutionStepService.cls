@@ -791,11 +791,7 @@ public inherited sharing class ExecutionStepService {
             return;
         }
 
-        List<String> lines = new List<String>{
-            '[Framework] The following tool(s) failed with retryable errors and were not retried.',
-            'You MUST call each tool again with its original arguments before completing.',
-            ''
-        };
+        List<String> lines = new List<String>{ AIAgentConstants.PROMPT_RETRY_ENFORCEMENT_HEADER, AIAgentConstants.PROMPT_RETRY_ENFORCEMENT_DIRECTIVE, '' };
         for (OrchestrationService.UnretriedFailure f : failures) {
             String argStr = String.isNotBlank(f.originalArguments) ? f.originalArguments : '{}';
             lines.add('- ' + f.toolName + ': ' + argStr);

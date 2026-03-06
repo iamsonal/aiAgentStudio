@@ -245,11 +245,7 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
         if (isMultiStepTurn && isFollowUpCall) {
             System.debug(LoggingLevel.INFO, context.logPrefix + 'Injecting summarization instructions for conversational agent');
 
-            return '\n\n# FINAL INSTRUCTIONS\n\n' +
-                'You have just completed one or more tool actions that the user did not see. ' +
-                'Your task is to synthesize the results of all actions into a single, user-friendly summary. ' +
-                'This will be the only message the user sees for this turn. ' +
-                'Do not ask questions; provide a conclusive, final response.';
+            return AIAgentConstants.PROMPT_SECTION_FINAL_INSTRUCTIONS + AIAgentConstants.PROMPT_FOLLOWUP_SUMMARIZE;
         }
 
         return '';
@@ -272,10 +268,7 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
                 toolName = toolResults[0].toolName;
             }
 
-            String assistantMessage =
-                'I\'ve submitted your request to ' +
-                toolName +
-                ' for approval. You\'ll be notified when it\'s processed. Feel free to continue our conversation.';
+            String assistantMessage = String.format(AIAgentConstants.MSG_APPROVAL_SUBMITTED_TEMPLATE, new List<Object>{ toolName });
 
             ExecutionStepService executionStepService = new ExecutionStepService();
             Id assistantMessageId = executionStepService.createAgentResponseStep(
