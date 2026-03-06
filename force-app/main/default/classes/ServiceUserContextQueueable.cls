@@ -122,6 +122,7 @@ public without sharing class ServiceUserContextQueueable implements Queueable, D
             'currentRecordId' => payload.currentRecordId != null ? String.valueOf(payload.currentRecordId) : null,
             'sourceRecordId' => payload.sourceRecordId != null ? String.valueOf(payload.sourceRecordId) : null,
             'triggerSource' => payload.triggerSource,
+            'triggerPayload' => payload.triggerPayload,
             'batchId' => payload.batchId,
             'priority' => payload.priority
         };

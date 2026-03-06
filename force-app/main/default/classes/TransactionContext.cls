@@ -299,6 +299,37 @@ public inherited sharing class TransactionContext {
         }
     }
 
+    public void discardBufferedRecordsForExecution(Id executionId) {
+        if (executionId == null || this.insertBuffer.isEmpty()) {
+            return;
+        }
+
+        List<SObject> retained = new List<SObject>();
+        Integer discarded = 0;
+        for (SObject record : this.insertBuffer) {
+            Boolean keepRecord = true;
+            try {
+                Object relatedExecution = record.get('AgentExecution__c');
+                if (relatedExecution != null && executionId == (Id) relatedExecution) {
+                    keepRecord = false;
+                }
+            } catch (Exception e) {
+                keepRecord = true;
+            }
+
+            if (keepRecord) {
+                retained.add(record);
+            } else {
+                discarded++;
+            }
+        }
+
+        this.insertBuffer = retained;
+        if (discarded > 0) {
+            System.debug(LoggingLevel.INFO, '[TransactionContext] Discarded ' + discarded + ' buffered record(s) for stale execution ' + executionId);
+        }
+    }
+
     /**
      * Gets buffered ExecutionStep__c records for a specific execution.
      * Used by ExecutionStepService.getHistory() to include buffered (not yet persisted)

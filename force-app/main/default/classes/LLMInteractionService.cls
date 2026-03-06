@@ -243,45 +243,9 @@ public inherited sharing class LLMInteractionService {
             // Obtain adapter once — used for both the safety pre-check and the LLM call.
             ILLMProviderAdapter adapter = LLMInteractionService.getLLMProviderAdapter(llmConfig);
 
-            // Provider-native safety pre-check.
-            // Adapters that support it (e.g. OpenAI → /v1/moderations) perform the check and return a ThreatAssessment.
-            // Adapters with no pre-check capability return null — execution continues normally.
+            Integer currentTurnPayloadIndex = null;
             if (currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
-                ThreatAssessment safetyResult = adapter.checkMessageSafety(currentTurnUserMessage.content, llmConfig, agentConfig);
-                if (safetyResult != null) {
-                    if (this.decisionLogger != null) {
-                        this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_CHECK, new List<Object>{ safetyResult });
-                    }
-
-                    if (safetyResult.shouldBlock()) {
-                        System.debug(
-                            LoggingLevel.WARN,
-                            logPrefix +
-                                'Message blocked by provider safety pre-check. Score: ' +
-                                safetyResult.overallScore +
-                                ', Indicators: ' +
-                                safetyResult.getIndicatorCount()
-                        );
-                        if (this.decisionLogger != null) {
-                            this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_BLOCKED, new List<Object>{ safetyResult });
-                        }
-                        String safeMessage = safetyResult.getSafeMessage();
-                        ProviderResult safetyProviderResult = new ProviderResult(safeMessage, 0, 0, 0, null, null, null, 'safety-layer', 0);
-                        MessageData safetyMessageData = new MessageData();
-                        safetyMessageData.role = AIAgentConstants.ROLE_ASSISTANT;
-                        safetyMessageData.content = safeMessage;
-                        return new LLMInteractionResult(safetyProviderResult, safetyMessageData);
-                    }
-
-                    if (safetyResult.hasSanitizedContent()) {
-                        currentTurnUserMessage.content = safetyResult.getSanitizedContent();
-                        System.debug(LoggingLevel.INFO, logPrefix + 'Applied sanitization to user message per safety pre-check.');
-                    }
-                }
-            }
-
-            // Add the (possibly sanitized) current user message to the outbound payload.
-            if (currentTurnUserMessage != null && String.isNotBlank(currentTurnUserMessage.content)) {
+                currentTurnPayloadIndex = finalMessagesPayload.size();
                 LLMFormattingService.addMessageToPayload(
                     finalMessagesPayload,
                     currentTurnUserMessage.role,
@@ -318,6 +282,49 @@ public inherited sharing class LLMInteractionService {
                         appliedCount = Math.max(0, maskingOpsAfter - maskingOpsBefore);
                     }
                     this.decisionLogger.log(IDecisionStepLogger.EventType.PII_MASKING, new List<Object>{ stats, appliedCount });
+                }
+            }
+
+            // Provider-native safety pre-check must run on the masked outbound content, not raw user text.
+            // Adapters that support it (e.g. OpenAI → /v1/moderations) perform the check and return a ThreatAssessment.
+            // Adapters with no pre-check capability return null — execution continues normally.
+            if (
+                currentTurnPayloadIndex != null &&
+                currentTurnPayloadIndex < finalMessagesPayload.size() &&
+                finalMessagesPayload[currentTurnPayloadIndex] != null &&
+                String.isNotBlank((String) finalMessagesPayload[currentTurnPayloadIndex].get('content'))
+            ) {
+                String outboundUserMessage = (String) finalMessagesPayload[currentTurnPayloadIndex].get('content');
+                ThreatAssessment safetyResult = adapter.checkMessageSafety(outboundUserMessage, llmConfig, agentConfig);
+                if (safetyResult != null) {
+                    if (this.decisionLogger != null) {
+                        this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_CHECK, new List<Object>{ safetyResult });
+                    }
+
+                    if (safetyResult.shouldBlock()) {
+                        System.debug(
+                            LoggingLevel.WARN,
+                            logPrefix +
+                                'Message blocked by provider safety pre-check. Score: ' +
+                                safetyResult.overallScore +
+                                ', Indicators: ' +
+                                safetyResult.getIndicatorCount()
+                        );
+                        if (this.decisionLogger != null) {
+                            this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_BLOCKED, new List<Object>{ safetyResult });
+                        }
+                        String safeMessage = safetyResult.getSafeMessage();
+                        ProviderResult safetyProviderResult = new ProviderResult(safeMessage, 0, 0, 0, null, null, null, 'safety-layer', 0);
+                        MessageData safetyMessageData = new MessageData();
+                        safetyMessageData.role = AIAgentConstants.ROLE_ASSISTANT;
+                        safetyMessageData.content = safeMessage;
+                        return new LLMInteractionResult(safetyProviderResult, safetyMessageData);
+                    }
+
+                    if (safetyResult.hasSanitizedContent()) {
+                        finalMessagesPayload[currentTurnPayloadIndex].put('content', safetyResult.getSanitizedContent());
+                        System.debug(LoggingLevel.INFO, logPrefix + 'Applied sanitization to masked outbound user message per safety pre-check.');
+                    }
                 }
             }
 

@@ -45,13 +45,24 @@ global with sharing class AIAgentRestService {
             AIAgentRequest requestData = parseAndValidateRequest(req.requestBody.toString(), logPrefix);
 
             // Process the message in the execution user context
-            String outcome = processMessageInContext(requestData, logPrefix);
+            String rawOutcome = processMessageInContext(requestData, logPrefix);
+
+            // rawOutcome is "executionId|status" — split to populate both fields
+            String executionIdStr = null;
+            String outcome = rawOutcome;
+            if (String.isNotBlank(rawOutcome) && rawOutcome.contains('|')) {
+                List<String> parts = rawOutcome.split('\\|', 2);
+                executionIdStr = parts[0];
+                outcome = parts.size() > 1 ? parts[1] : rawOutcome;
+            }
 
             System.debug(LoggingLevel.INFO, logPrefix + 'AI agent message processed successfully with outcome: ' + outcome);
 
             // Set success response
             res.statusCode = 200;
-            return new AIAgentResponse(true, outcome, null, requestId);
+            AIAgentResponse resp = new AIAgentResponse(true, outcome, null, requestId);
+            resp.executionId = executionIdStr;
+            return resp;
         } catch (AIAgentRestException e) {
             System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage());
             res.statusCode = 400;
@@ -170,7 +181,7 @@ global with sharing class AIAgentRestService {
 
             if (result.success) {
                 System.debug(LoggingLevel.INFO, logPrefix + 'Message processing initiated successfully via service user context');
-                return result.status;
+                return result.executionId + '|' + result.status;
             } else {
                 throw new AIAgentRestException('Execution failed: ' + result.errorMessage);
             }
@@ -551,6 +562,7 @@ global with sharing class AIAgentRestService {
         public String outcome { get; set; }
         public String error { get; set; }
         public String requestId { get; set; }
+        public String executionId { get; set; }
 
         public AIAgentResponse(Boolean success, String outcome, String error, String requestId) {
             this.success = success;

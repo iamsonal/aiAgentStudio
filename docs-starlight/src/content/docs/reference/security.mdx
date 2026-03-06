@@ -7,361 +7,219 @@ import { Card, CardGrid, Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/
 
 # Security & Governance
 
-AI Agent Studio implements defense-in-depth security with multiple layers of protection for AI agent operations on Salesforce.
+AI Agent Studio applies defense in depth across user context, data access, model interactions, human approvals, and auditability.
+
+<Aside type="note" title="Scope">
+This page focuses on user-facing security capabilities rather than internal implementation details.
+</Aside>
 
 ## Security Architecture
 
 <CardGrid>
   <Card title="Platform-Native Security" icon="seti:lock">
-    User context execution, CRUD/FLS enforcement, sharing rules, field-level access control with type coercion.
+    Execution stays inside Salesforce security boundaries: user context, sharing, CRUD, field-level access, and approval processes.
   </Card>
   <Card title="Trust Layers" icon="seti:shield">
-    PII masking before LLM calls, provider-native prompt safety pre-checks, and Tool Flow Graph enforcement for deterministic tool sequencing.
+    The framework can mask sensitive data before provider calls, run provider-native prompt safety checks, and constrain tool usage with a runtime flow graph.
   </Card>
-  <Card title="Human-in-the-Loop" icon="seti:gear">
-    Configurable approval workflows with Confirmation, Approval, and hybrid modes. Atomic state tracking with PendingHITLAction__c.
+  <Card title="Human Review" icon="seti:gear">
+    Human-in-the-loop controls let you require confirmation or approval before sensitive actions execute.
   </Card>
-  <Card title="Audit & Observability" icon="seti:graph-line">
-    Complete execution traces, tool rationale capture, decision step logging, token tracking, cost analytics.
+  <Card title="Auditability" icon="seti:graph-line">
+    Durable execution logs capture prompts, tool calls, outcomes, token usage, and optional tool rationale for review and support.
   </Card>
 </CardGrid>
 
-## Platform-Native Security
+## Platform-Native Controls
 
-### User Context Execution
+### User context and sharing
 
-**No Privilege Escalation**: Agents always run in the context of the user who initiated the execution (`OriginalUserId__c`).
-
-**Sharing Mode**: All classes use `with sharing` or `inherited sharing` to respect Salesforce sharing rules.
-
-**Record-Level Access**: Users can only interact with records they have access to through org-wide defaults, sharing rules, and manual shares.
+- Agents execute in the initiating user context by default.
+- Record visibility follows Salesforce sharing rules.
+- When service-user routing is configured, the original user context is still preserved for audit and tracking.
 
 <Aside type="tip" title="Service User Context">
-For scenarios requiring elevated permissions, use `AIAgentDefinition__c.RequiresServiceUserContext__c` to route execution through a dedicated service user via REST API loopback. The original user context is preserved for audit trails.
+Use service-user routing only when a workflow genuinely needs elevated execution context. Keep the service user narrowly permissioned.
 </Aside>
 
-### CRUD & FLS Enforcement
+### CRUD and FLS enforcement
 
-**Automatic Enforcement**: All SOQL queries use `WITH USER_MODE` to enforce object and field-level security.
+- Queries should respect user access, commonly through `WITH USER_MODE`.
+- DML should strip inaccessible fields before insert or update.
 
 ```apex
-// Framework pattern - always enforces security
 List<Account> accounts = [
-    SELECT Id, Name, Industry
+    SELECT Id, Name
     FROM Account
     WHERE Id IN :accountIds
-    WITH USER_MODE  // Enforces CRUD + FLS
+    WITH USER_MODE
 ];
 ```
 
-**DML Security**: All DML operations use `Security.stripInaccessible()` to remove inaccessible fields.
-
 ```apex
-// Framework pattern for DML
 SObjectAccessDecision decision = Security.stripInaccessible(
-    AccessType.CREATABLE,
-    recordsToInsert
+    AccessType.UPDATABLE,
+    recordsToSave
 );
-insert decision.getRecords();
+update decision.getRecords();
 ```
-
-**Type Coercion with FLS**: `TypeCoercionService.coerceArgumentTypesForSObject()` validates field access when converting LLM-provided arguments to SObject field values.
-
-### Permission Checks
-
-**Object Permissions**: `Utils.checkObjectPermission()` validates CRUD access before operations.
-
-```apex
-// Validate read access before querying
-Utils.checkObjectPermission(
-    Account.SObjectType,
-    AccessType.READABLE
-);
-```
-
-**Field Accessibility**: Framework respects field-level security when building SOQL queries and processing DML operations.
 
 ## Trust Layers
 
 <Tabs>
   <TabItem label="PII Masking">
 
-### Hybrid PII Masking
+PII masking reduces the chance that sensitive values leave Salesforce in raw form.
 
-Prevents sensitive data from reaching LLM providers in raw form.
+- Hybrid approach: schema-based detection plus pattern-based masking
+- Session-scoped token mapping for deterministic mask and unmask behavior
+- Applies to model-facing content and relevant tool arguments
 
-**Architecture**: `PIIMaskingService` orchestrates `SchemaBasedMasker` (Salesforce Data Classification) and `PIIPatternMatcher` (regex patterns).
+Configuration:
 
-**How It Works**:
+- `PIIMaskingPreset__c = Off`: disabled
+- `PIIMaskingPreset__c = Standard`: common categories and classifications
+- `PIIMaskingPreset__c = Strict`: broader masking coverage
 
-1. **Masking Phase**: User message → scan for PII → replace with deterministic tokens (`[SSN:001]`)
-2. **LLM Processing**: Masked message sent to LLM with tokens instead of actual values
-3. **Unmasking Phase**: LLM response → replace tokens with original values → return to user
-4. **Bidirectional**: Applies to both user messages and tool arguments in both directions
+Example:
 
-**Configuration**:
-
-Per-agent via `AIAgentDefinition__c`:
-- `PIIMaskingPreset__c`: Off / Standard / Strict
-  - Standard: Hybrid masking with common categories and classifications
-  - Strict: Hybrid masking with all categories and classifications
-
-**Pattern Coverage**:
-- **SSN**: `###-##-####` format with validation
-- **Credit Cards**: Luhn algorithm validation for card numbers
-- **Email**: RFC-compliant email address detection
-- **Phone**: US and international phone number formats
-- **IPv4**: IP address detection
-- **DOB**: Date of birth in various formats
-
-**Key Features**:
-- **Deterministic Tokens**: Same value always gets same token within session
-- **No Persistence**: Mapping stored only in memory for session scope
-- **FLS Respected**: Schema-based masking honors field-level security
-- **Tool Arguments**: Applies to both user input and LLM tool call arguments
-
-**Example**:
-
-```
-User: "Update case for customer SSN 123-45-6789"
-Masked: "Update case for customer SSN [SSN:001]"
-→ LLM processes masked version
-→ Tool execution receives unmasked value
-→ Response shown to user with original values
+```text
+Original: Update the case for SSN 123-45-6789
+Masked:   Update the case for SSN [SSN:001]
 ```
 
   </TabItem>
   <TabItem label="Prompt Safety">
 
-### Provider-Native Safety Pre-Checks
+Prompt safety is delegated to the provider adapter so checks align with the provider's own moderation model.
 
-Prompt safety is delegated to each LLM provider adapter, ensuring the check matches the provider's own safety semantics rather than a generic pattern-matching layer.
+<ul>
+  <li>pre-checks can happen before the main provider request</li>
+  <li>providers can also return safety signals as part of the response</li>
+  <li>organizations can choose how broadly to enable these checks per agent</li>
+</ul>
 
-**Architecture**: `LLMInteractionService.prepareAndCallLLM()` calls `ILLMProviderAdapter.checkMessageSafety()` **before** the LLM call. `BaseProviderAdapter` returns `null` by default (no pre-check). Adapters that support a safety API override this method.
+Configuration:
 
-**Flow**:
-```
-LLMInteractionService.prepareAndCallLLM()
-  → adapter.checkMessageSafety()   // pre-call; null = no pre-check
-  → [if ThreatAssessment returned and shouldBlock()] → log + return safe error
-  → adapter.sendMessage()          // LLM call
-  → [if ProviderResult.safetyBlock != null] → log + return safe error
-  → normal response processing
-```
+<ul>
+  <li><code>PromptSafetyPreset__c = Off</code>: skip pre-check</li>
+  <li><code>PromptSafetyPreset__c = Standard</code>: run native safety behavior when the adapter supports it</li>
+</ul>
 
-**Provider Behaviours**:
-
-| Provider | Pre-Check | Notes |
-|----------|-----------|-------|
-| `OpenAIProviderAdapter` | Calls `/v1/moderations` — blocks if `flagged == true` | Provider-native; also works for any OpenAI-compatible API that exposes `/v1/moderations` |
-| `VertexAIProviderAdapter` | None (inherits null default) | Relies on Vertex AI's in-call safety filters instead |
-| Custom adapters | Override `checkMessageSafety()` to add | Fully extensible |
-
-**Result DTO**: `ThreatAssessment` carries `score` (0.0–1.0), `threatLevel` (NONE/LOW/MEDIUM/HIGH/CRITICAL), `indicators` list, and `shouldBlock()` helper.
-
-**In-Call Safety**: Adapters can also set `ProviderResult.safetyBlock` when a post-response safety signal is detected (e.g., a refusal `finish_reason`). `LLMInteractionService` checks this after `sendMessage()` and short-circuits to a safe response when non-null.
-
-**Configuration**: Per-agent via `AIAgentDefinition__c.PromptSafetyPreset__c`:
-- `Off`: Skips the pre-check step entirely
-- `Standard`: Adapter performs its native check and blocks on positive signal
-
-</TabItem>
+  </TabItem>
   <TabItem label="Tool Flow Graph">
 
-### Declarative Workflow Control
+The Tool Flow Graph constrains which tools the LLM can see at each step.
 
-Prevents workflow hallucinations by only exposing tools the LLM is currently eligible to call — the LLM cannot skip steps, jump ahead, or call tools out of order.
+<ul>
+  <li>entry tools are initially visible</li>
+  <li>downstream tools unlock only after prerequisite tools succeed</li>
+  <li>exclusive branches permanently lock siblings once a branch is chosen</li>
+</ul>
 
-**Problem**: Without constraints, an LLM might call `update_case` before `get_case_details`, or jump straight to `escalate` skipping the `assess_priority` step.
+This is configured on the agent through:
 
-**Solution**: Tool Flow Graph — admin defines entry tools and typed transitions. At runtime, only eligible tools are forwarded to the LLM; ineligible tools are invisible.
+<ul>
+  <li><code>EnableToolFlowGraph__c</code></li>
+  <li><code>ToolFlowGraph__c</code></li>
+</ul>
 
-**How It Works**:
-
-1. **Graph Generation**: `ToolFlowGenerationService` uses LLM to analyze capabilities and suggest an `entry` + `flow` graph
-2. **Admin Review**: Human reviews and edits the graph in the `toolFlowGraphEditor` visual LWC
-3. **Storage**: Graph stored in `AIAgentDefinition__c.ToolFlowGraph__c` as JSON (version 3.0 schema)
-4. **Runtime Filtering**: `ToolFlowGraphService.filterToEligible()` is called by `LLMFormattingService` before every LLM call, exposing only the current eligible tool set
-
-**Graph Schema**:
-
-```json
-{
-  "version": "3.0",
-  "entry": ["assess_case"],
-  "flow": [
-    { "from": "assess_case",     "type": "exclusive",  "to": ["update_billing", "search_knowledge"] },
-    { "from": "update_billing",  "type": "sequential", "to": ["send_billing_email"] },
-    { "from": "search_knowledge","type": "parallel",   "to": ["update_case", "escalate_engineering"] },
-    { "from": ["update_case", "escalate_engineering"], "type": "sequential", "to": ["notify_manager"] }
-  ]
-}
-```
-
-**Gateway Types**:
-
-| Type | Meaning | Framework action |
-|:-----|:--------|:----------------|
-| `sequential` | One tool leads to the next | Show `to` tool(s) when `from` completes |
-| `parallel` | Fan-out — all `to` tools run | Show all `to` tools simultaneously |
-| `exclusive` | LLM picks one branch | Show all options; permanently lock out unchosen branches |
-
-**Join Gate**: When `from` is an array, ALL listed tools must have succeeded before the `to` tools become eligible.
-
-**Path Locking**: After the LLM calls a tool from an `exclusive` rule, `TransactionContext` locks the sibling options for the remainder of the execution — the LLM cannot backtrack.
-
-**Configuration**: Enable via `AIAgentDefinition__c.EnableToolFlowGraph__c`. When disabled, all External capabilities are shown (backward-compatible).
+At runtime, the framework exposes only the tools that are currently eligible.
 
   </TabItem>
 </Tabs>
 
-## Human-in-the-Loop (HITL)
+## Human-in-the-Loop
 
-### Approval Workflows
-
-Configurable approval requirements for sensitive actions via `AgentCapability__c.HITLMode__c`.
+Sensitive actions can require user confirmation or formal approval before they execute.
 
 <CardGrid>
-  <Card title="Disabled" icon="approve-check">
-    No HITL. Action executes immediately when the LLM calls it.
-  </Card>
   <Card title="Confirmation" icon="chat">
-    LLM asks the user for confirmation in chat before executing. No formal approval record created.
+    The agent asks the user to confirm before proceeding. This is conversational and does not require a formal approval record.
   </Card>
-  <Card title="Approval" icon="seti:settings">
-    Formal approval process via `PendingHITLAction__c`. Execution pauses until an approver acts. Notification sent based on `HITLNotificationPreference__c`.
+  <Card title="Approval" icon="approve-check">
+    The framework pauses execution and resumes only after an approver acts.
   </Card>
   <Card title="ConfirmationThenApproval" icon="warning">
-    Requires both in-chat confirmation from the user AND a formal approval. Highest gate for critical operations.
+    Combines conversational confirmation with formal approval for higher-risk actions.
+  </Card>
+  <Card title="ConditionalApproval" icon="seti:settings">
+    Lets the workflow decide at runtime whether approval should be required.
   </Card>
 </CardGrid>
 
-**Notification Preferences** (`HITLNotificationPreference__c`): **Always Notify** sends notifications for approvals, rejections, and errors (default). **Notify on Rejection Only** only sends notifications when actions are rejected.
+Operationally:
 
-### Approval State Management
+- approvals pause the execution
+- approvers must have access to the underlying business context
+- outcomes are written back into the execution trace for auditability
 
-**Object**: `PendingHITLAction__c` tracks approval state with atomic locking.
+## Audit and Observability
 
-**Lifecycle**: Action requires approval → Create PendingHITLAction__c record → Set ExecutionStatus__c to 'Awaiting Action' → Notify approver (if configured) → Approver reviews and approves/rejects → On approval: Execute action and update execution → On rejection: Log rejection and mark execution failed/cancelled.
+Every execution produces a durable trace.
 
-**Security**: Approvers must have access to source record and capability to approve.
+Captured data can include:
 
-## Audit & Observability
+- user messages
+- assistant responses
+- tool calls and tool results
+- failures
+- token counts and estimated cost
+- tool rationale when reasoning capture is enabled
 
-### Execution Traces
+This gives teams a concrete review path for support, compliance, and prompt/tool tuning.
 
-Every agent execution produces a detailed, immutable log capturing:
-- User input, LLM requests/responses, tool calls, tool results, and errors
-- Token counts (prompt, completion, total) and estimated cost per step
-- Tool rationale when `EnableToolReasoning__c` is enabled
-
-The **Execution Storyboard** UI surfaces a user-friendly decision timeline from this data — showing high-level steps, success/failure indicators, and tool rationale for transparency.
-
-### Tool Reasoning & Explainability
-
-When `AIAgentDefinition__c.EnableToolReasoning__c` is enabled:
-
-1. The framework adds a required `_rationale` parameter to all tools in the LLM schema
-2. The LLM must provide its reasoning for each tool call
-3. The rationale is extracted and stored separately from the tool arguments
-4. Displayed in the Execution Storyboard for user visibility and audit
-
-<CardGrid>
-  <Card title="Explainability" icon="seti:text">
-    End users can see exactly why the agent chose each action, building trust and transparency.
-  </Card>
-  <Card title="Debugging" icon="seti:log">
-    Developers can inspect LLM reasoning for unexpected tool selections during development and support.
-  </Card>
-  <Card title="Compliance" icon="seti:lock">
-    Audit trails include decision rationale, satisfying compliance requirements for automated AI decisions.
-  </Card>
-  <Card title="Accuracy" icon="approve-check">
-    Forces the LLM to reason through tool selection before committing, which measurably improves tool call quality.
-  </Card>
-</CardGrid>
-
-### Token Tracking & Cost Analytics
-
-**Per-Step Tracking**: Each step records input tokens, output tokens, total tokens, and estimated cost based on model pricing.
-
-**Aggregation**: Build dashboards to track:
-- Total cost per agent, per user, per day
-- Token efficiency (tokens per conversation turn)
-- Cost trends over time
-- Identify high-cost agents for optimization
-
-## Best Practices
+## Recommended Practices
 
 <Steps>
 
-1. **Start in Sandbox**
-   
-   Deploy to sandbox first with representative data. Test with various user profiles to validate CRUD/FLS enforcement.
+1. **Start in sandbox**
 
-2. **Principle of Least Privilege**
-   
-   Create dedicated integration users with minimal permissions needed. Don't grant system admin to agent service users.
+   Validate CRUD, FLS, sharing, approvals, and provider behavior using realistic users and data.
 
-3. **Enable Trust Layers Incrementally**
-   
-   Start with `PIIMaskingPreset__c = Standard` and `PromptSafetyPreset__c = Off` in your first sandbox deployment. Monitor agent behavior, then enable `PromptSafetyPreset__c = Standard` once you've validated the provider's safety checks are not producing false positives.
+2. **Use least privilege**
 
-4. **Route Sensitive Actions Through Approvals**
-   
-   Use HITL Approval mode for data deletion, external integrations, financial transactions, and high-impact operations.
+   Keep service users, integration users, and approvers scoped to the minimum permissions needed.
 
-5. **Monitor Execution Anomalies**
-   
-   Build dashboards on execution data. Alert on:
-   - High failure rates
-   - Sudden token cost spikes
-   - Prompt safety violations
-   - HITL rejection rates
+3. **Turn on trust layers incrementally**
 
-6. **Configure Tool Flow Graph for Ordered Workflows**
-   
-   Use `ToolFlowGenerationService` to generate an initial flow graph, then have domain experts review the entry tools, gateway types, and exclusive branches before enabling in production.
+   Start with masking and approval controls, then add prompt safety and tool-flow constraints after validating provider behavior.
 
-7. **Regular Audit Reviews**
-   
-   Schedule periodic reviews of:
-   - Tool rationale for unexpected patterns
-   - Prompt safety flags
-   - PII masking effectiveness
-   - HITL approval/rejection trends
+4. **Protect high-impact actions**
+
+   Use approvals for deletes, external side effects, financial updates, and irreversible workflows.
+
+5. **Monitor execution data**
+
+   Watch for unusual failure rates, token spikes, approval rejections, and prompt-safety events.
 
 </Steps>
 
 ## Security Checklist
 
-<Aside type="caution" title="Production Deployment">
-Always test security controls in sandbox with production data volumes before deploying to production. Monitor closely during initial rollout and be prepared to disable agents quickly if issues arise.
+<Aside type="caution" title="Production Readiness">
+Test with production-like data volume and user profiles before rollout. Make sure you can quickly disable or restrict agents if behavior is unexpected.
 </Aside>
 
 <CardGrid>
-  <Card title="Platform Security" icon="seti:lock">
-    - [ ] Agents run as users with appropriate profiles/permission sets
-    - [ ] Service user context configured (if needed) with minimal permissions
-    - [ ] All custom actions use `WITH USER_MODE` in SOQL
-    - [ ] DML operations use `Security.stripInaccessible()`
+  <Card title="Access Controls" icon="seti:lock">
+    - [ ] Users and service users have least-privilege access
+    - [ ] Custom actions respect sharing, CRUD, and FLS
+    - [ ] DML strips inaccessible fields before save
   </Card>
   <Card title="Trust Layers" icon="seti:shield">
-    - [ ] PII masking enabled (`Standard` or `Strict`) with appropriate classifications
-    - [ ] Prompt safety preset set to `Standard` for production agents using a provider with native safety support
-    - [ ] Tool Flow Graph enabled for agents with ordered or branching workflows
-    - [ ] Flow graph entry tools, gateway types, and exclusive branches reviewed before production
+    - [ ] PII masking is enabled appropriately
+    - [ ] Prompt safety is enabled where supported
+    - [ ] Tool Flow Graph is enabled for ordered workflows
   </Card>
-  <Card title="Human-in-the-Loop" icon="approve-check">
-    - [ ] Sensitive actions (deletions, financial ops, external integrations) routed through HITL
-    - [ ] Approval notification preferences configured
-    - [ ] Approver access to source records verified
-    - [ ] User training completed on HITL approval responsibilities
+  <Card title="Approvals" icon="approve-check">
+    - [ ] High-risk capabilities require HITL
+    - [ ] Approvers can access the business context they are approving
+    - [ ] Approval notifications and operational ownership are defined
   </Card>
-  <Card title="Monitoring & Audit" icon="seti:graph-line">
-    - [ ] Dashboard/alerts configured for execution monitoring
-    - [ ] Audit trail retention policy established for `ExecutionStep__c`
-    - [ ] Token budget limits and cost alerts configured
-    - [ ] High failure rate and HITL rejection rate alerts set up
+  <Card title="Monitoring" icon="seti:graph-line">
+    - [ ] Execution trace retention and review process are defined
+    - [ ] Alerts exist for failures and abnormal cost patterns
+    - [ ] Teams know how to disable or pause unsafe agents quickly
   </Card>
 </CardGrid>

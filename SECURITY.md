@@ -45,4 +45,4 @@ When using AI Agent Studio, follow these security guidelines:
 
 ## More Information
 
-For detailed security configuration, see the [Security Guide](https://iamsonal.github.io/aiAgentStudio/security.html) in our documentation.
+For detailed security configuration, see the [Security Guide](https://iamsonal.github.io/aiAgentStudio/reference/security/) in our documentation.

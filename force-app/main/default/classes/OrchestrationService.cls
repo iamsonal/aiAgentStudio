@@ -747,13 +747,11 @@ public inherited sharing class OrchestrationService {
             System.debug(LoggingLevel.INFO, logPrefix + 'Async tool counter decremented: ' + currentCount + ' -> ' + newCount);
 
             if (newCount == 0 && currentCount > 0) {
-                // Check if there are pending HITL actions before triggering LLM
-                // If HITL is pending, defer the LLM call - HITL completion will trigger it
                 if (HITLGatewayService.hasPendingActions(executionId)) {
                     System.debug(LoggingLevel.INFO, logPrefix + 'All async tools completed but HITL action(s) pending. Deferring LLM call to HITL completion.');
                 } else {
-                    System.debug(LoggingLevel.INFO, logPrefix + 'All async tools have completed. Triggering final follow-up LLM call.');
-                    triggerFinalFollowUpLLMCallInternal(execution, turnIdentifier, currentTurnCount, logPrefix);
+                    System.debug(LoggingLevel.INFO, logPrefix + 'All async tools have completed. Attempting final follow-up LLM call.');
+                    tryQueueAsyncCompletionFollowUp(executionId, turnIdentifier, currentTurnCount, logPrefix);
                 }
             } else if (newCount > 0) {
                 System.debug(LoggingLevel.INFO, logPrefix + 'Still waiting for ' + newCount + ' more async tool(s) to complete.');
@@ -828,12 +826,11 @@ public inherited sharing class OrchestrationService {
             System.debug(LoggingLevel.INFO, logPrefix + 'Counter decremented for queue failure: ' + currentCount + ' -> ' + newCount);
 
             if (newCount == 0 && currentCount > 0) {
-                // Check if there are pending HITL actions before triggering LLM
                 if (HITLGatewayService.hasPendingActions(executionId)) {
                     System.debug(LoggingLevel.INFO, logPrefix + 'All async tools failed/completed but HITL action(s) pending. Deferring LLM call.');
                 } else {
-                    System.debug(LoggingLevel.INFO, logPrefix + 'All async tools failed to queue. Triggering follow-up for error handling.');
-                    triggerFinalFollowUpLLMCallInternal(execution, turnIdentifier, currentTurnCount, logPrefix);
+                    System.debug(LoggingLevel.INFO, logPrefix + 'All async tools failed to queue. Attempting follow-up for error handling.');
+                    tryQueueAsyncCompletionFollowUp(executionId, turnIdentifier, currentTurnCount, logPrefix);
                 }
             }
         } catch (Exception e) {
@@ -841,14 +838,41 @@ public inherited sharing class OrchestrationService {
         }
     }
 
-    private static void triggerFinalFollowUpLLMCallInternal(AgentExecution__c execution, String turnIdentifier, Integer currentTurnCount, String logPrefix) {
+    public static Boolean tryQueueHitlResolvedFollowUp(Id executionId, String turnIdentifier, Integer currentTurnCount, Id sourceRecordId, String logPrefix) {
         try {
-            execution.AsyncToolTurnIdentifier__c = null;
-            update execution;
+            AgentExecution__c execution = tryPrepareFollowUp(executionId, turnIdentifier, logPrefix);
+            if (execution == null) {
+                return false;
+            }
+
+            AIAgentDefinition__c agentDef = [
+                SELECT AgentType__c
+                FROM AIAgentDefinition__c
+                WHERE Id = :execution.AIAgentDefinition__c
+                LIMIT 1
+            ];
+            if (agentDef.AgentType__c == 'Conversational') {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Conversational agent - HITL follow-up remains suppressed.');
+                return false;
+            }
+
+            System.enqueueJob(new HITLServiceQueueable(execution.Id, turnIdentifier, currentTurnCount, sourceRecordId));
+            System.debug(LoggingLevel.INFO, logPrefix + 'Queued HITL-resolved follow-up through the shared resume gate.');
+            return true;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error queueing HITL-resolved follow-up: ' + e.getMessage() + '\n' + e.getStackTraceString());
+            return false;
+        }
+    }
+
+    private static Boolean tryQueueAsyncCompletionFollowUp(Id executionId, String turnIdentifier, Integer currentTurnCount, String logPrefix) {
+        try {
+            AgentExecution__c execution = tryPrepareFollowUp(executionId, turnIdentifier, logPrefix);
+            if (execution == null) {
+                return false;
+            }
 
             AgentStateService agentStateSvcLocal = new AgentStateService();
-            agentStateSvcLocal.resumeForFollowUpLlmCall(execution.Id, turnIdentifier, null, logPrefix);
-
             AgentJobEnqueuer orchestrationDispatchSvc = new AgentJobEnqueuer(agentStateSvcLocal);
             orchestrationDispatchSvc.enqueueFollowUp(
                 execution.Id,
@@ -861,9 +885,65 @@ public inherited sharing class OrchestrationService {
                 execution.SourceRecordId__c
             );
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Final follow-up LLM call queued for parallel execution completion');
+            System.debug(LoggingLevel.INFO, logPrefix + 'Queued async-completion follow-up through the shared resume gate.');
+            return true;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error triggering final follow-up LLM call: ' + e.getMessage() + '\n' + e.getStackTraceString());
+            return false;
+        }
+    }
+
+    private static AgentExecution__c tryPrepareFollowUp(Id executionId, String turnIdentifier, String logPrefix) {
+        try {
+            AgentExecution__c execution = [
+                SELECT
+                    Id,
+                    CurrentTurnIdentifier__c,
+                    ProcessingStatus__c,
+                    PendingAsyncToolCount__c,
+                    AsyncToolTurnIdentifier__c,
+                    AIAgentDefinition__c,
+                    User__c,
+                    SourceRecordId__c
+                FROM AgentExecution__c
+                WHERE Id = :executionId
+                FOR UPDATE
+            ];
+
+            if (String.isNotBlank(execution.CurrentTurnIdentifier__c) && execution.CurrentTurnIdentifier__c != turnIdentifier) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix + 'Follow-up gate rejected stale turn. Current=' + execution.CurrentTurnIdentifier__c + ', Received=' + turnIdentifier
+                );
+                return null;
+            }
+            if (execution.ProcessingStatus__c == AIAgentConstants.STATUS_AWAITING_FOLLOWUP) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up already queued for execution ' + executionId + '. Skipping duplicate enqueue.');
+                return null;
+            }
+            if (execution.ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_ACTION) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Follow-up gate requires Awaiting Action status. Current=' + execution.ProcessingStatus__c);
+                return null;
+            }
+
+            Integer pendingCount = execution.PendingAsyncToolCount__c != null ? Integer.valueOf(execution.PendingAsyncToolCount__c) : 0;
+            if (pendingCount > 0) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up gate deferred because ' + pendingCount + ' async tool(s) remain pending.');
+                return null;
+            }
+            if (HITLGatewayService.hasPendingActions(executionId)) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up gate deferred because HITL actions are still pending.');
+                return null;
+            }
+
+            execution.ProcessingStatus__c = AIAgentConstants.STATUS_AWAITING_FOLLOWUP;
+            execution.AsyncToolTurnIdentifier__c = null;
+            execution.LastActivityTime__c = Datetime.now();
+            update execution;
+            return execution;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Error preparing follow-up gate: ' + e.getMessage() + '\n' + e.getStackTraceString());
+            return null;
         }
     }
 }

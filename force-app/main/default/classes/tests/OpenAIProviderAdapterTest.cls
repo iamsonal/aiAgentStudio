@@ -66,6 +66,13 @@ private class OpenAIProviderAdapterTest {
     }
 
     @IsTest
+    static void testNormalizePromptSafetyPreset_BlankDefaultsToStandard() {
+        System.assertEquals(BaseProviderAdapter.PRESET_STANDARD, BaseProviderAdapter.normalizePromptSafetyPreset(null));
+        System.assertEquals(BaseProviderAdapter.PRESET_STANDARD, BaseProviderAdapter.normalizePromptSafetyPreset(''));
+        System.assertEquals(BaseProviderAdapter.PRESET_OFF, BaseProviderAdapter.normalizePromptSafetyPreset('Off'));
+    }
+
+    @IsTest
     static void testSendMessage_ParallelEnabledWithMultipleTools() {
         // parallel_tool_calls should be true only when the agent setting is on AND 2+ tools are present.
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().build();

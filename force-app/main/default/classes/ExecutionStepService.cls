@@ -915,8 +915,8 @@ public inherited sharing class ExecutionStepService {
                             wrappers.add(new ExecutionStepWrapper(step, isDescending));
                         }
 
-                        // OPTIMIZATION: Defensive limit to prevent CPU timeout with large datasets
-                        // In-memory sorting with custom comparator is O(n log n) with DateTime operations
+                        // OPTIMIZATION: Defensive limit to prevent CPU timeout with large datasets.
+                        // Always retain buffered in-flight steps, then trim database history around them.
                         final Integer MAX_SORTABLE_STEPS = 500;
                         if (wrappers.size() > MAX_SORTABLE_STEPS) {
                             System.debug(
@@ -929,10 +929,25 @@ public inherited sharing class ExecutionStepService {
                                     '). ' +
                                     'Truncating to prevent CPU timeout. Consider using maxResults parameter or database ORDER BY.'
                             );
-                            // Truncate before sorting to stay within safe limits
+                            Integer bufferedCount = filteredBuffered.size();
+                            Integer dbSlots = Math.max(0, MAX_SORTABLE_STEPS - bufferedCount);
                             List<ExecutionStepWrapper> truncated = new List<ExecutionStepWrapper>();
-                            for (Integer i = 0; i < MAX_SORTABLE_STEPS && i < wrappers.size(); i++) {
-                                truncated.add(wrappers[i]);
+
+                            if (dbSlots > 0) {
+                                if (isDescending) {
+                                    for (Integer i = 0; i < dbSlots && i < dbResults.size(); i++) {
+                                        truncated.add(new ExecutionStepWrapper(dbResults[i], isDescending));
+                                    }
+                                } else {
+                                    Integer dbStart = Math.max(0, dbResults.size() - dbSlots);
+                                    for (Integer i = dbStart; i < dbResults.size(); i++) {
+                                        truncated.add(new ExecutionStepWrapper(dbResults[i], isDescending));
+                                    }
+                                }
+                            }
+
+                            for (ExecutionStep__c step : filteredBuffered) {
+                                truncated.add(new ExecutionStepWrapper(step, isDescending));
                             }
                             wrappers = truncated;
                         }

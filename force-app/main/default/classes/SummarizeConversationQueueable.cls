@@ -107,6 +107,12 @@ public without sharing class SummarizeConversationQueueable implements Queueable
             ExecutionStep__c step = (ExecutionStep__c) obj;
             if (step.StepType__c == 'UserInput' || step.StepType__c == 'AgentResponse') {
                 newLinesList.add(step.StepRole__c + ': ' + step.Content__c);
+            } else if (step.StepType__c == 'ToolCall') {
+                String toolArgs = String.isNotBlank(step.ToolArguments__c) ? step.ToolArguments__c : '{}';
+                newLinesList.add('Assistant called tool ' + step.ToolName__c + ' with args: ' + toolArgs);
+            } else if (step.StepType__c == 'ToolResult') {
+                String toolResult = String.isNotBlank(step.ToolResult__c) ? step.ToolResult__c : step.Content__c;
+                newLinesList.add('Tool ' + step.ToolName__c + ' result: ' + toolResult);
             }
         }
         String newLines = String.join(newLinesList, '\n');

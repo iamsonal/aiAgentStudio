@@ -276,6 +276,20 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                 createToolResultExecutionSteps(context, syncResults, decisionLogger, logPrefix);
             }
 
+            // Initialize async tracking ONCE with the combined count before dispatching
+            // either group. Previously each group called pauseForAsyncActionWithTracking()
+            // independently, overwriting the other's count.
+            Integer pendingAsyncTotal = asyncTools.size() + agentTools.size();
+            if (pendingAsyncTotal > 0) {
+                context.agentStateSvc.pauseForAsyncActionWithTracking(
+                    context.executionId,
+                    context.turnIdentifier,
+                    pendingAsyncTotal,
+                    'Async Tools + Agent Capabilities',
+                    logPrefix
+                );
+            }
+
             // Queue async tools (they'll run independently)
             if (!asyncTools.isEmpty()) {
                 queueAsyncTools(context, asyncTools, decisionLogger, logPrefix);
@@ -784,7 +798,8 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                     context.currentTurnCount,
                     0L,
                     false,
-                    tool.capability?.Id
+                    tool.capability?.Id,
+                    true // isError — blocked tools must not appear as successful executions
                 );
                 System.debug(LoggingLevel.INFO, logPrefix + '[ConfidenceGate] Wrote synthetic blocked result for tool "' + tool.toolName + '"');
             } catch (Exception e) {
@@ -1545,11 +1560,10 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         // Track successfully queued tools to handle partial failures
         Integer successfullyQueued = 0;
         List<String> failedTools = new List<String>();
-        List<String> failureReasons = new List<String>(); // Collect actual error messages
+        List<String> failureReasons = new List<String>();
 
-        // Initialize async tool tracking and pause for async action processing in a single DML operation
-        // This reduces DML operations from 2 to 1 by batching the updates
-        context.agentStateSvc.pauseForAsyncActionWithTracking(context.executionId, context.turnIdentifier, asyncTools.size(), 'Async Tools', logPrefix);
+        // Note: pauseForAsyncActionWithTracking() is called ONCE by handle() with
+        // the combined async + agent count before this method is invoked.
 
         // Queue each async tool individually
         for (ToolCallRequest toolRequest : asyncTools) {
@@ -1682,8 +1696,8 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         List<String> failedTools = new List<String>();
         List<String> failureReasons = new List<String>();
 
-        // Pause for async processing: agent capabilities are tracked alongside standard async tools
-        context.agentStateSvc.pauseForAsyncActionWithTracking(context.executionId, context.turnIdentifier, agentTools.size(), 'Agent Capabilities', logPrefix);
+        // Note: pauseForAsyncActionWithTracking() is called ONCE by handle() with
+        // the combined async + agent count before this method is invoked.
 
         for (ToolCallRequest toolRequest : agentTools) {
             try {
@@ -1704,12 +1718,16 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                     : EncodingUtil.convertToHex(Crypto.generateAesKey(128)).left(32);
                 String childTurn = baseTurn + '-agent-' + toolRequest.toolCallId;
 
-                // Store toolCallId in TriggerPayload so onChildComplete() can map back to the tool call
+                // Store toolCallId + originating turn contract in TriggerPayload so
+                // onChildComplete() can map back to the tool call AND reject stale
+                // completions from a turn that has since been superseded.
                 String triggerPayload = JSON.serialize(
-                    new Map<String, String>{
+                    new Map<String, Object>{
                         'toolCallId' => toolRequest.toolCallId,
                         'toolName' => toolRequest.toolName,
-                        'parentExecutionId' => context.executionId
+                        'parentExecutionId' => context.executionId,
+                        'parentTurnIdentifier' => context.turnIdentifier,
+                        'parentTurnCount' => context.currentTurnCount
                     }
                 );
 
@@ -1994,8 +2012,13 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                     AIAgentFrameworkSettings.getMaxLLMCallsPerTransaction()
             );
 
-            // Return IMMEDIATE_FOLLOWUP to signal the entry point to call LLM again
-            // The entry point will handle the actual LLM call in its loop
+            // Invalidate cached toolsPayload so the follow-up LLM call recomputes
+            // eligible tools. Tool flow graph state may have changed after execution.
+            AIAgentDefinition__c agentDefForImmediate = AIAgentConfigService.getAgentDefinition(context.agentDefinitionId);
+            if (agentDefForImmediate.EnableToolFlowGraph__c == true) {
+                LLMInteractionService.clearRequestCache(context.executionId);
+            }
+
             return OrchestrationService.OUTCOME_IMMEDIATE_FOLLOWUP;
         }
 

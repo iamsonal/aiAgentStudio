@@ -19,28 +19,28 @@ import { Aside, Badge, Card, CardGrid, LinkButton, LinkCard, Steps, TabItem, Tab
 <div class="hero-shell">
   <div class="hero-kicker">Built for governed enterprise AI on Salesforce</div>
   <p><Badge text="Open Source" variant="success" size="small" /> <Badge text="Enterprise Ready" variant="note" size="small" /> <Badge text="Salesforce Native" variant="tip" size="small" /></p>
-  A comprehensive framework for building AI agents that orchestrate LLM interactions, execute tools, manage memory, and coordinate multi-agent pipelines—all while respecting Salesforce security and governor limits.
+  A framework for building Salesforce-native AI agents that can chat, automate work, process email, chain multi-agent workflows, and operate with governance built in.
 
   <div class="hero-grid">
-    <div class="stat-tile"><strong>3 Agent Types</strong><br />Conversational, Function, and Email orchestrators. Plus sequential pipelines for multi-agent composition.</div>
+    <div class="stat-tile"><strong>Multiple Agent Patterns</strong><br />Conversational agents, function-style agents, email agents, and sequential multi-agent workflows.</div>
     <div class="stat-tile"><strong>Trust Layers</strong><br />PII masking, prompt safety, and tool flow enforcement.</div>
-    <div class="stat-tile"><strong>Multi-Provider</strong><br />OpenAI built-in. Any OpenAI-compatible API works out of the box. Extend for others.</div>
+    <div class="stat-tile"><strong>Multi-Provider</strong><br />OpenAI-compatible models out of the box, with support for broader provider strategies and enterprise model setups.</div>
   </div>
 </div>
 
 <Aside type="caution" title="Repository Scope">
-This public repository contains the core framework. The `aiAgentStudioAddons` package includes additional orchestrators, LLM providers, actions, and UI components that are not part of the open source release.
+This public documentation focuses on the core framework in `force-app`. The repository also contains a separate addon package with additional packaged functionality, but those internals are intentionally not documented here.
 </Aside>
 
 ## What It Does
 
-AI Agent Studio is a **production-grade orchestration system** for AI agents on Salesforce. It handles LLM interactions, tool execution, memory management, multi-agent workflows, email processing, human-in-the-loop approvals, security controls, and observability — all natively on the Salesforce platform with no external infrastructure.
+AI Agent Studio is a **production-grade orchestration system** for Salesforce-native AI experiences. It supports conversational copilots, single-purpose automation agents, email workflows, human approvals, multi-agent coordination, observability, and security controls inside Salesforce.
 
 ## Why AI Agent Studio
 
 <CardGrid>
   <Card title="Production-Ready Architecture" icon="seti:settings">
-    Built with Strategy + Factory + Chain of Responsibility patterns. Modular plugin-based design scales from single conversations to high-throughput enterprise deployments.
+    Built for real Salesforce workflows with configurable agent behavior, governed automation, and support for multiple execution patterns.
   </Card>
   <Card title="Security & Governance First" icon="seti:lock">
     Automatic CRUD/FLS/sharing enforcement, PII masking, provider-native prompt safety, Tool Flow Graph enforcement, and comprehensive audit trails. Agents run in user context with no privilege escalation.
@@ -53,20 +53,20 @@ AI Agent Studio is a **production-grade orchestration system** for AI agents on 
   </Card>
 </CardGrid>
 
-## Agent Types
+## Core Capabilities
 
 <CardGrid>
   <Card title="Conversational Agents" icon="chat">
     Multi-turn chat assistants with memory and tool execution. Perfect for customer service, sales assistance, and interactive troubleshooting.
   </Card>
   <Card title="Function Agents" icon="seti:gear">
-    Single-task specialists for classification, enrichment, and automation. Ideal for record enrichment, sentiment analysis, and automated decision-making.
-  </Card>
-  <Card title="Sequential Pipelines & Sub-Agents" icon="seti:graph-line">
-    Chain agents in a fixed sequence via `PipelineDefinition__c` metadata, or give any Function agent a capability with `ImplementationType__c = 'Agent'` to let the LLM invoke another agent dynamically as a tool.
+    Purpose-built agents for classification, enrichment, guided execution, and one-off business tasks where users want a fast answer or action.
   </Card>
   <Card title="Email Agents" icon="seti:mail">
-    Email thread processing with automatic continuity and reply generation. Ideal for automated customer support and email triage.
+    Process inbound email threads, generate replies, route work, and support service workflows with the same governance and observability model.
+  </Card>
+  <Card title="Pipelines and Sub-Agents" icon="seti:graph-line">
+    Run fixed multi-agent sequences for predictable workflows, or let an agent call another agent dynamically when a task needs specialized help.
   </Card>
 </CardGrid>
 
@@ -93,13 +93,13 @@ AI Agent Studio is a **production-grade orchestration system** for AI agents on 
   </TabItem>
   <TabItem label="Extensibility">
 
-**Custom Actions**: Extend with business logic by creating Apex classes implementing `IAgentAction`. Full access to Salesforce data and external integrations.
+**Custom Actions**: Extend the framework with business-specific actions and integrations.
 
-**Context Providers**: Supply dynamic data to agents via `IAgentContextProvider`. Bulk-safe queries with security enforcement.
+**Context Providers**: Supply dynamic business context so agents can act with better awareness of records, users, and workflows.
 
-**LLM Providers**: `OpenAIProviderAdapter` ships in core and works with any OpenAI-compatible API (Azure OpenAI, Groq, Together AI, Ollama, and more). `VertexAIProviderAdapter` for Google Vertex AI / Gemini is in addons. Add any other provider by extending `BaseProviderAdapter`.
+**LLM Providers**: Use OpenAI-compatible providers out of the box and support additional provider patterns for broader model ecosystems and enterprise deployments.
 
-**Memory Strategies**: Implement custom memory management via `IMemoryManager`. BufferWindow and SummaryBuffer included.
+**Memory Strategies**: Tailor how the framework remembers, summarizes, and reuses prior conversation history.
 
   </TabItem>
 </Tabs>
