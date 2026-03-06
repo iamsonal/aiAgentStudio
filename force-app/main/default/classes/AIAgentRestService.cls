@@ -83,7 +83,7 @@ global with sharing class AIAgentRestService {
                 throw new AIAgentRestException('turnIdentifier is required');
             }
             // userMessage is now optional for non-conversational agents
-            // (Function/Workflow agents may not need a user message)
+            // (Function agents may not need a user message)
 
             // Validate ID formats
             if (String.isNotBlank(requestData.sessionId)) {

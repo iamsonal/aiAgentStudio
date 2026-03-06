@@ -4,6 +4,7 @@
     <description>Human-readable description of what this pattern detects. Displayed to administrators for reference.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Explain what data this pattern detects, its format assumptions, and any known edge cases or false-positive risks. Example: Detects US Social Security Numbers in NNN-NN-NNNN format.</inlineHelpText>
     <label>Description</label>
     <length>500</length>
     <required>false</required>

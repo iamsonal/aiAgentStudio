@@ -82,7 +82,13 @@ public without sharing class AsyncActionEngine implements Queueable, Database.Al
         try {
             // Validate execution state to prevent stale executions
             AgentStateService agentStateService = new AgentStateService();
-            AgentExecution__c execution = agentStateService.validateAndGetExecution(this.executionId, this.turnIdentifier);
+            AgentExecution__c execution;
+            try {
+                execution = agentStateService.validateAndGetExecution(this.executionId, this.turnIdentifier);
+            } catch (AgentStateService.StaleExecutionException staleEx) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Stale async action job detected. Skipping execution. ' + staleEx.getMessage());
+                return;
+            }
             if (execution == null || execution.ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_ACTION) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Stale execution detected or execution in unexpected state - aborting action execution');
                 return;

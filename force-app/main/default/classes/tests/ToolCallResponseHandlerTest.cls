@@ -209,63 +209,6 @@ private class ToolCallResponseHandlerTest {
     }
 
     @IsTest
-    static void testHandle_ToolTerminatingMode_DependencyValidationDoesNotFailExecution() {
-        TestFactory.AgentSetup setup = getSetup();
-        Case testCase = [SELECT Id FROM Case LIMIT 1];
-
-        AgentCapability__c capability = [
-            SELECT Id, CapabilityName__c
-            FROM AgentCapability__c
-            WHERE AIAgentDefinition__c = :setup.agentDefinition.Id AND RunAsynchronously__c = FALSE
-            LIMIT 1
-        ];
-
-        String graphJson = JSON.serialize(
-            new Map<String, Object>{
-                'version' => '1.0',
-                'dependencies' => new Map<String, Object>{
-                    capability.CapabilityName__c => new Map<String, Object>{ 'allOf' => new List<String>{ 'missing_tool' } }
-                }
-            }
-        );
-
-        AIAgentDefinition__c agentUpdate = new AIAgentDefinition__c(
-            Id = setup.agentDefinition.Id,
-            EnableDependencyValidation__c = true,
-            ToolDependencyGraph__c = graphJson
-        );
-        update agentUpdate;
-
-        AgentExecution__c executionUpdate = new AgentExecution__c(Id = setup.agentExecution.Id, IsToolTerminatingMode__c = true);
-        update executionUpdate;
-
-        List<Map<String, String>> actions = new List<Map<String, String>>{
-            TestFactory.createToolCallAction(capability.CapabilityName__c, '{"Id":"' + testCase.Id + '"}', 'call-dep-block-001')
-        };
-        LLMInteractionService.LLMInteractionResult llmResult = TestFactory.createLlmToolCallResult('Dependency blocked', actions);
-
-        OrchestrationContext context = TestFactory.newOrchestrationContext()
-            .withSetup(setup)
-            .withLlmResult(llmResult)
-            .withTurn('turn-dep-block-001', 1)
-            .build();
-
-        ToolCallResponseHandler handler = new ToolCallResponseHandler();
-
-        String outcome = handler.handle(context);
-
-        System.assertEquals(OrchestrationService.OUTCOME_COMPLETED, outcome, 'Dependency validation should not fail tool-terminating execution');
-
-        AgentExecution__c execution = [
-            SELECT ExecutionStatus__c, ProcessingStatus__c
-            FROM AgentExecution__c
-            WHERE Id = :setup.agentExecution.Id
-        ];
-        System.assertEquals('Completed', execution.ExecutionStatus__c, 'Execution should be Completed');
-        System.assertEquals(AIAgentConstants.STATUS_IDLE, execution.ProcessingStatus__c, 'Processing status should be Idle');
-    }
-
-    @IsTest
     static void testHandle_ToolTerminatingMode_FailureSetsErrorMessage() {
         TestFactory.AgentSetup setup = getSetup();
 
@@ -436,81 +379,6 @@ private class ToolCallResponseHandlerTest {
     }
 
     @IsTest
-    static void testHandle_DependencyCircuitBreaker_FailsExecution() {
-        TestFactory.AgentSetup setup = getSetup();
-        Case testCase = [SELECT Id FROM Case LIMIT 1];
-
-        AgentCapability__c capability = [
-            SELECT Id, CapabilityName__c
-            FROM AgentCapability__c
-            WHERE AIAgentDefinition__c = :setup.agentDefinition.Id AND RunAsynchronously__c = FALSE
-            LIMIT 1
-        ];
-
-        String graphJson = JSON.serialize(
-            new Map<String, Object>{
-                'version' => '1.0',
-                'dependencies' => new Map<String, Object>{
-                    capability.CapabilityName__c => new Map<String, Object>{ 'allOf' => new List<String>{ 'missing_tool' } }
-                }
-            }
-        );
-        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, EnableDependencyValidation__c = true, ToolDependencyGraph__c = graphJson);
-
-        // Seed existing dependency violations to reach circuit breaker threshold (default 3)
-        List<ExecutionStep__c> violations = new List<ExecutionStep__c>{
-            new ExecutionStep__c(
-                AgentExecution__c = setup.agentExecution.Id,
-                StepType__c = 'ToolResult',
-                StepRole__c = 'Tool',
-                ToolName__c = 'blocked_tool_1',
-                ToolResult__c = '{"isSuccess":false}',
-                TurnIdentifier__c = 'turn-dep-violation-001',
-                TurnCount__c = 1,
-                Timestamp__c = Datetime.now(),
-                IsDependencyValidationFailure__c = true
-            ),
-            new ExecutionStep__c(
-                AgentExecution__c = setup.agentExecution.Id,
-                StepType__c = 'ToolResult',
-                StepRole__c = 'Tool',
-                ToolName__c = 'blocked_tool_2',
-                ToolResult__c = '{"isSuccess":false}',
-                TurnIdentifier__c = 'turn-dep-violation-001',
-                TurnCount__c = 1,
-                Timestamp__c = Datetime.now(),
-                IsDependencyValidationFailure__c = true
-            )
-        };
-        insert violations;
-
-        List<Map<String, String>> actions = new List<Map<String, String>>{
-            TestFactory.createToolCallAction(capability.CapabilityName__c, '{"Id":"' + testCase.Id + '"}', 'call-dep-break-001')
-        };
-        LLMInteractionService.LLMInteractionResult llmResult = TestFactory.createLlmToolCallResult('Dependency breaker', actions);
-
-        OrchestrationContext context = TestFactory.newOrchestrationContext()
-            .withSetup(setup)
-            .withLlmResult(llmResult)
-            .withUserMessage('Trigger dependency breaker')
-            .withTurn('turn-dep-break-001', 1)
-            .build();
-
-        ToolCallResponseHandler handler = new ToolCallResponseHandler();
-        String outcome = handler.handle(context);
-
-        System.assertEquals(OrchestrationService.OUTCOME_FAILED, outcome, 'Circuit breaker should fail execution');
-
-        AgentExecution__c execution = [
-            SELECT ExecutionStatus__c, ProcessingStatus__c
-            FROM AgentExecution__c
-            WHERE Id = :setup.agentExecution.Id
-        ];
-        System.assertEquals('Failed', execution.ExecutionStatus__c, 'Execution should be Failed');
-        System.assertEquals(AIAgentConstants.STATUS_FAILED, execution.ProcessingStatus__c, 'Processing status should be Failed');
-    }
-
-    @IsTest
     static void testHandle_ApprovalRequired_ToolCreatesPendingActionOrFails() {
         TestFactory.AgentSetup setup = getSetup();
 
@@ -637,63 +505,6 @@ private class ToolCallResponseHandlerTest {
         ];
         System.assertEquals('Processing', execution.ExecutionStatus__c, 'Execution should be processing');
         System.assertEquals(AIAgentConstants.STATUS_AWAITING_ACTION, execution.ProcessingStatus__c, 'Should await async action');
-    }
-
-    @IsTest
-    static void testHandle_SyncTools_ReorderedByDependencies() {
-        TestFactory.AgentSetup setup = getSetup();
-        Case testCase = [SELECT Id FROM Case LIMIT 1];
-
-        AgentCapability__c firstCap = TestFactory.newCapability()
-            .withAgent(setup.agentDefinition.Id)
-            .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
-            .build();
-        firstCap.CapabilityName__c = 'dep_first_' + String.valueOf(Datetime.now().getTime());
-        insert firstCap;
-
-        AgentCapability__c secondCap = TestFactory.newCapability()
-            .withAgent(setup.agentDefinition.Id)
-            .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
-            .build();
-        secondCap.CapabilityName__c = 'dep_second_' + String.valueOf(Datetime.now().getTime());
-        insert secondCap;
-
-        String graphJson = JSON.serialize(
-            new Map<String, Object>{
-                'version' => '1.0',
-                'dependencies' => new Map<String, Object>{
-                    secondCap.CapabilityName__c => new Map<String, Object>{ 'allOf' => new List<String>{ firstCap.CapabilityName__c } }
-                }
-            }
-        );
-        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, EnableDependencyValidation__c = true, ToolDependencyGraph__c = graphJson);
-
-        List<Map<String, String>> actions = new List<Map<String, String>>{
-            TestFactory.createToolCallAction(secondCap.CapabilityName__c, '{"Id":"' + testCase.Id + '"}', 'call-dep-second-001'),
-            TestFactory.createToolCallAction(firstCap.CapabilityName__c, '{"Id":"' + testCase.Id + '"}', 'call-dep-first-001')
-        };
-        LLMInteractionService.LLMInteractionResult llmResult = TestFactory.createLlmToolCallResult('Dependency order', actions);
-
-        OrchestrationContext context = TestFactory.newOrchestrationContext()
-            .withSetup(setup)
-            .withLlmResult(llmResult)
-            .withTurn('turn-dep-reorder-001', 1)
-            .build();
-
-        ToolCallResponseHandler handler = new ToolCallResponseHandler();
-        String outcome = handler.handle(context);
-
-        System.assertEquals(OrchestrationService.OUTCOME_QUEUED_FOLLOWUP, outcome, 'Reordered sync tools should queue follow-up');
-
-        List<ExecutionStep__c> toolResults = [
-            SELECT ToolName__c, IsDependencyValidationFailure__c
-            FROM ExecutionStep__c
-            WHERE AgentExecution__c = :setup.agentExecution.Id AND StepType__c = 'ToolResult'
-        ];
-        System.assertEquals(2, toolResults.size(), 'Both tools should execute after dependency validation');
-        for (ExecutionStep__c step : toolResults) {
-            System.assertEquals(false, step.IsDependencyValidationFailure__c, 'Dependency validation should not block tool execution');
-        }
     }
 
     @IsTest
@@ -951,60 +762,6 @@ private class ToolCallResponseHandlerTest {
     }
 
     /**
-     * @description Tests dependency validation blocking with circuit breaker.
-     *              Covers lines 1276-1295 for blocked outcome and continue logic.
-     */
-    @IsTest
-    static void testHandle_DependencyValidationBlocks_CreatesBlockedOutcome() {
-        TestFactory.AgentSetup setup = getSetup();
-        Case testCase = [SELECT Id FROM Case LIMIT 1];
-
-        AgentCapability__c capability = [
-            SELECT Id, CapabilityName__c
-            FROM AgentCapability__c
-            WHERE AIAgentDefinition__c = :setup.agentDefinition.Id AND RunAsynchronously__c = FALSE
-            LIMIT 1
-        ];
-
-        String graphJson = JSON.serialize(
-            new Map<String, Object>{
-                'version' => '1.0',
-                'dependencies' => new Map<String, Object>{
-                    capability.CapabilityName__c => new Map<String, Object>{ 'allOf' => new List<String>{ 'missing_dependency_tool' } }
-                }
-            }
-        );
-        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, EnableDependencyValidation__c = true, ToolDependencyGraph__c = graphJson);
-
-        List<Map<String, String>> actions = new List<Map<String, String>>{
-            TestFactory.createToolCallAction(capability.CapabilityName__c, '{"Id":"' + testCase.Id + '"}', 'call-dep-blocked-001')
-        };
-        LLMInteractionService.LLMInteractionResult llmResult = TestFactory.createLlmToolCallResult('Dependency blocked', actions);
-
-        OrchestrationContext context = TestFactory.newOrchestrationContext()
-            .withSetup(setup)
-            .withLlmResult(llmResult)
-            .withTurn('turn-dep-blocked-001', 1)
-            .build();
-
-        ToolCallResponseHandler handler = new ToolCallResponseHandler();
-        String outcome = handler.handle(context);
-
-        // Should continue processing (not fail immediately) when dependency validation blocks
-        System.assertNotEquals(null, outcome, 'Should return outcome even when dependency blocks tool');
-
-        ExecutionStep__c blockedResult = [
-            SELECT ToolResult__c, IsError__c, IsDependencyValidationFailure__c
-            FROM ExecutionStep__c
-            WHERE AgentExecution__c = :setup.agentExecution.Id AND StepType__c = 'ToolResult' AND ToolCallId__c = 'call-dep-blocked-001'
-            LIMIT 1
-        ];
-        System.assertEquals(true, blockedResult.IsDependencyValidationFailure__c, 'Tool should be marked as dependency validation failure');
-        System.assertEquals(false, blockedResult.IsError__c, 'Blocked tool should NOT be marked as error (it is a blocked attempt, not an execution error)');
-        System.assert(blockedResult.ToolResult__c.contains('"success"'), 'Blocked outcome should be serialized');
-    }
-
-    /**
      * @description Tests multiple async tool queue failures to cover summary error message.
      *              Covers lines 1914-1919 for multiple tool failure summary.
      */
@@ -1065,7 +822,7 @@ private class ToolCallResponseHandlerTest {
     }
 
     /**
-     * @description Tests approval required for Function/Workflow agents updates status to awaiting action.
+     * @description Tests approval required for Function agents updates status to awaiting action.
      *              Covers lines 1042-1050 for default approval handling.
      */
     @IsTest

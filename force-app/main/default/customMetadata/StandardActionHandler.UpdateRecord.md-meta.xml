@@ -64,7 +64,7 @@
         <value xsi:type="xsd:string">[
   {
     &quot;name&quot;: &quot;recordId&quot;,
-    &quot;type&quot;: &quot;salesforce-id&quot;,
+    &quot;type&quot;: &quot;string&quot;,
     &quot;required&quot;: true,
     &quot;help&quot;: &quot;The 18-character Salesforce ID of the record to update&quot;,
     &quot;label&quot;: &quot;Record ID&quot;,
@@ -87,8 +87,7 @@
   &quot;properties&quot;: {
     &quot;recordId&quot;: {
       &quot;type&quot;: &quot;string&quot;,
-      &quot;description&quot;: &quot;The 18-character Salesforce ID of the record to update&quot;,
-      &quot;format&quot;: &quot;salesforce-id&quot;
+      &quot;description&quot;: &quot;The 18-character Salesforce ID of the record to update&quot;
     },
     &quot;recordData&quot;: {
       &quot;type&quot;: &quot;object&quot;,

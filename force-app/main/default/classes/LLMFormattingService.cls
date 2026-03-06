@@ -123,6 +123,11 @@ public inherited sharing class LLMFormattingService {
                 }
             }
 
+            // Apply Tool Flow Graph filter: only expose tools eligible at this point in the execution
+            if (agentConfig != null && agentConfig.EnableToolFlowGraph__c == true && String.isNotBlank(agentConfig.ToolFlowGraph__c)) {
+                capabilities = ToolFlowGraphService.filterToEligible(capabilities, agentConfig, executionId);
+            }
+
             if (capabilities.isEmpty()) {
                 System.debug(LoggingLevel.INFO, debugPrefix + 'No external capabilities found for Agent Definition: ' + agentDefinitionId);
                 return toolsPayload;

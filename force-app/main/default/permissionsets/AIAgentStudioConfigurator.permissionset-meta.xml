@@ -39,7 +39,17 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AIAgentDefinition__c.EnableDependencyValidation__c</field>
+        <field>AIAgentDefinition__c.EmailParentObject__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>AIAgentDefinition__c.EmailReplyMode__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>AIAgentDefinition__c.EmailTerminalStatuses__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -50,6 +60,11 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>AIAgentDefinition__c.EnableParallelToolCalling__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>AIAgentDefinition__c.EnableToolFlowGraph__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -129,12 +144,12 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AIAgentDefinition__c.ToolDependencyGraphWarnings__c</field>
+        <field>AIAgentDefinition__c.ToolFlowGraphWarning__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AIAgentDefinition__c.ToolDependencyGraph__c</field>
+        <field>AIAgentDefinition__c.ToolFlowGraph__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -239,6 +254,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>AgentExecution__c.AIAgentDefinition__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>AgentExecution__c.AsyncToolTurnIdentifier__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -255,11 +275,6 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>AgentExecution__c.CurrentTurnIdentifier__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AgentExecution__c.CurrentWorkflowStep__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -285,16 +300,6 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>AgentExecution__c.LastFunctionResumeTimestamp__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AgentExecution__c.LastResumeTimestamp__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AgentExecution__c.LastResumedStep__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -384,6 +389,41 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>ContextLedgerItem__c.ChildRecordIds__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>ContextLedgerItem__c.LastDataRefreshTime__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>ContextLedgerItem__c.Metadata__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>ContextLedgerItem__c.OriginalContextType__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>ContextLedgerItem__c.PrunedAt__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>ContextLedgerItem__c.PrunedReason__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>ContextLedgerItem__c.SourceRecordId__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>ExecutionStep__c.AIAgentCapability__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -430,11 +470,6 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>ExecutionStep__c.IsAsyncToolExecution__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ExecutionStep__c.IsDependencyValidationFailure__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -490,6 +525,11 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>ExecutionStep__c.PromptTokens__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>ExecutionStep__c.RetryPending__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -567,6 +607,66 @@
         <field>LLMConfiguration__c.TimeoutMs__c</field>
         <readable>true</readable>
     </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>PendingHITLAction__c.AIAgentCapability__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>PendingHITLAction__c.AgentExecution__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>PendingHITLAction__c.ApprovalProcessInstanceId__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>PendingHITLAction__c.ConfirmationPrompt__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>PendingHITLAction__c.ExpiresAt__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>PendingHITLAction__c.RequestingUser__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>PendingHITLAction__c.ResolutionComment__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>PendingHITLAction__c.ResolvedAt__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>PendingHITLAction__c.ResolvedBy__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>PendingHITLAction__c.SourceRecordId__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>PendingHITLAction__c.ToolArgumentsJSON__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>PendingHITLAction__c.TurnCount__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
     <hasActivationRequired>false</hasActivationRequired>
     <label>AI Agent Studio Configurator</label>
     <license>Salesforce</license>
@@ -616,6 +716,16 @@
         <allowEdit>true</allowEdit>
         <allowRead>true</allowRead>
         <modifyAllRecords>true</modifyAllRecords>
+        <object>ContextLedgerItem__c</object>
+        <viewAllFields>true</viewAllFields>
+        <viewAllRecords>true</viewAllRecords>
+    </objectPermissions>
+    <objectPermissions>
+        <allowCreate>true</allowCreate>
+        <allowDelete>true</allowDelete>
+        <allowEdit>true</allowEdit>
+        <allowRead>true</allowRead>
+        <modifyAllRecords>true</modifyAllRecords>
         <object>ExecutionStep__c</object>
         <viewAllFields>true</viewAllFields>
         <viewAllRecords>true</viewAllRecords>
@@ -627,6 +737,16 @@
         <allowRead>true</allowRead>
         <modifyAllRecords>true</modifyAllRecords>
         <object>LLMConfiguration__c</object>
+        <viewAllFields>true</viewAllFields>
+        <viewAllRecords>true</viewAllRecords>
+    </objectPermissions>
+    <objectPermissions>
+        <allowCreate>true</allowCreate>
+        <allowDelete>true</allowDelete>
+        <allowEdit>true</allowEdit>
+        <allowRead>true</allowRead>
+        <modifyAllRecords>true</modifyAllRecords>
+        <object>PendingHITLAction__c</object>
         <viewAllFields>true</viewAllFields>
         <viewAllRecords>true</viewAllRecords>
     </objectPermissions>

@@ -305,40 +305,6 @@ private class ExecutionStepServiceTest {
         System.assertEquals(false, step.RetryPending__c, 'RetryPending__c should be false for success steps');
     }
 
-    /**
-     * @description A dependency-blocked step (isDependencyValidationFailure=true) should NOT
-     *              set RetryPending__c, since the block is not a real execution failure.
-     */
-    @IsTest
-    static void testCreateToolResultStep_DependencyBlock_DoesNotSetRetryPending() {
-        AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
-        ExecutionStepService svc = new ExecutionStepService();
-
-        String depBlockResult = '{"success":false,"code":"DEPENDENCY_VALIDATION","retryable":false}';
-        Id stepId = svc.createToolResultStep(
-            execution.Id,
-            'call-dep-001',
-            'blocked_tool',
-            depBlockResult,
-            'turn-dep-001',
-            1,
-            0L,
-            false,
-            null,
-            false,
-            false,
-            true
-        );
-
-        ExecutionStep__c step = [
-            SELECT IsError__c, IsDependencyValidationFailure__c, RetryPending__c
-            FROM ExecutionStep__c
-            WHERE Id = :stepId
-        ];
-        System.assertEquals(true, step.IsDependencyValidationFailure__c, 'Should be flagged as dependency block');
-        System.assertEquals(false, step.RetryPending__c, 'RetryPending__c should be false for dependency blocks');
-    }
-
     // ─── extractErrorMetadata key-mismatch fix tests ──────────────────────────
 
     /**

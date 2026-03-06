@@ -4,6 +4,7 @@
     <defaultValue>false</defaultValue>
     <description>When checked, matches will be validated using additional logic (e.g., Luhn algorithm for credit cards). The validation type is determined by the pattern name.</description>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enable secondary algorithmic validation after the regex matches. Reduces false positives for checksummed data like credit cards (Luhn) and IBANs. Requires a matching Validator Type value.</inlineHelpText>
     <label>Requires Validation</label>
     <type>Checkbox</type>
 </CustomField>

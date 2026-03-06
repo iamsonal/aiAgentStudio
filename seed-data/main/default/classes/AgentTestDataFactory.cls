@@ -7,10 +7,6 @@
  * 2. Function Agents:
  *    - Case Summarizer (tool-terminating: 0 tools, pure LLM text generation)
  *    - Lead Qualifier (tool-terminating: 1 tool, LLM as router)
- *    - Opportunity Assistant (iterative: 2+ tools, multi-turn agentic)
- * 3. Workflow Agent - Case Processing Workflow (orchestrates 2 Function agents with max 3 capabilities each):
- *    - Step 1: Case Analysis Agent (3 capabilities: get_account, get_orders, update_case_priority)
- *    - Step 2: Case Resolution & Notification Agent (3 capabilities: search_knowledge, create_task, post_to_chatter)
  *
  * **Prerequisites:**
  * 1. Named Credential 'OpenAI_API' must exist
@@ -77,10 +73,9 @@ public with sharing class AgentTestDataFactory {
             update ordersToDeactivate;
         }
 
-//        delete [SELECT Id FROM AgentDecisionStep__c];
+        //        delete [SELECT Id FROM AgentDecisionStep__c];
         delete [SELECT Id FROM ExecutionStep__c];
         delete [SELECT Id FROM AgentExecution__c];
-        delete [SELECT Id FROM AgentWorkflowStep__c];
         delete [SELECT Id FROM AgentCapability__c];
         delete [SELECT Id FROM AgentContextConfig__c];
         delete [SELECT Id FROM AIAgentDefinition__c];
@@ -157,11 +152,11 @@ public with sharing class AgentTestDataFactory {
     }
 
     /**
-     * @description Creates the Service User required by CreateAgentStudioConnectedApp
+     * @description Creates the Service User required by AgentStudioAuthSetup
      * This user is used for JWT authentication and agent context switching
      */
     private static void createServiceUser() {
-        System.debug('[Service User] Creating Service User for connected app...');
+        System.debug('[Service User] Creating Service User for External Client app...');
 
         // Check if Service User already exists
         List<User> existingUsers = [
@@ -1084,103 +1079,79 @@ public with sharing class AgentTestDataFactory {
         System.debug('[Agent:Function] ✓ Lead Qualifier (1 tool - LLM as router)');
     }
 
+    /**
+     * @description Creates a full-featured Email Agent in Auto Respond mode.
+     *
+     * The framework automatically sends the LLM's drafted reply — no send_email
+     * tool call required. Case and thread context are injected via context providers
+     * (CaseContext, EmailThreadContext), so get_case_details is not needed as a tool.
+     *
+     * Capabilities:
+     *   - search_knowledge:  Find relevant KB articles before replying
+     *   - update_case:       Adjust case priority/status based on email content
+     *
+     * EnableToolReasoning__c = true forces the model to think before acting,
+     * which prevents the duplicate tool-call pattern observed with gpt-4o-mini.
+     */
     private static void createEmailAgent(Id llmConfigId) {
         AIAgentDefinition__c emailAgent = new AIAgentDefinition__c(
             Name = 'Customer Support Email Agent',
             DeveloperName__c = 'Customer_Support_Email_Agent',
             AgentType__c = 'Email',
             LLMConfiguration__c = llmConfigId,
-            // Identity & Instructions
-            IdentityPrompt__c = 'You are a professional customer support agent for Acme Corporation. ' +
-                'You help customers with their questions, issues, and concerns via email.',
-            InstructionsPrompt__c = 'Analyze the customer\'s email and provide a helpful, professional response. ' +
-                'Be empathetic and understanding. ' +
-                'If the issue requires human escalation or cannot be resolved via email, explain this clearly. ' +
-                'Use information from the case history and account context to provide personalized assistance. ' +
-                'Keep responses concise but complete.',
-            // Memory & Execution Settings
+            EmailReplyMode__c = 'Auto Respond',
+            EmailParentObject__c = 'Case',
+            EmailTerminalStatuses__c = 'Closed,Solved',
+            IdentityPrompt__c = 'You are a professional customer support agent for Acme Corporation handling inbound customer emails.',
+            InstructionsPrompt__c = 'The CONTEXT block already contains the full case details (Contact, Account, Status, Priority) and email thread — you do NOT need to call any tool to look them up.\n' +
+                'For each inbound email: call search_knowledge if the customer has a product or how-to question → call update_case if the priority or status needs adjusting → draft a concise, professional reply.\n' +
+                'For spam, auto-replies, or abuse: call update_case to log it and stop — do not draft a reply.',
             MemoryStrategy__c = 'Buffer Window',
-            EnableToolReasoning__c = false,
+            HistoryTurnLimit__c = 10,
+            AuditLevel__c = 'Standard',
+            EnableToolReasoning__c = true,
             EnableParallelToolCalling__c = false,
             AsyncDispatchType__c = 'Low',
-            // Security Settings
             PromptSafetyPreset__c = 'Standard',
             IsActive__c = true
         );
         insert emailAgent;
+        idMap.put('Email Agent', emailAgent.Id);
 
         List<AgentCapability__c> capabilities = new List<AgentCapability__c>();
 
-        // Get Record Details capability
+        // 1. Search knowledge — find KB articles before composing a reply
         capabilities.add(
             new AgentCapability__c(
                 AIAgentDefinition__c = emailAgent.Id,
-                CapabilityName__c = 'get_case_details',
-                Description__c = 'Retrieves detailed information about a case including fields, related contacts, and account data',
+                CapabilityName__c = 'search_knowledge',
+                Description__c = 'Searches the Knowledge Base for articles relevant to the customer\'s question. Call this before drafting a reply when the customer asks a how-to or troubleshooting question.',
                 ImplementationType__c = 'Standard',
-                StandardActionType__c = 'GetRecordDetails',
-                BackendConfiguration__c = JSON.serialize(
-                    new Map<String, Object>{
-                        'variant' => 'field_list',
-                        'objectApiName' => 'Case',
-                        'defaultFields' => new List<String>{
-                            'Id',
-                            'CaseNumber',
-                            'Subject',
-                            'Description',
-                            'Status',
-                            'Priority',
-                            'Origin',
-                            'Type',
-                            'Reason',
-                            'CreatedDate',
-                            'ClosedDate',
-                            'OwnerId',
-                            'Owner.Name',
-                            'ContactId',
-                            'Contact.Name',
-                            'Contact.Email',
-                            'Contact.Phone',
-                            'AccountId',
-                            'Account.Name'
-                        }
-                    }
-                ),
-                Parameters__c = JSON.serialize(
-                    new Map<String, Object>{
-                        'type' => 'object',
-                        'properties' => new Map<String, Object>{
-                            'Id' => new Map<String, Object>{
-                                'type' => 'string',
-                                'description' => 'The 18-character Salesforce Case ID (e.g., 500XXXXXXXXXXXX)'
-                            },
-                            'CaseNumber' => new Map<String, Object>{ 'type' => 'string', 'description' => 'The human-readable Case Number (e.g., 00001092)' }
-                        },
-                        'required' => new List<String>{}
-                    }
-                ),
+                StandardActionType__c = 'SearchKnowledge',
+                BackendConfiguration__c = '{}',
+                Parameters__c = '{"type":"object","properties":{"searchQuery":{"type":"string","description":"Keywords or question from the customer email"},"maxResults":{"type":"integer","description":"Max articles to return (default 3)"}},"required":["searchQuery"]}',
                 ExposureLevel__c = 'External',
                 RunAsynchronously__c = false
             )
         );
 
-        // Update Record capability
+        // 2. Update case — adjust priority, status, or category based on email content
         capabilities.add(
             new AgentCapability__c(
                 AIAgentDefinition__c = emailAgent.Id,
                 CapabilityName__c = 'update_case',
-                Description__c = 'Updates case fields such as Priority, Status, or custom fields based on email analysis',
+                Description__c = 'Updates case fields (Priority, Status, Type, Reason) based on email content. Use the Case ID from the CURRENT EMAIL block. Call this before drafting a reply if the case needs adjustment.',
                 ImplementationType__c = 'Standard',
                 StandardActionType__c = 'UpdateRecord',
-                BackendConfiguration__c = '{"objectApiName": "Case"}',
+                BackendConfiguration__c = '{"objectApiName":"Case"}',
                 Parameters__c = JSON.serialize(
                     new Map<String, Object>{
                         'type' => 'object',
                         'properties' => new Map<String, Object>{
-                            'recordId' => new Map<String, Object>{ 'type' => 'string', 'description' => 'The 18-character Salesforce Case ID to update' },
+                            'recordId' => new Map<String, Object>{ 'type' => 'string', 'description' => '18-character Case ID from the CURRENT EMAIL block' },
                             'recordData' => new Map<String, Object>{
                                 'type' => 'object',
-                                'description' => 'Field values to update (e.g., {"Priority": "High", "Status": "In Progress"})'
+                                'description' => 'Map of fields to update, e.g. Priority, Status, Type, Reason'
                             }
                         },
                         'required' => new List<String>{ 'recordId', 'recordData' }
@@ -1193,8 +1164,25 @@ public with sharing class AgentTestDataFactory {
 
         insert capabilities;
 
-        AgentContextConfig__c caseContext = createContext(emailAgent.Id, 'Case Context', 'CaseContext', 'Case', true, 10);
-        insert caseContext;
+        List<AgentContextConfig__c> contexts = new List<AgentContextConfig__c>{
+            // Full case record (Status, Priority, Contact, Account, history, comments) — priority 10.
+            // includeEmails:false because EmailThreadContext (below) is the designated email provider.
+            // Having both query EmailMessages means every email reaches the LLM twice.
+            createContext(emailAgent.Id, 'Case Context', 'CaseContext', 'Case', true, 10, '{"includeEmails": false}'),
+            // Email thread in chronological ASC order with truncated bodies — priority 20
+            createContext(
+                emailAgent.Id,
+                'Email Thread',
+                'EmailThreadContext',
+                'Case',
+                true,
+                20,
+                '{"maxMessages": 15, "maxBodyLength": 500, "includeOutbound": true}'
+            )
+        };
+        insert contexts;
+
+        System.debug('[Agent:Email] ✓ Customer Support Email Agent created (AutoRespond mode, ' + capabilities.size() + ' capabilities)');
     }
 
     // ===================================================================================
@@ -1283,6 +1271,18 @@ public with sharing class AgentTestDataFactory {
         Boolean requiresRecord,
         Integer order
     ) {
+        return createContext(agentId, label, implName, applicableSObjects, requiresRecord, order, null);
+    }
+
+    private static AgentContextConfig__c createContext(
+        Id agentId,
+        String label,
+        String implName,
+        String applicableSObjects,
+        Boolean requiresRecord,
+        Integer order,
+        String configJson
+    ) {
         return new AgentContextConfig__c(
             AIAgentDefinition__c = agentId,
             ContextLabel__c = label,
@@ -1291,6 +1291,7 @@ public with sharing class AgentTestDataFactory {
             ApplicableSObjectTypes__c = applicableSObjects,
             RequiresRecordContext__c = requiresRecord,
             ExecutionOrder__c = order,
+            ImplementationConfigJson__c = configJson,
             IsActive__c = true
         );
     }

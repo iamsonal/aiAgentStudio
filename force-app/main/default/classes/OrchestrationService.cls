@@ -231,7 +231,9 @@ public inherited sharing class OrchestrationService {
         }
 
         // Agent-level mode: Fail Fast halts immediately, no LLM recovery
-        if ('Fail Fast'.equals(agentDefinition.ErrorRecoveryMode__c)) {
+        // Use getPopulatedFieldsAsMap() so callers that pass a partially-queried record don't throw SObjectException.
+        String errorRecoveryMode = (String) agentDefinition.getPopulatedFieldsAsMap().get('ErrorRecoveryMode__c');
+        if ('Fail Fast'.equals(errorRecoveryMode)) {
             System.debug(
                 LoggingLevel.WARN,
                 logPrefix + 'FAIL FAST mode: halting on tool error. Capability: "' + capability.CapabilityName__c + '", ErrorCode: ' + toolOutcome.errorCode
@@ -239,21 +241,9 @@ public inherited sharing class OrchestrationService {
             return true;
         }
 
-        // Non-transient errors cannot resolve on retry — fail immediately regardless of retry budget
-        if (!ActionOutcome.isTransient(toolOutcome.errorCode)) {
-            System.debug(
-                LoggingLevel.WARN,
-                logPrefix +
-                    'NON-TRANSIENT error: halting immediately. Tool: "' +
-                    capability.CapabilityName__c +
-                    '", ErrorCode: ' +
-                    toolOutcome.errorCode +
-                    ' (retrying would not resolve this error)'
-            );
-            return true;
-        }
-
-        // Autonomous mode: global ceiling prevents infinite loops on transient errors
+        // Safety ceiling: prevents infinite retry loops regardless of error transience
+        // Non-transient errors (RECORD_NOT_FOUND, INPUT_VALIDATION, etc.) also reach this check —
+        // they won't be retried by a well-behaved LLM, but the ceiling still protects against edge cases.
         Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
         Integer failureCount = (preloadedFailureCount >= 0)
             ? preloadedFailureCount
@@ -645,49 +635,13 @@ public inherited sharing class OrchestrationService {
             }
         }
 
-        // ── 4. Dependency filter ───────────────────────────────────────────────
-        // Only include failures whose own declared dependencies are currently satisfied.
-        // Tools with unsatisfied deps can't be retried until the dependency is fixed.
-        String graphJson = null;
-        Boolean depValidationEnabled = false;
-        if (agentDefinitionId != null) {
-            try {
-                AIAgentDefinition__c defn = AIAgentConfigService.getAgentDefinition(agentDefinitionId);
-                graphJson = defn.ToolDependencyGraph__c;
-                depValidationEnabled = defn.EnableDependencyValidation__c == true;
-            } catch (Exception e) {
-                System.debug(LoggingLevel.WARN, pfx + 'Could not load agent definition for dependency check: ' + e.getMessage());
-            }
-        }
-
-        ToolDependencyValidator.DependencyGraph depGraph = null;
-        if (depValidationEnabled && String.isNotBlank(graphJson)) {
-            try {
-                depGraph = ToolDependencyValidator.parseGraph(graphJson);
-            } catch (Exception e) {
-                System.debug(LoggingLevel.WARN, pfx + 'Could not parse ToolDependencyGraph__c: ' + e.getMessage());
-            }
-        }
-
-        // Build set of successfully executed tool names in this turn (for dependency satisfaction check)
+        // Build set of successfully executed tool names in this turn
         Set<String> satisfiedTools = new Set<String>(successfulToolNames);
 
-        // ── 5. Build result list ───────────────────────────────────────────────
+        // ── 4. Build result list ───────────────────────────────────────────────
         for (String callId : failureByCallId.keySet()) {
             ExecutionStep__c s = failureByCallId.get(callId);
             String tName = s.ToolName__c;
-
-            // Dependency filter: skip tools whose deps are not yet met
-            if (depGraph != null && depGraph.hasDependencies()) {
-                ToolDependencyValidator.ValidationResult vr = ToolDependencyValidator.validate(tName, satisfiedTools, graphJson);
-                if (!vr.allowed) {
-                    System.debug(
-                        LoggingLevel.DEBUG,
-                        pfx + 'Excluding ' + tName + ' from retry enforcement — dependencies not satisfied: ' + vr.missingDependencies
-                    );
-                    continue;
-                }
-            }
 
             UnretriedFailure failure = new UnretriedFailure();
             failure.toolName = tName;
@@ -734,7 +688,15 @@ public inherited sharing class OrchestrationService {
             System.debug(LoggingLevel.INFO, logPrefix + 'Async tool completed: ' + completedToolCallId + '. Atomically decrementing counter.');
 
             AgentExecution__c execution = [
-                SELECT Id, PendingAsyncToolCount__c, AsyncToolTurnIdentifier__c, AIAgentDefinition__c, User__c, SourceRecordId__c
+                SELECT
+                    Id,
+                    CurrentTurnIdentifier__c,
+                    ProcessingStatus__c,
+                    PendingAsyncToolCount__c,
+                    AsyncToolTurnIdentifier__c,
+                    AIAgentDefinition__c,
+                    User__c,
+                    SourceRecordId__c
                 FROM AgentExecution__c
                 WHERE Id = :executionId
                 FOR UPDATE
@@ -748,6 +710,32 @@ public inherited sharing class OrchestrationService {
                         execution.AsyncToolTurnIdentifier__c +
                         ', Received: ' +
                         turnIdentifier +
+                        '. Ignoring completion.'
+                );
+                return;
+            }
+
+            // Guard against a rotated current turn (start-over, resume, stale recovery, etc.).
+            // If the CurrentTurnIdentifier__c no longer matches, treat this tool completion as stale.
+            if (String.isNotBlank(execution.CurrentTurnIdentifier__c) && !turnIdentifier.equals(execution.CurrentTurnIdentifier__c)) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix +
+                        'Stale async tool completion detected (current turn rotated). Current=' +
+                        execution.CurrentTurnIdentifier__c +
+                        ', Received=' +
+                        turnIdentifier +
+                        '. Ignoring completion.'
+                );
+                return;
+            }
+
+            if (execution.ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_ACTION) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix +
+                        'Async tool completion received but execution is not Awaiting Action. Status=' +
+                        execution.ProcessingStatus__c +
                         '. Ignoring completion.'
                 );
                 return;
@@ -791,7 +779,15 @@ public inherited sharing class OrchestrationService {
             System.debug(LoggingLevel.INFO, logPrefix + 'Decrementing counter for failed queue: ' + failedToolCallId);
 
             AgentExecution__c execution = [
-                SELECT Id, PendingAsyncToolCount__c, AsyncToolTurnIdentifier__c, AIAgentDefinition__c, User__c, SourceRecordId__c
+                SELECT
+                    Id,
+                    CurrentTurnIdentifier__c,
+                    ProcessingStatus__c,
+                    PendingAsyncToolCount__c,
+                    AsyncToolTurnIdentifier__c,
+                    AIAgentDefinition__c,
+                    User__c,
+                    SourceRecordId__c
                 FROM AgentExecution__c
                 WHERE Id = :executionId
                 FOR UPDATE
@@ -799,6 +795,30 @@ public inherited sharing class OrchestrationService {
 
             if (String.isNotBlank(execution.AsyncToolTurnIdentifier__c) && !turnIdentifier.equals(execution.AsyncToolTurnIdentifier__c)) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Turn identifier mismatch. Skipping decrement.');
+                return;
+            }
+
+            if (String.isNotBlank(execution.CurrentTurnIdentifier__c) && !turnIdentifier.equals(execution.CurrentTurnIdentifier__c)) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix +
+                        'Stale async decrement request detected (current turn rotated). Current=' +
+                        execution.CurrentTurnIdentifier__c +
+                        ', Received=' +
+                        turnIdentifier +
+                        '. Skipping decrement.'
+                );
+                return;
+            }
+
+            if (execution.ProcessingStatus__c != AIAgentConstants.STATUS_AWAITING_ACTION) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix +
+                        'Async decrement request received but execution is not Awaiting Action. Status=' +
+                        execution.ProcessingStatus__c +
+                        '. Skipping decrement.'
+                );
                 return;
             }
 

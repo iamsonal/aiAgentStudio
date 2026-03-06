@@ -4,6 +4,7 @@
     <defaultValue>true</defaultValue>
     <description>When checked, this pattern will be used for PII detection. Uncheck to disable a pattern without deleting it.</description>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Uncheck to temporarily disable this pattern without deleting it. Useful for troubleshooting false positives or disabling a pattern during testing.</inlineHelpText>
     <label>Active</label>
     <type>Checkbox</type>
 </CustomField>

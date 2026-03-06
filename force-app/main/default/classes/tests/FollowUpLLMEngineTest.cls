@@ -135,4 +135,43 @@ private class FollowUpLLMEngineTest {
         ];
         System.assertEquals(0, responseCount, 'Stale execution should not create response steps');
     }
+
+    @IsTest
+    static void testProcess_StaleTurnIdentifier_SkipsWithoutFailure() {
+        AIAgentDefinition__c agent = [
+            SELECT Id
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c LIKE 'FollowUp_Agent%'
+            LIMIT 1
+        ];
+
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(agent.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_FOLLOWUP)
+            .withTurnIdentifier('turn-followup-current-001')
+            .save();
+
+        // Invoke follow-up with a mismatched (stale) turn identifier.
+        FollowUpLLMEngine engine = new FollowUpLLMEngine(execution.Id, UserInfo.getUserId(), agent.Id, 'turn-followup-stale-xyz', 1, false, null);
+        engine.process('job-id');
+
+        AgentExecution__c updated = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, CurrentTurnIdentifier__c
+            FROM AgentExecution__c
+            WHERE Id = :execution.Id
+        ];
+        System.assertEquals('Processing', updated.ExecutionStatus__c, 'Stale follow-up job should not change execution status');
+        System.assertEquals(AIAgentConstants.STATUS_AWAITING_FOLLOWUP, updated.ProcessingStatus__c, 'Stale follow-up job should not change processing status');
+        System.assertEquals('turn-followup-current-001', updated.CurrentTurnIdentifier__c, 'Current turn identifier should remain unchanged');
+
+        Integer responseCount = [
+            SELECT COUNT()
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :execution.Id AND StepType__c = 'AgentResponse'
+        ];
+        System.assertEquals(0, responseCount, 'Stale follow-up job should not create response steps');
+    }
 }

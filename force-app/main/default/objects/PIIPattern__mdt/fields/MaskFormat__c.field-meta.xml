@@ -4,6 +4,7 @@
     <description>Format string for the masking token. Use {index} as placeholder for the unique token number. Example: [SSN:{index}] produces [SSN:001], [SSN:002], etc.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Token format used to replace detected PII. {index} is replaced with a zero-padded counter. Examples: [SSN:{index}], [CARD:{index}], [EMAIL:{index}]. Keep it distinct so it can be unmasked later.</inlineHelpText>
     <label>Mask Format</label>
     <length>100</length>
     <required>true</required>

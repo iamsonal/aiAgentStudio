@@ -20,7 +20,7 @@ public inherited sharing abstract class BaseAgentOrchestrator implements IAgentO
         public Integer lastTurnCount;
         public String toolCallId;
         public String toolName;
-        public String stepName; // For workflow orchestrators
+        public String stepName; // For pipeline/multi-agent orchestrators
         public String previousStatus;
         public Map<String, Object> metadata;
 
@@ -95,6 +95,34 @@ public inherited sharing abstract class BaseAgentOrchestrator implements IAgentO
 
         try {
             AgentExecution__c execution = validateResumable(executionId, logPrefix);
+
+            // When resuming a Failed execution, CurrentTurnIdentifier__c still holds the
+            // failed turn ID and AsyncToolTurnIdentifier__c may still be set from an async
+            // tool batch that was in flight when the failure occurred.
+            //
+            // The turn-safe guard in AgentStateService.updateStatus() requires the record's
+            // current turn to match the NEW turn ID (or be null) before it will update — so
+            // the first updateStatus() inside executeResume() gets silently skipped for
+            // ConversationalOrchestrator and EmailOrchestrator (which rely on updateStatus()
+            // to stamp the new turn ID rather than doing a direct DML first like Function and
+            // Pipeline orchestrators do). The enqueued follow-up job then carries the new turn
+            // ID while the DB still has the old one, causing a StaleExecutionException.
+            //
+            // Fix: forcibly clear both fields here so the null-branch of the turn guard
+            // accepts the first updateStatus() call and stamps the new turn ID correctly.
+            if ('Failed'.equals(execution.ExecutionStatus__c) && String.isNotBlank(execution.CurrentTurnIdentifier__c)) {
+                update new AgentExecution__c(Id = executionId, CurrentTurnIdentifier__c = null, AsyncToolTurnIdentifier__c = null);
+                // Do NOT null the in-memory execution.CurrentTurnIdentifier__c here.
+                // FunctionOrchestrator overrides generateResumeIdentifier()
+                // to read execution.CurrentTurnIdentifier__c and PRESERVE it as the new turn ID.
+                // Nulling it would cause them to generate a fresh UUID and break their resume logic.
+                // Only the DB record needs to be null so the turn-safe guard's null-branch fires.
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix + 'Cleared stale CurrentTurnIdentifier__c (and AsyncToolTurnIdentifier__c) on DB to allow resume state transition.'
+                );
+            }
+
             String newTurnIdentifier = generateResumeIdentifier(execution, options);
             System.debug(LoggingLevel.INFO, logPrefix + 'Resume turn identifier: ' + newTurnIdentifier);
             ResumePoint resumePoint = determineResumePoint(executionId, execution, options, logPrefix);
@@ -332,7 +360,7 @@ public inherited sharing abstract class BaseAgentOrchestrator implements IAgentO
             if (resumePoint.resumeType == ResumeType.RETRY_FAILED_TOOL) {
                 description += '. Retrying failed tool: ' + resumePoint.toolName;
             } else if (resumePoint.resumeType == ResumeType.RETRY_STEP) {
-                description += '. Retrying workflow step: ' + resumePoint.stepName;
+                description += '. Retrying pipeline step: ' + resumePoint.stepName;
             } else {
                 description += '. Continuing with LLM call';
             }
@@ -349,7 +377,7 @@ public inherited sharing abstract class BaseAgentOrchestrator implements IAgentO
     }
     protected Map<String, Object> findLastFailedTool(Id executionId, String logPrefix) {
         List<ExecutionStep__c> steps = [
-            SELECT Id, StepType__c, ToolName__c, ToolCallId__c, ToolResult__c, IsError__c, ToolArguments__c, IsDependencyValidationFailure__c
+            SELECT Id, StepType__c, ToolName__c, ToolCallId__c, ToolResult__c, IsError__c, ToolArguments__c
             FROM ExecutionStep__c
             WHERE AgentExecution__c = :executionId
             ORDER BY Timestamp__c DESC, Id DESC
@@ -361,12 +389,7 @@ public inherited sharing abstract class BaseAgentOrchestrator implements IAgentO
             // Find failed tool result - EXCLUDE dependency validation failures
             // Dependency failures are not real tool execution errors - they're blocked attempts
             // Retrying a blocked tool will fail again unless dependencies are satisfied
-            if (
-                step.StepType__c == 'ToolResult' &&
-                step.IsError__c == true &&
-                step.IsDependencyValidationFailure__c == false &&
-                String.isNotBlank(step.ToolCallId__c)
-            ) {
+            if (step.StepType__c == 'ToolResult' && step.IsError__c == true && String.isNotBlank(step.ToolCallId__c)) {
                 lastFailedToolResult = step;
                 break;
             }

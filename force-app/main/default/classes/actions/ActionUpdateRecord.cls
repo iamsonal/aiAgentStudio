@@ -21,7 +21,7 @@ public with sharing class ActionUpdateRecord extends BaseAgentAction {
     public class ArgumentsDTO {
         /**
          * @FieldLabel Record ID
-         * @FieldType salesforce-id
+         * @FieldType string
          * @FieldRequired true
          * @FieldPlaceholder 001000000000000AAA
          * @FieldHelp The 18-character Salesforce ID of the record to update

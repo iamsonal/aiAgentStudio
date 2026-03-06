@@ -4,6 +4,7 @@
     <defaultValue>true</defaultValue>
     <description>Whether this orchestrator mapping is active and should be used</description>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Inactive mappings are skipped by the orchestrator factory. Deactivate instead of deleting to preserve the record and allow re-enabling without reconfiguration.</inlineHelpText>
     <label>Active</label>
     <type>Checkbox</type>
 </CustomField>

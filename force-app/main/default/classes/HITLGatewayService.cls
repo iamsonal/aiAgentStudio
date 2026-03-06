@@ -32,7 +32,6 @@ public with sharing class HITLGatewayService {
 
     public static final String AGENT_TYPE_CONVERSATIONAL = 'Conversational';
     public static final String AGENT_TYPE_FUNCTION = 'Function';
-    public static final String AGENT_TYPE_WORKFLOW = 'Workflow';
 
     // Notification preference constants
     public static final String NOTIFICATION_PREF_ALWAYS_NOTIFY = 'Always Notify';

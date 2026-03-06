@@ -16,7 +16,7 @@ AI Agent Studio implements defense-in-depth security with multiple layers of pro
     User context execution, CRUD/FLS enforcement, sharing rules, field-level access control with type coercion.
   </Card>
   <Card title="Trust Layers" icon="seti:shield">
-    PII masking before LLM calls, provider-native prompt safety pre-checks, tool dependency validation, and declarative sequencing constraints.
+    PII masking before LLM calls, provider-native prompt safety pre-checks, and Tool Flow Graph enforcement for deterministic tool sequencing.
   </Card>
   <Card title="Human-in-the-Loop" icon="seti:gear">
     Configurable approval workflows with Confirmation, Approval, and hybrid modes. Atomic state tracking with PendingHITLAction__c.
@@ -166,64 +166,51 @@ LLMInteractionService.prepareAndCallLLM()
 - `Standard`: Adapter performs its native check and blocks on positive signal
 
 </TabItem>
-  <TabItem label="Tool Dependencies">
+  <TabItem label="Tool Flow Graph">
 
-### Declarative Tool Sequencing
+### Declarative Workflow Control
 
-Prevents workflow hallucinations where LLM calls tools in illogical order.
+Prevents workflow hallucinations by only exposing tools the LLM is currently eligible to call — the LLM cannot skip steps, jump ahead, or call tools out of order.
 
-**Problem**: Without constraints, LLM might call `send_email` before `create_record`, or `update_record` before `get_record_details`.
+**Problem**: Without constraints, an LLM might call `update_case` before `get_case_details`, or jump straight to `escalate` skipping the `assess_priority` step.
 
-**Solution**: Shadow Graph Pattern - LLM generates dependency graph, admin approves, system enforces at runtime.
+**Solution**: Tool Flow Graph — admin defines entry tools and typed transitions. At runtime, only eligible tools are forwarded to the LLM; ineligible tools are invisible.
 
 **How It Works**:
 
-1. **Graph Generation**: `ToolDependencyGraphService` uses LLM to analyze agent capabilities and suggest dependency graph
-2. **Admin Review**: Human reviews and edits graph in `ToolDependencyGraphEditorController` UI
-3. **Storage**: Approved graph stored in `AIAgentDefinition__c.ToolDependencyGraph__c` as JSON
-4. **Runtime Enforcement**: `ToolDependencyValidator` checks dependencies before tool execution
+1. **Graph Generation**: `ToolFlowGenerationService` uses LLM to analyze capabilities and suggest an `entry` + `flow` graph
+2. **Admin Review**: Human reviews and edits the graph in the `toolFlowGraphEditor` visual LWC
+3. **Storage**: Graph stored in `AIAgentDefinition__c.ToolFlowGraph__c` as JSON (version 3.0 schema)
+4. **Runtime Filtering**: `ToolFlowGraphService.filterToEligible()` is called by `LLMFormattingService` before every LLM call, exposing only the current eligible tool set
 
-**Dependency Logic**:
+**Graph Schema**:
 
 ```json
 {
-  "version": "1.0",
-  "dependencies": {
-    "update_record": {
-      "allOf": ["get_record_details"]
-    },
-    "send_email": {
-      "allOf": ["update_record"],
-      "anyOf": ["get_email_address", "get_contact_info"]
-    }
-  }
+  "version": "3.0",
+  "entry": ["assess_case"],
+  "flow": [
+    { "from": "assess_case",     "type": "exclusive",  "to": ["update_billing", "search_knowledge"] },
+    { "from": "update_billing",  "type": "sequential", "to": ["send_billing_email"] },
+    { "from": "search_knowledge","type": "parallel",   "to": ["update_case", "escalate_engineering"] },
+    { "from": ["update_case", "escalate_engineering"], "type": "sequential", "to": ["notify_manager"] }
+  ]
 }
 ```
 
-- `allOf`: ALL tools must be executed first (AND logic)
-- `anyOf`: AT LEAST ONE tool must be executed first (OR logic)
-- Combined: `send_email` requires `update_record` AND (at least one of `get_email_address` OR `get_contact_info`)
+**Gateway Types**:
 
-**Two-Phase Validation**:
+| Type | Meaning | Framework action |
+|:-----|:--------|:----------------|
+| `sequential` | One tool leads to the next | Show `to` tool(s) when `from` completes |
+| `parallel` | Fan-out — all `to` tools run | Show all `to` tools simultaneously |
+| `exclusive` | LLM picks one branch | Show all options; permanently lock out unchosen branches |
 
-1. **Pre-Flight Validation** (before executing any tools in batch):
-   - Validates ALL tools in batch
-   - Attempts intelligent reordering via topological sort
-   - Only blocks tools whose dependencies are completely missing from batch
-   - Keeps transaction clean (no DML before validation failure)
+**Join Gate**: When `from` is an array, ALL listed tools must have succeeded before the `to` tools become eligible.
 
-2. **Runtime Validation** (during execution loop):
-   - Re-validates dependencies at execution time
-   - Catches cases where dependency in same batch failed
-   - Only successful tools satisfy dependencies
+**Path Locking**: After the LLM calls a tool from an `exclusive` rule, `TransactionContext` locks the sibling options for the remainder of the execution — the LLM cannot backtrack.
 
-**Circuit Breaker**: `ToolCallResponseHandler` tracks total dependency violations across execution. If threshold exceeded (default 10, configurable via `AIAgentFrameworkSettings__c.MaxDependencyViolations__c`), fails execution immediately to prevent infinite loops.
-
-**LLM Guidance on Violation**: When tool blocked, system provides structured error message explaining required dependencies and next action.
-
-**Configuration**: Enable via `AIAgentDefinition__c.EnableDependencyValidation__c`
-
-**Limitations**: Only enforces synchronous tools in same batch. Async tools (separate jobs) cannot have dependencies enforced. Scope is turn-scoped for Conversational/Email agents (reset each turn) and execution-scoped for Function/Workflow agents.
+**Configuration**: Enable via `AIAgentDefinition__c.EnableToolFlowGraph__c`. When disabled, all External capabilities are shown (backward-compatible).
 
   </TabItem>
 </Tabs>
@@ -332,9 +319,9 @@ When `AIAgentDefinition__c.EnableToolReasoning__c` is enabled:
    - Prompt safety violations
    - HITL rejection rates
 
-6. **Review Tool Dependencies**
+6. **Configure Tool Flow Graph for Ordered Workflows**
    
-   Use `ToolDependencyGraphService` to generate initial graph, but have domain experts review and refine before production.
+   Use `ToolFlowGenerationService` to generate an initial flow graph, then have domain experts review the entry tools, gateway types, and exclusive branches before enabling in production.
 
 7. **Regular Audit Reviews**
    
@@ -362,8 +349,8 @@ Always test security controls in sandbox with production data volumes before dep
   <Card title="Trust Layers" icon="seti:shield">
     - [ ] PII masking enabled (`Standard` or `Strict`) with appropriate classifications
     - [ ] Prompt safety preset set to `Standard` for production agents using a provider with native safety support
-    - [ ] Tool dependency validation enabled for agents with ordered workflows
-    - [ ] Dependency graph reviewed by domain experts before enabling
+    - [ ] Tool Flow Graph enabled for agents with ordered or branching workflows
+    - [ ] Flow graph entry tools, gateway types, and exclusive branches reviewed before production
   </Card>
   <Card title="Human-in-the-Loop" icon="approve-check">
     - [ ] Sensitive actions (deletions, financial ops, external integrations) routed through HITL

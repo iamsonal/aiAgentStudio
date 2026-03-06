@@ -47,9 +47,12 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
         if (openAITools != null && !openAITools.isEmpty()) {
             body.put('tools', openAITools);
             body.put('tool_choice', 'auto');
-            Boolean allowParallel = (agentConfig != null && agentConfig.EnableParallelToolCalling__c == true);
+            // Suppress parallel_tool_calls when only one tool is available — there is
+            // nothing to parallelise and some models (e.g. gpt-4o-mini) will hallucinate
+            // duplicate calls to fill the parallel slots when given a single-tool list.
+            Boolean allowParallel = (agentConfig != null && agentConfig.EnableParallelToolCalling__c == true) && openAITools.size() > 1;
             body.put('parallel_tool_calls', allowParallel);
-            System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Parallel tool calling enabled: ' + allowParallel);
+            System.debug(LoggingLevel.INFO, LOG_PREFIX + 'Parallel tool calling enabled: ' + allowParallel + ' (tools available: ' + openAITools.size() + ')');
         }
         req.setBody(JSON.serialize(body));
         Integer timeoutMs = llmConfig.TimeoutMs__c != null ? llmConfig.TimeoutMs__c.intValue() : DEFAULT_TIMEOUT_MS;

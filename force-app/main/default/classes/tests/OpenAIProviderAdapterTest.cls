@@ -24,7 +24,10 @@ private class OpenAIProviderAdapterTest {
     }
 
     @IsTest
-    static void testSendMessage_BuildsRequestWithToolsParallelFlag() {
+    static void testSendMessage_ParallelSuppressedWithSingleTool() {
+        // Even when EnableParallelToolCalling__c = true, parallel_tool_calls must be false
+        // when only one tool is available — prevents models like gpt-4o-mini from
+        // hallucinating duplicate calls to fill parallel slots.
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().build();
         llm.TimeoutMs__c = 30000;
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().build();
@@ -48,8 +51,6 @@ private class OpenAIProviderAdapterTest {
         ProviderResult result = adapter.sendMessage(messages, tools, llm, agent);
 
         System.assertNotEquals(null, result, 'Should return provider result');
-        System.assertNotEquals(null, lastRequest, 'Request should be captured');
-
         HttpRequest req = lastRequest;
         System.assertEquals('POST', req.getMethod(), 'Request method should be POST');
         System.assertEquals('application/json; charset=utf-8', req.getHeader('Content-Type'), 'Content-Type should be JSON');
@@ -58,10 +59,48 @@ private class OpenAIProviderAdapterTest {
         Map<String, Object> body = (Map<String, Object>) JSON.deserializeUntyped(req.getBody());
         System.assertEquals(llm.DefaultModelIdentifier__c, body.get('model'), 'Model should come from config');
         System.assertEquals('auto', body.get('tool_choice'), 'Tool choice should be auto when tools provided');
-        System.assertEquals(true, body.get('parallel_tool_calls'), 'Parallel tool calls should be enabled');
+        System.assertEquals(false, body.get('parallel_tool_calls'), 'Parallel tool calls must be false with a single tool');
 
         List<Object> bodyTools = (List<Object>) body.get('tools');
-        System.assertEquals(1, bodyTools.size(), 'Tools should be included');
+        System.assertEquals(1, bodyTools.size(), 'Single tool should be included');
+    }
+
+    @IsTest
+    static void testSendMessage_ParallelEnabledWithMultipleTools() {
+        // parallel_tool_calls should be true only when the agent setting is on AND 2+ tools are present.
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().build();
+        llm.TimeoutMs__c = 30000;
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().build();
+        agent.EnableParallelToolCalling__c = true;
+
+        List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'Hello' } };
+        List<Map<String, Object>> tools = new List<Map<String, Object>>{
+            new Map<String, Object>{
+                'type' => 'function',
+                'function' => new Map<String, Object>{
+                    'name' => 'find_records',
+                    'description' => 'Find records',
+                    'parameters' => new Map<String, Object>{ 'type' => 'object', 'properties' => new Map<String, Object>() }
+                }
+            },
+            new Map<String, Object>{
+                'type' => 'function',
+                'function' => new Map<String, Object>{
+                    'name' => 'update_record',
+                    'description' => 'Update a record',
+                    'parameters' => new Map<String, Object>{ 'type' => 'object', 'properties' => new Map<String, Object>() }
+                }
+            }
+        };
+
+        Test.setMock(HttpCalloutMock.class, new CapturingMock(200, '{"choices":[{"message":{"role":"assistant","content":"ok"}}]}'));
+
+        OpenAIProviderAdapter adapter = new OpenAIProviderAdapter();
+        adapter.sendMessage(messages, tools, llm, agent);
+
+        Map<String, Object> body = (Map<String, Object>) JSON.deserializeUntyped(lastRequest.getBody());
+        System.assertEquals(true, body.get('parallel_tool_calls'), 'Parallel tool calls should be enabled with 2+ tools');
+        System.assertEquals(2, ((List<Object>) body.get('tools')).size(), 'Both tools should be included');
     }
 
     @IsTest

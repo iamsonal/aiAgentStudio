@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>DefaultMessage__c</fullName>
+    <description>Default fallback message shown to users when this error category occurs. Displayed when no agent-specific error message is available.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Fallback user-facing message for this error type. Keep it friendly and actionable. Example: An unexpected error occurred. Please try again.</inlineHelpText>
     <label>Default Message</label>
     <required>false</required>
     <type>TextArea</type>

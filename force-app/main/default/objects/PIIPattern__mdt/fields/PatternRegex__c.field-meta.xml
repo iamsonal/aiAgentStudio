@@ -4,6 +4,7 @@
     <description>Regular expression pattern used to detect this type of PII in text. Use standard Java regex syntax.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Java-compatible regex. Use word boundaries (\b) and non-capturing groups (?:...) for precision. Test thoroughly to minimize false positives. Complex patterns increase CPU cost on large texts.</inlineHelpText>
     <label>Pattern Regex</label>
     <length>2000</length>
     <required>false</required>

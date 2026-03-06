@@ -184,11 +184,4 @@ private class AIAgentFrameworkSettingsTest {
         Integer maxCalls = AIAgentFrameworkSettings.getMaxLLMCallsPerTransaction();
         System.assertEquals(8, maxCalls, 'Should return configured max LLM calls');
     }
-
-    @IsTest
-    static void testGetMaxDependencyViolations_ReturnsThree() {
-        Integer violations = AIAgentFrameworkSettings.getMaxDependencyViolations();
-
-        System.assertEquals(3, violations, 'Default max dependency violations should be 3');
-    }
 }

@@ -19,11 +19,11 @@ import { Aside, Badge, Card, CardGrid, LinkButton, LinkCard, Steps, TabItem, Tab
 <div class="hero-shell">
   <div class="hero-kicker">Built for governed enterprise AI on Salesforce</div>
   <p><Badge text="Open Source" variant="success" size="small" /> <Badge text="Enterprise Ready" variant="note" size="small" /> <Badge text="Salesforce Native" variant="tip" size="small" /></p>
-  A comprehensive framework for building AI agents that orchestrate LLM interactions, execute tools, manage memory, and coordinate multi-agent workflows—all while respecting Salesforce security and governor limits.
+  A comprehensive framework for building AI agents that orchestrate LLM interactions, execute tools, manage memory, and coordinate multi-agent pipelines—all while respecting Salesforce security and governor limits.
 
   <div class="hero-grid">
-    <div class="stat-tile"><strong>4 Agent Types</strong><br />Conversational, Function, Workflow, and Email orchestrators.</div>
-    <div class="stat-tile"><strong>Trust Layers</strong><br />PII masking, prompt safety, and dependency validation.</div>
+    <div class="stat-tile"><strong>3 Agent Types</strong><br />Conversational, Function, and Email orchestrators. Plus sequential pipelines for multi-agent composition.</div>
+    <div class="stat-tile"><strong>Trust Layers</strong><br />PII masking, prompt safety, and tool flow enforcement.</div>
     <div class="stat-tile"><strong>Multi-Provider</strong><br />OpenAI built-in. Any OpenAI-compatible API works out of the box. Extend for others.</div>
   </div>
 </div>
@@ -43,7 +43,7 @@ AI Agent Studio is a **production-grade orchestration system** for AI agents on 
     Built with Strategy + Factory + Chain of Responsibility patterns. Modular plugin-based design scales from single conversations to high-throughput enterprise deployments.
   </Card>
   <Card title="Security & Governance First" icon="seti:lock">
-    Automatic CRUD/FLS/sharing enforcement, PII masking, provider-native prompt safety, tool dependency validation, and comprehensive audit trails. Agents run in user context with no privilege escalation.
+    Automatic CRUD/FLS/sharing enforcement, PII masking, provider-native prompt safety, Tool Flow Graph enforcement, and comprehensive audit trails. Agents run in user context with no privilege escalation.
   </Card>
   <Card title="Extensible at Every Layer" icon="seti:code">
     Custom actions for business logic, context providers for dynamic data, LLM provider adapters, custom orchestrators, and configurable memory strategies — extend only what you need.
@@ -62,8 +62,8 @@ AI Agent Studio is a **production-grade orchestration system** for AI agents on 
   <Card title="Function Agents" icon="seti:gear">
     Single-task specialists for classification, enrichment, and automation. Ideal for record enrichment, sentiment analysis, and automated decision-making.
   </Card>
-  <Card title="Workflow Agents" icon="seti:graph-line">
-    Orchestrated multi-agent execution with state machines and conditional branching. Native Salesforce reporting on workflow step performance.
+  <Card title="Sequential Pipelines & Sub-Agents" icon="seti:graph-line">
+    Chain agents in a fixed sequence via `PipelineDefinition__c` metadata, or give any Function agent a capability with `ImplementationType__c = 'Agent'` to let the LLM invoke another agent dynamically as a tool.
   </Card>
   <Card title="Email Agents" icon="seti:mail">
     Email thread processing with automatic continuity and reply generation. Ideal for automated customer support and email triage.

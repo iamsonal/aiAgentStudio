@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ToolFlowGraph__c</fullName>
+    <description>JSON representation of the Tool Flow Graph defining which tools the agent can call and in what order. Format: {"version":"3.0","capabilitiesHash":"...","entry":["tool_a"],"flow":[{"from":"tool_a","type":"sequential","to":["tool_b"]},{"from":"tool_a","type":"exclusive","to":["tool_c","tool_d"]}]}. Generated at design-time and enforced at runtime by exposing only eligible tools to the LLM.</description>
+    <inlineHelpText>Defines the tool execution flow. Use the Generate Flow action to create this automatically from your agent capabilities, then review before enabling flow enforcement.</inlineHelpText>
+    <label>Tool Flow Graph</label>
+    <length>131072</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>6</visibleLines>
+</CustomField>

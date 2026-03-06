@@ -34,12 +34,17 @@ private class ConversationalOrchestratorTest {
         System.assertEquals(AIAgentConstants.STATUS_PROCESSING, result.status, 'Result should be Processing');
 
         AgentExecution__c execution = [
-            SELECT ExecutionStatus__c, ProcessingStatus__c
+            SELECT ExecutionStatus__c, ProcessingStatus__c, CurrentTurnIdentifier__c
             FROM AgentExecution__c
             WHERE Id = :result.executionId
         ];
         System.assertEquals('Pending', execution.ExecutionStatus__c, 'New execution starts as Pending');
         System.assertEquals(AIAgentConstants.STATUS_IDLE, execution.ProcessingStatus__c, 'Processing status should be Idle on create');
+        System.assertEquals(
+            'turn-new-001',
+            execution.CurrentTurnIdentifier__c,
+            'New execution should pre-stamp payload turn so async updateStatus(Processing) passes the stale check'
+        );
     }
 
     @IsTest
@@ -96,6 +101,57 @@ private class ConversationalOrchestratorTest {
         }
         System.assert(hasUserInput, 'Should record user input');
         System.assert(hasAgentResponse, 'Should record agent response');
+    }
+
+    /**
+     * Verifies that when the sync path processes a turn whose identifier differs from the
+     * execution's CurrentTurnIdentifier__c (the previous turn's id), syncFinalizeExecution
+     * correctly stamps the new turn and sets status to Completed.
+     * This is the primary regression test for the sync-path stale-check fix.
+     */
+    @IsTest
+    static void testStart_ExistingExecution_Synchronous_StaleTurn_FinalizesStatus() {
+        AIAgentDefinition__c agent = [
+            SELECT Id, DeveloperName__c, LLMConfiguration__c, RequiresServiceUserContext__c
+            FROM AIAgentDefinition__c
+            LIMIT 1
+        ];
+        AgentExecution__c execution = [SELECT Id FROM AgentExecution__c WHERE AIAgentDefinition__c = :agent.Id LIMIT 1];
+
+        // Simulate the execution having a PREVIOUS turn's identifier (not the one we are about to use)
+        update new AgentExecution__c(
+            Id = execution.Id,
+            CurrentTurnIdentifier__c = 'turn-previous-stale',
+            ExecutionStatus__c = 'Completed',
+            ProcessingStatus__c = AIAgentConstants.STATUS_IDLE
+        );
+
+        AgentExecutionService.ExecutionPayload payload = TestFactory.newExecutionPayload()
+            .withUser(UserInfo.getUserId())
+            .withUserMessage('New message after previous turn')
+            .withTurn('turn-new-after-stale')
+            .withExistingExecution(execution.Id)
+            .withTriggerSource('UI')
+            .build();
+
+        Test.setMock(HttpCalloutMock.class, MockHttpResponses.text('Got it.'));
+
+        ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(agent);
+
+        Test.startTest();
+        AgentExecutionService.ExecutionResult result = orchestrator.start(agent.DeveloperName__c, payload);
+        Test.stopTest();
+
+        System.assertEquals(AIAgentConstants.STATUS_IDLE, result.status, 'Sync path should finish as Idle');
+
+        AgentExecution__c updated = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, CurrentTurnIdentifier__c
+            FROM AgentExecution__c
+            WHERE Id = :execution.Id
+        ];
+        System.assertEquals('Completed', updated.ExecutionStatus__c, 'syncFinalizeExecution should recover and set Completed');
+        System.assertEquals(AIAgentConstants.STATUS_IDLE, updated.ProcessingStatus__c, 'Processing status should be Idle after recovery');
+        System.assertEquals('turn-new-after-stale', updated.CurrentTurnIdentifier__c, 'syncFinalizeExecution should stamp the new turn identifier');
     }
 
     @IsTest
@@ -276,7 +332,6 @@ private class ConversationalOrchestratorTest {
             ToolName__c = capability.CapabilityName__c,
             ToolResult__c = '{"isSuccess":false}',
             IsError__c = true,
-            IsDependencyValidationFailure__c = false,
             TurnIdentifier__c = 'turn-failed-001',
             TurnCount__c = 1,
             Timestamp__c = Datetime.now().addMinutes(-1)
@@ -333,7 +388,7 @@ private class ConversationalOrchestratorTest {
             StepRole__c = 'Assistant',
             ToolCallId__c = 'call-sync-failed-001',
             ToolName__c = capability.CapabilityName__c,
-            ToolArguments__c = '{"recordData":{"Name":"Retry Sync Account"}}',
+            ToolArguments__c = '{}',
             TurnIdentifier__c = 'turn-sync-failed-001',
             TurnCount__c = 1,
             Timestamp__c = Datetime.now().addMinutes(-2)
@@ -348,7 +403,6 @@ private class ConversationalOrchestratorTest {
             ToolName__c = capability.CapabilityName__c,
             ToolResult__c = '{"isSuccess":false}',
             IsError__c = true,
-            IsDependencyValidationFailure__c = false,
             TurnIdentifier__c = 'turn-sync-failed-001',
             TurnCount__c = 1,
             Timestamp__c = Datetime.now().addMinutes(-1)

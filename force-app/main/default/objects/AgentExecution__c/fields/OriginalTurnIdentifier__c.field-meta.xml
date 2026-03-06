@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>OriginalTurnIdentifier__c</fullName>
-    <description>Turn identifier from the original workflow execution before any resume operations. Used for tracking workflow continuity across resumes.</description>
-    <inlineHelpText>Original turn identifier before workflow resumes.</inlineHelpText>
+    <description>Stores the prior turn identifier when the execution's CurrentTurnIdentifier__c is rotated (e.g., resume, retry, stale recovery). Used to track continuity across resumes and recoveries.</description>
+    <inlineHelpText>Previous turn identifier before the most recent turn rotation.</inlineHelpText>
     <label>Original Turn Identifier</label>
     <length>255</length>
     <required>false</required>
@@ -11,4 +11,3 @@
     <type>Text</type>
     <unique>false</unique>
 </CustomField>
-

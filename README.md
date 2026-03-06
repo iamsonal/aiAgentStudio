@@ -55,7 +55,7 @@ AI Agent Studio is **free and open-source**. If you find it useful, consider sup
 
 This repository contains the **core AI Agent Framework only**. The `aiAgentStudioAddons` folder contains proprietary extensions not included in the open-source release.
 
-The core framework in `force-app` provides all fundamental capabilities for building Conversational, Function, Workflow, and Email AI agents with OpenAI and other providers.
+The core framework in `force-app` provides all fundamental capabilities for building Conversational, Function, and Email AI agents with OpenAI and other providers.
 
 ---
 
@@ -81,7 +81,7 @@ Deploy AI copilots that help support agents resolve cases faster by automaticall
 Give sales reps an intelligent assistant that can find accounts, surface open opportunities, create follow-up tasks, and provide real-time insights during customer conversations.
 
 ### Operations Automation
-Build workflow agents that handle multi-step processes like lead qualification, case routing, or approval workflows - combining multiple AI-powered decisions into automated pipelines.
+Build sequential pipelines and Function agents with sub-agent capabilities to handle multi-step processes like lead qualification, case routing, or approval workflows — combining multiple AI-powered decisions into automated, observable pipelines.
 
 ### Self-Service Portals
 Embed conversational agents in Experience Cloud to let customers check order status, create support cases, or find answers from your knowledge base without waiting for human agents.
@@ -131,7 +131,8 @@ All operations run asynchronously using Platform Events or Queueables, ensuring 
 
 | Feature | Description |
 |:--------|:------------|
-| **Four Agent Types** | Conversational (chat), Function (single-task), Workflow (multi-agent orchestration), Email (thread processing) |
+| **Three Agent Types** | Conversational (chat), Function (single-task with LLM-directed sub-agents), Email (thread processing) |
+| **Sequential Pipelines** | Chain multiple agents in a fixed sequence via `PipelineDefinition__c` metadata |
 | **Smart Memory** | Buffer window and summary-based conversation history |
 | **Built-in Security** | Automatic CRUD, FLS, and sharing rule enforcement |
 | **Standard Actions** | Create, update, query records, post to Chatter, execute Flows |
@@ -193,7 +194,7 @@ This single command:
 - Assigns required permission sets (`AIAgentStudioConfigurator`, `AIAgentStudioEndUser`)
 - Enables Knowledge user and assigns `KnowledgeDemo` permission set
 - Creates comprehensive sample data (agents, capabilities, test records)
-- Sets up a Connected App for API access
+- Sets up a External Client App for API access
 
 **Option 3: Salesforce CLI (Source-Based)**
 
@@ -252,8 +253,8 @@ Once your API key is configured:
 - `AgentExecutionService` - Main entry point for starting agent executions
 - `ConversationalOrchestrator` - Manages multi-turn chat conversations
 - `FunctionOrchestrator` - Routes to sync/async function execution (addon)
-- `WorkflowOrchestrator` - Coordinates multi-agent workflows (addon)
 - `EmailOrchestrator` - Processes email threads with auto-reply (addon)
+- `SequentialPipelineOrchestrator` - Chains agents step-by-step via pipeline metadata (addon)
 - `LLMInteractionService` - Handles communication with AI providers
 - `CapabilityExecutionService` - Executes tools/actions securely
 - `OpenAIProviderAdapter` - OpenAI and any OpenAI-compatible API (core)

@@ -4,6 +4,7 @@
     <description>Category grouping for this PII pattern. Used to enable/disable groups of patterns on agent definitions.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Groups patterns so agents can enable/disable them by category. Financial=card/bank data, Identity=SSN/passport, Contact=email/phone/address, Health=medical data, Technical=API keys/tokens.</inlineHelpText>
     <label>Category</label>
     <required>true</required>
     <type>Picklist</type>

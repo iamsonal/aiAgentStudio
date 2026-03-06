@@ -15,7 +15,22 @@ public inherited sharing class AgentStateService {
     // Cache for execution type to avoid repeated queries
     private Map<Id, String> executionTypeCache = new Map<Id, String>();
 
-    public class AgentStateException extends AIAgentException {
+    public virtual class AgentStateException extends AIAgentException {
+    }
+
+    /**
+     * @description Specialized exception used when an async job detects its turn identifier is stale.
+     * Callers should treat this as a no-op (skip processing) rather than a terminal failure.
+     */
+    public class StaleExecutionException extends AgentStateException {
+        public String expectedTurnIdentifier { get; private set; }
+        public String actualTurnIdentifier { get; private set; }
+
+        public StaleExecutionException(String message, String expectedTurnIdentifier, String actualTurnIdentifier) {
+            super(message);
+            this.expectedTurnIdentifier = expectedTurnIdentifier;
+            this.actualTurnIdentifier = actualTurnIdentifier;
+        }
     }
 
     /**
@@ -23,7 +38,7 @@ public inherited sharing class AgentStateService {
      * Caches the result to avoid repeated SOQL queries within the same transaction.
      *
      * @param executionId The AgentExecution__c ID
-     * @return String execution type ('Conversational', 'Function', or 'Workflow')
+     * @return String execution type ('Conversational', 'Function', 'Email', or 'Pipeline')
      */
     public String getExecutionType(Id executionId) {
         if (executionId == null) {
@@ -176,13 +191,18 @@ public inherited sharing class AgentStateService {
 
             // Check for stale execution if turn identifier provided
             if (String.isNotBlank(expectedTurnIdentifier) && !expectedTurnIdentifier.equals(execution.CurrentTurnIdentifier__c)) {
-                throw new AgentStateException(
-                    'Stale execution detected. Expected turn: ' + expectedTurnIdentifier + ', Actual: ' + execution.CurrentTurnIdentifier__c
+                throw new StaleExecutionException(
+                    'Stale execution detected. Expected turn: ' + expectedTurnIdentifier + ', Actual: ' + execution.CurrentTurnIdentifier__c,
+                    expectedTurnIdentifier,
+                    execution.CurrentTurnIdentifier__c
                 );
             }
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Validated execution: ' + executionId);
             return execution;
+        } catch (AgentStateException ase) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to validate execution: ' + ase.getMessage());
+            throw ase;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to validate execution: ' + e.getMessage());
             throw new AgentStateException('Failed to validate execution: ' + e.getMessage());
@@ -284,6 +304,8 @@ public inherited sharing class AgentStateService {
 
         // Publish AgentResponse__e event for UI notification
         publishAgentResponseEvent(executionId, true, finalAssistantMessageId, null, turnIdentifier, logPrefix);
+
+        AgentNotificationService.notify(executionId, AgentNotificationService.EVENT_TURN_COMPLETED);
     }
 
     /**
@@ -303,6 +325,68 @@ public inherited sharing class AgentStateService {
 
         // Publish AgentResponse__e event for UI notification of failure
         publishAgentResponseEvent(executionId, false, null, errorMessage, turnIdentifier, logPrefix);
+
+        AgentNotificationService.notify(executionId, AgentNotificationService.EVENT_EXECUTION_FAILED);
+    }
+
+    /**
+     * @description Finalizes execution status after a synchronous turn completes.
+     *
+     * In the synchronous execution path, Apex's DML-before-callout restriction prevents
+     * pre-stamping the turn identifier before the LLM call. This means
+     * completeTurnSuccessfully() inside the sync loop may silently skip its update due
+     * to the stale-turn check. This method recovers by force-updating the execution
+     * only if the turn has not already been correctly stamped.
+     *
+     * Safe to call unconditionally - uses FOR UPDATE to guard against concurrent writes
+     * and is a no-op when the turn was already correctly stamped.
+     *
+     * @param executionId The AgentExecution__c ID
+     * @param newTurnIdentifier The turn identifier used by the sync execution
+     * @param processingStatus The ProcessingStatus__c value returned by the execution (e.g. Idle, Failed)
+     * @param logPrefix Log prefix for debug output
+     */
+    public void syncFinalizeExecution(Id executionId, String newTurnIdentifier, String processingStatus, String logPrefix) {
+        try {
+            List<AgentExecution__c> stale = [
+                SELECT Id, CurrentTurnIdentifier__c
+                FROM AgentExecution__c
+                WHERE Id = :executionId AND CurrentTurnIdentifier__c != :newTurnIdentifier
+                LIMIT 1
+                FOR UPDATE
+            ];
+
+            if (stale.isEmpty()) {
+                return; // Already stamped correctly by completeTurnSuccessfully()
+            }
+
+            AgentExecution__c exec = new AgentExecution__c(
+                Id = executionId,
+                CurrentTurnIdentifier__c = newTurnIdentifier,
+                LastActivityTime__c = Datetime.now()
+            );
+
+            if (processingStatus == AIAgentConstants.STATUS_FAILED) {
+                exec.ExecutionStatus__c = 'Failed';
+                exec.ProcessingStatus__c = AIAgentConstants.STATUS_FAILED;
+                exec.EndTime__c = Datetime.now();
+            } else if (processingStatus == AIAgentConstants.STATUS_PROCESSING) {
+                exec.ExecutionStatus__c = 'Processing';
+                exec.ProcessingStatus__c = AIAgentConstants.STATUS_PROCESSING;
+            } else {
+                exec.ExecutionStatus__c = 'Completed';
+                exec.ProcessingStatus__c = AIAgentConstants.STATUS_IDLE;
+                exec.EndTime__c = Datetime.now();
+            }
+
+            update exec;
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + '[AgentStateService] syncFinalizeExecution stamped turn=' + newTurnIdentifier + ' status=' + exec.ExecutionStatus__c
+            );
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + '[AgentStateService] syncFinalizeExecution failed (non-fatal): ' + e.getMessage());
+        }
     }
 
     // STATUS UPDATE (Public for direct callers)
@@ -355,13 +439,14 @@ public inherited sharing class AgentStateService {
                         System.debug(LoggingLevel.WARN, logPrefix + 'Unable to read current turn for debug: ' + e.getMessage());
                     }
                     System.debug(
-                        LoggingLevel.WARN,
+                        LoggingLevel.INFO,
                         logPrefix +
                             'Stale status update skipped for execution ' +
                             executionId +
                             '. Turn mismatch for provided turn=' +
                             turnIdentifier +
-                            (currentTurn != null ? (', current turn=' + currentTurn) : '')
+                            (currentTurn != null ? (', current turn=' + currentTurn) : '') +
+                            '. Expected for sync execution path — syncFinalizeExecution handles recovery.'
                     );
                     return;
                 }
@@ -398,7 +483,7 @@ public inherited sharing class AgentStateService {
 
     /**
      * Publishes AgentResponse__e event for AgentExecution__c records to notify UI of completion.
-     * Only publishes events for Conversational executions (chat UI). Function and Workflow
+     * Only publishes events for Conversational executions (chat UI). Function
      * executions are background/API operations that don't need UI notifications.
      *
      * @param executionId The AgentExecution__c ID
@@ -484,7 +569,7 @@ public inherited sharing class AgentStateService {
 
     /**
      * Determines if platform events should be published for this execution.
-     * Only conversational agents need UI notification events. Function and Workflow
+     * Only conversational agents need UI notification events. Function
      * executions are backend/API operations that should not trigger UI events.
      *
      * @param executionId The execution ID to check

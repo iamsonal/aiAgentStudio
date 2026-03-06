@@ -107,6 +107,57 @@ private class AsyncActionEngineTest {
     }
 
     @IsTest
+    static void testProcess_StaleTurnIdentifier_SkipsWithoutFailure() {
+        AgentCapability__c capability = [
+            SELECT Id, CapabilityName__c, AIAgentDefinition__c
+            FROM AgentCapability__c
+            WHERE CapabilityName__c = 'async_create_account'
+            LIMIT 1
+        ];
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(capability.AIAgentDefinition__c)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Function')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
+            .withTurnIdentifier('turn-async-current-001')
+            .save();
+
+        String toolCallId = 'call_stale_turn_' + System.currentTimeMillis();
+
+        AsyncActionEngine engine = new AsyncActionEngine(
+            execution.Id,
+            UserInfo.getUserId(),
+            execution.AIAgentDefinition__c,
+            null,
+            toolCallId,
+            '{"Name": "Should Skip"}',
+            capability,
+            null,
+            'turn-async-stale-xyz',
+            1
+        );
+
+        engine.process('test_job_id');
+
+        AgentExecution__c updated = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, CurrentTurnIdentifier__c
+            FROM AgentExecution__c
+            WHERE Id = :execution.Id
+        ];
+        System.assertEquals('Processing', updated.ExecutionStatus__c, 'Stale async tool job should not change execution status');
+        System.assertEquals(AIAgentConstants.STATUS_AWAITING_ACTION, updated.ProcessingStatus__c, 'Stale async tool job should not change processing status');
+        System.assertEquals('turn-async-current-001', updated.CurrentTurnIdentifier__c, 'Current turn identifier should remain unchanged');
+
+        List<ExecutionStep__c> toolResults = [
+            SELECT Id
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :execution.Id AND StepType__c = 'ToolResult' AND ToolCallId__c = :toolCallId
+        ];
+        System.assertEquals(0, toolResults.size(), 'Stale async tool job should not create tool result');
+    }
+
+    @IsTest
     static void testProcess_FailFastFailure_MarksExecutionFailed() {
         TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
 

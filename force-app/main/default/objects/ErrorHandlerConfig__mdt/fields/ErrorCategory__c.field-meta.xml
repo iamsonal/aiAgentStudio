@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ErrorCategory__c</fullName>
+    <description>Categorizes the error type for routing, retry behavior, and LLM guidance injection. Determines how the framework handles and surfaces this error to users and the LLM.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>validation=bad input, permission=access denied, data=record/query issues, external=callout failures, system=platform errors, config=setup issues, user=user-triggered, unknown=unclassified.</inlineHelpText>
     <label>Error Category</label>
     <required>true</required>
     <type>Picklist</type>

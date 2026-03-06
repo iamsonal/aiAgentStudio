@@ -47,9 +47,8 @@ public inherited sharing class AIAgentConfigService {
         'EnableToolReasoning__c',
         'RequiresServiceUserContext__c',
         'ServiceUserNamedCredential__c',
-        'EnableDependencyValidation__c',
-        'ToolDependencyGraph__c',
-        'ToolDependencyGraphWarnings__c',
+        'EnableToolFlowGraph__c',
+        'ToolFlowGraph__c',
         'AsyncDispatchType__c',
         'SummarizerAgent__c',
         'EnableNextStepSuggestion__c',
@@ -61,7 +60,11 @@ public inherited sharing class AIAgentConfigService {
         'PIIMaskingPreset__c',
         'PromptSafetyPreset__c',
         // Error handling
-        'ErrorRecoveryMode__c'
+        'ErrorRecoveryMode__c',
+        // Email agent configuration
+        'EmailReplyMode__c',
+        'EmailParentObject__c',
+        'EmailTerminalStatuses__c'
     };
 
     private static final List<String> LLM_CONFIGURATION_FIELDS = new List<String>{

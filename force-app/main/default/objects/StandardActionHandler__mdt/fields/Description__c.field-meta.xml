@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Description__c</fullName>
+    <description>Human-readable description of what this action does, shown in the capability configurator UI to help administrators choose the right action type.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Displayed in the action type picker UI. Describe the action&apos;s purpose, key behaviors, and any important constraints. Example: Creates a new record of the specified SObject type with provided field values.</inlineHelpText>
     <label>Description</label>
     <length>255</length>
     <required>false</required>

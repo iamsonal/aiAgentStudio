@@ -366,7 +366,7 @@ public inherited sharing class AgentJobEnqueuer {
      * @param logPrefix A logging prefix for debug output.
      * @return AsyncOptions with configured stack depth, or null if already set in parent chain.
      */
-    private AsyncOptions getAsyncOptions(String logPrefix) {
+    public AsyncOptions getAsyncOptions(String logPrefix) {
         // TEST CONTEXT GUARD: hasMaxStackDepth() throws error in tests
         // "hasMaxStackDepth is not allowed outside a Queueable of Finalizer execution"
         if (Test.isRunningTest()) {

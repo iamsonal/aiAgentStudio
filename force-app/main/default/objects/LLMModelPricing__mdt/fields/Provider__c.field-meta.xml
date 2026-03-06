@@ -4,6 +4,7 @@
     <description>The LLM provider name (e.g., OpenAI, Anthropic, Azure, AWS Bedrock)</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Informational label for the provider that offers this model. Used for grouping and filtering in cost reports. Examples: OpenAI, Anthropic, Google, Azure OpenAI.</inlineHelpText>
     <label>Provider</label>
     <length>50</length>
     <required>false</required>

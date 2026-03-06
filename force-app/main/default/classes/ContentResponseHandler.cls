@@ -75,7 +75,7 @@ public inherited sharing class ContentResponseHandler implements ILLMResponseHan
         }
 
         // Commit the turn context to the ledger (Conversational agents only)
-        // Skip for Function/Workflow agents which don't need multi-turn context tracking
+        // Skip for Function agents which don't need multi-turn context tracking
         if (context.agentStateSvc.isContextTrackingEnabled(context.executionId)) {
             try {
                 context.contextManagerSvc.commitExecutionTurnContext(context.executionId, context.currentTurnCount, context.currentPageRecordId, null);

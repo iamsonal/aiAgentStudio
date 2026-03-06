@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>CurrentTurnIdentifier__c</fullName>
-    <description>Unique identifier for the current turn/step in the execution. Used for async processing coordination and preventing stale operations.</description>
+    <description>Optimistic concurrency token for the currently-active execution turn. Propagated to async jobs (tools, follow-ups) so stale work can be detected and skipped when the turn is rotated.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Internal identifier for the current execution turn.</inlineHelpText>
+    <inlineHelpText>Current turn token used to prevent stale async processing.</inlineHelpText>
     <label>Current Turn Identifier</label>
     <length>255</length>
     <required>false</required>

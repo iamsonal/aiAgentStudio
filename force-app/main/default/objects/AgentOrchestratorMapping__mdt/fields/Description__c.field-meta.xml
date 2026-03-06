@@ -4,6 +4,7 @@
     <description>Description of what this orchestrator does and when it should be used</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Internal documentation for administrators. Describe this orchestrator&apos;s behavior, any constraints, and when to use it vs. other orchestrators.</inlineHelpText>
     <label>Description</label>
     <length>32768</length>
     <type>LongTextArea</type>

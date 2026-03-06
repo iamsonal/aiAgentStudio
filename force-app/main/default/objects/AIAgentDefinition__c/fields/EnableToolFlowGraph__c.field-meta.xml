@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EnableToolFlowGraph__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>When enabled, the Tool Flow Graph is enforced at runtime. Only tools eligible according to the flow graph are exposed to the LLM. This ensures deterministic tool execution order while allowing the LLM to make decisions within the constrained workflow.</description>
+    <inlineHelpText>Enable to enforce the Tool Flow Graph at runtime. The LLM will only see tools it is currently eligible to call.</inlineHelpText>
+    <label>Enable Tool Flow Graph</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ImplementationType__c</fullName>
-    <description>Defines how this capability is implemented. &apos;Standard&apos; uses a built-in framework action. &apos;Apex&apos; uses a custom Apex class that implements the IAgentAction interface. &apos;Flow&apos; uses a Salesforce Flow.</description>
-    <inlineHelpText>Choose the implementation method: &apos;Standard&apos; for built-in actions, &apos;Apex&apos; for custom code, or &apos;Flow&apos; for Salesforce Flows.</inlineHelpText>
+    <description>Defines how this capability is implemented. &apos;Standard&apos; uses a built-in framework action. &apos;Apex&apos; uses a custom Apex class that implements the IAgentAction interface. &apos;Flow&apos; uses a Salesforce Flow. &apos;Agent&apos; delegates execution to another AI agent (ImplementationDetail__c stores the child agent&apos;s DeveloperName).</description>
+    <inlineHelpText>Choose the implementation method: &apos;Standard&apos; for built-in actions, &apos;Apex&apos; for custom code, &apos;Flow&apos; for Salesforce Flows, or &apos;Agent&apos; to delegate to another AI agent.</inlineHelpText>
     <label>Implementation Type</label>
     <required>false</required>
     <trackTrending>false</trackTrending>
@@ -25,6 +25,11 @@
                 <fullName>Flow</fullName>
                 <default>false</default>
                 <label>Flow</label>
+            </value>
+            <value>
+                <fullName>Agent</fullName>
+                <default>false</default>
+                <label>Agent</label>
             </value>
         </valueSetDefinition>
     </valueSet>
