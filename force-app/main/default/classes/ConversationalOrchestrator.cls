@@ -153,6 +153,8 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
 
         String toolCallId = null;
         String toolName = null;
+        String parentTurnIdentifier = null;
+        Integer parentTurnCount = null;
         try {
             AgentExecution__c childExec = [
                 SELECT TriggerPayload__c
@@ -165,6 +167,11 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
                 Map<String, Object> triggerData = (Map<String, Object>) JSON.deserializeUntyped(childExec.TriggerPayload__c);
                 toolCallId = (String) triggerData.get('toolCallId');
                 toolName = (String) triggerData.get('toolName');
+                parentTurnIdentifier = (String) triggerData.get('parentTurnIdentifier');
+                Object turnCountObj = triggerData.get('parentTurnCount');
+                if (turnCountObj != null) {
+                    parentTurnCount = Integer.valueOf(String.valueOf(turnCountObj));
+                }
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Could not retrieve toolCallId from child execution: ' + e.getMessage());
@@ -184,8 +191,28 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
             LIMIT 1
         ];
 
-        String turnIdentifier = parentExec.CurrentTurnIdentifier__c;
-        Integer currentTurnCount = 0;
+        // Early stale-turn detection: if the parent's turn has rotated since
+        // this child was spawned, the completion is orphaned. Drop it before
+        // creating any ToolResult steps to avoid polluting the current turn.
+        if (
+            String.isNotBlank(parentTurnIdentifier) &&
+            String.isNotBlank(parentExec.CurrentTurnIdentifier__c) &&
+            !parentTurnIdentifier.equals(parentExec.CurrentTurnIdentifier__c)
+        ) {
+            System.debug(
+                LoggingLevel.WARN,
+                logPrefix +
+                    'Stale child completion detected. Spawned under turn: ' +
+                    parentTurnIdentifier +
+                    ', Parent current turn: ' +
+                    parentExec.CurrentTurnIdentifier__c +
+                    '. Ignoring.'
+            );
+            return;
+        }
+
+        String turnIdentifier = String.isNotBlank(parentTurnIdentifier) ? parentTurnIdentifier : parentExec.CurrentTurnIdentifier__c;
+        Integer currentTurnCount = (parentTurnCount != null) ? parentTurnCount : 0;
 
         String resultContent;
         Boolean isError = false;
@@ -245,11 +272,7 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
         if (isMultiStepTurn && isFollowUpCall) {
             System.debug(LoggingLevel.INFO, context.logPrefix + 'Injecting summarization instructions for conversational agent');
 
-            return '\n\n# FINAL INSTRUCTIONS\n\n' +
-                'You have just completed one or more tool actions that the user did not see. ' +
-                'Your task is to synthesize the results of all actions into a single, user-friendly summary. ' +
-                'This will be the only message the user sees for this turn. ' +
-                'Do not ask questions; provide a conclusive, final response.';
+            return AIAgentConstants.PROMPT_SECTION_FINAL_INSTRUCTIONS + AIAgentConstants.PROMPT_FOLLOWUP_SUMMARIZE;
         }
 
         return '';
@@ -263,8 +286,9 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
         String logPrefix = context.logPrefix + '[ConvToolCompletion] ';
 
         if (scenario == 'APPROVAL_REQUIRED') {
-            // For conversational agents: create programmatic assistant response and complete turn
-            // This allows user to continue chatting while approval is pending
+            // For conversational agents, approvals can coexist with async tools/child agents in the
+            // same turn. If async work is still outstanding, keep the execution in the shared waiting
+            // state instead of completing the turn early and orphaning later completions.
 
             // Find the tool that requires approval
             String toolName = 'the requested action';
@@ -272,10 +296,7 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
                 toolName = toolResults[0].toolName;
             }
 
-            String assistantMessage =
-                'I\'ve submitted your request to ' +
-                toolName +
-                ' for approval. You\'ll be notified when it\'s processed. Feel free to continue our conversation.';
+            String assistantMessage = String.format(AIAgentConstants.MSG_APPROVAL_SUBMITTED_TEMPLATE, new List<Object>{ toolName });
 
             ExecutionStepService executionStepService = new ExecutionStepService();
             Id assistantMessageId = executionStepService.createAgentResponseStep(
@@ -287,7 +308,22 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
 
             context.decisionLogger.log(IDecisionStepLogger.EventType.FINAL_RESPONSE, new List<Object>{ assistantMessage });
 
-            // Complete the turn successfully - user can continue chatting
+            AgentExecution__c execution = [
+                SELECT PendingAsyncToolCount__c
+                FROM AgentExecution__c
+                WHERE Id = :context.executionId
+                LIMIT 1
+            ];
+            Integer pendingAsyncCount = execution.PendingAsyncToolCount__c != null ? Integer.valueOf(execution.PendingAsyncToolCount__c) : 0;
+            if (pendingAsyncCount > 0) {
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix + 'Approval requested while ' + pendingAsyncCount + ' async tool(s) are still pending. Keeping the turn in Awaiting Action.'
+                );
+                return OrchestrationService.OUTCOME_QUEUED_ACTION;
+            }
+
+            // No async work is outstanding, so this approval can safely complete the current chat turn.
             context.agentStateSvc.completeTurnSuccessfully(context.executionId, context.turnIdentifier, assistantMessageId, logPrefix);
 
             return OrchestrationService.OUTCOME_COMPLETED;
@@ -825,16 +861,22 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
                 logPrefix + 'Synchronous execution completed. Final outcome: ' + outcome + ', Total LLM calls: ' + txnCtx.getLLMCallCount()
             );
 
-            // Determine status based on outcome
+            // Determine status based on outcome — must distinguish QUEUED_ACTION from
+            // QUEUED_FOLLOWUP so that syncFinalizeExecution() stamps the correct
+            // ProcessingStatus__c. Collapsing both to STATUS_PROCESSING would cause
+            // the follow-up worker to abort (it expects Awaiting Followup).
             String status = AIAgentConstants.STATUS_IDLE;
             String message = 'Turn completed';
 
             if (outcome == OrchestrationService.OUTCOME_FAILED) {
                 status = AIAgentConstants.STATUS_FAILED;
                 message = 'Turn failed';
-            } else if (outcome == OrchestrationService.OUTCOME_QUEUED_ACTION || outcome == OrchestrationService.OUTCOME_QUEUED_FOLLOWUP) {
-                status = AIAgentConstants.STATUS_PROCESSING;
+            } else if (outcome == OrchestrationService.OUTCOME_QUEUED_ACTION) {
+                status = AIAgentConstants.STATUS_AWAITING_ACTION;
                 message = 'Processing tool actions';
+            } else if (outcome == OrchestrationService.OUTCOME_QUEUED_FOLLOWUP) {
+                status = AIAgentConstants.STATUS_AWAITING_FOLLOWUP;
+                message = 'Awaiting follow-up LLM call';
             } else if (outcome == OrchestrationService.OUTCOME_AWAITING_CONFIRMATION) {
                 status = AIAgentConstants.STATUS_IDLE;
                 message = 'Awaiting user confirmation';

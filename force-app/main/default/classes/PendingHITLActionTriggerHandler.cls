@@ -460,53 +460,16 @@ public with sharing class PendingHITLActionTriggerHandler {
         System.debug(LoggingLevel.INFO, logPrefix + 'Checking if follow-up LLM call needed for execution: ' + execution.Id);
 
         try {
-            // Check for pending async tools - if any are still running, defer LLM call to async completion
-            AgentExecution__c execWithAsyncCount = [
-                SELECT Id, PendingAsyncToolCount__c
-                FROM AgentExecution__c
-                WHERE Id = :execution.Id
-                LIMIT 1
-            ];
-
-            Integer pendingAsyncCount = execWithAsyncCount.PendingAsyncToolCount__c != null ? execWithAsyncCount.PendingAsyncToolCount__c.intValue() : 0;
-
-            if (pendingAsyncCount > 0) {
-                System.debug(
-                    LoggingLevel.INFO,
-                    logPrefix + 'HITL resolved but ' + pendingAsyncCount + ' async tool(s) still pending. Deferring LLM call to async completion.'
-                );
-                return;
-            }
-
-            AIAgentDefinition__c agentDef = [
-                SELECT AgentType__c
-                FROM AIAgentDefinition__c
-                WHERE Id = :execution.AIAgentDefinition__c
-                LIMIT 1
-            ];
-
-            if (agentDef.AgentType__c == 'Conversational') {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Conversational agent - no follow-up needed, turn already completed');
-                return;
-            }
-
-            System.debug(LoggingLevel.INFO, logPrefix + 'Queueing follow-up LLM call for ' + agentDef.AgentType__c + ' agent');
-
-            // IMPORTANT: Always route follow-up LLM through REST API (via HITLServiceQueueable)
-            // to maintain consistency with approval flow which always uses REST API for tool execution.
-            // This ensures the Named Credential authenticates as the service user, providing
-            // proper context for any subsequent tool calls the LLM may request.
-            System.debug(LoggingLevel.INFO, logPrefix + 'Using HITLServiceQueueable to route follow-up LLM via REST API');
-            System.enqueueJob(
-                new HITLServiceQueueable(
-                    execution.Id,
-                    action.TurnIdentifier__c,
-                    action.TurnCount__c != null ? action.TurnCount__c.intValue() : 1,
-                    execution.SourceRecordId__c
-                )
+            Boolean queued = OrchestrationService.tryQueueHitlResolvedFollowUp(
+                execution.Id,
+                action.TurnIdentifier__c,
+                action.TurnCount__c != null ? action.TurnCount__c.intValue() : 1,
+                execution.SourceRecordId__c,
+                logPrefix
             );
-
-            System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up LLM call queued successfully');
+            if (queued) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Follow-up LLM call queued successfully');
+            }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to queue follow-up LLM call: ' + e.getMessage());
             throw e;

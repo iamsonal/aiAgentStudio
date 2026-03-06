@@ -5,6 +5,8 @@
 private class SummarizeConversationQueueableTest {
     @TestVisible
     private static String lastSummarizationToken;
+    @TestVisible
+    private static String lastSummarizationRequestBody;
     private static AgentExecution__c createExecution(Id agentId, String status) {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agentId,
@@ -163,6 +165,64 @@ private class SummarizeConversationQueueableTest {
         );
     }
 
+    @IsTest
+    static void testSummarizationIncludesToolCallsAndResults() {
+        Test.setMock(HttpCalloutMock.class, new SummarizationCaptureMock());
+
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withLLM(llm.Id).build();
+        agent.SummarizationChunkTurnCount__c = 1;
+        insert agent;
+
+        AgentExecution__c execution = createExecution(agent.Id, 'Processing');
+        Datetime nowTime = Datetime.now();
+        insert new List<ExecutionStep__c>{
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'UserInput',
+                StepRole__c = 'User',
+                Content__c = 'Please gather details',
+                Timestamp__c = nowTime.addSeconds(-5),
+                TurnIdentifier__c = 'turn-tools',
+                TurnCount__c = 1,
+                IsInternal__c = false,
+                IsSummarized__c = false
+            ),
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolCall',
+                StepRole__c = 'Assistant',
+                ToolName__c = 'lookup_case',
+                ToolArguments__c = '{"caseNumber":"0001"}',
+                Timestamp__c = nowTime.addSeconds(-4),
+                TurnIdentifier__c = 'turn-tools',
+                TurnCount__c = 1,
+                IsInternal__c = false,
+                IsSummarized__c = false
+            ),
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolName__c = 'lookup_case',
+                ToolResult__c = '{"status":"found"}',
+                Timestamp__c = nowTime.addSeconds(-3),
+                TurnIdentifier__c = 'turn-tools',
+                TurnCount__c = 1,
+                IsInternal__c = false,
+                IsSummarized__c = false
+            )
+        };
+
+        Test.startTest();
+        System.enqueueJob(new SummarizeConversationQueueable(execution.Id, agent.Id));
+        Test.stopTest();
+
+        System.assertNotEquals(null, lastSummarizationRequestBody, 'Summarization request should be captured');
+        System.assert(lastSummarizationRequestBody.contains('lookup_case'), 'Summarization prompt should include tool names');
+        System.assert(lastSummarizationRequestBody.contains('found'), 'Summarization prompt should include tool results');
+    }
+
     private static void createUnsummarizedTurnWithPii(Id executionId) {
         Datetime nowTime = Datetime.now();
         List<ExecutionStep__c> steps = new List<ExecutionStep__c>{
@@ -204,6 +264,18 @@ private class SummarizeConversationQueueableTest {
             String summaryContent = lastSummarizationToken != null ? 'Summary includes ' + lastSummarizationToken : 'Summary includes no token';
             MockHttpResponses.ResponseConfig response = MockHttpResponses.textResponse(summaryContent);
 
+            HttpResponse res = new HttpResponse();
+            res.setHeader('Content-Type', 'application/json');
+            res.setStatusCode(response.statusCode);
+            res.setBody(response.body);
+            return res;
+        }
+    }
+
+    private class SummarizationCaptureMock implements HttpCalloutMock {
+        public HttpResponse respond(HttpRequest req) {
+            lastSummarizationRequestBody = req.getBody();
+            MockHttpResponses.ResponseConfig response = MockHttpResponses.textResponse('Summary with tools');
             HttpResponse res = new HttpResponse();
             res.setHeader('Content-Type', 'application/json');
             res.setStatusCode(response.statusCode);

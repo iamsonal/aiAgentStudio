@@ -57,7 +57,6 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
         req.setBody(JSON.serialize(body));
         Integer timeoutMs = llmConfig.TimeoutMs__c != null ? llmConfig.TimeoutMs__c.intValue() : DEFAULT_TIMEOUT_MS;
         req.setTimeout(timeoutMs);
-        System.debug(LoggingLevel.DEBUG, req.getBody());
         System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'HTTP request prepared. Payload size: ' + req.getBody().length() + ' characters.');
         return req;
     }
@@ -161,10 +160,10 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
             req.setHeader('Content-Type', 'application/json; charset=utf-8');
             req.setBody(JSON.serialize(new Map<String, Object>{ 'input' => userMessage }));
             req.setTimeout(15000);
-            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Moderation request body: ' + req.getBody());
+            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Moderation request prepared. Payload size: ' + req.getBody().length() + ' characters.');
 
             HttpResponse res = new Http().send(req);
-            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Moderation response (' + res.getStatusCode() + '): ' + res.getBody());
+            System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Moderation response status: ' + res.getStatusCode());
 
             if (res.getStatusCode() != 200) {
                 System.debug(LoggingLevel.WARN, LOG_PREFIX + 'Moderation API returned HTTP ' + res.getStatusCode() + '. Failing open.');

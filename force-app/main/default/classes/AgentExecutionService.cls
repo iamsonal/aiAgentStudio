@@ -371,6 +371,8 @@ global inherited sharing class AgentExecutionService {
          */
         @AuraEnabled
         public String triggerPayload { get; set; }
+        @AuraEnabled
+        public String claimToken { get; set; }
 
         public ExecutionPayload() {
         }

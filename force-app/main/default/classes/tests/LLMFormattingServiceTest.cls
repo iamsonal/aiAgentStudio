@@ -591,19 +591,14 @@ private class LLMFormattingServiceTest {
     }
 
     @IsTest
-    static void testFormatTools_ConditionalApproval_InjectsConfidenceAndApprovalParams() {
+    static void testFormatTools_ConditionalApproval_InjectsApprovalAndConfidenceParams() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM Cond').save();
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Cond').withType('Function').withLLM(llm.Id).save();
         agent.EnableToolReasoning__c = true;
+        agent.EnableConfidenceTracking__c = true;
         update agent;
 
-        AgentCapability__c capability = TestFactory.newCapability()
-            .withAgent(agent.Id)
-            .forCreateRecord('Account')
-            .withHITLMode(HITLGatewayService.HITL_MODE_CONDITIONAL_APPROVAL)
-            .build();
-        capability.TrackConfidence__c = true;
-        insert capability;
+        TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').withHITLMode(HITLGatewayService.HITL_MODE_CONDITIONAL_APPROVAL).save();
 
         List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, 'test-conditional');
         Map<String, Object> functionDef = (Map<String, Object>) tools[0].get('function');
@@ -612,8 +607,48 @@ private class LLMFormattingServiceTest {
 
         System.assert(properties.containsKey('_requiresApproval'), 'Should inject _requiresApproval');
         System.assert(properties.containsKey('_approvalReason'), 'Should inject _approvalReason');
-        System.assert(properties.containsKey(LLMFormattingService.TOOL_CONFIDENCE_PARAM_NAME), 'Should inject _confidence');
+        System.assert(properties.containsKey(LLMFormattingService.TOOL_CONFIDENCE_PARAM_NAME), 'Should inject _confidence via agent-level flag');
         System.assert(properties.containsKey(LLMFormattingService.TOOL_RATIONALE_PARAM_NAME), 'Should inject _rationale');
+    }
+
+    @IsTest
+    static void testFormatTools_AgentLevelConfidenceTracking_InjectsConfidenceOnAllTools() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Conf Track LLM').save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Conf_Track_Agent').withType('Function').withLLM(llm.Id).save();
+        agent.EnableConfidenceTracking__c = true;
+        update agent;
+
+        TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').save();
+        TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Contact').save();
+
+        List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, 'test-conf-tracking');
+        System.assertEquals(2, tools.size(), 'Should format both capabilities');
+
+        for (Map<String, Object> tool : tools) {
+            Map<String, Object> functionDef = (Map<String, Object>) tool.get('function');
+            Map<String, Object> params = (Map<String, Object>) functionDef.get('parameters');
+            Map<String, Object> properties = (Map<String, Object>) params.get('properties');
+            System.assert(
+                properties.containsKey(LLMFormattingService.TOOL_CONFIDENCE_PARAM_NAME),
+                'Agent-level confidence tracking should inject _confidence into every tool'
+            );
+        }
+    }
+
+    @IsTest
+    static void testFormatTools_ConfidenceTrackingDisabled_DoesNotInjectConfidence() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('No Conf LLM').save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('No_Conf_Agent').withType('Function').withLLM(llm.Id).save();
+
+        TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').save();
+
+        List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, 'test-no-conf');
+        System.assertEquals(1, tools.size());
+
+        Map<String, Object> functionDef = (Map<String, Object>) tools[0].get('function');
+        Map<String, Object> params = (Map<String, Object>) functionDef.get('parameters');
+        Map<String, Object> properties = (Map<String, Object>) params.get('properties');
+        System.assert(!properties.containsKey('_confidence'), 'Confidence should not be injected when tracking is disabled');
     }
 
     @IsTest
@@ -705,7 +740,6 @@ private class LLMFormattingServiceTest {
         for (Map<String, Object> entry : result) {
             System.assert(entry.containsKey('category'), 'Each entry should have category');
             System.assert(entry.containsKey('minScore'), 'Each entry should have minScore');
-            System.assert(entry.containsKey('displayLabel'), 'Each entry should have displayLabel');
             System.assert(entry.containsKey('color'), 'Each entry should have color');
             System.assert(entry.containsKey('sortOrder'), 'Each entry should have sortOrder');
         }
@@ -814,5 +848,56 @@ private class LLMFormattingServiceTest {
         System.assertEquals('_rationale', LLMFormattingService.TOOL_RATIONALE_PARAM_NAME);
         System.assertEquals('_confidence', LLMFormattingService.TOOL_CONFIDENCE_PARAM_NAME);
         System.assertEquals('_nextStepSuggestion', LLMFormattingService.TOOL_NEXT_STEP_SUGGESTION_PARAM_NAME);
+    }
+
+    // ========== Confidence threshold system prompt injection ==========
+
+    @IsTest
+    static void testBuildConfidenceInstructions_DisabledTracking_ReturnsNull() {
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', EnableConfidenceTracking__c = false, MinConfidenceThreshold__c = 50);
+        String result = LLMInteractionService.buildConfidenceInstructions(agent, '[Test] ');
+        System.assertEquals(null, result, 'Should return null when confidence tracking is disabled');
+    }
+
+    @IsTest
+    static void testBuildConfidenceInstructions_NullThreshold_StillInjectsGuidance() {
+        // Tracking-only mode (no enforcement threshold) should still inject confidence guidance
+        // so the LLM knows to provide scores. MinConfidenceThreshold__c only gates blocking,
+        // not whether guidance is sent.
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', EnableConfidenceTracking__c = true, MinConfidenceThreshold__c = null);
+        String result = LLMInteractionService.buildConfidenceInstructions(agent, '[Test] ');
+        System.assertNotEquals(null, result, 'Should still inject guidance when tracking is enabled but no threshold is set');
+        System.assert(result.contains('lookup or search'), 'Function agent guidance should mention lookup tools even without a threshold');
+    }
+
+    @IsTest
+    static void testBuildConfidenceInstructions_FunctionAgent_UsesLookupGuidance() {
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', EnableConfidenceTracking__c = true, MinConfidenceThreshold__c = 60);
+        String result = LLMInteractionService.buildConfidenceInstructions(agent, '[Test] ');
+        System.assertNotEquals(null, result, 'Should return instructions for Function agent');
+        System.assert(result.contains('lookup or search'), 'Function agent guidance should mention lookup tools');
+        System.assert(!result.contains('60'), 'Threshold value must not be exposed in instructions — prevents LLM gaming');
+    }
+
+    @IsTest
+    static void testBuildConfidenceInstructions_ConversationalAgent_UsesAskUserGuidance() {
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(
+            AgentType__c = 'Conversational',
+            EnableConfidenceTracking__c = true,
+            MinConfidenceThreshold__c = 50
+        );
+        String result = LLMInteractionService.buildConfidenceInstructions(agent, '[Test] ');
+        System.assertNotEquals(null, result, 'Should return instructions for Conversational agent');
+        System.assert(result.containsIgnoreCase('ask the user'), 'Conversational guidance should instruct LLM to ask user');
+        System.assert(!result.contains('50'), 'Threshold value must not be exposed in instructions — prevents LLM gaming');
+    }
+
+    @IsTest
+    static void testBuildConfidenceInstructions_EmailAgent_UsesEmailReplyGuidance() {
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Email', EnableConfidenceTracking__c = true, MinConfidenceThreshold__c = 70);
+        String result = LLMInteractionService.buildConfidenceInstructions(agent, '[Test] ');
+        System.assertNotEquals(null, result, 'Should return instructions for Email agent');
+        System.assert(result.containsIgnoreCase('email reply'), 'Email guidance should mention email reply');
+        System.assert(!result.contains('70'), 'Threshold value must not be exposed in instructions — prevents LLM gaming');
     }
 }

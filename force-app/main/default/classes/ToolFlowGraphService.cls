@@ -194,11 +194,22 @@ public inherited sharing class ToolFlowGraphService {
             return;
         }
 
+        Set<String> executedTools = getExecutedToolsForExecution(executionId);
         for (FlowRule rule : graph.flow) {
             if (!'exclusive'.equals(rule.type)) {
                 continue;
             }
             if (rule.toTools == null || !rule.toTools.contains(toolName)) {
+                continue;
+            }
+            Boolean fromToolsSatisfied = true;
+            for (String fromTool : rule.fromTools) {
+                if (executedTools == null || !executedTools.contains(fromTool)) {
+                    fromToolsSatisfied = false;
+                    break;
+                }
+            }
+            if (!fromToolsSatisfied) {
                 continue;
             }
             // This tool was chosen from an exclusive rule — lock the siblings

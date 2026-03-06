@@ -32,7 +32,10 @@ public abstract inherited sharing class BaseProviderAdapter implements ILLMProvi
      * all map to PRESET_STANDARD so existing data is not broken when upgrading.
      */
     public static String normalizePromptSafetyPreset(String preset) {
-        if (String.isBlank(preset) || preset.trim().equalsIgnoreCase(PRESET_OFF)) {
+        if (String.isBlank(preset)) {
+            return PRESET_STANDARD;
+        }
+        if (preset.trim().equalsIgnoreCase(PRESET_OFF)) {
             return PRESET_OFF;
         }
         return PRESET_STANDARD;

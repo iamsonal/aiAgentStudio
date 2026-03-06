@@ -184,14 +184,33 @@ private class ToolFlowGraphServiceTest {
         );
         AIAgentDefinition__c agentDef = new AIAgentDefinition__c(ToolFlowGraph__c = graphJson, EnableToolFlowGraph__c = true);
 
-        Id fakeExecutionId = TestFactory.generateMockId(AgentExecution__c.SObjectType);
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
+        TestFactory.createToolCallSequence(setup.agentExecution.Id, 'evaluate');
 
-        ToolFlowGraphService.lockExclusiveSiblings(agentDef, 'branch_a', fakeExecutionId);
+        ToolFlowGraphService.lockExclusiveSiblings(agentDef, 'branch_a', setup.agentExecution.Id);
 
-        Set<String> locked = TransactionContext.getInstance().getLockedBranches(fakeExecutionId);
+        Set<String> locked = TransactionContext.getInstance().getLockedBranches(setup.agentExecution.Id);
         System.assert(locked.contains('branch_b'), 'branch_b should be locked after branch_a chosen');
         System.assert(locked.contains('branch_c'), 'branch_c should be locked after branch_a chosen');
         System.assert(!locked.contains('branch_a'), 'Chosen branch should NOT be locked');
+    }
+
+    @IsTest
+    static void testLockExclusiveSiblings_DoesNotLockBeforeFromToolSatisfied() {
+        String graphJson = JSON.serialize(
+            new Map<String, Object>{
+                'version' => '3.0',
+                'entry' => new List<String>{ 'evaluate' },
+                'flow' => new List<Map<String, Object>>{ rule('evaluate', 'exclusive', new List<String>{ 'branch_a', 'branch_b', 'branch_c' }) }
+            }
+        );
+        AIAgentDefinition__c agentDef = new AIAgentDefinition__c(ToolFlowGraph__c = graphJson, EnableToolFlowGraph__c = true);
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
+
+        ToolFlowGraphService.lockExclusiveSiblings(agentDef, 'branch_a', setup.agentExecution.Id);
+
+        Set<String> locked = TransactionContext.getInstance().getLockedBranches(setup.agentExecution.Id);
+        System.assert(locked.isEmpty(), 'Exclusive siblings should not lock until the rule from-tool has actually executed');
     }
 
     @IsTest

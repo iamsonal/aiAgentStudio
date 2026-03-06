@@ -125,6 +125,32 @@ private class AgentStateServiceTest {
     }
 
     @IsTest
+    static void testUpdateStatus_StaleTerminalDiscardsBufferedSteps() {
+        AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
+        update new AgentExecution__c(Id = execution.Id, CurrentTurnIdentifier__c = 'turn-current-owner-001');
+
+        TransactionContext txnCtx = TransactionContext.getInstance();
+        txnCtx.enableDeferredDMLMode();
+
+        ExecutionStepService stepSvc = new ExecutionStepService();
+        stepSvc.createUserInputStep(execution.Id, 'Stale buffered step', 'turn-stale-owner-001', 1);
+
+        AgentStateService svc = new AgentStateService();
+        Boolean applied = svc.updateStatus(execution.Id, 'Completed', AIAgentConstants.STATUS_IDLE, 'turn-stale-owner-001', null);
+
+        System.assertEquals(false, applied, 'Stale terminal update should be rejected');
+        System.assertEquals(false, txnCtx.isDeferredDMLMode(), 'Deferred mode should be disabled after stale terminal rejection');
+        System.assertEquals(0, txnCtx.getBufferedExecutionSteps(execution.Id).size(), 'Buffered records for the stale execution should be discarded');
+
+        List<ExecutionStep__c> persisted = [
+            SELECT Id
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :execution.Id AND TurnIdentifier__c = 'turn-stale-owner-001'
+        ];
+        System.assertEquals(0, persisted.size(), 'Stale buffered steps should not be committed');
+    }
+
+    @IsTest
     static void testValidateAndGetExecution_ThrowsOnStaleTurn() {
         AgentExecution__c execution = [SELECT Id, CurrentTurnIdentifier__c FROM AgentExecution__c LIMIT 1];
 

@@ -116,6 +116,7 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                 followUpPayload.triggerSource = payload.triggerSource != null ? payload.triggerSource : 'DLQ';
                 followUpPayload.existingExecutionId = execution.Id;
                 followUpPayload.userMessage = payload.userMessage;
+                followUpPayload.claimToken = payload.claimToken;
 
                 System.enqueueJob(new AgentExecutionWorker(agentName, followUpPayload));
                 return;
@@ -145,10 +146,20 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
      */
     private AgentExecution__c claimPreAssignedExecution(Id executionId, String logPrefix) {
         try {
-            // Function agents: avoid FOR UPDATE when already Processing to prevent callout lock release noise.
+            // Function agents can arrive already pre-assigned in Processing state. Require the
+            // dispatcher-issued claim token before allowing that worker to continue.
             if (!this.allowPreCalloutDml) {
                 List<AgentExecution__c> preAssigned = [
-                    SELECT Id, SourceRecordId__c, User__c, CurrentTurnIdentifier__c, AIAgentDefinition__c, ExecutionStatus__c, Priority__c, RetryCount__c
+                    SELECT
+                        Id,
+                        SourceRecordId__c,
+                        User__c,
+                        CurrentTurnIdentifier__c,
+                        AIAgentDefinition__c,
+                        ExecutionStatus__c,
+                        Priority__c,
+                        RetryCount__c,
+                        WorkerClaimToken__c
                     FROM AgentExecution__c
                     WHERE Id = :executionId AND ExecutionStatus__c IN ('Pending', 'Processing')
                     LIMIT 1
@@ -159,6 +170,11 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                 }
 
                 AgentExecution__c execution = preAssigned[0];
+
+                if (String.isNotBlank(execution.WorkerClaimToken__c) && execution.WorkerClaimToken__c != payload.claimToken) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Pre-assigned execution token mismatch for ' + executionId + '. Rejecting worker.');
+                    return null;
+                }
 
                 if (execution.ExecutionStatus__c == 'Processing') {
                     System.debug(LoggingLevel.INFO, logPrefix + 'Function agent detected - execution already Processing, skipping status update');
@@ -324,10 +340,30 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                 chainPayload.turnIdentifier = nextExecution.CurrentTurnIdentifier__c;
                 chainPayload.triggerSource = 'DLQ';
                 chainPayload.existingExecutionId = nextExecution.Id;
+                chainPayload.claimToken = nextExecution.WorkerClaimToken__c;
 
-                Id jobId = System.enqueueJob(new AgentExecutionWorker(agentName, chainPayload));
-
-                System.debug(LoggingLevel.INFO, logPrefix + 'DLQ chain: Pre-assigned execution ' + nextExecution.Id + ' to next worker. Job ID: ' + jobId);
+                try {
+                    Id jobId = System.enqueueJob(new AgentExecutionWorker(agentName, chainPayload));
+                    System.debug(LoggingLevel.INFO, logPrefix + 'DLQ chain: Pre-assigned execution ' + nextExecution.Id + ' to next worker. Job ID: ' + jobId);
+                } catch (Exception enqueueEx) {
+                    // Revert the claimed execution to Pending so StaleJobDetector
+                    // or a future worker can pick it up without a 30-min delay.
+                    System.debug(
+                        LoggingLevel.WARN,
+                        logPrefix + 'Enqueue failed for claimed execution ' + nextExecution.Id + ': ' + enqueueEx.getMessage() + '. Reverting to Pending.'
+                    );
+                    try {
+                        nextExecution.ExecutionStatus__c = 'Pending';
+                        nextExecution.ProcessingStartedAt__c = null;
+                        nextExecution.WorkerClaimToken__c = null;
+                        update nextExecution;
+                    } catch (Exception revertEx) {
+                        System.debug(
+                            LoggingLevel.ERROR,
+                            logPrefix + 'Could not revert execution ' + nextExecution.Id + ' to Pending: ' + revertEx.getMessage()
+                        );
+                    }
+                }
                 return;
             }
 
@@ -389,6 +425,7 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
             execution.ExecutionStatus__c = 'Processing';
             execution.ProcessingStartedAt__c = Datetime.now();
             execution.LastActivityTime__c = Datetime.now();
+            execution.WorkerClaimToken__c = UUID.randomUUID().toString();
             update execution;
 
             System.debug(

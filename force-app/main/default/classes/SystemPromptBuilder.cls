@@ -185,11 +185,7 @@ public inherited sharing class SystemPromptBuilder {
                             LoggingLevel.ERROR,
                             logPrefix + 'Failed to execute formatter for strategy: ' + formatStrategy + '. Error: ' + formatterEx.getMessage()
                         );
-                        contextBlocks.add(
-                            '<CONTEXT_WARNING>Context formatting failed: ' +
-                                formatterEx.getMessage() +
-                                '. Responses may lack full record details.</CONTEXT_WARNING>'
-                        );
+                        contextBlocks.add(String.format(AIAgentConstants.PROMPT_CONTEXT_FORMAT_WARN_TEMPLATE, new List<Object>{ formatterEx.getMessage() }));
                     }
                 } else {
                     System.debug(LoggingLevel.INFO, logPrefix + 'No records resolved from context providers.');
@@ -204,7 +200,7 @@ public inherited sharing class SystemPromptBuilder {
                 }
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to resolve context via ContextResolverService: ' + e.getMessage());
-                contextBlocks.add('<CONTEXT_WARNING>Context data could not be loaded. Proceed with the information available.</CONTEXT_WARNING>');
+                contextBlocks.add(AIAgentConstants.PROMPT_CONTEXT_LOAD_WARN);
             }
         }
 

@@ -285,7 +285,7 @@ public inherited sharing class AgentStateService {
      * @param finalAssistantMessageId The Id of the final assistant message for this turn
      * @param logPrefix String prefix for log output
      */
-    public void completeTurnSuccessfully(Id executionId, String turnIdentifier, Id finalAssistantMessageId, String logPrefix) {
+    public Boolean completeTurnSuccessfully(Id executionId, String turnIdentifier, Id finalAssistantMessageId, String logPrefix) {
         System.debug(
             LoggingLevel.INFO,
             logPrefix +
@@ -294,7 +294,7 @@ public inherited sharing class AgentStateService {
                 (finalAssistantMessageId != null ? (', FinalMsg=' + finalAssistantMessageId) : '')
         );
 
-        updateStatus(
+        Boolean statusApplied = updateStatus(
             executionId,
             'Completed',
             AIAgentConstants.STATUS_IDLE,
@@ -302,10 +302,16 @@ public inherited sharing class AgentStateService {
             null // No specific status message for successful completion
         );
 
+        if (!statusApplied) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Skipped completion side effects because the turn no longer owns execution ' + executionId);
+            return false;
+        }
+
         // Publish AgentResponse__e event for UI notification
         publishAgentResponseEvent(executionId, true, finalAssistantMessageId, null, turnIdentifier, logPrefix);
 
         AgentNotificationService.notify(executionId, AgentNotificationService.EVENT_TURN_COMPLETED);
+        return true;
     }
 
     /**
@@ -317,16 +323,22 @@ public inherited sharing class AgentStateService {
      * @param errorCode The error code to record
      * @param logPrefix String prefix for log output
      */
-    public void failTurn(Id executionId, String turnIdentifier, String errorMessage, String errorCode, String logPrefix) {
+    public Boolean failTurn(Id executionId, String turnIdentifier, String errorMessage, String errorCode, String logPrefix) {
         String errorDetailForState = String.isNotBlank(errorCode) ? '[' + errorCode + '] ' + errorMessage : errorMessage;
         System.debug(LoggingLevel.ERROR, logPrefix + 'AgentStateService: FAILED state for Turn=' + turnIdentifier + '. Error=' + errorDetailForState);
 
-        updateStatus(executionId, 'Failed', AIAgentConstants.STATUS_FAILED, turnIdentifier, errorDetailForState);
+        Boolean statusApplied = updateStatus(executionId, 'Failed', AIAgentConstants.STATUS_FAILED, turnIdentifier, errorDetailForState);
+
+        if (!statusApplied) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Skipped failure side effects because the turn no longer owns execution ' + executionId);
+            return false;
+        }
 
         // Publish AgentResponse__e event for UI notification of failure
         publishAgentResponseEvent(executionId, false, null, errorMessage, turnIdentifier, logPrefix);
 
         AgentNotificationService.notify(executionId, AgentNotificationService.EVENT_EXECUTION_FAILED);
+        return true;
     }
 
     /**
@@ -370,6 +382,12 @@ public inherited sharing class AgentStateService {
                 exec.ExecutionStatus__c = 'Failed';
                 exec.ProcessingStatus__c = AIAgentConstants.STATUS_FAILED;
                 exec.EndTime__c = Datetime.now();
+            } else if (processingStatus == AIAgentConstants.STATUS_AWAITING_FOLLOWUP) {
+                exec.ExecutionStatus__c = 'Processing';
+                exec.ProcessingStatus__c = AIAgentConstants.STATUS_AWAITING_FOLLOWUP;
+            } else if (processingStatus == AIAgentConstants.STATUS_AWAITING_ACTION) {
+                exec.ExecutionStatus__c = 'Processing';
+                exec.ProcessingStatus__c = AIAgentConstants.STATUS_AWAITING_ACTION;
             } else if (processingStatus == AIAgentConstants.STATUS_PROCESSING) {
                 exec.ExecutionStatus__c = 'Processing';
                 exec.ProcessingStatus__c = AIAgentConstants.STATUS_PROCESSING;
@@ -400,22 +418,18 @@ public inherited sharing class AgentStateService {
      * @param turnIdentifier The current turn identifier (optional)
      * @param statusMessage Additional status message (optional)
      */
-    public void updateStatus(Id executionId, String executionStatus, String processingStatus, String turnIdentifier, String statusMessage) {
+    public Boolean updateStatus(Id executionId, String executionStatus, String processingStatus, String turnIdentifier, String statusMessage) {
         String logPrefix = LOG_PREFIX + '[updateStatus] ';
 
         try {
-            // Multi-LLM optimization: For terminal states, commit any buffered DML first
-            // This ensures all execution steps are persisted before marking the execution as complete/failed
             Boolean isTerminalState = (executionStatus == 'Completed' || executionStatus == 'Failed' || executionStatus == 'Cancelled');
-            if (isTerminalState && TransactionContext.getInstance().isDeferredDMLMode()) {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Terminal state update - committing buffered DML before state change');
-                TransactionContext.getInstance().commitBuffer();
-                TransactionContext.getInstance().disableDeferredDMLMode();
-            }
+            List<AgentExecution__c> currentExecutions = null;
 
             // Guard against stale workers overwriting newer turns.
+            // This must happen before committing buffered DML so stale workers cannot flush
+            // old-turn execution steps or emit completion signals for the wrong owner.
             if (String.isNotBlank(turnIdentifier)) {
-                List<AgentExecution__c> currentExecutions = [
+                currentExecutions = [
                     SELECT Id, CurrentTurnIdentifier__c
                     FROM AgentExecution__c
                     WHERE Id = :executionId AND (CurrentTurnIdentifier__c = :turnIdentifier OR CurrentTurnIdentifier__c = NULL)
@@ -448,8 +462,20 @@ public inherited sharing class AgentStateService {
                             (currentTurn != null ? (', current turn=' + currentTurn) : '') +
                             '. Expected for sync execution path — syncFinalizeExecution handles recovery.'
                     );
-                    return;
+                    if (isTerminalState && TransactionContext.getInstance().isDeferredDMLMode()) {
+                        TransactionContext.getInstance().discardBufferedRecordsForExecution(executionId);
+                        TransactionContext.getInstance().disableDeferredDMLMode();
+                    }
+                    return false;
                 }
+            }
+
+            // Multi-LLM optimization: For terminal states, commit any buffered DML only
+            // after the stale-turn guard has confirmed this worker still owns the turn.
+            if (isTerminalState && TransactionContext.getInstance().isDeferredDMLMode()) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Terminal state update - committing buffered DML before state change');
+                TransactionContext.getInstance().commitBuffer();
+                TransactionContext.getInstance().disableDeferredDMLMode();
             }
 
             AgentExecution__c execution = new AgentExecution__c(Id = executionId, ExecutionStatus__c = executionStatus, LastActivityTime__c = Datetime.now());
@@ -475,6 +501,7 @@ public inherited sharing class AgentStateService {
             update execution;
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Updated execution ' + executionId + ' to status: ' + executionStatus);
+            return true;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to update execution status: ' + e.getMessage());
             throw new AgentStateException('Failed to update execution status: ' + e.getMessage());

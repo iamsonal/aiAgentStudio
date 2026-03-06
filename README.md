@@ -26,7 +26,7 @@ Build intelligent AI agents powered by Large Language Models that seamlessly int
 
 **[Function Agents Demo →](https://youtu.be/-y9qDDPal0U)**
 
-See how Function Agents orchestrate Account-Based Marketing campaigns with intelligent filtering, human-in-the-loop approvals, and error recovery.
+See the framework handle governed AI workflows with intelligent filtering, human-in-the-loop approvals, and error recovery on Salesforce.
 
 ---
 
@@ -55,7 +55,7 @@ AI Agent Studio is **free and open-source**. If you find it useful, consider sup
 
 This repository contains the **core AI Agent Framework only**. The `aiAgentStudioAddons` folder contains proprietary extensions not included in the open-source release.
 
-The core framework in `force-app` provides all fundamental capabilities for building Conversational, Function, and Email AI agents with OpenAI and other providers.
+The public package in `force-app` contains the core runtime, while the overall framework experience also includes broader packaged capabilities such as additional agent patterns, providers, actions, workflow composition, and UI features.
 
 ---
 
@@ -64,11 +64,13 @@ The core framework in `force-app` provides all fundamental capabilities for buil
 Create AI-powered assistants that can:
 
 - 💬 **Chat naturally** with users and remember conversation context
+- ⚙️ **Run focused function-style automations** for classification, enrichment, and guided business tasks
+- 📧 **Process email workflows** for triage, draft generation, and routing
 - 🔍 **Search and retrieve** Salesforce data intelligently
 - ✏️ **Create and update** records based on user requests
-- 🔄 **Execute workflows** with multiple steps automatically
+- 🔄 **Execute multi-step workflows** with approvals, sequencing, and specialist sub-agents
 - 🔒 **Respect permissions** - agents only access what users can access
-- 🎯 **Work with multiple AI providers** - OpenAI included, extensible for others
+- 🎯 **Work with multiple AI providers** - OpenAI-compatible models, broader provider strategies, and enterprise options
 
 ---
 
@@ -81,7 +83,7 @@ Deploy AI copilots that help support agents resolve cases faster by automaticall
 Give sales reps an intelligent assistant that can find accounts, surface open opportunities, create follow-up tasks, and provide real-time insights during customer conversations.
 
 ### Operations Automation
-Build sequential pipelines and Function agents with sub-agent capabilities to handle multi-step processes like lead qualification, case routing, or approval workflows — combining multiple AI-powered decisions into automated, observable pipelines.
+Build function-style agents, email workflows, sequential pipelines, and specialist sub-agent patterns for lead qualification, case routing, approvals, and record updates while keeping execution observable and governed inside Salesforce.
 
 ### Self-Service Portals
 Embed conversational agents in Experience Cloud to let customers check order status, create support cases, or find answers from your knowledge base without waiting for human agents.
@@ -131,8 +133,8 @@ All operations run asynchronously using Platform Events or Queueables, ensuring 
 
 | Feature | Description |
 |:--------|:------------|
-| **Three Agent Types** | Conversational (chat), Function (single-task with LLM-directed sub-agents), Email (thread processing) |
-| **Sequential Pipelines** | Chain multiple agents in a fixed sequence via `PipelineDefinition__c` metadata |
+| **Multiple Agent Patterns** | Conversational agents, function agents, email agents, sequential pipelines, and sub-agent workflows |
+| **Metadata-Driven Capabilities** | Define tools, prompts, trust controls, and workflow behavior through Salesforce configuration |
 | **Smart Memory** | Buffer window and summary-based conversation history |
 | **Built-in Security** | Automatic CRUD, FLS, and sharing rule enforcement |
 | **Standard Actions** | Create, update, query records, post to Chatter, execute Flows |
@@ -148,10 +150,10 @@ All operations run asynchronously using Platform Events or Queueables, ensuring 
 |:----------|:----------------|
 | **Security concerns with AI** | Runs in user context with automatic CRUD/FLS enforcement. No privilege escalation. Full audit trail. |
 | **Integration complexity** | Native Salesforce - no external servers, middleware, or data sync. Works with your existing org. |
-| **Vendor lock-in** | Bring your own LLM. OpenAI ships in core. Any OpenAI-compatible API works out of the box. Extend `BaseProviderAdapter` for other formats. |
+| **Vendor lock-in** | Bring your own LLM. OpenAI-compatible APIs work out of the box, and the framework supports broader provider strategies for enterprise deployments. |
 | **Scalability** | Async processing handles thousands of concurrent conversations. Choose Platform Events or Queueables. |
 | **Customization needs** | Extensible architecture with interfaces for custom actions, context providers, and memory strategies. |
-| **Governance & compliance** | Every interaction logged to `AgentDecisionStep__c`. See exactly what the AI decided and why. |
+| **Governance & compliance** | Every interaction logged with a full execution trail. See exactly what the AI decided and why. |
 
 ---
 
@@ -169,10 +171,10 @@ All operations run asynchronously using Platform Events or Queueables, ensuring 
 
 Install directly via package URL:
 
-- **Sandbox & Scratch Orgs:**  
+- **Sandbox & Scratch Orgs:**
   [https://test.salesforce.com/packaging/installPackage.apexp?p0=04tgK0000009qU1QAI](https://test.salesforce.com/packaging/installPackage.apexp?p0=04tgK0000009qU1QAI)
 
-- **Production & Developer Edition Orgs:**  
+- **Production & Developer Edition Orgs:**
   [https://login.salesforce.com/packaging/installPackage.apexp?p0=04tgK0000009qU1QAI](https://login.salesforce.com/packaging/installPackage.apexp?p0=04tgK0000009qU1QAI)
 
 After installation:
@@ -232,7 +234,7 @@ The framework includes pre-configured OpenAI named credentials. You just need to
 
 The `OpenAILLM` named credential is now ready to use with the framework.
 
-> **Tip**: `OpenAIProviderAdapter` works with any OpenAI-compatible API — Azure OpenAI, Groq, Together AI, Ollama, and more — just by pointing the Named Credential to a different URL. For non-OpenAI APIs (e.g. Google Vertex AI), check the [Configuration Guide](https://iamsonal.github.io/aiAgentStudio/guides/configuration/).
+> **Tip**: The framework works well with OpenAI-compatible APIs and can be adapted to broader provider strategies for enterprise deployments. See the [Configuration Guide](https://iamsonal.github.io/aiAgentStudio/guides/configuration/).
 
 ### Setup
 
@@ -249,24 +251,21 @@ Once your API key is configured:
 
 ## 🏗️ Architecture
 
-**Core Components:**
-- `AgentExecutionService` - Main entry point for starting agent executions
-- `ConversationalOrchestrator` - Manages multi-turn chat conversations
-- `FunctionOrchestrator` - Routes to sync/async function execution (addon)
-- `EmailOrchestrator` - Processes email threads with auto-reply (addon)
-- `SequentialPipelineOrchestrator` - Chains agents step-by-step via pipeline metadata (addon)
-- `LLMInteractionService` - Handles communication with AI providers
-- `CapabilityExecutionService` - Executes tools/actions securely
-- `OpenAIProviderAdapter` - OpenAI and any OpenAI-compatible API (core)
-- `VertexAIProviderAdapter` - Google Vertex AI / Gemini (addon)
-- `ILLMProviderAdapter` / `BaseProviderAdapter` - extend to add any other provider
+**Framework Capabilities:**
+- Conversational agents for multi-turn chat experiences
+- Function-style agents for targeted automation and decision support
+- Email agents for triage, replies, and workflow routing
+- Sequential pipelines and sub-agent workflows for multi-step orchestration
+- Tool execution across data operations, flows, and custom business logic
+- Human-in-the-loop approvals, observability, and trust controls
+- Flexible support for multiple model-provider strategies
 
-**Extension Points:**
-- `IAgentAction` - Build custom actions for any business logic
-- `IAgentContextProvider` - Supply dynamic context to agents
-- `ILLMProviderAdapter` - Add support for additional AI providers
-- `IMemoryManager` - Implement custom conversation memory strategies
-- `IAgentOrchestrator` - Create new agent types
+**Extension Areas:**
+- Custom actions for business logic and integrations
+- Context providers for domain-specific enrichment
+- Additional model providers
+- Custom memory strategies
+- New execution patterns and agent behaviors
 
 👉 **[Architecture Details →](https://iamsonal.github.io/aiAgentStudio/reference/architecture/)** | **[Developer Guide →](https://iamsonal.github.io/aiAgentStudio/guides/developer-guide/)**
 

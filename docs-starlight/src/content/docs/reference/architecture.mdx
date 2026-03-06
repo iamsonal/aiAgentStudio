@@ -7,244 +7,172 @@ import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/
 
 # Architecture Overview
 
-AI Agent Studio is built on a modular, plugin-based architecture using Strategy, Factory, and Chain of Responsibility patterns. The framework separates concerns across orchestration, execution, memory, security, and observability layers.
+AI Agent Studio combines multiple agent patterns, workflow controls, trust layers, and observability into a single Salesforce-native framework. This page focuses on the capabilities users get from the framework rather than the internal implementation details.
 
-## Core Components
+<Aside type="note" title="Scope">
+This page is intentionally feature-focused. It avoids internal class-level and object-level implementation detail while still describing the full functionality available in the framework experience.
+</Aside>
+
+## Agent Patterns
 
 <CardGrid>
-  <Card title="Orchestrators" icon="seti:settings">
-    **Three agent types**: Conversational (multi-turn chat), Function (single-task with sync/async routing), Email (thread processing with auto-reply).
-
-    All extend `BaseAgentOrchestrator` and implement `IAgentOrchestrator` interface.
-
-    **Sequential Pipelines** are a separate standalone concept: `SequentialPipelineOrchestrator` chains multiple agents step-by-step via `PipelineDefinition__c` metadata — not an agent type, but a higher-level composition pattern.
+  <Card title="Conversational Agents" icon="chat">
+    Multi-turn assistants for support, sales, service, and record-aware conversations. These agents combine memory, tools, approvals, and rich context to help users over time instead of in a single response.
   </Card>
-  <Card title="LLM Providers" icon="seti:cloud">
-    **Multi-provider support**: `OpenAIProviderAdapter` ships in core and works with OpenAI and any OpenAI-compatible API. `VertexAIProviderAdapter` for Google Vertex AI / Gemini is in addons. Implement `ILLMProviderAdapter` (extend `BaseProviderAdapter`) to add any other provider.
-    
-    `BaseProviderAdapter` provides common HTTP handling, retry logic, error normalization, and default `null` safety pre-check.
+  <Card title="Function Agents" icon="seti:gear">
+    Focused agents for targeted jobs such as enrichment, classification, routing, scoring, and guided business actions where the user wants a fast, purpose-built result.
   </Card>
-  <Card title="Actions" icon="seti:tools">
-    **Standard actions**: GetRecordDetails, CreateRecord, UpdateRecord, FlowHandler, PostChatter.
-    
-    Extend `BaseAgentAction` implementing `IAgentAction` interface.
+  <Card title="Email Agents" icon="seti:mail">
+    Email-native workflows for triage, draft generation, routing, follow-up, and customer communication, all governed by the same trust and audit controls as other agent experiences.
   </Card>
-  <Card title="Context Providers" icon="seti:database">
-    **Dynamic data enrichment**: Supply related records, user context, and computed data to agents.
-    
-    Implement `IAgentContextProvider` interface with bulk-safe, security-enforced queries.
+  <Card title="Sequential Pipelines" icon="seti:graph-line">
+    Fixed multi-agent workflows for predictable business processes where each stage has a clear responsibility and output.
+  </Card>
+  <Card title="Sub-Agents" icon="seti:git-branch">
+    Specialized agents can be invoked from within a broader workflow when a task needs a different toolset, prompt strategy, or decision boundary.
   </Card>
 </CardGrid>
 
-## Execution Lifecycle
+## What The Framework Coordinates
 
 <Steps>
 
-1. **Request Entry**
-   
-   Request enters via `AgentExecutionService.startExecution()` (invocable from Flow/Apex) or REST API endpoint `/services/apexrest/ai/agent/process/`.
+1. **Request Intake**
 
-2. **Orchestrator Routing**
-   
-   `AgentExecutionService` routes by agent type to the appropriate orchestrator (Conversational, Function, or Email). Sequential pipelines are started separately via `SequentialPipelineOrchestrator.startPipeline()`.
+   Requests can originate from chat, automation, APIs, email scenarios, or higher-level workflow compositions. The framework routes each request into the right execution pattern.
 
-3. **Security Checks**
-   
-   **Prompt Safety**: `LLMInteractionService` calls `ILLMProviderAdapter.checkMessageSafety()` before the LLM call. Safety is provider-native—each adapter performs its own pre-check (e.g., OpenAI calls `/v1/moderations`). `BaseProviderAdapter` returns `null` by default (no pre-check). Skipped entirely when `PromptSafetyPreset__c` is `Off`.
-   
-   **PII Masking**: `PIIMaskingService` applies hybrid masking (schema-based + pattern-based) with deterministic token replacement.
+2. **Prompt and Context Preparation**
 
-4. **Context Assembly**
-   
-   **Memory**: `ContextManagerService` retrieves conversation history via `IMemoryManager` implementations (BufferWindow or SummaryBuffer).
-   
-   **Dynamic Context**: `ContextResolverService` invokes registered `IAgentContextProvider` implementations to gather related data.
-   
-   **System Prompt**: `SystemPromptBuilder` assembles identity, instructions, context, and orchestrator-specific additions.
+   The framework assembles identity, instructions, memory, business context, and available actions so the model has the information needed to respond or take action.
 
-5. **LLM Inference**
-   
-   **Request Building**: `LLMInteractionService.prepareAndCallLLM()` formats messages and tools via `LLMFormattingService`.
-   
-   **Tool Reasoning**: If enabled, adds `_rationale` parameter to all tools for explainability.
-   
-   **Provider Call**: Routes to the `ILLMProviderAdapter` implementation named in `LLMConfiguration__c.ProviderAdapterClass__c` (e.g. `OpenAIProviderAdapter`, `VertexAIProviderAdapter`, or a custom adapter).
-   
-   **Response Parsing**: Normalizes provider-specific responses into `ProviderResult`.
+3. **Model Decision-Making**
 
-6. **Response Processing**
-   
-   `OrchestrationService.processLlmResult()` selects handler based on response type:
-   
-   - **Tool Calls**: `ToolCallResponseHandler` executes eligible tools (filtered by Tool Flow Graph if enabled), manages async dispatch
-   - **Content Only**: `ContentResponseHandler` processes text responses, handles email replies for EmailOrchestrator
-   
-   **Three-Tier Error Policy**: Capability FailFast → MaxRetries → Pass to LLM for recovery
+   The model can reply directly, choose tools, request clarification, or move the process into a governed workflow that includes approvals or follow-up steps.
 
-7. **Action Execution**
-   
-   `CapabilityExecutionService` routes to action implementations:
-   
-   - **Standard**: Maps via `StandardActionHandler__mdt` to framework actions
-   - **Apex**: Instantiates custom Apex class via `Type.forName()`
-   - **Flow**: Invokes Flow via `Flow.Interview.createInterview()`
-   
-   **HITL**: If configured, routes through `HITLGatewayService` for approval workflows.
-   
-   **Security**: `TypeCoercionService.coerceArgumentTypesForSObject()` enforces FLS on field access.
+4. **Workflow Execution**
 
-8. **State Management**
-   
-   **Execution Records**: `AgentStateService` manages `AgentExecution__c` lifecycle with status tracking (Idle/Processing/Completed/Failed/Cancelled).
-   
-   **Step Logging**: Detailed execution trace captured per step — user inputs, LLM requests/responses, tool calls, tool results, and errors. Token counts and estimated cost recorded per step.
-   
-   **Storyboard Data**: High-level decision steps written for the Execution Storyboard UI, providing a user-friendly visual timeline.
+   The framework executes the required actions, coordinates multi-step progress, and continues until the work is complete or needs human intervention.
 
-9. **Async Continuation**
-   
-   After tool execution the framework determines whether to continue in the same transaction or defer to a new async job, depending on whether DML or callouts occurred. Long-running tools execute in a separate queueable.
+5. **Tracking and Completion**
 
-10. **Completion**
-    
-    **Status Update**: Terminal state set (`Completed` or `Failed`). Any buffered writes are committed.
-    
-    **Events**: `AgentResponse__e` Platform Event published for conversational agents, triggering the UI to refresh.
+   Every run is tracked in a durable execution history so teams can monitor status, inspect what happened, review reasoning, and understand cost and performance.
 
 </Steps>
 
-## Key Services
+## Key Capabilities
 
 <CardGrid>
-  <Card title="AgentExecutionService" icon="rocket">
-    Entry point for all execution types. Handles orchestrator routing via `AgentOrchestratorMapping__mdt` and service user context switching.
+  <Card title="Tool Use" icon="seti:tools">
+    Agents can search data, read details, create records, update records, call flows, and run custom business logic.
   </Card>
-  <Card title="OrchestrationService" icon="seti:settings">
-    LLM response processing and handler selection — `ToolCallResponseHandler` vs `ContentResponseHandler`. Three-tier error policy.
+  <Card title="Memory and Context" icon="seti:database">
+    Agents can use prior conversation history, summarized memory, and related Salesforce context to stay grounded in the business workflow.
   </Card>
-  <Card title="LLMInteractionService" icon="seti:cloud">
-    LLM communication, system prompt assembly, PII masking, safety pre-check, and provider adapter routing.
+  <Card title="Approvals and Governance" icon="approve-check">
+    Sensitive actions can require confirmation or approval before they execute, which helps teams safely automate higher-impact workflows.
   </Card>
-  <Card title="CapabilityExecutionService" icon="seti:gear">
-    Tool/action execution with handler factory for Standard, Apex, and Flow implementations. HITL gateway routing.
+  <Card title="Observability" icon="seti:graph-line">
+    Storyboards, execution histories, reasoning capture, and token usage data provide transparency for production operations.
   </Card>
-  <Card title="AgentStateService" icon="seti:db">
-    Execution lifecycle management (`Idle → Processing → Completed/Failed`), status updates, and `AgentResponse__e` event publishing.
+  <Card title="Trust Layers" icon="seti:shield">
+    PII masking, prompt safety, and tool-flow controls help keep agent behavior aligned with enterprise security and reliability expectations.
   </Card>
-  <Card title="ContextManagerService" icon="seti:text">
-    Conversation history retrieval via `IMemoryManager` (BufferWindow or SummaryBuffer). Context ledger management.
-  </Card>
-  <Card title="AIAgentConfigService" icon="seti:config">
-    Configuration repository — agents, capabilities, context providers, and LLM configurations. Cached for performance.
-  </Card>
-  <Card title="PIIMaskingService" icon="seti:lock">
-    Hybrid PII masking (Salesforce Data Classification + regex patterns). Deterministic token replacement with bidirectional unmask.
-  </Card>
-  <Card title="Async Dispatch" icon="seti:clock">
-    Async job dispatch via Queueable or Platform Event, based on `AsyncDispatchType__c`. Handles both single-agent and multi-agent workflow dispatch.
-  </Card>
-  <Card title="StaleJobDetector" icon="warning">
-    Scheduled recovery of stuck executions. Detects stalled jobs and re-queues them automatically.
+  <Card title="Provider Flexibility" icon="seti:cloud">
+    The framework supports OpenAI-compatible APIs and broader enterprise provider strategies so teams can align AI choices with their platform requirements.
   </Card>
 </CardGrid>
 
-## Configuration Objects
+## Configuration Areas
 
 <Tabs>
-  <TabItem label="AIAgentDefinition__c">
+  <TabItem label="Agent Setup">
 
-Core agent configuration:
+Configure the overall behavior of an agent:
 
-**Identity & Behavior**: `AgentType__c` (Conversational/Function/Email), `IdentityPrompt__c` and `InstructionsPrompt__c` (System prompt components), `EnableToolReasoning__c` (Require LLM to explain tool selection), `EnableParallelToolCalling__c` (Allow multiple tools per response).
-
-**Memory & Context**: `LLMConfiguration__c` (LLM provider settings lookup), `MemoryStrategy__c` (Buffer Window/Summary Buffer), `HistoryTurnLimit__c` (Number of turns to remember).
-
-**Security & Trust**: `PIIMaskingPreset__c` (Off/Standard/Strict), `PromptSafetyPreset__c` (Off/Standard/Strict).
-
-**Performance**: `AsyncDispatchType__c` (High for Platform Events / Low for Queueable), `MaxProcessingCycles__c` (Max LLM turns per execution), `EnableToolFlowGraph__c` (Enforce Tool Flow Graph at runtime).
-
-**Tool Flow**: `ToolFlowGraph__c` (JSON flow graph defining entry tools and typed transitions).
-
-  </TabItem>
-  <TabItem label="AgentCapability__c">
-
-Tool/function definitions:
-
-**Basic Config**: `CapabilityName__c` (Tool name exposed to LLM), `Description__c` (When and how to use this tool - critical for LLM guidance), `ImplementationType__c` (Standard/Apex/Flow/**Agent**), `StandardActionType__c` (Maps to StandardActionHandler__mdt), `ImplementationDetail__c` (Apex class name, Flow API name, or child agent's `DeveloperName__c` for Agent type).
-
-**Schema**: `Parameters__c` (JSON Schema for LLM defining expected arguments), `BackendConfiguration__c` (Admin config JSON passed to action implementation).
-
-**Execution**: `RunAsynchronously__c` (Execute in separate queueable), `HITLMode__c` (Human-in-the-loop mode: Disabled/Confirmation/Approval/ConfirmationThenApproval), `ExposureLevel__c` (External visible to LLM / Internal framework only / Disabled). Error recovery is controlled at the agent level via `AIAgentDefinition__c.ErrorRecoveryMode__c` (Autonomous / Fail Fast).
+<ul>
+  <li>identity and instructions</li>
+  <li>provider and model choice</li>
+  <li>memory behavior</li>
+  <li>trust controls</li>
+  <li>async preferences</li>
+  <li>reasoning and observability settings</li>
+</ul>
 
   </TabItem>
-  <TabItem label="AgentExecution__c">
+  <TabItem label="Capabilities">
 
-Execution tracking:
+Define what an agent can do:
 
-**Status Fields**: `ExecutionStatus__c` (Idle/Processing/Completed/Failed/Cancelled for lifecycle-level), `ProcessingStatus__c` (Idle/Processing/Awaiting Action/Awaiting Followup/Failed for turn-level).
-
-**Turn Coordination**: `CurrentTurnIdentifier__c` (Optimistic concurrency token for the active turn; carried by async jobs to detect stale work), `AsyncToolTurnIdentifier__c` (Turn token for the in-flight async tool batch while awaiting completions), `OriginalTurnIdentifier__c` (Previous turn token when the current turn is rotated during resume/recovery).
-
-**Context**: `SourceRecordId__c` (Context record like Account or Case), `OriginalUserId__c` (User who initiated execution), `ServiceUserId__c` (Service user if RequiresServiceUserContext__c).
-
-**Multi-Record Processing**: `BatchId__c` (Correlation ID for grouping related executions), `Priority__c` (Execution priority), `RetryCount__c`, `MaxRetries__c`, `NextRetryAt__c` (Exponential backoff tracking).
-
-  </TabItem>
-  <TabItem label="ExecutionStep__c">
-
-Detailed execution log for observability:
-
-**Step Metadata**: `StepType__c` (UserInput/AgentResponse/ToolCall/ToolResult/Error), `StepRole__c` (User/Assistant/Tool), `TurnIdentifier__c` (Groups steps by LLM turn; typically matches `AgentExecution__c.CurrentTurnIdentifier__c` while the turn is active).
-
-**Content**: `Content__c` (Step payload/result data), `ToolRationale__c` (LLM reasoning for tool selection if EnableToolReasoning__c), `IsAsyncToolExecution__c` (Async execution flag).
-
-**Token Economics**: `PromptTokens__c`, `CompletionTokens__c`, `TotalTokens__c`, `EstimatedCostUSD__c` (Cost tracking for budget monitoring).
+<ul>
+  <li>which actions are available</li>
+  <li>when each action should be used</li>
+  <li>the inputs it expects</li>
+  <li>whether it runs immediately or in the background</li>
+  <li>whether it requires approval</li>
+</ul>
 
   </TabItem>
+  <TabItem label="Workflow Controls">
 
+Control how the framework behaves operationally:
+
+<ul>
+  <li>approvals</li>
+  <li>ordered tool flows</li>
+  <li>execution limits</li>
+  <li>routing and scale settings</li>
+  <li>retry and resilience behavior</li>
+</ul>
+
+  </TabItem>
+  <TabItem label="Observability">
+
+Review and analyze what happened:
+
+<ul>
+  <li>execution status</li>
+  <li>step history</li>
+  <li>approval outcomes</li>
+  <li>token and cost metrics</li>
+  <li>reasoning and decision traces</li>
+</ul>
+
+  </TabItem>
 </Tabs>
 
-## Advanced Patterns
+## Extension Areas
 
 <CardGrid>
-  <Card title="Efficient LLM Batching" icon="rocket">
-    When tool execution doesn't require DML or external callouts, the framework can process multiple LLM turns within a single transaction, reducing latency and async job overhead.
+  <Card title="Actions" icon="seti:code">
+    Add custom business logic and integrations when packaged actions do not cover your use case.
   </Card>
-  <Card title="Resilient Multi-Record Processing" icon="seti:flow">
-    Multi-record batch executions use a resilient dispatch pattern with priority ordering, exponential backoff, progress tracking, and automatic recovery of stalled jobs.
+  <Card title="Context Providers" icon="seti:database">
+    Enrich agents with related records, computed context, and domain-specific information.
   </Card>
-  <Card title="Agent-as-Capability" icon="seti:git">
-    Set `AgentCapability__c.ImplementationType__c = 'Agent'` and point `ImplementationDetail__c` at a child agent's developer name. The **LLM decides** when to invoke the sub-agent as a tool — the child runs in a separate transaction and its result flows back into the parent conversation.
-
-    Always routes through `AsyncFunctionOrchestrator`. The child execution carries `TriggerSource__c = 'AgentCapability'` and a `ParentExecution__c` link.
+  <Card title="LLM Providers" icon="seti:cloud">
+    Support additional model providers and enterprise AI stacks as your deployment needs evolve.
   </Card>
-  <Card title="Sequential Pipelines" icon="seti:flow">
-    `SequentialPipelineOrchestrator` executes a fixed sequence of agents defined in `PipelineDefinition__c` / `PipelineStep__c` metadata. Each step spawns a child agent; completion advances to the next step. Progress tracked in `PipelineRunStep__c`.
-
-    Use pipelines when the sequence is predetermined. Use Agent-as-Capability when the sub-agent invocation should be LLM-directed.
+  <Card title="Memory Strategies" icon="seti:text">
+    Tune how history is retained, summarized, and reused in longer-running interactions.
   </Card>
-  <Card title="Tool Flow Graph" icon="seti:git">
-    Declarative workflow control limits the LLM to only the tools eligible at the current step — preventing out-of-order calls and enabling deterministic branching.
-
-    **Design-time**: Generate a flow graph (entry tools + typed transitions) via LLM analysis or manual editing in the visual editor.
-
-    **Runtime**: `ToolFlowGraphService` computes the eligible tool set on every LLM call. Exclusive path locking ensures branch choices are permanent.
+  <Card title="Orchestrators" icon="seti:settings">
+    Add new execution patterns when your business process needs a different style of agent behavior.
   </Card>
 </CardGrid>
 
-## Observability
+## Design Principles
 
 <CardGrid>
-  <Card title="Storyboard UI" icon="seti:graph-line">
-    `AgentStoryboardController` powers the LWC components (`agentStoryboard`, `agentExecutionView`, `workflowView`, `agentStoryboardStep`) with a visual timeline of the full execution, including pipeline and sub-agent hierarchies.
+  <Card title="Built for Salesforce" icon="warning">
+    The framework is designed around Salesforce security, transaction rules, and governor limits so AI workflows remain practical in real orgs.
   </Card>
-  <Card title="Execution Trace" icon="seti:log">
-    `ExecutionStep__c` records capture every interaction — user input, LLM response, tool calls, tool results, and errors — with per-step token counts.
+  <Card title="Safe Automation" icon="rocket">
+    Multi-step workflows can continue across turns, tools, approvals, and background work while preserving control and auditability.
   </Card>
-  <Card title="Tool Reasoning" icon="seti:text">
-    When `EnableToolReasoning__c` is on, the LLM's rationale for selecting each tool is stored in `ToolRationale__c` for transparency and debugging.
+  <Card title="Deterministic Guardrails" icon="seti:history">
+    Ordered tool flows, approval gates, and trust layers help keep agent behavior predictable in sensitive workflows.
   </Card>
-  <Card title="Cost Analytics" icon="seti:db">
-    Per-step `PromptTokens__c`, `CompletionTokens__c`, and `EstimatedCostUSD__c` enable budget monitoring dashboards and cost-per-interaction reporting.
+  <Card title="Enterprise Visibility" icon="seti:git">
+    Every run is observable so teams can troubleshoot, optimize prompts, monitor spend, and build confidence in production use.
   </Card>
 </CardGrid>

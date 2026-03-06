@@ -45,7 +45,7 @@ Run `cci flow run dev_org --org dev` with [CumulusCI](https://cumulusci.readthed
     Sandbox recommended for initial setup and testing. System Administrator access or equivalent permissions.
   </Card>
   <Card title="AI Provider API Key" icon="seti:key">
-    [OpenAI](https://platform.openai.com/api-keys) or any OpenAI-compatible service. [Google AI Studio](https://ai.google.dev/) for Gemini via `VertexAIProviderAdapter` (addon).
+    [OpenAI](https://platform.openai.com/api-keys), any OpenAI-compatible service, or your preferred enterprise AI provider setup.
   </Card>
   <Card title="Salesforce CLI" icon="seti:shell">
     Required for source-based deployments. [Install here](https://developer.salesforce.com/tools/salesforcecli). CumulusCI users also need the [CumulusCI CLI](https://cumulusci.readthedocs.io/en/stable/get-started.html).
@@ -147,18 +147,6 @@ Named Credentials securely store your AI provider API keys.
 4. In your `LLMConfiguration__c` record set `ProviderAdapterClass__c = OpenAIProviderAdapter`
 
   </TabItem>
-  <TabItem label="Google Vertex AI / Gemini">
-
-The `VertexAIProviderAdapter` (in `aiAgentStudioAddons`) handles the Gemini content format. Two Named Credentials ship with it:
-
-| Named Credential | URL | Use case |
-|:----------------|:----|:---------|
-| `GoogleAI_API` | `https://generativelanguage.googleapis.com/v1beta/models` | Google AI Studio (API key) |
-| `VertexAI_API` | `https://{region}-aiplatform.googleapis.com/.../models` | Google Cloud Vertex AI |
-
-For both, use the `VertexAIEC` External Credential and provide your `x-goog-api-key` as the secret. Set `ProviderAdapterClass__c = VertexAIProviderAdapter` in your `LLMConfiguration__c`.
-
-  </TabItem>
   <TabItem label="Other providers">
 
 For providers with a non-OpenAI API format, extend `BaseProviderAdapter` and implement `buildProviderRequest()` and `parseProviderResponse()`. The framework instantiates adapters dynamically via the `ProviderAdapterClass__c` field, so no framework code changes are needed.
@@ -191,7 +179,6 @@ LLM Configurations define how to connect to your AI provider.
 | Provider | Adapter Class | Location |
 |:---------|:--------------|:---------|
 | OpenAI + any OpenAI-compatible API | `OpenAIProviderAdapter` | Core |
-| Google Vertex AI / Gemini | `VertexAIProviderAdapter` | Addon |
 | Custom | Extend `BaseProviderAdapter` | Your code |
 
 ---
@@ -209,6 +196,8 @@ LLM Configurations define how to connect to your AI provider.
 | Agent Type | `Conversational` |
 | LLM Configuration | `OpenAI_GPT4o` |
 | Is Active | ✓ |
+
+Other common patterns you can configure in the framework include function-style agents for targeted tasks, email agents for message-driven workflows, and multi-agent workflow patterns for larger processes.
 
 4. Configure memory settings:
 
