@@ -64,7 +64,11 @@ public inherited sharing class AIAgentConfigService {
         // Email agent configuration
         'EmailReplyMode__c',
         'EmailParentObject__c',
-        'EmailTerminalStatuses__c'
+        'EmailTerminalStatuses__c',
+        // Confidence tracking
+        'EnableConfidenceTracking__c',
+        'MinConfidenceThreshold__c',
+        'LowConfidenceAction__c'
     };
 
     private static final List<String> LLM_CONFIGURATION_FIELDS = new List<String>{
@@ -93,7 +97,6 @@ public inherited sharing class AIAgentConfigService {
         'RunAsynchronously__c',
         'HITLMode__c', // Unified HITL mode field (blank=no HITL, Confirmation, Approval, ConfirmationThenApproval)
         'HITLNotificationPreference__c', // Controls when to send notifications for HITL actions
-        'TrackConfidence__c', // Enable AI confidence score tracking (0-100) for this capability
         'ExposureLevel__c'
     };
 

@@ -151,7 +151,7 @@ All operations run asynchronously using Platform Events or Queueables, ensuring 
 | **Vendor lock-in** | Bring your own LLM. OpenAI ships in core. Any OpenAI-compatible API works out of the box. Extend `BaseProviderAdapter` for other formats. |
 | **Scalability** | Async processing handles thousands of concurrent conversations. Choose Platform Events or Queueables. |
 | **Customization needs** | Extensible architecture with interfaces for custom actions, context providers, and memory strategies. |
-| **Governance & compliance** | Every interaction logged to `AgentDecisionStep__c`. See exactly what the AI decided and why. |
+| **Governance & compliance** | Every interaction logged with a full execution trail. See exactly what the AI decided and why. |
 
 ---
 

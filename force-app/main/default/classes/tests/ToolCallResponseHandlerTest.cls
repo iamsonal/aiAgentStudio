@@ -881,4 +881,207 @@ private class ToolCallResponseHandlerTest {
             System.assertEquals('Failed', updatedExec.ExecutionStatus__c, 'Should fail if approval cannot be initiated');
         }
     }
+
+    // ========== Confidence Gate Tests ==========
+
+    @IsTest
+    static void testConfidenceGate_AllToolsBlocked_FailsTurn() {
+        TestFactory.AgentSetup setup = getSetup();
+
+        AgentCapability__c cap = [
+            SELECT Id, CapabilityName__c
+            FROM AgentCapability__c
+            WHERE AIAgentDefinition__c = :setup.agentDefinition.Id AND RunAsynchronously__c = FALSE
+            LIMIT 1
+        ];
+
+        // Enable Block on the agent definition
+        AIAgentDefinition__c agentDef = [SELECT Id FROM AIAgentDefinition__c WHERE Id = :setup.agentDefinition.Id];
+        agentDef.EnableConfidenceTracking__c = true;
+        agentDef.MinConfidenceThreshold__c = 60;
+        agentDef.LowConfidenceAction__c = 'Block';
+        update agentDef;
+
+        // Set execution type to Function so all-blocked path fails the turn (not queues follow-up)
+        update new AgentExecution__c(Id = setup.agentExecution.Id, ExecutionType__c = 'Function');
+
+        // Single tool call with confidence below threshold — all tools are blocked
+        String argsJson = '{"Id":"' + setup.agentExecution.Id + '","_confidence":35}';
+        List<Map<String, String>> actions = new List<Map<String, String>>{
+            TestFactory.createToolCallAction(cap.CapabilityName__c, argsJson, 'call-low-conf-001')
+        };
+        LLMInteractionService.LLMInteractionResult llmResult = TestFactory.createLlmToolCallResult('Low confidence call', actions);
+
+        OrchestrationContext context = TestFactory.newOrchestrationContext().withSetup(setup).withLlmResult(llmResult).withTurn('turn-low-conf-001', 1).build();
+
+        ToolCallResponseHandler handler = new ToolCallResponseHandler();
+        String outcome = handler.handle(context);
+
+        // When ALL tools are blocked there is nothing left to do — must fail, not queue a follow-up
+        System.assertEquals(OrchestrationService.OUTCOME_FAILED, outcome, 'All tools blocked should fail the turn — no follow-up LLM call should be made');
+
+        // ToolCall step should be created (with confidence stored for observability)
+        List<ExecutionStep__c> toolCallSteps = [
+            SELECT StepType__c, Confidence__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :setup.agentExecution.Id AND StepType__c = 'ToolCall'
+        ];
+        System.assertEquals(1, toolCallSteps.size(), 'ToolCall step should be written for Storyboard observability');
+        System.assertEquals(35, toolCallSteps[0].Confidence__c, 'Confidence should be stored on blocked ToolCall step');
+
+        // Synthetic blocked ToolResult step should be created (message sequence integrity)
+        List<ExecutionStep__c> toolResultSteps = [
+            SELECT StepType__c, ToolResult__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :setup.agentExecution.Id AND StepType__c = 'ToolResult'
+        ];
+        System.assertEquals(1, toolResultSteps.size(), 'Synthetic ToolResult step should be written for message sequence integrity');
+        System.assert(toolResultSteps[0].ToolResult__c.contains('blocked'), 'Synthetic result should indicate blocked status');
+        System.assert(toolResultSteps[0].ToolResult__c.contains('35'), 'Synthetic result should include the confidence score');
+        // Threshold must NOT appear in the blocked message — prevents the LLM from gaming it
+        System.assert(!toolResultSteps[0].ToolResult__c.contains('"minimumThreshold"'), 'Blocked message must not expose the threshold value');
+    }
+
+    @IsTest
+    static void testConfidenceGate_NullConfidence_TreatedAsZero_Blocks() {
+        TestFactory.AgentSetup setup = getSetup();
+
+        AgentCapability__c cap = [
+            SELECT Id, CapabilityName__c
+            FROM AgentCapability__c
+            WHERE AIAgentDefinition__c = :setup.agentDefinition.Id AND RunAsynchronously__c = FALSE
+            LIMIT 1
+        ];
+
+        AIAgentDefinition__c agentDef = [SELECT Id FROM AIAgentDefinition__c WHERE Id = :setup.agentDefinition.Id];
+        agentDef.EnableConfidenceTracking__c = true;
+        agentDef.MinConfidenceThreshold__c = 60;
+        agentDef.LowConfidenceAction__c = 'Block';
+        update agentDef;
+
+        // Set execution type to Function so all-blocked path fails the turn (not queues follow-up)
+        update new AgentExecution__c(Id = setup.agentExecution.Id, ExecutionType__c = 'Function');
+
+        // Tool call with NO _confidence — missing field must be treated as 0, not bypassed
+        String argsJson = '{"Id":"' + setup.agentExecution.Id + '"}';
+        List<Map<String, String>> actions = new List<Map<String, String>>{
+            TestFactory.createToolCallAction(cap.CapabilityName__c, argsJson, 'call-null-conf-001')
+        };
+        LLMInteractionService.LLMInteractionResult llmResult = TestFactory.createLlmToolCallResult('Null confidence call', actions);
+
+        OrchestrationContext context = TestFactory.newOrchestrationContext()
+            .withSetup(setup)
+            .withLlmResult(llmResult)
+            .withTurn('turn-null-conf-001', 1)
+            .build();
+
+        ToolCallResponseHandler handler = new ToolCallResponseHandler();
+        String outcome = handler.handle(context);
+
+        System.assertEquals(OrchestrationService.OUTCOME_FAILED, outcome, 'Missing _confidence should be treated as 0 and blocked — not silently bypassed');
+
+        List<ExecutionStep__c> toolResultSteps = [
+            SELECT ToolResult__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :setup.agentExecution.Id AND StepType__c = 'ToolResult'
+        ];
+        System.assertEquals(1, toolResultSteps.size(), 'Synthetic ToolResult should be written even when confidence was null');
+        System.assert(toolResultSteps[0].ToolResult__c.contains('blocked'), 'Result should indicate blocked status');
+    }
+
+    @IsTest
+    static void testConfidenceGate_AboveThreshold_ExecutesNormally() {
+        TestFactory.AgentSetup setup = getSetup();
+        Case testCase = [SELECT Id FROM Case LIMIT 1];
+
+        AgentCapability__c cap = [
+            SELECT Id, CapabilityName__c
+            FROM AgentCapability__c
+            WHERE AIAgentDefinition__c = :setup.agentDefinition.Id AND RunAsynchronously__c = FALSE
+            LIMIT 1
+        ];
+
+        AIAgentDefinition__c agentDef = [SELECT Id FROM AIAgentDefinition__c WHERE Id = :setup.agentDefinition.Id];
+        agentDef.EnableConfidenceTracking__c = true;
+        agentDef.MinConfidenceThreshold__c = 60;
+        agentDef.LowConfidenceAction__c = 'Block';
+        update agentDef;
+
+        // Tool call with confidence ABOVE threshold — should execute normally
+        String argsJson = '{"Id":"' + testCase.Id + '","_confidence":85}';
+        List<Map<String, String>> actions = new List<Map<String, String>>{
+            TestFactory.createToolCallAction(cap.CapabilityName__c, argsJson, 'call-high-conf-001')
+        };
+        LLMInteractionService.LLMInteractionResult llmResult = TestFactory.createLlmToolCallResult('High confidence call', actions);
+
+        OrchestrationContext context = TestFactory.newOrchestrationContext()
+            .withSetup(setup)
+            .withLlmResult(llmResult)
+            .withTurn('turn-high-conf-001', 1)
+            .build();
+
+        ToolCallResponseHandler handler = new ToolCallResponseHandler();
+        String outcome = handler.handle(context);
+
+        System.assertEquals(OrchestrationService.OUTCOME_QUEUED_FOLLOWUP, outcome, 'High-confidence tool should execute normally and queue follow-up');
+
+        // Both ToolCall and ToolResult should exist (normal execution, not just synthetic)
+        List<ExecutionStep__c> steps = [
+            SELECT StepType__c, ToolResult__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :setup.agentExecution.Id AND StepType__c IN ('ToolCall', 'ToolResult')
+        ];
+        System.assertEquals(2, steps.size(), 'Normal execution should create both ToolCall and ToolResult steps');
+
+        // ToolResult should contain real data, not a blocked message
+        for (ExecutionStep__c step : steps) {
+            if ('ToolResult'.equals(step.StepType__c)) {
+                System.assert(!step.ToolResult__c.contains('"status":"blocked"'), 'Normal execution should not produce a blocked result');
+            }
+        }
+    }
+
+    @IsTest
+    static void testConfidenceGate_ActionNone_DoesNotBlock() {
+        TestFactory.AgentSetup setup = getSetup();
+        Case testCase = [SELECT Id FROM Case LIMIT 1];
+
+        AgentCapability__c cap = [
+            SELECT Id, CapabilityName__c
+            FROM AgentCapability__c
+            WHERE AIAgentDefinition__c = :setup.agentDefinition.Id AND RunAsynchronously__c = FALSE
+            LIMIT 1
+        ];
+
+        AIAgentDefinition__c agentDef = [SELECT Id FROM AIAgentDefinition__c WHERE Id = :setup.agentDefinition.Id];
+        agentDef.EnableConfidenceTracking__c = true;
+        agentDef.MinConfidenceThreshold__c = 60;
+        agentDef.LowConfidenceAction__c = 'None'; // Action is None — tracking only, no blocking
+        update agentDef;
+
+        // Tool call with very low confidence — should still execute because action is None
+        String argsJson = '{"Id":"' + testCase.Id + '","_confidence":10}';
+        List<Map<String, String>> actions = new List<Map<String, String>>{
+            TestFactory.createToolCallAction(cap.CapabilityName__c, argsJson, 'call-none-action-001')
+        };
+        LLMInteractionService.LLMInteractionResult llmResult = TestFactory.createLlmToolCallResult('None action call', actions);
+
+        OrchestrationContext context = TestFactory.newOrchestrationContext()
+            .withSetup(setup)
+            .withLlmResult(llmResult)
+            .withTurn('turn-none-action-001', 1)
+            .build();
+
+        ToolCallResponseHandler handler = new ToolCallResponseHandler();
+        String outcome = handler.handle(context);
+
+        System.assertEquals(OrchestrationService.OUTCOME_QUEUED_FOLLOWUP, outcome, 'None action should not block — tool executes normally');
+
+        List<ExecutionStep__c> steps = [
+            SELECT StepType__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :setup.agentExecution.Id AND StepType__c IN ('ToolCall', 'ToolResult')
+        ];
+        System.assertEquals(2, steps.size(), 'None action should produce both ToolCall and ToolResult (normal execution)');
+    }
 }

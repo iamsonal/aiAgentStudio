@@ -1,11 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>AuditLevel__c</fullName>
-    <description>Controls audit trail creation for AI agent executions. This setting affects how much execution data is persisted for tracking, debugging, and storyboard visualization.</description>
-    <inlineHelpText>Controls audit trail depth for AI agent executions:
-• None: No audit records (maximum performance, no tracking)
-• Standard: Execution + Steps with token metrics (recommended for production)
-• Full: Complete audit trail including decision steps for storyboard visualization (default)</inlineHelpText>
+    <description>Controls the depth of the audit trail persisted during agent execution. None skips all ExecutionStep records (sync function agents only). Standard writes LLM calls, tool calls, and results — sufficient for memory and debugging. Full adds a curated decision timeline for Storyboard visualization.</description>
+    <inlineHelpText>None: no ExecutionStep records (sync function agents only). Standard: LLM calls, tool calls, and results persisted (default). Full: Standard plus Storyboard visualization.</inlineHelpText>
     <label>Audit Level</label>
     <required>false</required>
     <trackHistory>false</trackHistory>
@@ -22,12 +19,12 @@
             </value>
             <value>
                 <fullName>Standard</fullName>
-                <default>false</default>
+                <default>true</default>
                 <label>Standard</label>
             </value>
             <value>
                 <fullName>Full</fullName>
-                <default>true</default>
+                <default>false</default>
                 <label>Full</label>
             </value>
         </valueSetDefinition>

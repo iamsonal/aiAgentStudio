@@ -34,7 +34,7 @@ When using AI Agent Studio, follow these security guidelines:
 1. **API Keys**: Never commit API keys to source control. Use Named Credentials.
 2. **Permissions**: Follow least-privilege principles when assigning agent permissions.
 3. **Approval Workflows**: Enable approval for capabilities that modify data.
-4. **Audit Logs**: Regularly review `AgentDecisionStep__c` records for anomalies.
+4. **Audit Logs**: Regularly review execution step records for anomalies.
 5. **Data Privacy**: Be aware that user inputs are sent to external AI providers.
 
 ## Supported Versions

@@ -105,6 +105,11 @@ public inherited sharing class LLMFormattingService {
             System.debug(LoggingLevel.INFO, debugPrefix + 'Tool reasoning enabled - will inject _rationale parameter into all tools.');
         }
 
+        Boolean enableConfidenceTracking = agentConfig?.EnableConfidenceTracking__c == true;
+        if (enableConfidenceTracking) {
+            System.debug(LoggingLevel.INFO, debugPrefix + 'Confidence tracking enabled - will inject _confidence parameter into all tools.');
+        }
+
         Boolean enableNextStepSuggestion = agentConfig?.EnableNextStepSuggestion__c == true;
         if (enableNextStepSuggestion) {
             System.debug(
@@ -191,8 +196,8 @@ public inherited sharing class LLMFormattingService {
                     injectConditionalApprovalParameters(paramSchema, capabilityName, debugPrefix);
                 }
 
-                // Inject confidence parameter if TrackConfidence is enabled
-                if (cap.TrackConfidence__c == true) {
+                // Inject confidence parameter if agent-level confidence tracking is enabled
+                if (enableConfidenceTracking) {
                     injectConfidenceParameter(paramSchema, capabilityName, debugPrefix);
                 }
 

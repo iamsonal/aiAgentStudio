@@ -191,6 +191,10 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
             List<ToolCallRequest> asyncTools = toolGroups.get('async');
             List<ToolCallRequest> agentTools = toolGroups.get('agent');
 
+            // Apply confidence gate: move low-confidence sync/async tools to a blocked list.
+            // Agent and approval tools are never confidence-gated (they have their own control mechanisms).
+            List<ToolCallRequest> blockedTools = applyConfidenceGate(syncTools, asyncTools, context, logPrefix);
+
             System.debug(
                 LoggingLevel.INFO,
                 logPrefix +
@@ -203,7 +207,9 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                     ', Async: ' +
                     asyncTools.size() +
                     ', Agent: ' +
-                    agentTools.size()
+                    agentTools.size() +
+                    ', Blocked (low confidence): ' +
+                    blockedTools.size()
             );
 
             Id savedUserMessageId = null;
@@ -241,6 +247,20 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
             if (!parseResult.invalidRequests.isEmpty()) {
                 handleInvalidToolCalls(context, parseResult.invalidRequests, decisionLogger, logPrefix);
                 return OrchestrationService.OUTCOME_FAILED;
+            }
+
+            // Handle blocked low-confidence tools: write synthetic failed tool results so the LLM
+            // self-corrects on the next ReAct iteration (consistent with LangGraph ToolNode error pattern).
+            // If ALL tools were blocked (nothing left to execute), fail the turn immediately — there is
+            // no useful follow-up LLM call to make when the agent has no remaining actions.
+            if (!blockedTools.isEmpty()) {
+                Boolean allToolsBlocked =
+                    syncTools.isEmpty() &&
+                    asyncTools.isEmpty() &&
+                    agentTools.isEmpty() &&
+                    approvalTools.isEmpty() &&
+                    confirmationTools.isEmpty();
+                return handleLowConfidenceTools(context, blockedTools, allToolsBlocked, logPrefix, decisionLogger);
             }
 
             // IMPORTANT: Execute sync tools FIRST, even if there are approval tools.
@@ -607,6 +627,240 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         }
 
         return groups;
+    }
+
+    /**
+     * @description Applies the agent-level confidence gate to sync and async tools.
+     * Removes any tool whose confidence score falls below MinConfidenceThreshold__c (when
+     * LowConfidenceAction__c = 'Block') from the execution lists and returns them as a
+     * separate blocked list. Agent and approval tools are never gated here.
+     *
+     * @param syncTools  Mutable list of sync tools (modified in place)
+     * @param asyncTools Mutable list of async tools (modified in place)
+     * @param context    Orchestration context (provides agentDefinitionId for config lookup)
+     * @param logPrefix  Logging prefix
+     * @return List of tools that were removed due to low confidence (empty if gate is inactive)
+     */
+    @TestVisible
+    private static List<ToolCallRequest> applyConfidenceGate(
+        List<ToolCallRequest> syncTools,
+        List<ToolCallRequest> asyncTools,
+        OrchestrationContext context,
+        String logPrefix
+    ) {
+        List<ToolCallRequest> blocked = new List<ToolCallRequest>();
+
+        AIAgentDefinition__c agentConfig;
+        try {
+            agentConfig = AIAgentConfigService.getAgentDefinition(context.agentDefinitionId);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + '[ConfidenceGate] Could not load agent config: ' + e.getMessage());
+            return blocked;
+        }
+
+        if (!'Block'.equals(agentConfig.LowConfidenceAction__c) || agentConfig.MinConfidenceThreshold__c == null) {
+            return blocked;
+        }
+
+        Decimal threshold = agentConfig.MinConfidenceThreshold__c;
+
+        List<ToolCallRequest> filteredSync = new List<ToolCallRequest>();
+        for (ToolCallRequest tool : syncTools) {
+            // Treat missing _confidence as 0 — omitting the required field is treated as maximum uncertainty.
+            Decimal effectiveConfidence = tool.confidence != null ? tool.confidence : 0;
+            if (effectiveConfidence < threshold) {
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix +
+                        '[ConfidenceGate] Blocking sync tool "' +
+                        tool.toolName +
+                        '" (confidence=' +
+                        effectiveConfidence +
+                        (tool.confidence == null ? ' [defaulted — _confidence not provided]' : '') +
+                        ' < threshold=' +
+                        threshold +
+                        ')'
+                );
+                blocked.add(tool);
+            } else {
+                filteredSync.add(tool);
+            }
+        }
+        syncTools.clear();
+        syncTools.addAll(filteredSync);
+
+        List<ToolCallRequest> filteredAsync = new List<ToolCallRequest>();
+        for (ToolCallRequest tool : asyncTools) {
+            Decimal effectiveConfidence = tool.confidence != null ? tool.confidence : 0;
+            if (effectiveConfidence < threshold) {
+                System.debug(
+                    LoggingLevel.INFO,
+                    logPrefix +
+                        '[ConfidenceGate] Blocking async tool "' +
+                        tool.toolName +
+                        '" (confidence=' +
+                        effectiveConfidence +
+                        (tool.confidence == null ? ' [defaulted — _confidence not provided]' : '') +
+                        ' < threshold=' +
+                        threshold +
+                        ')'
+                );
+                blocked.add(tool);
+            } else {
+                filteredAsync.add(tool);
+            }
+        }
+        asyncTools.clear();
+        asyncTools.addAll(filteredAsync);
+
+        return blocked;
+    }
+
+    /**
+     * @description Handles tool calls blocked by the confidence gate.
+     * Writes a ToolCall execution step (preserving the confidence score for observability) and a
+     * synthetic failed ToolResult step for each blocked tool so that the LLM message sequence
+     * remains valid. The LLM receives the error on the next ReAct iteration and self-corrects —
+     * identical to how LangGraph's ToolNode surfaces tool errors back to the model.
+     *
+     * @param context       Orchestration context
+     * @param blockedTools  Tools intercepted by the confidence gate
+     * @param logPrefix     Logging prefix
+     * @param decisionLogger Decision step logger
+     * @return OUTCOME_QUEUED_FOLLOWUP — triggers a follow-up LLM call
+     */
+    @TestVisible
+    private String handleLowConfidenceTools(
+        OrchestrationContext context,
+        List<ToolCallRequest> blockedTools,
+        Boolean allToolsBlocked,
+        String logPrefix,
+        IDecisionStepLogger.ILogger decisionLogger
+    ) {
+        AIAgentDefinition__c agentDef;
+        try {
+            agentDef = AIAgentConfigService.getAgentDefinition(context.agentDefinitionId);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + '[ConfidenceGate] Could not load agent config for blocked tool handling: ' + e.getMessage());
+            context.agentStateSvc.failTurn(
+                context.executionId,
+                context.turnIdentifier,
+                'Confidence gate error: ' + e.getMessage(),
+                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                logPrefix
+            );
+            return OrchestrationService.OUTCOME_FAILED;
+        }
+
+        ExecutionStepService executionStepService = new ExecutionStepService();
+
+        List<String> blockedToolNames = new List<String>();
+        List<Decimal> blockedScores = new List<Decimal>();
+
+        for (ToolCallRequest tool : blockedTools) {
+            // Note: the ToolCall step for this tool was already written by createToolCallExecutionSteps()
+            // (which runs on all validRequests before handleLowConfidenceTools is called).
+            // We only need to write the synthetic ToolResult here.
+
+            // Write a synthetic failed ToolResult — the LLM reads this and self-corrects.
+            // Intentionally omit the threshold value so it cannot be used to game the gate.
+            Decimal effectiveConfidence = tool.confidence != null ? tool.confidence : 0;
+            String blockedMessage = JSON.serialize(
+                new Map<String, Object>{
+                    'status' => 'blocked',
+                    'error' => 'Tool call to \'' +
+                    tool.toolName +
+                    '\' was blocked due to insufficient confidence (score: ' +
+                    effectiveConfidence +
+                    '). Gather more information or ask for clarification before retrying.',
+                    'toolName' => tool.toolName,
+                    'confidenceScore' => effectiveConfidence
+                }
+            );
+
+            try {
+                executionStepService.createToolResultStep(
+                    context.executionId,
+                    tool.toolCallId,
+                    tool.toolName,
+                    blockedMessage,
+                    context.turnIdentifier,
+                    context.currentTurnCount,
+                    0L,
+                    false,
+                    tool.capability?.Id
+                );
+                System.debug(LoggingLevel.INFO, logPrefix + '[ConfidenceGate] Wrote synthetic blocked result for tool "' + tool.toolName + '"');
+            } catch (Exception e) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix + '[ConfidenceGate] Failed to write synthetic ToolResult for "' + tool.toolName + '": ' + e.getMessage()
+                );
+            }
+
+            blockedToolNames.add(tool.toolName);
+            blockedScores.add(effectiveConfidence);
+        }
+
+        // Log a single consolidated Storyboard step for all blocked tools.
+        if (decisionLogger != null) {
+            decisionLogger.log(
+                IDecisionStepLogger.EventType.ERROR,
+                new List<Object>{ 'CONFIDENCE_GATE_BLOCKED', blockedToolNames, blockedScores, agentDef.MinConfidenceThreshold__c }
+            );
+        }
+
+        // When ALL tools were blocked, behavior depends on agent type:
+        // - Function agents: fail immediately — there is no user to ask for clarification.
+        // - Conversational/Email agents: queue a follow-up LLM call so the LLM can read the
+        //   blocked ToolResults and self-correct by asking the user / replying via email.
+        if (allToolsBlocked) {
+            String executionType = context.agentStateSvc.getExecutionType(context.executionId);
+            Boolean canCommunicateWithUser = 'Conversational'.equalsIgnoreCase(executionType) || 'Email'.equalsIgnoreCase(executionType);
+
+            if (!canCommunicateWithUser) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix +
+                        '[ConfidenceGate] All ' +
+                        blockedTools.size() +
+                        ' tool(s) blocked for Function agent. Failing turn — no path to request clarification.'
+                );
+                context.agentStateSvc.failTurn(
+                    context.executionId,
+                    context.turnIdentifier,
+                    'All tool calls were blocked by the confidence gate. Confidence scores were too low to proceed.',
+                    AIAgentConstants.ERR_CODE_ACTION_EXECUTION,
+                    logPrefix
+                );
+                return OrchestrationService.OUTCOME_FAILED;
+            }
+
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix +
+                    '[ConfidenceGate] All ' +
+                    blockedTools.size() +
+                    ' tool(s) blocked for ' +
+                    executionType +
+                    ' agent. Queuing follow-up so LLM can ask for clarification.'
+            );
+        }
+
+        // Some tools passed the gate and will execute; queue a follow-up LLM call so it can
+        // incorporate both the blocked results and the successful results into its next response.
+        context.agentStateSvc.resumeForFollowUpLlmCall(context.executionId, context.turnIdentifier, null, logPrefix);
+        context.dispatchSvc.enqueueFollowUp(
+            context.executionId,
+            context.originalUserId,
+            context.agentDefinitionId,
+            context.turnIdentifier,
+            context.currentTurnCount + 1,
+            logPrefix,
+            false,
+            context.currentPageRecordId
+        );
+        return OrchestrationService.OUTCOME_QUEUED_FOLLOWUP;
     }
 
     /**

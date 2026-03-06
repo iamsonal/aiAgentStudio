@@ -159,6 +159,21 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>AIAgentDefinition__c.EnableConfidenceTracking__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>AIAgentDefinition__c.MinConfidenceThreshold__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>AIAgentDefinition__c.LowConfidenceAction__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>AgentCapability__c.AIAgentDefinition__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -215,11 +230,6 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>AgentCapability__c.StandardActionType__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AgentCapability__c.TrackConfidence__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>

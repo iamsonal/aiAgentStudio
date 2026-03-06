@@ -33,10 +33,6 @@
                 <behavior>Edit</behavior>
                 <field>ExposureLevel__c</field>
             </layoutItems>
-            <layoutItems>
-                <behavior>Edit</behavior>
-                <field>TrackConfidence__c</field>
-            </layoutItems>
         </layoutColumns>
         <style>TwoColumnsTopToBottom</style>
     </layoutSections>

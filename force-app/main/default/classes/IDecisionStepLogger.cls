@@ -109,12 +109,20 @@ public inherited sharing class IDecisionStepLogger {
 
     /**
      * Factory method to create the appropriate logger implementation.
+     * Returns NoOp when:
+     * - Decision step logging is disabled via framework settings
+     * - AuditLevel__c on the agent definition is not 'Full'
+     * - The addons logger class is not installed
      */
     private static final String ADDONS_LOGGER_CLASS = 'AgentDecisionStepLogger';
 
     public static ILogger create(Id executionId, String turnIdentifier, Id originalUserId) {
         if (!AIAgentFrameworkSettings.isDecisionStepLoggingEnabled()) {
             System.debug(LoggingLevel.DEBUG, '[IDecisionStepLogger] Decision step logging is disabled via settings');
+            return new NoOp();
+        }
+
+        if (!isFullAuditLevel(executionId)) {
             return new NoOp();
         }
 
@@ -136,5 +144,41 @@ public inherited sharing class IDecisionStepLogger {
 
     public static ILogger create(Id executionId, String turnIdentifier) {
         return create(executionId, turnIdentifier, null);
+    }
+
+    /**
+     * Resolves whether the agent's AuditLevel__c is 'Full' via the execution record.
+     * Returns true (write storyboard) when the level is explicitly 'Full'.
+     * Defaults to false (Standard) when the field is blank/null or the execution doesn't exist yet.
+     */
+    private static Map<Id, Boolean> auditLevelCache = new Map<Id, Boolean>();
+
+    private static Boolean isFullAuditLevel(Id executionId) {
+        if (executionId == null) {
+            return true; // No execution yet (e.g. SyncFunctionOrchestrator pre-creation) — let the logger buffer; SyncFunctionOrchestrator manages its own guard.
+        }
+
+        if (auditLevelCache.containsKey(executionId)) {
+            return auditLevelCache.get(executionId);
+        }
+
+        Boolean isFull = false;
+        try {
+            List<AgentExecution__c> execs = [
+                SELECT AIAgentDefinition__r.AuditLevel__c
+                FROM AgentExecution__c
+                WHERE Id = :executionId
+                LIMIT 1
+            ];
+            if (!execs.isEmpty()) {
+                String level = (String) execs[0].getSObject('AIAgentDefinition__r')?.get('AuditLevel__c');
+                isFull = 'Full'.equalsIgnoreCase(level);
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, '[IDecisionStepLogger] Failed to resolve AuditLevel: ' + e.getMessage() + '. Defaulting to NoOp.');
+        }
+
+        auditLevelCache.put(executionId, isFull);
+        return isFull;
     }
 }

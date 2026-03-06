@@ -187,6 +187,12 @@ public inherited sharing class LLMInteractionService {
                     System.debug(LoggingLevel.INFO, logPrefix + 'Added orchestrator-specific prompt additions');
                 }
 
+                String confidenceInstructions = buildConfidenceInstructions(agentConfig, logPrefix);
+                if (String.isNotBlank(confidenceInstructions)) {
+                    finalSystemPrompt += confidenceInstructions;
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Added confidence guidance instructions to system prompt');
+                }
+
                 if (this.isFinalErrorTurn) {
                     String finalErrorInstruction =
                         '\n\n# CRITICAL INSTRUCTIONS\n\n' +
@@ -500,6 +506,46 @@ public inherited sharing class LLMInteractionService {
     private static void clearAdapterCache() {
         adapterInstanceCache = new Map<String, ILLMProviderAdapter>();
         System.debug(LoggingLevel.DEBUG, '[LLMInteractionService] Adapter cache cleared.');
+    }
+
+    @TestVisible
+    private static String buildConfidenceInstructions(AIAgentDefinition__c agentConfig, String logPrefix) {
+        if (agentConfig?.EnableConfidenceTracking__c != true) {
+            return null;
+        }
+        if (agentConfig.MinConfidenceThreshold__c == null) {
+            return null;
+        }
+
+        String agentType = agentConfig.AgentType__c;
+
+        String guidance;
+        if ('Conversational'.equalsIgnoreCase(agentType)) {
+            guidance =
+                'Always report an honest confidence score that reflects your actual certainty. ' +
+                'If you are missing key information or have significant ambiguity about a tool call, ' +
+                'ask the user for clarification rather than proceeding with incomplete data.';
+        } else if ('Email'.equalsIgnoreCase(agentType)) {
+            guidance =
+                'Always report an honest confidence score that reflects your actual certainty. ' +
+                'If you are missing key information or have significant ambiguity about a tool call, ' +
+                'request the missing details in your email reply rather than proceeding with incomplete data.';
+        } else {
+            guidance =
+                'Always report an honest confidence score that reflects your actual certainty. ' +
+                'If you are uncertain or missing information needed for a tool call, ' +
+                'use available lookup or search tools to gather additional context before proceeding.';
+        }
+
+        System.debug(
+            LoggingLevel.DEBUG,
+            logPrefix +
+                'Confidence guidance instructions injected for agent type "' +
+                agentType +
+                '" with threshold ' +
+                agentConfig.MinConfidenceThreshold__c.intValue()
+        );
+        return '\n\n# CONFIDENCE GUIDANCE\n\n' + guidance;
     }
 
     private String getOrchestratorPromptAdditions(
