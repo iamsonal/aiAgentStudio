@@ -289,7 +289,8 @@ global with sharing class AIAgentRestService {
                     0L,
                     false,
                     capability.Id,
-                    !outcome.isSuccess
+                    !outcome.isSuccess,
+                    false
                 );
             }
 

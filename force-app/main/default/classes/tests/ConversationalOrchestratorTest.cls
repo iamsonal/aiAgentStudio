@@ -241,6 +241,72 @@ private class ConversationalOrchestratorTest {
     }
 
     @IsTest
+    static void testResume_RetryFailedHttpTool_DoesNotPerformDmlBeforeCallout() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Resume HTTP LLM').save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition()
+            .withName('Resume_HTTP_Conversational_Agent')
+            .withLLM(llm.Id)
+            .withAsyncDispatchType('Low')
+            .save();
+
+        AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).withName('resume_http_tool').build();
+        capability.ImplementationType__c = 'Standard';
+        capability.StandardActionType__c = 'HttpCallout';
+        capability.BackendConfiguration__c = '{"namedCredential":"ResumeHttpNc","endpoint":"/retry","method":"GET"}';
+        capability.Parameters__c = '{"type":"object","properties":{}}';
+        insert capability;
+
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(agent.Id)
+            .withUser(UserInfo.getUserId())
+            .withStatus('Failed')
+            .withProcessingStatus(AIAgentConstants.STATUS_FAILED)
+            .withTurnIdentifier('turn-resume-http-old')
+            .save();
+
+        insert new List<ExecutionStep__c>{
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolCall',
+                StepRole__c = 'Tool',
+                ToolName__c = capability.CapabilityName__c,
+                ToolCallId__c = 'call-resume-http-001',
+                ToolArguments__c = '{}',
+                TurnCount__c = 1
+            ),
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolName__c = capability.CapabilityName__c,
+                ToolCallId__c = 'call-resume-http-001',
+                ToolResult__c = '{"isSuccess":false}',
+                IsError__c = true,
+                TurnCount__c = 1
+            )
+        };
+
+        Test.setMock(HttpCalloutMock.class, MockHttpResponses.serverError());
+
+        ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(agent);
+
+        Test.startTest();
+        AgentExecutionService.ExecutionResult result = orchestrator.resume(execution.Id, new BaseAgentOrchestrator.ResumeOptions().withRetryFailedTool(true));
+        Test.stopTest();
+
+        System.assertEquals(execution.Id, result.executionId, 'Resume should target the existing execution');
+
+        AgentExecution__c updated = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, CurrentTurnIdentifier__c, ErrorMessage__c
+            FROM AgentExecution__c
+            WHERE Id = :execution.Id
+        ];
+        System.assertEquals('Failed', updated.ExecutionStatus__c, 'Failed HTTP retry should fail the execution instead of throwing a callout exception');
+        System.assertNotEquals('turn-resume-http-old', updated.CurrentTurnIdentifier__c, 'Resume should stamp a new turn after the tool call completes');
+        System.assert(String.isNotBlank(updated.ErrorMessage__c), 'Failure details should be persisted after the retry');
+    }
+
+    @IsTest
     static void testEvaluateToolOutcome_ApprovalRequired_CompletesTurn() {
         AIAgentDefinition__c agent = [
             SELECT Id, DeveloperName__c, LLMConfiguration__c

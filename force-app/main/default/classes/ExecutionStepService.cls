@@ -168,76 +168,11 @@ public inherited sharing class ExecutionStepService {
         Integer totalTokens,
         String modelIdentifier,
         Long llmCalloutDurationMs,
-        Id capabilityId
-    ) {
-        return createToolCallStep(
-            executionId,
-            toolCallId,
-            toolName,
-            toolArguments,
-            turnIdentifier,
-            turnCount,
-            promptTokens,
-            completionTokens,
-            totalTokens,
-            modelIdentifier,
-            llmCalloutDurationMs,
-            capabilityId,
-            (String) null // toolRationale - explicit cast to resolve ambiguity
-        );
-    }
-
-    public Id createToolCallStep(
-        Id executionId,
-        String toolCallId,
-        String toolName,
-        String toolArguments,
-        String turnIdentifier,
-        Integer turnCount,
-        Integer promptTokens,
-        Integer completionTokens,
-        Integer totalTokens,
-        String modelIdentifier,
-        Long llmCalloutDurationMs,
-        Id capabilityId,
-        String toolRationale
-    ) {
-        // Overload for backward compatibility - extract confidence and nextStepSuggestion from arguments
-        return createToolCallStep(
-            executionId,
-            toolCallId,
-            toolName,
-            toolArguments,
-            turnIdentifier,
-            turnCount,
-            promptTokens,
-            completionTokens,
-            totalTokens,
-            modelIdentifier,
-            llmCalloutDurationMs,
-            capabilityId,
-            toolRationale,
-            extractConfidenceScore(toolArguments),
-            extractNextStepSuggestion(toolArguments)
-        );
-    }
-
-    public Id createToolCallStep(
-        Id executionId,
-        String toolCallId,
-        String toolName,
-        String toolArguments,
-        String turnIdentifier,
-        Integer turnCount,
-        Integer promptTokens,
-        Integer completionTokens,
-        Integer totalTokens,
-        String modelIdentifier,
-        Long llmCalloutDurationMs,
         Id capabilityId,
         String toolRationale,
         Decimal confidence,
-        String nextStepSuggestion
+        String nextStepSuggestion,
+        Boolean isResumed
     ) {
         String logPrefix = LOG_PREFIX + '[createToolCallStep] ';
 
@@ -270,12 +205,16 @@ public inherited sharing class ExecutionStepService {
                 AIAgentCapability__c = capabilityId,
                 ToolRationale__c = toolRationale,
                 Confidence__c = confidence,
-                NextStepSuggestion__c = nextStepSuggestion
+                NextStepSuggestion__c = nextStepSuggestion,
+                IsResumed__c = isResumed != null ? isResumed : false
             );
 
             if (TransactionContext.getInstance().isDeferredDMLMode()) {
                 TransactionContext.getInstance().bufferInsert(step);
-                System.debug(LoggingLevel.DEBUG, logPrefix + 'Buffered ToolCall ExecutionStep__c for deferred insert. Tool: ' + toolName);
+                System.debug(
+                    LoggingLevel.DEBUG,
+                    logPrefix + 'Buffered ToolCall ExecutionStep__c for deferred insert. Tool: ' + toolName + ' IsResumed: ' + (isResumed == true)
+                );
                 return null;
             }
 
@@ -283,7 +222,15 @@ public inherited sharing class ExecutionStepService {
 
             System.debug(
                 LoggingLevel.DEBUG,
-                logPrefix + 'Created ToolCall ExecutionStep__c: ' + step.Id + ' Tool: ' + toolName + ' HasRationale: ' + String.isNotBlank(toolRationale)
+                logPrefix +
+                    'Created ToolCall ExecutionStep__c: ' +
+                    step.Id +
+                    ' Tool: ' +
+                    toolName +
+                    ' HasRationale: ' +
+                    String.isNotBlank(toolRationale) +
+                    ' IsResumed: ' +
+                    (isResumed == true)
             );
 
             return step.Id;
@@ -347,172 +294,6 @@ public inherited sharing class ExecutionStepService {
         );
     }
 
-    public Id createToolCallStep(
-        Id executionId,
-        String toolCallId,
-        String toolName,
-        String toolArguments,
-        String turnIdentifier,
-        Integer turnCount,
-        Integer promptTokens,
-        Integer completionTokens,
-        Integer totalTokens,
-        String modelIdentifier,
-        Long llmCalloutDurationMs,
-        Id capabilityId,
-        Boolean isResumed
-    ) {
-        return createToolCallStep(
-            executionId,
-            toolCallId,
-            toolName,
-            toolArguments,
-            turnIdentifier,
-            turnCount,
-            promptTokens,
-            completionTokens,
-            totalTokens,
-            modelIdentifier,
-            llmCalloutDurationMs,
-            capabilityId,
-            (String) null, // toolRationale - explicit cast to resolve ambiguity
-            isResumed
-        );
-    }
-
-    public Id createToolCallStep(
-        Id executionId,
-        String toolCallId,
-        String toolName,
-        String toolArguments,
-        String turnIdentifier,
-        Integer turnCount,
-        Integer promptTokens,
-        Integer completionTokens,
-        Integer totalTokens,
-        String modelIdentifier,
-        Long llmCalloutDurationMs,
-        Id capabilityId,
-        String toolRationale,
-        Boolean isResumed
-    ) {
-        String logPrefix = LOG_PREFIX + '[createToolCallStep] ';
-
-        try {
-            // Calculate estimated cost if we have token and model information
-            Decimal estimatedCost = calculateCost(modelIdentifier, promptTokens, completionTokens);
-
-            ExecutionStep__c step = new ExecutionStep__c(
-                AgentExecution__c = executionId,
-                StepType__c = 'ToolCall',
-                StepRole__c = 'Assistant',
-                Content__c = null,
-                ContentType__c = 'JSON',
-                Timestamp__c = Datetime.now(),
-                TurnIdentifier__c = turnIdentifier,
-                TurnCount__c = turnCount,
-                ToolCallId__c = toolCallId,
-                ToolName__c = toolName,
-                ToolArguments__c = toolArguments,
-                ToolResult__c = null,
-                StepMetadata__c = null,
-                PromptTokens__c = promptTokens,
-                CompletionTokens__c = completionTokens,
-                TotalTokens__c = totalTokens,
-                ModelIdentifier__c = modelIdentifier,
-                LLMCalloutDurationMs__c = llmCalloutDurationMs,
-                EstimatedCostUSD__c = estimatedCost,
-                IsInternal__c = false,
-                IsAsyncToolExecution__c = false,
-                AIAgentCapability__c = capabilityId,
-                ToolRationale__c = toolRationale,
-                IsResumed__c = isResumed != null ? isResumed : false
-            );
-
-            if (TransactionContext.getInstance().isDeferredDMLMode()) {
-                TransactionContext.getInstance().bufferInsert(step);
-                System.debug(
-                    LoggingLevel.DEBUG,
-                    logPrefix + 'Buffered ToolCall ExecutionStep__c for deferred insert. Tool: ' + toolName + ' IsResumed: ' + (isResumed == true)
-                );
-                return null;
-            }
-
-            insert step;
-
-            System.debug(
-                LoggingLevel.DEBUG,
-                logPrefix +
-                    'Created ToolCall ExecutionStep__c: ' +
-                    step.Id +
-                    ' Tool: ' +
-                    toolName +
-                    ' HasRationale: ' +
-                    String.isNotBlank(toolRationale) +
-                    ' IsResumed: ' +
-                    (isResumed == true)
-            );
-
-            return step.Id;
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create tool call step: ' + e.getMessage());
-            throw new ExecutionStepException('Failed to create tool call step: ' + e.getMessage());
-        }
-    }
-
-    public Id createToolResultStep(
-        Id executionId,
-        String toolCallId,
-        String toolName,
-        String toolResult,
-        String turnIdentifier,
-        Integer turnCount,
-        Long processingDuration,
-        Boolean isAsyncToolExecution,
-        Id capabilityId
-    ) {
-        return createToolResultStep(
-            executionId,
-            toolCallId,
-            toolName,
-            toolResult,
-            turnIdentifier,
-            turnCount,
-            processingDuration,
-            isAsyncToolExecution,
-            capabilityId,
-            false
-        );
-    }
-
-    public Id createToolResultStep(
-        Id executionId,
-        String toolCallId,
-        String toolName,
-        String toolResult,
-        String turnIdentifier,
-        Integer turnCount,
-        Long processingDuration,
-        Boolean isAsyncToolExecution,
-        Id capabilityId,
-        Boolean isError
-    ) {
-        return createToolResultStep(
-            executionId,
-            toolCallId,
-            toolName,
-            toolResult,
-            turnIdentifier,
-            turnCount,
-            processingDuration,
-            isAsyncToolExecution,
-            capabilityId,
-            isError,
-            false,
-            false
-        );
-    }
-
     public Id createToolResultStep(
         Id executionId,
         String toolCallId,
@@ -525,39 +306,6 @@ public inherited sharing class ExecutionStepService {
         Id capabilityId,
         Boolean isError,
         Boolean isResumed
-    ) {
-        return createToolResultStep(
-            executionId,
-            toolCallId,
-            toolName,
-            toolResult,
-            turnIdentifier,
-            turnCount,
-            processingDuration,
-            isAsyncToolExecution,
-            capabilityId,
-            isError,
-            isResumed,
-            false
-        );
-    }
-
-    /**
-     * @description Creates a tool result step.
-     */
-    public Id createToolResultStep(
-        Id executionId,
-        String toolCallId,
-        String toolName,
-        String toolResult,
-        String turnIdentifier,
-        Integer turnCount,
-        Long processingDuration,
-        Boolean isAsyncToolExecution,
-        Id capabilityId,
-        Boolean isError,
-        Boolean isResumed,
-        Boolean unusedParam
     ) {
         String logPrefix = LOG_PREFIX + '[createToolResultStep] ';
 
@@ -658,8 +406,7 @@ public inherited sharing class ExecutionStepService {
         Boolean isAsyncToolExecution,
         Id capabilityId,
         Boolean isError,
-        Boolean isResumed,
-        Boolean unusedParam
+        Boolean isResumed
     ) {
         Map<String, Object> metadata = new Map<String, Object>();
         if (processingDuration != null) {
@@ -1215,8 +962,43 @@ public inherited sharing class ExecutionStepService {
             }
 
             query += 'ORDER BY Timestamp__c ASC, Id ASC';
+            List<ExecutionStep__c> dbResults = Database.query(query);
 
-            return Database.query(query);
+            if (TransactionContext.getInstance().isDeferredDMLMode()) {
+                List<ExecutionStep__c> bufferedSteps = TransactionContext.getInstance().getBufferedExecutionSteps(executionId);
+                if (!bufferedSteps.isEmpty()) {
+                    List<ExecutionStep__c> filteredBuffered = new List<ExecutionStep__c>();
+                    for (ExecutionStep__c step : bufferedSteps) {
+                        if (step == null || step.IsSummarized__c == true) {
+                            continue;
+                        }
+                        if (!includeInternal && step.IsInternal__c == true) {
+                            continue;
+                        }
+                        filteredBuffered.add(step);
+                    }
+
+                    if (!filteredBuffered.isEmpty()) {
+                        List<ExecutionStepWrapper> wrappers = new List<ExecutionStepWrapper>();
+                        for (ExecutionStep__c step : dbResults) {
+                            wrappers.add(new ExecutionStepWrapper(step, false));
+                        }
+                        for (ExecutionStep__c step : filteredBuffered) {
+                            wrappers.add(new ExecutionStepWrapper(step, false));
+                        }
+
+                        wrappers.sort();
+
+                        List<ExecutionStep__c> merged = new List<ExecutionStep__c>();
+                        for (ExecutionStepWrapper wrapper : wrappers) {
+                            merged.add(wrapper.step);
+                        }
+                        return merged;
+                    }
+                }
+            }
+
+            return dbResults;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to retrieve unsummarized steps: ' + e.getMessage());
             throw new ExecutionStepException('Failed to retrieve unsummarized steps: ' + e.getMessage());
@@ -1234,107 +1016,6 @@ public inherited sharing class ExecutionStepService {
      */
     private static Decimal calculateCost(String modelIdentifier, Integer promptTokens, Integer completionTokens) {
         return AIAgentConfigService.calculateLLMCost(modelIdentifier, promptTokens, completionTokens);
-    }
-
-    /**
-     * @description Extracts confidence score from tool arguments JSON
-     * @param toolArguments JSON string containing tool arguments
-     * @return Confidence score (0-100) or null if not present
-     */
-    public static Decimal extractConfidenceScore(String toolArguments) {
-        String logPrefix = LOG_PREFIX + '[extractConfidence] ';
-
-        if (String.isBlank(toolArguments)) {
-            return null;
-        }
-
-        try {
-            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(toolArguments);
-
-            if (!args.containsKey('_confidence')) {
-                return null;
-            }
-
-            Object confidenceValue = args.get('_confidence');
-            if (confidenceValue == null) {
-                return null;
-            }
-
-            // Handle both Number and String types
-            if (confidenceValue instanceof Decimal || confidenceValue instanceof Integer || confidenceValue instanceof Double) {
-                Decimal confidence = Decimal.valueOf(String.valueOf(confidenceValue));
-                // Validate range
-                if (confidence < 0 || confidence > 100) {
-                    System.debug(LoggingLevel.WARN, logPrefix + 'Confidence value out of range (0-100): ' + confidence);
-                    return null;
-                }
-                return confidence;
-            }
-
-            if (confidenceValue instanceof String) {
-                try {
-                    Decimal confidence = Decimal.valueOf((String) confidenceValue);
-                    if (confidence < 0 || confidence > 100) {
-                        System.debug(LoggingLevel.WARN, logPrefix + 'Confidence value out of range (0-100): ' + confidence);
-                        return null;
-                    }
-                    return confidence;
-                } catch (Exception e) {
-                    System.debug(LoggingLevel.WARN, logPrefix + 'Could not parse string confidence value: ' + confidenceValue);
-                    return null;
-                }
-            }
-
-            System.debug(LoggingLevel.WARN, logPrefix + 'Unexpected confidence type: ' + confidenceValue);
-            return null;
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Error extracting confidence: ' + e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * @description Extracts _nextStepSuggestion from tool arguments JSON
-     * @param toolArguments JSON string containing tool arguments
-     * @return String Next step suggestion, or null if not present or invalid
-     */
-    public static String extractNextStepSuggestion(String toolArguments) {
-        String logPrefix = LOG_PREFIX + '[extractNextStepSuggestion] ';
-
-        if (String.isBlank(toolArguments)) {
-            return null;
-        }
-
-        try {
-            Map<String, Object> args = (Map<String, Object>) JSON.deserializeUntyped(toolArguments);
-
-            if (!args.containsKey('_nextStepSuggestion')) {
-                return null;
-            }
-
-            Object suggestionValue = args.get('_nextStepSuggestion');
-            if (suggestionValue == null) {
-                return null;
-            }
-
-            // Convert to string and validate length
-            String suggestion = String.valueOf(suggestionValue).trim();
-
-            if (String.isBlank(suggestion)) {
-                return null;
-            }
-
-            // Truncate if exceeds 255 characters (field limit)
-            if (suggestion.length() > 255) {
-                System.debug(LoggingLevel.WARN, logPrefix + 'Next step suggestion exceeds 255 chars, truncating: ' + suggestion);
-                suggestion = suggestion.substring(0, 255);
-            }
-
-            return suggestion;
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'Error extracting next step suggestion: ' + e.getMessage());
-            return null;
-        }
     }
 
     private static Map<String, Object> extractErrorMetadata(String toolResult) {

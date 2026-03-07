@@ -341,7 +341,8 @@ public with sharing class PendingHITLActionTriggerHandler {
                 0L,
                 false,
                 fullAction.AIAgentCapability__c,
-                false // IsError = false: decline is a valid outcome, not an error
+                false, // IsError = false: decline is a valid outcome, not an error
+                false
             );
         }
 
@@ -396,7 +397,8 @@ public with sharing class PendingHITLActionTriggerHandler {
                 0L,
                 false,
                 fullAction.AIAgentCapability__c,
-                false // IsError = false: rejection is a valid outcome, not an error
+                false, // IsError = false: rejection is a valid outcome, not an error
+                false
             );
         }
 
@@ -442,7 +444,8 @@ public with sharing class PendingHITLActionTriggerHandler {
                 0L,
                 false,
                 fullAction.AIAgentCapability__c,
-                false // IsError = false: expiration is a timeout, not an error
+                false, // IsError = false: expiration is a timeout, not an error
+                false
             );
         }
 

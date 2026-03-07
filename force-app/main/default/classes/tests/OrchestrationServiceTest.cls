@@ -539,14 +539,14 @@ private class OrchestrationServiceTest {
         ExecutionStepService stepSvc = new ExecutionStepService();
 
         // tool_alpha: 2 successive failures — streak = 2 (both most-recent steps are errors)
-        stepSvc.createToolResultStep(execution.Id, 'call-a-001', capA.CapabilityName__c, '{}', 'turn-bulkcount-001', 1, 0L, false, capA.Id, true);
-        stepSvc.createToolResultStep(execution.Id, 'call-a-002', capA.CapabilityName__c, '{}', 'turn-bulkcount-001', 1, 0L, false, capA.Id, true);
+        stepSvc.createToolResultStep(execution.Id, 'call-a-001', capA.CapabilityName__c, '{}', 'turn-bulkcount-001', 1, 0L, false, capA.Id, true, false);
+        stepSvc.createToolResultStep(execution.Id, 'call-a-002', capA.CapabilityName__c, '{}', 'turn-bulkcount-001', 1, 0L, false, capA.Id, true, false);
 
         // tool_beta: 1 failure then 1 success — success is most recent, streak = 0.
         // Steps are sorted DESC by Timestamp/Id, so the last-inserted step is evaluated first.
         // Creating success last (larger Id) makes it the most recent; it breaks the streak immediately.
-        stepSvc.createToolResultStep(execution.Id, 'call-b-001', capB.CapabilityName__c, '{}', 'turn-bulkcount-001', 1, 0L, false, capB.Id, true); // older failure
-        stepSvc.createToolResultStep(execution.Id, 'call-b-002', capB.CapabilityName__c, '{}', 'turn-bulkcount-001', 1, 0L, false, capB.Id, false); // most-recent success → resets streak
+        stepSvc.createToolResultStep(execution.Id, 'call-b-001', capB.CapabilityName__c, '{}', 'turn-bulkcount-001', 1, 0L, false, capB.Id, true, false); // older failure
+        stepSvc.createToolResultStep(execution.Id, 'call-b-002', capB.CapabilityName__c, '{}', 'turn-bulkcount-001', 1, 0L, false, capB.Id, false, false); // most-recent success → resets streak
 
         Set<String> toolNames = new Set<String>{ capA.CapabilityName__c, capB.CapabilityName__c };
         Map<String, Integer> counts = OrchestrationService.loadSuccessiveFailureCounts(execution.Id, toolNames, '[test] ');
@@ -635,7 +635,8 @@ private class OrchestrationServiceTest {
                 0L,
                 false,
                 capability.Id,
-                true // IsError = true
+                true, // IsError = true
+                false
             );
         }
 
@@ -769,7 +770,8 @@ private class OrchestrationServiceTest {
                     0L,
                     false,
                     cap.Id,
-                    true
+                    true,
+                    false
                 );
             }
 
@@ -1137,6 +1139,127 @@ private class OrchestrationServiceTest {
         );
 
         System.assertEquals(0, result.size(), 'Retry already succeeded — should not flag as unretried');
+    }
+
+    @IsTest
+    static void testDetectUnretriedFailures_SameToolDifferentArguments_PreservesOriginalFailure() {
+        TestFactory.AgentSetup setup = getSetup();
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(setup.agentDefinition.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .withTurnIdentifier('turn-duf-004')
+            .save();
+
+        insert new List<ExecutionStep__c>{
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolCall',
+                StepRole__c = 'Assistant',
+                ToolCallId__c = 'call-args-001',
+                ToolName__c = 'assign_to_queue',
+                ToolArguments__c = '{"queueDeveloperName":"Tier1"}',
+                TurnIdentifier__c = 'turn-duf-004',
+                Timestamp__c = Datetime.now().addSeconds(-20)
+            ),
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolCallId__c = 'call-args-001',
+                ToolName__c = 'assign_to_queue',
+                IsError__c = true,
+                IsRetryable__c = true,
+                RetryPending__c = true,
+                TurnIdentifier__c = 'turn-duf-004',
+                Timestamp__c = Datetime.now().addSeconds(-19)
+            ),
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolCall',
+                StepRole__c = 'Assistant',
+                ToolCallId__c = 'call-args-002',
+                ToolName__c = 'assign_to_queue',
+                ToolArguments__c = '{"queueDeveloperName":"Tier2"}',
+                TurnIdentifier__c = 'turn-duf-004',
+                Timestamp__c = Datetime.now().addSeconds(-10)
+            ),
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolCallId__c = 'call-args-002',
+                ToolName__c = 'assign_to_queue',
+                IsError__c = false,
+                TurnIdentifier__c = 'turn-duf-004',
+                Timestamp__c = Datetime.now().addSeconds(-9)
+            )
+        };
+
+        List<OrchestrationService.UnretriedFailure> result = OrchestrationService.detectUnretriedFailures(
+            execution.Id,
+            setup.agentDefinition.Id,
+            'turn-duf-004',
+            '[test] '
+        );
+
+        System.assertEquals(1, result.size(), 'A later call with different arguments should not suppress the original unretried failure');
+        System.assertEquals('call-args-001', result[0].toolCallId, 'The original failed call should remain retry-pending');
+    }
+
+    @IsTest
+    static void testDetectUnretriedFailures_SkipsToolsBlockedByFlowGraph() {
+        TestFactory.AgentSetup setup = getSetup();
+        update new AIAgentDefinition__c(
+            Id = setup.agentDefinition.Id,
+            EnableToolFlowGraph__c = true,
+            ToolFlowGraph__c = '{"version":"3.0","entry":["collect_context"],"flow":[{"fromTools":["collect_context"],"type":"sequential","toTools":["assign_to_queue"]}]}'
+        );
+
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(setup.agentDefinition.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .withTurnIdentifier('turn-duf-005')
+            .save();
+
+        insert new List<ExecutionStep__c>{
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolCall',
+                StepRole__c = 'Assistant',
+                ToolCallId__c = 'call-flow-001',
+                ToolName__c = 'assign_to_queue',
+                ToolArguments__c = '{"queueDeveloperName":"Support"}',
+                TurnIdentifier__c = 'turn-duf-005',
+                Timestamp__c = Datetime.now().addSeconds(-10)
+            ),
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolCallId__c = 'call-flow-001',
+                ToolName__c = 'assign_to_queue',
+                IsError__c = true,
+                IsRetryable__c = true,
+                RetryPending__c = true,
+                TurnIdentifier__c = 'turn-duf-005',
+                Timestamp__c = Datetime.now().addSeconds(-9)
+            )
+        };
+
+        List<OrchestrationService.UnretriedFailure> result = OrchestrationService.detectUnretriedFailures(
+            execution.Id,
+            setup.agentDefinition.Id,
+            'turn-duf-005',
+            '[test] '
+        );
+
+        System.assertEquals(0, result.size(), 'Retry enforcement should not fire for a tool that is currently blocked by the flow graph');
     }
 
     /**

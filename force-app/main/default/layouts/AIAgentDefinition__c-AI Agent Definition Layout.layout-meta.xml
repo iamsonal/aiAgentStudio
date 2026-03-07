@@ -222,6 +222,10 @@
                 <behavior>Edit</behavior>
                 <field>PromptSafetyPreset__c</field>
             </layoutItems>
+            <layoutItems>
+                <behavior>Edit</behavior>
+                <field>PromptSafetyFailureMode__c</field>
+            </layoutItems>
         </layoutColumns>
         <style>TwoColumnsLeftToRight</style>
     </layoutSections>

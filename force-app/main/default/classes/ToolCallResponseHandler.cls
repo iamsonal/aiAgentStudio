@@ -799,7 +799,8 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                     0L,
                     false,
                     tool.capability?.Id,
-                    true // isError — blocked tools must not appear as successful executions
+                    true, // isError — blocked tools must not appear as successful executions
+                    false
                 );
                 System.debug(LoggingLevel.INFO, logPrefix + '[ConfidenceGate] Wrote synthetic blocked result for tool "' + tool.toolName + '"');
             } catch (Exception e) {
@@ -1013,7 +1014,8 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                         toolRequest.capability.Id,
                         toolRequest.rationale,
                         toolRequest.confidence,
-                        toolRequest.nextStepSuggestion
+                        toolRequest.nextStepSuggestion,
+                        false
                     );
 
                     // Note: Tool Execution decision step logging removed
@@ -1118,7 +1120,11 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                 context.llmResult.providerResult.totalTokens,
                 context.llmResult.providerResult.modelIdentifier,
                 context.llmResult.providerResult.llmCalloutDurationMs,
-                null // capabilityId unknown
+                null, // capabilityId unknown
+                null,
+                null,
+                null,
+                false
             );
 
             String errorResult = JSON.serialize(
@@ -1140,7 +1146,8 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                 0L,
                 false,
                 null,
-                true
+                true,
+                false
             );
 
             if (decisionLogger != null) {
@@ -1266,7 +1273,9 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                 context.currentTurnCount,
                 0L,
                 false,
-                approvalTool.capability.Id
+                approvalTool.capability.Id,
+                false,
+                false
             );
 
             // Publish approval request event to UI via TransientMessage__e
@@ -1480,7 +1489,6 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                         false,
                         result.capabilityId,
                         isError,
-                        false,
                         false
                     );
                 } catch (Exception e) {
@@ -1511,7 +1519,6 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                         false,
                         result.capabilityId,
                         isError,
-                        false,
                         false
                     )
                 );
@@ -1630,7 +1637,8 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                         0L,
                         true, // isAsyncToolExecution
                         toolRequest.capability.Id,
-                        true // isError - this is a failure
+                        true, // isError - this is a failure
+                        false
                     );
                 } catch (Exception stepEx) {
                     System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create error step for failed queue: ' + stepEx.getMessage());
@@ -1811,7 +1819,8 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                         0L,
                         true,
                         toolRequest.capability.Id,
-                        true
+                        true,
+                        false
                     );
                 } catch (Exception stepEx) {
                     System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create error step for failed agent queue: ' + stepEx.getMessage());

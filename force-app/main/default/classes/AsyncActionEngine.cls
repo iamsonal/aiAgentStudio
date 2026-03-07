@@ -147,7 +147,8 @@ public without sharing class AsyncActionEngine implements Queueable, Database.Al
                 actionDuration,
                 true, // isAsyncToolExecution - asynchronous execution
                 this.capability.Id,
-                !outcome.isSuccess // isError = !isSuccess
+                !outcome.isSuccess, // isError = !isSuccess
+                false
             );
 
             // FAIL-FAST CHECK: Apply error handling policy
