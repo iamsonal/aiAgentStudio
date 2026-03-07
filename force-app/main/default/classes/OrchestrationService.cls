@@ -556,40 +556,60 @@ public inherited sharing class OrchestrationService {
             return result;
         }
 
-        // ── 2. Check if any failure was actually retried ──────────────────────────
-        // A failure is considered "already retried" if ANY later ToolResult (success or
-        // failure) exists for the same tool name in this turn.  This covers repeated-failure
-        // scenarios: when enforcement fires, the LLM retries the tool and it fails again —
-        // the old pending entries should no longer appear (the new failure takes over).
+        // ── 2. Gather ToolCall / ToolResult context for retry lineage checks ─────
         Set<String> toolCallIdsToRemove = new Set<String>();
-        Set<String> failingToolNames = new Set<String>();
-        for (String callId : failureByCallId.keySet()) {
-            failingToolNames.add(failureByCallId.get(callId).ToolName__c);
-        }
-
-        // Track the latest ToolResult timestamp (any outcome) per tool name.
-        // Also separately track which tools have had at least one success
-        // (needed later for dependency satisfaction checks).
+        Map<String, String> argsByCallId = new Map<String, String>();
+        Map<String, String> normalizedArgsByCallId = new Map<String, String>();
+        Map<String, Datetime> toolCallTimestampByCallId = new Map<String, Datetime>();
+        Map<String, String> toolNameByCallId = new Map<String, String>();
         Map<String, Datetime> latestResultByToolName = new Map<String, Datetime>();
         Set<String> successfulToolNames = new Set<String>();
-        for (ExecutionStep__c s : [
-            SELECT ToolName__c, Timestamp__c, IsError__c
+
+        for (ExecutionStep__c tc : [
+            SELECT ToolCallId__c, ToolName__c, ToolArguments__c, Timestamp__c
             FROM ExecutionStep__c
-            WHERE AgentExecution__c = :executionId AND TurnIdentifier__c = :turnIdentifier AND StepType__c = 'ToolResult' AND ToolName__c IN :failingToolNames
+            WHERE AgentExecution__c = :executionId AND TurnIdentifier__c = :turnIdentifier AND StepType__c = 'ToolCall' AND ToolCallId__c != NULL
         ]) {
-            Datetime existing = latestResultByToolName.get(s.ToolName__c);
-            if (existing == null || (s.Timestamp__c != null && s.Timestamp__c > existing)) {
+            toolNameByCallId.put(tc.ToolCallId__c, tc.ToolName__c);
+            argsByCallId.put(tc.ToolCallId__c, tc.ToolArguments__c);
+            normalizedArgsByCallId.put(tc.ToolCallId__c, normalizeRetryArguments(tc.ToolArguments__c));
+            Datetime existingTs = toolCallTimestampByCallId.get(tc.ToolCallId__c);
+            if (existingTs == null || (tc.Timestamp__c != null && tc.Timestamp__c > existingTs)) {
+                toolCallTimestampByCallId.put(tc.ToolCallId__c, tc.Timestamp__c);
+            }
+        }
+        for (ExecutionStep__c s : TransactionContext.getInstance().getBufferedExecutionSteps(executionId)) {
+            if (s.StepType__c == 'ToolCall' && s.TurnIdentifier__c == turnIdentifier && String.isNotBlank(s.ToolCallId__c)) {
+                toolNameByCallId.put(s.ToolCallId__c, s.ToolName__c);
+                argsByCallId.put(s.ToolCallId__c, s.ToolArguments__c);
+                normalizedArgsByCallId.put(s.ToolCallId__c, normalizeRetryArguments(s.ToolArguments__c));
+                Datetime existingTs = toolCallTimestampByCallId.get(s.ToolCallId__c);
+                if (existingTs == null || (s.Timestamp__c != null && s.Timestamp__c > existingTs)) {
+                    toolCallTimestampByCallId.put(s.ToolCallId__c, s.Timestamp__c);
+                }
+            }
+        }
+
+        Set<String> resolvedCallIds = new Set<String>();
+        for (ExecutionStep__c s : [
+            SELECT ToolCallId__c, ToolName__c, Timestamp__c, IsError__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :executionId AND TurnIdentifier__c = :turnIdentifier AND StepType__c = 'ToolResult' AND ToolCallId__c != NULL
+        ]) {
+            resolvedCallIds.add(s.ToolCallId__c);
+            Datetime latestResultTs = latestResultByToolName.get(s.ToolName__c);
+            if (latestResultTs == null || (s.Timestamp__c != null && s.Timestamp__c > latestResultTs)) {
                 latestResultByToolName.put(s.ToolName__c, s.Timestamp__c);
             }
             if (!s.IsError__c) {
                 successfulToolNames.add(s.ToolName__c);
             }
         }
-        // Also check the in-memory buffer
         for (ExecutionStep__c s : TransactionContext.getInstance().getBufferedExecutionSteps(executionId)) {
-            if (s.StepType__c == 'ToolResult' && s.TurnIdentifier__c == turnIdentifier && failingToolNames.contains(s.ToolName__c)) {
-                Datetime existing = latestResultByToolName.get(s.ToolName__c);
-                if (existing == null || (s.Timestamp__c != null && s.Timestamp__c > existing)) {
+            if (s.StepType__c == 'ToolResult' && s.TurnIdentifier__c == turnIdentifier && String.isNotBlank(s.ToolCallId__c)) {
+                resolvedCallIds.add(s.ToolCallId__c);
+                Datetime latestResultTs = latestResultByToolName.get(s.ToolName__c);
+                if (latestResultTs == null || (s.Timestamp__c != null && s.Timestamp__c > latestResultTs)) {
                     latestResultByToolName.put(s.ToolName__c, s.Timestamp__c);
                 }
                 if (!s.IsError__c) {
@@ -598,13 +618,39 @@ public inherited sharing class OrchestrationService {
             }
         }
 
-        // Keep only the failures that are the LATEST result for their tool name
-        // (i.e. there is no newer result that proves a retry already happened)
+        // Keep only failures that do not have a later retry attempt with the same
+        // tool name and normalized arguments in this turn.
         for (String callId : failureByCallId.keySet()) {
             ExecutionStep__c s = failureByCallId.get(callId);
-            Datetime latestTs = latestResultByToolName.get(s.ToolName__c);
-            if (latestTs != null && (s.Timestamp__c == null || latestTs > s.Timestamp__c)) {
-                toolCallIdsToRemove.add(callId);
+            String originalArgs = normalizedArgsByCallId.get(callId);
+            for (String candidateCallId : argsByCallId.keySet()) {
+                if (candidateCallId == callId) {
+                    continue;
+                }
+                if (s.ToolName__c != toolNameByCallId.get(candidateCallId)) {
+                    continue;
+                }
+                if (originalArgs != normalizeRetryArguments(argsByCallId.get(candidateCallId))) {
+                    continue;
+                }
+                Datetime retryTimestamp = toolCallTimestampByCallId.get(candidateCallId);
+                if (retryTimestamp == null || (s.Timestamp__c != null && retryTimestamp <= s.Timestamp__c)) {
+                    continue;
+                }
+                if (resolvedCallIds.contains(candidateCallId) || retryTimestamp != null) {
+                    toolCallIdsToRemove.add(callId);
+                    break;
+                }
+            }
+
+            // Fallback for older/stubbed test data that only records ToolResult rows:
+            // if the same tool has any later result in this turn, treat the original
+            // failure as already retried even without a matching ToolCall row.
+            if (!toolCallIdsToRemove.contains(callId) && !toolNameByCallId.containsKey(callId) && !normalizedArgsByCallId.containsKey(callId)) {
+                Datetime latestResultTs = latestResultByToolName.get(s.ToolName__c);
+                if (latestResultTs != null && (s.Timestamp__c == null || latestResultTs > s.Timestamp__c)) {
+                    toolCallIdsToRemove.add(callId);
+                }
             }
         }
         for (String callId : toolCallIdsToRemove) {
@@ -616,30 +662,36 @@ public inherited sharing class OrchestrationService {
             return result;
         }
 
-        // ── 3. Fetch original ToolCall arguments (for enforcement message) ─────
-        Set<String> remainingCallIds = failureByCallId.keySet();
-        Map<String, String> argsByCallId = new Map<String, String>();
-        for (ExecutionStep__c tc : [
-            SELECT ToolCallId__c, ToolArguments__c
-            FROM ExecutionStep__c
-            WHERE AgentExecution__c = :executionId AND TurnIdentifier__c = :turnIdentifier AND StepType__c = 'ToolCall' AND ToolCallId__c IN :remainingCallIds
-        ]) {
-            argsByCallId.put(tc.ToolCallId__c, tc.ToolArguments__c);
-        }
-        // Merge buffered ToolCall steps
-        for (ExecutionStep__c s : TransactionContext.getInstance().getBufferedExecutionSteps(executionId)) {
-            if (s.StepType__c == 'ToolCall' && s.TurnIdentifier__c == turnIdentifier && remainingCallIds.contains(s.ToolCallId__c)) {
-                argsByCallId.put(s.ToolCallId__c, s.ToolArguments__c);
+        Set<String> eligibleToolNames = new Set<String>();
+        Boolean evaluatedEligibility = false;
+        if (agentDefinitionId != null) {
+            try {
+                AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinition(agentDefinitionId);
+                List<AgentCapability__c> failureCaps = new List<AgentCapability__c>();
+                for (String callId : failureByCallId.keySet()) {
+                    String toolName = failureByCallId.get(callId).ToolName__c;
+                    if (String.isNotBlank(toolName)) {
+                        failureCaps.add(new AgentCapability__c(CapabilityName__c = toolName));
+                    }
+                }
+                evaluatedEligibility = !failureCaps.isEmpty();
+                for (AgentCapability__c cap : ToolFlowGraphService.filterToEligible(failureCaps, agentDef, executionId)) {
+                    eligibleToolNames.add(cap.CapabilityName__c);
+                }
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, pfx + 'Could not evaluate flow-graph eligibility for retry enforcement: ' + e.getMessage());
             }
         }
-
-        // Build set of successfully executed tool names in this turn
-        Set<String> satisfiedTools = new Set<String>(successfulToolNames);
 
         // ── 4. Build result list ───────────────────────────────────────────────
         for (String callId : failureByCallId.keySet()) {
             ExecutionStep__c s = failureByCallId.get(callId);
             String tName = s.ToolName__c;
+
+            if (evaluatedEligibility && !eligibleToolNames.contains(tName)) {
+                System.debug(LoggingLevel.DEBUG, pfx + 'Skipping unretried failure because tool is not currently eligible: ' + tName);
+                continue;
+            }
 
             UnretriedFailure failure = new UnretriedFailure();
             failure.toolName = tName;
@@ -651,6 +703,17 @@ public inherited sharing class OrchestrationService {
 
         System.debug(LoggingLevel.INFO, pfx + 'Detected ' + result.size() + ' unretried retryable failure(s).');
         return result;
+    }
+
+    private static String normalizeRetryArguments(String toolArguments) {
+        if (String.isBlank(toolArguments)) {
+            return '';
+        }
+        try {
+            return JSON.serialize(JSON.deserializeUntyped(toolArguments));
+        } catch (Exception e) {
+            return toolArguments.trim();
+        }
     }
 
     /**

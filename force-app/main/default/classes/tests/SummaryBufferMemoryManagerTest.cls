@@ -67,6 +67,11 @@ private class SummaryBufferMemoryManagerTest {
         insert steps;
     }
 
+    @TestSetup
+    static void resetTransactionContext() {
+        TransactionContext.resetInstance();
+    }
+
     @IsTest
     static void testGetHistoryPayload_UnsummarizedOnly() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
@@ -83,6 +88,36 @@ private class SummaryBufferMemoryManagerTest {
         String allContent = collectContent(history);
         System.assert(!allContent.contains('Old question'), 'Summarized turns should be excluded');
         System.assert(allContent.contains('New question'), 'Unsummarized turns should be included');
+    }
+
+    @IsTest
+    static void testGetHistoryPayload_IncludesBufferedUnsummarizedSteps() {
+        TransactionContext.resetInstance();
+
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withLLM(llm.Id).build();
+        agent.MemoryStrategy__c = 'Summary Buffer';
+        insert agent;
+
+        AgentExecution__c execution = createExecution(agent.Id);
+        createSteps(execution.Id);
+
+        TransactionContext txnCtx = TransactionContext.getInstance();
+        txnCtx.enableDeferredDMLMode();
+        ExecutionStepService stepSvc = new ExecutionStepService();
+        stepSvc.createUserInputStep(execution.Id, 'Buffered question', 'turn-3', 3);
+        stepSvc.createAgentResponseStep(execution.Id, 'Buffered answer', 'turn-3', 3);
+
+        SummaryBufferMemoryManager mgr = new SummaryBufferMemoryManager();
+        List<Map<String, Object>> history = mgr.getHistoryPayload(execution.Id, agent, llm, '[test]');
+
+        String allContent = collectContent(history);
+        System.assert(allContent.contains('New question'), 'Committed unsummarized history should still be included');
+        System.assert(allContent.contains('Buffered question'), 'Buffered unsummarized user input should be merged into summary buffer history');
+        System.assert(allContent.contains('Buffered answer'), 'Buffered unsummarized assistant output should be merged into summary buffer history');
+
+        txnCtx.disableDeferredDMLMode();
+        TransactionContext.resetInstance();
     }
 
     @IsTest

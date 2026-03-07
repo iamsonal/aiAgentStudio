@@ -176,6 +176,35 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                     return null;
                 }
 
+                if (
+                    execution.ExecutionStatus__c == 'Processing' &&
+                    (String.isBlank(execution.WorkerClaimToken__c) ||
+                    String.isBlank(payload.claimToken) ||
+                    execution.WorkerClaimToken__c != payload.claimToken)
+                ) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Processing pre-assigned execution is missing a valid claim token. Rejecting worker.');
+                    return null;
+                }
+
+                if (
+                    String.isNotBlank(payload.turnIdentifier) &&
+                    String.isNotBlank(execution.CurrentTurnIdentifier__c) &&
+                    execution.CurrentTurnIdentifier__c != payload.turnIdentifier
+                ) {
+                    System.debug(
+                        LoggingLevel.WARN,
+                        logPrefix +
+                            'Pre-assigned execution turn mismatch for ' +
+                            executionId +
+                            '. Worker turn=' +
+                            payload.turnIdentifier +
+                            ', execution turn=' +
+                            execution.CurrentTurnIdentifier__c +
+                            '. Rejecting worker.'
+                    );
+                    return null;
+                }
+
                 if (execution.ExecutionStatus__c == 'Processing') {
                     System.debug(LoggingLevel.INFO, logPrefix + 'Function agent detected - execution already Processing, skipping status update');
                     return execution;

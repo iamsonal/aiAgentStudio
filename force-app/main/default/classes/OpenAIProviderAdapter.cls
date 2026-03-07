@@ -139,12 +139,10 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
      * Preset behaviour:
      *   Standard → block if `flagged == true`
      *   Off      → returns null (no check performed)
-     *
-     * Fails open: any API error returns ThreatAssessment.safe() so agent execution is never
-     * blocked by a transient moderation API failure.
      */
     public override ThreatAssessment checkMessageSafety(String userMessage, LLMConfiguration__c llmConfig, AIAgentDefinition__c agentConfig) {
         String preset = normalizePromptSafetyPreset(agentConfig?.PromptSafetyPreset__c);
+        String failureMode = normalizePromptSafetyFailureMode(agentConfig?.PromptSafetyFailureMode__c);
         if (preset == PRESET_OFF) {
             return null;
         }
@@ -166,14 +164,13 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
             System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'Moderation response status: ' + res.getStatusCode());
 
             if (res.getStatusCode() != 200) {
-                System.debug(LoggingLevel.WARN, LOG_PREFIX + 'Moderation API returned HTTP ' + res.getStatusCode() + '. Failing open.');
-                return ThreatAssessment.safe(userMessage);
+                return buildModerationFailureAssessment(userMessage, 'Moderation API returned HTTP ' + res.getStatusCode(), failureMode);
             }
 
             Map<String, Object> responseMap = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
             List<Object> results = (List<Object>) responseMap.get('results');
             if (results == null || results.isEmpty()) {
-                return ThreatAssessment.safe(userMessage);
+                return buildModerationFailureAssessment(userMessage, 'Moderation API returned no results.', failureMode);
             }
 
             Map<String, Object> result = (Map<String, Object>) results[0];
@@ -223,9 +220,26 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
 
             return assessment;
         } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, LOG_PREFIX + 'Moderation check threw exception: ' + e.getMessage() + '. Failing open.');
-            return ThreatAssessment.safe(userMessage);
+            return buildModerationFailureAssessment(userMessage, 'Moderation check threw exception: ' + e.getMessage(), failureMode);
         }
+    }
+
+    private static ThreatAssessment buildModerationFailureAssessment(String content, String reason, String failureMode) {
+        if (failureMode == BaseProviderAdapter.FAILURE_MODE_FAIL_CLOSED) {
+            System.debug(LoggingLevel.WARN, LOG_PREFIX + reason + ' Failing closed.');
+            ThreatAssessment assessment = ThreatAssessment.fromAnalysis(
+                content,
+                1.0,
+                new List<ThreatAssessment.ThreatIndicator>{
+                    new ThreatAssessment.ThreatIndicator('Moderation', 'System', 'moderation_unavailable', reason, 1.0)
+                }
+            );
+            assessment.applyResponseMode('Block', 0.0);
+            return assessment;
+        }
+
+        System.debug(LoggingLevel.WARN, LOG_PREFIX + reason + ' Failing open.');
+        return ThreatAssessment.safe(content);
     }
 
     private static String mapModerationCategoryToGroup(String category) {

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PromptSafetyFailureMode__c</fullName>
+    <description>Controls what happens when provider-native prompt safety checks cannot complete. Fail Open allows the prompt through on moderation API errors. Fail Closed blocks the prompt until moderation succeeds.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Fail Open: allow the prompt when moderation is unavailable. Fail Closed: block the prompt when moderation is unavailable or returns an invalid response.</inlineHelpText>
+    <label>Prompt Safety Failure Mode</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Fail Open</fullName>
+                <default>true</default>
+                <label>Fail Open</label>
+            </value>
+            <value>
+                <fullName>Fail Closed</fullName>
+                <default>false</default>
+                <label>Fail Closed</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -248,7 +248,8 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
                 0L,
                 true,
                 null,
-                isError
+                isError,
+                false
             );
             System.debug(LoggingLevel.INFO, logPrefix + 'Created ToolResult step for agent capability: ' + toolName);
         } catch (Exception e) {
@@ -530,17 +531,29 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
         BaseAgentOrchestrator.ResumeOptions options,
         String logPrefix
     ) {
-        // Update execution with new turn identifier
-        AgentStateService agentStateSvc = new AgentStateService();
-        agentStateSvc.updateStatus(executionId, 'Processing', AIAgentConstants.STATUS_PROCESSING, newTurnIdentifier, 'Resuming conversational execution');
-
         if (resumePoint.resumeType == BaseAgentOrchestrator.ResumeType.RETRY_FAILED_TOOL) {
             // Retry the failed tool
             return retryFailedTool(executionId, execution, newTurnIdentifier, resumePoint, logPrefix);
         } else {
+            // Update execution with new turn identifier
+            AgentStateService agentStateSvc = new AgentStateService();
+            agentStateSvc.updateStatus(executionId, 'Processing', AIAgentConstants.STATUS_PROCESSING, newTurnIdentifier, 'Resuming conversational execution');
             // Continue with LLM call
             return continueWithLLMCall(executionId, execution, newTurnIdentifier, resumePoint, logPrefix);
         }
+    }
+
+    protected override Boolean shouldDeferResumePreparation(
+        AgentExecution__c execution,
+        BaseAgentOrchestrator.ResumePoint resumePoint,
+        BaseAgentOrchestrator.ResumeOptions options
+    ) {
+        if (resumePoint == null || resumePoint.resumeType != BaseAgentOrchestrator.ResumeType.RETRY_FAILED_TOOL || String.isBlank(resumePoint.toolName)) {
+            return false;
+        }
+
+        AgentCapability__c capability = AIAgentConfigService.getCapability(agentDefinition.Id, resumePoint.toolName);
+        return capability != null && capability.RunAsynchronously__c != true;
     }
 
     /**
@@ -622,6 +635,11 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
         CapabilityExecutionService capabilityService = new CapabilityExecutionService();
         ActionOutcome toolOutcome = capabilityService.executeSingleAction(capability, toolArguments, actionContext);
 
+        if (shouldDeferResumePreparation(execution, resumePoint, null)) {
+            update new AgentExecution__c(Id = executionId, CurrentTurnIdentifier__c = newTurnIdentifier, AsyncToolTurnIdentifier__c = null);
+            super.logResumeAttempt(executionId, execution, newTurnIdentifier, resumePoint, null, logPrefix);
+        }
+
         // Create tool call and result steps with resume tracking
         ExecutionStepService stepSvc = new ExecutionStepService();
         stepSvc.createToolCallStep(
@@ -637,7 +655,10 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
             null,
             null,
             capability.Id,
-            true // isResumed = true
+            null,
+            null,
+            null,
+            true
         );
 
         String toolResultJson = OrchestrationService.serializeActionOutcome(toolOutcome, logPrefix);

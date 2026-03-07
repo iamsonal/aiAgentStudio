@@ -23,7 +23,19 @@ private class ToolFlowGraphServiceTest {
     }
 
     private static Map<String, Object> rule(Object fromVal, String ruleType, List<String> toVal) {
-        return new Map<String, Object>{ 'fromTools' => fromVal, 'type' => ruleType, 'toTools' => toVal };
+        List<String> fromTools = new List<String>();
+        if (fromVal instanceof String) {
+            fromTools.add((String) fromVal);
+        } else if (fromVal instanceof List<String>) {
+            fromTools.addAll((List<String>) fromVal);
+        } else if (fromVal instanceof List<Object>) {
+            for (Object item : (List<Object>) fromVal) {
+                if (item != null) {
+                    fromTools.add(String.valueOf(item));
+                }
+            }
+        }
+        return new Map<String, Object>{ 'fromTools' => fromTools, 'type' => ruleType, 'toTools' => toVal };
     }
 
     // ── parseGraph ──────────────────────────────────────────────────────────────
@@ -36,12 +48,15 @@ private class ToolFlowGraphServiceTest {
     }
 
     @IsTest
-    static void testParseGraph_FromAsString_NormalisedToList() {
+    static void testParseGraph_FromAsString_Rejected() {
         String json = '{"version":"3.0","entry":["tool_a"],"flow":[{"fromTools":"tool_a","type":"sequential","toTools":["tool_b"]}]}';
-        ToolFlowGraphService.FlowGraph g = ToolFlowGraphService.parseGraph(json);
-        System.assertEquals(1, g.flow.size());
-        System.assertEquals(1, g.flow[0].fromTools.size());
-        System.assertEquals('tool_a', g.flow[0].fromTools[0]);
+        Boolean threw = false;
+        try {
+            ToolFlowGraphService.parseGraph(json);
+        } catch (Exception e) {
+            threw = true;
+        }
+        System.assertEquals(true, threw, 'String-valued fromTools should be rejected');
     }
 
     @IsTest
@@ -254,6 +269,55 @@ private class ToolFlowGraphServiceTest {
 
         List<AgentCapability__c> result = ToolFlowGraphService.filterToEligible(caps, agentDef, null);
         System.assertEquals(1, result.size(), 'Malformed graph: all capabilities returned as fallback');
+    }
+
+    @IsTest
+    static void testFilterToEligible_ExclusiveChoicePersistsFromExecutionHistory() {
+        String graphJson = JSON.serialize(
+            new Map<String, Object>{
+                'version' => '3.0',
+                'entry' => new List<String>{ 'evaluate_case' },
+                'flow' => new List<Map<String, Object>>{ rule('evaluate_case', 'exclusive', new List<String>{ 'branch_a', 'branch_b' }) }
+            }
+        );
+        AIAgentDefinition__c agentDef = new AIAgentDefinition__c(EnableToolFlowGraph__c = true, ToolFlowGraph__c = graphJson);
+
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
+        insert new List<ExecutionStep__c>{
+            new ExecutionStep__c(
+                AgentExecution__c = setup.agentExecution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolName__c = 'evaluate_case',
+                ToolCallId__c = 'call-evaluate-case',
+                IsError__c = false
+            ),
+            new ExecutionStep__c(
+                AgentExecution__c = setup.agentExecution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolName__c = 'branch_a',
+                ToolCallId__c = 'call-branch-a',
+                IsError__c = false
+            )
+        };
+
+        TransactionContext.resetInstance();
+
+        List<AgentCapability__c> caps = new List<AgentCapability__c>{
+            new AgentCapability__c(CapabilityName__c = 'evaluate_case'),
+            new AgentCapability__c(CapabilityName__c = 'branch_a'),
+            new AgentCapability__c(CapabilityName__c = 'branch_b')
+        };
+
+        List<AgentCapability__c> result = ToolFlowGraphService.filterToEligible(caps, agentDef, setup.agentExecution.Id);
+        Set<String> eligibleNames = new Set<String>();
+        for (AgentCapability__c cap : result) {
+            eligibleNames.add(cap.CapabilityName__c);
+        }
+
+        System.assert(eligibleNames.contains('branch_a'), 'Chosen branch should remain eligible after it succeeds');
+        System.assert(!eligibleNames.contains('branch_b'), 'Sibling branch should stay locked even in a later transaction');
     }
 
     // ── isGraphStale / generateCapabilitiesHash ────────────────────────────────

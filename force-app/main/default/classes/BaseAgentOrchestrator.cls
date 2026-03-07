@@ -95,38 +95,15 @@ public inherited sharing abstract class BaseAgentOrchestrator implements IAgentO
 
         try {
             AgentExecution__c execution = validateResumable(executionId, logPrefix);
-
-            // When resuming a Failed execution, CurrentTurnIdentifier__c still holds the
-            // failed turn ID and AsyncToolTurnIdentifier__c may still be set from an async
-            // tool batch that was in flight when the failure occurred.
-            //
-            // The turn-safe guard in AgentStateService.updateStatus() requires the record's
-            // current turn to match the NEW turn ID (or be null) before it will update — so
-            // the first updateStatus() inside executeResume() gets silently skipped for
-            // ConversationalOrchestrator and EmailOrchestrator (which rely on updateStatus()
-            // to stamp the new turn ID rather than doing a direct DML first like Function and
-            // Pipeline orchestrators do). The enqueued follow-up job then carries the new turn
-            // ID while the DB still has the old one, causing a StaleExecutionException.
-            //
-            // Fix: forcibly clear both fields here so the null-branch of the turn guard
-            // accepts the first updateStatus() call and stamps the new turn ID correctly.
-            if ('Failed'.equals(execution.ExecutionStatus__c) && String.isNotBlank(execution.CurrentTurnIdentifier__c)) {
-                update new AgentExecution__c(Id = executionId, CurrentTurnIdentifier__c = null, AsyncToolTurnIdentifier__c = null);
-                // Do NOT null the in-memory execution.CurrentTurnIdentifier__c here.
-                // FunctionOrchestrator overrides generateResumeIdentifier()
-                // to read execution.CurrentTurnIdentifier__c and PRESERVE it as the new turn ID.
-                // Nulling it would cause them to generate a fresh UUID and break their resume logic.
-                // Only the DB record needs to be null so the turn-safe guard's null-branch fires.
-                System.debug(
-                    LoggingLevel.INFO,
-                    logPrefix + 'Cleared stale CurrentTurnIdentifier__c (and AsyncToolTurnIdentifier__c) on DB to allow resume state transition.'
-                );
-            }
+            ResumePoint resumePoint = determineResumePoint(executionId, execution, options, logPrefix);
 
             String newTurnIdentifier = generateResumeIdentifier(execution, options);
             System.debug(LoggingLevel.INFO, logPrefix + 'Resume turn identifier: ' + newTurnIdentifier);
-            ResumePoint resumePoint = determineResumePoint(executionId, execution, options, logPrefix);
-            logResumeAttempt(executionId, execution, newTurnIdentifier, resumePoint, options, logPrefix);
+
+            if (!shouldDeferResumePreparation(execution, resumePoint, options)) {
+                prepareResumeForExecution(executionId, execution, newTurnIdentifier, resumePoint, options, logPrefix);
+            }
+
             return executeResume(executionId, execution, newTurnIdentifier, resumePoint, options, logPrefix);
         } catch (AIAgentException.OrchestrationException e) {
             throw e;
@@ -323,6 +300,44 @@ public inherited sharing abstract class BaseAgentOrchestrator implements IAgentO
     protected virtual String generateResumeIdentifier(AgentExecution__c execution, BaseAgentOrchestrator.ResumeOptions options) {
         return generateTurnIdentifier();
     }
+
+    protected virtual Boolean shouldDeferResumePreparation(AgentExecution__c execution, ResumePoint resumePoint, BaseAgentOrchestrator.ResumeOptions options) {
+        return false;
+    }
+
+    protected void prepareResumeForExecution(
+        Id executionId,
+        AgentExecution__c execution,
+        String newTurnIdentifier,
+        ResumePoint resumePoint,
+        BaseAgentOrchestrator.ResumeOptions options,
+        String logPrefix
+    ) {
+        clearResumeTurnGuard(executionId, execution, logPrefix);
+        logResumeAttempt(executionId, execution, newTurnIdentifier, resumePoint, options, logPrefix);
+    }
+
+    protected void clearResumeTurnGuard(Id executionId, AgentExecution__c execution, String logPrefix) {
+        // When resuming a Failed execution, CurrentTurnIdentifier__c still holds the
+        // failed turn ID and AsyncToolTurnIdentifier__c may still be set from an async
+        // tool batch that was in flight when the failure occurred.
+        //
+        // The turn-safe guard in AgentStateService.updateStatus() requires the record's
+        // current turn to match the NEW turn ID (or be null) before it will update — so
+        // the first updateStatus() inside executeResume() gets silently skipped for
+        // ConversationalOrchestrator and EmailOrchestrator (which rely on updateStatus()
+        // to stamp the new turn ID rather than doing a direct DML first like Function and
+        // Pipeline orchestrators do). The enqueued follow-up job then carries the new turn
+        // ID while the DB still has the old one, causing a StaleExecutionException.
+        if ('Failed'.equals(execution.ExecutionStatus__c) && String.isNotBlank(execution.CurrentTurnIdentifier__c)) {
+            update new AgentExecution__c(Id = executionId, CurrentTurnIdentifier__c = null, AsyncToolTurnIdentifier__c = null);
+            System.debug(
+                LoggingLevel.INFO,
+                logPrefix + 'Cleared stale CurrentTurnIdentifier__c (and AsyncToolTurnIdentifier__c) on DB to allow resume state transition.'
+            );
+        }
+    }
+
     protected virtual void logResumeAttempt(
         Id executionId,
         AgentExecution__c execution,

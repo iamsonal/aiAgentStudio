@@ -70,6 +70,24 @@ private class OpenAIProviderAdapterTest {
         System.assertEquals(BaseProviderAdapter.PRESET_STANDARD, BaseProviderAdapter.normalizePromptSafetyPreset(null));
         System.assertEquals(BaseProviderAdapter.PRESET_STANDARD, BaseProviderAdapter.normalizePromptSafetyPreset(''));
         System.assertEquals(BaseProviderAdapter.PRESET_OFF, BaseProviderAdapter.normalizePromptSafetyPreset('Off'));
+        System.assertEquals(BaseProviderAdapter.FAILURE_MODE_FAIL_OPEN, BaseProviderAdapter.normalizePromptSafetyFailureMode(null));
+        System.assertEquals(BaseProviderAdapter.FAILURE_MODE_FAIL_CLOSED, BaseProviderAdapter.normalizePromptSafetyFailureMode('Fail Closed'));
+    }
+
+    @IsTest
+    static void testCheckMessageSafety_FailClosedBlocksOnModerationOutage() {
+        Test.setMock(HttpCalloutMock.class, new CapturingMock(500, '{"error":"temporarily unavailable"}'));
+
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().build();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().build();
+        agent.PromptSafetyPreset__c = 'Standard';
+        agent.PromptSafetyFailureMode__c = 'Fail Closed';
+
+        OpenAIProviderAdapter adapter = new OpenAIProviderAdapter();
+        ThreatAssessment assessment = adapter.checkMessageSafety('Review this prompt', llm, agent);
+
+        System.assertNotEquals(null, assessment, 'Moderation outage should still return an assessment');
+        System.assertEquals(true, assessment.shouldBlock(), 'Fail Closed should block when moderation cannot be completed');
     }
 
     @IsTest

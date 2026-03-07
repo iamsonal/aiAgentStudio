@@ -416,6 +416,61 @@ private class LLMInteractionServiceTest {
         System.assertEquals(true, maskedTokenSentToLLM, 'SSN should be replaced with a masked token in the outbound LLM request');
     }
 
+    @IsTest
+    static void testBuildOutboundSafetyPayload_IncludesHistoryAndSystemMessages() {
+        List<Map<String, Object>> messages = new List<Map<String, Object>>{
+            new Map<String, Object>{ 'role' => 'system', 'content' => 'System guardrails' },
+            new Map<String, Object>{ 'role' => 'assistant', 'content' => 'Previous response' },
+            new Map<String, Object>{ 'role' => 'user', 'content' => 'Follow-up question' }
+        };
+
+        String payload = LLMInteractionService.buildOutboundSafetyPayload(messages);
+
+        System.assert(payload.contains('system: System guardrails'), 'System messages should be included in outbound safety moderation');
+        System.assert(payload.contains('user: Follow-up question'), 'User messages should be included in outbound safety moderation');
+        System.assertEquals(false, payload.contains('assistant: Previous response'), 'Assistant content should not be included in outbound safety moderation');
+    }
+
+    @IsTest
+    static void testPrepareAndCallLLM_NoCurrentUserMessage_StillRunsSafetyCheck() {
+        AIAgentFrameworkSettings.clearCache();
+        TransactionContext.resetInstance();
+        TransactionContext.getInstance().enableDeferredDMLMode();
+
+        AgentContext ctx = getContext();
+        insert new ExecutionStep__c(
+            AgentExecution__c = ctx.executionId,
+            StepType__c = 'UserInput',
+            StepRole__c = 'User',
+            Content__c = 'Prior user message for moderation',
+            TurnIdentifier__c = 'turn-history-001',
+            TurnCount__c = 1,
+            Timestamp__c = Datetime.now().addSeconds(-10),
+            IsInternal__c = false
+        );
+
+        ProviderResult stubResult = new ProviderResult('History-only follow-up.', 5, 7, 12, new List<Map<String, String>>(), null, null, 'gpt-4o-mini', 15L);
+        installStubAdapter(stubResult, null, ThreatAssessment.safe('Prior user message for moderation'));
+
+        LLMInteractionService svc = new LLMInteractionService(
+            ctx.executionId,
+            UserInfo.getUserId(),
+            ctx.agentId,
+            ctx.llmId,
+            'turn-history-followup-001',
+            2,
+            null,
+            false,
+            IDecisionStepLogger.create(ctx.executionId, 'turn-history-followup-001', UserInfo.getUserId())
+        );
+
+        LLMInteractionService.LLMInteractionResult result = svc.prepareAndCallLLM(null);
+
+        System.assertEquals(true, result.isSuccess, 'Follow-up LLM call without a current user message should still succeed');
+        System.assert(String.isNotBlank(stubCapturedSafetyPayload), 'Safety check should run even without a current user message payload');
+        System.assert(stubCapturedSafetyPayload.contains('Prior user message for moderation'), 'Safety payload should include prior user content from history');
+    }
+
     private class AgentContext {
         public Id agentId;
         public Id llmId;
@@ -452,6 +507,7 @@ private class LLMInteractionServiceTest {
         stubNextException = toThrow;
         stubNextSafetyResult = safetyResult;
         stubCapturedMessages = null;
+        stubCapturedSafetyPayload = null;
         LLMInteractionService.adapterInstanceCache.put('OpenAIProviderAdapter', new StubLLMAdapter());
     }
 
@@ -460,6 +516,7 @@ private class LLMInteractionServiceTest {
     private static ThreatAssessment stubNextSafetyResult;
     // Captures the exact messages payload the adapter received; null until sendMessage() is called.
     private static List<Map<String, Object>> stubCapturedMessages;
+    private static String stubCapturedSafetyPayload;
 
     private class StubLLMAdapter implements ILLMProviderAdapter {
         public ProviderResult sendMessage(
@@ -476,6 +533,7 @@ private class LLMInteractionServiceTest {
         }
 
         public ThreatAssessment checkMessageSafety(String userMessage, LLMConfiguration__c llmConfig, AIAgentDefinition__c agentConfig) {
+            stubCapturedSafetyPayload = userMessage;
             return stubNextSafetyResult;
         }
     }

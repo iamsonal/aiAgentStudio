@@ -59,6 +59,7 @@ public inherited sharing class AIAgentConfigService {
         // Trust Layer presets (simplified configuration)
         'PIIMaskingPreset__c',
         'PromptSafetyPreset__c',
+        'PromptSafetyFailureMode__c',
         // Error handling
         'ErrorRecoveryMode__c',
         // Email agent configuration

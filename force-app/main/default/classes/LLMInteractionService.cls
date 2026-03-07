@@ -288,14 +288,9 @@ public inherited sharing class LLMInteractionService {
             // Provider-native safety pre-check must run on the masked outbound content, not raw user text.
             // Adapters that support it (e.g. OpenAI → /v1/moderations) perform the check and return a ThreatAssessment.
             // Adapters with no pre-check capability return null — execution continues normally.
-            if (
-                currentTurnPayloadIndex != null &&
-                currentTurnPayloadIndex < finalMessagesPayload.size() &&
-                finalMessagesPayload[currentTurnPayloadIndex] != null &&
-                String.isNotBlank((String) finalMessagesPayload[currentTurnPayloadIndex].get('content'))
-            ) {
-                String outboundUserMessage = (String) finalMessagesPayload[currentTurnPayloadIndex].get('content');
-                ThreatAssessment safetyResult = adapter.checkMessageSafety(outboundUserMessage, llmConfig, agentConfig);
+            String outboundSafetyPayload = buildOutboundSafetyPayload(finalMessagesPayload);
+            if (String.isNotBlank(outboundSafetyPayload)) {
+                ThreatAssessment safetyResult = adapter.checkMessageSafety(outboundSafetyPayload, llmConfig, agentConfig);
                 if (safetyResult != null) {
                     if (this.decisionLogger != null) {
                         this.decisionLogger.log(IDecisionStepLogger.EventType.SAFETY_CHECK, new List<Object>{ safetyResult });
@@ -322,8 +317,20 @@ public inherited sharing class LLMInteractionService {
                     }
 
                     if (safetyResult.hasSanitizedContent()) {
-                        finalMessagesPayload[currentTurnPayloadIndex].put('content', safetyResult.getSanitizedContent());
-                        System.debug(LoggingLevel.INFO, logPrefix + 'Applied sanitization to masked outbound user message per safety pre-check.');
+                        if (
+                            currentTurnPayloadIndex != null &&
+                            currentTurnPayloadIndex < finalMessagesPayload.size() &&
+                            finalMessagesPayload[currentTurnPayloadIndex] != null
+                        ) {
+                            finalMessagesPayload[currentTurnPayloadIndex].put('content', safetyResult.getSanitizedContent());
+                            System.debug(LoggingLevel.INFO, logPrefix + 'Applied sanitization to masked outbound user message per safety pre-check.');
+                        } else {
+                            System.debug(
+                                LoggingLevel.INFO,
+                                logPrefix +
+                                'Provider safety returned sanitized content without a current user message payload. Leaving outbound payload unchanged.'
+                            );
+                        }
                     }
                 }
             }
@@ -532,6 +539,31 @@ public inherited sharing class LLMInteractionService {
             : ' (tracking only, no enforcement threshold)';
         System.debug(LoggingLevel.DEBUG, logPrefix + 'Confidence guidance instructions injected for agent type "' + agentType + '"' + thresholdNote);
         return AIAgentConstants.PROMPT_SECTION_CONFIDENCE_GUIDANCE + guidance;
+    }
+
+    @TestVisible
+    private static String buildOutboundSafetyPayload(List<Map<String, Object>> messagesPayload) {
+        if (messagesPayload == null || messagesPayload.isEmpty()) {
+            return null;
+        }
+
+        List<String> parts = new List<String>();
+        for (Map<String, Object> msg : messagesPayload) {
+            if (msg == null) {
+                continue;
+            }
+
+            String role = msg.get('role') != null ? String.valueOf(msg.get('role')) : null;
+            String content = msg.get('content') != null ? String.valueOf(msg.get('content')) : null;
+            if (String.isBlank(content)) {
+                continue;
+            }
+            if (role == AIAgentConstants.ROLE_USER || role == AIAgentConstants.ROLE_SYSTEM) {
+                parts.add(role + ': ' + content);
+            }
+        }
+
+        return parts.isEmpty() ? null : String.join(parts, '\n\n');
     }
 
     private String getOrchestratorPromptAdditions(

@@ -38,7 +38,19 @@ private class ExecutionStepServiceTest {
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         ExecutionStepService svc = new ExecutionStepService();
-        Id stepId = svc.createToolResultStep(execution.Id, 'call_tool_001', 'test_tool', '{"isSuccess":true}', 'turn-step-002', 1, 25L, true, null);
+        Id stepId = svc.createToolResultStep(
+            execution.Id,
+            'call_tool_001',
+            'test_tool',
+            '{"isSuccess":true}',
+            'turn-step-002',
+            1,
+            25L,
+            true,
+            null,
+            false,
+            false
+        );
 
         ExecutionStep__c toolStep = [
             SELECT StepType__c, StepRole__c, IsAsyncToolExecution__c
@@ -114,7 +126,7 @@ private class ExecutionStepServiceTest {
     }
 
     @IsTest
-    static void testCreateToolCallStep_ExtractsConfidenceAndSuggestion() {
+    static void testCreateToolCallStep_StoresExplicitConfidenceAndSuggestion() {
         AgentExecution__c execution = [SELECT Id, AIAgentDefinition__c FROM AgentExecution__c LIMIT 1];
         AgentCapability__c capability = TestFactory.newCapability()
             .withAgent(execution.AIAgentDefinition__c)
@@ -137,7 +149,11 @@ private class ExecutionStepServiceTest {
             null,
             'gpt-4o-mini',
             12L,
-            capability.Id
+            capability.Id,
+            null,
+            87.5,
+            'Proceed to validate',
+            false
         );
 
         ExecutionStep__c step = [
@@ -145,8 +161,8 @@ private class ExecutionStepServiceTest {
             FROM ExecutionStep__c
             WHERE Id = :stepId
         ];
-        System.assertEquals(87.5, step.Confidence__c, 'Confidence should be extracted from tool arguments');
-        System.assertEquals('Proceed to validate', step.NextStepSuggestion__c, 'Next step suggestion should be extracted');
+        System.assertEquals(87.5, step.Confidence__c, 'Confidence should be stored from the explicit API parameter');
+        System.assertEquals('Proceed to validate', step.NextStepSuggestion__c, 'Next step suggestion should be stored from the explicit API parameter');
     }
 
     @IsTest
@@ -239,7 +255,7 @@ private class ExecutionStepServiceTest {
 
         // JSON with 'retryable: true' (new key format)
         String retryableResult = '{"success":false,"code":"CONNECT_API_ERROR","error":"Timeout","retryable":true}';
-        Id stepId = svc.createToolResultStep(execution.Id, 'call-rp-001', 'sync_tool', retryableResult, 'turn-rp-001', 1, 10L, false, null, true, false, false);
+        Id stepId = svc.createToolResultStep(execution.Id, 'call-rp-001', 'sync_tool', retryableResult, 'turn-rp-001', 1, 10L, false, null, true, false);
 
         ExecutionStep__c step = [
             SELECT IsError__c, IsRetryable__c, RetryPending__c
@@ -271,7 +287,6 @@ private class ExecutionStepServiceTest {
             false,
             null,
             true,
-            false,
             false
         );
 
@@ -294,7 +309,7 @@ private class ExecutionStepServiceTest {
         ExecutionStepService svc = new ExecutionStepService();
 
         String successResult = '{"success":true,"data":{"id":"001"}}';
-        Id stepId = svc.createToolResultStep(execution.Id, 'call-suc-001', 'get_data', successResult, 'turn-suc-001', 1, 20L, false, null, false, false, false);
+        Id stepId = svc.createToolResultStep(execution.Id, 'call-suc-001', 'get_data', successResult, 'turn-suc-001', 1, 20L, false, null, false, false);
 
         ExecutionStep__c step = [
             SELECT IsError__c, RetryPending__c
@@ -318,7 +333,7 @@ private class ExecutionStepServiceTest {
 
         // New key format: 'retryable' (without 'is' prefix)
         String newFormatResult = '{"success":false,"code":"RECORD_LOCKED","error":"Row locked","retryable":true}';
-        Id stepId = svc.createToolResultStep(execution.Id, 'call-nk-001', 'lock_tool', newFormatResult, 'turn-nk-001', 1, 5L, false, null, true, false, false);
+        Id stepId = svc.createToolResultStep(execution.Id, 'call-nk-001', 'lock_tool', newFormatResult, 'turn-nk-001', 1, 5L, false, null, true, false);
 
         ExecutionStep__c step = [SELECT IsRetryable__c FROM ExecutionStep__c WHERE Id = :stepId];
         System.assertEquals(true, step.IsRetryable__c, 'New retryable key format should be parsed correctly');

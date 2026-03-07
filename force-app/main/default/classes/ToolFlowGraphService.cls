@@ -91,7 +91,7 @@ public inherited sharing class ToolFlowGraphService {
         }
 
         Set<String> executedTools = getExecutedToolsForExecution(executionId);
-        Set<String> lockedBranches = TransactionContext.getInstance().getLockedBranches(executionId);
+        Set<String> lockedBranches = getLockedBranchesForExecution(graph, executionId, executedTools);
 
         Set<String> eligibleNames = computeEligibleTools(graph, executedTools, lockedBranches);
 
@@ -240,11 +240,12 @@ public inherited sharing class ToolFlowGraphService {
         // Parse entry tools
         if (root.containsKey('entry')) {
             Object entryRaw = root.get('entry');
-            if (entryRaw instanceof List<Object>) {
-                for (Object item : (List<Object>) entryRaw) {
-                    if (item != null) {
-                        graph.entry.add(String.valueOf(item));
-                    }
+            if (!(entryRaw instanceof List<Object>)) {
+                throw new AIAgentException('Tool flow graph entry must be an array.');
+            }
+            for (Object item : (List<Object>) entryRaw) {
+                if (item != null) {
+                    graph.entry.add(String.valueOf(item));
                 }
             }
         }
@@ -252,42 +253,41 @@ public inherited sharing class ToolFlowGraphService {
         // Parse flow rules
         if (root.containsKey('flow')) {
             Object flowRaw = root.get('flow');
-            if (flowRaw instanceof List<Object>) {
-                for (Object ruleObj : (List<Object>) flowRaw) {
-                    if (!(ruleObj instanceof Map<String, Object>)) {
-                        continue;
-                    }
-                    Map<String, Object> ruleMap = (Map<String, Object>) ruleObj;
+            if (!(flowRaw instanceof List<Object>)) {
+                throw new AIAgentException('Tool flow graph flow must be an array.');
+            }
+            for (Object ruleObj : (List<Object>) flowRaw) {
+                if (!(ruleObj instanceof Map<String, Object>)) {
+                    throw new AIAgentException('Each tool flow rule must be an object.');
+                }
+                Map<String, Object> ruleMap = (Map<String, Object>) ruleObj;
 
-                    // Parse fromTools (string or array — LLM sometimes emits a bare string)
-                    List<String> fromList = new List<String>();
-                    Object fromRaw = ruleMap.get('fromTools');
-                    if (fromRaw instanceof String) {
-                        fromList.add((String) fromRaw);
-                    } else if (fromRaw instanceof List<Object>) {
-                        for (Object item : (List<Object>) fromRaw) {
-                            if (item != null)
-                                fromList.add(String.valueOf(item));
-                        }
+                Object fromRaw = ruleMap.get('fromTools');
+                if (!(fromRaw instanceof List<Object>)) {
+                    throw new AIAgentException('Tool flow rule fromTools must be an array.');
+                }
+                List<String> fromList = new List<String>();
+                for (Object item : (List<Object>) fromRaw) {
+                    if (item != null) {
+                        fromList.add(String.valueOf(item));
                     }
+                }
 
-                    String ruleType = ruleMap.containsKey('type') ? String.valueOf(ruleMap.get('type')) : 'sequential';
+                String ruleType = ruleMap.containsKey('type') ? String.valueOf(ruleMap.get('type')) : 'sequential';
 
-                    // Parse toTools
-                    List<String> toList = new List<String>();
-                    Object toRaw = ruleMap.get('toTools');
-                    if (toRaw instanceof List<Object>) {
-                        for (Object item : (List<Object>) toRaw) {
-                            if (item != null)
-                                toList.add(String.valueOf(item));
-                        }
-                    } else if (toRaw instanceof String) {
-                        toList.add((String) toRaw);
+                Object toRaw = ruleMap.get('toTools');
+                if (!(toRaw instanceof List<Object>)) {
+                    throw new AIAgentException('Tool flow rule toTools must be an array.');
+                }
+                List<String> toList = new List<String>();
+                for (Object item : (List<Object>) toRaw) {
+                    if (item != null) {
+                        toList.add(String.valueOf(item));
                     }
+                }
 
-                    if (!fromList.isEmpty() && !toList.isEmpty()) {
-                        graph.flow.add(new FlowRule(fromList, ruleType, toList));
-                    }
+                if (!fromList.isEmpty() && !toList.isEmpty()) {
+                    graph.flow.add(new FlowRule(fromList, ruleType, toList));
                 }
             }
         }
@@ -358,5 +358,51 @@ public inherited sharing class ToolFlowGraphService {
         }
 
         return executed;
+    }
+
+    private static Set<String> getLockedBranchesForExecution(FlowGraph graph, Id executionId, Set<String> executedTools) {
+        Set<String> locked = new Set<String>();
+        Set<String> executed = executedTools != null ? executedTools : new Set<String>();
+
+        if (graph != null && graph.flow != null && !graph.flow.isEmpty()) {
+            for (FlowRule rule : graph.flow) {
+                if (!'exclusive'.equals(rule.type) || rule.toTools == null || rule.toTools.isEmpty()) {
+                    continue;
+                }
+
+                Boolean fromToolsSatisfied = true;
+                for (String fromTool : rule.fromTools) {
+                    if (!executed.contains(fromTool)) {
+                        fromToolsSatisfied = false;
+                        break;
+                    }
+                }
+
+                if (!fromToolsSatisfied) {
+                    continue;
+                }
+
+                String selectedBranch = null;
+                for (String toTool : rule.toTools) {
+                    if (executed.contains(toTool)) {
+                        selectedBranch = toTool;
+                        break;
+                    }
+                }
+
+                if (selectedBranch == null) {
+                    continue;
+                }
+
+                for (String toTool : rule.toTools) {
+                    if (toTool != selectedBranch) {
+                        locked.add(toTool);
+                    }
+                }
+            }
+        }
+
+        locked.addAll(TransactionContext.getInstance().getLockedBranches(executionId));
+        return locked;
     }
 }
