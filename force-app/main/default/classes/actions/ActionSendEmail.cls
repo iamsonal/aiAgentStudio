@@ -32,6 +32,7 @@
  */
 public with sharing class ActionSendEmail extends BaseAgentAction {
     private static final Integer MAX_RECIPIENTS = 100;
+    private static final String EMAIL_PATTERN = '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$';
 
     private ConfigDTO config;
 
@@ -272,6 +273,18 @@ public with sharing class ActionSendEmail extends BaseAgentAction {
             if (args.toAddresses.isEmpty()) {
                 return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, 'At least one recipient in "toAddresses" is required');
             }
+            ActionOutcome toValidation = validateEmailAddresses(args.toAddresses, 'toAddresses');
+            if (!toValidation.isSuccess) {
+                return toValidation;
+            }
+            ActionOutcome ccValidation = validateEmailAddresses(args.ccAddresses, 'ccAddresses');
+            if (!ccValidation.isSuccess) {
+                return ccValidation;
+            }
+            ActionOutcome bccValidation = validateEmailAddresses(args.bccAddresses, 'bccAddresses');
+            if (!bccValidation.isSuccess) {
+                return bccValidation;
+            }
 
             Integer totalRecipients = args.toAddresses.size() + args.ccAddresses.size() + args.bccAddresses.size();
             if (totalRecipients > MAX_RECIPIENTS) {
@@ -488,6 +501,8 @@ public with sharing class ActionSendEmail extends BaseAgentAction {
         }
 
         email.setTemplateId(templates[0].Id);
+        // Always send to explicit recipient addresses only; targetObjectId is used for merge fields.
+        email.setTreatTargetObjectAsRecipient(false);
 
         // targetObjectId is mandatory for Salesforce template merge (Contact, Lead, or User)
         try {
@@ -536,19 +551,44 @@ public with sharing class ActionSendEmail extends BaseAgentAction {
         List<String> merged = new List<String>();
 
         for (String addr : (base != null ? base : new List<String>())) {
-            String lower = addr.toLowerCase();
+            if (String.isBlank(addr)) {
+                continue;
+            }
+            String trimmed = addr.trim();
+            String lower = trimmed.toLowerCase();
             if (seen.add(lower)) {
-                merged.add(addr);
+                merged.add(trimmed);
             }
         }
         for (String addr : (runtime != null ? runtime : new List<String>())) {
-            String lower = addr.toLowerCase();
+            if (String.isBlank(addr)) {
+                continue;
+            }
+            String trimmed = addr.trim();
+            String lower = trimmed.toLowerCase();
             if (seen.add(lower)) {
-                merged.add(addr);
+                merged.add(trimmed);
             }
         }
 
         return merged;
+    }
+
+    private ActionOutcome validateEmailAddresses(List<String> addresses, String fieldName) {
+        if (addresses == null) {
+            return ActionOutcome.success();
+        }
+
+        for (String address : addresses) {
+            if (String.isBlank(address) || !Pattern.matches(EMAIL_PATTERN, address.trim())) {
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                    'Invalid email address in "' + fieldName + '": ' + String.valueOf(address)
+                );
+            }
+        }
+
+        return ActionOutcome.success();
     }
 
     /**

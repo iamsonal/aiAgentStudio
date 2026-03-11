@@ -45,7 +45,7 @@ Use service-user routing only when a workflow genuinely needs elevated execution
 ### CRUD and FLS enforcement
 
 - Queries should respect user access, commonly through `WITH USER_MODE`.
-- DML should strip inaccessible fields before insert or update.
+- DML should strip inaccessible fields before save and prefer `Database.*(..., AccessLevel.USER_MODE)` when the action is intended to run in user context.
 
 ```apex
 List<Account> accounts = [
@@ -61,7 +61,7 @@ SObjectAccessDecision decision = Security.stripInaccessible(
     AccessType.UPDATABLE,
     recordsToSave
 );
-update decision.getRecords();
+Database.update(decision.getRecords(), false, AccessLevel.USER_MODE);
 ```
 
 ## Trust Layers
@@ -135,22 +135,23 @@ Sensitive actions can require user confirmation or formal approval before they e
 
 <CardGrid>
   <Card title="Confirmation" icon="chat">
-    The agent asks the user to confirm before proceeding. This is conversational and does not require a formal approval record.
+    The agent asks the user to confirm before proceeding. This is conversational and does not require a formal approval record. It is intended for conversational agents.
   </Card>
   <Card title="Approval" icon="approve-check">
     The framework pauses execution and resumes only after an approver acts.
   </Card>
   <Card title="ConfirmationThenApproval" icon="warning">
-    Combines conversational confirmation with formal approval for higher-risk actions.
+    Combines conversational confirmation with formal approval for higher-risk actions. This mode is conversational-agent only and is incompatible with async tool execution.
   </Card>
   <Card title="ConditionalApproval" icon="seti:settings">
-    Lets the workflow decide at runtime whether approval should be required.
+    Lets the workflow decide at runtime whether approval should be required based on the capability description and LLM decisioning.
   </Card>
 </CardGrid>
 
 Operationally:
 
 - approvals pause the execution
+- `HITLNotificationPreference__c` controls whether users are notified on approval and rejection outcomes for approval-based modes
 - approvers must have access to the underlying business context
 - outcomes are written back into the execution trace for auditability
 

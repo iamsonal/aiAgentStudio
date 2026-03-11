@@ -358,8 +358,14 @@ public inherited sharing class AgentStateService {
      * @param processingStatus The ProcessingStatus__c value returned by the execution (e.g. Idle, Failed)
      * @param logPrefix Log prefix for debug output
      */
-    public void syncFinalizeExecution(Id executionId, String newTurnIdentifier, String processingStatus, String logPrefix) {
+    public void syncFinalizeExecution(Id executionId, String newTurnIdentifier, String processingStatus, String statusMessage, String logPrefix) {
         try {
+            TransactionContext txnCtx = TransactionContext.getInstance();
+            if (txnCtx.isDeferredDMLMode()) {
+                txnCtx.commitBuffer();
+                txnCtx.disableDeferredDMLMode();
+            }
+
             List<AgentExecution__c> stale = [
                 SELECT Id, CurrentTurnIdentifier__c
                 FROM AgentExecution__c
@@ -398,13 +404,26 @@ public inherited sharing class AgentStateService {
             }
 
             update exec;
+            if (exec.ExecutionStatus__c == 'Completed') {
+                publishAgentResponseEvent(executionId, true, null, null, newTurnIdentifier, logPrefix);
+                AgentNotificationService.notify(executionId, AgentNotificationService.EVENT_TURN_COMPLETED);
+            } else if (exec.ExecutionStatus__c == 'Failed') {
+                publishAgentResponseEvent(executionId, false, null, statusMessage, newTurnIdentifier, logPrefix);
+                AgentNotificationService.notify(executionId, AgentNotificationService.EVENT_EXECUTION_FAILED);
+            }
             System.debug(
                 LoggingLevel.INFO,
                 logPrefix + '[AgentStateService] syncFinalizeExecution stamped turn=' + newTurnIdentifier + ' status=' + exec.ExecutionStatus__c
             );
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, logPrefix + '[AgentStateService] syncFinalizeExecution failed (non-fatal): ' + e.getMessage());
+        } finally {
+            TransactionContext.getInstance().clearSyncFinalizationRecovery();
         }
+    }
+
+    public void syncFinalizeExecution(Id executionId, String newTurnIdentifier, String processingStatus, String logPrefix) {
+        syncFinalizeExecution(executionId, newTurnIdentifier, processingStatus, null, logPrefix);
     }
 
     // STATUS UPDATE (Public for direct callers)
@@ -463,8 +482,15 @@ public inherited sharing class AgentStateService {
                             '. Expected for sync execution path — syncFinalizeExecution handles recovery.'
                     );
                     if (isTerminalState && TransactionContext.getInstance().isDeferredDMLMode()) {
-                        TransactionContext.getInstance().discardBufferedRecordsForExecution(executionId);
-                        TransactionContext.getInstance().disableDeferredDMLMode();
+                        if (TransactionContext.getInstance().isSyncFinalizationRecovery(executionId, turnIdentifier)) {
+                            System.debug(
+                                LoggingLevel.INFO,
+                                logPrefix + 'Preserving buffered records for synchronous finalization recovery on execution ' + executionId
+                            );
+                        } else {
+                            TransactionContext.getInstance().discardBufferedRecordsForExecution(executionId);
+                            TransactionContext.getInstance().disableDeferredDMLMode();
+                        }
                     }
                     return false;
                 }

@@ -539,7 +539,7 @@ global inherited sharing class AgentExecutionService {
 
         try {
             for (AgentOrchestratorMapping__mdt mapping : [
-                SELECT DeveloperName, AgentType__c, OrchestratorClassName__c
+                SELECT DeveloperName, AgentType__c, OrchestratorClassName__c, RequiresAutonomousRecovery__c
                 FROM AgentOrchestratorMapping__mdt
                 WHERE IsActive__c = TRUE
             ]) {
@@ -554,14 +554,25 @@ global inherited sharing class AgentExecutionService {
         isMappingCacheInitialized = true;
     }
 
-    public static IAgentOrchestrator getOrchestrator(AIAgentDefinition__c agentDef) {
+    public static AgentOrchestratorMapping__mdt getOrchestratorMapping(String agentType) {
         ensureOrchestratorMappingCacheInitialized();
+        if (String.isBlank(agentType)) {
+            return null;
+        }
+        return orchestratorMappingCache.get(agentType.toLowerCase());
+    }
 
+    public static Boolean requiresAutonomousRecovery(String agentType) {
+        AgentOrchestratorMapping__mdt mapping = getOrchestratorMapping(agentType);
+        return mapping != null && mapping.RequiresAutonomousRecovery__c == true;
+    }
+
+    public static IAgentOrchestrator getOrchestrator(AIAgentDefinition__c agentDef) {
         if (String.isBlank(agentDef.AgentType__c)) {
             throw new AIAgentException.OrchestrationException('AgentType__c is required on agent definition: ' + agentDef.DeveloperName__c);
         }
 
-        AgentOrchestratorMapping__mdt mapping = orchestratorMappingCache.get(agentDef.AgentType__c.toLowerCase());
+        AgentOrchestratorMapping__mdt mapping = getOrchestratorMapping(agentDef.AgentType__c);
         if (mapping == null) {
             throw new AIAgentException.OrchestrationException('No active orchestrator mapping found for agent type: "' + agentDef.AgentType__c + '"');
         }

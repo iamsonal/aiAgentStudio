@@ -184,6 +184,22 @@ private class ActionHttpCalloutTest {
     }
 
     @IsTest
+    static void testGet_RuntimeQueryParamsOverrideStaticValues() {
+        CapturingHttpClient mock = new CapturingHttpClient();
+        ActionHttpCallout action = buildAction(
+            '{"namedCredential":"MyCred","endpoint":"/v1/items","method":"GET","staticQueryParams":{"version":"1.0","filter":"closed"}}',
+            mock
+        );
+
+        action.executeAction(new Map<String, Object>{ 'queryParams' => new Map<String, Object>{ 'filter' => 'open' } });
+
+        String endpoint = mock.lastRequest.getEndpoint();
+        System.assert(endpoint.contains('version=1.0'), 'Non-overridden static query params should remain.');
+        System.assert(endpoint.contains('filter=open'), 'Runtime query param should override static value.');
+        System.assertEquals(-1, endpoint.indexOf('filter=closed'), 'Static value should not remain when overridden at runtime.');
+    }
+
+    @IsTest
     static void testGet_BodyIgnored() {
         CapturingHttpClient mock = new CapturingHttpClient();
         ActionHttpCallout action = buildAction(cfg('MyCred', '/v1/items', 'GET'), mock);
@@ -267,6 +283,18 @@ private class ActionHttpCalloutTest {
 
         System.assert(!result.isSuccess, 'Expected failure for 404');
         System.assert(result.errorMessage.contains('404'), 'Error should mention 404');
+    }
+
+    @IsTest
+    static void testHttpErrorBodyIsRedactedFromOutcome() {
+        MockHttpClient mock = new MockHttpClient(500, 'Internal Server Error', '{"error":"secret-token-123","stack":"do-not-expose"}');
+        ActionHttpCallout action = buildAction(cfg('MyCred', '/v1/test', 'GET'), mock);
+
+        ActionOutcome result = action.executeAction(new Map<String, Object>());
+
+        System.assertEquals(false, result.isSuccess, 'Non-2xx responses should fail.');
+        System.assertEquals(-1, result.errorMessage.indexOf('secret-token-123'), 'Raw upstream body should not leak into the user-visible error.');
+        System.assertEquals(-1, result.errorMessage.indexOf('do-not-expose'), 'Raw upstream body should be redacted.');
     }
 
     @IsTest

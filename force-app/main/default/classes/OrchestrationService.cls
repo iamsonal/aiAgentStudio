@@ -209,7 +209,9 @@ public inherited sharing class OrchestrationService {
      *
      * Two checks only:
      * 1. Agent-level mode: if ErrorRecoveryMode__c = 'Fail Fast', halt immediately.
-     * 2. Safety ceiling: if successive failure count >= global MaxToolRetries, halt to prevent infinite loops.
+     * 2. Safety ceiling: if successive failure count >= global MaxToolRetries, halt retry loops for
+     *    non-user-facing agents. Conversational and Email agents in Autonomous mode still route the
+     *    failure back to the LLM so they can explain the problem to the user instead of ending silently.
      *
      * In all other cases, the error flows to the LLM — the LLM decides recovery.
      *
@@ -248,6 +250,20 @@ public inherited sharing class OrchestrationService {
             : countSuccessiveToolFailures(executionId, capability.CapabilityName__c, logPrefix);
 
         if (failureCount >= maxRetries) {
+            String agentType = (String) agentDefinition.getPopulatedFieldsAsMap().get('AgentType__c');
+            if (AgentExecutionService.requiresAutonomousRecovery(agentType)) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    logPrefix +
+                        'CIRCUIT BREAKER: Tool "' +
+                        capability.CapabilityName__c +
+                        '" hit the retry ceiling for ' +
+                        agentType +
+                        ' agent type. Routing failure to LLM so it can respond to the user. ErrorCode: ' +
+                        toolOutcome.errorCode
+                );
+                return false;
+            }
             System.debug(
                 LoggingLevel.WARN,
                 logPrefix +

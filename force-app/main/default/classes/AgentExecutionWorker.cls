@@ -223,9 +223,12 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                 }
 
                 execution = locked[0];
+                String claimToken = String.isNotBlank(payload.claimToken) ? payload.claimToken : UUID.randomUUID().toString();
                 execution.ExecutionStatus__c = 'Processing';
                 execution.ProcessingStartedAt__c = Datetime.now();
+                execution.WorkerClaimToken__c = claimToken;
                 update execution;
+                payload.claimToken = claimToken;
                 deferProcessingAfterClaim = true;
 
                 System.debug(LoggingLevel.INFO, logPrefix + 'Locked pre-assigned execution: ' + execution.Id);
@@ -284,9 +287,12 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                 execution.ProcessingStartedAt__c = Datetime.now();
                 update execution;
             } else {
+                String claimToken = String.isNotBlank(payload.claimToken) ? payload.claimToken : UUID.randomUUID().toString();
                 execution.ExecutionStatus__c = 'Processing';
                 execution.ProcessingStartedAt__c = Datetime.now();
+                execution.WorkerClaimToken__c = claimToken;
                 update execution;
+                payload.claimToken = claimToken;
                 deferProcessingAfterClaim = true;
             }
 

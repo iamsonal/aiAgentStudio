@@ -199,7 +199,14 @@ public with sharing class ActionHttpCallout extends BaseAgentAction {
         }
 
         String errorDetail = String.isNotBlank(responseBody) ? responseBody.abbreviate(500) : '(empty body)';
-        return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'HTTP ' + statusCode + ' ' + res.getStatus() + ': ' + errorDetail);
+        System.debug(
+            LoggingLevel.ERROR,
+            '[ActionHttpCallout] External service returned error. URL=' + url + ', Status=' + statusCode + ' ' + res.getStatus() + ', Body=' + errorDetail
+        );
+        return ActionOutcome.failure(
+            AIAgentConstants.ERR_CODE_CONNECT_API_ERROR,
+            'HTTP ' + statusCode + ' ' + res.getStatus() + '. The external service returned an error response.'
+        );
     }
 
     // ===== CONFIGURATION =====
@@ -280,21 +287,28 @@ public with sharing class ActionHttpCallout extends BaseAgentAction {
 
     @TestVisible
     private String buildQueryString(Map<String, String> staticParams, Map<String, Object> runtimeParams) {
-        List<String> parts = new List<String>();
+        Map<String, String> mergedParams = new Map<String, String>();
 
         if (staticParams != null) {
-            for (String k : staticParams.keySet()) {
-                parts.add(EncodingUtil.urlEncode(k, 'UTF-8') + '=' + EncodingUtil.urlEncode(staticParams.get(k), 'UTF-8'));
+            for (String key : staticParams.keySet()) {
+                mergedParams.put(key, staticParams.get(key));
             }
         }
 
         if (runtimeParams != null) {
-            for (String k : runtimeParams.keySet()) {
-                Object val = runtimeParams.get(k);
-                if (val != null) {
-                    parts.add(EncodingUtil.urlEncode(k, 'UTF-8') + '=' + EncodingUtil.urlEncode(String.valueOf(val), 'UTF-8'));
+            for (String key : runtimeParams.keySet()) {
+                Object val = runtimeParams.get(key);
+                if (val == null) {
+                    mergedParams.remove(key);
+                } else {
+                    mergedParams.put(key, String.valueOf(val));
                 }
             }
+        }
+
+        List<String> parts = new List<String>();
+        for (String key : mergedParams.keySet()) {
+            parts.add(EncodingUtil.urlEncode(key, 'UTF-8') + '=' + EncodingUtil.urlEncode(mergedParams.get(key), 'UTF-8'));
         }
 
         return String.join(parts, '&');

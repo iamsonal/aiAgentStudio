@@ -23,9 +23,9 @@ Validate credentials first, then permissions, then model behavior, then performa
 
 **Check Named Credential**
 <Steps>
-1. Go to **Setup → Named Credentials**.
-2. Verify the credential is active.
-3. Test the connection.
+1. Go to **Setup → External Credentials** and open `OpenAIEC` (or your provider-specific external credential).
+2. Verify the principal is configured and the auth parameter, such as `OpenAIKey`, is populated.
+3. Go to **Setup → Named Credentials** and confirm the `LLMConfiguration__c.NamedCredential__c` value points to an active named credential such as `OpenAI_API`.
 </Steps>
 
 **Verify API Key**
@@ -89,7 +89,7 @@ Then verify the profile/permission set grants CRUD on target objects.
 
 <CardGrid>
   <Card title="Reduce History" icon="seti:clock">
-    Lower `HistoryTurnLimit__c` (try 5–7). Switch to `SummaryBuffer` memory strategy to compress older turns.
+    Lower `HistoryTurnLimit__c` (try 5–7). Switch to `Summary Buffer` memory strategy to compress older turns.
   </Card>
   <Card title="Simplify Capabilities" icon="seti:gear">
     Reduce the number of active capabilities. Simplify parameter schemas and shorten descriptions.
@@ -123,9 +123,9 @@ Too vague — the model will choose tools inconsistently or ignore them entirely
   <TabItem label="Better example">
 
 ```text
-Search for contacts by name, email, or account.
-Use when users ask to find contact information.
-Do NOT use for creating contacts or searching accounts.
+Retrieve a contact by exact email address.
+Use when the user already knows the email and needs the matching contact record.
+Do NOT use for broad contact searches, account lookups, or contact creation.
 ```
 
   </TabItem>
@@ -134,13 +134,13 @@ Do NOT use for creating contacts or searching accounts.
 **Add Examples to Descriptions**
 ```
 Examples of when to use:
-- "Find John Smith's contact info"
-- "Who is the contact at Acme Corp?"
-- "Look up contacts with @gmail.com emails"
+- "Look up john.smith@acme.com"
+- "Get the contact record for sara.lee@example.com"
+- "Show me the phone number for the contact with email alex@contoso.com"
 ```
 
 **Other Fixes**
-- **Lower Temperature** — reduce `Temperature__c` to 0.3–0.5 for more predictable tool selection
+- **Lower Temperature** — reduce `DefaultTemperature__c` to 0.3–0.5 for more predictable tool selection
 - **Review Parameters** — ensure JSON Schema is valid, add clear descriptions to each parameter, use enums where appropriate
 
 ---
@@ -152,7 +152,7 @@ Examples of when to use:
 **Check Memory Strategy**
 <Steps>
 1. Open AI Agent Definition.
-2. Verify `MemoryStrategy__c` is set (`BufferWindow` for precise context).
+2. Verify `MemoryStrategy__c` is set (`Buffer Window` for precise context).
 3. Raise `HistoryTurnLimit__c` (try 10–15).
 </Steps>
 
@@ -211,7 +211,7 @@ Use a JSON validator to check `BackendConfiguration__c` and `Parameters__c`. Com
 
 <CardGrid>
   <Card title="1. Use the Execution Storyboard" icon="seti:log">
-    Open the **Execution Storyboard** UI for the affected `AgentExecution__c` record. It shows the full decision timeline — what the LLM received, what it responded, which tools were called, and any errors — without needing to write SOQL.
+    If your org includes the addon UI, open the **Execution Storyboard** for the affected `AgentExecution__c` record. Otherwise inspect `ExecutionStep__c` rows directly to see prompts, tool calls, and failures.
   </Card>
   <Card title="2. Enable Debug Logging" icon="seti:shell">
     Go to **Setup → Debug Logs**, add your user, and set Apex Code, Callout, and System all to `DEBUG`. Reproduce the issue and examine the log.

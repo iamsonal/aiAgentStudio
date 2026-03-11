@@ -159,7 +159,7 @@ private class AsyncActionEngineTest {
 
     @IsTest
     static void testProcess_FailFastFailure_MarksExecutionFailed() {
-        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
+        TestFactory.FunctionAgentSetup setup = TestFactory.createFunctionAgentSetup().save();
 
         AgentCapability__c failFastCap = TestFactory.newCapability()
             .withAgent(setup.agentDefinition.Id)

@@ -18,5 +18,9 @@
         <field>OrchestratorClassName__c</field>
         <value xsi:type="xsd:string">ConversationalOrchestrator</value>
     </values>
+    <values>
+        <field>RequiresAutonomousRecovery__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
 </CustomMetadata>
 

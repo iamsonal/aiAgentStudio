@@ -724,16 +724,14 @@ private class OrchestrationServiceTest {
     }
 
     /**
-     * @description Verifies that the MaxToolRetries circuit breaker is agent-type agnostic.
-     *              Conversational and Email agents in Autonomous mode must hit the circuit breaker
-     *              once successive failures exceed the global threshold — there is no special exemption
-     *              based on agent type. ErrorRecoveryMode__c is the sole controlling factor.
+     * @description Verifies that user-facing agents still route tool failures back to the LLM
+     *              after hitting the retry ceiling, so the agent can explain the issue to the user
+     *              instead of hard-failing the turn.
      */
     @IsTest
-    static void testShouldFailFast_AllAgentTypes_HitCircuitBreakerInAutonomousMode() {
+    static void testShouldFailFast_UserFacingAgents_AllowRecoveryAfterCircuitBreaker() {
         TestFactory.AgentSetup setup = getSetup();
         Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
-        // Use a transient error so the circuit breaker (not the non-transient shortcut) is what fires
         ActionOutcome failure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient tool failure');
 
         for (String agentType : new List<String>{ 'Conversational', 'Email' }) {
@@ -784,12 +782,71 @@ private class OrchestrationServiceTest {
             Boolean result = OrchestrationService.shouldFailFast(cap, agentFull, failure, exec.Id, '[test] ');
 
             System.assertEquals(
-                true,
+                false,
                 result,
                 agentType +
-                ' agent in Autonomous mode should hit the circuit breaker after exceeding MaxToolRetries — agent type does not exempt any agent from the global ceiling'
+                ' agent in Autonomous mode should still route the failure back to the LLM after hitting MaxToolRetries so it can respond gracefully to the user'
             );
         }
+    }
+
+    /**
+     * @description Verifies that the retry ceiling still hard-stops non-user-facing agents in Autonomous mode.
+     */
+    @IsTest
+    static void testShouldFailFast_FunctionAgent_HitsCircuitBreakerInAutonomousMode() {
+        TestFactory.FunctionAgentSetup setup = TestFactory.createFunctionAgentSetup().withExecution().save();
+        Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
+        ActionOutcome failure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient tool failure');
+        String turnIdentifier = 'turn-cb-function-001';
+
+        update new AgentExecution__c(
+            Id = setup.execution.Id,
+            ExecutionStatus__c = 'Processing',
+            ProcessingStatus__c = AIAgentConstants.STATUS_AWAITING_ACTION,
+            CurrentTurnIdentifier__c = turnIdentifier
+        );
+
+        setup.execution = [
+            SELECT Id, CurrentTurnIdentifier__c
+            FROM AgentExecution__c
+            WHERE Id = :setup.execution.Id
+        ];
+
+        AgentCapability__c cap = TestFactory.newCapability()
+            .withAgent(setup.agentDefinition.Id)
+            .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
+            .withName('cap_cb_function')
+            .save();
+
+        ExecutionStepService stepService = new ExecutionStepService();
+        for (Integer i = 1; i <= maxRetries + 2; i++) {
+            stepService.createToolResultStep(
+                setup.execution.Id,
+                'call-cb-function-00' + i,
+                cap.CapabilityName__c,
+                '{"error":"Failed"}',
+                turnIdentifier,
+                1,
+                0L,
+                false,
+                cap.Id,
+                true,
+                false
+            );
+        }
+
+        AIAgentDefinition__c agent = [
+            SELECT Id, AgentType__c, ErrorRecoveryMode__c
+            FROM AIAgentDefinition__c
+            WHERE Id = :setup.agentDefinition.Id
+        ];
+
+        System.assertEquals(
+            true,
+            OrchestrationService.shouldFailFast(cap, agent, failure, setup.execution.Id, '[test] '),
+            'Function agents should still halt when they exceed the retry ceiling in Autonomous mode'
+        );
     }
 
     /**

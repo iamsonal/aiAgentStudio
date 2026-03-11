@@ -348,6 +348,34 @@ private class ActionSendEmailTest {
         System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, outcome.errorCode);
     }
 
+    @IsTest
+    static void testDirect_InvalidToAddress_ReturnsValidationFailure() {
+        ActionSendEmail action = new ActionSendEmail();
+        String args = directArgs(new Map<String, Object>{ 'toAddresses' => new List<String>{ 'not-an-email' } });
+
+        Test.startTest();
+        ActionOutcome outcome = action.execute('{}', args, buildContext());
+        Test.stopTest();
+
+        System.assertEquals(false, outcome.isSuccess);
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, outcome.errorCode);
+        System.assert(outcome.errorMessage.contains('toAddresses'));
+    }
+
+    @IsTest
+    static void testDirect_InvalidCcAddress_ReturnsValidationFailure() {
+        ActionSendEmail action = new ActionSendEmail();
+        String args = directArgs(new Map<String, Object>{ 'ccAddresses' => new List<String>{ 'valid@example.com', 'bad-address' } });
+
+        Test.startTest();
+        ActionOutcome outcome = action.execute('{}', args, buildContext());
+        Test.stopTest();
+
+        System.assertEquals(false, outcome.isSuccess);
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, outcome.errorCode);
+        System.assert(outcome.errorMessage.contains('ccAddresses'));
+    }
+
     // =========================================================================
     // Template mode — validation failures
     // =========================================================================

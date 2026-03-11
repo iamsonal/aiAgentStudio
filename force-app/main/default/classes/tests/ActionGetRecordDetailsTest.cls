@@ -113,7 +113,7 @@ private class ActionGetRecordDetailsTest {
     }
 
     @IsTest
-    static void testMultipleMatches_ReturnsFirstWithWarning() {
+    static void testMultipleMatches_ReturnsValidationError() {
         ActionGetRecordDetails action = new ActionGetRecordDetails();
         String config = JSON.serialize(
             new Map<String, Object>{ 'objectApiName' => 'Account', 'defaultFields' => new List<String>{ 'Id', 'Name', 'Industry' } }
@@ -126,9 +126,8 @@ private class ActionGetRecordDetailsTest {
         ActionOutcome result = action.executeAction(params);
         Test.stopTest();
 
-        System.assert(result.isSuccess, 'Should succeed but with warning');
-        Map<String, Object> response = (Map<String, Object>) result.data;
-        System.assertNotEquals(null, response.get('multipleMatchesWarning'), 'Should include multiple matches warning');
+        System.assertEquals(false, result.isSuccess, 'Ambiguous lookups should fail closed.');
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, result.errorCode);
     }
 
     @IsTest
@@ -152,6 +151,26 @@ private class ActionGetRecordDetailsTest {
         System.assert(result.isSuccess, 'Should succeed with relationship fields');
         Map<String, Object> record = (Map<String, Object>) ((Map<String, Object>) result.data).get('record');
         System.assertNotEquals(null, record.get('Account'), 'Should include Account relationship');
+    }
+
+    @IsTest
+    static void testInvalidRelationshipField_ReturnsConfigError() {
+        Contact testContact = [SELECT Id FROM Contact WHERE FirstName = 'John' LIMIT 1];
+        ActionGetRecordDetails action = new ActionGetRecordDetails();
+        String config = JSON.serialize(
+            new Map<String, Object>{
+                'objectApiName' => 'Contact',
+                'defaultFields' => new List<String>{ 'Id', 'FirstName', 'Account.DoesNotExist' }
+            }
+        );
+        action.parseActionConfiguration(config, '[TEST] ');
+
+        Test.startTest();
+        ActionOutcome result = action.executeAction(new Map<String, Object>{ 'Id' => testContact.Id });
+        Test.stopTest();
+
+        System.assertEquals(false, result.isSuccess, 'Invalid relationship fields should fail during validation.');
+        System.assertEquals(AIAgentConstants.ERR_CODE_CONFIG_ERROR, result.errorCode);
     }
 
     // ========== FAILURE SCENARIOS ==========

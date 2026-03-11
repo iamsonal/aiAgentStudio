@@ -39,11 +39,12 @@ public inherited sharing class ConversationalOrchestrator extends BaseAgentOrche
 
                 if (shouldExecuteSynchronously(payload, logPrefix)) {
                     System.debug(LoggingLevel.INFO, logPrefix + 'Executing initial LLM call synchronously (callout-safe)');
+                    TransactionContext.getInstance().markSyncFinalizationRecovery(executionId, payload.turnIdentifier);
                     AgentExecutionService.ExecutionResult syncResult = executeSynchronously(executionId, payload, logPrefix);
                     // Sync path cannot pre-stamp the turn identifier before callouts (Apex DML-before-callout restriction).
                     // completeTurnSuccessfully() inside may have been silently skipped by the stale check.
                     // Finalize the execution status now that all callouts are complete.
-                    new AgentStateService().syncFinalizeExecution(executionId, payload.turnIdentifier, syncResult.status, logPrefix);
+                    new AgentStateService().syncFinalizeExecution(executionId, payload.turnIdentifier, syncResult.status, syncResult.message, logPrefix);
                     return syncResult;
                 }
 
