@@ -40,7 +40,7 @@ Start with agent + provider settings, then tune safety and performance as usage 
 |:------|:-----|:------------|
 | `Name` | Text | Display name for the agent |
 | `DeveloperName__c` | Text | Unique API identifier (no spaces) |
-| `AgentType__c` | Picklist | Conversational, Function, or Email |
+| `AgentType__c` | Picklist | `Conversational` in the core package. `Function` and `Email` are addon types that require their orchestrator mappings to be deployed. |
 | `IsActive__c` | Checkbox | Enable/disable the agent |
 
 ### AI Provider Settings
@@ -54,10 +54,10 @@ Start with agent + provider settings, then tune safety and performance as usage 
 ### Memory Strategies
 
 <CardGrid>
-  <Card title="BufferWindow" icon="seti:clock">
+  <Card title="Buffer Window" icon="seti:clock">
     Keeps the last N turns verbatim. Best for short conversations where precise recent context matters.
   </Card>
-  <Card title="SummaryBuffer" icon="seti:text">
+  <Card title="Summary Buffer" icon="seti:text">
     Summarizes older turns while keeping recent ones verbatim. Best for long conversations and cost optimization.
   </Card>
 </CardGrid>
@@ -157,19 +157,22 @@ Start with agent + provider settings, then tune safety and performance as usage 
 |:------|:-----|:------------|
 | `CapabilityName__c` | Text | Tool name shown to AI (use snake_case) |
 | `Description__c` | Long Text | When and how to use this tool |
-| `ImplementationType__c` | Picklist | Standard, Apex, or Flow |
+| `ImplementationType__c` | Picklist | Standard, Apex, Flow, or Agent |
 
 ### Implementation Types
 
 <CardGrid>
   <Card title="Standard" icon="seti:settings">
-    Built-in actions for common Salesforce operations: GetRecordDetails, CreateRecord, UpdateRecord, FlowHandler, PostChatter, and more.
+    Built-in actions for common Salesforce operations such as `GetRecordDetails`, `CreateRecord`, `UpdateRecord`, `HttpCallout`, `SendEmail`, and `PostChatter`.
   </Card>
   <Card title="Apex" icon="seti:apex">
     Custom Apex class implementing `IAgentAction`. Full access to Salesforce data, callouts, and complex business logic.
   </Card>
   <Card title="Flow" icon="seti:flow">
     Salesforce Flow invocation. Ideal for no-code automation reuse. Set the Flow API name in `ImplementationDetail__c`.
+  </Card>
+  <Card title="Agent" icon="seti:repo">
+    Invoke another agent as a capability. This is intended for multi-agent patterns and is routed through the function-agent orchestration path in addon-enabled orgs.
   </Card>
 </CardGrid>
 
@@ -199,15 +202,14 @@ The capability description is crucial for the AI to understand when to use a too
   <TabItem label="Good example">
 
 ```
-Search for contacts in Salesforce by name, email, or account.
+Retrieve a contact record when the user already knows the exact email address.
 Use this capability when:
-- User asks to find a contact
-- User wants contact information
-- User mentions a person's name in a business context
+- User provides an email and wants the matching Salesforce contact
+- User needs the phone, title, or account for a known contact
 
 Do NOT use when:
-- User is asking about accounts (use search_accounts instead)
-- User wants to create a new contact (use create_contact instead)
+- User wants to search broadly across many contacts
+- User wants to create or update a contact
 ```
 
   </TabItem>
@@ -323,13 +325,13 @@ Parameters use [JSON Schema](https://json-schema.org/) format.
 ## Backend Configuration Examples
 
 <Tabs>
-  <TabItem label="GetRecords">
+  <TabItem label="GetRecordDetails">
 
 ```json
 {
+  "variant": "field_list",
   "objectApiName": "Contact",
-  "defaultFields": ["Id", "Name", "Email", "Phone", "Account.Name"],
-  "defaultLimit": 25
+  "defaultFields": ["Id", "FirstName", "LastName", "Email", "Phone", "Account.Name"]
 }
 ```
 
@@ -339,8 +341,8 @@ Parameters use [JSON Schema](https://json-schema.org/) format.
 ```json
 {
   "objectApiName": "Task",
-  "defaultValues": {
-    "OwnerId": "{!$User.Id}",
+  "defaultFieldValues": {
+    "OwnerId": "$User.Id",
     "Status": "Not Started"
   }
 }

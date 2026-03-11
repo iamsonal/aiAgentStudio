@@ -56,9 +56,11 @@
   "paths": {
     "/ai/agent/process": {
       "post": {
-        "tags": ["Chat"],
+        "tags": [
+          "Chat"
+        ],
         "summary": "Process Chat Message",
-        "description": "Process a user message through an AI agent with full conversation context.\nThis endpoint initiates or continues an agent execution session.\n\n**Use Cases:**\n- Start new conversations\n- Continue existing conversations\n- Provide contextual information via currentRecordId\n\n**Processing:**\n- Executes in service user context (elevated permissions)\n- Asynchronous processing with status tracking\n- Supports multi-turn conversations\n",
+        "description": "Process an agent turn with full conversation context.\nThis endpoint initiates or continues an agent execution session.\n\n**Use Cases:**\n- Start new conversations\n- Continue existing conversations\n- Provide contextual information via currentRecordId\n- Trigger function-style or service-user executions\n\n**Processing:**\n- Executes in service user context (elevated permissions)\n- Asynchronous processing with status tracking\n- Supports multi-turn conversations",
         "operationId": "processChatMessage",
         "requestBody": {
           "required": true,
@@ -71,7 +73,6 @@
                 "startConversation": {
                   "summary": "Start new conversation",
                   "value": {
-                    "sessionId": "a0X5g000001234567",
                     "originalUserId": "0055g000001234567",
                     "agentDefinitionId": "a0Y5g000001234567",
                     "turnIdentifier": "turn-2024-01-15-12-30-45-abc123",
@@ -109,7 +110,8 @@
                       "success": true,
                       "outcome": "Processing",
                       "error": null,
-                      "requestId": "12345678"
+                      "requestId": "12345678",
+                      "executionId": "a0X5g000001234567"
                     }
                   }
                 }
@@ -129,7 +131,7 @@
                     "value": {
                       "success": false,
                       "outcome": null,
-                      "error": "sessionId is required",
+                      "error": "originalUserId is required",
                       "requestId": "12345678"
                     }
                   },
@@ -193,7 +195,9 @@
     },
     "/ai/agent/hitl/execute": {
       "post": {
-        "tags": ["HITL"],
+        "tags": [
+          "HITL"
+        ],
         "summary": "Execute HITL Approved Tool",
         "description": "Execute a tool that has been approved through the Human-in-the-Loop workflow.\nThis endpoint is called after a user approves an action that requires human confirmation or approval.\n\n**Use Cases:**\n- Execute approved data modifications\n- Execute actions requiring elevated permissions\n- Resume agent workflow after approval\n\n**Processing:**\n- Executes in authenticated user context (user-specific permissions)\n- Supports optional follow-up LLM calls\n- Sends notifications based on capability settings\n",
         "operationId": "executeHITLTool",
@@ -325,6 +329,187 @@
           }
         }
       }
+    },
+    "/ai/agent/hitl/followup": {
+      "post": {
+        "tags": [
+          "HITL"
+        ],
+        "summary": "Queue HITL Follow-Up LLM Call",
+        "description": "Queue a follow-up LLM call after a HITL action was rejected, declined, or expired.\nThis endpoint runs in service-user context and resumes the execution so the agent can continue.",
+        "operationId": "queueHITLFollowUp",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HITLFollowUpRequest"
+              },
+              "examples": {
+                "rejectedFollowUp": {
+                  "summary": "Queue follow-up after rejection",
+                  "value": {
+                    "executionId": "a0X5g000001234567",
+                    "turnIdentifier": "turn-2024-01-15-12-32-00-ghi789",
+                    "turnCount": 4,
+                    "sourceRecordId": "5005g000001234567"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Follow-up queued successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "examples": {
+                  "success": {
+                    "value": {
+                      "success": true,
+                      "outcome": "QUEUED_FOLLOWUP",
+                      "error": null,
+                      "requestId": "12345678"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "examples": {
+                  "missingExecutionId": {
+                    "value": {
+                      "success": false,
+                      "outcome": null,
+                      "error": "executionId is required",
+                      "requestId": "12345678"
+                    }
+                  },
+                  "missingTurnIdentifier": {
+                    "value": {
+                      "success": false,
+                      "outcome": null,
+                      "error": "turnIdentifier is required",
+                      "requestId": "12345678"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/agent/resume": {
+      "post": {
+        "tags": [
+          "HITL"
+        ],
+        "summary": "Resume Execution In Service Context",
+        "description": "Resume an execution in service-user context.\nThis endpoint is used by service-user routing and manual recovery flows.",
+        "operationId": "resumeExecution",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResumeRequest"
+              },
+              "examples": {
+                "standardResume": {
+                  "summary": "Resume execution",
+                  "value": {
+                    "executionId": "a0X5g000001234567",
+                    "resumeReason": "Resume via service user context",
+                    "retryFailedTool": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resume request processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "examples": {
+                  "success": {
+                    "value": {
+                      "success": true,
+                      "outcome": "Resume initiated successfully",
+                      "error": null,
+                      "requestId": "12345678"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input or non-resumable execution",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "examples": {
+                  "missingExecutionId": {
+                    "value": {
+                      "success": false,
+                      "outcome": null,
+                      "error": "executionId is required",
+                      "requestId": "12345678"
+                    }
+                  },
+                  "alreadyCompleted": {
+                    "value": {
+                      "success": false,
+                      "outcome": null,
+                      "error": "Execution is already completed. Nothing to resume.",
+                      "requestId": "12345678"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -354,18 +539,17 @@
       "ChatMessageRequest": {
         "type": "object",
         "required": [
-          "sessionId",
           "originalUserId",
           "agentDefinitionId",
-          "turnIdentifier",
-          "userMessage"
+          "turnIdentifier"
         ],
         "properties": {
           "sessionId": {
             "type": "string",
             "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$",
-            "description": "Unique identifier for the agent execution session (Salesforce ID)",
-            "example": "a0X5g000001234567"
+            "description": "Existing AgentExecution__c ID. Omit to start a new execution.",
+            "example": "a0X5g000001234567",
+            "nullable": true
           },
           "originalUserId": {
             "type": "string",
@@ -387,16 +571,56 @@
           },
           "userMessage": {
             "type": "string",
-            "minLength": 1,
             "maxLength": 32000,
-            "description": "The user's message text",
-            "example": "Help me close this case"
+            "description": "The user's message text. Optional for non-conversational or service-triggered executions.",
+            "example": "Help me close this case",
+            "nullable": true
           },
           "currentRecordId": {
             "type": "string",
             "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$",
             "description": "Contextual Salesforce record ID (optional)",
             "example": "5005g000001234567",
+            "nullable": true
+          },
+          "sourceRecordId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$",
+            "description": "Source record ID associated with the execution context",
+            "example": "5005g000001234567",
+            "nullable": true
+          },
+          "sourceRecordIds": {
+            "type": "array",
+            "description": "Multiple source record IDs for batch or workflow-triggered executions",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$"
+            },
+            "nullable": true
+          },
+          "triggerPayload": {
+            "type": "string",
+            "description": "Serialized trigger payload or upstream workflow context",
+            "example": "{\"caseId\":\"5005g000001234567\"}",
+            "nullable": true
+          },
+          "triggerSource": {
+            "type": "string",
+            "description": "Origin of the execution request",
+            "example": "API",
+            "nullable": true
+          },
+          "batchId": {
+            "type": "string",
+            "description": "Optional batch or orchestration identifier",
+            "example": "batch-2024-01-15-001",
+            "nullable": true
+          },
+          "priority": {
+            "type": "integer",
+            "description": "Optional execution priority",
+            "example": 1,
             "nullable": true
           }
         }
@@ -481,7 +705,10 @@
       },
       "AgentResponse": {
         "type": "object",
-        "required": ["success", "requestId"],
+        "required": [
+          "success",
+          "requestId"
+        ],
         "properties": {
           "success": {
             "type": "boolean",
@@ -492,13 +719,7 @@
             "type": "string",
             "description": "Processing status or result message",
             "example": "Processing",
-            "nullable": true,
-            "enum": [
-              "Processing",
-              "Completed",
-              "Failed",
-              "Tool executed successfully"
-            ]
+            "nullable": true
           },
           "error": {
             "type": "string",
@@ -511,6 +732,74 @@
             "pattern": "^\\d{8}$",
             "description": "Unique request identifier for troubleshooting",
             "example": "12345678"
+          },
+          "executionId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$",
+            "description": "AgentExecution__c ID when the request creates or continues a tracked execution",
+            "example": "a0X5g000001234567",
+            "nullable": true
+          }
+        }
+      },
+      "HITLFollowUpRequest": {
+        "type": "object",
+        "required": [
+          "executionId",
+          "turnIdentifier"
+        ],
+        "properties": {
+          "executionId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$",
+            "description": "ID of the AgentExecution__c record to resume for follow-up",
+            "example": "a0X5g000001234567"
+          },
+          "turnIdentifier": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Turn identifier associated with the pending follow-up",
+            "example": "turn-2024-01-15-12-32-00-ghi789"
+          },
+          "turnCount": {
+            "type": "number",
+            "minimum": 1,
+            "description": "Current turn count prior to follow-up enqueueing",
+            "example": 4,
+            "nullable": true
+          },
+          "sourceRecordId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$",
+            "description": "Optional source record context",
+            "example": "5005g000001234567",
+            "nullable": true
+          }
+        }
+      },
+      "ResumeRequest": {
+        "type": "object",
+        "required": [
+          "executionId"
+        ],
+        "properties": {
+          "executionId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$",
+            "description": "ID of the AgentExecution__c record to resume",
+            "example": "a0X5g000001234567"
+          },
+          "resumeReason": {
+            "type": "string",
+            "description": "Human-readable reason recorded with the resume request",
+            "example": "Resume via service user context",
+            "nullable": true
+          },
+          "retryFailedTool": {
+            "type": "boolean",
+            "description": "Whether the resume should retry the previously failed tool",
+            "example": false,
+            "nullable": true
           }
         }
       }

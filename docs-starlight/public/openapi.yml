@@ -50,13 +50,14 @@ paths:
         - Chat
       summary: Process Chat Message
       description: |
-        Process a user message through an AI agent with full conversation context.
+        Process an agent turn with full conversation context.
         This endpoint initiates or continues an agent execution session.
         
         **Use Cases:**
         - Start new conversations
         - Continue existing conversations
         - Provide contextual information via currentRecordId
+        - Trigger function-style or service-user executions
         
         **Processing:**
         - Executes in service user context (elevated permissions)
@@ -73,7 +74,6 @@ paths:
               startConversation:
                 summary: Start new conversation
                 value:
-                  sessionId: "a0X5g000001234567"
                   originalUserId: "0055g000001234567"
                   agentDefinitionId: "a0Y5g000001234567"
                   turnIdentifier: "turn-2024-01-15-12-30-45-abc123"
@@ -103,6 +103,7 @@ paths:
                     outcome: "Processing"
                     error: null
                     requestId: "12345678"
+                    executionId: "a0X5g000001234567"
         '400':
           description: Bad Request - Invalid input
           content:
@@ -115,7 +116,7 @@ paths:
                   value:
                     success: false
                     outcome: null
-                    error: "sessionId is required"
+                    error: "originalUserId is required"
                     requestId: "12345678"
                 invalidId:
                   summary: Invalid ID format
@@ -263,6 +264,131 @@ paths:
                     error: "Internal server error: DML exception occurred"
                     requestId: "12345678"
 
+  /ai/agent/hitl/followup:
+    post:
+      tags:
+        - HITL
+      summary: Queue HITL Follow-Up LLM Call
+      description: |
+        Queue a follow-up LLM call after a HITL action was rejected, declined, or expired.
+        This endpoint runs in service-user context and resumes the execution so the agent can continue.
+      operationId: queueHITLFollowUp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HITLFollowUpRequest'
+            examples:
+              rejectedFollowUp:
+                summary: Queue follow-up after rejection
+                value:
+                  executionId: "a0X5g000001234567"
+                  turnIdentifier: "turn-2024-01-15-12-32-00-ghi789"
+                  turnCount: 4
+                  sourceRecordId: "5005g000001234567"
+      responses:
+        '200':
+          description: Follow-up queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+              examples:
+                success:
+                  value:
+                    success: true
+                    outcome: "QUEUED_FOLLOWUP"
+                    error: null
+                    requestId: "12345678"
+        '400':
+          description: Bad Request - Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+              examples:
+                missingExecutionId:
+                  value:
+                    success: false
+                    outcome: null
+                    error: "executionId is required"
+                    requestId: "12345678"
+                missingTurnIdentifier:
+                  value:
+                    success: false
+                    outcome: null
+                    error: "turnIdentifier is required"
+                    requestId: "12345678"
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+
+  /ai/agent/resume:
+    post:
+      tags:
+        - HITL
+      summary: Resume Execution In Service Context
+      description: |
+        Resume an execution in service-user context.
+        This endpoint is used by service-user routing and manual recovery flows.
+      operationId: resumeExecution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResumeRequest'
+            examples:
+              standardResume:
+                summary: Resume execution
+                value:
+                  executionId: "a0X5g000001234567"
+                  resumeReason: "Resume via service user context"
+                  retryFailedTool: false
+      responses:
+        '200':
+          description: Resume request processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+              examples:
+                success:
+                  value:
+                    success: true
+                    outcome: "Resume initiated successfully"
+                    error: null
+                    requestId: "12345678"
+        '400':
+          description: Bad Request - Invalid input or non-resumable execution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+              examples:
+                missingExecutionId:
+                  value:
+                    success: false
+                    outcome: null
+                    error: "executionId is required"
+                    requestId: "12345678"
+                alreadyCompleted:
+                  value:
+                    success: false
+                    outcome: null
+                    error: "Execution is already completed. Nothing to resume."
+                    requestId: "12345678"
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+
 components:
   securitySchemes:
     OAuth2:
@@ -285,17 +411,16 @@ components:
     ChatMessageRequest:
       type: object
       required:
-        - sessionId
         - originalUserId
         - agentDefinitionId
         - turnIdentifier
-        - userMessage
       properties:
         sessionId:
           type: string
           pattern: '^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$'
-          description: Unique identifier for the agent execution session (Salesforce ID)
+          description: Existing AgentExecution__c ID. Omit to start a new execution.
           example: "a0X5g000001234567"
+          nullable: true
         originalUserId:
           type: string
           pattern: '^005[a-zA-Z0-9]{12}$|^005[a-zA-Z0-9]{15}$'
@@ -313,15 +438,48 @@ components:
           example: "turn-2024-01-15-12-30-45-abc123"
         userMessage:
           type: string
-          minLength: 1
           maxLength: 32000
-          description: The user's message text
+          description: The user's message text. Optional for non-conversational or service-triggered executions.
           example: "Help me close this case"
+          nullable: true
         currentRecordId:
           type: string
           pattern: '^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$'
           description: Contextual Salesforce record ID (optional)
           example: "5005g000001234567"
+          nullable: true
+        sourceRecordId:
+          type: string
+          pattern: '^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$'
+          description: Source record ID associated with the execution context
+          example: "5005g000001234567"
+          nullable: true
+        sourceRecordIds:
+          type: array
+          description: Multiple source record IDs for batch or workflow-triggered executions
+          items:
+            type: string
+            pattern: '^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$'
+          nullable: true
+        triggerPayload:
+          type: string
+          description: Serialized trigger payload or upstream workflow context
+          example: "{\"caseId\":\"5005g000001234567\"}"
+          nullable: true
+        triggerSource:
+          type: string
+          description: Origin of the execution request
+          example: "API"
+          nullable: true
+        batchId:
+          type: string
+          description: Optional batch or orchestration identifier
+          example: "batch-2024-01-15-001"
+          nullable: true
+        priority:
+          type: integer
+          description: Optional execution priority
+          example: 1
           nullable: true
 
     HITLToolRequest:
@@ -404,11 +562,6 @@ components:
           description: Processing status or result message
           example: "Processing"
           nullable: true
-          enum:
-            - Processing
-            - Completed
-            - Failed
-            - Tool executed successfully
         error:
           type: string
           description: Error message if success is false
@@ -419,11 +572,66 @@ components:
           pattern: '^\d{8}$'
           description: Unique request identifier for troubleshooting
           example: "12345678"
+        executionId:
+          type: string
+          pattern: '^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$'
+          description: AgentExecution__c ID when the request creates or continues a tracked execution
+          example: "a0X5g000001234567"
+          nullable: true
+
+    HITLFollowUpRequest:
+      type: object
+      required:
+        - executionId
+        - turnIdentifier
+      properties:
+        executionId:
+          type: string
+          pattern: '^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$'
+          description: ID of the AgentExecution__c record to resume for follow-up
+          example: "a0X5g000001234567"
+        turnIdentifier:
+          type: string
+          maxLength: 255
+          description: Turn identifier associated with the pending follow-up
+          example: "turn-2024-01-15-12-32-00-ghi789"
+        turnCount:
+          type: number
+          minimum: 1
+          description: Current turn count prior to follow-up enqueueing
+          example: 4
+          nullable: true
+        sourceRecordId:
+          type: string
+          pattern: '^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$'
+          description: Optional source record context
+          example: "5005g000001234567"
+          nullable: true
+
+    ResumeRequest:
+      type: object
+      required:
+        - executionId
+      properties:
+        executionId:
+          type: string
+          pattern: '^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$'
+          description: ID of the AgentExecution__c record to resume
+          example: "a0X5g000001234567"
+        resumeReason:
+          type: string
+          description: Human-readable reason recorded with the resume request
+          example: "Resume via service user context"
+          nullable: true
+        retryFailedTool:
+          type: boolean
+          description: Whether the resume should retry the previously failed tool
+          example: false
+          nullable: true
 
   examples:
     ChatRequestExample:
       value:
-        sessionId: "a0X5g000001234567"
         originalUserId: "0055g000001234567"
         agentDefinitionId: "a0Y5g000001234567"
         turnIdentifier: "turn-2024-01-15-12-30-45-abc123"
@@ -443,16 +651,30 @@ components:
         requestingUserId: "0055g000001234567"
         needsFollowUp: true
 
+    HITLFollowUpRequestExample:
+      value:
+        executionId: "a0X5g000001234567"
+        turnIdentifier: "turn-2024-01-15-12-32-00-ghi789"
+        turnCount: 4
+        sourceRecordId: "5005g000001234567"
+
+    ResumeRequestExample:
+      value:
+        executionId: "a0X5g000001234567"
+        resumeReason: "Resume via service user context"
+        retryFailedTool: false
+
     SuccessResponseExample:
       value:
         success: true
         outcome: "Processing"
         error: null
         requestId: "12345678"
+        executionId: "a0X5g000001234567"
 
     ErrorResponseExample:
       value:
         success: false
         outcome: null
-        error: "sessionId is required"
+        error: "originalUserId is required"
         requestId: "12345678"

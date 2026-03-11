@@ -15,6 +15,10 @@ Build custom actions and context providers to extend the AI Agent Framework.
 Start with a minimal custom action, validate with tests, then expand behavior and context providers incrementally.
 </Aside>
 
+<Aside type="note" title="Testing Convention">
+In this repo, prefer the shared `TestFactory` builders for Apex tests instead of hand-rolling large data graphs. Focus tests on observable business outcomes, negative paths, and async behavior, not just line coverage.
+</Aside>
+
 ## Suggested Workspace Paths
 
 <FileTree>
@@ -23,6 +27,8 @@ Start with a minimal custom action, validate with tests, then expand behavior an
     - `BaseAgentAction.cls`
     - `IAgentAction.cls`
     - `...custom actions...`
+  - `main/default/classes/tests/`
+    - `TestFactory.cls`
 - `seed-data/`
   - `main/default/classes/`
     - `...reference examples...`
@@ -853,6 +859,8 @@ results.put('stuff', tasks);  // Unprofessional
 
 ## Testing Custom Actions
 
+Use `TestFactory` when your action depends on agent definitions, capabilities, executions, or richer data graphs. The lightweight examples below keep the setup minimal for clarity.
+
 ```apex
 @IsTest
 private class ActionCalculateAccountHealthTest {
@@ -1194,7 +1202,7 @@ Use `Fail Fast` for agents where partial execution is worse than no execution (e
     - [ ] Security checks in place (CRUD, FLS)
     - [ ] Catch blocks use `fromException(e)`, not `failure(UNEXPECTED_ERROR, ...)`
     - [ ] Business-logic failures use explicit error codes
-    - [ ] Unit tests with >75% coverage
+    - [ ] Tests assert business outcomes, negative paths, and async behavior
   </Card>
   <Card title="Custom Action — Metadata" icon="seti:config">
     - [ ] `AgentCapability__c` record created
@@ -1210,7 +1218,7 @@ Use `Fail Fast` for agents where partial execution is worse than no execution (e
     - [ ] All SOQL uses `WITH USER_MODE`
     - [ ] Bulk-safe (no queries inside loops)
     - [ ] Reasonable `LIMIT` clauses
-    - [ ] Unit tests with >75% coverage
+    - [ ] Tests cover empty anchors, permissions, and result shape
   </Card>
   <Card title="Context Provider — Metadata" icon="seti:config">
     - [ ] `AgentContextConfig__c` record created

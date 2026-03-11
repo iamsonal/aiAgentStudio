@@ -79,7 +79,7 @@ This single command performs all of the following:
 | Assign Permission Sets | Assigns `AIAgentStudioConfigurator` and `AIAgentStudioEndUser` |
 | Enable Knowledge | Enables Knowledge user and assigns `KnowledgeDemo` permission set |
 | Create Sample Data | Runs `AgentTestDataFactory.createComprehensiveShowcase()` to create sample agents and test data |
-| Setup External Client App | Configures a External Client App for API access |
+| Addons Setup | If addons are available, deploys them, assigns `AIAgentStudioConfiguratorAdvanced`, and runs addon setup |
 
 After the flow completes, open your scratch org:
 
@@ -122,29 +122,30 @@ Named Credentials securely store your AI provider API keys.
 <Tabs>
   <TabItem label="OpenAI">
 
-1. Go to **Setup → Named Credentials → New**
-2. Configure:
-   - **Label**: `OpenAI API`
-   - **Name**: `OpenAI_API`
-   - **URL**: `https://api.openai.com`
-   - **Identity Type**: Named Principal
-   - **Authentication Protocol**: Custom
-3. Add External Credential with your API key as a header:
-   - **Header Name**: `Authorization`
-   - **Header Value**: `Bearer YOUR_API_KEY`
+The framework already includes:
+
+- Named Credential: `OpenAI_API`
+- External Credential: `OpenAIEC`
+
+To activate it:
+
+1. Go to **Setup → External Credentials**
+2. Open **OpenAIEC**
+3. Edit the **OpenAI** principal
+4. Set the `OpenAIKey` authentication parameter to your API key
+5. Save the changes
+
+Use `OpenAI_API` in your `LLMConfiguration__c` record after the key is populated.
 
   </TabItem>
   <TabItem label="OpenAI-compatible APIs">
 
-`OpenAIProviderAdapter` works with any API that speaks the OpenAI chat completions format — Azure OpenAI, Groq, Together AI, Ollama, or a self-hosted model server. Just change the Named Credential URL to point at the provider's endpoint:
+`OpenAIProviderAdapter` works with any API that speaks the OpenAI chat completions format. The easiest path is to clone the packaged OpenAI credential setup and point it at your provider:
 
-1. Go to **Setup → Named Credentials → New**
-2. Configure:
-   - **Label**: `My Provider API`
-   - **Name**: `MyProvider_API`
-   - **URL**: `https://YOUR_PROVIDER_BASE_URL` (e.g. `https://api.groq.com`)
-3. Add the appropriate auth header (typically `Authorization: Bearer YOUR_API_KEY`)
-4. In your `LLMConfiguration__c` record set `ProviderAdapterClass__c = OpenAIProviderAdapter`
+1. Create a new External Credential modeled after `OpenAIEC`
+2. Create a Named Credential that points to your provider base URL
+3. Configure the provider-specific auth parameter/header
+4. In `LLMConfiguration__c`, set `ProviderAdapterClass__c = OpenAIProviderAdapter`
 
   </TabItem>
   <TabItem label="Other providers">
@@ -167,10 +168,10 @@ LLM Configurations define how to connect to your AI provider.
 | Field | Value | Description |
 |:------|:------|:------------|
 | Developer Name | `OpenAI_GPT4o` | Unique identifier |
-| Named Credential | `OpenAI_API` | Your named credential |
+| Named Credential | `OpenAI_API` | Packaged named credential backed by `OpenAIEC` |
 | Provider Adapter Class | `OpenAIProviderAdapter` | Provider-specific adapter |
 | Default Model | `gpt-4o-mini` | Model to use |
-| Temperature | `0.7` | Creativity (0-1) |
+| Default Temperature | `0.7` | Creativity (0-1) |
 | Max Tokens | `4096` | Maximum response length |
 | Is Active | ✓ | Enable this configuration |
 
@@ -197,13 +198,15 @@ LLM Configurations define how to connect to your AI provider.
 | LLM Configuration | `OpenAI_GPT4o` |
 | Is Active | ✓ |
 
-Other common patterns you can configure in the framework include function-style agents for targeted tasks, email agents for message-driven workflows, and multi-agent workflow patterns for larger processes.
+<Aside type="note" title="Core Runtime Scope">
+The open-source core runtime documented here is centered on conversational agents. Function, Email, and pipeline-style orchestrators are available only when addon metadata and mappings are deployed.
+</Aside>
 
 4. Configure memory settings:
 
 | Field | Value | Description |
 |:------|:------|:------------|
-| Memory Strategy | `BufferWindow` | How to manage history |
+| Memory Strategy | `Buffer Window` | How to manage history |
 | History Turn Limit | `10` | Conversations to remember |
 
 5. Configure prompts:
@@ -233,7 +236,7 @@ Capabilities are the tools your agent can use. Start with read-only capabilities
 </Aside>
 
 <Tabs>
-  <TabItem label="Search Contacts">
+  <TabItem label="Lookup Contact By Email">
 
 1. Open **App Launcher → Agent Capabilities**
 2. Click **New**
@@ -241,8 +244,8 @@ Capabilities are the tools your agent can use. Start with read-only capabilities
 
 | Field | Value |
 |:------|:------|
-| Capability Name | `search_contacts` |
-| Description | `Search for contacts by name, email, or account. Use this when users ask to find contact information.` |
+| Capability Name | `lookup_contact_by_email` |
+| Description | `Retrieve a contact by email address and return key contact details. Use when the user already knows the email and needs the matching Salesforce contact record.` |
 | Implementation Type | `Standard` |
 | Standard Action Type | `GetRecordDetails` |
 | AI Agent Definition | `Sales Assistant` |
@@ -250,7 +253,9 @@ Capabilities are the tools your agent can use. Start with read-only capabilities
 4. Add Backend Configuration:
 ```json
 {
-  "objectApiName": "Contact"
+  "variant": "field_list",
+  "objectApiName": "Contact",
+  "defaultFields": ["Id", "FirstName", "LastName", "Email", "Phone", "Title", "Account.Name"]
 }
 ```
 
@@ -258,22 +263,11 @@ Capabilities are the tools your agent can use. Start with read-only capabilities
 ```json
 {
   "type": "object",
+  "required": ["Email"],
   "properties": {
-    "firstName": {
+    "Email": {
       "type": "string",
-      "description": "Contact's first name"
-    },
-    "lastName": {
-      "type": "string",
-      "description": "Contact's last name"
-    },
-    "email": {
-      "type": "string",
-      "description": "Contact's email address"
-    },
-    "accountName": {
-      "type": "string",
-      "description": "Name of the contact's account"
+      "description": "Exact email address of the contact to retrieve"
     }
   }
 }
@@ -288,12 +282,15 @@ Capabilities are the tools your agent can use. Start with read-only capabilities
 | Description | `Create a follow-up task. Use when users want to schedule reminders or to-dos.` |
 | Implementation Type | `Standard` |
 | Standard Action Type | `CreateRecord` |
-| Requires Approval | ✓ |
+| HITL Mode | `Confirmation` |
 
 Backend Configuration:
 ```json
 {
-  "objectApiName": "Task"
+  "objectApiName": "Task",
+  "defaultFieldValues": {
+    "Status": "Not Started"
+  }
 }
 ```
 
@@ -350,8 +347,8 @@ Open the page with your chat component and try these conversations:
 You: Hi there!
 Agent: Hello! I'm your Sales Assistant. How can I help you today?
 
-You: Find contacts at Acme Corp
-Agent: [Searches and returns contacts]
+You: Look up the contact with email john.smith@acme.com
+Agent: I found John Smith at Acme Corp. He is listed as Director of Operations.
 
 You: Create a task to follow up with John Smith next week
 Agent: I'll create a follow-up task for John Smith. Here are the details:

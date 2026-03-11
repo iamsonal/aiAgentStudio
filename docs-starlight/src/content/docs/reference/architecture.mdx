@@ -13,6 +13,10 @@ AI Agent Studio combines multiple agent patterns, workflow controls, trust layer
 This page is intentionally feature-focused. It avoids internal class-level and object-level implementation detail while still describing the full functionality available in the framework experience.
 </Aside>
 
+<Aside type="note" title="Core vs Addons">
+The open-source core runtime is centered on conversational agents. Function agents, email agents, sequential pipelines, and several specialized UIs are available only when addon metadata and orchestrator mappings are deployed.
+</Aside>
+
 ## Agent Patterns
 
 <CardGrid>
@@ -72,7 +76,7 @@ This page is intentionally feature-focused. It avoids internal class-level and o
     Sensitive actions can require confirmation or approval before they execute, which helps teams safely automate higher-impact workflows.
   </Card>
   <Card title="Observability" icon="seti:graph-line">
-    Storyboards, execution histories, reasoning capture, and token usage data provide transparency for production operations.
+    Execution histories, reasoning capture, and token usage data provide transparency for production operations. The storyboard-style UI is addon-provided.
   </Card>
   <Card title="Trust Layers" icon="seti:shield">
     PII masking, prompt safety, and tool-flow controls help keep agent behavior aligned with enterprise security and reliability expectations.
@@ -108,7 +112,7 @@ Define what an agent can do:
   <li>when each action should be used</li>
   <li>the inputs it expects</li>
   <li>whether it runs immediately or in the background</li>
-  <li>whether it requires approval</li>
+  <li>whether it requires confirmation, approval, or conditional approval</li>
 </ul>
 
   </TabItem>

@@ -32,7 +32,7 @@ Help desk agent that searches cases, updates status, and creates tasks.
 
 <CardGrid>
   <Card title="Conversational" icon="chat">
-    **Memory**: BufferWindow · **History Limit**: 10 turns
+    **Memory**: Buffer Window · **History Limit**: 10 turns
   </Card>
   <Card title="Identity Prompt" icon="seti:text">
     Customer support assistant for the service team — finds cases, updates status, creates follow-up tasks.
@@ -41,7 +41,7 @@ Help desk agent that searches cases, updates status, and creates tasks.
 
 **Instructions Prompt**:
 ```
-- Search for cases before asking users for case numbers
+- Prefer exact identifiers such as Case Number before attempting a lookup
 - Confirm before updating case status or priority
 - Create tasks for any follow-up actions mentioned
 - Summarize case details clearly
@@ -50,15 +50,16 @@ Help desk agent that searches cases, updates status, and creates tasks.
 ### Capabilities
 
 <Tabs>
-  <TabItem label="Search Cases">
+  <TabItem label="Get Case Details">
 
 ```json
 {
-  "capabilityName": "search_cases",
-  "description": "Search for support cases by number, contact, account, or subject",
+  "capabilityName": "get_case_details",
+  "description": "Retrieve a case by exact Case Number and return the key support fields needed for triage",
   "implementationType": "Standard",
   "standardActionType": "GetRecordDetails",
   "backendConfiguration": {
+    "variant": "field_list",
     "objectApiName": "Case",
     "defaultFields": ["CaseNumber", "Subject", "Status", "Priority", "Contact.Name", "Account.Name"]
   }
@@ -74,7 +75,7 @@ Help desk agent that searches cases, updates status, and creates tasks.
   "description": "Update case status, priority, or other fields",
   "implementationType": "Standard",
   "standardActionType": "UpdateRecord",
-  "requiresApproval": true,
+  "hitlMode": "Confirmation",
   "backendConfiguration": {
     "objectApiName": "Case"
   }
@@ -92,7 +93,7 @@ Help desk agent that searches cases, updates status, and creates tasks.
   "standardActionType": "CreateRecord",
   "backendConfiguration": {
     "objectApiName": "Task",
-    "defaultValues": {
+    "defaultFieldValues": {
       "Status": "Not Started",
       "Priority": "Normal"
     }
@@ -106,19 +107,14 @@ Help desk agent that searches cases, updates status, and creates tasks.
 ### Sample Conversation
 
 ```
-User: Find cases for Acme Corp
+User: Get details for case 00001235
 
-Agent: I found 3 open cases for Acme Corp:
-       1. Case #00001234 - Login issues (High Priority)
-       2. Case #00001235 - Billing question (Normal)
-       3. Case #00001236 - Feature request (Low)
-
-       Would you like details on any of these?
+Agent: Case #00001235 is "Billing question". It is currently Open with Normal priority for Acme Corp.
 
 User: Update the billing question to high priority
 
 Agent: I'll update Case #00001235 to High priority.
-       [Approval Required]
+       [Confirmation Requested]
        Confirm this change?
 
 User: Yes
@@ -136,7 +132,7 @@ Sales copilot that helps reps find leads, opportunities, and manage their pipeli
 
 <CardGrid>
   <Card title="Conversational" icon="chat">
-    **Memory**: SummaryBuffer · **History Limit**: 15 turns
+    **Memory**: Summary Buffer · **History Limit**: 15 turns
   </Card>
   <Card title="Identity Prompt" icon="seti:text">
     Sales assistant for account executives — finds accounts, contacts, opportunities, and suggests next steps.
@@ -146,29 +142,35 @@ Sales copilot that helps reps find leads, opportunities, and manage their pipeli
 ### Capabilities
 
 <Tabs>
-  <TabItem label="Search Opportunities">
+  <TabItem label="Get Opportunity Details">
 
 ```json
 {
-  "capabilityName": "search_opportunities",
-  "description": "Find opportunities by account, stage, amount, or close date",
+  "capabilityName": "get_opportunity_details",
+  "description": "Retrieve an opportunity record when the user already has an exact identifier such as Opportunity Id",
+  "implementationType": "Standard",
+  "standardActionType": "GetRecordDetails",
   "backendConfiguration": {
+    "variant": "field_list",
     "objectApiName": "Opportunity",
-    "defaultFields": ["Name", "Account.Name", "Amount", "StageName", "CloseDate", "Probability"]
+    "defaultFields": ["Id", "Name", "Account.Name", "Amount", "StageName", "CloseDate", "Probability"]
   }
 }
 ```
 
   </TabItem>
-  <TabItem label="Search Contacts">
+  <TabItem label="Get Contact Details">
 
 ```json
 {
-  "capabilityName": "search_contacts",
-  "description": "Find contacts by name, title, account, or email",
+  "capabilityName": "get_contact_details",
+  "description": "Retrieve a contact by exact email address and return the key sales context fields",
+  "implementationType": "Standard",
+  "standardActionType": "GetRecordDetails",
   "backendConfiguration": {
+    "variant": "field_list",
     "objectApiName": "Contact",
-    "defaultFields": ["Name", "Title", "Email", "Phone", "Account.Name"]
+    "defaultFields": ["Id", "Name", "Title", "Email", "Phone", "Account.Name"]
   }
 }
 ```
@@ -184,7 +186,7 @@ Sales copilot that helps reps find leads, opportunities, and manage their pipeli
   "standardActionType": "CreateRecord",
   "backendConfiguration": {
     "objectApiName": "Task",
-    "defaultValues": {
+    "defaultFieldValues": {
       "Status": "Completed",
       "Type": "Call"
     }
@@ -201,10 +203,10 @@ Sales copilot that helps reps find leads, opportunities, and manage their pipeli
 
 <CardGrid>
   <Card title="Capability Design" icon="seti:gear">
-    - **One purpose per capability** — don't combine search and update
+    - **One purpose per capability** — do not combine lookup and update behavior
     - **Clear descriptions** — tell the AI exactly when to use it
     - **Appropriate parameters** — only expose what's needed
-    - **Enable approval** — for any data modifications
+    - **Enable HITL** — for any data modifications
   </Card>
   <Card title="Prompt Engineering" icon="seti:text">
     - **Be specific** about the agent's role
