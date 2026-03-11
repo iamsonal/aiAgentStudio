@@ -126,7 +126,10 @@ public inherited sharing abstract class BaseAgentOrchestrator implements IAgentO
                 return false;
             }
 
-            return exec.ExecutionStatus__c == 'Failed' || exec.ExecutionStatus__c == 'Pending' || exec.ExecutionStatus__c == 'Processing';
+            return exec.ExecutionStatus__c == 'Failed' ||
+                exec.ExecutionStatus__c == 'Pending' ||
+                exec.ExecutionStatus__c == 'Processing' ||
+                exec.ExecutionStatus__c == AIAgentConstants.EXECUTION_STATUS_PAUSED;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Error checking canResume: ' + e.getMessage());
             return false;

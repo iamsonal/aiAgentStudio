@@ -393,6 +393,15 @@ global with sharing class AIAgentRestService {
             );
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to queue follow-up: ' + e.getMessage());
+            AgentStateService stateService = new AgentStateService();
+            stateService.pauseForOperationalIssue(
+                execution.Id,
+                toolRequest != null ? toolRequest.turnIdentifier : null,
+                AIAgentConstants.OP_STATE_FOLLOWUP_QUEUE_FAILED,
+                'Tool execution succeeded but the follow-up LLM call could not be queued: ' + e.getMessage(),
+                logPrefix
+            );
+            throw new AIAgentException.OrchestrationException('Tool execution succeeded but follow-up queueing failed: ' + e.getMessage());
         }
     }
 
@@ -402,13 +411,14 @@ global with sharing class AIAgentRestService {
      */
     private static AIAgentResponse executeFollowUpLLMCall(RestRequest req, RestResponse res, String requestId, String logPrefix) {
         System.debug(LoggingLevel.INFO, logPrefix + 'Processing HITL follow-up LLM request');
+        HITLFollowUpRequest followUpRequest = null;
 
         try {
             if (req.requestBody == null || req.requestBody.size() == 0) {
                 throw new AIAgentRestException('Request body is required');
             }
 
-            HITLFollowUpRequest followUpRequest = (HITLFollowUpRequest) JSON.deserialize(req.requestBody.toString(), HITLFollowUpRequest.class);
+            followUpRequest = (HITLFollowUpRequest) JSON.deserialize(req.requestBody.toString(), HITLFollowUpRequest.class);
 
             if (String.isBlank(followUpRequest.executionId)) {
                 throw new AIAgentRestException('executionId is required');
@@ -455,6 +465,13 @@ global with sharing class AIAgentRestService {
             return new AIAgentResponse(false, null, e.getMessage(), requestId);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage() + '\n' + e.getStackTraceString());
+            pauseExecutionForOperationalIssue(
+                tryParseId(followUpRequest != null ? followUpRequest.executionId : null),
+                followUpRequest != null ? followUpRequest.turnIdentifier : null,
+                AIAgentConstants.OP_STATE_FOLLOWUP_QUEUE_FAILED,
+                'Follow-up LLM queueing failed in service-user context: ' + e.getMessage(),
+                logPrefix
+            );
             res.statusCode = 500;
             return new AIAgentResponse(false, null, 'Internal server error: ' + e.getMessage(), requestId);
         }
@@ -467,13 +484,14 @@ global with sharing class AIAgentRestService {
      */
     private static AIAgentResponse executeResumeInServiceContext(RestRequest req, RestResponse res, String requestId, String logPrefix) {
         System.debug(LoggingLevel.INFO, logPrefix + 'Processing resume request in service user context');
+        ResumeRequest resumeRequest = null;
 
         try {
             if (req.requestBody == null || req.requestBody.size() == 0) {
                 throw new AIAgentRestException('Request body is required');
             }
 
-            ResumeRequest resumeRequest = (ResumeRequest) JSON.deserialize(req.requestBody.toString(), ResumeRequest.class);
+            resumeRequest = (ResumeRequest) JSON.deserialize(req.requestBody.toString(), ResumeRequest.class);
 
             if (String.isBlank(resumeRequest.executionId)) {
                 throw new AIAgentRestException('executionId is required');
@@ -525,6 +543,16 @@ global with sharing class AIAgentRestService {
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Resume completed. Success: ' + result.success + ', Message: ' + result.message);
 
+            if (!result.success) {
+                pauseExecutionForOperationalIssue(
+                    executionId,
+                    null,
+                    AIAgentConstants.OP_STATE_RESUME_FAILED,
+                    String.isNotBlank(result.errorMessage) ? result.errorMessage : result.message,
+                    logPrefix
+                );
+            }
+
             res.statusCode = 200;
             return new AIAgentResponse(result.success, result.message, result.errorMessage, requestId);
         } catch (AIAgentRestException e) {
@@ -533,8 +561,46 @@ global with sharing class AIAgentRestService {
             return new AIAgentResponse(false, null, e.getMessage(), requestId);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage() + '\n' + e.getStackTraceString());
+            pauseExecutionForOperationalIssue(
+                tryParseId(resumeRequest != null ? resumeRequest.executionId : null),
+                null,
+                AIAgentConstants.OP_STATE_RESUME_FAILED,
+                'Resume failed in service-user context: ' + e.getMessage(),
+                logPrefix
+            );
             res.statusCode = 500;
             return new AIAgentResponse(false, null, 'Internal server error: ' + e.getMessage(), requestId);
+        }
+    }
+
+    private static void pauseExecutionForOperationalIssue(
+        Id executionId,
+        String turnIdentifier,
+        String operationalState,
+        String detailMessage,
+        String logPrefix
+    ) {
+        if (executionId == null) {
+            return;
+        }
+
+        try {
+            AgentStateService stateService = new AgentStateService();
+            stateService.pauseForOperationalIssue(executionId, turnIdentifier, operationalState, detailMessage, logPrefix);
+        } catch (Exception pauseEx) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to persist operational state: ' + pauseEx.getMessage());
+        }
+    }
+
+    private static Id tryParseId(String rawId) {
+        if (String.isBlank(rawId)) {
+            return null;
+        }
+
+        try {
+            return Id.valueOf(rawId);
+        } catch (Exception e) {
+            return null;
         }
     }
 

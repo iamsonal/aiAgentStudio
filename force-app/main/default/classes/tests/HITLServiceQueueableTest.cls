@@ -153,18 +153,26 @@ private class HITLServiceQueueableTest {
 
     @IsTest
     static void testFollowUp_HttpError_LogsErrorGracefully() {
-        AgentExecution__c exec = [SELECT Id FROM AgentExecution__c LIMIT 1];
+        AgentExecution__c exec = [SELECT Id, CurrentTurnIdentifier__c FROM AgentExecution__c LIMIT 1];
 
         // Mock 500 error - HttpCalloutService throws NonRetriableHttpException
         Test.setMock(HttpCalloutMock.class, MockHttpResponses.serverError());
 
         Test.startTest();
-        System.enqueueJob(new HITLServiceQueueable(exec.Id, 'turn-hitlq-followup-err', 3, null));
+        System.enqueueJob(new HITLServiceQueueable(exec.Id, exec.CurrentTurnIdentifier__c, 3, null));
         Test.stopTest();
 
-        // Verify execution not mutated (error caught and logged)
-        AgentExecution__c afterExec = [SELECT ExecutionStatus__c FROM AgentExecution__c WHERE Id = :exec.Id];
-        System.assertNotEquals(null, afterExec, 'Execution should still exist after error');
+        AgentExecution__c afterExec = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, ErrorMessage__c
+            FROM AgentExecution__c
+            WHERE Id = :exec.Id
+        ];
+        System.assertEquals(AIAgentConstants.EXECUTION_STATUS_PAUSED, afterExec.ExecutionStatus__c, 'Execution should be Paused after follow-up queue failure');
+        System.assertEquals(AIAgentConstants.STATUS_FAILED, afterExec.ProcessingStatus__c, 'Paused follow-up failures should use Failed processing status');
+        System.assert(
+            afterExec.ErrorMessage__c != null && afterExec.ErrorMessage__c.contains(AIAgentConstants.OP_STATE_FOLLOWUP_QUEUE_FAILED),
+            'Operational state should explain the follow-up failure'
+        );
     }
 
     @IsTest
@@ -181,8 +189,16 @@ private class HITLServiceQueueableTest {
         System.enqueueJob(new HITLServiceQueueable(exec.Id, 'Resume after failure', null));
         Test.stopTest();
 
-        AgentExecution__c afterExec = [SELECT ExecutionStatus__c FROM AgentExecution__c WHERE Id = :exec.Id];
-        System.assertNotEquals(null, afterExec, 'Execution should still exist after warning');
+        AgentExecution__c afterExec = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, ErrorMessage__c
+            FROM AgentExecution__c
+            WHERE Id = :exec.Id
+        ];
+        System.assertEquals(AIAgentConstants.EXECUTION_STATUS_PAUSED, afterExec.ExecutionStatus__c, 'Execution should be Paused after unsuccessful resume');
+        System.assert(
+            afterExec.ErrorMessage__c != null && afterExec.ErrorMessage__c.contains(AIAgentConstants.OP_STATE_RESUME_FAILED),
+            'Operational state should explain the unsuccessful resume'
+        );
     }
 
     @IsTest
@@ -196,9 +212,20 @@ private class HITLServiceQueueableTest {
         System.enqueueJob(new HITLServiceQueueable(exec.Id, 'Resume after stuck', true));
         Test.stopTest();
 
-        // Error is caught and logged, not propagated
-        AgentExecution__c afterExec = [SELECT ExecutionStatus__c FROM AgentExecution__c WHERE Id = :exec.Id];
-        System.assertNotEquals(null, afterExec, 'Execution should still exist after error');
+        AgentExecution__c afterExec = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, ErrorMessage__c
+            FROM AgentExecution__c
+            WHERE Id = :exec.Id
+        ];
+        System.assertEquals(
+            AIAgentConstants.EXECUTION_STATUS_PAUSED,
+            afterExec.ExecutionStatus__c,
+            'Execution should be Paused after resume transport failure'
+        );
+        System.assert(
+            afterExec.ErrorMessage__c != null && afterExec.ErrorMessage__c.contains(AIAgentConstants.OP_STATE_RESUME_FAILED),
+            'Operational state should explain the resume failure'
+        );
     }
 
     @IsTest
@@ -248,37 +275,51 @@ private class HITLServiceQueueableTest {
     }
 
     @IsTest
-    static void testFollowUp_MissingNamedCredential_DoesNotMutateExecution() {
+    static void testFollowUp_MissingNamedCredential_PausesExecution() {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
         agent.ServiceUserNamedCredential__c = null;
         update agent;
 
-        AgentExecution__c exec = [SELECT Id, ExecutionStatus__c FROM AgentExecution__c LIMIT 1];
-        String originalStatus = exec.ExecutionStatus__c;
+        AgentExecution__c exec = [SELECT Id, CurrentTurnIdentifier__c FROM AgentExecution__c LIMIT 1];
 
         Test.startTest();
-        System.enqueueJob(new HITLServiceQueueable(exec.Id, 'turn-no-cred', 1, null));
+        System.enqueueJob(new HITLServiceQueueable(exec.Id, exec.CurrentTurnIdentifier__c, 1, null));
         Test.stopTest();
 
-        AgentExecution__c afterExec = [SELECT ExecutionStatus__c FROM AgentExecution__c WHERE Id = :exec.Id];
-        System.assertEquals(originalStatus, afterExec.ExecutionStatus__c, 'Execution status should remain unchanged on credential error');
+        AgentExecution__c afterExec = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, ErrorMessage__c
+            FROM AgentExecution__c
+            WHERE Id = :exec.Id
+        ];
+        System.assertEquals(AIAgentConstants.EXECUTION_STATUS_PAUSED, afterExec.ExecutionStatus__c, 'Execution should be Paused on follow-up credential error');
+        System.assert(
+            afterExec.ErrorMessage__c != null && afterExec.ErrorMessage__c.contains(AIAgentConstants.OP_STATE_FOLLOWUP_QUEUE_FAILED),
+            'Operational state should explain the credential failure'
+        );
     }
 
     @IsTest
-    static void testResume_MissingNamedCredential_DoesNotMutateExecution() {
+    static void testResume_MissingNamedCredential_PausesExecution() {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
         agent.ServiceUserNamedCredential__c = null;
         update agent;
 
-        AgentExecution__c exec = [SELECT Id, ExecutionStatus__c FROM AgentExecution__c LIMIT 1];
-        String originalStatus = exec.ExecutionStatus__c;
+        AgentExecution__c exec = [SELECT Id FROM AgentExecution__c LIMIT 1];
 
         Test.startTest();
         System.enqueueJob(new HITLServiceQueueable(exec.Id, 'Resume no cred', false));
         Test.stopTest();
 
-        AgentExecution__c afterExec = [SELECT ExecutionStatus__c FROM AgentExecution__c WHERE Id = :exec.Id];
-        System.assertEquals(originalStatus, afterExec.ExecutionStatus__c, 'Execution status should remain unchanged on credential error');
+        AgentExecution__c afterExec = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, ErrorMessage__c
+            FROM AgentExecution__c
+            WHERE Id = :exec.Id
+        ];
+        System.assertEquals(AIAgentConstants.EXECUTION_STATUS_PAUSED, afterExec.ExecutionStatus__c, 'Execution should be Paused on resume credential error');
+        System.assert(
+            afterExec.ErrorMessage__c != null && afterExec.ErrorMessage__c.contains(AIAgentConstants.OP_STATE_RESUME_FAILED),
+            'Operational state should explain the credential failure'
+        );
     }
 
     @IsTest

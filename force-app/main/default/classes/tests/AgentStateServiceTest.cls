@@ -95,6 +95,35 @@ private class AgentStateServiceTest {
     }
 
     @IsTest
+    static void testPauseForOperationalIssue_SetsPausedStateAndMessage() {
+        AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
+
+        update new AgentExecution__c(Id = execution.Id, CurrentTurnIdentifier__c = 'turn-pause-001');
+
+        AgentStateService svc = new AgentStateService();
+        svc.pauseForOperationalIssue(
+            execution.Id,
+            'turn-pause-001',
+            AIAgentConstants.OP_STATE_FOLLOWUP_QUEUE_FAILED,
+            'Follow-up queueing failed for this execution.',
+            '[Test] '
+        );
+
+        AgentExecution__c updated = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, ErrorMessage__c, EndTime__c
+            FROM AgentExecution__c
+            WHERE Id = :execution.Id
+        ];
+        System.assertEquals(AIAgentConstants.EXECUTION_STATUS_PAUSED, updated.ExecutionStatus__c, 'Execution should be Paused');
+        System.assertEquals(AIAgentConstants.STATUS_FAILED, updated.ProcessingStatus__c, 'Paused operational issues should use Failed processing status');
+        System.assert(
+            updated.ErrorMessage__c != null && updated.ErrorMessage__c.contains(AIAgentConstants.OP_STATE_FOLLOWUP_QUEUE_FAILED),
+            'Operational state should be included in the persisted message'
+        );
+        System.assertEquals(null, updated.EndTime__c, 'Paused executions should remain resumable and not set EndTime');
+    }
+
+    @IsTest
     static void testUpdateStatus_TerminalCommitsBufferedSteps() {
         AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
 

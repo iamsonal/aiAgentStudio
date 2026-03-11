@@ -342,6 +342,30 @@ public inherited sharing class AgentStateService {
     }
 
     /**
+     * @description Pauses an execution with an explicit operational-state marker so operators can
+     * inspect recoverable runtime problems without relying on debug logs.
+     */
+    public Boolean pauseForOperationalIssue(Id executionId, String turnIdentifier, String operationalState, String detailMessage, String logPrefix) {
+        String stateMessage = buildOperationalStateMessage(operationalState, detailMessage);
+        System.debug(
+            LoggingLevel.WARN,
+            logPrefix +
+                'AgentStateService: PAUSED state for execution=' +
+                executionId +
+                (String.isNotBlank(turnIdentifier) ? (', Turn=' + turnIdentifier) : '') +
+                '. Operational=' +
+                stateMessage
+        );
+
+        return updateStatus(executionId, AIAgentConstants.EXECUTION_STATUS_PAUSED, AIAgentConstants.STATUS_FAILED, turnIdentifier, stateMessage);
+    }
+
+    public static String buildOperationalStateMessage(String operationalState, String detailMessage) {
+        String normalizedState = String.isNotBlank(operationalState) ? operationalState : 'UNKNOWN_OPERATIONAL_STATE';
+        return '[' + normalizedState + '] ' + (String.isNotBlank(detailMessage) ? detailMessage : 'No additional details provided.');
+    }
+
+    /**
      * @description Finalizes execution status after a synchronous turn completes.
      *
      * In the synchronous execution path, Apex's DML-before-callout restriction prevents
@@ -520,7 +544,7 @@ public inherited sharing class AgentStateService {
             }
 
             // Set error message when execution fails
-            if (executionStatus == 'Failed' && String.isNotBlank(statusMessage)) {
+            if ((executionStatus == 'Failed' || executionStatus == AIAgentConstants.EXECUTION_STATUS_PAUSED) && String.isNotBlank(statusMessage)) {
                 execution.ErrorMessage__c = statusMessage;
             }
 
