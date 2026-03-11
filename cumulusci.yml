@@ -73,7 +73,10 @@ flows:
                         if [ -f "aiAgentStudioAddons/main/default/classes/AgentStudioAuthSetup.cls" ]; then
                             echo "Addons found - deploying and configuring External Client App..."
                             cci task run deploy_addons --org dev
+                            cci task run assign_permission_sets --org dev --api_names AIAgentStudioConfiguratorAdvanced
                             cci task run execute_anon --org dev --apex "AgentStudioAuthSetup.setup();"
+                            cci task run execute_anon --org dev --apex "CaseProcessingPipelineFactory.setupQueues();"
+                            cci task run execute_anon --org dev --apex "CaseProcessingPipelineFactory.executeDemo();"
                         else
                             echo "Addons not available - skipping External Client App setup (this is expected for public repo)"
                         fi

@@ -249,8 +249,11 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
         for (String fieldName : fieldsToQuery) {
             // Handle relationship fields (e.g., Account.Name)
             if (fieldName.contains('.')) {
-                // For now, include relationship fields as-is (SOQL will handle accessibility)
-                accessibleFields.add(fieldName);
+                ActionOutcome relationshipValidation = validateRelationshipFieldPath(sObjectType, fieldName);
+                if (!relationshipValidation.isSuccess) {
+                    return relationshipValidation;
+                }
+                accessibleFields.add((String) relationshipValidation.data);
                 continue;
             }
 
@@ -303,17 +306,11 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
                 );
             }
 
-            // Warn if multiple matches found
             if (results.size() > 1) {
-                System.debug(
-                    LoggingLevel.WARN,
-                    '[ActionGetRecordDetails] Multiple records found (' +
-                        results.size() +
-                        ') for ' +
-                        identifierField +
-                        ' = ' +
-                        identifierValueStr +
-                        '. Returning first match.'
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                    'Multiple records matched ' + identifierField + ' = ' + identifierValueStr + '.',
+                    'Use a unique identifier such as Id, or configure a field that uniquely identifies one record.'
                 );
             }
 
@@ -332,11 +329,6 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
                 'recordId' => String.valueOf(record.Id),
                 'matchedBy' => identifierFieldApiName
             };
-
-            // Include warnings
-            if (results.size() > 1) {
-                response.put('multipleMatchesWarning', 'Multiple records matched. Returned first of ' + results.size() + ' matches.');
-            }
 
             if (!decision.getRemovedFields().isEmpty()) {
                 System.debug(LoggingLevel.WARN, '[ActionGetRecordDetails] Security.stripInaccessible removed fields: ' + decision.getRemovedFields());
@@ -389,6 +381,118 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
         }
 
         return fields;
+    }
+
+    /**
+     * Validates a relationship field path such as Account.Name and returns a normalized SOQL-safe path.
+     * Rejects unsupported polymorphic/multi-target traversals so the action fails with a clear configuration
+     * error instead of breaking later during query execution.
+     */
+    private ActionOutcome validateRelationshipFieldPath(SObjectType rootType, String fieldPath) {
+        if (String.isBlank(fieldPath)) {
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                'Invalid relationship field path in configuration.',
+                'Provide a valid relationship field path such as "Account.Name".'
+            );
+        }
+
+        List<String> segments = fieldPath.split('\\.');
+        if (segments.size() < 2) {
+            return ActionOutcome.failure(
+                AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                'Invalid relationship field path "' + fieldPath + '".',
+                'Relationship field paths must include both the relationship name and the field name, such as "Account.Name".'
+            );
+        }
+
+        SObjectType currentType = rootType;
+        List<String> normalizedSegments = new List<String>();
+
+        for (Integer i = 0; i < segments.size(); i++) {
+            String segment = segments[i] != null ? segments[i].trim() : null;
+            Boolean isLastSegment = i == segments.size() - 1;
+            if (String.isBlank(segment)) {
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                    'Invalid relationship field path "' + fieldPath + '".',
+                    'Remove empty path segments and use a valid relationship field path such as "Account.Name".'
+                );
+            }
+
+            if (isLastSegment) {
+                SObjectField fieldToken = Utils.getFieldToken(currentType, segment);
+                if (fieldToken == null) {
+                    return ActionOutcome.failure(
+                        AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                        'Unknown field "' + segment + '" in relationship path "' + fieldPath + '".',
+                        'Update the configured field path to reference a valid field on ' + currentType.getDescribe().getName() + '.'
+                    );
+                }
+
+                DescribeFieldResult fieldDescribe = fieldToken.getDescribe();
+                if (!fieldDescribe.isAccessible()) {
+                    return ActionOutcome.failure(
+                        AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
+                        'Access Denied: You do not have permission to read field ' + fieldDescribe.getName() + ' in path "' + fieldPath + '".',
+                        'Contact your Salesforce administrator to request read access to ' + fieldDescribe.getName() + '.'
+                    );
+                }
+
+                normalizedSegments.add(fieldDescribe.getName());
+                continue;
+            }
+
+            DescribeFieldResult relationshipDescribe = findRelationshipField(currentType, segment);
+            if (relationshipDescribe == null) {
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                    'Unknown relationship "' + segment + '" in field path "' + fieldPath + '".',
+                    'Update the configured field path to reference a valid relationship from ' + currentType.getDescribe().getName() + '.'
+                );
+            }
+
+            if (!relationshipDescribe.isAccessible()) {
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
+                    'Access Denied: You do not have permission to read relationship ' + relationshipDescribe.getRelationshipName() + ' in path "' + fieldPath + '".',
+                    'Contact your Salesforce administrator to request read access to the relationship field used in ' + fieldPath + '.'
+                );
+            }
+
+            List<SObjectType> referenceTargets = relationshipDescribe.getReferenceTo();
+            if (referenceTargets == null || referenceTargets.size() != 1 || referenceTargets[0] == null) {
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_CONFIG_ERROR,
+                    'Unsupported relationship path "' + fieldPath + '".',
+                    'Only single-target relationship paths are supported. Avoid polymorphic or ambiguous relationship traversals.'
+                );
+            }
+
+            normalizedSegments.add(relationshipDescribe.getRelationshipName());
+            currentType = referenceTargets[0];
+        }
+
+        return ActionOutcome.success(String.join(normalizedSegments, '.'));
+    }
+
+    private DescribeFieldResult findRelationshipField(SObjectType sObjectType, String relationshipName) {
+        if (sObjectType == null || String.isBlank(relationshipName)) {
+            return null;
+        }
+
+        for (SObjectField fieldToken : Utils.getObjectFields(sObjectType).values()) {
+            DescribeFieldResult fieldDescribe = fieldToken.getDescribe();
+            if (
+                fieldDescribe.getType() == Schema.DisplayType.REFERENCE &&
+                String.isNotBlank(fieldDescribe.getRelationshipName()) &&
+                fieldDescribe.getRelationshipName().equalsIgnoreCase(relationshipName)
+            ) {
+                return fieldDescribe;
+            }
+        }
+
+        return null;
     }
 
     /**
