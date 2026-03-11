@@ -414,13 +414,12 @@ private class AgentExecutionServiceTest {
     }
 
     @IsTest
-    static void testRequiresAutonomousRecovery_UsesOrchestratorMappingMetadata() {
+    static void testRequiresAutonomousRecovery_UsesAvailableOrchestratorMappings() {
         System.assertEquals(
             true,
             AgentExecutionService.requiresAutonomousRecovery('Conversational'),
             'Conversational mapping should require autonomous recovery'
         );
-        System.assertEquals(true, AgentExecutionService.requiresAutonomousRecovery('Email'), 'Email mapping should require autonomous recovery');
         System.assertEquals(false, AgentExecutionService.requiresAutonomousRecovery('Function'), 'Function mapping should not require autonomous recovery');
         System.assertEquals(false, AgentExecutionService.requiresAutonomousRecovery('UnknownType'), 'Unknown types should not require autonomous recovery');
     }

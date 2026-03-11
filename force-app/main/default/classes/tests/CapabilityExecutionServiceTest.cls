@@ -147,7 +147,7 @@ private class CapabilityExecutionServiceTest {
 
         CapabilityExecutionService service = new CapabilityExecutionService();
 
-        ActionOutcome outcome = service.executeSingleAction(capability, '{"Name":"Test Account"}', context);
+        ActionOutcome outcome = service.executeSingleAction(capability, '{"recordData":{"Name":"Test Account"}}', context);
 
         System.assertNotEquals(null, outcome, 'Should return an outcome');
         System.assertEquals(true, outcome.isSuccess, 'Create account should succeed');
@@ -618,7 +618,7 @@ private class CapabilityExecutionServiceTest {
 
         System.assertEquals(false, CapabilityExecutionService.isCacheInitialized, 'Cache should not be initialized initially');
 
-        service.executeSingleAction(capability, '{"Name":"Test"}', context);
+        service.executeSingleAction(capability, '{"recordData":{"Name":"Test"}}', context);
 
         System.assertEquals(true, CapabilityExecutionService.isCacheInitialized, 'Cache should be initialized after first execution');
         System.assertNotEquals(null, CapabilityExecutionService.standardHandlerCache, 'Cache should be populated');

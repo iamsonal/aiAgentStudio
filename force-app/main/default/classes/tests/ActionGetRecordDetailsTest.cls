@@ -158,10 +158,7 @@ private class ActionGetRecordDetailsTest {
         Contact testContact = [SELECT Id FROM Contact WHERE FirstName = 'John' LIMIT 1];
         ActionGetRecordDetails action = new ActionGetRecordDetails();
         String config = JSON.serialize(
-            new Map<String, Object>{
-                'objectApiName' => 'Contact',
-                'defaultFields' => new List<String>{ 'Id', 'FirstName', 'Account.DoesNotExist' }
-            }
+            new Map<String, Object>{ 'objectApiName' => 'Contact', 'defaultFields' => new List<String>{ 'Id', 'FirstName', 'Account.DoesNotExist' } }
         );
         action.parseActionConfiguration(config, '[TEST] ');
 

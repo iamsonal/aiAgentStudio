@@ -444,7 +444,8 @@ public class TestFactory {
             record.ImplementationType__c = 'Flow';
             record.ImplementationDetail__c = flowName;
             record.BackendConfiguration__c = '{"flowApiName":"' + flowName + '"}';
-            record.Parameters__c = '{"type":"object","properties":{"inputParameters":{"type":"object","additionalProperties":true}}}';
+            // Flow inputs are passed as top-level arguments so variable names can match the Flow directly.
+            record.Parameters__c = '{"type":"object","additionalProperties":true}';
             return this;
         }
 
