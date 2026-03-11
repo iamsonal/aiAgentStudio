@@ -178,7 +178,11 @@ private class ContentResponseHandlerTest {
      */
     @IsTest
     static void testHandle_FailFastMode_WithRetryPendingFailure_CompletesNormally() {
-        TestFactory.AgentSetup setup = getSetup();
+        TestFactory.FunctionAgentSetup functionSetup = TestFactory.createFunctionAgentSetup().withExecution().save();
+        TestFactory.AgentSetup setup = new TestFactory.AgentSetup();
+        setup.agentDefinition = functionSetup.agentDefinition;
+        setup.agentExecution = functionSetup.execution;
+        setup.llmConfig = functionSetup.llmConfig;
 
         // Ensure agent is in Fail Fast mode
         update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, ErrorRecoveryMode__c = 'Fail Fast');

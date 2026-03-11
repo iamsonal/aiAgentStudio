@@ -39,8 +39,10 @@ export class UniversalEmpApi {
         this.errorListenerRegistered = false; // Track if error listener is registered
         this.cometdScriptLoaded = false; // Track if CometD script is loaded
         this.initializationInProgress = false; // Prevent race conditions
+        this.initializationPromise = null; // Share in-flight initialize() work across callers
         this.reconnectTimeout = null; // Track reconnection timeout
         this.lastActivityTime = Date.now(); // Track last activity for idle detection
+        this.reconnectInProgress = false; // Prevent overlapping reconnect attempts
     }
 
     /**
@@ -49,57 +51,69 @@ export class UniversalEmpApi {
      * @param {boolean} forceCommunityMode - Optional flag to force community mode (CometD)
      */
     async initialize(errorCallback = null, forceCommunityMode = null) {
-        if (this.initialized) return;
+        if (this.initialized) {
+            return;
+        }
 
         // Prevent race conditions from multiple simultaneous initialize calls
-        if (this.initializationInProgress) {
+        if (this.initializationPromise) {
             console.warn('UniversalEmpApi: Initialization already in progress');
-            return;
+            return this.initializationPromise;
         }
 
         this.initializationInProgress = true;
         this.errorCallback = errorCallback;
 
-        // Use provided mode or default to Lightning Experience (EmpApi)
-        const isCommunity = forceCommunityMode === true;
-        this.communityMode = isCommunity; // Store the mode setting
+        this.initializationPromise = (async () => {
+            // Use provided mode or default to Lightning Experience (EmpApi)
+            const isCommunity = forceCommunityMode === true;
+            this.communityMode = isCommunity; // Store the mode setting
 
-        console.info('UniversalEmpApi: Initializing. Environment mode:', {
-            isCommunity,
-            forceCommunityMode,
-            mode: isCommunity ? 'Community (CometD)' : 'Lightning Experience (EmpApi)'
-        });
+            console.info('UniversalEmpApi: Initializing. Environment mode:', {
+                isCommunity,
+                forceCommunityMode,
+                mode: isCommunity ? 'Community (CometD)' : 'Lightning Experience (EmpApi)'
+            });
 
-        if (isCommunity) {
-            console.info('UniversalEmpApi: Using CometD for Community environment');
-            this.useCometD = true;
-            this.isEmpApiEnabled = false;
-            await this._initializeCometD();
-        } else {
-            console.info('UniversalEmpApi: Using EmpApi for Lightning Experience');
-            try {
-                this.isEmpApiEnabled = await isEmpEnabled();
-                this.useCometD = false;
-                if (this.isEmpApiEnabled) {
-                    this._registerErrorListener();
-                    console.info('UniversalEmpApi: EmpApi enabled and initialized');
-                } else {
-                    console.warn('UniversalEmpApi: EmpApi not enabled, falling back to CometD');
-                    this.useCometD = true;
-                    await this._initializeCometD();
-                }
-            } catch (error) {
-                console.warn('UniversalEmpApi: EmpApi initialization failed, falling back to CometD:', error);
+            if (isCommunity) {
+                console.info('UniversalEmpApi: Using CometD for Community environment');
                 this.useCometD = true;
                 this.isEmpApiEnabled = false;
                 await this._initializeCometD();
+            } else {
+                console.info('UniversalEmpApi: Using EmpApi for Lightning Experience');
+                try {
+                    this.isEmpApiEnabled = await isEmpEnabled();
+                    this.useCometD = false;
+                    if (this.isEmpApiEnabled) {
+                        this._registerErrorListener();
+                        console.info('UniversalEmpApi: EmpApi enabled and initialized');
+                    } else {
+                        console.warn('UniversalEmpApi: EmpApi not enabled, falling back to CometD');
+                        this.useCometD = true;
+                        await this._initializeCometD();
+                    }
+                } catch (error) {
+                    console.warn('UniversalEmpApi: EmpApi initialization failed, falling back to CometD:', error);
+                    this.useCometD = true;
+                    this.isEmpApiEnabled = false;
+                    await this._initializeCometD();
+                }
+            }
+
+            // Start connection health monitoring
+            this._startConnectionHealthMonitoring();
+            this.initialized = true;
+        })();
+
+        try {
+            await this.initializationPromise;
+        } finally {
+            this.initializationInProgress = false;
+            if (!this.initialized) {
+                this.initializationPromise = null;
             }
         }
-
-        // Start connection health monitoring
-        this._startConnectionHealthMonitoring();
-        this.initialized = true;
-        this.initializationInProgress = false;
     }
 
     /**
@@ -243,6 +257,8 @@ export class UniversalEmpApi {
         this.communityMode = false;
         this.errorListenerRegistered = false;
         this.initializationInProgress = false;
+        this.initializationPromise = null;
+        this.reconnectInProgress = false;
 
         console.info('UniversalEmpApi: Cleanup complete');
     }
@@ -396,6 +412,15 @@ export class UniversalEmpApi {
         }
 
         onError((error) => {
+            if (this._isRecoverableEmpApiError(error)) {
+                const processedError = this._serializeError(error);
+                console.warn('UniversalEmpApi: Recoverable EmpApi error detected, attempting silent reconnection', processedError);
+                this._scheduleReconnection(true).catch((reconnectError) => {
+                    this._handleError('EmpApi streaming error', reconnectError);
+                });
+                return;
+            }
+
             // Pass the raw error object, let _handleError serialize it
             this._handleError('EmpApi streaming error', error);
         });
@@ -514,6 +539,17 @@ export class UniversalEmpApi {
     }
 
     /**
+     * Detect idle-session EMP API failures that should reconnect silently.
+     * @private
+     * @param {any} error
+     * @returns {boolean}
+     */
+    _isRecoverableEmpApiError(error) {
+        const serialized = (this._serializeError(error) || '').toLowerCase();
+        return serialized.includes('403::unknown client') || serialized.includes('unknown client');
+    }
+
+    /**
      * Start monitoring connection health and auto-reconnect if needed
      * @private
      */
@@ -575,46 +611,52 @@ export class UniversalEmpApi {
      * @param {boolean} silent - If true, suppress error toasts
      */
     async _scheduleReconnection(silent = false) {
-        // Check if we've exceeded max attempts
-        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            console.error('UniversalEmpApi: Max reconnection attempts reached. Please refresh the page.');
-            this._handleError(
-                'Max reconnection attempts reached',
-                `Failed to reconnect after ${this.maxReconnectAttempts} attempts. Please refresh the page.`,
-                false // Not silent - user needs to know
-            );
+        if (this.reconnectInProgress) {
+            console.info('UniversalEmpApi: Reconnection already in progress, skipping duplicate request');
             return;
         }
+        this.reconnectInProgress = true;
 
-        // Clear any existing reconnect timeout
-        if (this.reconnectTimeout) {
-            clearTimeout(this.reconnectTimeout);
-            this.reconnectTimeout = null;
-        }
+        try {
+            while (this.reconnectAttempts < this.maxReconnectAttempts) {
+                this.reconnectAttempts++;
 
-        this.reconnectAttempts++;
+                // Clear any existing reconnect timeout
+                if (this.reconnectTimeout) {
+                    clearTimeout(this.reconnectTimeout);
+                    this.reconnectTimeout = null;
+                }
 
-        // Calculate exponential backoff delay: 1s, 2s, 4s, 8s, 16s
-        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 16000);
+                const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 16000);
+                console.info(
+                    `UniversalEmpApi: Scheduling reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`
+                );
 
-        console.info(`UniversalEmpApi: Scheduling reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
+                await new Promise((resolve) => {
+                    this.reconnectTimeout = setTimeout(() => {
+                        this.reconnectTimeout = null;
+                        resolve();
+                    }, delay);
+                });
 
-        this.reconnectTimeout = setTimeout(async () => {
-            try {
-                await this._attemptReconnection();
-                console.info('UniversalEmpApi: Reconnection successful');
-                this.reconnectAttempts = 0; // Reset on success
-            } catch (error) {
-                console.error('UniversalEmpApi: Reconnection attempt failed:', error);
-                // Only show error toast if not in silent mode
-                this._handleError('Reconnection failed', error, silent);
-
-                // Schedule another attempt if we haven't reached max
-                if (this.reconnectAttempts < this.maxReconnectAttempts) {
-                    await this._scheduleReconnection(silent);
+                try {
+                    await this._attemptReconnection();
+                    console.info('UniversalEmpApi: Reconnection successful');
+                    this.reconnectAttempts = 0;
+                    return;
+                } catch (error) {
+                    console.error('UniversalEmpApi: Reconnection attempt failed:', error);
+                    this._handleError('Reconnection failed', error, silent);
                 }
             }
-        }, delay);
+
+            const finalError = new Error(`Failed to reconnect after ${this.maxReconnectAttempts} attempts. Please refresh the page.`);
+            console.error('UniversalEmpApi: Max reconnection attempts reached. Please refresh the page.');
+            this._handleError('Max reconnection attempts reached', finalError.message, false);
+            throw finalError;
+        } finally {
+            this.reconnectInProgress = false;
+        }
     }
 
     /**
@@ -668,20 +710,28 @@ export class UniversalEmpApi {
                     throw new Error(`All ${failCount} subscription(s) failed to reconnect`);
                 }
             } else {
-                // For EmpApi, subscriptions should persist
-                // Just verify they're still working
-                console.info('UniversalEmpApi: EmpApi reconnection - verifying subscriptions');
+                console.info('UniversalEmpApi: EmpApi reconnection - rebuilding subscriptions');
+                const subscriptionsToRestore = new Map(this.subscriptionCallbacks);
+                this.subscriptions.clear();
 
-                const subscriptionsToCheck = new Map(this.subscriptionCallbacks);
-                for (const [channel, { callback, replayId }] of subscriptionsToCheck) {
+                let successCount = 0;
+                let failCount = 0;
+                for (const [channel, { callback, replayId }] of subscriptionsToRestore) {
                     try {
-                        // For EmpApi, we don't need to resubscribe unless the connection is truly lost
-                        // Just log that we're monitoring
-                        console.debug(`UniversalEmpApi: EmpApi subscription to ${channel} being monitored`);
+                        const subscription = await this._subscribeEmpApi(channel, replayId, callback);
+                        this.subscriptions.set(channel, subscription);
+                        successCount++;
+                        console.info(`UniversalEmpApi: Successfully resubscribed to ${channel}`);
                     } catch (error) {
+                        failCount++;
                         const serializedError = this._serializeError(error);
-                        console.warn(`UniversalEmpApi: EmpApi subscription to ${channel} may have issues:`, serializedError);
+                        console.warn(`UniversalEmpApi: Failed to resubscribe to ${channel}:`, serializedError);
                     }
+                }
+
+                console.info(`UniversalEmpApi: EmpApi reconnection complete. Success: ${successCount}, Failed: ${failCount}`);
+                if (failCount > 0 && successCount === 0) {
+                    throw new Error(`All ${failCount} EMP API subscription(s) failed to reconnect`);
                 }
             }
 

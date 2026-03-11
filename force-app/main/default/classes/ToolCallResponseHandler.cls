@@ -453,6 +453,40 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
             }
         }
 
+        if (!parseResult.validRequests.isEmpty()) {
+            try {
+                AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinition(context.agentDefinitionId);
+                List<String> requestedToolNames = new List<String>();
+                for (ToolCallRequest request : parseResult.validRequests) {
+                    requestedToolNames.add(request.toolName);
+                }
+
+                Map<String, String> graphErrorsByTool = ToolFlowGraphService.validateRequestedTools(agentDef, context.executionId, requestedToolNames);
+                if (!graphErrorsByTool.isEmpty()) {
+                    List<ToolCallRequest> stillValidRequests = new List<ToolCallRequest>();
+                    for (ToolCallRequest request : parseResult.validRequests) {
+                        String graphError = graphErrorsByTool.get(request.toolName);
+                        if (String.isNotBlank(graphError)) {
+                            parseResult.invalidRequests.add(
+                                new InvalidToolCall(
+                                    request.toolCallId,
+                                    request.toolName,
+                                    String.isNotBlank(request.rawToolArguments) ? request.rawToolArguments : request.toolArguments,
+                                    graphError,
+                                    false
+                                )
+                            );
+                        } else {
+                            stillValidRequests.add(request);
+                        }
+                    }
+                    parseResult.validRequests = stillValidRequests;
+                }
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Flow graph runtime validation skipped: ' + e.getMessage());
+            }
+        }
+
         // Log the tool execution plan
         if (decisionLogger != null && !parseResult.validRequests.isEmpty()) {
             // Count tools by type using the already-grouped data

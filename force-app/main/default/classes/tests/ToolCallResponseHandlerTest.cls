@@ -255,20 +255,20 @@ private class ToolCallResponseHandlerTest {
 
     @IsTest
     static void testHandle_FailFastToolFailure_FailsExecution() {
-        TestFactory.AgentSetup setup = getSetup();
+        TestFactory.FunctionAgentSetup functionSetup = TestFactory.createFunctionAgentSetup().save();
 
         AgentCapability__c failFastCapability = TestFactory.newCapability().forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' }).build();
         failFastCapability.CapabilityName__c = 'failfast_case_' + String.valueOf(Datetime.now().getTime());
-        failFastCapability.AIAgentDefinition__c = setup.agentDefinition.Id;
+        failFastCapability.AIAgentDefinition__c = functionSetup.agentDefinition.Id;
         insert failFastCapability;
 
         // Set agent to Fail Fast mode — halts immediately on any tool error
-        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, ErrorRecoveryMode__c = 'Fail Fast');
+        update new AIAgentDefinition__c(Id = functionSetup.agentDefinition.Id, ErrorRecoveryMode__c = 'Fail Fast');
 
         AgentExecution__c execution = TestFactory.newExecution()
-            .withAgent(setup.agentDefinition.Id)
+            .withAgent(functionSetup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Function')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-failfast-001')
@@ -281,7 +281,7 @@ private class ToolCallResponseHandlerTest {
 
         OrchestrationContext context = TestFactory.newOrchestrationContext()
             .withExecution(execution.Id)
-            .withAgent(setup.agentDefinition.Id)
+            .withAgent(functionSetup.agentDefinition.Id)
             .withLlmResult(llmResult)
             .withUserMessage('Trigger fail-fast')
             .withTurn('turn-failfast-001', 1)
@@ -615,6 +615,139 @@ private class ToolCallResponseHandlerTest {
             WHERE AgentExecution__c = :setup.agentExecution.Id AND StepType__c = 'ToolResult'
         ];
         System.assert(results.size() >= 2, 'Both tool calls should produce results');
+    }
+
+    @IsTest
+    static void testHandle_ToolFlowGraphRejectsCurrentlyIneligibleTool() {
+        TestFactory.AgentSetup setup = getSetup();
+        AgentCapability__c syncCap = [
+            SELECT Id, CapabilityName__c
+            FROM AgentCapability__c
+            WHERE AIAgentDefinition__c = :setup.agentDefinition.Id AND RunAsynchronously__c = FALSE
+            LIMIT 1
+        ];
+        AgentCapability__c asyncCap = [
+            SELECT Id, CapabilityName__c
+            FROM AgentCapability__c
+            WHERE AIAgentDefinition__c = :setup.agentDefinition.Id AND RunAsynchronously__c = TRUE
+            LIMIT 1
+        ];
+
+        String graphJson = JSON.serialize(
+            new Map<String, Object>{
+                'version' => '3.0',
+                'entry' => new List<String>{ syncCap.CapabilityName__c },
+                'flow' => new List<Object>{
+                    new Map<String, Object>{
+                        'fromTools' => new List<String>{ syncCap.CapabilityName__c },
+                        'type' => 'sequential',
+                        'toTools' => new List<String>{ asyncCap.CapabilityName__c }
+                    }
+                }
+            }
+        );
+        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, EnableToolFlowGraph__c = true, ToolFlowGraph__c = graphJson);
+
+        List<Map<String, String>> actions = new List<Map<String, String>>{
+            TestFactory.createToolCallAction(asyncCap.CapabilityName__c, '{"recordData":{"Name":"Too Early"}}', 'call-ineligible-001')
+        };
+        LLMInteractionService.LLMInteractionResult llmResult = TestFactory.createLlmToolCallResult('Ineligible tool', actions);
+
+        OrchestrationContext context = TestFactory.newOrchestrationContext()
+            .withSetup(setup)
+            .withLlmResult(llmResult)
+            .withTurn('turn-ineligible-001', 1)
+            .build();
+
+        ToolCallResponseHandler handler = new ToolCallResponseHandler();
+        String outcome = handler.handle(context);
+
+        System.assertEquals(OrchestrationService.OUTCOME_FAILED, outcome, 'Currently ineligible tool calls should fail');
+
+        ExecutionStep__c toolResult = [
+            SELECT ToolResult__c, IsError__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :setup.agentExecution.Id AND StepType__c = 'ToolResult' AND ToolCallId__c = 'call-ineligible-001'
+            LIMIT 1
+        ];
+        System.assertEquals(true, toolResult.IsError__c, 'Ineligible tool should create an error ToolResult');
+        System.assert(toolResult.ToolResult__c.contains('not eligible'), 'Error result should explain graph ineligibility');
+    }
+
+    @IsTest
+    static void testHandle_ToolFlowGraphRejectsMultipleExclusiveBranchesInSameResponse() {
+        TestFactory.FunctionAgentSetup functionSetup = TestFactory.createFunctionAgentSetup().withExecution().save();
+
+        AgentCapability__c entryCap = TestFactory.newCapability()
+            .withAgent(functionSetup.agentDefinition.Id)
+            .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
+            .build();
+        entryCap.CapabilityName__c = 'evaluate_case_' + String.valueOf(Datetime.now().getTime());
+        insert entryCap;
+
+        AgentCapability__c branchACap = TestFactory.newCapability()
+            .withAgent(functionSetup.agentDefinition.Id)
+            .forGetRecordDetails('Case', new List<String>{ 'Id' })
+            .build();
+        branchACap.CapabilityName__c = 'branch_a_' + String.valueOf(Datetime.now().getTime());
+        insert branchACap;
+
+        AgentCapability__c branchBCap = TestFactory.newCapability()
+            .withAgent(functionSetup.agentDefinition.Id)
+            .forGetRecordDetails('Case', new List<String>{ 'Id' })
+            .build();
+        branchBCap.CapabilityName__c = 'branch_b_' + String.valueOf(Datetime.now().getTime());
+        insert branchBCap;
+
+        String graphJson = JSON.serialize(
+            new Map<String, Object>{
+                'version' => '3.0',
+                'entry' => new List<String>{ entryCap.CapabilityName__c },
+                'flow' => new List<Object>{
+                    new Map<String, Object>{
+                        'fromTools' => new List<String>{ entryCap.CapabilityName__c },
+                        'type' => 'exclusive',
+                        'toTools' => new List<String>{ branchACap.CapabilityName__c, branchBCap.CapabilityName__c },
+                        'conditions' => new Map<String, Object>{ branchACap.CapabilityName__c => 'Option A', branchBCap.CapabilityName__c => 'Option B' }
+                    }
+                }
+            }
+        );
+        update new AIAgentDefinition__c(Id = functionSetup.agentDefinition.Id, EnableToolFlowGraph__c = true, ToolFlowGraph__c = graphJson);
+
+        insert new ExecutionStep__c(
+            AgentExecution__c = functionSetup.execution.Id,
+            StepType__c = 'ToolResult',
+            StepRole__c = 'Tool',
+            ToolName__c = entryCap.CapabilityName__c,
+            ToolCallId__c = 'call-entry-complete-001',
+            IsError__c = false
+        );
+
+        List<Map<String, String>> actions = new List<Map<String, String>>{
+            TestFactory.createToolCallAction(branchACap.CapabilityName__c, '{}', 'call-branch-a-001'),
+            TestFactory.createToolCallAction(branchBCap.CapabilityName__c, '{}', 'call-branch-b-001')
+        };
+        LLMInteractionService.LLMInteractionResult llmResult = TestFactory.createLlmToolCallResult('Conflicting exclusive choices', actions);
+
+        OrchestrationContext context = TestFactory.newOrchestrationContext()
+            .withExecution(functionSetup.execution.Id)
+            .withAgent(functionSetup.agentDefinition.Id)
+            .withLlmResult(llmResult)
+            .withTurn('turn-exclusive-conflict-001', 1)
+            .build();
+
+        ToolCallResponseHandler handler = new ToolCallResponseHandler();
+        String outcome = handler.handle(context);
+
+        System.assertEquals(OrchestrationService.OUTCOME_FAILED, outcome, 'Multiple branches from the same exclusive gateway should fail');
+
+        List<ExecutionStep__c> errorResults = [
+            SELECT ToolName__c, ToolResult__c, IsError__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :functionSetup.execution.Id AND StepType__c = 'ToolResult' AND IsError__c = TRUE
+        ];
+        System.assert(errorResults.size() >= 2, 'Each conflicting branch should create an error ToolResult');
     }
 
     private static TestFactory.AgentSetup getSetup() {

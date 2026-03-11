@@ -151,6 +151,88 @@ private class AgentStateServiceTest {
     }
 
     @IsTest
+    static void testUpdateStatus_StaleSyncRecovery_PreservesBufferedStepsUntilFinalize() {
+        AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
+        update new AgentExecution__c(Id = execution.Id, CurrentTurnIdentifier__c = 'turn-current-owner-002');
+
+        TransactionContext txnCtx = TransactionContext.getInstance();
+        txnCtx.enableDeferredDMLMode();
+        txnCtx.markSyncFinalizationRecovery(execution.Id, 'turn-sync-recover-001');
+
+        insert new ExecutionStep__c(
+            AgentExecution__c = execution.Id,
+            StepType__c = 'UserInput',
+            StepRole__c = 'User',
+            Content__c = 'previous turn input',
+            TurnIdentifier__c = 'turn-current-owner-002',
+            TurnCount__c = 1,
+            Timestamp__c = Datetime.now().addSeconds(-10)
+        );
+
+        ExecutionStepService stepSvc = new ExecutionStepService();
+        stepSvc.createToolCallStep(
+            execution.Id,
+            'call-sync-recover-001',
+            'lookup_case',
+            '{"caseNumber":"3344567"}',
+            'turn-sync-recover-001',
+            1,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            false
+        );
+        stepSvc.createToolResultStep(
+            execution.Id,
+            'call-sync-recover-001',
+            'lookup_case',
+            '{"success":false,"error":"Not found"}',
+            'turn-sync-recover-001',
+            1,
+            25L,
+            false,
+            null,
+            false,
+            false
+        );
+        stepSvc.createAgentResponseStep(execution.Id, 'No case found for that number.', 'turn-sync-recover-001', 1);
+
+        AgentStateService svc = new AgentStateService();
+        Boolean applied = svc.updateStatus(execution.Id, 'Completed', AIAgentConstants.STATUS_IDLE, 'turn-sync-recover-001', null);
+
+        System.assertEquals(false, applied, 'Sync recovery still uses the stale-turn guard');
+        System.assertEquals(true, txnCtx.isDeferredDMLMode(), 'Deferred mode should remain enabled so sync finalization can recover');
+        System.assert(txnCtx.getBufferedExecutionSteps(execution.Id).size() > 0, 'Buffered steps should be preserved for sync recovery');
+
+        svc.syncFinalizeExecution(execution.Id, 'turn-sync-recover-001', AIAgentConstants.STATUS_IDLE, '[Test] ');
+
+        AgentExecution__c updated = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, CurrentTurnIdentifier__c
+            FROM AgentExecution__c
+            WHERE Id = :execution.Id
+        ];
+        System.assertEquals('Completed', updated.ExecutionStatus__c, 'sync finalization should complete the execution');
+        System.assertEquals(AIAgentConstants.STATUS_IDLE, updated.ProcessingStatus__c, 'sync finalization should set Idle status');
+        System.assertEquals('turn-sync-recover-001', updated.CurrentTurnIdentifier__c, 'sync finalization should stamp the recovering turn');
+
+        List<ExecutionStep__c> persisted = [
+            SELECT Id, StepType__c, Content__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :execution.Id AND TurnIdentifier__c = 'turn-sync-recover-001'
+            ORDER BY CreatedDate ASC
+        ];
+        System.assertEquals(3, persisted.size(), 'Buffered sync-turn steps should be committed during recovery finalization');
+        System.assertEquals('AgentResponse', persisted[2].StepType__c, 'Final assistant response should be persisted');
+        System.assertEquals('No case found for that number.', persisted[2].Content__c, 'Assistant response content should survive sync recovery');
+    }
+
+    @IsTest
     static void testValidateAndGetExecution_ThrowsOnStaleTurn() {
         AgentExecution__c execution = [SELECT Id, CurrentTurnIdentifier__c FROM AgentExecution__c LIMIT 1];
 

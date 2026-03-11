@@ -20,6 +20,8 @@ public inherited sharing class TransactionContext {
     private Boolean hasPreExistingExecution;
     private Map<Id, Set<String>> executedToolsByExecution;
     private Map<Id, Set<String>> lockedBranchesByExecution;
+    private Id syncFinalizationExecutionId;
+    private String syncFinalizationTurnIdentifier;
 
     /**
      * Sticky flag that tracks if ANY tool in this turn performed DML or callouts.
@@ -39,6 +41,8 @@ public inherited sharing class TransactionContext {
         this.hasPreExistingExecution = false;
         this.executedToolsByExecution = new Map<Id, Set<String>>();
         this.lockedBranchesByExecution = new Map<Id, Set<String>>();
+        this.syncFinalizationExecutionId = null;
+        this.syncFinalizationTurnIdentifier = null;
         this.unsafeOperationsOccurredThisTurn = false;
     }
 
@@ -354,6 +358,25 @@ public inherited sharing class TransactionContext {
         return result;
     }
 
+    public void markSyncFinalizationRecovery(Id executionId, String turnIdentifier) {
+        this.syncFinalizationExecutionId = executionId;
+        this.syncFinalizationTurnIdentifier = turnIdentifier;
+        System.debug(LoggingLevel.DEBUG, '[TransactionContext] Sync finalization recovery marked for execution ' + executionId + ', turn=' + turnIdentifier);
+    }
+
+    public Boolean isSyncFinalizationRecovery(Id executionId, String turnIdentifier) {
+        return executionId != null &&
+            turnIdentifier != null &&
+            executionId == this.syncFinalizationExecutionId &&
+            turnIdentifier == this.syncFinalizationTurnIdentifier;
+    }
+
+    public void clearSyncFinalizationRecovery() {
+        this.syncFinalizationExecutionId = null;
+        this.syncFinalizationTurnIdentifier = null;
+        System.debug(LoggingLevel.DEBUG, '[TransactionContext] Sync finalization recovery cleared');
+    }
+
     /**
      * Replaces a placeholder execution ID with the real one in all buffered SObject records.
      *
@@ -521,6 +544,8 @@ public inherited sharing class TransactionContext {
         this.hasPreExistingExecution = false;
         this.executedToolsByExecution.clear();
         this.lockedBranchesByExecution.clear();
+        this.syncFinalizationExecutionId = null;
+        this.syncFinalizationTurnIdentifier = null;
         this.unsafeOperationsOccurredThisTurn = false;
         System.debug(LoggingLevel.DEBUG, '[TransactionContext] Context reset to initial state');
     }

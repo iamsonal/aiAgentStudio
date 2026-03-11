@@ -320,6 +320,65 @@ private class ToolFlowGraphServiceTest {
         System.assert(!eligibleNames.contains('branch_b'), 'Sibling branch should stay locked even in a later transaction');
     }
 
+    @IsTest
+    static void testCollectValidationIssues_MixedGatewayTypesRejected() {
+        ToolFlowGraphService.FlowGraph graph = buildGraph(
+            new List<String>{ 'tool_a' },
+            new List<Map<String, Object>>{
+                rule('tool_a', 'sequential', new List<String>{ 'tool_b' }),
+                rule('tool_a', 'exclusive', new List<String>{ 'tool_c', 'tool_d' })
+            }
+        );
+
+        ToolFlowGraphService.ValidationResult result = ToolFlowGraphService.collectValidationIssues(
+            graph,
+            new Set<String>{ 'tool_a', 'tool_b', 'tool_c', 'tool_d' },
+            true
+        );
+
+        System.assertEquals(false, result.isValid(), 'Mixed gateway types from the same source should be rejected');
+        System.assert(result.errors[0].contains('multiple flow rules'), 'Error should explain the duplicate source definition');
+    }
+
+    @IsTest
+    static void testCollectValidationIssues_ParallelRejectedWhenDisabled() {
+        ToolFlowGraphService.FlowGraph graph = buildGraph(
+            new List<String>{ 'tool_a' },
+            new List<Map<String, Object>>{ rule('tool_a', 'parallel', new List<String>{ 'tool_b', 'tool_c' }) }
+        );
+
+        ToolFlowGraphService.ValidationResult result = ToolFlowGraphService.collectValidationIssues(
+            graph,
+            new Set<String>{ 'tool_a', 'tool_b', 'tool_c' },
+            false
+        );
+
+        System.assertEquals(false, result.isValid(), 'Parallel rules should be rejected when agent parallel calling is disabled');
+        System.assert(
+            String.join(result.errors, ' ').contains('Parallel Tool Calling is disabled'),
+            'Validation should mention the agent parallel calling setting'
+        );
+    }
+
+    @IsTest
+    static void testCollectValidationIssues_ExclusiveConditionsMustBeMeaningful() {
+        String json =
+            '{"version":"3.0","entry":["tool_a"],"flow":[{"fromTools":["tool_a"],"type":"exclusive","toTools":["tool_b","tool_c"],' +
+            '"conditions":{"tool_b":"Default condition","tool_c":"Default condition"}}]}';
+        ToolFlowGraphService.FlowGraph graph = ToolFlowGraphService.parseGraph(json);
+
+        ToolFlowGraphService.ValidationResult result = ToolFlowGraphService.collectValidationIssues(
+            graph,
+            new Set<String>{ 'tool_a', 'tool_b', 'tool_c' },
+            true
+        );
+
+        System.assertEquals(false, result.isValid(), 'Placeholder exclusive conditions should be rejected');
+        String joinedErrors = String.join(result.errors, ' ');
+        System.assert(joinedErrors.contains('placeholder condition text'), 'Validation should flag placeholder labels');
+        System.assert(joinedErrors.contains('reuses the same condition label'), 'Validation should flag duplicate branch labels');
+    }
+
     // ── isGraphStale / generateCapabilitiesHash ────────────────────────────────
 
     @IsTest

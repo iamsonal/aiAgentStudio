@@ -29,11 +29,13 @@ public inherited sharing class ToolFlowGraphService {
         public List<String> fromTools;
         public String type; // sequential | parallel | exclusive
         public List<String> toTools;
+        public Map<String, String> conditions;
 
-        public FlowRule(List<String> fromList, String ruleType, List<String> toList) {
+        public FlowRule(List<String> fromList, String ruleType, List<String> toList, Map<String, String> ruleConditions) {
             this.fromTools = fromList != null ? fromList : new List<String>();
             this.type = String.isBlank(ruleType) ? 'sequential' : ruleType.toLowerCase().trim();
             this.toTools = toList != null ? toList : new List<String>();
+            this.conditions = ruleConditions != null ? ruleConditions : new Map<String, String>();
         }
 
         public Boolean isJoinGate() {
@@ -54,6 +56,15 @@ public inherited sharing class ToolFlowGraphService {
 
         public Boolean hasFlow() {
             return this.flow != null && !this.flow.isEmpty();
+        }
+    }
+
+    public class ValidationResult {
+        public List<String> errors = new List<String>();
+        public List<String> warnings = new List<String>();
+
+        public Boolean isValid() {
+            return this.errors.isEmpty();
         }
     }
 
@@ -286,8 +297,19 @@ public inherited sharing class ToolFlowGraphService {
                     }
                 }
 
+                Map<String, String> conditions = new Map<String, String>();
+                if (ruleMap.containsKey('conditions') && ruleMap.get('conditions') instanceof Map<String, Object>) {
+                    Map<String, Object> rawConditions = (Map<String, Object>) ruleMap.get('conditions');
+                    for (String key : rawConditions.keySet()) {
+                        Object value = rawConditions.get(key);
+                        if (String.isNotBlank(key) && value != null) {
+                            conditions.put(key, String.valueOf(value));
+                        }
+                    }
+                }
+
                 if (!fromList.isEmpty() && !toList.isEmpty()) {
-                    graph.flow.add(new FlowRule(fromList, ruleType, toList));
+                    graph.flow.add(new FlowRule(fromList, ruleType, toList, conditions));
                 }
             }
         }
@@ -332,7 +354,218 @@ public inherited sharing class ToolFlowGraphService {
         return !currentHash.equals(storedHash);
     }
 
+    public static void validateGraphSemantics(FlowGraph graph, Set<String> validCapabilityNames, Boolean parallelCallingEnabled) {
+        ValidationResult result = collectValidationIssues(graph, validCapabilityNames, parallelCallingEnabled);
+        if (!result.isValid()) {
+            throw new AIAgentException(String.join(result.errors, ' '));
+        }
+    }
+
+    public static Map<String, String> validateRequestedTools(AIAgentDefinition__c agentDef, Id executionId, List<String> requestedToolNames) {
+        Map<String, String> errorsByTool = new Map<String, String>();
+        if (
+            agentDef == null ||
+            agentDef.EnableToolFlowGraph__c != true ||
+            String.isBlank(agentDef.ToolFlowGraph__c) ||
+            requestedToolNames == null ||
+            requestedToolNames.isEmpty()
+        ) {
+            return errorsByTool;
+        }
+
+        FlowGraph graph;
+        try {
+            graph = parseGraph(agentDef.ToolFlowGraph__c);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, LOG_PREFIX + 'validateRequestedTools: Failed to parse graph, skipping runtime validation. ' + e.getMessage());
+            return errorsByTool;
+        }
+
+        Set<String> executedTools = getExecutedToolsForExecution(executionId);
+        Set<String> lockedBranches = getLockedBranchesForExecution(graph, executionId, executedTools);
+        Set<String> eligibleNames = computeEligibleTools(graph, executedTools, lockedBranches);
+
+        for (String toolName : requestedToolNames) {
+            if (String.isBlank(toolName)) {
+                continue;
+            }
+            if (!eligibleNames.contains(toolName)) {
+                errorsByTool.put(toolName, 'Tool "' + toolName + '" is not eligible in the current Tool Flow Graph state.');
+            }
+        }
+
+        if (graph.flow == null || graph.flow.isEmpty()) {
+            return errorsByTool;
+        }
+
+        Set<String> requestedSet = new Set<String>();
+        requestedSet.addAll(requestedToolNames);
+
+        for (FlowRule rule : graph.flow) {
+            if (!'exclusive'.equals(rule.type) || rule.toTools == null || rule.toTools.size() < 2) {
+                continue;
+            }
+            if (!areAllFromToolsSatisfied(rule, executedTools)) {
+                continue;
+            }
+
+            List<String> requestedBranches = new List<String>();
+            for (String toTool : rule.toTools) {
+                if (requestedSet.contains(toTool)) {
+                    requestedBranches.add(toTool);
+                }
+            }
+
+            if (requestedBranches.size() > 1) {
+                String sourceLabel = String.join(rule.fromTools, ', ');
+                for (String branchTool : requestedBranches) {
+                    errorsByTool.put(
+                        branchTool,
+                        'Only one branch may be chosen from exclusive gateway [' + sourceLabel + ']. Requested: ' + String.join(requestedBranches, ', ') + '.'
+                    );
+                }
+            }
+        }
+
+        return errorsByTool;
+    }
+
     // ── Private helpers ────────────────────────────────────────────────────────
+
+    @TestVisible
+    private static ValidationResult collectValidationIssues(FlowGraph graph, Set<String> validCapabilityNames, Boolean parallelCallingEnabled) {
+        ValidationResult result = new ValidationResult();
+        if (graph == null) {
+            result.errors.add('Graph payload is required.');
+            return result;
+        }
+        if (validCapabilityNames == null || validCapabilityNames.isEmpty()) {
+            result.errors.add('Cannot validate a Tool Flow Graph without external capabilities.');
+            return result;
+        }
+        if (graph.entry == null || graph.entry.isEmpty()) {
+            result.errors.add('Tool Flow Graph must define at least one entry tool.');
+            return result;
+        }
+
+        Map<String, Set<String>> adjacency = new Map<String, Set<String>>();
+        Map<String, List<FlowRule>> rulesBySource = new Map<String, List<FlowRule>>();
+
+        for (String entryTool : graph.entry) {
+            if (!validCapabilityNames.contains(entryTool)) {
+                result.errors.add('Entry tool "' + entryTool + '" is not a valid capability.');
+                continue;
+            }
+            if (!adjacency.containsKey(entryTool)) {
+                adjacency.put(entryTool, new Set<String>());
+            }
+        }
+
+        if (graph.flow != null) {
+            Integer ruleIndex = 1;
+            for (FlowRule rule : graph.flow) {
+                if (rule.fromTools == null || rule.fromTools.isEmpty()) {
+                    result.errors.add('Each flow rule must declare fromTools.');
+                    ruleIndex++;
+                    continue;
+                }
+                if (rule.toTools == null || rule.toTools.isEmpty()) {
+                    result.errors.add('Each flow rule must declare toTools.');
+                    ruleIndex++;
+                    continue;
+                }
+                if (!new Set<String>{ 'sequential', 'parallel', 'exclusive' }.contains(rule.type)) {
+                    result.errors.add('Rule ' + ruleIndex + ' has unsupported type "' + rule.type + '".');
+                }
+                if (hasDuplicates(rule.fromTools)) {
+                    result.errors.add('Rule ' + ruleIndex + ' contains duplicate fromTools.');
+                }
+                if (hasDuplicates(rule.toTools)) {
+                    result.errors.add('Rule ' + ruleIndex + ' contains duplicate toTools.');
+                }
+                if ('sequential'.equals(rule.type) && rule.toTools.size() != 1) {
+                    result.errors.add('Sequential rules must declare exactly one toTool.');
+                }
+                if (rule.isJoinGate() && 'parallel'.equals(rule.type)) {
+                    result.errors.add('Join gates cannot use the parallel rule type.');
+                }
+                if ('parallel'.equals(rule.type) && parallelCallingEnabled != true) {
+                    result.errors.add('Parallel rules are not allowed when Parallel Tool Calling is disabled on the agent.');
+                }
+                if ('exclusive'.equals(rule.type)) {
+                    if (rule.toTools.size() < 2) {
+                        result.errors.add('Exclusive rules must declare at least two toTools.');
+                    }
+                    validateExclusiveConditions(rule, ruleIndex, result);
+                }
+
+                for (String fromTool : rule.fromTools) {
+                    if (!validCapabilityNames.contains(fromTool)) {
+                        result.errors.add('Rule references unknown fromTool "' + fromTool + '".');
+                        continue;
+                    }
+                    if (!adjacency.containsKey(fromTool)) {
+                        adjacency.put(fromTool, new Set<String>());
+                    }
+                    for (String toTool : rule.toTools) {
+                        if (!validCapabilityNames.contains(toTool)) {
+                            result.errors.add('Rule references unknown toTool "' + toTool + '".');
+                            continue;
+                        }
+                        adjacency.get(fromTool).add(toTool);
+                        if (!adjacency.containsKey(toTool)) {
+                            adjacency.put(toTool, new Set<String>());
+                        }
+                    }
+                }
+
+                String sourceSignature = buildSourceSignature(rule.fromTools);
+                if (!rulesBySource.containsKey(sourceSignature)) {
+                    rulesBySource.put(sourceSignature, new List<FlowRule>());
+                }
+                rulesBySource.get(sourceSignature).add(rule);
+                ruleIndex++;
+            }
+        }
+
+        for (String sourceSignature : rulesBySource.keySet()) {
+            List<FlowRule> siblingRules = rulesBySource.get(sourceSignature);
+            if (siblingRules == null || siblingRules.size() <= 1) {
+                continue;
+            }
+
+            result.errors.add(
+                'Source set [' +
+                    sourceSignature +
+                    '] is defined by multiple flow rules. Consolidate it into a single ' +
+                    siblingRules[0].type +
+                    ', parallel, or exclusive rule.'
+            );
+
+            Set<String> siblingTargets = new Set<String>();
+            for (FlowRule siblingRule : siblingRules) {
+                for (String toTool : siblingRule.toTools) {
+                    if (siblingTargets.contains(toTool)) {
+                        result.errors.add('Source set [' + sourceSignature + '] routes to "' + toTool + '" more than once.');
+                    } else {
+                        siblingTargets.add(toTool);
+                    }
+                }
+            }
+        }
+
+        Set<String> reachable = computeReachableTools(graph.entry, adjacency);
+        for (String capabilityName : validCapabilityNames) {
+            if (!reachable.contains(capabilityName)) {
+                result.errors.add('Capability "' + capabilityName + '" is not reachable from the graph entry set.');
+            }
+        }
+        if (hasCycle(adjacency)) {
+            result.errors.add('Tool Flow Graph cannot contain cycles.');
+        }
+
+        return result;
+    }
 
     private static Set<String> getExecutedToolsForExecution(Id executionId) {
         Set<String> executed = new Set<String>();
@@ -358,6 +591,126 @@ public inherited sharing class ToolFlowGraphService {
         }
 
         return executed;
+    }
+
+    private static String buildSourceSignature(List<String> fromTools) {
+        List<String> normalized = new List<String>();
+        if (fromTools != null) {
+            normalized.addAll(fromTools);
+        }
+        normalized.sort();
+        return String.join(normalized, ', ');
+    }
+
+    private static Boolean hasDuplicates(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return false;
+        }
+        Set<String> seen = new Set<String>();
+        for (String value : values) {
+            if (seen.contains(value)) {
+                return true;
+            }
+            seen.add(value);
+        }
+        return false;
+    }
+
+    private static void validateExclusiveConditions(FlowRule rule, Integer ruleIndex, ValidationResult result) {
+        Set<String> normalizedConditions = new Set<String>();
+        for (String toTool : rule.toTools) {
+            String conditionLabel = rule.conditions != null ? rule.conditions.get(toTool) : null;
+            if (String.isBlank(conditionLabel)) {
+                result.errors.add('Exclusive rule ' + ruleIndex + ' is missing a condition label for "' + toTool + '".');
+                continue;
+            }
+
+            String normalized = conditionLabel.trim().toLowerCase();
+            if (isPlaceholderConditionLabel(normalized)) {
+                result.errors.add('Exclusive rule ' + ruleIndex + ' uses placeholder condition text for "' + toTool + '".');
+            }
+            if (normalizedConditions.contains(normalized)) {
+                result.errors.add('Exclusive rule ' + ruleIndex + ' reuses the same condition label for multiple branches.');
+            } else {
+                normalizedConditions.add(normalized);
+            }
+        }
+    }
+
+    private static Boolean isPlaceholderConditionLabel(String normalizedCondition) {
+        if (String.isBlank(normalizedCondition)) {
+            return true;
+        }
+        return normalizedCondition == 'default condition' || normalizedCondition.startsWith('condition ');
+    }
+
+    private static Boolean areAllFromToolsSatisfied(FlowRule rule, Set<String> executedTools) {
+        Set<String> executed = executedTools != null ? executedTools : new Set<String>();
+        if (rule == null || rule.fromTools == null || rule.fromTools.isEmpty()) {
+            return false;
+        }
+        for (String fromTool : rule.fromTools) {
+            if (!executed.contains(fromTool)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Set<String> computeReachableTools(List<String> entryTools, Map<String, Set<String>> adjacency) {
+        Set<String> reachable = new Set<String>();
+        List<String> worklist = new List<String>();
+        if (entryTools != null) {
+            worklist.addAll(entryTools);
+        }
+
+        while (!worklist.isEmpty()) {
+            String current = worklist.remove(worklist.size() - 1);
+            if (reachable.contains(current)) {
+                continue;
+            }
+            reachable.add(current);
+            if (adjacency.containsKey(current)) {
+                for (String nextTool : adjacency.get(current)) {
+                    if (!reachable.contains(nextTool)) {
+                        worklist.add(nextTool);
+                    }
+                }
+            }
+        }
+        return reachable;
+    }
+
+    private static Boolean hasCycle(Map<String, Set<String>> adjacency) {
+        Set<String> visited = new Set<String>();
+        Set<String> inStack = new Set<String>();
+        for (String node : adjacency.keySet()) {
+            if (detectCycle(node, adjacency, visited, inStack)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Boolean detectCycle(String node, Map<String, Set<String>> adjacency, Set<String> visited, Set<String> inStack) {
+        if (inStack.contains(node)) {
+            return true;
+        }
+        if (visited.contains(node)) {
+            return false;
+        }
+
+        visited.add(node);
+        inStack.add(node);
+        if (adjacency.containsKey(node)) {
+            for (String nextNode : adjacency.get(node)) {
+                if (detectCycle(nextNode, adjacency, visited, inStack)) {
+                    return true;
+                }
+            }
+        }
+        inStack.remove(node);
+        return false;
     }
 
     private static Set<String> getLockedBranchesForExecution(FlowGraph graph, Id executionId, Set<String> executedTools) {
