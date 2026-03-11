@@ -17,6 +17,19 @@ public inherited sharing class CapabilityExecutionService {
 
     public class CapabilityExecutionException extends AIAgentException {
     }
+
+    private class SchemaValidationFailure {
+        public String errorCode;
+        public String message;
+        public String correctionGuidance;
+
+        public SchemaValidationFailure(String errorCode, String message, String correctionGuidance) {
+            this.errorCode = errorCode;
+            this.message = message;
+            this.correctionGuidance = correctionGuidance;
+        }
+    }
+
     public ActionOutcome executeSingleAction(AgentCapability__c capability, String llmArgumentsJson, ActionContext context) {
         String logPrefix =
             '[CapabilityExecutionService] [CapabilityId: ' +
@@ -30,7 +43,7 @@ public inherited sharing class CapabilityExecutionService {
             throw new IllegalArgumentException('AgentCapability and ActionContext are required.');
         }
 
-        ActionOutcome validationFailure = validateRequiredParameters(capability, llmArgumentsJson, logPrefix);
+        ActionOutcome validationFailure = validateParametersAgainstSchema(capability, llmArgumentsJson, logPrefix);
         if (validationFailure != null) {
             return validationFailure;
         }
@@ -70,8 +83,13 @@ public inherited sharing class CapabilityExecutionService {
         ensureCacheInitialized();
 
         String implType = capability.ImplementationType__c;
-        String implDetail = capability.ImplementationDetail__c;
-        String stdActionType = capability.StandardActionType__c;
+        String implDetail = null;
+        String stdActionType = null;
+        if ('Standard'.equalsIgnoreCase(implType)) {
+            stdActionType = capability.StandardActionType__c;
+        } else if ('Apex'.equalsIgnoreCase(implType) || 'Flow'.equalsIgnoreCase(implType)) {
+            implDetail = capability.ImplementationDetail__c;
+        }
         String logIdentifier = ('Standard'.equalsIgnoreCase(implType)) ? stdActionType : implDetail;
 
         if (String.isBlank(implType))
@@ -124,16 +142,8 @@ public inherited sharing class CapabilityExecutionService {
         }
     }
 
-    /**
-     * @description Validates that all fields listed in the capability's JSON Schema "required" array are
-     * present and non-null in the LLM-supplied arguments. Returns a structured failure outcome if any
-     * required field is missing so the LLM receives an actionable INPUT_VALIDATION error rather than
-     * a NullPointerException from deep inside the action handler.
-     *
-     * @return null if validation passes, or an ActionOutcome.failure if required fields are absent.
-     */
     @TestVisible
-    private static ActionOutcome validateRequiredParameters(AgentCapability__c capability, String llmArgumentsJson, String logPrefix) {
+    private static ActionOutcome validateParametersAgainstSchema(AgentCapability__c capability, String llmArgumentsJson, String logPrefix) {
         if (String.isBlank(capability.Parameters__c)) {
             return null;
         }
@@ -142,45 +152,362 @@ public inherited sharing class CapabilityExecutionService {
         try {
             schema = (Map<String, Object>) JSON.deserializeUntyped(capability.Parameters__c);
         } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, logPrefix + 'Could not parse Parameters__c as JSON schema, skipping required-field validation: ' + e.getMessage());
+            String msg = 'Capability "' + capability.CapabilityName__c + '" has invalid Parameters__c JSON Schema: ' + e.getMessage();
+            System.debug(LoggingLevel.ERROR, logPrefix + msg);
+            return ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, msg);
+        }
+
+        if (!looksLikeJsonSchema(schema)) {
             return null;
         }
 
-        List<Object> required = (List<Object>) schema.get('required');
-        if (required == null || required.isEmpty()) {
-            return null;
-        }
-
-        Map<String, Object> args = new Map<String, Object>();
+        Object args = new Map<String, Object>();
         if (String.isNotBlank(llmArgumentsJson)) {
             try {
-                args = (Map<String, Object>) JSON.deserializeUntyped(llmArgumentsJson);
+                args = JSON.deserializeUntyped(llmArgumentsJson);
             } catch (Exception e) {
-                System.debug(LoggingLevel.WARN, logPrefix + 'Could not parse llmArgumentsJson, skipping required-field validation: ' + e.getMessage());
+                String msg = 'Invalid JSON arguments for capability "' + capability.CapabilityName__c + '": ' + e.getMessage();
+                System.debug(LoggingLevel.WARN, logPrefix + msg);
+                return ActionOutcome.failure(
+                    AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+                    msg,
+                    'Provide valid JSON arguments that match the Parameters__c schema.'
+                );
+            }
+        }
+
+        SchemaValidationFailure failure = validateSchemaNode(schema, args, 'parameters', capability.CapabilityName__c);
+        if (failure == null) {
+            return null;
+        }
+
+        System.debug(LoggingLevel.WARN, logPrefix + failure.message);
+        return ActionOutcome.failure(failure.errorCode, failure.message, failure.correctionGuidance);
+    }
+
+    @TestVisible
+    private static Boolean looksLikeJsonSchema(Map<String, Object> schema) {
+        if (schema == null || schema.isEmpty()) {
+            return false;
+        }
+
+        for (
+            String key : new List<String>{
+                'type',
+                'properties',
+                'required',
+                'additionalProperties',
+                'enum',
+                'pattern',
+                'minimum',
+                'maximum',
+                'items',
+                'minItems',
+                'maxItems',
+                'minLength',
+                'maxLength'
+            }
+        ) {
+            if (schema.containsKey(key)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static SchemaValidationFailure validateSchemaNode(Map<String, Object> schema, Object value, String path, String capabilityName) {
+        if (schema == null) {
+            return null;
+        }
+
+        SchemaValidationFailure typeFailure = validateType(schema.get('type'), value, path);
+        if (typeFailure != null) {
+            return typeFailure;
+        }
+
+        SchemaValidationFailure enumFailure = validateEnumConstraint(schema.get('enum'), value, path);
+        if (enumFailure != null) {
+            return enumFailure;
+        }
+
+        Object declaredType = schema.get('type');
+        if (declaredType instanceof String) {
+            String typeName = (String) declaredType;
+            if ('object'.equals(typeName)) {
+                return validateObjectNode(schema, value, path, capabilityName);
+            }
+            if ('array'.equals(typeName)) {
+                return validateArrayNode(schema, value, path, capabilityName);
+            }
+            if ('string'.equals(typeName)) {
+                return validateStringNode(schema, value, path);
+            }
+            if ('integer'.equals(typeName) || 'number'.equals(typeName)) {
+                return validateNumericNode(schema, value, path, 'integer'.equals(typeName));
+            }
+        } else if (schema.containsKey('properties') && value instanceof Map<String, Object>) {
+            return validateObjectNode(schema, value, path, capabilityName);
+        }
+
+        return null;
+    }
+
+    private static SchemaValidationFailure validateObjectNode(Map<String, Object> schema, Object value, String path, String capabilityName) {
+        if (!(value instanceof Map<String, Object>)) {
+            return buildInputFailure(path, 'must be a JSON object', null);
+        }
+
+        Map<String, Object> valueMap = (Map<String, Object>) value;
+        Map<String, Object> properties = schema.get('properties') instanceof Map<String, Object>
+            ? (Map<String, Object>) schema.get('properties')
+            : new Map<String, Object>();
+        Set<String> allowedProperties = new Set<String>();
+        for (String key : properties.keySet()) {
+            allowedProperties.add(key);
+        }
+
+        List<Object> required = schema.get('required') instanceof List<Object> ? (List<Object>) schema.get('required') : new List<Object>();
+        for (Object requiredFieldObj : required) {
+            String requiredField = String.valueOf(requiredFieldObj);
+            if (!valueMap.containsKey(requiredField) || valueMap.get(requiredField) == null) {
+                return buildInputFailure(appendPath(path, requiredField), 'is required', 'Provide a value for "' + requiredField + '".');
+            }
+        }
+
+        Object additionalPropertiesSetting = schema.get('additionalProperties');
+        // Framework contract: once an object schema declares explicit properties, it is closed by default
+        // unless the capability author explicitly opts into extra keys via additionalProperties=true/object schema.
+        Boolean allowAdditionalProperties = properties.isEmpty();
+        if (additionalPropertiesSetting != null) {
+            allowAdditionalProperties = Boolean.valueOf(String.valueOf(additionalPropertiesSetting)) == true;
+        }
+        if (!allowAdditionalProperties || additionalPropertiesSetting instanceof Map<String, Object>) {
+            for (String providedKey : valueMap.keySet()) {
+                if (allowedProperties.contains(providedKey)) {
+                    continue;
+                }
+
+                if (additionalPropertiesSetting instanceof Map<String, Object>) {
+                    SchemaValidationFailure additionalPropertyFailure = validateSchemaNode(
+                        (Map<String, Object>) additionalPropertiesSetting,
+                        valueMap.get(providedKey),
+                        appendPath(path, providedKey),
+                        capabilityName
+                    );
+                    if (additionalPropertyFailure != null) {
+                        return additionalPropertyFailure;
+                    }
+                    continue;
+                }
+
+                return buildInputFailure(
+                    appendPath(path, providedKey),
+                    'is not declared in the capability schema',
+                    allowedProperties.isEmpty()
+                        ? 'Remove the undeclared property.'
+                        : 'Allowed properties at ' + path + ': ' + String.join(new List<String>(allowedProperties), ', ')
+                );
+            }
+        }
+
+        for (String propertyName : properties.keySet()) {
+            if (!valueMap.containsKey(propertyName)) {
+                continue;
+            }
+
+            Object propertySchemaObj = properties.get(propertyName);
+            if (!(propertySchemaObj instanceof Map<String, Object>)) {
+                return buildConfigFailure(
+                    'Capability "' + capabilityName + '" has invalid schema for property "' + appendPath(path, propertyName) + '".',
+                    null
+                );
+            }
+
+            SchemaValidationFailure nestedFailure = validateSchemaNode(
+                (Map<String, Object>) propertySchemaObj,
+                valueMap.get(propertyName),
+                appendPath(path, propertyName),
+                capabilityName
+            );
+            if (nestedFailure != null) {
+                return nestedFailure;
+            }
+        }
+
+        return null;
+    }
+
+    private static SchemaValidationFailure validateArrayNode(Map<String, Object> schema, Object value, String path, String capabilityName) {
+        if (!(value instanceof List<Object>)) {
+            return buildInputFailure(path, 'must be an array', null);
+        }
+
+        List<Object> values = (List<Object>) value;
+        if (schema.containsKey('minItems') && values.size() < Integer.valueOf(String.valueOf(schema.get('minItems')))) {
+            return buildInputFailure(path, 'must contain at least ' + String.valueOf(schema.get('minItems')) + ' item(s)', null);
+        }
+        if (schema.containsKey('maxItems') && values.size() > Integer.valueOf(String.valueOf(schema.get('maxItems')))) {
+            return buildInputFailure(path, 'must contain no more than ' + String.valueOf(schema.get('maxItems')) + ' item(s)', null);
+        }
+
+        if (schema.get('items') instanceof Map<String, Object>) {
+            Map<String, Object> itemSchema = (Map<String, Object>) schema.get('items');
+            for (Integer i = 0; i < values.size(); i++) {
+                SchemaValidationFailure itemFailure = validateSchemaNode(itemSchema, values[i], path + '[' + i + ']', capabilityName);
+                if (itemFailure != null) {
+                    return itemFailure;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static SchemaValidationFailure validateStringNode(Map<String, Object> schema, Object value, String path) {
+        if (!(value instanceof String)) {
+            return buildInputFailure(path, 'must be a string', null);
+        }
+
+        String stringValue = (String) value;
+        if (schema.containsKey('minLength') && stringValue.length() < Integer.valueOf(String.valueOf(schema.get('minLength')))) {
+            return buildInputFailure(path, 'must be at least ' + String.valueOf(schema.get('minLength')) + ' character(s)', null);
+        }
+        if (schema.containsKey('maxLength') && stringValue.length() > Integer.valueOf(String.valueOf(schema.get('maxLength')))) {
+            return buildInputFailure(path, 'must be no more than ' + String.valueOf(schema.get('maxLength')) + ' character(s)', null);
+        }
+        if (schema.containsKey('pattern')) {
+            String regexPattern = String.valueOf(schema.get('pattern'));
+            try {
+                if (!Pattern.compile(regexPattern).matcher(stringValue).matches()) {
+                    return buildInputFailure(path, 'does not match the required pattern', 'Provide a value that matches pattern "' + regexPattern + '".');
+                }
+            } catch (Exception e) {
+                return buildConfigFailure('Capability schema contains an invalid regex pattern for "' + path + '": ' + regexPattern, null);
+            }
+        }
+
+        return null;
+    }
+
+    private static SchemaValidationFailure validateNumericNode(Map<String, Object> schema, Object value, String path, Boolean requireInteger) {
+        if (!isNumericValue(value)) {
+            return buildInputFailure(path, requireInteger ? 'must be an integer' : 'must be a number', null);
+        }
+
+        Decimal numericValue = Decimal.valueOf(String.valueOf(value));
+        if (requireInteger && numericValue.scale() > 0) {
+            return buildInputFailure(path, 'must be an integer', null);
+        }
+        if (schema.containsKey('minimum') && numericValue < Decimal.valueOf(String.valueOf(schema.get('minimum')))) {
+            return buildInputFailure(path, 'must be greater than or equal to ' + String.valueOf(schema.get('minimum')), null);
+        }
+        if (schema.containsKey('maximum') && numericValue > Decimal.valueOf(String.valueOf(schema.get('maximum')))) {
+            return buildInputFailure(path, 'must be less than or equal to ' + String.valueOf(schema.get('maximum')), null);
+        }
+
+        return null;
+    }
+
+    private static SchemaValidationFailure validateType(Object typeDefinition, Object value, String path) {
+        if (typeDefinition == null) {
+            return null;
+        }
+
+        List<String> allowedTypes = new List<String>();
+        if (typeDefinition instanceof String) {
+            allowedTypes.add((String) typeDefinition);
+        } else if (typeDefinition instanceof List<Object>) {
+            for (Object typeName : (List<Object>) typeDefinition) {
+                allowedTypes.add(String.valueOf(typeName));
+            }
+        }
+
+        if (allowedTypes.isEmpty()) {
+            return null;
+        }
+
+        for (String allowedType : allowedTypes) {
+            if (matchesType(allowedType, value)) {
                 return null;
             }
         }
 
-        List<String> missing = new List<String>();
-        for (Object req : required) {
-            String fieldName = (String) req;
-            if (!args.containsKey(fieldName) || args.get(fieldName) == null) {
-                missing.add(fieldName);
-            }
-        }
+        return buildInputFailure(path, 'must be of type ' + String.join(allowedTypes, ' or '), null);
+    }
 
-        if (missing.isEmpty()) {
+    private static Boolean matchesType(String typeName, Object value) {
+        if ('null'.equals(typeName)) {
+            return value == null;
+        }
+        if (value == null) {
+            return false;
+        }
+        if ('object'.equals(typeName)) {
+            return value instanceof Map<String, Object>;
+        }
+        if ('array'.equals(typeName)) {
+            return value instanceof List<Object>;
+        }
+        if ('string'.equals(typeName)) {
+            return value instanceof String;
+        }
+        if ('boolean'.equals(typeName)) {
+            return value instanceof Boolean;
+        }
+        if ('integer'.equals(typeName)) {
+            return isNumericValue(value) && Decimal.valueOf(String.valueOf(value)).scale() == 0;
+        }
+        if ('number'.equals(typeName)) {
+            return isNumericValue(value);
+        }
+        return true;
+    }
+
+    private static Boolean isNumericValue(Object value) {
+        return value instanceof Integer || value instanceof Long || value instanceof Double || value instanceof Decimal;
+    }
+
+    private static SchemaValidationFailure validateEnumConstraint(Object enumDefinition, Object value, String path) {
+        if (!(enumDefinition instanceof List<Object>) || value == null) {
             return null;
         }
 
-        String msg =
-            'Missing required parameter(s) for capability "' +
-            capability.CapabilityName__c +
-            '": ' +
-            String.join(missing, ', ') +
-            '. Please provide all required fields and retry.';
-        System.debug(LoggingLevel.WARN, logPrefix + msg);
-        return ActionOutcome.failure(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, msg);
+        List<String> allowedValues = new List<String>();
+        for (Object allowedValue : (List<Object>) enumDefinition) {
+            allowedValues.add(String.valueOf(allowedValue));
+            if (valuesEqual(allowedValue, value)) {
+                return null;
+            }
+        }
+
+        return buildInputFailure(path, 'must be one of: ' + String.join(allowedValues, ', '), null);
+    }
+
+    private static Boolean valuesEqual(Object left, Object right) {
+        if (left == null || right == null) {
+            return left == right;
+        }
+        if (isNumericValue(left) && isNumericValue(right)) {
+            return Decimal.valueOf(String.valueOf(left)) == Decimal.valueOf(String.valueOf(right));
+        }
+        return String.valueOf(left) == String.valueOf(right);
+    }
+
+    private static SchemaValidationFailure buildInputFailure(String path, String requirement, String guidance) {
+        return new SchemaValidationFailure(
+            AIAgentConstants.ERR_CODE_INPUT_VALIDATION,
+            'Invalid capability arguments: "' + path + '" ' + requirement + '.',
+            guidance
+        );
+    }
+
+    private static SchemaValidationFailure buildConfigFailure(String message, String guidance) {
+        return new SchemaValidationFailure(AIAgentConstants.ERR_CODE_CONFIG_ERROR, message, guidance);
+    }
+
+    private static String appendPath(String basePath, String childPath) {
+        return String.isBlank(basePath) ? childPath : basePath + '.' + childPath;
     }
 
     private static void ensureCacheInitialized() {

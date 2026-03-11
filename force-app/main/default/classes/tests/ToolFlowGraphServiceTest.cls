@@ -337,7 +337,7 @@ private class ToolFlowGraphServiceTest {
         );
 
         System.assertEquals(false, result.isValid(), 'Mixed gateway types from the same source should be rejected');
-        System.assert(result.errors[0].contains('multiple flow rules'), 'Error should explain the duplicate source definition');
+        System.assert(String.join(result.errors, ' ').contains('multiple flow rules'), 'Error should explain the duplicate source definition');
     }
 
     @IsTest

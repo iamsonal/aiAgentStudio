@@ -16,6 +16,14 @@ public inherited sharing class AIAgentConstants {
     public static final String STATUS_AWAITING_FOLLOWUP = 'Awaiting Followup';
     public static final String STATUS_FAILED = 'Failed';
 
+    public static final String EXECUTION_STATUS_PAUSED = 'Paused';
+    public static final String OP_STATE_FOLLOWUP_QUEUE_FAILED = 'FOLLOWUP_QUEUE_FAILED';
+    public static final String OP_STATE_RESUME_FAILED = 'RESUME_FAILED';
+    public static final String OP_STATE_CHILD_CALLBACK_QUEUE_FAILED = 'CHILD_CALLBACK_QUEUE_FAILED';
+    public static final String OP_STATE_CHILD_CALLBACK_FAILED = 'CHILD_CALLBACK_FAILED';
+    public static final String OP_STATE_STALE_EXECUTION_RECOVERED = 'STALE_EXECUTION_RECOVERED';
+    public static final String OP_STATE_STALE_EXECUTION_EXHAUSTED = 'STALE_EXECUTION_EXHAUSTED';
+
     public static final String ROLE_USER = 'user';
     public static final String ROLE_ASSISTANT = 'assistant';
     public static final String ROLE_TOOL = 'tool';

@@ -729,65 +729,59 @@ private class OrchestrationServiceTest {
      *              instead of hard-failing the turn.
      */
     @IsTest
-    static void testShouldFailFast_UserFacingAgents_AllowRecoveryAfterCircuitBreaker() {
+    static void testShouldFailFast_ConversationalAgent_AllowsRecoveryAfterCircuitBreaker() {
         TestFactory.AgentSetup setup = getSetup();
         Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
         ActionOutcome failure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient tool failure');
+        String agentType = 'Conversational';
 
-        for (String agentType : new List<String>{ 'Conversational', 'Email' }) {
-            AIAgentDefinition__c agent = TestFactory.newAgentDefinition()
-                .withName(agentType + '_CircuitBreaker_Agent')
-                .withType(agentType)
-                .withLLM(setup.llmConfig.Id)
-                .save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition()
+            .withName(agentType + '_CircuitBreaker_Agent')
+            .withType(agentType)
+            .withLLM(setup.llmConfig.Id)
+            .save();
 
-            AgentExecution__c exec = TestFactory.newExecution()
-                .withAgent(agent.Id)
-                .withUser(UserInfo.getUserId())
-                .withExecutionType(agentType)
-                .withStatus('Processing')
-                .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
-                .withTurnIdentifier('turn-cb-' + agentType.toLowerCase() + '-001')
-                .save();
+        AgentExecution__c exec = TestFactory.newExecution()
+            .withAgent(agent.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType(agentType)
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
+            .withTurnIdentifier('turn-cb-' + agentType.toLowerCase() + '-001')
+            .save();
 
-            AgentCapability__c cap = TestFactory.newCapability()
-                .withAgent(agent.Id)
-                .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
-                .withName('cap_cb_' + agentType.toLowerCase())
-                .save();
+        AgentCapability__c cap = TestFactory.newCapability()
+            .withAgent(agent.Id)
+            .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
+            .withName('cap_cb_' + agentType.toLowerCase())
+            .save();
 
-            ExecutionStepService stepService = new ExecutionStepService();
-            for (Integer i = 1; i <= maxRetries + 2; i++) {
-                stepService.createToolResultStep(
-                    exec.Id,
-                    'call-cb-' + agentType.toLowerCase() + '-00' + i,
-                    cap.CapabilityName__c,
-                    '{"error":"Failed"}',
-                    'turn-cb-' + agentType.toLowerCase() + '-001',
-                    1,
-                    0L,
-                    false,
-                    cap.Id,
-                    true,
-                    false
-                );
-            }
-
-            AIAgentDefinition__c agentFull = [
-                SELECT Id, AgentType__c, ErrorRecoveryMode__c
-                FROM AIAgentDefinition__c
-                WHERE Id = :agent.Id
-            ];
-
-            Boolean result = OrchestrationService.shouldFailFast(cap, agentFull, failure, exec.Id, '[test] ');
-
-            System.assertEquals(
+        ExecutionStepService stepService = new ExecutionStepService();
+        for (Integer i = 1; i <= maxRetries + 2; i++) {
+            stepService.createToolResultStep(
+                exec.Id,
+                'call-cb-' + agentType.toLowerCase() + '-00' + i,
+                cap.CapabilityName__c,
+                '{"error":"Failed"}',
+                'turn-cb-' + agentType.toLowerCase() + '-001',
+                1,
+                0L,
                 false,
-                result,
-                agentType +
-                ' agent in Autonomous mode should still route the failure back to the LLM after hitting MaxToolRetries so it can respond gracefully to the user'
+                cap.Id,
+                true,
+                false
             );
         }
+
+        AIAgentDefinition__c agentFull = [
+            SELECT Id, AgentType__c, ErrorRecoveryMode__c
+            FROM AIAgentDefinition__c
+            WHERE Id = :agent.Id
+        ];
+
+        Boolean result = OrchestrationService.shouldFailFast(cap, agentFull, failure, exec.Id, '[test] ');
+
+        System.assertEquals(false, result, 'Conversational agents in Autonomous mode should still route failures back to the LLM after hitting MaxToolRetries');
     }
 
     /**

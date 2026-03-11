@@ -16,6 +16,30 @@ private class CapabilityExecutionServiceTest {
             .save();
     }
 
+    private static ActionContext buildContext(Id agentDefinitionId, Id capabilityId, String turnIdentifier) {
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(agentDefinitionId)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Function')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
+            .withTurnIdentifier(turnIdentifier)
+            .save();
+
+        return new ActionContext(
+            execution.Id,
+            UserInfo.getUserId(),
+            UserInfo.getUserId(),
+            null,
+            agentDefinitionId,
+            capabilityId,
+            null,
+            turnIdentifier,
+            1,
+            'Function'
+        );
+    }
+
     @IsTest
     static void testExecuteSingleAction_NullCapability_ThrowsException() {
         AgentCapability__c capability = [
@@ -123,7 +147,7 @@ private class CapabilityExecutionServiceTest {
 
         CapabilityExecutionService service = new CapabilityExecutionService();
 
-        ActionOutcome outcome = service.executeSingleAction(capability, '{"Name":"Test Account"}', context);
+        ActionOutcome outcome = service.executeSingleAction(capability, '{"recordData":{"Name":"Test Account"}}', context);
 
         System.assertNotEquals(null, outcome, 'Should return an outcome');
         System.assertEquals(true, outcome.isSuccess, 'Create account should succeed');
@@ -250,6 +274,117 @@ private class CapabilityExecutionServiceTest {
         ActionOutcome outcome = service.executeSingleAction(cap, '{}', context);
 
         System.assertNotEquals(null, outcome, 'Should return an outcome with empty arguments');
+    }
+
+    @IsTest
+    static void testExecuteSingleAction_RejectsUndeclaredTopLevelProperty() {
+        AgentCapability__c capability = [
+            SELECT Id, CapabilityName__c, AIAgentDefinition__c, ImplementationType__c, StandardActionType__c, Parameters__c, BackendConfiguration__c
+            FROM AgentCapability__c
+            WHERE CapabilityName__c = 'create_account_cap'
+            LIMIT 1
+        ];
+        capability.Parameters__c = '{"type":"object","properties":{"recordData":{"type":"object","additionalProperties":true}},"required":["recordData"]}';
+
+        CapabilityExecutionService service = new CapabilityExecutionService();
+        ActionOutcome outcome = service.executeSingleAction(
+            capability,
+            '{"recordData":{"Name":"Schema Test"},"unexpected":"value"}',
+            buildContext(capability.AIAgentDefinition__c, capability.Id, 'turn-schema-extra-001')
+        );
+
+        System.assertEquals(false, outcome.isSuccess, 'Undeclared top-level properties should be rejected');
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, outcome.errorCode);
+        System.assert(outcome.errorMessage.contains('parameters.unexpected'), 'Error should identify the undeclared property path');
+    }
+
+    @IsTest
+    static void testExecuteSingleAction_RejectsNestedUndeclaredProperty() {
+        AgentCapability__c capability = [
+            SELECT Id, CapabilityName__c, AIAgentDefinition__c, ImplementationType__c, StandardActionType__c, Parameters__c, BackendConfiguration__c
+            FROM AgentCapability__c
+            WHERE CapabilityName__c = 'create_account_cap'
+            LIMIT 1
+        ];
+        capability.Parameters__c = '{"type":"object","properties":{"recordData":{"type":"object","properties":{"Name":{"type":"string"}},"required":["Name"],"additionalProperties":false}},"required":["recordData"]}';
+
+        CapabilityExecutionService service = new CapabilityExecutionService();
+        ActionOutcome outcome = service.executeSingleAction(
+            capability,
+            '{"recordData":{"Name":"Schema Test","Industry":"Technology"}}',
+            buildContext(capability.AIAgentDefinition__c, capability.Id, 'turn-schema-nested-001')
+        );
+
+        System.assertEquals(false, outcome.isSuccess, 'Nested undeclared properties should be rejected');
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, outcome.errorCode);
+        System.assert(outcome.errorMessage.contains('parameters.recordData.Industry'), 'Error should identify the nested property path');
+    }
+
+    @IsTest
+    static void testExecuteSingleAction_RejectsEnumPatternAndBoundsViolations() {
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().save();
+        AgentCapability__c capability = TestFactory.newCapability()
+            .withAgent(setup.agentDefinition.Id)
+            .forCustomApex('NonExistentClass')
+            .withName('schema_validation_cap')
+            .save();
+        capability.Parameters__c = '{"type":"object","properties":{"status":{"type":"string","enum":["Open","Closed"]},"ticketCode":{"type":"string","pattern":"^CASE-[0-9]{4}$"},"attempts":{"type":"integer","minimum":1,"maximum":3}},"required":["status","ticketCode","attempts"]}';
+
+        CapabilityExecutionService service = new CapabilityExecutionService();
+
+        ActionOutcome enumOutcome = service.executeSingleAction(
+            capability,
+            '{"status":"Pending","ticketCode":"CASE-1234","attempts":2}',
+            buildContext(setup.agentDefinition.Id, capability.Id, 'turn-schema-enum-001')
+        );
+        System.assertEquals(false, enumOutcome.isSuccess, 'Bad enum should fail validation before handler execution');
+        System.assert(enumOutcome.errorMessage.contains('parameters.status'), 'Enum failure should identify the field path');
+
+        ActionOutcome patternOutcome = service.executeSingleAction(
+            capability,
+            '{"status":"Open","ticketCode":"INVALID","attempts":2}',
+            buildContext(setup.agentDefinition.Id, capability.Id, 'turn-schema-pattern-001')
+        );
+        System.assertEquals(false, patternOutcome.isSuccess, 'Bad pattern should fail validation before handler execution');
+        System.assert(patternOutcome.errorMessage.contains('parameters.ticketCode'), 'Pattern failure should identify the field path');
+
+        ActionOutcome boundsOutcome = service.executeSingleAction(
+            capability,
+            '{"status":"Open","ticketCode":"CASE-1234","attempts":0}',
+            buildContext(setup.agentDefinition.Id, capability.Id, 'turn-schema-bounds-001')
+        );
+        System.assertEquals(false, boundsOutcome.isSuccess, 'Out-of-range integers should fail validation before handler execution');
+        System.assert(boundsOutcome.errorMessage.contains('parameters.attempts'), 'Bounds failure should identify the field path');
+    }
+
+    @IsTest
+    static void testExecuteSingleAction_InvalidArgumentsJsonAndMalformedSchemaReturnStructuredFailures() {
+        AgentCapability__c capability = [
+            SELECT Id, CapabilityName__c, AIAgentDefinition__c, ImplementationType__c, StandardActionType__c, Parameters__c, BackendConfiguration__c
+            FROM AgentCapability__c
+            WHERE CapabilityName__c = 'create_account_cap'
+            LIMIT 1
+        ];
+
+        CapabilityExecutionService service = new CapabilityExecutionService();
+
+        capability.Parameters__c = '{"type":"object","properties":{"recordData":{"type":"object"}}}';
+        ActionOutcome invalidJsonOutcome = service.executeSingleAction(
+            capability,
+            '{invalid json}',
+            buildContext(capability.AIAgentDefinition__c, capability.Id, 'turn-schema-invalid-json-001')
+        );
+        System.assertEquals(false, invalidJsonOutcome.isSuccess, 'Invalid JSON arguments should return a structured failure');
+        System.assertEquals(AIAgentConstants.ERR_CODE_INPUT_VALIDATION, invalidJsonOutcome.errorCode);
+
+        capability.Parameters__c = '{invalid schema';
+        ActionOutcome invalidSchemaOutcome = service.executeSingleAction(
+            capability,
+            '{"recordData":{"Name":"Test"}}',
+            buildContext(capability.AIAgentDefinition__c, capability.Id, 'turn-schema-invalid-schema-001')
+        );
+        System.assertEquals(false, invalidSchemaOutcome.isSuccess, 'Malformed schemas should return a structured failure');
+        System.assertEquals(AIAgentConstants.ERR_CODE_CONFIG_ERROR, invalidSchemaOutcome.errorCode);
     }
 
     @IsTest
@@ -483,7 +618,7 @@ private class CapabilityExecutionServiceTest {
 
         System.assertEquals(false, CapabilityExecutionService.isCacheInitialized, 'Cache should not be initialized initially');
 
-        service.executeSingleAction(capability, '{"Name":"Test"}', context);
+        service.executeSingleAction(capability, '{"recordData":{"Name":"Test"}}', context);
 
         System.assertEquals(true, CapabilityExecutionService.isCacheInitialized, 'Cache should be initialized after first execution');
         System.assertNotEquals(null, CapabilityExecutionService.standardHandlerCache, 'Cache should be populated');

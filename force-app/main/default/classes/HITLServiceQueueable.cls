@@ -215,6 +215,13 @@ public without sharing class HITLServiceQueueable implements Queueable, Database
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error triggering follow-up LLM via REST API: ' + e.getMessage() + '\n' + e.getStackTraceString());
             logExecutionError(executionId, turnIdentifier, null, e, logPrefix);
+            persistOperationalIssue(
+                executionId,
+                turnIdentifier,
+                AIAgentConstants.OP_STATE_FOLLOWUP_QUEUE_FAILED,
+                'Follow-up LLM queueing failed from HITL service queueable: ' + e.getMessage(),
+                logPrefix
+            );
         }
     }
 
@@ -260,15 +267,32 @@ public without sharing class HITLServiceQueueable implements Queueable, Database
             Map<String, Object> responseData = (Map<String, Object>) JSON.deserializeUntyped(result.response.getBody());
             Boolean success = (Boolean) responseData.get('success');
             String message = (String) responseData.get('message');
+            if (String.isBlank(message)) {
+                message = (String) responseData.get('outcome');
+            }
 
             if (success == true) {
                 System.debug(LoggingLevel.INFO, logPrefix + 'Resume result: ' + message);
             } else {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Resume completed with warning: ' + message);
+                persistOperationalIssue(
+                    executionId,
+                    null,
+                    AIAgentConstants.OP_STATE_RESUME_FAILED,
+                    'Resume request completed without success: ' + message,
+                    logPrefix
+                );
             }
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error executing resume via REST API: ' + e.getMessage() + '\n' + e.getStackTraceString());
             logExecutionError(executionId, null, null, e, logPrefix);
+            persistOperationalIssue(
+                executionId,
+                null,
+                AIAgentConstants.OP_STATE_RESUME_FAILED,
+                'Resume failed from HITL service queueable: ' + e.getMessage(),
+                logPrefix
+            );
         }
     }
 
@@ -354,6 +378,19 @@ public without sharing class HITLServiceQueueable implements Queueable, Database
             System.debug(LoggingLevel.INFO, logPrefix + 'Error logged to decision steps');
         } catch (Exception logEx) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Failed to log error to decision steps: ' + logEx.getMessage());
+        }
+    }
+
+    private void persistOperationalIssue(Id execId, String turnId, String operationalState, String detailMessage, String logPrefix) {
+        if (execId == null) {
+            return;
+        }
+
+        try {
+            AgentStateService stateService = new AgentStateService();
+            stateService.pauseForOperationalIssue(execId, turnId, operationalState, detailMessage, logPrefix);
+        } catch (Exception stateEx) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to persist operational state: ' + stateEx.getMessage());
         }
     }
 }
