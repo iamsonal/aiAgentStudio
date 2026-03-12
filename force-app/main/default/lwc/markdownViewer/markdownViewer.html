@@ -1,0 +1,29 @@
+<template>
+    <!-- Loading State - shown while library loads or content renders -->
+    <template lwc:if={showLoading}>
+        <div class="markdown-loading">
+            <div class="markdown-skeleton">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line short"></div>
+                <div class="skeleton-line"></div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Error State -->
+    <template lwc:elseif={showError}>
+        <div class="markdown-content markdown-content-compact slds-text-color_error slds-p-around_small">{errorMessage}</div>
+    </template>
+
+    <!-- Rendered Content - only shown after markdown is converted to HTML -->
+    <template lwc:elseif={showContent}>
+        <div class={contentClass}>
+            <lightning-formatted-rich-text value={renderedHtml} disable-linkify="false"> </lightning-formatted-rich-text>
+        </div>
+    </template>
+
+    <!-- Empty State (no content) -->
+    <template lwc:elseif={showEmpty}>
+        <div class="markdown-empty"></div>
+    </template>
+</template>

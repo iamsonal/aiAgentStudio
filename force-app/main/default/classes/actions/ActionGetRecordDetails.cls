@@ -455,7 +455,11 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
             if (!relationshipDescribe.isAccessible()) {
                 return ActionOutcome.failure(
                     AIAgentConstants.ERR_CODE_PERMISSION_DENIED,
-                    'Access Denied: You do not have permission to read relationship ' + relationshipDescribe.getRelationshipName() + ' in path "' + fieldPath + '".',
+                    'Access Denied: You do not have permission to read relationship ' +
+                        relationshipDescribe.getRelationshipName() +
+                        ' in path "' +
+                        fieldPath +
+                        '".',
                     'Contact your Salesforce administrator to request read access to the relationship field used in ' + fieldPath + '.'
                 );
             }

@@ -1,0 +1,90 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2025 Sonal
+ */
+
+/* Speech Button Base Styling */
+.speech-button {
+    transition: all 0.2s ease-in-out;
+}
+
+/* Speech Button - Listening State */
+.speech-button-listening {
+    --sds-c-button-destructive-color-background: #ea001e;
+    --sds-c-button-destructive-color-border: #ea001e;
+    --sds-c-icon-color-foreground-default: #ffffff;
+    --lwc-colorTextIconDefault: #ffffff;
+    transform: scale(1.1);
+}
+
+/* Force icon color to white when listening for better contrast against red background */
+.speech-button-listening lightning-primitive-icon {
+    fill: #ffffff;
+    color: #ffffff;
+}
+
+/* Speech Button - Pulse Animation */
+.speech-button-pulse {
+    animation: pulse-recording 1.5s infinite;
+}
+
+/* Speech Button - Error State */
+.speech-button-error {
+    --sds-c-button-destructive-color-background: #c23934;
+    --sds-c-button-destructive-color-border: #c23934;
+}
+
+/* Recording pulse animation */
+@keyframes pulse-recording {
+    0% {
+        box-shadow: 0 0 0 0 rgba(234, 0, 30, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(234, 0, 30, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(234, 0, 30, 0);
+    }
+}
+
+/* Speech Button Accessibility */
+.speech-button:focus {
+    outline: 2px solid var(--lwc-brandAccessible, #0176d3);
+    outline-offset: 2px;
+}
+
+/* Enhanced Responsive Design */
+@media (max-width: 480px) {
+    .speech-button {
+        width: 28px;
+        height: 28px;
+    }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+    .speech-button-listening {
+        animation: none;
+        box-shadow: 0 0 0 2px rgba(234, 0, 30, 0.5);
+    }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .speech-button-listening {
+        --sds-c-button-destructive-color-background: #ff4757;
+        --sds-c-button-destructive-color-border: #ff4757;
+        --sds-c-icon-color-foreground-default: #ffffff;
+        --lwc-colorTextIconDefault: #ffffff;
+    }
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+    .speech-button-listening {
+        border-width: 3px;
+    }
+}

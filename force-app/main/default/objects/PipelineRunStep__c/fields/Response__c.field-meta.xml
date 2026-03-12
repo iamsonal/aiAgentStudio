@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Response__c</fullName>
+    <description>Output/response from this step. Used for chaining step outputs to subsequent steps and for debugging.</description>
+    <inlineHelpText>Step output/response content.</inlineHelpText>
+    <label>Response</label>
+    <length>131072</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>5</visibleLines>
+</CustomField>

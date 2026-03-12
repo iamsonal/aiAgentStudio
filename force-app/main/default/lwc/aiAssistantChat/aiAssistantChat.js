@@ -66,6 +66,10 @@ export default class AiAssistantChat extends LightningElement {
     criticalError = null;
     loadingState = { initial: true, history: false, sending: false, loadingMore: false };
 
+    // Speech-to-text state management
+    _speechBaseText = ''; // Text before speech started
+    _isCapturingSpeech = false; // Track if actively capturing speech
+
     // --- Service Instances ---
     _sessionManager;
     _eventManager;
@@ -285,6 +289,97 @@ export default class AiAssistantChat extends LightningElement {
         } catch (error) {
             this._errorHandler.handleError('Failed to load more history', error);
         }
+    }
+
+    // === Speech-to-Text Event Handlers ===
+
+    /**
+     * Handler for speech recognition start event
+     * Captures the current input text as base text for the speech session
+     */
+    handleSpeechStart(event) {
+        console.info('[aiAssistantChat] Speech recognition started', event.detail);
+        // Store current input as base text
+        this._speechBaseText = this.userMessageInput;
+        this._isCapturingSpeech = true;
+    }
+
+    /**
+     * Handler for speech recognition end event
+     * Cleans up speech session state
+     */
+    handleSpeechEnd(event) {
+        console.info('[aiAssistantChat] Speech recognition ended', event.detail);
+        this._isCapturingSpeech = false;
+        this._speechBaseText = '';
+    }
+
+    /**
+     * Handler for final speech result from the speech component
+     * Commits the final transcript to the base text
+     */
+    handleSpeechResult(event) {
+        const { transcript } = event.detail;
+        if (transcript && transcript.trim()) {
+            const newText = transcript.trim();
+
+            // Append final result to base text with proper spacing
+            if (this._speechBaseText.trim()) {
+                this._speechBaseText = `${this._speechBaseText.trim()} ${newText}`;
+            } else {
+                this._speechBaseText = newText;
+            }
+
+            // Update the input field with the committed text
+            this.userMessageInput = this._speechBaseText;
+
+            console.info('[aiAssistantChat] Final speech result committed:', transcript);
+        }
+    }
+
+    /**
+     * Handler for interim speech results from the speech component
+     * Updates input field in real-time to show live transcription as user speaks
+     */
+    handleSpeechInterim(event) {
+        const { transcript } = event.detail;
+
+        if (!this._isCapturingSpeech) {
+            return;
+        }
+
+        // Show interim results in real-time
+        if (transcript && transcript.trim()) {
+            const interimText = transcript.trim();
+
+            // Combine base text with interim text for live display
+            if (this._speechBaseText.trim()) {
+                this.userMessageInput = `${this._speechBaseText.trim()} ${interimText}`;
+            } else {
+                this.userMessageInput = interimText;
+            }
+
+            console.debug('[aiAssistantChat] Live transcription:', interimText);
+        }
+    }
+
+    /**
+     * Handler for speech recognition errors from the speech component
+     */
+    handleSpeechError(event) {
+        const { message, canRetry } = event.detail;
+        console.error('[aiAssistantChat] Speech recognition error:', message);
+
+        this._errorHandler._showToast('Speech Recognition Error', message, 'error');
+    }
+
+    /**
+     * Handler for no speech detected event from the speech component
+     */
+    handleSpeechNoSpeech(event) {
+        const { message } = event.detail;
+        console.warn('[aiAssistantChat] No speech detected:', message);
+        this._errorHandler._showToast('No Speech Detected', 'Please try speaking closer to your microphone.', 'warning');
     }
 
     /**

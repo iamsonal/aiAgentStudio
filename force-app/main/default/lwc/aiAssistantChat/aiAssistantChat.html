@@ -107,7 +107,13 @@
                                                 <span class={message.prefixClass}>{message.prefix}</span>
                                             </template>
                                             <div class="slds-chat-message__text-content">
-                                                <lightning-formatted-rich-text value={message.content}></lightning-formatted-rich-text>
+                                                <!-- Use markdown viewer for assistant messages, formatted rich text for user messages -->
+                                                <template if:true={message.isInbound}>
+                                                    <c-markdown-viewer value={message.content} hide-loading="true"></c-markdown-viewer>
+                                                </template>
+                                                <template if:false={message.isInbound}>
+                                                    <lightning-formatted-rich-text value={message.content}></lightning-formatted-rich-text>
+                                                </template>
                                             </div>
                                         </div>
                                         <div class="slds-chat-message__meta" aria-label={message.ariaLabelMeta}>
@@ -181,6 +187,19 @@
 
                         <!-- Action Buttons Container -->
                         <div class="chat-input-actions">
+                            <!-- Speech Recognition Button Component -->
+                            <c-speech-to-text-input
+                                disabled={isInputDisabled}
+                                button-size="small"
+                                onspeechresult={handleSpeechResult}
+                                onspeechinterim={handleSpeechInterim}
+                                onspeechstart={handleSpeechStart}
+                                onspeechend={handleSpeechEnd}
+                                onspeecherror={handleSpeechError}
+                                onspeechnospeech={handleSpeechNoSpeech}
+                            >
+                            </c-speech-to-text-input>
+
                             <!-- Send Button -->
                             <lightning-button-icon
                                 icon-name="utility:send"
@@ -196,7 +215,9 @@
                         </div>
 
                         <!-- Hidden Help Text -->
-                        <div id="input-help" class="slds-assistive-text">Press Enter to send, Shift+Enter for new line.</div>
+                        <div id="input-help" class="slds-assistive-text">
+                            Press Enter to send, Shift+Enter for new line. Use the microphone button to speak your message.
+                        </div>
                     </div>
                 </div>
             </div>

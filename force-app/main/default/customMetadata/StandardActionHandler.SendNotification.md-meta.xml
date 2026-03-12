@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Send Notification</label>
+    <protected>false</protected>
+    <values>
+        <field>Description__c</field>
+        <value xsi:type="xsd:string">Sends in-app notifications (bell icon alerts) to Salesforce users</value>
+    </values>
+    <values>
+        <field>HandlerClassName__c</field>
+        <value xsi:type="xsd:string">ActionSendNotification</value>
+    </values>
+    <values>
+        <field>IsActive__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>IsStandardAction__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>RequiresSObject__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>ConfigSchema__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;notificationTypeName&quot;,
+    &quot;type&quot;: &quot;string&quot;,
+    &quot;required&quot;: false,
+    &quot;help&quot;: &quot;The DeveloperName of the CustomNotificationType to use by default.&quot;,
+    &quot;label&quot;: &quot;Default Notification Type&quot;
+  },
+  {
+    &quot;name&quot;: &quot;defaultTargetId&quot;,
+    &quot;type&quot;: &quot;salesforce-id&quot;,
+    &quot;required&quot;: false,
+    &quot;help&quot;: &quot;Optional default record ID to link notifications to if not specified at runtime.&quot;,
+    &quot;label&quot;: &quot;Default Target ID&quot;
+  }
+]</value>
+    </values>
+    <values>
+        <field>ConfigJsonSchema__c</field>
+        <value xsi:type="xsd:string">{
+  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;notificationTypeName&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;The DeveloperName of the CustomNotificationType to use by default.&quot;
+    },
+    &quot;defaultTargetId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;Optional default record ID to link notifications to if not specified at runtime.&quot;,
+      &quot;format&quot;: &quot;salesforce-id&quot;
+    }
+  }
+}</value>
+    </values>
+    <values>
+        <field>ParametersSchema__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;recipientIds&quot;,
+    &quot;type&quot;: &quot;array&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;List of User IDs to send notifications to&quot;,
+    &quot;label&quot;: &quot;Recipient IDs&quot;
+  },
+  {
+    &quot;name&quot;: &quot;title&quot;,
+    &quot;type&quot;: &quot;string&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;Notification title&quot;,
+    &quot;label&quot;: &quot;Title&quot;,
+    &quot;maxLength&quot;: 255
+  },
+  {
+    &quot;name&quot;: &quot;body&quot;,
+    &quot;type&quot;: &quot;string&quot;,
+    &quot;required&quot;: true,
+    &quot;help&quot;: &quot;Notification body/message text&quot;,
+    &quot;label&quot;: &quot;Body&quot;,
+    &quot;maxLength&quot;: 5000
+  },
+  {
+    &quot;name&quot;: &quot;targetId&quot;,
+    &quot;type&quot;: &quot;salesforce-id&quot;,
+    &quot;required&quot;: false,
+    &quot;help&quot;: &quot;Optional: Record ID to link the notification to&quot;,
+    &quot;label&quot;: &quot;Target ID&quot;
+  }
+]</value>
+    </values>
+    <values>
+        <field>ParametersJsonSchema__c</field>
+        <value xsi:type="xsd:string">{
+  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;recipientIds&quot;: {
+      &quot;type&quot;: &quot;array&quot;,
+      &quot;description&quot;: &quot;List of User IDs to send notifications to&quot;
+    },
+    &quot;title&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;Notification title&quot;,
+      &quot;maxLength&quot;: 255
+    },
+    &quot;body&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;Notification body/message text&quot;,
+      &quot;maxLength&quot;: 5000
+    },
+    &quot;targetId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;Optional: Record ID to link the notification to&quot;,
+      &quot;format&quot;: &quot;salesforce-id&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;recipientIds&quot;,
+    &quot;title&quot;,
+    &quot;body&quot;
+  ]
+}</value>
+    </values>
+</CustomMetadata>

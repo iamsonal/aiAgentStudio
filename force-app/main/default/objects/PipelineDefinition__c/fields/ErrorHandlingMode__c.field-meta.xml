@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ErrorHandlingMode__c</fullName>
+    <description>Controls how the pipeline handles step failures. FailFast stops the pipeline immediately on first failure. ContinueOnError skips failed steps and advances to the next.</description>
+    <inlineHelpText>FailFast: stop on first error. ContinueOnError: skip failed steps and continue.</inlineHelpText>
+    <label>Error Handling Mode</label>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>FailFast</fullName>
+                <default>true</default>
+                <label>Fail Fast</label>
+            </value>
+            <value>
+                <fullName>ContinueOnError</fullName>
+                <default>false</default>
+                <label>Continue On Error</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

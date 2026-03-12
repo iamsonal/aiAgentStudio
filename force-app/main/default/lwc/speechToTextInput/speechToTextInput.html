@@ -1,0 +1,18 @@
+<template>
+    <!-- Speech Recognition Button -->
+    <template if:true={isVisible}>
+        <span class="slds-assistive-text" aria-live="polite">{speechStatusText}</span>
+        <lightning-button-icon
+            icon-name={speechButtonIcon}
+            variant={computedButtonVariant}
+            alternative-text={speechButtonAltText}
+            title={speechButtonTitle}
+            onclick={handleSpeechToggle}
+            disabled={isSpeechDisabled}
+            class={speechButtonClass}
+            size={buttonSize}
+            aria-pressed={speechState.isListening}
+        >
+        </lightning-button-icon>
+    </template>
+</template>

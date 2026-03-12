@@ -628,9 +628,7 @@ export class UniversalEmpApi {
                 }
 
                 const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 16000);
-                console.info(
-                    `UniversalEmpApi: Scheduling reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`
-                );
+                console.info(`UniversalEmpApi: Scheduling reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
 
                 await new Promise((resolve) => {
                     this.reconnectTimeout = setTimeout(() => {

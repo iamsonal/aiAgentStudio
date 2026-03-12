@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>StepName__c</fullName>
+    <caseSensitive>false</caseSensitive>
+    <description>Name of the pipeline step. Used for grouping and reporting.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>The name of this pipeline step.</inlineHelpText>
+    <isFilteringDisabled>false</isFilteringDisabled>
+    <isNameField>false</isNameField>
+    <isSortingDisabled>false</isSortingDisabled>
+    <label>Step Name</label>
+    <length>255</length>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

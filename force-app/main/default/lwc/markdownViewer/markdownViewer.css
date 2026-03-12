@@ -1,0 +1,50 @@
+.markdown-content {
+    color: var(--storyboard-text-default);
+    font-size: 0.875rem;
+    line-height: 1.65;
+}
+
+.markdown-content lightning-formatted-rich-text {
+    display: block;
+}
+
+.markdown-content-compact {
+    color: var(--storyboard-text-default);
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.markdown-loading {
+    padding: 0.5rem 0;
+}
+
+.markdown-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.skeleton-line {
+    height: 0.75rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--storyboard-surface-muted) 0%, #edf2f7 50%, var(--storyboard-surface-muted) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite linear;
+}
+
+.skeleton-line.short {
+    width: 62%;
+}
+
+.markdown-empty {
+    min-height: 0.5rem;
+}
+
+@keyframes shimmer {
+    from {
+        background-position: 200% 0;
+    }
+    to {
+        background-position: -200% 0;
+    }
+}

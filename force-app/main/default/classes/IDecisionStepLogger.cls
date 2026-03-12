@@ -91,6 +91,36 @@ public inherited sharing class IDecisionStepLogger {
     }
 
     /**
+     * Lightweight error details returned by addon-backed log lookups.
+     * Keeps callers decoupled from the underlying storage object.
+     */
+    public class LoggedErrorInfo {
+        public Id stepId;
+        public String errorCode;
+        public String errorMessage;
+        public String description;
+        public Datetime createdAt;
+
+        public LoggedErrorInfo() {
+        }
+
+        public LoggedErrorInfo(Id stepId, String errorCode, String errorMessage, String description, Datetime createdAt) {
+            this.stepId = stepId;
+            this.errorCode = errorCode;
+            this.errorMessage = errorMessage;
+            this.description = description;
+            this.createdAt = createdAt;
+        }
+    }
+
+    /**
+     * Optional addon lookup interface for reading decision-step-backed diagnostics
+     */
+    public interface ILookup {
+        Map<Id, LoggedErrorInfo> getLatestFailedErrors(Set<Id> executionIds);
+    }
+
+    /**
      * No-operation implementation when decision step logging is disabled or addon not installed.
      */
     public class NoOp implements ILogger {
@@ -104,6 +134,12 @@ public inherited sharing class IDecisionStepLogger {
         }
         public Id getLastLoggedStepId() {
             return null;
+        }
+    }
+
+    public class NoOpLookup implements ILookup {
+        public Map<Id, LoggedErrorInfo> getLatestFailedErrors(Set<Id> executionIds) {
+            return new Map<Id, LoggedErrorInfo>();
         }
     }
 
@@ -144,6 +180,33 @@ public inherited sharing class IDecisionStepLogger {
 
     public static ILogger create(Id executionId, String turnIdentifier) {
         return create(executionId, turnIdentifier, null);
+    }
+
+    /**
+     * Reads the latest failed diagnostic entry per execution when the addon logger
+     * is installed. Returns an empty map when the addon is unavailable.
+     */
+    public static Map<Id, LoggedErrorInfo> getLatestFailedErrors(Set<Id> executionIds) {
+        if (executionIds == null || executionIds.isEmpty()) {
+            return new Map<Id, LoggedErrorInfo>();
+        }
+
+        Type loggerType = Type.forName(ADDONS_LOGGER_CLASS);
+        if (loggerType != null) {
+            try {
+                ILookup lookup = (ILookup) loggerType.newInstance();
+                return lookup.getLatestFailedErrors(executionIds);
+            } catch (Exception e) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    '[IDecisionStepLogger] Failed to resolve latest failed errors via ' + ADDONS_LOGGER_CLASS + ': ' + e.getMessage()
+                );
+            }
+        } else {
+            System.debug(LoggingLevel.DEBUG, '[IDecisionStepLogger] Addons logger class not found (' + ADDONS_LOGGER_CLASS + ') for error lookup.');
+        }
+
+        return new NoOpLookup().getLatestFailedErrors(executionIds);
     }
 
     /**
