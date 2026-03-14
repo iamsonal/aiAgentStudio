@@ -111,26 +111,15 @@ export class ChatSessionManager {
         try {
             this._addUserMessage(messageText, turnIdentifier);
             this.loadingManager.setLoading('sending', true);
-            const response = await sendMessage({
+            await sendMessage({
                 sessionId: this.currentSessionId,
                 userMessage: messageText,
                 currentRecordId: contextRecordId,
                 turnIdentifier: turnIdentifier
             });
-
-            // Check if the response indicates an error
-            if (response && response.success === false) {
-                this.loadingManager.setLoading('sending', false);
-                const errorMessage = response.error || 'Failed to send message. Please try again.';
-                this._addSystemErrorMessage(errorMessage);
-                throw new Error(errorMessage);
-            }
         } catch (error) {
             this.loadingManager.setLoading('sending', false);
-            // Only add system error message if we haven't already added one
-            if (!error.message || !error.message.includes('Processing error:')) {
-                this._addSystemErrorMessage('Failed to send message. Please try again.');
-            }
+            this._addSystemErrorMessage('Failed to send message. Please try again.');
             throw error;
         }
     }

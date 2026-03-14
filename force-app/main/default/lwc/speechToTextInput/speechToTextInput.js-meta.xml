@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>63.0</apiVersion>
+    <isExposed>false</isExposed>
+    <masterLabel>Speech to Text Input</masterLabel>
+    <description>A pluggable speech-to-text input component that provides voice recognition capabilities for Lightning Web Components.</description>
+</LightningComponentBundle>

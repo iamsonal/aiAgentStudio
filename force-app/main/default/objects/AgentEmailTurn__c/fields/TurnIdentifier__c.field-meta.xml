@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>TurnIdentifier__c</fullName>
+    <description>UUID identifying this specific processing turn within the execution. Matches AgentExecution__c.CurrentTurnIdentifier__c at the time of processing.</description>
+    <inlineHelpText>UUID of the processing turn for this email</inlineHelpText>
+    <label>Turn Identifier</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

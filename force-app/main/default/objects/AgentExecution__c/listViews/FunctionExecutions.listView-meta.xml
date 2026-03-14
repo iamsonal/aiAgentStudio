@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>FunctionExecutions</fullName>
+    <columns>NAME</columns>
+    <columns>AIAgentDefinition__c</columns>
+    <columns>ExecutionStatus__c</columns>
+    <columns>ProcessingStatus__c</columns>
+    <columns>StartTime__c</columns>
+    <columns>EndTime__c</columns>
+    <columns>CREATEDBY_USER</columns>
+    <filterScope>Everything</filterScope>
+    <filters>
+        <field>ExecutionType__c</field>
+        <operation>equals</operation>
+        <value>Function</value>
+    </filters>
+    <filters>
+        <field>ParentExecution__c</field>
+        <operation>equals</operation>
+    </filters>
+    <label>Function Executions</label>
+</ListView>

@@ -63,6 +63,11 @@
                 <label>Batch</label>
             </value>
             <value>
+                <fullName>Benchmark</fullName>
+                <default>false</default>
+                <label>Benchmark</label>
+            </value>
+            <value>
                 <fullName>AgentCapability</fullName>
                 <default>false</default>
                 <label>Agent Capability</label>

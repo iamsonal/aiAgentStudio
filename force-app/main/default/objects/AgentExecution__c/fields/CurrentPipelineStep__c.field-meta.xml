@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CurrentPipelineStep__c</fullName>
+    <description>Name of the currently active pipeline step. Used for quick identification of pipeline progress without querying child step records.</description>
+    <inlineHelpText>The currently active pipeline step name.</inlineHelpText>
+    <label>Current Pipeline Step</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

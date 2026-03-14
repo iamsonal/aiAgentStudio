@@ -1,0 +1,1034 @@
+/* ─────────────────────────────────────────────────────────────────────
+   Tool Flow Graph Editor
+   ───────────────────────────────────────────────────────────────────── */
+
+/* ── Root ────────────────────────────────────────────────────────────── */
+.editor-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 640px;
+    background: #f3f3f3;
+    font-family: 'Salesforce Sans', Arial, sans-serif;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────── */
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    background: #ffffff;
+    border-bottom: 1px solid #dde1e8;
+    flex-shrink: 0;
+}
+.toolbar-divider {
+    width: 1px;
+    height: 22px;
+    background: #dde1e8;
+    margin: 0 4px;
+}
+.toolbar-spacer {
+    flex: 1;
+}
+
+.toolbar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid #dde1e8;
+    border-radius: 4px;
+    background: #ffffff;
+    color: #3e3e3c;
+    cursor: pointer;
+    white-space: nowrap;
+    transition:
+        background 0.12s,
+        border-color 0.12s;
+}
+.toolbar-btn:hover:not(:disabled) {
+    background: #f3f3f3;
+    border-color: #bcc1cb;
+}
+.toolbar-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+.toolbar-btn--primary {
+    background: #0176d3;
+    border-color: #0176d3;
+    color: #ffffff;
+}
+.toolbar-btn--primary:hover:not(:disabled) {
+    background: #0558a5;
+}
+.toolbar-btn--save {
+    background: #2e7d32;
+    border-color: #2e7d32;
+    color: #ffffff;
+}
+.toolbar-btn--save:hover:not(:disabled) {
+    background: #1b5e20;
+}
+.toolbar-btn--danger:hover:not(:disabled) {
+    background: #fef0ee;
+    border-color: #e8806a;
+    color: #ba3025;
+}
+/* Edit button — teal/blue outline */
+.toolbar-btn--edit {
+    background: #f0f8ff;
+    border-color: #0176d3;
+    color: #0176d3;
+    font-weight: 600;
+}
+.toolbar-btn--edit:hover {
+    background: #d8edfb;
+}
+/* Neutral (Cancel) button */
+.toolbar-btn--neutral {
+    background: #f4f6f8;
+    border-color: #b8c3cc;
+    color: #444;
+}
+.toolbar-btn--neutral:hover {
+    background: #e8edf0;
+}
+/* "Editing" badge shown in toolbar while in edit mode */
+.toolbar-edit-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: #2e7d32;
+    background: #e6f4ea;
+    border: 1px solid #a5d6a7;
+    border-radius: 12px;
+    padding: 3px 10px;
+    letter-spacing: 0.04em;
+}
+
+/* ── Stale banner ────────────────────────────────────────────────────── */
+.stale-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: #fffce9;
+    border-bottom: 1px solid #f5d90a;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+.stale-dismiss {
+    margin-left: auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #706e6b;
+    font-size: 14px;
+}
+.diagnostics-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: #eef4ff;
+    border-bottom: 1px solid #c7d7f7;
+    color: #032d60;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+/* ── Work area ───────────────────────────────────────────────────────── */
+.work-area {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* ── Canvas column ───────────────────────────────────────────────────── */
+.canvas-col {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    position: relative; /* anchor zoom controls */
+    background: #f8f9fb;
+    background-image: radial-gradient(circle, #d3d9e0 1px, transparent 1px);
+    background-size: 20px 20px;
+    min-height: 0;
+}
+
+/* ── Scrollable viewport for the graph canvas ────────────────────────── */
+/* The cy-wrap grows to fit the full graph height; this div scrolls it.  */
+.cy-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+}
+
+/* ── Cytoscape container ─────────────────────────────────────────────── */
+/* Height is set via an inline style that's computed from the graph bbox. */
+.cy-wrap {
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+}
+.cy-wrap canvas {
+    display: block;
+}
+
+/* ── Library loading ─────────────────────────────────────────────────── */
+.lib-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(248, 249, 251, 0.9);
+    z-index: 20;
+    color: #706e6b;
+    font-size: 13px;
+}
+
+/* ── "+" edge midpoint buttons ───────────────────────────────────────── */
+.plus-btn {
+    position: absolute;
+    /* transform set inline by JS: translate(-50%,-50%) scale(zoom) */
+    transform-origin: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 2px solid #0176d3;
+    color: #0176d3;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 5px rgba(1, 118, 211, 0.2);
+    transition:
+        background 0.12s,
+        color 0.12s;
+    padding: 0;
+}
+.plus-btn:hover {
+    background: #0176d3;
+    color: #ffffff;
+    /* hover scale is handled via CSS; inline scale from JS is the base */
+    filter: brightness(1.1);
+}
+/* Branch-origin "+" — slightly larger, orange-themed to match branch palette */
+.plus-btn--branch-origin {
+    width: 26px;
+    height: 26px;
+    font-size: 18px;
+    border-color: #c45a00;
+    color: #c45a00;
+    box-shadow: 0 1px 5px rgba(196, 90, 0, 0.2);
+}
+.plus-btn--branch-origin:hover {
+    background: #c45a00;
+    color: #ffffff;
+    filter: brightness(1.1);
+}
+
+/* ── Parallel node chip overlay ──────────────────────────────────────── */
+/* Rendered as a transparent HTML layer over the Cytoscape canvas node.
+   pointer-events:none ensures all clicks/drags pass through to Cytoscape. */
+.node-overlay {
+    position: absolute;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+.node-overlay--parallel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 7px;
+}
+.node-overlay__header {
+    padding: 3px 10px 2px;
+    background: #c8f0eb;
+    border-bottom: 1px solid #9ddcd5;
+    text-align: center;
+    flex-shrink: 0;
+}
+.node-overlay__badge {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #065a56;
+}
+.node-overlay__chips {
+    list-style: none;
+    padding: 4px 6px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+    overflow: hidden;
+}
+.node-overlay__chip {
+    background: #ffffff;
+    border: 1px solid #9ddcd5;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #065a56;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Condition label pills (exclusive edge labels rendered as HTML) ────── */
+/* Positioned by JS above the target node; click to open the inline editor. */
+.cond-label {
+    position: absolute;
+    transform-origin: center;
+    font-size: 12px;
+    font-family: 'Salesforce Sans', Arial, sans-serif;
+    padding: 5px 12px;
+    border-radius: 12px;
+    border: 1px solid;
+    white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    line-height: 1.4;
+    pointer-events: all;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+    transition:
+        background 0.1s,
+        border-color 0.1s,
+        box-shadow 0.1s;
+}
+.cond-label--hint {
+    background: #f4f6f8;
+    border-color: #d0d5db;
+    color: #7a8a96;
+    font-style: italic;
+    box-shadow: none;
+}
+.cond-label--hint:hover {
+    background: #e8f4fd;
+    border-color: #76b3e8;
+    color: #0176d3;
+    box-shadow: 0 2px 6px rgba(1, 118, 211, 0.12);
+}
+.cond-label--set {
+    background: #fff8f0;
+    border-color: #e8a87c;
+    color: #7a3800;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+.cond-label--set:hover {
+    background: #fff0e0;
+    border-color: #c47040;
+    box-shadow: 0 2px 8px rgba(196, 90, 0, 0.12);
+}
+
+/* ── Inline condition editor ─────────────────────────────────────────── */
+/* Small floating input that appears on-canvas when a condition label is   */
+/* clicked; dismisses on Enter / Esc / background tap.                     */
+.inline-cond-editor {
+    position: absolute;
+    z-index: 58;
+    /* bottom of the editor sits at the label position (which is just above child node) */
+    transform: translate(-50%, -100%);
+    background: #ffffff;
+    border: 1.5px solid #0176d3;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+    padding: 10px 12px;
+    min-width: 260px;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.inline-cond-editor__hint {
+    margin: 0;
+    font-size: 11px;
+    color: #6b7280;
+}
+.inline-cond-editor__row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.inline-cond-editor__input {
+    flex: 1;
+    border: 1px solid #dde1e8;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 12px;
+    font-family: 'Salesforce Sans', Arial, sans-serif;
+    outline: none;
+    min-width: 0;
+}
+.inline-cond-editor__input:focus {
+    border-color: #0176d3;
+    box-shadow: 0 0 0 2px rgba(1, 118, 211, 0.15);
+}
+.inline-cond-editor__save,
+.inline-cond-editor__cancel {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.inline-cond-editor__save {
+    background: #0176d3;
+    color: #fff;
+}
+.inline-cond-editor__save:hover {
+    background: #014486;
+}
+.inline-cond-editor__cancel {
+    background: #f3f3f3;
+    color: #555;
+}
+.inline-cond-editor__cancel:hover {
+    background: #e5e5e5;
+}
+
+/* ── Branch condition prompt ─────────────────────────────────────────── */
+/* Centered floating card that appears when a tool is dropped onto a      */
+/* branch placeholder so the user can immediately name the condition.     */
+.branch-prompt-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 59;
+    background: rgba(0, 0, 0, 0.18);
+    cursor: default;
+}
+.branch-prompt {
+    position: absolute;
+    z-index: 60;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 320px;
+    background: #ffffff;
+    border: 1px solid #dde1e8;
+    border-radius: 12px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.2);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: modalIn 0.15s ease-out;
+}
+.branch-prompt__icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #fff3ea;
+    border: 1px solid #f5c08a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #c45a00;
+}
+.branch-prompt__title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #181818;
+}
+.branch-prompt__sub {
+    margin: 0;
+    font-size: 12px;
+    color: #6b7280;
+    line-height: 1.5;
+}
+.branch-prompt__sub strong {
+    color: #181818;
+}
+.branch-prompt__actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+.branch-prompt__actions .btn {
+    flex: 1;
+    justify-content: center;
+}
+
+/* ── Insertion modal ─────────────────────────────────────────────────── */
+/* Transparent full-size backdrop behind the modal; absorbs canvas clicks to dismiss */
+.modal-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 49;
+    background: transparent;
+    cursor: default;
+}
+
+.insertion-modal {
+    position: absolute;
+    z-index: 50;
+    width: 210px;
+    background: #ffffff;
+    border: 1px solid #dde1e8;
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+    animation: modalIn 0.14s ease-out;
+}
+@keyframes modalIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+.insertion-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px 8px;
+    border-bottom: 1px solid #f0f0f0;
+}
+.insertion-modal__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #181818;
+}
+.insertion-modal__close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #706e6b;
+    font-size: 14px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    line-height: 1;
+}
+.insertion-modal__close:hover {
+    background: #f3f3f3;
+}
+.insertion-modal__options {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* ── Modal option cards ──────────────────────────────────────────────── */
+.modal-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: #ffffff;
+    border: 1.5px solid #dde1e8;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition:
+        border-color 0.12s,
+        background 0.12s,
+        box-shadow 0.1s;
+}
+.modal-option:hover:not(:disabled) {
+    background: #f0f8ff;
+    border-color: #0176d3;
+    box-shadow: 0 2px 6px rgba(1, 118, 211, 0.1);
+}
+.modal-option--disabled,
+.modal-option:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+    background: #f8f9fb;
+}
+.modal-option__icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.modal-option__icon--step {
+    background: #e8f0fd;
+    color: #0558a5;
+}
+/* s10: branch icon — orange palette */
+.modal-option__icon--branch {
+    background: #fef0e8;
+    color: #9e4a00;
+}
+.modal-option__text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+.modal-option__text strong {
+    font-size: 13px;
+    color: #181818;
+}
+.modal-option__text span {
+    font-size: 11px;
+    color: #706e6b;
+}
+
+/* ── Zoom controls — fixed to top-right of the canvas area ─────────── */
+.zoom-controls {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 20;
+    pointer-events: all;
+}
+.zoom-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1.5px solid #b8c3cc;
+    background: #ffffff;
+    color: #444;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    transition:
+        background 0.1s,
+        border-color 0.1s;
+    padding: 0;
+}
+.zoom-btn:hover {
+    background: #e8f4fd;
+    border-color: #0176d3;
+    color: #0176d3;
+}
+
+/* ── Status strip ────────────────────────────────────────────────────── */
+.status-strip {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 5px 14px;
+    background: #ffffff;
+    border-top: 1px solid #dde1e8;
+    font-size: 12px;
+    color: #706e6b;
+    flex-shrink: 0;
+}
+.status-stat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.status-stat--warning {
+    color: #8c4b02;
+}
+.status-dirty {
+    margin-left: auto;
+    color: #c45a00;
+    font-weight: 600;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────── */
+.sidebar {
+    width: 280px;
+    min-width: 240px;
+    max-width: 320px;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    border-left: 1px solid #dde1e8;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+/* ── Panel ───────────────────────────────────────────────────────────── */
+.panel {
+    border-bottom: 1px solid #f0f0f0;
+    padding: 14px;
+}
+.panel--legend {
+    background: #fafafa;
+}
+.panel--readonly-hint {
+    background: #f0f8ff;
+    border: 1px solid #d0e8f8;
+}
+.readonly-hint-text {
+    font-size: 12px;
+    color: #555;
+    margin: 6px 0;
+    line-height: 1.5;
+}
+.panel--json {
+    padding: 12px;
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.panel-header--clickable {
+    cursor: pointer;
+    user-select: none;
+}
+.panel-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #181818;
+    flex: 1;
+}
+.panel-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #706e6b;
+    font-size: 14px;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+.panel-close:hover {
+    background: #f3f3f3;
+}
+
+/* ── s12: Condition panel ────────────────────────────────────────────── */
+.condition-route {
+    font-size: 12px;
+    font-weight: 600;
+    color: #9e4a00;
+    background: #fff8f0;
+    border: 1px solid #f5d4b0;
+    border-radius: 6px;
+    padding: 4px 10px;
+    margin: 0 0 8px;
+}
+.condition-hint {
+    font-size: 11px;
+    color: #706e6b;
+    font-style: italic;
+    margin: 0 0 10px;
+}
+.condition-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+.condition-actions .btn {
+    flex: 1;
+}
+.field-group {
+    margin-bottom: 0;
+}
+
+/* ── Capabilities palette ────────────────────────────────────────────── */
+.palette-hint {
+    font-size: 11px;
+    color: #9fadb5;
+    margin: 0 0 10px;
+    font-style: italic;
+    line-height: 1.4;
+}
+.palette-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.palette-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    font-size: 12px;
+    color: #3e3e3c;
+}
+.palette-item--draggable {
+    cursor: grab;
+    border: 1px solid #dde1e8;
+    border-radius: 6px;
+    margin-bottom: 5px;
+    background: #fafbfc;
+    transition:
+        background 0.1s,
+        border-color 0.1s,
+        box-shadow 0.1s;
+}
+.palette-item--draggable:hover {
+    background: #f0f8ff;
+    border-color: #a9d4f5;
+    box-shadow: 0 2px 6px rgba(1, 118, 211, 0.1);
+}
+.palette-item--draggable:active {
+    cursor: grabbing;
+}
+.drag-handle {
+    color: #b0bec5;
+    flex-shrink: 0;
+}
+.palette-item__name {
+    flex: 1;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Blocked palette item — tool is in an adjacent step of the hovered drop target */
+.palette-item--blocked {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background: #fff5f5;
+    border-color: #f8b4b4;
+}
+.palette-item--blocked:hover {
+    background: #fff5f5;
+    border-color: #f8b4b4;
+    box-shadow: none;
+}
+.palette-item__blocked-icon {
+    color: #c23934;
+    flex-shrink: 0;
+}
+.empty-palette {
+    font-size: 12px;
+    color: #b0b0b0;
+    text-align: center;
+    padding: 10px 0;
+}
+
+/* ── Node inspector ──────────────────────────────────────────────────── */
+.inspector-icon {
+    font-size: 18px;
+    color: #706e6b;
+    flex-shrink: 0;
+}
+.inspector-body {
+    display: flex;
+    flex-direction: column;
+}
+.inspector-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #706e6b;
+    margin: 8px 0 4px;
+}
+
+/* Tool chips (parallel tools in a step) */
+.tool-chip-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.tool-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #e8f4fd;
+    border: 1px solid #a9d4f5;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: #0558a5;
+    font-weight: 500;
+}
+
+/* Edge list */
+.edge-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 8px;
+}
+.edge-issue {
+    font-size: 11px;
+    color: #8c4b02;
+    background: #fff4e5;
+    border: 1px solid #f1c27d;
+    border-radius: 999px;
+    padding: 1px 6px;
+}
+.edge-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 0;
+    border-bottom: 1px solid #f3f3f3;
+    font-size: 12px;
+}
+.edge-target {
+    flex: 1;
+    font-weight: 500;
+    color: #181818;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.edge-pill {
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.edge-pill--sequential {
+    background: #e8f0fd;
+    color: #0558a5;
+}
+.edge-pill--parallel {
+    background: #d9f4f2;
+    color: #076b67;
+}
+.edge-pill--exclusive {
+    background: #fef0e8;
+    color: #9e4a00;
+}
+.edge-delete {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #ba3025;
+    font-size: 12px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    opacity: 0.7;
+}
+.edge-delete:hover {
+    opacity: 1;
+    background: #fef0ee;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition:
+        background 0.12s,
+        border-color 0.12s,
+        color 0.12s;
+}
+.btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+.btn--primary {
+    background: #0176d3;
+    border-color: #0176d3;
+    color: #ffffff;
+}
+.btn--primary:hover:not(:disabled) {
+    background: #0558a5;
+}
+.btn--neutral {
+    background: #ffffff;
+    border-color: #dde1e8;
+    color: #3e3e3c;
+}
+.btn--neutral:hover:not(:disabled) {
+    background: #f3f3f3;
+}
+.btn--danger-outline {
+    background: #ffffff;
+    border-color: #e8806a;
+    color: #ba3025;
+    width: 100%;
+    margin-top: 10px;
+}
+.btn--danger-outline:hover:not(:disabled) {
+    background: #fef0ee;
+}
+/* s10: branch button */
+.btn--branch {
+    background: #fff8f0;
+    border-color: #f5d4b0;
+    color: #9e4a00;
+    width: 100%;
+    margin-bottom: 8px;
+}
+.btn--branch:hover:not(:disabled) {
+    background: #fde8d0;
+    border-color: #c45a00;
+}
+.btn--full {
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+/* ── Legend ──────────────────────────────────────────────────────────── */
+.legend-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 12px;
+    color: #3e3e3c;
+}
+.legend-item--hint {
+    color: #9fadb5;
+    font-size: 11px;
+    font-style: italic;
+    align-items: flex-start;
+}
+.legend-swatch {
+    display: inline-block;
+    width: 24px;
+    height: 3px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+.legend-swatch--sequential {
+    background: #9fadb5;
+}
+.legend-swatch--exclusive {
+    background: repeating-linear-gradient(90deg, #c45a00 0 6px, transparent 6px 10px);
+}

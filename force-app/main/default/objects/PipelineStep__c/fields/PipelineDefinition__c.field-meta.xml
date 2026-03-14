@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PipelineDefinition__c</fullName>
+    <description>The pipeline definition that owns this step.</description>
+    <inlineHelpText>Select the pipeline this step belongs to.</inlineHelpText>
+    <label>Pipeline Definition</label>
+    <referenceTo>PipelineDefinition__c</referenceTo>
+    <relationshipLabel>Pipeline Steps</relationshipLabel>
+    <relationshipName>PipelineSteps</relationshipName>
+    <relationshipOrder>0</relationshipOrder>
+    <reparentableMasterDetail>false</reparentableMasterDetail>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>MasterDetail</type>
+    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+</CustomField>

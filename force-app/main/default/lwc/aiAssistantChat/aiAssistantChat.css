@@ -52,6 +52,10 @@
     white-space: pre-wrap;
 }
 
+.slds-chat-message__text-content c-markdown-viewer {
+    white-space: normal;
+}
+
 /* Message Prefixes Styling */
 .message-prefix {
     font-weight: bold;

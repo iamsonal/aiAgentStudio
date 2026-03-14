@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsCurrentStep__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Indicates whether this is the currently active step in the pipeline. Only one step per pipeline execution should have this flag set to true.</description>
+    <inlineHelpText>Is this the currently active step?</inlineHelpText>
+    <label>Is Current Step</label>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>
