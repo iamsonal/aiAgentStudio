@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>LastOutboundAt__c</fullName>
+    <description>Timestamp of the most recent outbound reply sent for this interaction session.</description>
+    <inlineHelpText>Tracks the latest framework-originated outbound activity on the conversation.</inlineHelpText>
+    <label>Last Outbound At</label>
+    <required>false</required>
+    <type>DateTime</type>
+</CustomField>

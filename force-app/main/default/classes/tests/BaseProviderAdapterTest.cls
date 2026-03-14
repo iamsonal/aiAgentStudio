@@ -95,7 +95,7 @@ private class BaseProviderAdapterTest {
         llm.NamedCredential__c = '';
         llm.DefaultModelIdentifier__c = 'test-model';
 
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent').withType('Conversational').withLLM(llm.Id).build();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent').withType('Iterative').withLLM(llm.Id).build();
 
         TestProviderAdapter adapter = new TestProviderAdapter();
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test' } };
@@ -119,7 +119,7 @@ private class BaseProviderAdapterTest {
         llm.NamedCredential__c = 'TestCredential';
         llm.DefaultModelIdentifier__c = '';
 
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_2').withType('Conversational').withLLM(llm.Id).build();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_2').withType('Iterative').withLLM(llm.Id).build();
 
         TestProviderAdapter adapter = new TestProviderAdapter();
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test' } };
@@ -140,7 +140,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testSendMessage_NullMessages_ThrowsException() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM 3').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_3').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_3').withType('Iterative').withLLM(llm.Id).save();
 
         TestProviderAdapter adapter = new TestProviderAdapter();
 
@@ -160,7 +160,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testSendMessage_EmptyMessages_ThrowsException() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM 4').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_4').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_4').withType('Iterative').withLLM(llm.Id).save();
 
         TestProviderAdapter adapter = new TestProviderAdapter();
 
@@ -180,7 +180,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testSendMessage_Success_ReturnsProviderResult() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM 5').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_5').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_5').withType('Iterative').withLLM(llm.Id).save();
 
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test' } };
 
@@ -198,7 +198,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testSendMessage_ProviderException_PropagatesCorrectly() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM 6').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_6').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_6').withType('Iterative').withLLM(llm.Id).save();
 
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test' } };
 
@@ -223,7 +223,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testSendMessage_HttpFailure_WrapsAsProviderException() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM 7').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_7').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_7').withType('Iterative').withLLM(llm.Id).save();
 
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test' } };
 
@@ -247,7 +247,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testSendMessage_InvalidResponse_HandlesGracefully() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM 8').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_8').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_8').withType('Iterative').withLLM(llm.Id).save();
 
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test' } };
 
@@ -272,7 +272,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testSendMessage_EmptyMessagesList_ThrowsException() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM Empty').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Empty').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Empty').withType('Iterative').withLLM(llm.Id).save();
 
         List<Map<String, Object>> emptyMessages = new List<Map<String, Object>>();
 
@@ -295,7 +295,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testSendMessage_WithToolsPayload_ReturnsResult() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM Tools').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Tools').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Tools').withType('Iterative').withLLM(llm.Id).save();
 
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test with tools' } };
 
@@ -317,7 +317,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testHelperMethods_GetStringValue_ReturnsCorrectValues() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM Helper').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Helper').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Helper').withType('Iterative').withLLM(llm.Id).save();
 
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test' } };
 
@@ -339,7 +339,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testHelperMethods_GetStringValue_WithNullValue_ReturnsDefault() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM Null').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Null').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Null').withType('Iterative').withLLM(llm.Id).save();
 
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test' } };
 
@@ -360,7 +360,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testHelperMethods_GetStringValue_WithMissingKey_ReturnsDefault() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM Missing').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Missing').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Missing').withType('Iterative').withLLM(llm.Id).save();
 
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test' } };
 
@@ -381,7 +381,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testHelperMethods_GetIntegerValue_ReturnsCorrectValues() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM Int').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Int').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Int').withType('Iterative').withLLM(llm.Id).save();
 
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test' } };
 
@@ -404,7 +404,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testHelperMethods_GetIntegerValue_WithNullValue_ReturnsDefault() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM Int Null').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Int_Null').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Int_Null').withType('Iterative').withLLM(llm.Id).save();
 
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test' } };
 
@@ -426,7 +426,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testHelperMethods_GetIntegerValue_WithMissingKey_ReturnsDefault() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM Int Missing').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Int_Missing').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Int_Missing').withType('Iterative').withLLM(llm.Id).save();
 
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test' } };
 
@@ -448,7 +448,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testHelperMethods_GetIntegerValue_WithInvalidType_ReturnsDefault() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM Int Invalid').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Int_Invalid').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Int_Invalid').withType('Iterative').withLLM(llm.Id).save();
 
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test' } };
 
@@ -471,7 +471,7 @@ private class BaseProviderAdapterTest {
     @IsTest
     static void testHelperMethods_GetStringValue_WithNonStringValue_ConvertsToString() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM Convert').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Convert').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_Convert').withType('Iterative').withLLM(llm.Id).save();
 
         List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'test' } };
 

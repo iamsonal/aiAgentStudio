@@ -1,10 +1,10 @@
 /**
- * @description Comprehensive test data factory for AI Agent Studio showcasing all agent types.
+ * @description Comprehensive test data factory for AI Agent Studio showcasing the strategy-plus-channel runtime.
  *              Creates realistic business scenarios using standard Salesforce objects.
  *
- * **Agent Types Created:**
- * 1. Conversational Agent - Customer Support Copilot (multi-turn conversations)
- * 2. Function Agents:
+ * **Runtime Examples Created:**
+ * 1. Iterative chat agent - Customer Support Copilot (multi-turn conversations)
+ * 2. SingleShot strategy agents:
  *    - Case Summarizer (tool-terminating: 0 tools, pure LLM text generation)
  *    - Lead Qualifier (tool-terminating: 1 tool, LLM as router)
  *
@@ -25,7 +25,7 @@ public with sharing class AgentTestDataFactory {
     private static Map<String, Id> idMap = new Map<String, Id>();
 
     /**
-     * @description Main entry point - creates complete showcase with all agent types
+     * @description Main entry point - creates the complete showcase runtime data set
      * @return Map<String, Id> Key record IDs for reference
      */
     public static Map<String, Id> createComprehensiveShowcase() {
@@ -42,8 +42,8 @@ public with sharing class AgentTestDataFactory {
 
         LLMConfiguration__c llmConfig = createLLMConfiguration();
 
-        createConversationalAgent(llmConfig.Id);
-        createFunctionAgents(llmConfig.Id);
+        createIterativeChatAgent(llmConfig.Id);
+        createSingleShotAgents(llmConfig.Id);
         createEmailAgent(llmConfig.Id);
 
         System.debug('========================================');
@@ -853,20 +853,20 @@ public with sharing class AgentTestDataFactory {
     }
 
     // ===================================================================================
-    // CONVERSATIONAL AGENT
+    // ITERATIVE AGENT
     // ===================================================================================
 
     /**
-     * @description Creates a full-featured conversational agent for customer support
+     * @description Creates a full-featured iterative chat agent for customer support
      * Demonstrates multi-turn conversations with context, tools, and memory
      */
-    private static void createConversationalAgent(Id llmConfigId) {
-        System.debug('[Agent:Conversational] Creating Customer Support Copilot...');
+    private static void createIterativeChatAgent(Id llmConfigId) {
+        System.debug('[Agent:Iterative] Creating Customer Support Copilot...');
 
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Customer Support Copilot',
             DeveloperName__c = 'Customer_Support_Copilot',
-            AgentType__c = 'Conversational',
+            AgentType__c = 'Iterative',
             IsActive__c = true,
             MemoryStrategy__c = 'Buffer Window',
             ContextFormatStrategy__c = 'Structured Text',
@@ -882,7 +882,7 @@ public with sharing class AgentTestDataFactory {
             PromptFooter__c = '**Important:** Always verify record IDs and data before taking actions. If information is unclear, ask clarifying questions.'
         );
         insert agent;
-        idMap.put('Conversational Agent', agent.Id);
+        idMap.put('Iterative Agent', agent.Id);
 
         // Context providers
         List<AgentContextConfig__c> contexts = new List<AgentContextConfig__c>{
@@ -982,18 +982,18 @@ public with sharing class AgentTestDataFactory {
         };
         insert capabilities;
 
-        System.debug('[Agent:Conversational] ✓ Customer Support Copilot created with ' + capabilities.size() + ' capabilities');
+        System.debug('[Agent:Iterative] ✓ Customer Support Copilot created with ' + capabilities.size() + ' capabilities');
     }
 
     // ===================================================================================
-    // FUNCTION AGENTS
+    // SINGLESHOT STRATEGY AGENTS
     // ===================================================================================
 
     /**
-     * @description Creates multiple function agents demonstrating different execution patterns
+     * @description Creates multiple SingleShot strategy agents demonstrating different execution patterns
      */
-    private static void createFunctionAgents(Id llmConfigId) {
-        System.debug('[Agent:Function] Creating function agents...');
+    private static void createSingleShotAgents(Id llmConfigId) {
+        System.debug('[Agent:SingleShot] Creating SingleShot agents...');
 
         // 1. TOOL-TERMINATING PATTERN: 0 tools (pure LLM text generation)
         createCaseSummarizerAgent(llmConfigId);
@@ -1001,7 +1001,7 @@ public with sharing class AgentTestDataFactory {
         // 2. TOOL-TERMINATING PATTERN: 1 tool (LLM as router)
         createLeadQualifierAgent(llmConfigId);
 
-        System.debug('[Agent:Function] ✓ All function agents created');
+        System.debug('[Agent:SingleShot] ✓ All SingleShot agents created');
     }
 
     /**
@@ -1012,7 +1012,7 @@ public with sharing class AgentTestDataFactory {
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Case Summarizer',
             DeveloperName__c = 'Case_Summarizer',
-            AgentType__c = 'Function',
+            AgentType__c = 'SingleShot',
             IsActive__c = true,
             LLMConfiguration__c = llmConfigId,
             AuditLevel__c = 'Standard',
@@ -1031,7 +1031,7 @@ public with sharing class AgentTestDataFactory {
         // NO capabilities - pure LLM text generation
         // This demonstrates the tool-terminating pattern with 0 tools
 
-        System.debug('[Agent:Function] ✓ Case Summarizer (0 tools - pure LLM with case context)');
+        System.debug('[Agent:SingleShot] ✓ Case Summarizer (0 tools - pure LLM with case context)');
     }
 
     /**
@@ -1042,7 +1042,7 @@ public with sharing class AgentTestDataFactory {
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Lead Qualifier',
             DeveloperName__c = 'Lead_Qualifier',
-            AgentType__c = 'Function',
+            AgentType__c = 'SingleShot',
             IsActive__c = true,
             LLMConfiguration__c = llmConfigId,
             AuditLevel__c = 'Standard',
@@ -1075,11 +1075,11 @@ public with sharing class AgentTestDataFactory {
         );
         insert updateLeadCap;
 
-        System.debug('[Agent:Function] ✓ Lead Qualifier (1 tool - LLM as router)');
+        System.debug('[Agent:SingleShot] ✓ Lead Qualifier (1 tool - LLM as router)');
     }
 
     /**
-     * @description Creates a full-featured Email Agent in Auto Respond mode.
+     * @description Creates a full-featured iterative email agent in Auto Reply mode.
      *
      * The framework automatically sends the LLM's drafted reply — no send_email
      * tool call required. Case and thread context are injected via context providers
@@ -1096,11 +1096,10 @@ public with sharing class AgentTestDataFactory {
         AIAgentDefinition__c emailAgent = new AIAgentDefinition__c(
             Name = 'Customer Support Email Agent',
             DeveloperName__c = 'Customer_Support_Email_Agent',
-            AgentType__c = 'Email',
+            AgentType__c = 'Iterative',
             LLMConfiguration__c = llmConfigId,
-            EmailReplyMode__c = 'Auto Respond',
-            EmailParentObject__c = 'Case',
-            EmailTerminalStatuses__c = 'Closed,Solved',
+            DefaultCompletionMode__c = 'Auto Reply',
+            RequiresSameChannelReply__c = true,
             IdentityPrompt__c = 'You are a professional customer support agent for Acme Corporation handling inbound customer emails.',
             InstructionsPrompt__c = 'The CONTEXT block already contains the full case details (Contact, Account, Status, Priority) and email thread — you do NOT need to call any tool to look them up.\n' +
                 'For each inbound email: call search_knowledge if the customer has a product or how-to question → call update_case if the priority or status needs adjusting → draft a concise, professional reply.\n' +
@@ -1181,7 +1180,7 @@ public with sharing class AgentTestDataFactory {
         };
         insert contexts;
 
-        System.debug('[Agent:Email] ✓ Customer Support Email Agent created (AutoRespond mode, ' + capabilities.size() + ' capabilities)');
+        System.debug('[Agent:Email] ✓ Customer Support Email Agent created (Iterative email runtime, ' + capabilities.size() + ' capabilities)');
     }
 
     // ===================================================================================

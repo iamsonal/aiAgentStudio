@@ -49,7 +49,8 @@ public inherited sharing class CapabilityExecutionService {
         }
 
         try {
-            // ImplementationType__c is a restricted picklist with only: Standard, Apex, Flow
+            // Direct execution here supports Standard, Apex, and Flow capability types.
+            // Agent capabilities are routed by the runtime layer before they reach this service.
             System.debug(LoggingLevel.INFO, logPrefix + 'Executing ' + capability.ImplementationType__c + ' capability: ' + capability.CapabilityName__c);
 
             IAgentAction actionHandler = createActionHandler(capability);
@@ -111,7 +112,7 @@ public inherited sharing class CapabilityExecutionService {
         );
 
         try {
-            // ImplementationType__c is a restricted picklist with only: Standard, Apex, Flow
+            // Direct handler instantiation here supports Standard, Apex, and Flow capability types.
             if ('Standard'.equalsIgnoreCase(implType)) {
                 StandardActionHandler__mdt handlerMdt = standardHandlerCache.get(stdActionType.toLowerCase());
                 if (handlerMdt == null) {

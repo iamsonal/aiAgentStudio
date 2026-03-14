@@ -45,7 +45,7 @@ private class ActionSendEmailTest {
     // =========================================================================
 
     private static ActionContext buildContext() {
-        return new ActionContext(null, UserInfo.getUserId(), UserInfo.getUserId(), null, null, null, null, 'turn-email-001', 1, 'Function');
+        return new ActionContext(null, UserInfo.getUserId(), UserInfo.getUserId(), null, null, null, null, 'turn-email-001', 1, 'SingleShot');
     }
 
     /** Builds a minimal valid direct-content args JSON with optional overrides. */

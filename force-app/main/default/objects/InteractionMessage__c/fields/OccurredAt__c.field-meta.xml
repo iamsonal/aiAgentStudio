@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>OccurredAt__c</fullName>
+    <description>Timestamp when the inbound or outbound transport event occurred.</description>
+    <inlineHelpText>Records when this message was received, drafted, sent, or otherwise processed at the transport layer.</inlineHelpText>
+    <label>Occurred At</label>
+    <required>false</required>
+    <type>DateTime</type>
+</CustomField>

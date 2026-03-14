@@ -250,16 +250,16 @@ public inherited sharing class OrchestrationService {
             : countSuccessiveToolFailures(executionId, capability.CapabilityName__c, logPrefix);
 
         if (failureCount >= maxRetries) {
-            String agentType = (String) agentDefinition.getPopulatedFieldsAsMap().get('AgentType__c');
-            if (AgentExecutionService.requiresAutonomousRecovery(agentType)) {
+            String strategyKey = RuntimeRegistryService.getExecutionStrategyKey(agentDefinition);
+            if (AgentExecutionService.requiresAutonomousRecovery(strategyKey)) {
                 System.debug(
                     LoggingLevel.WARN,
                     logPrefix +
                         'CIRCUIT BREAKER: Tool "' +
                         capability.CapabilityName__c +
                         '" hit the retry ceiling for ' +
-                        agentType +
-                        ' agent type. Routing failure to LLM so it can respond to the user. ErrorCode: ' +
+                        strategyKey +
+                        ' strategy. Routing failure to LLM so it can respond to the user. ErrorCode: ' +
                         toolOutcome.errorCode
                 );
                 return false;
@@ -924,14 +924,8 @@ public inherited sharing class OrchestrationService {
                 return false;
             }
 
-            AIAgentDefinition__c agentDef = [
-                SELECT AgentType__c
-                FROM AIAgentDefinition__c
-                WHERE Id = :execution.AIAgentDefinition__c
-                LIMIT 1
-            ];
-            if (agentDef.AgentType__c == 'Conversational') {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Conversational agent - HITL follow-up remains suppressed.');
+            if (RuntimeRegistryService.getTraits(executionId).supportsConfirmationHitl == true) {
+                System.debug(LoggingLevel.INFO, logPrefix + 'Interactive channel execution - HITL follow-up remains suppressed.');
                 return false;
             }
 

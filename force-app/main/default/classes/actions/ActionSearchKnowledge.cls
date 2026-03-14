@@ -188,6 +188,7 @@ public with sharing class ActionSearchKnowledge extends BaseAgentAction {
     /**
      * @description
      * Performs a secure SOQL query to find a specific Knowledge article by its ID.
+     * Field names are either hardcoded constants or schema-validated in parseActionConfiguration.
      *
      * @param articleId    The Knowledge article ID to retrieve
      * @param language     The language of the article
@@ -195,6 +196,7 @@ public with sharing class ActionSearchKnowledge extends BaseAgentAction {
      * @param fields       List of fields to retrieve
      * @return List of matching Knowledge articles
      */
+    @SuppressWarnings('PMD.ApexSOQLInjection')
     private List<Knowledge__kav> queryById(Id articleId, String language, Boolean includeDrafts, List<String> fields) {
         String soqlQuery = 'SELECT ' + String.join(fields, ', ') + ' ' + 'FROM Knowledge__kav ' + 'WHERE Id = :articleId AND Language = :language';
 
@@ -261,8 +263,18 @@ public with sharing class ActionSearchKnowledge extends BaseAgentAction {
         super.parseActionConfiguration(actionConfigurationJson, logPrefix);
 
         if (this.parsedActionConfig != null && !this.parsedActionConfig.isEmpty()) {
-            // Load configured body fields if specified
-            this.configuredBodyFields = ActionConfigUtils.getOptionalStringList(this.parsedActionConfig, CONFIG_KEY_BODY_FIELDS);
+            // Load and schema-validate configured body fields to prevent SOQL injection
+            List<String> rawBodyFields = ActionConfigUtils.getOptionalStringList(this.parsedActionConfig, CONFIG_KEY_BODY_FIELDS);
+            if (!rawBodyFields.isEmpty()) {
+                Map<String, Schema.SObjectField> kavFields = Schema.SObjectType.Knowledge__kav.fields.getMap();
+                for (String field : rawBodyFields) {
+                    if (kavFields.containsKey(field.toLowerCase())) {
+                        this.configuredBodyFields.add(field);
+                    } else {
+                        System.debug(LoggingLevel.WARN, logPrefix + 'Body field "' + field + '" not found on Knowledge__kav schema, skipping');
+                    }
+                }
+            }
             this.defaultIncludeBody = ActionConfigUtils.getOptionalBoolean(this.parsedActionConfig, CONFIG_KEY_DEFAULT_INCLUDE_BODY, false);
 
             if (!this.configuredBodyFields.isEmpty()) {

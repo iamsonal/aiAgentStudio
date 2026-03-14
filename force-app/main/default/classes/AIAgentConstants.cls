@@ -15,6 +15,7 @@ public inherited sharing class AIAgentConstants {
     public static final String STATUS_AWAITING_ACTION = 'Awaiting Action';
     public static final String STATUS_AWAITING_FOLLOWUP = 'Awaiting Followup';
     public static final String STATUS_FAILED = 'Failed';
+    public static final String EXECUTION_MODE_PIPELINE = 'Pipeline';
 
     public static final String EXECUTION_STATUS_PAUSED = 'Paused';
     public static final String OP_STATE_FOLLOWUP_QUEUE_FAILED = 'FOLLOWUP_QUEUE_FAILED';
@@ -23,6 +24,7 @@ public inherited sharing class AIAgentConstants {
     public static final String OP_STATE_CHILD_CALLBACK_FAILED = 'CHILD_CALLBACK_FAILED';
     public static final String OP_STATE_STALE_EXECUTION_RECOVERED = 'STALE_EXECUTION_RECOVERED';
     public static final String OP_STATE_STALE_EXECUTION_EXHAUSTED = 'STALE_EXECUTION_EXHAUSTED';
+    public static final String OP_STATE_SYNC_FINALIZATION_FAILED = 'SYNC_FINALIZATION_FAILED';
 
     public static final String ROLE_USER = 'user';
     public static final String ROLE_ASSISTANT = 'assistant';
@@ -52,6 +54,7 @@ public inherited sharing class AIAgentConstants {
     public static final String ERR_CODE_SAFETY_BLOCKED = 'SAFETY_BLOCKED';
     public static final String ERR_CODE_SAFETY_FLAGGED = 'SAFETY_FLAGGED';
     public static final String ERR_CODE_DEPENDENCY_VALIDATION = 'DEPENDENCY_VALIDATION_ERROR';
+    public static final String ERR_CODE_SYNC_FINALIZATION_FAILED = 'SYNC_FINALIZATION_FAILED';
 
     public static final String NEXT_EXPECTED_NONE = 'None';
 

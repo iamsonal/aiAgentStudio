@@ -1,6 +1,6 @@
 /**
  * @description Custom action for analyzing account engagement levels
- *              Used by Product Launch Orchestrator demo agent
+ *              Used by Product Launch Agent demo
  *
  * This action analyzes multiple engagement signals:
  * - Opportunity stage and amount (late-stage = hot, early-stage = warm)

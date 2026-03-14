@@ -1,6 +1,6 @@
 /**
  * @description Custom action for generating personalized campaign messages using AI/LLM
- *              Used by Product Launch Orchestrator demo agent
+ *              Used by Product Launch Agent demo
  *
  * This is the "WOW FACTOR" capability that demonstrates real AI intelligence:
  * - NOT template-based (generates unique content per account)

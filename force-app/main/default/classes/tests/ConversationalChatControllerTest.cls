@@ -12,7 +12,8 @@ private class ConversationalChatControllerTest {
 
         ConversationalChatController.SessionDetails details = ConversationalChatController.createNewChatSession(null, agent.DeveloperName__c);
 
-        System.assertNotEquals(null, details.sessionId, 'Should create execution ID');
+        System.assertNotEquals(null, details.executionId, 'Should create execution ID');
+        System.assertNotEquals(null, details.interactionSessionId, 'Should create durable interaction session ID');
         System.assert(details.welcomeMessage.contains(UserInfo.getFirstName()), 'Welcome message should include first name');
     }
 
@@ -35,7 +36,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'
@@ -93,7 +94,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Processing',
             ProcessingStatus__c = AIAgentConstants.STATUS_AWAITING_ACTION,
             TriggerSource__c = 'Chat'
@@ -116,7 +117,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'
@@ -136,7 +137,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'
@@ -172,7 +173,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'
@@ -217,11 +218,11 @@ private class ConversationalChatControllerTest {
 
         ConversationalChatController.SessionDetails details = ConversationalChatController.createNewChatSession(acc.Id, agent.DeveloperName__c);
 
-        System.assertNotEquals(null, details.sessionId, 'Should create execution with record context');
+        System.assertNotEquals(null, details.executionId, 'Should create execution with record context');
         AgentExecution__c exec = [
             SELECT SourceRecordId__c
             FROM AgentExecution__c
-            WHERE Id = :details.sessionId
+            WHERE Id = :details.executionId
         ];
         System.assertEquals(acc.Id, exec.SourceRecordId__c, 'Should set source record ID');
     }
@@ -234,7 +235,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'
@@ -294,7 +295,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'
@@ -302,7 +303,7 @@ private class ConversationalChatControllerTest {
         insert execution;
 
         ConversationalChatController.SessionDetails details = ConversationalChatController.getMostRecentSession(agent.DeveloperName__c, null);
-        System.assertNotEquals(null, details.sessionId, 'Should return most recent session');
+        System.assertNotEquals(null, details.executionId, 'Should return most recent execution');
     }
 
     @IsTest
@@ -328,7 +329,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'
@@ -383,7 +384,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'

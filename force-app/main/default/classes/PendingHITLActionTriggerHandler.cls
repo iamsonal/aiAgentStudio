@@ -288,20 +288,17 @@ public with sharing class PendingHITLActionTriggerHandler {
         }
 
         AgentExecution__c execution = [
-            SELECT Id, AIAgentDefinition__r.AgentType__c
+            SELECT Id, InteractionChannel__c, AIAgentDefinition__r.AgentType__c
             FROM AgentExecution__c
             WHERE Id = :fullAction.AgentExecution__c
             LIMIT 1
         ];
 
-        // HITL approved tools execute via Named Credential which handles service user authentication
-        Boolean needsFollowUp = (execution.AIAgentDefinition__r.AgentType__c != 'Conversational');
+        // HITL follow-up depends on runtime capabilities, not legacy execution strings.
+        Boolean needsFollowUp = RuntimeRegistryService.getTraits(execution.Id).supportsConfirmationHitl != true;
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Enqueueing tool execution via REST API (Named Credential handles auth)');
-        System.debug(
-            LoggingLevel.DEBUG,
-            logPrefix + 'Follow-up LLM call needed: ' + needsFollowUp + ' (AgentType: ' + execution.AIAgentDefinition__r.AgentType__c + ')'
-        );
+        System.debug(LoggingLevel.DEBUG, logPrefix + 'Follow-up LLM call needed: ' + needsFollowUp + ' (Channel: ' + execution.InteractionChannel__c + ')');
 
         System.enqueueJob(new HITLServiceQueueable(fullAction.Id, needsFollowUp));
 

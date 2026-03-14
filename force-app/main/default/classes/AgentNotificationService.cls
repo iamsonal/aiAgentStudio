@@ -30,15 +30,13 @@ public with sharing class AgentNotificationService {
         }
         try {
             AgentExecution__c exec = [
-                SELECT SourceRecordId__c, AIAgentDefinition__r.AgentType__c, AIAgentDefinition__r.DeveloperName__c
+                SELECT SourceRecordId__c, InteractionChannel__c, AIAgentDefinition__r.AgentType__c, AIAgentDefinition__r.DeveloperName__c
                 FROM AgentExecution__c
                 WHERE Id = :executionId
                 LIMIT 1
             ];
 
-            String agentType = exec.AIAgentDefinition__r?.AgentType__c;
-
-            if (EVENT_DRAFT_CREATED.equals(event) && 'Email'.equals(agentType)) {
+            if (EVENT_DRAFT_CREATED.equals(event) && RuntimeRegistryService.CHANNEL_EMAIL.equalsIgnoreCase(exec.InteractionChannel__c)) {
                 handleEmailDraftCreated(exec);
             }
             // Future: add branches for TurnCompleted / ExecutionFailed per agent type as needed.

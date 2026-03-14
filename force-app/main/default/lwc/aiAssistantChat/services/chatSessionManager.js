@@ -9,7 +9,7 @@
 /**
  * Handles agent execution lifecycle, conversation history, and message sending for the AI Assistant Chat LWC.
  * Now operates on the unified AgentExecution__c and ExecutionStep__c data model.
- * Manages session restoration, new session creation, message formatting, and error handling.
+ * Manages execution restoration, new execution creation, message formatting, and error handling.
  */
 import { formatDisplayMessages } from '../utils/messageFormatter';
 import { INITIAL_HISTORY_LOAD_SIZE } from '../utils/constants';
@@ -27,17 +27,17 @@ export class ChatSessionManager {
      * @param {LoadingStateManager} options.loadingManager
      * @param {EventSubscriptionManager} options.eventManager
      * @param {Function} options.onMessagesUpdated
-     * @param {Function} options.onSessionChanged
+     * @param {Function} options.onExecutionChanged
      */
-    constructor({ agentDeveloperName, errorHandler, loadingManager, eventManager, onMessagesUpdated, onSessionChanged }) {
+    constructor({ agentDeveloperName, errorHandler, loadingManager, eventManager, onMessagesUpdated, onExecutionChanged }) {
         this.agentDeveloperName = agentDeveloperName;
         this.errorHandler = errorHandler;
         this.loadingManager = loadingManager;
         this.eventManager = eventManager;
         this.onMessagesUpdated = onMessagesUpdated;
-        this.onSessionChanged = onSessionChanged;
+        this.onExecutionChanged = onExecutionChanged;
 
-        this.currentSessionId = null;
+        this.currentExecutionId = null;
         this.messages = [];
         this.oldestMessageTimestamp = null;
         this.hasMoreHistory = false;
@@ -46,7 +46,7 @@ export class ChatSessionManager {
 
     // === Public Methods ===
     /**
-     * Initializes the chat session (restores or creates new as needed).
+     * Initializes the chat execution (restores or creates new as needed).
      * @param {string|null} contextRecordId
      */
     async initializeSession(contextRecordId) {
@@ -56,9 +56,9 @@ export class ChatSessionManager {
                 recordId: contextRecordId
             });
 
-            if (sessionDetails?.sessionId) {
-                this.currentSessionId = sessionDetails.sessionId;
-                this.onSessionChanged(this.currentSessionId);
+            if (sessionDetails?.executionId) {
+                this.currentExecutionId = sessionDetails.executionId;
+                this.onExecutionChanged(this.currentExecutionId);
                 if (sessionDetails.transientMessagesEnabled) {
                     this.eventManager.initializeTransientSubscription();
                 }
@@ -67,13 +67,13 @@ export class ChatSessionManager {
                 await this.startNewSession(contextRecordId);
             }
         } catch (error) {
-            this.errorHandler.handleError('Failed to initialize session', error);
+            this.errorHandler.handleError('Failed to initialize execution', error);
             throw error;
         }
     }
 
     /**
-     * Starts a new chat session and resets state.
+     * Starts a new chat execution and resets state.
      * @param {string|null} contextRecordId
      */
     async startNewSession(contextRecordId) {
@@ -83,15 +83,15 @@ export class ChatSessionManager {
                 recordId: contextRecordId,
                 requestedAgentDevName: this.agentDeveloperName
             });
-            this.currentSessionId = sessionDetails.sessionId;
-            this.onSessionChanged(this.currentSessionId);
+            this.currentExecutionId = sessionDetails.executionId;
+            this.onExecutionChanged(this.currentExecutionId);
             this._clearState();
             if (sessionDetails.transientMessagesEnabled) {
                 this.eventManager.initializeTransientSubscription();
             }
             await this._loadSessionContent(sessionDetails.welcomeMessage);
         } catch (error) {
-            this.errorHandler.handleError('Failed to start new session', error);
+            this.errorHandler.handleError('Failed to start new execution', error);
             throw error;
         } finally {
             this.loadingManager.setLoading('history', false);
@@ -105,14 +105,14 @@ export class ChatSessionManager {
      * @param {string} turnIdentifier
      */
     async sendMessage(messageText, contextRecordId, turnIdentifier) {
-        if (!this.currentSessionId) {
-            throw new Error('No active session');
+        if (!this.currentExecutionId) {
+            throw new Error('No active execution');
         }
         try {
             this._addUserMessage(messageText, turnIdentifier);
             this.loadingManager.setLoading('sending', true);
             await sendMessage({
-                sessionId: this.currentSessionId,
+                executionId: this.currentExecutionId,
                 userMessage: messageText,
                 currentRecordId: contextRecordId,
                 turnIdentifier: turnIdentifier
@@ -135,7 +135,7 @@ export class ChatSessionManager {
             this.loadingManager.setLoading('loadingMore', true);
             this.topMessageKeyBeforeLoad = this.messages[0]?.displayKey || null;
             const olderMessages = await getChatHistory({
-                sessionId: this.currentSessionId,
+                executionId: this.currentExecutionId,
                 limitCount: INITIAL_HISTORY_LOAD_SIZE,
                 oldestMessageTimestamp: this.oldestMessageTimestamp
             });
@@ -156,7 +156,7 @@ export class ChatSessionManager {
     }
 
     /**
-     * Reloads the chat history for the current session.
+     * Reloads the chat history for the current execution.
      */
     async reloadHistory() {
         await this._loadSessionContent();
@@ -168,7 +168,7 @@ export class ChatSessionManager {
      */
     handleAgentResponse(response) {
         const payload = response?.data?.payload;
-        if (!payload || payload.AgentExecutionId__c !== this.currentSessionId) {
+        if (!payload || payload.AgentExecutionId__c !== this.currentExecutionId) {
             return;
         }
         this.loadingManager.setLoading('sending', false);
@@ -251,17 +251,17 @@ export class ChatSessionManager {
 
     // === Private Methods ===
     /**
-     * Loads the session content (history or welcome message).
+     * Loads the execution content (history or welcome message).
      * @param {string|null} prefetchedWelcomeMessage
      * @private
      */
     async _loadSessionContent(prefetchedWelcomeMessage = null) {
-        if (!this.currentSessionId) return;
+        if (!this.currentExecutionId) return;
         try {
             this.loadingManager.setLoading('history', true);
             this._clearState();
             const historyResult = await getChatHistory({
-                sessionId: this.currentSessionId,
+                executionId: this.currentExecutionId,
                 limitCount: INITIAL_HISTORY_LOAD_SIZE,
                 oldestMessageTimestamp: null
             });
@@ -281,14 +281,14 @@ export class ChatSessionManager {
             }
             this.onMessagesUpdated([...this.messages]);
         } catch (error) {
-            this.errorHandler.handleError('Failed to load session content', error);
+            this.errorHandler.handleError('Failed to load execution content', error);
         } finally {
             this.loadingManager.setLoading('history', false);
         }
     }
 
     /**
-     * Fetches the welcome message for a new/empty session.
+     * Fetches the welcome message for a new or empty execution.
      * @private
      */
     async _fetchWelcomeMessage() {
@@ -371,7 +371,7 @@ export class ChatSessionManager {
             role: 'assistant',
             content,
             timestamp: Date.now(),
-            externalId: `welcome-${this.currentSessionId}`
+            externalId: `welcome-${this.currentExecutionId}`
         };
         const formatted = formatDisplayMessages([welcomeMsg], this.messages.length)[0];
         this.messages = [formatted];
@@ -397,7 +397,7 @@ export class ChatSessionManager {
     }
 
     /**
-     * Clears all local state for a new session.
+     * Clears all local state for a new execution.
      * @private
      */
     _clearState() {

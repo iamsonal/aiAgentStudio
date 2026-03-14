@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ParticipantHash__c</fullName>
+    <description>Hash of the participant external key used for privacy-aware lookup and matching.</description>
+    <inlineHelpText>Framework-managed hash of the participant identity. Useful when matching or reporting without depending on raw values.</inlineHelpText>
+    <label>Participant Hash</label>
+    <length>64</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

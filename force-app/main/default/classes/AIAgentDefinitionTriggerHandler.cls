@@ -64,7 +64,7 @@ public with sharing class AIAgentDefinitionTriggerHandler {
             }
 
             if (rec.AgentType__c != old.AgentType__c) {
-                warnings.add('Agent type was changed. ' + 'The flow graph may need restructuring.');
+                warnings.add('Execution strategy (agent type) was changed. ' + 'The flow graph may need restructuring.');
             }
 
             if (rec.InstructionsPrompt__c != old.InstructionsPrompt__c) {
@@ -88,7 +88,7 @@ public with sharing class AIAgentDefinitionTriggerHandler {
         }
 
         if (rec.ErrorRecoveryMode__c != 'Autonomous') {
-            rec.ErrorRecoveryMode__c.addError('This agent type must use Error Recovery Mode = Autonomous.');
+            rec.ErrorRecoveryMode__c.addError('This execution strategy must use Error Recovery Mode = Autonomous.');
         }
     }
 }

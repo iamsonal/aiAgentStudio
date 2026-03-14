@@ -20,7 +20,7 @@ public with sharing class BufferWindowMemoryManager implements IMemoryManager {
         if (turnLimitDecimal == null) {
             // Unlimited history: fetch all messages for the execution
             System.debug(LoggingLevel.INFO, debugPrefix + 'No turn limit set. Fetching all available messages for execution.');
-            return getUnlimitedHistory(executionId, agentConfig, debugPrefix);
+            return getUnlimitedHistory(executionId, agentConfig, llmConfig, debugPrefix);
         }
 
         Integer turnLimit = turnLimitDecimal.intValue();
@@ -33,7 +33,7 @@ public with sharing class BufferWindowMemoryManager implements IMemoryManager {
 
         // Positive limit: fetch exactly N most recent complete execution turns using optimized query
         System.debug(LoggingLevel.INFO, debugPrefix + 'Fetching exactly ' + turnLimit + ' complete execution turns.');
-        return getLimitedHistory(executionId, turnLimit, agentConfig, debugPrefix);
+        return getLimitedHistory(executionId, turnLimit, agentConfig, llmConfig, debugPrefix);
     }
 
     /**
@@ -56,10 +56,11 @@ public with sharing class BufferWindowMemoryManager implements IMemoryManager {
      * @param debugPrefix Debug logging prefix
      * @return Formatted message list for LLM consumption
      */
-    private List<Map<String, Object>> getUnlimitedHistory(Id executionId, AIAgentDefinition__c agentConfig, String debugPrefix) {
+    private List<Map<String, Object>> getUnlimitedHistory(Id executionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String debugPrefix) {
         ExecutionStepService executionStepService = new ExecutionStepService();
         List<ExecutionStep__c> allSteps = executionStepService.getHistory(executionId, null, 'ASC', null, false);
-        return LLMFormattingService.formatStepsForApi(allSteps, agentConfig, debugPrefix);
+        Boolean supportsVision = llmConfig != null && llmConfig.SupportsVision__c == true;
+        return LLMFormattingService.formatStepsForApi(allSteps, agentConfig, debugPrefix, supportsVision);
     }
 
     /**
@@ -71,9 +72,16 @@ public with sharing class BufferWindowMemoryManager implements IMemoryManager {
      * @param debugPrefix Debug logging prefix
      * @return Formatted message list for LLM consumption
      */
-    private List<Map<String, Object>> getLimitedHistory(Id executionId, Integer turnLimit, AIAgentDefinition__c agentConfig, String debugPrefix) {
+    private List<Map<String, Object>> getLimitedHistory(
+        Id executionId,
+        Integer turnLimit,
+        AIAgentDefinition__c agentConfig,
+        LLMConfiguration__c llmConfig,
+        String debugPrefix
+    ) {
         ExecutionStepService executionStepService = new ExecutionStepService();
         List<ExecutionStep__c> limitedSteps = executionStepService.getHistoryWithCompleteTurns(executionId, turnLimit, 'DESC', false);
-        return LLMFormattingService.formatStepsForApi(limitedSteps, agentConfig, debugPrefix);
+        Boolean supportsVision = llmConfig != null && llmConfig.SupportsVision__c == true;
+        return LLMFormattingService.formatStepsForApi(limitedSteps, agentConfig, debugPrefix, supportsVision);
     }
 }

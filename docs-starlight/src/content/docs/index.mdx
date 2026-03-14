@@ -19,10 +19,10 @@ import { Aside, Badge, Card, CardGrid, LinkButton, LinkCard, Steps, TabItem, Tab
 <div class="hero-shell">
   <div class="hero-kicker">Built for governed enterprise AI on Salesforce</div>
   <p><Badge text="Open Source" variant="success" size="small" /> <Badge text="Enterprise Ready" variant="note" size="small" /> <Badge text="Salesforce Native" variant="tip" size="small" /></p>
-  A framework for building Salesforce-native AI agents that can chat, automate work, process email, chain multi-agent workflows, and operate with governance built in.
+  A framework for building Salesforce-native AI agents that can run iterative conversations, handle channel-specific delivery such as email, automate work, chain multi-agent workflows, and operate with governance built in.
 
   <div class="hero-grid">
-    <div class="stat-tile"><strong>Multiple Agent Patterns</strong><br />Conversational agents, function-style agents, email agents, and sequential multi-agent workflows.</div>
+    <div class="stat-tile"><strong>Multiple Runtime Patterns</strong><br />Iterative, SingleShot, and Pipeline strategies with channel-aware delivery such as chat and email.</div>
     <div class="stat-tile"><strong>Trust Layers</strong><br />PII masking, prompt safety, and tool flow enforcement.</div>
     <div class="stat-tile"><strong>Multi-Provider</strong><br />OpenAI-compatible models out of the box, with support for broader provider strategies and enterprise model setups.</div>
   </div>
@@ -34,7 +34,7 @@ This public documentation focuses on the core framework in `force-app`. The repo
 
 ## What It Does
 
-AI Agent Studio is a **production-grade orchestration system** for Salesforce-native AI experiences. It supports conversational copilots, single-purpose automation agents, email workflows, human approvals, multi-agent coordination, observability, and security controls inside Salesforce.
+AI Agent Studio is a **production-grade orchestration system** for Salesforce-native AI experiences. It supports iterative copilots, single-purpose automation agents, channel-aware email workflows, human approvals, multi-agent coordination, observability, and security controls inside Salesforce.
 
 ## Why AI Agent Studio
 
@@ -56,14 +56,14 @@ AI Agent Studio is a **production-grade orchestration system** for Salesforce-na
 ## Core Capabilities
 
 <CardGrid>
-  <Card title="Conversational Agents" icon="chat">
-    Multi-turn chat assistants with memory and tool execution. Perfect for customer service, sales assistance, and interactive troubleshooting.
+  <Card title="Iterative Runtime" icon="chat">
+    Multi-turn assistants with memory and tool execution. The same strategy can power chat, email, and future messaging channels.
   </Card>
-  <Card title="Function Agents" icon="seti:gear">
-    Purpose-built agents for classification, enrichment, guided execution, and one-off business tasks where users want a fast answer or action.
+  <Card title="SingleShot Runtime" icon="seti:gear">
+    Purpose-built executions for classification, enrichment, guided execution, and one-off business tasks where users want a fast answer or action.
   </Card>
-  <Card title="Email Agents" icon="seti:mail">
-    Process inbound email threads, generate replies, route work, and support service workflows with the same governance and observability model.
+  <Card title="Channel-Aware Delivery" icon="seti:mail">
+    Process inbound email threads, generate replies, route work, and support service workflows through the same strategy layer plus channel-specific delivery policies.
   </Card>
   <Card title="Pipelines and Sub-Agents" icon="seti:graph-line">
     Run fixed multi-agent sequences for predictable workflows, or let an agent call another agent dynamically when a task needs specialized help.

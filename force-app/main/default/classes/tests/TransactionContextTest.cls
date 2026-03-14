@@ -100,7 +100,7 @@ private class TransactionContextTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent([SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .save();
 

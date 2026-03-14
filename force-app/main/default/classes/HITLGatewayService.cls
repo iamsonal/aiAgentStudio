@@ -30,9 +30,6 @@ public with sharing class HITLGatewayService {
     public static final String STATUS_REJECTED = 'Rejected';
     public static final String STATUS_EXPIRED = 'Expired';
 
-    public static final String AGENT_TYPE_CONVERSATIONAL = 'Conversational';
-    public static final String AGENT_TYPE_FUNCTION = 'Function';
-
     // Notification preference constants
     public static final String NOTIFICATION_PREF_ALWAYS_NOTIFY = 'Always Notify';
     public static final String NOTIFICATION_PREF_REJECTION_ONLY = 'Notify on Rejection Only';
@@ -188,7 +185,7 @@ public with sharing class HITLGatewayService {
                 context.capability.CapabilityName__c +
                 ', HITLMode: ' +
                 hitlMode +
-                ', AgentType: ' +
+                ', Strategy: ' +
                 context.agentDefinition.AgentType__c
         );
 
@@ -198,15 +195,18 @@ public with sharing class HITLGatewayService {
         }
 
         if (hitlMode == HITL_MODE_CONFIRMATION) {
-            if (context.agentDefinition.AgentType__c != AGENT_TYPE_CONVERSATIONAL) {
+            if (
+                RuntimeRegistryService.getTraits(context.agentDefinition, RuntimeRegistryService.getInteractionChannel(context.agentDefinition, null))
+                    .supportsConfirmationHitl != true
+            ) {
                 String errorMsg =
-                    'Confirmation mode is only supported for Conversational agents. ' +
+                    'Confirmation mode is only supported for interactive chat agents. ' +
                     'Capability "' +
                     context.capability.CapabilityName__c +
                     '" has HITLMode=Confirmation ' +
                     'but agent "' +
                     context.agentDefinition.DeveloperName__c +
-                    '" is type "' +
+                    '" is strategy "' +
                     context.agentDefinition.AgentType__c +
                     '". Use Approval mode instead or change agent type.';
                 System.debug(LoggingLevel.ERROR, debugPrefix + errorMsg);
@@ -229,15 +229,18 @@ public with sharing class HITLGatewayService {
         }
 
         if (hitlMode == HITL_MODE_CONFIRMATION_THEN_APPROVAL) {
-            if (context.agentDefinition.AgentType__c != AGENT_TYPE_CONVERSATIONAL) {
+            if (
+                RuntimeRegistryService.getTraits(context.agentDefinition, RuntimeRegistryService.getInteractionChannel(context.agentDefinition, null))
+                    .supportsConfirmationHitl != true
+            ) {
                 String errorMsg =
-                    'ConfirmationThenApproval mode is only supported for Conversational agents. ' +
+                    'ConfirmationThenApproval mode is only supported for interactive chat agents. ' +
                     'Capability "' +
                     context.capability.CapabilityName__c +
                     '" has HITLMode=ConfirmationThenApproval ' +
                     'but agent "' +
                     context.agentDefinition.DeveloperName__c +
-                    '" is type "' +
+                    '" is strategy "' +
                     context.agentDefinition.AgentType__c +
                     '". Use Approval mode instead.';
                 System.debug(LoggingLevel.ERROR, debugPrefix + errorMsg);

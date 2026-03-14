@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SessionStatus__c</fullName>
+    <description>Lifecycle status of the durable interaction session, indicating whether it is active, waiting, or closed.</description>
+    <inlineHelpText>Use this to understand whether the conversation is currently active, paused between turns, or no longer being reused.</inlineHelpText>
+    <label>Session Status</label>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Active</fullName>
+                <default>true</default>
+                <label>Active</label>
+            </value>
+            <value>
+                <fullName>Closed</fullName>
+                <default>false</default>
+                <label>Closed</label>
+            </value>
+            <value>
+                <fullName>Waiting</fullName>
+                <default>false</default>
+                <label>Waiting</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

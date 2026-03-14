@@ -112,7 +112,7 @@ public without sharing class ServiceUserContextQueueable implements Queueable, D
         // Build full payload map
         Map<String, Object> requestBody = new Map<String, Object>{
             // Use stub execution ID if we created one, otherwise let service user create new
-            'sessionId' => stubExecutionId != null
+            'executionId' => stubExecutionId != null
                 ? String.valueOf(stubExecutionId)
                 : (payload.existingExecutionId != null ? String.valueOf(payload.existingExecutionId) : null),
             'originalUserId' => String.valueOf(payload.userId),
@@ -123,6 +123,8 @@ public without sharing class ServiceUserContextQueueable implements Queueable, D
             'sourceRecordId' => payload.sourceRecordId != null ? String.valueOf(payload.sourceRecordId) : null,
             'triggerSource' => payload.triggerSource,
             'triggerPayload' => payload.triggerPayload,
+            'conversationKey' => payload.conversationKey,
+            'interactionChannel' => payload.interactionChannel,
             'batchId' => payload.batchId,
             'priority' => payload.priority
         };

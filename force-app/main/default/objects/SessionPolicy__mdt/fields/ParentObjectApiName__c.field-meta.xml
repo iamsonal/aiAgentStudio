@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ParentObjectApiName__c</fullName>
+    <description>Optional Salesforce object API name used for fallback session-policy lookup when a route does not specify an explicit policy.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enter the parent object's API name, such as Case or Lead, to make this policy the default for that object type.</inlineHelpText>
+    <label>Parent Object Api Name</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

@@ -92,8 +92,7 @@ handleSpeechResult(event) {
     onspeechresult="{handleSpeechResult}"
     onspeechinterim="{handleInterimResult}"
     onspeecherror="{handleSpeechError}"
-    onspeechnospeech="{handleNoSpeech}"
->
+    onspeechnospeech="{handleNoSpeech}">
 </c-speech-to-text-input>
 ```
 

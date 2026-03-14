@@ -36,12 +36,12 @@ public inherited sharing class ContextResolverService {
     }
 
     /**
-     * Resolves and aggregates all relevant context for a session by orchestrating multiple context providers.
+     * Resolves and aggregates all relevant context for an execution by orchestrating multiple context providers.
      *
      * This method processes both record-based and user-centric context, invoking providers in a bulk-safe manner
      * and returning all resolved records in a structured result. It is the main entry point for context gathering.
      *
-     * @param sessionId              The chat session identifier.
+     * @param executionId            The agent execution identifier.
      * @param agentDefinitionId      The agent configuration identifier.
      * @param userId                 The current user identifier.
      * @param immediatePageRecordId  The current page record (highest priority context).
@@ -50,11 +50,12 @@ public inherited sharing class ContextResolverService {
      * @throws                       ResolutionException if provider instantiation or config query fails.
      * @sideeffects                  Writes to debug logs; may invoke custom provider logic.
      */
-    public ResolutionResult resolve(Id sessionId, Id agentDefinitionId, Id userId, Id immediatePageRecordId, Integer currentTurn) {
-        String logPrefix = '[CtxResolverSvc Sess:' + sessionId + '] ';
+    public ResolutionResult resolve(Id executionId, Id agentDefinitionId, Id userId, Id immediatePageRecordId, Integer currentTurn) {
+        String logPrefix = '[CtxResolverSvc Exec:' + executionId + '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting context resolution. Immediate page record: ' + immediatePageRecordId);
 
         ResolutionResult result = new ResolutionResult();
+        String activeChannel = RuntimeRegistryService.getInteractionChannel(null, executionId);
         List<AgentContextConfig__c> allConfigs = queryApplicableConfigs(agentDefinitionId, logPrefix);
         if (allConfigs.isEmpty()) {
             System.debug(LoggingLevel.WARN, logPrefix + 'No active context provider configs found for agent definition. Returning empty result.');
@@ -62,7 +63,7 @@ public inherited sharing class ContextResolverService {
         }
 
         // 1. Gather all unique relevant IDs from the page and history ledger.
-        Set<Id> allRelevantIds = gatherAllRelevantIds(sessionId, immediatePageRecordId, currentTurn);
+        Set<Id> allRelevantIds = gatherAllRelevantIds(executionId, immediatePageRecordId, currentTurn);
         if (allRelevantIds.isEmpty()) {
             System.debug(LoggingLevel.INFO, logPrefix + 'No record context found in session or page. Only user-centric providers will be invoked.');
         }
@@ -75,7 +76,7 @@ public inherited sharing class ContextResolverService {
         // For each SObject type, invoke all applicable record-context providers in bulk
         for (SObjectType sObjType : idsToProcessByType.keySet()) {
             Set<Id> idsForThisType = idsToProcessByType.get(sObjType);
-            List<AgentContextConfig__c> applicableConfigs = filterConfigsForType(allConfigs, sObjType, true);
+            List<AgentContextConfig__c> applicableConfigs = filterConfigsForType(allConfigs, sObjType, true, activeChannel);
             System.debug(
                 LoggingLevel.DEBUG,
                 logPrefix +
@@ -98,7 +99,7 @@ public inherited sharing class ContextResolverService {
         }
 
         // 4. Process NON-RECORD-CONTEXT providers (e.g., User Details).
-        List<AgentContextConfig__c> nonRecordContextConfigs = filterConfigsForType(allConfigs, null, false);
+        List<AgentContextConfig__c> nonRecordContextConfigs = filterConfigsForType(allConfigs, null, false, activeChannel);
         System.debug(LoggingLevel.DEBUG, logPrefix + 'Invoking ' + nonRecordContextConfigs.size() + ' user-centric (non-record) provider configs.');
         for (AgentContextConfig__c config : nonRecordContextConfigs) {
             // The "anchor" for a user-centric provider is the user themselves.
@@ -115,19 +116,19 @@ public inherited sharing class ContextResolverService {
     }
 
     /**
-     * Gathers all unique relevant record IDs from the immediate page context and the session's context ledger.
+     * Gathers all unique relevant record IDs from the immediate page context and the execution's context ledger.
      *
-     * @param sessionId             The chat session identifier.
+     * @param executionId           The agent execution identifier.
      * @param immediatePageRecordId The current page record (if any).
      * @param currentTurn           The current conversation turn.
      * @return                      Set of all relevant record IDs for context resolution.
      */
-    private Set<Id> gatherAllRelevantIds(Id sessionId, Id immediatePageRecordId, Integer currentTurn) {
+    private Set<Id> gatherAllRelevantIds(Id executionId, Id immediatePageRecordId, Integer currentTurn) {
         Set<Id> relevantIds = new Set<Id>();
         if (immediatePageRecordId != null) {
             relevantIds.add(immediatePageRecordId);
         }
-        for (ContextManagerService.ContextItem item : this.contextLedger.getContextLedger(sessionId, currentTurn)) {
+        for (ContextManagerService.ContextItem item : this.contextLedger.getContextLedger(executionId, currentTurn)) {
             relevantIds.add(Id.valueOf(item.id));
         }
         return relevantIds;
@@ -161,12 +162,24 @@ public inherited sharing class ContextResolverService {
      * @param requiresRecordContext Whether the provider requires a record context.
      * @return                      List of configs applicable to the given type and context requirement.
      */
-    private List<AgentContextConfig__c> filterConfigsForType(List<AgentContextConfig__c> allConfigs, SObjectType sObjType, Boolean requiresRecordContext) {
+    private List<AgentContextConfig__c> filterConfigsForType(
+        List<AgentContextConfig__c> allConfigs,
+        SObjectType sObjType,
+        Boolean requiresRecordContext,
+        String activeChannel
+    ) {
         List<AgentContextConfig__c> filtered = new List<AgentContextConfig__c>();
         String sObjTypeName = (sObjType != null) ? sObjType.getDescribe().getName().toLowerCase() : null;
         for (AgentContextConfig__c config : allConfigs) {
             if (config.RequiresRecordContext__c != requiresRecordContext)
                 continue;
+            if (String.isNotBlank(config.ApplicableChannels__c) && String.isNotBlank(activeChannel)) {
+                String normalizedChannels = config.ApplicableChannels__c.toLowerCase().replaceAll('\\s', '').replace(';', ',');
+                List<String> applicableChannels = normalizedChannels.split(',');
+                if (!applicableChannels.contains(activeChannel.toLowerCase())) {
+                    continue;
+                }
+            }
             if (requiresRecordContext) {
                 List<String> applicableTypes = String.isBlank(config.ApplicableSObjectTypes__c)
                     ? new List<String>()
@@ -238,7 +251,7 @@ public inherited sharing class ContextResolverService {
     private List<AgentContextConfig__c> queryApplicableConfigs(Id agentDefinitionId, String logPrefix) {
         try {
             return [
-                SELECT Id, Name, ImplementationName__c, ImplementationConfigJson__c, ApplicableSObjectTypes__c, RequiresRecordContext__c
+                SELECT Id, Name, ImplementationName__c, ImplementationConfigJson__c, ApplicableSObjectTypes__c, ApplicableChannels__c, RequiresRecordContext__c
                 FROM AgentContextConfig__c
                 WHERE AIAgentDefinition__c = :agentDefinitionId AND IsActive__c = TRUE
                 ORDER BY ExecutionOrder__c ASC

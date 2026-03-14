@@ -1,5 +1,5 @@
 /**
- * @description Context provider for Product Launch Orchestrator demo
+ * @description Context provider for Product Launch Agent demo
  *              Fetches Support Case history for engagement analysis
  *
  * This provider returns support case context:

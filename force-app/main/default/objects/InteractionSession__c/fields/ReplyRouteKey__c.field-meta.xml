@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ReplyRouteKey__c</fullName>
+    <description>Stable route key that replies must use to preserve same-channel or same-endpoint delivery guarantees for this session.</description>
+    <inlineHelpText>Stores the canonical reply route for the conversation so outbound replies can stay on the correct channel path.</inlineHelpText>
+    <label>Reply Route Key</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

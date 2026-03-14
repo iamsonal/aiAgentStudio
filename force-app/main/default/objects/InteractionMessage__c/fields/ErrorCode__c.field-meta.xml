@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ErrorCode__c</fullName>
+    <description>Normalized framework or provider error code recorded when processing or delivery fails for this message.</description>
+    <inlineHelpText>Stores a machine-readable error code to help operators troubleshoot failed message handling or delivery.</inlineHelpText>
+    <label>Error Code</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

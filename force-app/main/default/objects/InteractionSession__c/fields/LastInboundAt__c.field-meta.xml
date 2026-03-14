@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>LastInboundAt__c</fullName>
+    <description>Timestamp of the most recent inbound message received for this interaction session.</description>
+    <inlineHelpText>Used to understand recent activity and to support session rollover or inactivity policies.</inlineHelpText>
+    <label>Last Inbound At</label>
+    <required>false</required>
+    <type>DateTime</type>
+</CustomField>

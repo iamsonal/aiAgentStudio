@@ -495,16 +495,29 @@ public inherited sharing class LLMFormattingService {
         }
     }
 
-    public static List<Map<String, Object>> formatStepsForApi(List<ExecutionStep__c> steps, AIAgentDefinition__c agentConfig, String loggingPrefix) {
+    /**
+     * Formats ExecutionStep__c records into the LLM API message list.
+     *
+     * @param supportsVision When true, ToolResult steps containing a _multimodal marker are
+     *                       converted to a content-array (text + image_url parts) instead of
+     *                       a plain JSON string. Pass llmConfig.SupportsVision__c here.
+     */
+    public static List<Map<String, Object>> formatStepsForApi(
+        List<ExecutionStep__c> steps,
+        AIAgentDefinition__c agentConfig,
+        String loggingPrefix,
+        Boolean supportsVision
+    ) {
         List<Map<String, Object>> formattedMessages = new List<Map<String, Object>>();
         String debugPrefix = String.isNotBlank(loggingPrefix) ? loggingPrefix : '[LLMFormattingService] ';
+        Boolean visionEnabled = supportsVision == true;
 
         if (steps == null || steps.isEmpty()) {
             System.debug(LoggingLevel.DEBUG, debugPrefix + 'No execution steps to format.');
             return formattedMessages;
         }
 
-        System.debug(LoggingLevel.DEBUG, debugPrefix + 'Formatting ' + steps.size() + ' execution steps for LLM API.');
+        System.debug(LoggingLevel.DEBUG, debugPrefix + 'Formatting ' + steps.size() + ' execution steps for LLM API. supportsVision=' + visionEnabled);
 
         Integer i = 0;
         while (i < steps.size()) {
@@ -529,7 +542,7 @@ public inherited sharing class LLMFormattingService {
                     formattedMessages.add(groupedMessage);
                 }
             } else {
-                Map<String, Object> messageMap = formatSingleStep(currentStep, debugPrefix);
+                Map<String, Object> messageMap = formatSingleStep(currentStep, debugPrefix, visionEnabled);
                 if (messageMap != null) {
                     formattedMessages.add(messageMap);
                 }
@@ -711,6 +724,10 @@ public inherited sharing class LLMFormattingService {
     }
 
     private static Map<String, Object> formatSingleStep(ExecutionStep__c step, String debugPrefix) {
+        return formatSingleStep(step, debugPrefix, false);
+    }
+
+    private static Map<String, Object> formatSingleStep(ExecutionStep__c step, String debugPrefix, Boolean supportsVision) {
         if (step == null) {
             return null;
         }
@@ -757,7 +774,10 @@ public inherited sharing class LLMFormattingService {
                 System.debug(LoggingLevel.DEBUG, debugPrefix + 'Skipping ToolResult step with blank result');
                 return null;
             }
-            messageMap.put('content', step.ToolResult__c);
+            // buildToolResultContent returns either a plain String or a List<Object> (content array).
+            // Map<String, Object>.put() accepts Object, and JSON.serialize handles both correctly.
+            Object content = buildToolResultContent(step.ToolResult__c, supportsVision == true, debugPrefix);
+            messageMap.put('content', content);
             if (String.isNotBlank(step.ToolCallId__c)) {
                 messageMap.put('tool_call_id', step.ToolCallId__c);
             }
@@ -770,6 +790,73 @@ public inherited sharing class LLMFormattingService {
         }
 
         return messageMap;
+    }
+
+    /**
+     * Converts a raw ToolResult__c JSON string to the appropriate content value for the LLM API.
+     *
+     * - If the stored JSON contains no _multimodal key → returns the original string unchanged.
+     * - If _multimodal is present and supportsVision=true → returns a List<Object> content array:
+     *     [ { type: "text", text: <clean JSON without _multimodal> },
+     *       { type: "image_url", image_url: { url: "data:<mimeType>;base64,<b64>" } } ]
+     * - If _multimodal is present and supportsVision=false → strips _multimodal, appends a
+     *   human-readable note, and returns a plain String so the LLM at least knows the file exists.
+     */
+    @TestVisible
+    private static Object buildToolResultContent(String toolResultJson, Boolean supportsVision, String debugPrefix) {
+        try {
+            Map<String, Object> parsed = (Map<String, Object>) JSON.deserializeUntyped(toolResultJson);
+
+            // Only success responses can carry _multimodal; failures are always plain strings
+            if (parsed.get('success') != true) {
+                return toolResultJson;
+            }
+
+            Object dataRaw = parsed.get('data');
+            if (!(dataRaw instanceof Map<String, Object>)) {
+                return toolResultJson;
+            }
+
+            Map<String, Object> data = (Map<String, Object>) dataRaw;
+            Object multimodalRaw = data.get('multimodal');
+            if (!(multimodalRaw instanceof Map<String, Object>)) {
+                return toolResultJson;
+            }
+
+            Map<String, Object> multimodal = (Map<String, Object>) multimodalRaw;
+            String mimeType = multimodal.containsKey('mimeType') ? String.valueOf(multimodal.get('mimeType')) : '';
+            String base64Data = multimodal.containsKey('base64') ? String.valueOf(multimodal.get('base64')) : '';
+
+            // Build a clean version of data without the multimodal blob for the text part
+            Map<String, Object> cleanData = new Map<String, Object>(data);
+            cleanData.remove('multimodal');
+            Map<String, Object> cleanResult = new Map<String, Object>{ 'success' => true, 'data' => cleanData };
+            String cleanJson = JSON.serialize(cleanResult);
+
+            if (supportsVision && String.isNotBlank(mimeType) && mimeType.startsWith('image/') && String.isNotBlank(base64Data)) {
+                List<Object> parts = new List<Object>{
+                    new Map<String, Object>{ 'type' => 'text', 'text' => cleanJson },
+                    new Map<String, Object>{
+                        'type' => 'image_url',
+                        'image_url' => new Map<String, Object>{ 'url' => 'data:' + mimeType + ';base64,' + base64Data }
+                    }
+                };
+                System.debug(LoggingLevel.DEBUG, debugPrefix + 'Built multimodal content array for vision LLM. mimeType=' + mimeType);
+                return parts;
+            }
+
+            // Text-only LLM: return the clean JSON with an explanatory note
+            System.debug(LoggingLevel.DEBUG, debugPrefix + 'Vision not supported. Stripping _multimodal from tool result and returning plain text.');
+            Map<String, Object> textOnlyData = new Map<String, Object>(cleanData);
+            textOnlyData.put(
+                '_note',
+                'Binary content was retrieved but this model does not support vision. Enable SupportsVision__c on the LLM Configuration to analyse this file.'
+            );
+            return JSON.serialize(new Map<String, Object>{ 'success' => true, 'data' => textOnlyData });
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, debugPrefix + 'buildToolResultContent failed to parse ToolResult JSON, returning as-is. Error: ' + e.getMessage());
+            return toolResultJson;
+        }
     }
 
     private static String mapStepRoleToLlmRole(String stepRole) {

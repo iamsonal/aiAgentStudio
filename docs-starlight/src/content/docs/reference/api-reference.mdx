@@ -45,7 +45,8 @@ curl -X POST "https://YOUR-INSTANCE.salesforce.com/services/apexrest/ai/agent/pr
 
 ## Request Notes
 
-- `sessionId` is optional on `/process`; omit it to start a new execution.
+- `executionId` is optional on `/process`; provide it to continue the same `AgentExecution__c`.
+- `interactionSessionId` is optional on `/process`; provide it to preserve durable `InteractionSession__c` continuity across executions.
 - `originalUserId`, `agentDefinitionId`, and `turnIdentifier` are required on `/process`.
 - `/hitl/execute` expects the pending action, execution, capability, and serialized tool arguments produced by the HITL workflow.
 - `/resume` is used by service-user routing and recovery flows, not normal end-user chat traffic.

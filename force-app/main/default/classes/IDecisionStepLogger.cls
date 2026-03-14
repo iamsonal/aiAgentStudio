@@ -178,6 +178,37 @@ public inherited sharing class IDecisionStepLogger {
         return new NoOp();
     }
 
+    /**
+     * Creates a logger before a persisted AgentExecution__c exists by resolving
+     * audit level directly from the agent definition. Intended for pre-callout
+     * SingleShot paths that must buffer decision steps before execution creation.
+     */
+    public static ILogger createForAgent(Id agentDefinitionId, String turnIdentifier, Id originalUserId) {
+        if (!AIAgentFrameworkSettings.isDecisionStepLoggingEnabled()) {
+            System.debug(LoggingLevel.DEBUG, '[IDecisionStepLogger] Decision step logging is disabled via settings');
+            return new NoOp();
+        }
+
+        if (!isFullAuditLevelForAgent(agentDefinitionId)) {
+            return new NoOp();
+        }
+
+        Type loggerType = Type.forName(ADDONS_LOGGER_CLASS);
+        if (loggerType != null) {
+            try {
+                ILogger logger = (ILogger) loggerType.newInstance();
+                logger.initialize(null, turnIdentifier, originalUserId);
+                return logger;
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, '[IDecisionStepLogger] Failed to instantiate ' + ADDONS_LOGGER_CLASS + ': ' + e.getMessage());
+            }
+        } else {
+            System.debug(LoggingLevel.DEBUG, '[IDecisionStepLogger] Addons logger class not found (' + ADDONS_LOGGER_CLASS + '). Using NoOp.');
+        }
+
+        return new NoOp();
+    }
+
     public static ILogger create(Id executionId, String turnIdentifier) {
         return create(executionId, turnIdentifier, null);
     }
@@ -215,10 +246,11 @@ public inherited sharing class IDecisionStepLogger {
      * Defaults to false (Standard) when the field is blank/null or the execution doesn't exist yet.
      */
     private static Map<Id, Boolean> auditLevelCache = new Map<Id, Boolean>();
+    private static Map<Id, Boolean> agentAuditLevelCache = new Map<Id, Boolean>();
 
     private static Boolean isFullAuditLevel(Id executionId) {
         if (executionId == null) {
-            return true; // No execution yet (e.g. SyncFunctionOrchestrator pre-creation) — let the logger buffer; SyncFunctionOrchestrator manages its own guard.
+            return true; // No execution yet (e.g. SingleShotSyncRuntimeService pre-creation) — let the logger buffer; SingleShotSyncRuntimeService manages its own guard.
         }
 
         if (auditLevelCache.containsKey(executionId)) {
@@ -242,6 +274,34 @@ public inherited sharing class IDecisionStepLogger {
         }
 
         auditLevelCache.put(executionId, isFull);
+        return isFull;
+    }
+
+    private static Boolean isFullAuditLevelForAgent(Id agentDefinitionId) {
+        if (agentDefinitionId == null) {
+            return false;
+        }
+
+        if (agentAuditLevelCache.containsKey(agentDefinitionId)) {
+            return agentAuditLevelCache.get(agentDefinitionId);
+        }
+
+        Boolean isFull = false;
+        try {
+            List<AIAgentDefinition__c> agents = [
+                SELECT AuditLevel__c
+                FROM AIAgentDefinition__c
+                WHERE Id = :agentDefinitionId
+                LIMIT 1
+            ];
+            if (!agents.isEmpty()) {
+                isFull = 'Full'.equalsIgnoreCase(agents[0].AuditLevel__c);
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, '[IDecisionStepLogger] Failed to resolve agent AuditLevel: ' + e.getMessage() + '. Defaulting to NoOp.');
+        }
+
+        agentAuditLevelCache.put(agentDefinitionId, isFull);
         return isFull;
     }
 }

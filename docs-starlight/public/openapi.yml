@@ -82,7 +82,8 @@ paths:
               continueConversation:
                 summary: Continue existing conversation
                 value:
-                  sessionId: "a0X5g000001234567"
+                  executionId: "a0X5g000001234567"
+                  interactionSessionId: "a105g000001234567"
                   originalUserId: "0055g000001234567"
                   agentDefinitionId: "a0Y5g000001234567"
                   turnIdentifier: "turn-2024-01-15-12-31-00-def456"
@@ -104,6 +105,7 @@ paths:
                     error: null
                     requestId: "12345678"
                     executionId: "a0X5g000001234567"
+                    interactionSessionId: "a105g000001234567"
         '400':
           description: Bad Request - Invalid input
           content:
@@ -123,7 +125,7 @@ paths:
                   value:
                     success: false
                     outcome: null
-                    error: "Invalid sessionId format: abc123"
+                    error: "Invalid executionId format: abc123"
                     requestId: "12345678"
         '403':
           description: Forbidden - Access denied
@@ -415,11 +417,17 @@ components:
         - agentDefinitionId
         - turnIdentifier
       properties:
-        sessionId:
+        executionId:
           type: string
           pattern: '^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$'
           description: Existing AgentExecution__c ID. Omit to start a new execution.
           example: "a0X5g000001234567"
+          nullable: true
+        interactionSessionId:
+          type: string
+          pattern: '^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$'
+          description: Optional durable InteractionSession__c ID used to preserve continuity across executions.
+          example: "a105g000001234567"
           nullable: true
         originalUserId:
           type: string
@@ -578,6 +586,12 @@ components:
           description: AgentExecution__c ID when the request creates or continues a tracked execution
           example: "a0X5g000001234567"
           nullable: true
+        interactionSessionId:
+          type: string
+          pattern: '^[a-zA-Z0-9]{15}$|^[a-zA-Z0-9]{18}$'
+          description: InteractionSession__c ID when the execution is bound to a durable session
+          example: "a105g000001234567"
+          nullable: true
 
     HITLFollowUpRequest:
       type: object
@@ -671,6 +685,7 @@ components:
         error: null
         requestId: "12345678"
         executionId: "a0X5g000001234567"
+        interactionSessionId: "a105g000001234567"
 
     ErrorResponseExample:
       value:

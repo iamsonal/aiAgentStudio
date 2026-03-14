@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DefaultCompletionMode__c</fullName>
+    <description>Default delivery behavior the runtime should apply when this agent reaches a terminal response on channel-aware executions.</description>
+    <inlineHelpText>Choose how this agent should normally finish channel-based work: send automatically, draft for review, route only, or hand off to a human.</inlineHelpText>
+    <label>Default Completion Mode</label>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Auto Reply</fullName>
+                <default>true</default>
+                <label>Auto Reply</label>
+            </value>
+            <value>
+                <fullName>Review Before Send</fullName>
+                <default>false</default>
+                <label>Review Before Send</label>
+            </value>
+            <value>
+                <fullName>Route Only</fullName>
+                <default>false</default>
+                <label>Route Only</label>
+            </value>
+            <value>
+                <fullName>Human Handoff</fullName>
+                <default>false</default>
+                <label>Human Handoff</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

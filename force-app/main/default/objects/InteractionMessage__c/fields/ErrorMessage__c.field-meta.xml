@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ErrorMessage__c</fullName>
+    <description>Human-readable failure detail captured for this transport message when processing, drafting, or delivery does not succeed.</description>
+    <inlineHelpText>Stores the latest error detail for this message record so operators can understand why handling failed.</inlineHelpText>
+    <label>Error Message</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

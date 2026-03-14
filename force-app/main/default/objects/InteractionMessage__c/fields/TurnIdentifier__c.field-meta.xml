@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>TurnIdentifier__c</fullName>
+    <description>Turn identifier associated with the execution step that processed or produced this message.</description>
+    <inlineHelpText>Links the message to a specific conversation turn so transport events can be correlated with execution history.</inlineHelpText>
+    <label>Turn Identifier</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

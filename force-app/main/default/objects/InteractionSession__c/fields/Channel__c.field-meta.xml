@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Channel__c</fullName>
+    <description>Interaction channel represented by this durable session, such as Email, Chat, or API.</description>
+    <inlineHelpText>Shows which channel owns the conversation continuity tracked by this session record.</inlineHelpText>
+    <label>Channel</label>
+    <required>false</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Email</fullName>
+                <default>false</default>
+                <label>Email</label>
+            </value>
+            <value>
+                <fullName>Chat</fullName>
+                <default>true</default>
+                <label>Chat</label>
+            </value>
+            <value>
+                <fullName>API</fullName>
+                <default>false</default>
+                <label>API</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -40,7 +40,7 @@ Start with agent + provider settings, then tune safety and performance as usage 
 |:------|:-----|:------------|
 | `Name` | Text | Display name for the agent |
 | `DeveloperName__c` | Text | Unique API identifier (no spaces) |
-| `AgentType__c` | Picklist | `Conversational` in the core package. `Function` and `Email` are addon types that require their orchestrator mappings to be deployed. |
+| `AgentType__c` | Picklist | Runtime strategy: `Iterative` or `SingleShot`. Pipeline composition is configured separately through pipeline metadata, not agent type. |
 | `IsActive__c` | Checkbox | Enable/disable the agent |
 
 ### AI Provider Settings

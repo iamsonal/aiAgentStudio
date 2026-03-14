@@ -47,6 +47,7 @@ public inherited sharing class ContextManagerService {
     @SuppressWarnings('PMD.ApexSharingViolations')
     public class LedgerQueryBuilder {
         private Id executionId;
+        private Id sessionId;
         private Set<String> statuses;
         private Set<String> contextTypes;
         private Decimal minRelevanceScore;
@@ -67,6 +68,11 @@ public inherited sharing class ContextManagerService {
             return this;
         }
 
+        public LedgerQueryBuilder forSession(Id interactionSessionId) {
+            this.sessionId = interactionSessionId;
+            return this;
+        }
+
         public LedgerQueryBuilder withStatus(String status) {
             this.statuses.add(status);
             return this;
@@ -75,7 +81,9 @@ public inherited sharing class ContextManagerService {
         public String buildQuery() {
             List<String> conditions = new List<String>();
 
-            if (executionId != null) {
+            if (sessionId != null) {
+                conditions.add('InteractionSession__c = :sessionId');
+            } else if (executionId != null) {
                 conditions.add('AgentExecution__c = :executionId');
             }
 
@@ -102,7 +110,7 @@ public inherited sharing class ContextManagerService {
 
             return 'SELECT Id, RecordId__c, RecordType__c, ContextType__c, Status__c, ' +
                 'TurnAdded__c, LastAccessedTurn__c, AccessCount__c, RelevanceScore__c, ' +
-                'SourceRecordId__c, ChildRecordIds__c, Metadata__c, OriginalContextType__c, ' +
+                'SourceRecordId__c, ChildRecordIds__c, Metadata__c, OriginalContextType__c, InteractionSession__c, ' +
                 'LastDataRefreshTime__c, PrunedAt__c, PrunedReason__c, LastModifiedDate ' +
                 'FROM ContextLedgerItem__c' +
                 whereClause +
@@ -205,8 +213,16 @@ public inherited sharing class ContextManagerService {
          * Converts this ContextItem to a ContextLedgerItem__c record.
          */
         public ContextLedgerItem__c toRecord(Id executionId) {
+            return toRecord(executionId, null);
+        }
+
+        /**
+         * Converts this ContextItem to a ContextLedgerItem__c record with an optional session anchor.
+         */
+        public ContextLedgerItem__c toRecord(Id executionId, Id interactionSessionId) {
             ContextLedgerItem__c record = new ContextLedgerItem__c();
             record.AgentExecution__c = executionId;
+            record.InteractionSession__c = interactionSessionId;
             record.RecordId__c = this.id;
             record.RecordType__c = this.type;
             record.ContextType__c = this.contextType.name();
@@ -400,8 +416,9 @@ public inherited sharing class ContextManagerService {
         }
 
         try {
+            Id interactionSessionId = resolveSessionId(executionId);
             // Query active items from repository
-            List<ContextLedgerItem__c> records = getActiveItemsForExecution(executionId);
+            List<ContextLedgerItem__c> records = getActiveItems(executionId, interactionSessionId);
 
             // Convert to ContextItem objects
             List<ContextItem> ledger = new List<ContextItem>();
@@ -482,8 +499,9 @@ public inherited sharing class ContextManagerService {
         String logPrefix = '[ContextManager.Commit ' + executionId + '] ';
 
         try {
+            Id interactionSessionId = resolveSessionId(executionId);
             // FIX: Query all items and build FRESH map
-            List<ContextLedgerItem__c> existingRecords = getAllItemsForExecution(executionId);
+            List<ContextLedgerItem__c> existingRecords = getAllItems(executionId, interactionSessionId);
             List<ContextItem> ledger = new List<ContextItem>();
             Map<String, ContextItem> ledgerMapByRecordId = new Map<String, ContextItem>();
 
@@ -511,7 +529,7 @@ public inherited sharing class ContextManagerService {
             // Convert to records and upsert
             List<ContextLedgerItem__c> recordsToUpsert = new List<ContextLedgerItem__c>();
             for (ContextItem item : ledger) {
-                recordsToUpsert.add(item.toRecord(executionId));
+                recordsToUpsert.add(item.toRecord(executionId, interactionSessionId));
             }
 
             upsertItems(recordsToUpsert);
@@ -713,15 +731,27 @@ public inherited sharing class ContextManagerService {
     /**
      * Retrieves all active context items for an execution, ordered by relevance.
      */
-    private List<ContextLedgerItem__c> getActiveItemsForExecution(Id executionId) {
-        return queryBuilder().forExecution(executionId).withStatus('ACTIVE').execute();
+    private List<ContextLedgerItem__c> getActiveItems(Id executionId, Id interactionSessionId) {
+        LedgerQueryBuilder builder = queryBuilder().withStatus('ACTIVE');
+        if (interactionSessionId != null) {
+            builder.forSession(interactionSessionId);
+        } else {
+            builder.forExecution(executionId);
+        }
+        return builder.execute();
     }
 
     /**
      * Retrieves all context items for an execution (any status).
      */
-    private List<ContextLedgerItem__c> getAllItemsForExecution(Id executionId) {
-        return queryBuilder().forExecution(executionId).execute();
+    private List<ContextLedgerItem__c> getAllItems(Id executionId, Id interactionSessionId) {
+        LedgerQueryBuilder builder = queryBuilder();
+        if (interactionSessionId != null) {
+            builder.forSession(interactionSessionId);
+        } else {
+            builder.forExecution(executionId);
+        }
+        return builder.execute();
     }
 
     /**
@@ -733,29 +763,44 @@ public inherited sharing class ContextManagerService {
             return new List<ContextLedgerItem__c>();
         }
 
-        // Build map of execution + record ID to item
+        // Build map of continuity anchor + record ID to item
         Map<String, ContextLedgerItem__c> newItemsMap = new Map<String, ContextLedgerItem__c>();
         Set<Id> executionIds = new Set<Id>();
+        Set<Id> sessionIds = new Set<Id>();
         Set<String> recordIds = new Set<String>();
 
         for (ContextLedgerItem__c item : items) {
-            String compositeKey = item.AgentExecution__c + '_' + item.RecordId__c;
+            String compositeKey = buildCompositeKey(item.AgentExecution__c, item.InteractionSession__c, item.RecordId__c);
             newItemsMap.put(compositeKey, item);
-            executionIds.add(item.AgentExecution__c);
+            if (item.AgentExecution__c != null) {
+                executionIds.add(item.AgentExecution__c);
+            }
+            if (item.InteractionSession__c != null) {
+                sessionIds.add(item.InteractionSession__c);
+            }
             recordIds.add(item.RecordId__c);
         }
 
         // Query existing items
-        List<ContextLedgerItem__c> existingItems = [
-            SELECT Id, AgentExecution__c, RecordId__c
-            FROM ContextLedgerItem__c
-            WHERE AgentExecution__c IN :executionIds AND RecordId__c IN :recordIds
-        ];
+        List<ContextLedgerItem__c> existingItems;
+        if (!sessionIds.isEmpty()) {
+            existingItems = [
+                SELECT Id, AgentExecution__c, InteractionSession__c, RecordId__c
+                FROM ContextLedgerItem__c
+                WHERE InteractionSession__c IN :sessionIds AND RecordId__c IN :recordIds
+            ];
+        } else {
+            existingItems = [
+                SELECT Id, AgentExecution__c, InteractionSession__c, RecordId__c
+                FROM ContextLedgerItem__c
+                WHERE AgentExecution__c IN :executionIds AND RecordId__c IN :recordIds
+            ];
+        }
 
         // Update existing items
         List<ContextLedgerItem__c> toUpdate = new List<ContextLedgerItem__c>();
         for (ContextLedgerItem__c existing : existingItems) {
-            String compositeKey = existing.AgentExecution__c + '_' + existing.RecordId__c;
+            String compositeKey = buildCompositeKey(existing.AgentExecution__c, existing.InteractionSession__c, existing.RecordId__c);
             if (newItemsMap.containsKey(compositeKey)) {
                 ContextLedgerItem__c newItem = newItemsMap.get(compositeKey);
                 newItem.Id = existing.Id;
@@ -794,6 +839,24 @@ public inherited sharing class ContextManagerService {
         }
 
         return result;
+    }
+
+    private String buildCompositeKey(Id executionId, Id interactionSessionId, String recordId) {
+        String anchor = interactionSessionId != null ? String.valueOf(interactionSessionId) : String.valueOf(executionId);
+        return anchor + '_' + recordId;
+    }
+
+    private Id resolveSessionId(Id executionId) {
+        if (executionId == null) {
+            return null;
+        }
+        List<AgentExecution__c> executions = [
+            SELECT InteractionSession__c
+            FROM AgentExecution__c
+            WHERE Id = :executionId
+            LIMIT 1
+        ];
+        return executions.isEmpty() ? null : executions[0].InteractionSession__c;
     }
 
     /**

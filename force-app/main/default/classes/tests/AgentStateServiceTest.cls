@@ -6,12 +6,12 @@ private class AgentStateServiceTest {
     @TestSetup
     static void setupData() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('StateSvc_Agent').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('StateSvc_Agent').withType('SingleShot').withLLM(llm.Id).save();
 
         TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-state-001')
@@ -23,7 +23,7 @@ private class AgentStateServiceTest {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE DeveloperName__c LIKE 'StateSvc_Agent%' LIMIT 1];
 
         AgentStateService svc = new AgentStateService();
-        Id executionId = svc.createExecution('Function', agent.Id, 'Test', 'Payload', null, UserInfo.getUserId(), null);
+        Id executionId = svc.createExecution('SingleShot', agent.Id, 'Test', 'Payload', null, UserInfo.getUserId(), null);
 
         AgentExecution__c execution = [
             SELECT ExecutionStatus__c, ProcessingStatus__c, ExecutionType__c, CurrentTurnIdentifier__c
@@ -32,7 +32,7 @@ private class AgentStateServiceTest {
         ];
         System.assertEquals('Pending', execution.ExecutionStatus__c, 'Execution should start Pending');
         System.assertEquals(AIAgentConstants.STATUS_IDLE, execution.ProcessingStatus__c, 'Processing should start Idle');
-        System.assertEquals('Function', execution.ExecutionType__c, 'Execution type should match');
+        System.assertEquals('SingleShot', execution.ExecutionType__c, 'Execution type should match');
         System.assert(String.isNotBlank(execution.CurrentTurnIdentifier__c), 'Turn identifier should be set');
     }
 
@@ -239,7 +239,8 @@ private class AgentStateServiceTest {
         System.assertEquals(true, txnCtx.isDeferredDMLMode(), 'Deferred mode should remain enabled so sync finalization can recover');
         System.assert(txnCtx.getBufferedExecutionSteps(execution.Id).size() > 0, 'Buffered steps should be preserved for sync recovery');
 
-        svc.syncFinalizeExecution(execution.Id, 'turn-sync-recover-001', AIAgentConstants.STATUS_IDLE, '[Test] ');
+        Boolean recovered = svc.syncFinalizeExecution(execution.Id, 'turn-sync-recover-001', AIAgentConstants.STATUS_IDLE, '[Test] ');
+        System.assertEquals(true, recovered, 'sync finalization recovery should report success');
 
         AgentExecution__c updated = [
             SELECT ExecutionStatus__c, ProcessingStatus__c, CurrentTurnIdentifier__c
@@ -292,7 +293,8 @@ private class AgentStateServiceTest {
         );
 
         AgentStateService svc = new AgentStateService();
-        svc.syncFinalizeExecution(execution.Id, 'new-turn-001', AIAgentConstants.STATUS_IDLE, '[Test] ');
+        Boolean recovered = svc.syncFinalizeExecution(execution.Id, 'new-turn-001', AIAgentConstants.STATUS_IDLE, '[Test] ');
+        System.assertEquals(true, recovered, 'syncFinalizeExecution should report successful recovery');
 
         AgentExecution__c updated = [
             SELECT ExecutionStatus__c, ProcessingStatus__c, CurrentTurnIdentifier__c, EndTime__c
@@ -316,7 +318,8 @@ private class AgentStateServiceTest {
         );
 
         AgentStateService svc = new AgentStateService();
-        svc.syncFinalizeExecution(execution.Id, 'already-stamped-001', AIAgentConstants.STATUS_IDLE, '[Test] ');
+        Boolean recovered = svc.syncFinalizeExecution(execution.Id, 'already-stamped-001', AIAgentConstants.STATUS_IDLE, '[Test] ');
+        System.assertEquals(true, recovered, 'syncFinalizeExecution should no-op successfully when already stamped');
 
         // No DML should have occurred - verify state is unchanged
         AgentExecution__c unchanged = [
@@ -330,13 +333,54 @@ private class AgentStateServiceTest {
     }
 
     @IsTest
+    static void testSyncFinalizeExecution_PausesDurablyWhenRecoveryFails() {
+        AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
+        update new AgentExecution__c(
+            Id = execution.Id,
+            CurrentTurnIdentifier__c = 'old-turn-sync-finalize',
+            ExecutionStatus__c = 'Processing',
+            ProcessingStatus__c = AIAgentConstants.STATUS_PROCESSING
+        );
+
+        AgentStateService svc = new AgentStateService();
+        AgentStateService.forceSyncFinalizeExecutionFailure = true;
+
+        Boolean recovered;
+        try {
+            recovered = svc.syncFinalizeExecution(execution.Id, 'new-turn-sync-finalize', AIAgentConstants.STATUS_IDLE, '[Test] ');
+        } finally {
+            AgentStateService.forceSyncFinalizeExecutionFailure = false;
+        }
+
+        System.assertEquals(false, recovered, 'syncFinalizeExecution should signal failure when recovery breaks');
+
+        AgentExecution__c updated = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, CurrentTurnIdentifier__c, ErrorMessage__c, EndTime__c
+            FROM AgentExecution__c
+            WHERE Id = :execution.Id
+        ];
+        System.assertEquals(
+            AIAgentConstants.EXECUTION_STATUS_PAUSED,
+            updated.ExecutionStatus__c,
+            'Execution should be paused for operator review when sync recovery fails'
+        );
+        System.assertEquals(AIAgentConstants.STATUS_FAILED, updated.ProcessingStatus__c, 'Processing status should reflect failure');
+        System.assertEquals('old-turn-sync-finalize', updated.CurrentTurnIdentifier__c, 'Pause path should not stamp a new turn after failed recovery');
+        System.assert(
+            updated.ErrorMessage__c.contains(AIAgentConstants.OP_STATE_SYNC_FINALIZATION_FAILED),
+            'Error should include the operational state marker'
+        );
+        System.assertNotEquals(null, updated.EndTime__c, 'Pause path should stamp an end time');
+    }
+
+    @IsTest
     static void testIsContextTrackingEnabled_ByExecutionType() {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE DeveloperName__c LIKE 'StateSvc_Agent%' LIMIT 1];
 
         AgentExecution__c conversational = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-ctx-001')
             .save();
@@ -344,7 +388,7 @@ private class AgentStateServiceTest {
         AgentExecution__c functionExec = [
             SELECT Id
             FROM AgentExecution__c
-            WHERE ExecutionType__c = 'Function'
+            WHERE ExecutionType__c = 'SingleShot'
             LIMIT 1
         ];
 

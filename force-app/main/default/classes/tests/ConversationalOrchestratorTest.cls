@@ -1,5 +1,5 @@
 /**
- * @description Focused tests for ConversationalOrchestrator using shared TestFactory helpers
+ * @description Focused tests for ChatIterativeRuntimeService using shared TestFactory helpers
  */
 @IsTest
 private class ConversationalOrchestratorTest {
@@ -26,7 +26,7 @@ private class ConversationalOrchestratorTest {
             .withTriggerSource('UI')
             .build();
 
-        ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(agent);
+        ChatIterativeRuntimeService orchestrator = new ChatIterativeRuntimeService(agent);
 
         AgentExecutionService.ExecutionResult result = orchestrator.start(agent.DeveloperName__c, payload);
 
@@ -68,7 +68,7 @@ private class ConversationalOrchestratorTest {
 
         Test.setMock(HttpCalloutMock.class, MockHttpResponses.text('Summary complete.'));
 
-        ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(agent);
+        ChatIterativeRuntimeService orchestrator = new ChatIterativeRuntimeService(agent);
 
         Test.startTest();
         AgentExecutionService.ExecutionResult result = orchestrator.start(agent.DeveloperName__c, payload);
@@ -136,7 +136,7 @@ private class ConversationalOrchestratorTest {
 
         Test.setMock(HttpCalloutMock.class, MockHttpResponses.text('Got it.'));
 
-        ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(agent);
+        ChatIterativeRuntimeService orchestrator = new ChatIterativeRuntimeService(agent);
 
         Test.startTest();
         AgentExecutionService.ExecutionResult result = orchestrator.start(agent.DeveloperName__c, payload);
@@ -168,7 +168,7 @@ private class ConversationalOrchestratorTest {
             .withTriggerSource('UI')
             .build();
 
-        ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(agent);
+        ChatIterativeRuntimeService orchestrator = new ChatIterativeRuntimeService(agent);
 
         Boolean threw = false;
         try {
@@ -193,7 +193,7 @@ private class ConversationalOrchestratorTest {
             .withTriggerSource('UI')
             .build();
 
-        ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(agent);
+        ChatIterativeRuntimeService orchestrator = new ChatIterativeRuntimeService(agent);
 
         Boolean threw = false;
         try {
@@ -225,7 +225,7 @@ private class ConversationalOrchestratorTest {
             .withTriggerSource('UI')
             .build();
 
-        ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(agent);
+        ChatIterativeRuntimeService orchestrator = new ChatIterativeRuntimeService(agent);
 
         AgentExecutionService.ExecutionResult result = orchestrator.start(agent.DeveloperName__c, payload);
 
@@ -288,10 +288,10 @@ private class ConversationalOrchestratorTest {
 
         Test.setMock(HttpCalloutMock.class, MockHttpResponses.serverError());
 
-        ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(agent);
+        ChatIterativeRuntimeService orchestrator = new ChatIterativeRuntimeService(agent);
 
         Test.startTest();
-        AgentExecutionService.ExecutionResult result = orchestrator.resume(execution.Id, new BaseAgentOrchestrator.ResumeOptions().withRetryFailedTool(true));
+        AgentExecutionService.ExecutionResult result = orchestrator.resume(execution.Id, new ExecutionResumeModels.ResumeOptions().withRetryFailedTool(true));
         Test.stopTest();
 
         System.assertEquals(execution.Id, result.executionId, 'Resume should target the existing execution');
@@ -334,7 +334,7 @@ private class ConversationalOrchestratorTest {
             .withLlmResult(TestFactory.createLlmToolCallResult('Approval requested', new List<Map<String, String>>()))
             .build();
 
-        ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(agent);
+        ChatIterativeRuntimeService orchestrator = new ChatIterativeRuntimeService(agent);
         String outcome = orchestrator.evaluateToolOutcome(context, new List<ToolCallResponseHandler.ToolExecutionResult>{ result }, 'APPROVAL_REQUIRED');
 
         System.assertEquals(OrchestrationService.OUTCOME_COMPLETED, outcome, 'Approval-required outcome should complete the turn');
@@ -370,7 +370,7 @@ private class ConversationalOrchestratorTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withStatus('Failed')
             .withProcessingStatus(AIAgentConstants.STATUS_FAILED)
             .withSourceRecord(testCase.Id)
@@ -404,8 +404,8 @@ private class ConversationalOrchestratorTest {
         );
         insert toolResult;
 
-        ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(agent);
-        BaseAgentOrchestrator.ResumeOptions options = new BaseAgentOrchestrator.ResumeOptions().withRetryFailedTool(true).withReason('Retry failed tool');
+        ChatIterativeRuntimeService orchestrator = new ChatIterativeRuntimeService(agent);
+        ExecutionResumeModels.ResumeOptions options = new ExecutionResumeModels.ResumeOptions().withRetryFailedTool(true).withReason('Retry failed tool');
 
         AgentExecutionService.ExecutionResult result = orchestrator.resume(execution.Id, options);
 
@@ -441,7 +441,7 @@ private class ConversationalOrchestratorTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withStatus('Failed')
             .withProcessingStatus(AIAgentConstants.STATUS_FAILED)
             .withSourceRecord(sourceAccount.Id)
@@ -475,8 +475,8 @@ private class ConversationalOrchestratorTest {
         );
         insert toolResult;
 
-        ConversationalOrchestrator orchestrator = new ConversationalOrchestrator(agent);
-        BaseAgentOrchestrator.ResumeOptions options = new BaseAgentOrchestrator.ResumeOptions().withRetryFailedTool(true).withReason('Retry failed sync tool');
+        ChatIterativeRuntimeService orchestrator = new ChatIterativeRuntimeService(agent);
+        ExecutionResumeModels.ResumeOptions options = new ExecutionResumeModels.ResumeOptions().withRetryFailedTool(true).withReason('Retry failed sync tool');
 
         AgentExecutionService.ExecutionResult result = orchestrator.resume(execution.Id, options);
 
@@ -518,13 +518,13 @@ private class ConversationalOrchestratorTest {
         ];
 
         LLMConfiguration__c llm = [SELECT Id FROM LLMConfiguration__c LIMIT 1];
-        AIAgentDefinition__c agentB = TestFactory.newAgentDefinition().withName('CrossAgent_AgentB').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agentB = TestFactory.newAgentDefinition().withName('CrossAgent_AgentB').withType('Iterative').withLLM(llm.Id).save();
 
         // Create an Idle execution owned by the current user but bound to AgentA
         AgentExecution__c executionForAgentA = TestFactory.newExecution()
             .withAgent(agentA.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-cross-001')
@@ -539,7 +539,7 @@ private class ConversationalOrchestratorTest {
             .withTriggerSource('UI')
             .build();
 
-        ConversationalOrchestrator orchestratorB = new ConversationalOrchestrator(agentB);
+        ChatIterativeRuntimeService orchestratorB = new ChatIterativeRuntimeService(agentB);
 
         Boolean threw = false;
         try {

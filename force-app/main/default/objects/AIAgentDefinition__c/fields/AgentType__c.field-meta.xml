@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>AgentType__c</fullName>
-    <description>Defines the agent's purpose and execution pattern: Conversational (interactive chat), Function (synchronous one-shot tasks), Email. This determines which orchestrator and execution pattern is used.</description>
-    <inlineHelpText>Select the agent's primary purpose. This determines how executions are initiated and processed.</inlineHelpText>
-    <label>Agent Type</label>
+    <description>Defines the agent runtime strategy. Use Iterative for conversation-style runtimes and SingleShot for API or one-turn runtime flows. Multi-agent pipelines are modeled separately through PipelineDefinition__c.</description>
+    <inlineHelpText>Select the runtime strategy for this agent definition. Use pipeline metadata for composition workflows instead of creating Pipeline-type agents.</inlineHelpText>
+    <label>Runtime Strategy</label>
     <required>true</required>
     <trackTrending>false</trackTrending>
     <type>Picklist</type>
@@ -12,19 +12,14 @@
         <valueSetDefinition>
             <sorted>false</sorted>
             <value>
-                <fullName>Conversational</fullName>
+                <fullName>Iterative</fullName>
                 <default>true</default>
-                <label>Conversational</label>
+                <label>Iterative</label>
             </value>
             <value>
-                <fullName>Function</fullName>
+                <fullName>SingleShot</fullName>
                 <default>false</default>
-                <label>Function</label>
-            </value>
-            <value>
-                <fullName>Email</fullName>
-                <default>false</default>
-                <label>Email</label>
+                <label>Single Shot</label>
             </value>
         </valueSetDefinition>
     </valueSet>

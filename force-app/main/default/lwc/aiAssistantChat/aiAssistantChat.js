@@ -34,7 +34,7 @@ import startOverFromMessage from '@salesforce/apex/ConversationalChatController.
 
 export default class AiAssistantChat extends LightningElement {
     /**
-     * The recordId context for the chat session (optional).
+     * The recordId context for the chat execution (optional).
      * @type {string}
      */
     @api recordId;
@@ -62,7 +62,7 @@ export default class AiAssistantChat extends LightningElement {
     // --- State ---
     chatMessages = [];
     userMessageInput = '';
-    currentSessionId = null;
+    currentExecutionId = null;
     criticalError = null;
     loadingState = { initial: true, history: false, sending: false, loadingMore: false };
 
@@ -146,7 +146,7 @@ export default class AiAssistantChat extends LightningElement {
                 loadingManager: this._loadingManager,
                 eventManager: this._eventManager,
                 onMessagesUpdated: (messages) => this._handleMessagesUpdated(messages),
-                onSessionChanged: (sessionId) => this._handleSessionChanged(sessionId)
+                onExecutionChanged: (executionId) => this._handleExecutionChanged(executionId)
             });
         } catch (error) {
             // Log with context for troubleshooting
@@ -200,7 +200,7 @@ export default class AiAssistantChat extends LightningElement {
     }
 
     /**
-     * Initializes the chat session (restores or creates new as needed).
+     * Initializes the chat execution (restores or creates new as needed).
      * @private
      */
     async _initializeChat() {
@@ -228,12 +228,12 @@ export default class AiAssistantChat extends LightningElement {
     }
 
     /**
-     * Updates the current session ID when the session changes.
-     * @param {string} sessionId
+     * Updates the current execution ID when the execution changes.
+     * @param {string} executionId
      * @private
      */
-    _handleSessionChanged(sessionId) {
-        this.currentSessionId = sessionId;
+    _handleExecutionChanged(executionId) {
+        this.currentExecutionId = executionId;
     }
 
     /**
@@ -252,7 +252,7 @@ export default class AiAssistantChat extends LightningElement {
      */
     _handleTransientMessage(response) {
         const payload = response?.data?.payload;
-        if (payload && payload.AgentExecutionId__c === this.currentSessionId) {
+        if (payload && payload.AgentExecutionId__c === this.currentExecutionId) {
             this._sessionManager.addTransientAssistantMessage(payload.MessageContent__c, payload.MessageId__c);
         }
     }
@@ -476,7 +476,7 @@ export default class AiAssistantChat extends LightningElement {
      * Returns true if the input should be disabled (e.g., loading, no session, or error).
      */
     get isInputDisabled() {
-        return this.loadingState.sending || !this.currentSessionId || !!this.criticalError;
+        return this.loadingState.sending || !this.currentExecutionId || !!this.criticalError;
     }
 
     /**
@@ -522,9 +522,9 @@ export default class AiAssistantChat extends LightningElement {
 
         this._loadingManager.setLoading('sending', true);
         try {
-            console.log('[handleStartOverClick] Calling startOverFromMessage with sessionId:', this.currentSessionId, 'turnIdentifier:', turnIdentifier);
+            console.log('[handleStartOverClick] Calling startOverFromMessage with executionId:', this.currentExecutionId, 'turnIdentifier:', turnIdentifier);
             await startOverFromMessage({
-                sessionId: this.currentSessionId,
+                executionId: this.currentExecutionId,
                 turnIdentifier: turnIdentifier
             });
             console.log('[handleStartOverClick] Successfully deleted messages. Reloading history...');
@@ -569,7 +569,7 @@ export default class AiAssistantChat extends LightningElement {
         if (this.loadingState.sending) {
             return 'Sending message...';
         }
-        if (!this.currentSessionId) {
+        if (!this.currentExecutionId) {
             return 'Initializing chat...';
         }
         return 'Type your message...';
@@ -585,7 +585,7 @@ export default class AiAssistantChat extends LightningElement {
         if (this.loadingState.sending) {
             return 'Sending message...';
         }
-        if (!this.currentSessionId) {
+        if (!this.currentExecutionId) {
             return 'Initializing...';
         }
         return 'Send message (Enter)';

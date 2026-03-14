@@ -62,6 +62,9 @@ public with sharing class AgentExecutionDispatcher {
             } catch (AIAgentConfigService.ConfigurationException e) {
                 throw new AgentExecutionException('Agent definition not found or inactive: ' + agentName + '. ' + e.getMessage());
             }
+            String runtimeChannel = String.isNotBlank(payload.interactionChannel)
+                ? payload.interactionChannel
+                : RuntimeRegistryService.getInteractionChannel(agentDef, null);
 
             // Generate batch ID for correlation
             String batchId = generateBatchId();
@@ -78,7 +81,7 @@ public with sharing class AgentExecutionDispatcher {
 
             // For Function agents, pre-mark the pre-assigned executions as Processing
             // so workers can call out without a deferral queueable.
-            if (workerCount > 0 && agentDef.AgentType__c == 'Function') {
+            if (workerCount > 0 && RuntimeRegistryService.getTraits(agentDef, runtimeChannel).requiresCleanPreCalloutTransaction == true) {
                 markPreAssignedProcessing(executions, workerCount, logPrefix);
             }
 
@@ -155,7 +158,7 @@ public with sharing class AgentExecutionDispatcher {
 
         update updates;
 
-        System.debug(LoggingLevel.INFO, logPrefix + 'Pre-marked ' + cappedCount + ' execution(s) as Processing for function agent workers');
+        System.debug(LoggingLevel.INFO, logPrefix + 'Pre-marked ' + cappedCount + ' execution(s) as Processing for single-shot worker dispatch');
     }
 
     /**
@@ -173,6 +176,9 @@ public with sharing class AgentExecutionDispatcher {
         String logPrefix
     ) {
         List<AgentExecution__c> executions = new List<AgentExecution__c>();
+        String interactionChannel = String.isNotBlank(payload.interactionChannel)
+            ? payload.interactionChannel
+            : RuntimeRegistryService.getInteractionChannel(agentDef, null);
 
         // Get priority from payload (default 0)
         Integer priority = payload.priority != null ? payload.priority : 0;
@@ -186,6 +192,7 @@ public with sharing class AgentExecutionDispatcher {
                     AIAgentDefinition__c = agentDef.Id,
                     User__c = payload.userId,
                     ExecutionType__c = agentDef.AgentType__c,
+                    InteractionChannel__c = interactionChannel,
                     TriggerSource__c = payload.triggerSource != null ? payload.triggerSource : 'Apex',
                     TriggerPayload__c = payload.triggerPayload,
                     CurrentTurnIdentifier__c = UUID.randomUUID().toString(),
@@ -228,6 +235,7 @@ public with sharing class AgentExecutionDispatcher {
         workerPayload.existingExecutionId = execution.Id;
         workerPayload.turnIdentifier = execution.CurrentTurnIdentifier__c;
         workerPayload.claimToken = execution.WorkerClaimToken__c;
+        workerPayload.interactionChannel = execution.InteractionChannel__c;
         return workerPayload;
     }
 

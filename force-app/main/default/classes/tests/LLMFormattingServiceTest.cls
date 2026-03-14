@@ -204,10 +204,10 @@ private class LLMFormattingServiceTest {
 
     @IsTest
     static void testFormatSteps_NullOrEmpty_ReturnsEmptyList() {
-        List<Map<String, Object>> result1 = LLMFormattingService.formatStepsForApi(null, null, null);
+        List<Map<String, Object>> result1 = LLMFormattingService.formatStepsForApi(null, null, null, false);
         System.assertEquals(0, result1.size(), 'Null steps should return empty');
 
-        List<Map<String, Object>> result2 = LLMFormattingService.formatStepsForApi(new List<ExecutionStep__c>(), null, null);
+        List<Map<String, Object>> result2 = LLMFormattingService.formatStepsForApi(new List<ExecutionStep__c>(), null, null, false);
         System.assertEquals(0, result2.size(), 'Empty steps should return empty');
     }
 
@@ -248,7 +248,7 @@ private class LLMFormattingServiceTest {
             new ExecutionStep__c(StepType__c = 'AgentResponse', StepRole__c = 'Assistant', Content__c = 'Done', TurnIdentifier__c = 'turn-1')
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         System.assertEquals(5, messages.size(), 'Expected user + grouped tool calls + 2 tool results + assistant');
         System.assertEquals('user', messages[0].get('role'));
@@ -276,7 +276,7 @@ private class LLMFormattingServiceTest {
             new ExecutionStep__c(StepType__c = 'AgentResponse', StepRole__c = 'Assistant', Content__c = 'Reply', TurnIdentifier__c = 'turn-1')
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         System.assertEquals(1, messages.size(), 'Blank UserInput should be skipped');
         System.assertEquals('assistant', messages[0].get('role'));
@@ -289,7 +289,7 @@ private class LLMFormattingServiceTest {
             new ExecutionStep__c(StepType__c = 'AgentResponse', StepRole__c = 'Assistant', Content__c = '', TurnIdentifier__c = 'turn-1')
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         System.assertEquals(1, messages.size(), 'Blank AgentResponse should be skipped');
     }
@@ -308,7 +308,7 @@ private class LLMFormattingServiceTest {
             new ExecutionStep__c(StepType__c = 'ToolResult', StepRole__c = 'Tool', ToolCallId__c = 'call-1', ToolResult__c = '', TurnIdentifier__c = 'turn-1')
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         // Grouped tool call message + no tool result (blank)
         Boolean hasToolResult = false;
@@ -334,7 +334,7 @@ private class LLMFormattingServiceTest {
             )
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         // This goes through formatSingleStep (not grouped because it's alone)
         // Actually - this step has StepRole=Assistant and StepType=ToolCall, so it enters the grouping loop
@@ -366,7 +366,7 @@ private class LLMFormattingServiceTest {
             )
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         System.assertEquals(0, messages.size(), 'Incomplete tool call with blank content should be skipped');
     }
@@ -377,7 +377,7 @@ private class LLMFormattingServiceTest {
             new ExecutionStep__c(StepType__c = 'UserInput', StepRole__c = 'Email', Content__c = 'Email body text', TurnIdentifier__c = 'turn-1')
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         System.assertEquals(1, messages.size());
         System.assertEquals('user', messages[0].get('role'), 'Email role should map to user');
@@ -389,7 +389,7 @@ private class LLMFormattingServiceTest {
             new ExecutionStep__c(StepType__c = 'UserInput', StepRole__c = 'CustomRole', Content__c = 'Something', TurnIdentifier__c = 'turn-1')
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         System.assertEquals(0, messages.size(), 'Unknown role should be skipped');
     }
@@ -400,7 +400,7 @@ private class LLMFormattingServiceTest {
             new ExecutionStep__c(StepType__c = 'UserInput', StepRole__c = '', Content__c = 'Something', TurnIdentifier__c = 'turn-1')
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         System.assertEquals(0, messages.size(), 'Blank role should be skipped');
     }
@@ -417,7 +417,7 @@ private class LLMFormattingServiceTest {
             )
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         System.assertEquals(1, messages.size());
         System.assertEquals('call-abc', messages[0].get('tool_call_id'));
@@ -430,7 +430,7 @@ private class LLMFormattingServiceTest {
             new ExecutionStep__c(StepType__c = 'SystemNote', StepRole__c = 'System', Content__c = 'Internal note', TurnIdentifier__c = 'turn-1')
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         System.assertEquals(1, messages.size());
         System.assertEquals('system', messages[0].get('role'));
@@ -443,7 +443,7 @@ private class LLMFormattingServiceTest {
             new ExecutionStep__c(StepType__c = 'SystemNote', StepRole__c = 'System', Content__c = '', TurnIdentifier__c = 'turn-1')
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         System.assertEquals(0, messages.size(), 'Unknown step type with blank content should be skipped');
     }
@@ -462,7 +462,7 @@ private class LLMFormattingServiceTest {
             )
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         System.assertEquals(1, messages.size());
         System.assertEquals('Let me help', messages[0].get('content'), 'Content from first tool call step should be included');
@@ -494,7 +494,7 @@ private class LLMFormattingServiceTest {
             new ExecutionStep__c(StepType__c = 'AgentResponse', StepRole__c = 'Assistant', Content__c = 'Done!', TurnIdentifier__c = 'turn-2')
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         // Verify tool_call comes before tool result
         Integer toolCallIdx = -1;
@@ -517,7 +517,7 @@ private class LLMFormattingServiceTest {
             new ExecutionStep__c(StepType__c = 'UserInput', StepRole__c = 'User', Content__c = 'Hello', TurnIdentifier__c = 'turn-1')
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null);
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, null, false);
 
         System.assertEquals(1, messages.size());
         System.assertEquals('user', messages[0].get('role'));
@@ -528,7 +528,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_InjectsRationaleAndNextStep() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent').withType('SingleShot').withLLM(llm.Id).save();
         agent.EnableToolReasoning__c = true;
         agent.EnableNextStepSuggestion__c = true;
         update agent;
@@ -553,7 +553,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_HitlConfirmation_AppendsDescriptionSuffix() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM HITL').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_HITL').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_HITL').withType('Iterative').withLLM(llm.Id).save();
 
         TestFactory.newCapability()
             .withAgent(agent.Id)
@@ -572,7 +572,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_HitlConfirmation_SkipsSuffixIfAlreadyPresent() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM HITL Skip').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_HITL_Skip').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_HITL_Skip').withType('Iterative').withLLM(llm.Id).save();
 
         TestFactory.newCapability()
             .withAgent(agent.Id)
@@ -593,7 +593,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_ConditionalApproval_InjectsApprovalAndConfidenceParams() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM Cond').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Cond').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Cond').withType('SingleShot').withLLM(llm.Id).save();
         agent.EnableToolReasoning__c = true;
         agent.EnableConfidenceTracking__c = true;
         update agent;
@@ -614,7 +614,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_AgentLevelConfidenceTracking_InjectsConfidenceOnAllTools() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Conf Track LLM').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Conf_Track_Agent').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Conf_Track_Agent').withType('SingleShot').withLLM(llm.Id).save();
         agent.EnableConfidenceTracking__c = true;
         update agent;
 
@@ -638,7 +638,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_ConfidenceTrackingDisabled_DoesNotInjectConfidence() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('No Conf LLM').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('No_Conf_Agent').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('No_Conf_Agent').withType('SingleShot').withLLM(llm.Id).save();
 
         TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').save();
 
@@ -654,7 +654,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_NoExternalCapabilities_ReturnsEmptyList() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM None').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_None').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_None').withType('SingleShot').withLLM(llm.Id).save();
 
         // No capabilities created for this agent
         List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, 'test-none');
@@ -665,7 +665,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_SchemaMissingTypeAndProperties_AutoFixed() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM Fix').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Fix').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Fix').withType('SingleShot').withLLM(llm.Id).save();
 
         AgentCapability__c cap = TestFactory.newCapability()
             .withAgent(agent.Id)
@@ -690,7 +690,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_TwoArgOverload_DelegatesToFourArg() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM 2arg').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_2arg').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_2arg').withType('SingleShot').withLLM(llm.Id).save();
 
         TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').save();
 
@@ -785,7 +785,7 @@ private class LLMFormattingServiceTest {
             new ExecutionStep__c(StepType__c = 'AgentResponse', StepRole__c = 'Assistant', Content__c = 'Account created!', TurnIdentifier__c = 'turn-2')
         };
 
-        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, '[test] ');
+        List<Map<String, Object>> messages = LLMFormattingService.formatStepsForApi(steps, null, '[test] ', false);
 
         System.assertEquals(6, messages.size(), 'Should have 6 messages: 2 user + 2 assistant + 1 tool call + 1 tool result');
 
@@ -803,7 +803,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_EnrichesSchemaWithFieldMetadata() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM Enrich').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Enrich').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Enrich').withType('SingleShot').withLLM(llm.Id).save();
 
         // Create a capability for Account with recordData property that contains field names
         AgentCapability__c cap = TestFactory.newCapability()
@@ -854,8 +854,8 @@ private class LLMFormattingServiceTest {
 
     @IsTest
     static void testBuildConfidenceInstructions_DisabledTracking_ReturnsNull() {
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', EnableConfidenceTracking__c = false, MinConfidenceThreshold__c = 50);
-        String result = LLMInteractionService.buildConfidenceInstructions(agent, '[Test] ');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'SingleShot', EnableConfidenceTracking__c = false, MinConfidenceThreshold__c = 50);
+        String result = LLMInteractionService.buildConfidenceInstructions(agent, null, '[Test] ');
         System.assertEquals(null, result, 'Should return null when confidence tracking is disabled');
     }
 
@@ -864,16 +864,20 @@ private class LLMFormattingServiceTest {
         // Tracking-only mode (no enforcement threshold) should still inject confidence guidance
         // so the LLM knows to provide scores. MinConfidenceThreshold__c only gates blocking,
         // not whether guidance is sent.
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', EnableConfidenceTracking__c = true, MinConfidenceThreshold__c = null);
-        String result = LLMInteractionService.buildConfidenceInstructions(agent, '[Test] ');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(
+            AgentType__c = 'SingleShot',
+            EnableConfidenceTracking__c = true,
+            MinConfidenceThreshold__c = null
+        );
+        String result = LLMInteractionService.buildConfidenceInstructions(agent, null, '[Test] ');
         System.assertNotEquals(null, result, 'Should still inject guidance when tracking is enabled but no threshold is set');
         System.assert(result.contains('lookup or search'), 'Function agent guidance should mention lookup tools even without a threshold');
     }
 
     @IsTest
     static void testBuildConfidenceInstructions_FunctionAgent_UsesLookupGuidance() {
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Function', EnableConfidenceTracking__c = true, MinConfidenceThreshold__c = 60);
-        String result = LLMInteractionService.buildConfidenceInstructions(agent, '[Test] ');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'SingleShot', EnableConfidenceTracking__c = true, MinConfidenceThreshold__c = 60);
+        String result = LLMInteractionService.buildConfidenceInstructions(agent, null, '[Test] ');
         System.assertNotEquals(null, result, 'Should return instructions for Function agent');
         System.assert(result.contains('lookup or search'), 'Function agent guidance should mention lookup tools');
         System.assert(!result.contains('60'), 'Threshold value must not be exposed in instructions — prevents LLM gaming');
@@ -881,12 +885,8 @@ private class LLMFormattingServiceTest {
 
     @IsTest
     static void testBuildConfidenceInstructions_ConversationalAgent_UsesAskUserGuidance() {
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(
-            AgentType__c = 'Conversational',
-            EnableConfidenceTracking__c = true,
-            MinConfidenceThreshold__c = 50
-        );
-        String result = LLMInteractionService.buildConfidenceInstructions(agent, '[Test] ');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Iterative', EnableConfidenceTracking__c = true, MinConfidenceThreshold__c = 50);
+        String result = LLMInteractionService.buildConfidenceInstructions(agent, null, '[Test] ');
         System.assertNotEquals(null, result, 'Should return instructions for Conversational agent');
         System.assert(result.containsIgnoreCase('ask the user'), 'Conversational guidance should instruct LLM to ask user');
         System.assert(!result.contains('50'), 'Threshold value must not be exposed in instructions — prevents LLM gaming');
@@ -894,8 +894,21 @@ private class LLMFormattingServiceTest {
 
     @IsTest
     static void testBuildConfidenceInstructions_EmailAgent_UsesEmailReplyGuidance() {
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Email', EnableConfidenceTracking__c = true, MinConfidenceThreshold__c = 70);
-        String result = LLMInteractionService.buildConfidenceInstructions(agent, '[Test] ');
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition()
+            .withName('Confidence_Email_Agent')
+            .withType('Iterative')
+            .withLLM(TestFactory.newLLMConfiguration().save().Id)
+            .save();
+        update new AIAgentDefinition__c(Id = agent.Id, EnableConfidenceTracking__c = true, MinConfidenceThreshold__c = 70);
+
+        AgentExecution__c execution = TestFactory.newExecution().withAgent(agent.Id).withUser(UserInfo.getUserId()).withExecutionType('Iterative').save();
+        update new AgentExecution__c(Id = execution.Id, InteractionChannel__c = RuntimeRegistryService.CHANNEL_EMAIL);
+
+        String result = LLMInteractionService.buildConfidenceInstructions(
+            [SELECT Id, AgentType__c, EnableConfidenceTracking__c, MinConfidenceThreshold__c FROM AIAgentDefinition__c WHERE Id = :agent.Id],
+            execution.Id,
+            '[Test] '
+        );
         System.assertNotEquals(null, result, 'Should return instructions for Email agent');
         System.assert(result.containsIgnoreCase('email reply'), 'Email guidance should mention email reply');
         System.assert(!result.contains('70'), 'Threshold value must not be exposed in instructions — prevents LLM gaming');

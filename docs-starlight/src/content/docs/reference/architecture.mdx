@@ -7,27 +7,27 @@ import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/
 
 # Architecture Overview
 
-AI Agent Studio combines multiple agent patterns, workflow controls, trust layers, and observability into a single Salesforce-native framework. This page focuses on the capabilities users get from the framework rather than the internal implementation details.
+AI Agent Studio combines execution strategies, interaction channels, workflow controls, trust layers, and observability into a single Salesforce-native framework. This page focuses on the capabilities users get from the framework rather than the internal implementation details.
 
 <Aside type="note" title="Scope">
 This page is intentionally feature-focused. It avoids internal class-level and object-level implementation detail while still describing the full functionality available in the framework experience.
 </Aside>
 
 <Aside type="note" title="Core vs Addons">
-The open-source core runtime is centered on conversational agents. Function agents, email agents, sequential pipelines, and several specialized UIs are available only when addon metadata and orchestrator mappings are deployed.
+The open-source runtime is strategy- and channel-aware. Addons extend the framework with additional UI, pipeline tooling, and provider/action implementations.
 </Aside>
 
 ## Agent Patterns
 
 <CardGrid>
-  <Card title="Conversational Agents" icon="chat">
-    Multi-turn assistants for support, sales, service, and record-aware conversations. These agents combine memory, tools, approvals, and rich context to help users over time instead of in a single response.
+  <Card title="Iterative Strategy" icon="chat">
+    Multi-turn assistants for support, sales, service, and record-aware conversations. The same strategy can run across chat, email, and future messaging channels.
   </Card>
-  <Card title="Function Agents" icon="seti:gear">
-    Focused agents for targeted jobs such as enrichment, classification, routing, scoring, and guided business actions where the user wants a fast, purpose-built result.
+  <Card title="SingleShot Strategy" icon="seti:gear">
+    Focused executions for targeted jobs such as enrichment, classification, routing, scoring, and guided business actions where the user wants a fast, purpose-built result.
   </Card>
-  <Card title="Email Agents" icon="seti:mail">
-    Email-native workflows for triage, draft generation, routing, follow-up, and customer communication, all governed by the same trust and audit controls as other agent experiences.
+  <Card title="Channel Adapters" icon="seti:mail">
+    Channel-native workflows for triage, draft generation, routing, follow-up, and customer communication, all governed by the same trust and audit controls as other agent experiences.
   </Card>
   <Card title="Sequential Pipelines" icon="seti:graph-line">
     Fixed multi-agent workflows for predictable business processes where each stage has a clear responsibility and output.
@@ -43,7 +43,7 @@ The open-source core runtime is centered on conversational agents. Function agen
 
 1. **Request Intake**
 
-   Requests can originate from chat, automation, APIs, email scenarios, or higher-level workflow compositions. The framework routes each request into the right execution pattern.
+   Requests can originate from chat, automation, APIs, email scenarios, or higher-level workflow compositions. The framework resolves both execution strategy and interaction channel before starting work.
 
 2. **Prompt and Context Preparation**
 
@@ -159,8 +159,8 @@ Review and analyze what happened:
   <Card title="Memory Strategies" icon="seti:text">
     Tune how history is retained, summarized, and reused in longer-running interactions.
   </Card>
-  <Card title="Orchestrators" icon="seti:settings">
-    Add new execution patterns when your business process needs a different style of agent behavior.
+  <Card title="Strategies and Channels" icon="seti:settings">
+    Add new execution strategies or interaction channels when your business process needs a different runtime style or delivery surface.
   </Card>
 </CardGrid>
 

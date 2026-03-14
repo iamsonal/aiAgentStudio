@@ -13,14 +13,14 @@ private class LLMInteractionServiceTest {
 
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('LLMInt LLM').save();
 
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('LLMInt_Agent').withLLM(llm.Id).withType('Conversational').save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('LLMInt_Agent').withLLM(llm.Id).withType('Iterative').save();
 
         TestFactory.newCapability().withAgent(agent.Id).forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' }).withName('llm_get_case').save();
 
         TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withTurnIdentifier('turn-llm-setup')
             .save();
 

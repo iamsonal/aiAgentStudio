@@ -20,7 +20,7 @@ private class CapabilityExecutionServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(agentDefinitionId)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier(turnIdentifier)
@@ -36,7 +36,7 @@ private class CapabilityExecutionServiceTest {
             null,
             turnIdentifier,
             1,
-            'Function'
+            'SingleShot'
         );
     }
 
@@ -52,7 +52,7 @@ private class CapabilityExecutionServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(capability.AIAgentDefinition__c)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-cap-001')
@@ -68,7 +68,7 @@ private class CapabilityExecutionServiceTest {
             null,
             'turn-cap-001',
             1,
-            'Function'
+            'SingleShot'
         );
 
         CapabilityExecutionService service = new CapabilityExecutionService();
@@ -126,7 +126,7 @@ private class CapabilityExecutionServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(capability.AIAgentDefinition__c)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-cap-002')
@@ -142,7 +142,7 @@ private class CapabilityExecutionServiceTest {
             null,
             'turn-cap-002',
             1,
-            'Function'
+            'SingleShot'
         );
 
         CapabilityExecutionService service = new CapabilityExecutionService();
@@ -167,7 +167,7 @@ private class CapabilityExecutionServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-cap-003')
@@ -183,7 +183,7 @@ private class CapabilityExecutionServiceTest {
             null,
             'turn-cap-003',
             1,
-            'Function'
+            'SingleShot'
         );
 
         CapabilityExecutionService service = new CapabilityExecutionService();
@@ -212,7 +212,7 @@ private class CapabilityExecutionServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-null-args')
@@ -228,7 +228,7 @@ private class CapabilityExecutionServiceTest {
             null,
             'turn-null-args',
             1,
-            'Function'
+            'SingleShot'
         );
 
         CapabilityExecutionService service = new CapabilityExecutionService();
@@ -251,7 +251,7 @@ private class CapabilityExecutionServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-empty-args')
@@ -267,7 +267,7 @@ private class CapabilityExecutionServiceTest {
             null,
             'turn-empty-args',
             1,
-            'Function'
+            'SingleShot'
         );
 
         CapabilityExecutionService service = new CapabilityExecutionService();
@@ -401,7 +401,7 @@ private class CapabilityExecutionServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-std-missing')
@@ -417,7 +417,7 @@ private class CapabilityExecutionServiceTest {
             null,
             'turn-std-missing',
             1,
-            'Function'
+            'SingleShot'
         );
 
         CapabilityExecutionService service = new CapabilityExecutionService();
@@ -449,7 +449,7 @@ private class CapabilityExecutionServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-apex-missing')
@@ -465,7 +465,7 @@ private class CapabilityExecutionServiceTest {
             null,
             'turn-apex-missing',
             1,
-            'Function'
+            'SingleShot'
         );
 
         CapabilityExecutionService service = new CapabilityExecutionService();
@@ -495,7 +495,7 @@ private class CapabilityExecutionServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-flow-missing')
@@ -511,7 +511,7 @@ private class CapabilityExecutionServiceTest {
             null,
             'turn-flow-missing',
             1,
-            'Function'
+            'SingleShot'
         );
 
         CapabilityExecutionService service = new CapabilityExecutionService();
@@ -540,7 +540,7 @@ private class CapabilityExecutionServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-handler-notfound')
@@ -556,7 +556,7 @@ private class CapabilityExecutionServiceTest {
             null,
             'turn-handler-notfound',
             1,
-            'Function'
+            'SingleShot'
         );
 
         CapabilityExecutionService service = new CapabilityExecutionService();
@@ -595,7 +595,7 @@ private class CapabilityExecutionServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(capability.AIAgentDefinition__c)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-cache-init')
@@ -611,7 +611,7 @@ private class CapabilityExecutionServiceTest {
             null,
             'turn-cache-init',
             1,
-            'Function'
+            'SingleShot'
         );
 
         CapabilityExecutionService service = new CapabilityExecutionService();
@@ -642,7 +642,7 @@ private class CapabilityExecutionServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-flow-exec')
@@ -658,7 +658,7 @@ private class CapabilityExecutionServiceTest {
             'TestFlow', // implementationDetail - Flow API name
             'turn-flow-exec',
             1,
-            'Function'
+            'SingleShot'
         );
 
         // Set up flow mock for ActionFlowHandler
@@ -697,7 +697,7 @@ private class CapabilityExecutionServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-flow-no-detail')
@@ -713,7 +713,7 @@ private class CapabilityExecutionServiceTest {
             null,
             'turn-flow-no-detail',
             1,
-            'Function'
+            'SingleShot'
         );
 
         CapabilityExecutionService service = new CapabilityExecutionService();

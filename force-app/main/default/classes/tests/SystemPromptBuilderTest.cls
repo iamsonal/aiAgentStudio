@@ -26,7 +26,7 @@ private class SystemPromptBuilderTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             ConversationSummary__c = 'Prior summary'
@@ -57,7 +57,7 @@ private class SystemPromptBuilderTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE
         );
@@ -99,7 +99,7 @@ private class SystemPromptBuilderTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE
         );
@@ -358,7 +358,7 @@ private class SystemPromptBuilderTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE
         );
@@ -378,7 +378,7 @@ private class SystemPromptBuilderTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE
         );
@@ -437,7 +437,7 @@ private class SystemPromptBuilderTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE
         );

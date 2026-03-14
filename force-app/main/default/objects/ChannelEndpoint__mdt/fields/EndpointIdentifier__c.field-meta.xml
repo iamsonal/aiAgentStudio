@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EndpointIdentifier__c</fullName>
+    <description>Channel-native identifier used to match inbound traffic to this endpoint, such as an email address, phone number, or webhook target.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enter the exact inbound identifier the runtime should match, for example a support inbox address or messaging number.</inlineHelpText>
+    <label>Endpoint Identifier</label>
+    <length>255</length>
+    <required>true</required>
+    <type>Text</type>
+</CustomField>

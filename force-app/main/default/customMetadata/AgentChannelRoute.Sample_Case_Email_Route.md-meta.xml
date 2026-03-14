@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Sample Case Email Route</label>
+    <protected>false</protected>
+    <values>
+        <field>AgentDeveloperName__c</field>
+        <value xsi:type="xsd:string">Sample_Route_Target_Agent</value>
+    </values>
+    <values>
+        <field>ChannelEndpoint__c</field>
+        <value xsi:type="xsd:string">Sample_Email_Inbound_Route</value>
+    </values>
+    <values>
+        <field>DefaultDeliveryMode__c</field>
+        <value xsi:type="xsd:string">Review Before Send</value>
+    </values>
+    <values>
+        <field>EntryObjectType__c</field>
+        <value xsi:type="xsd:string">Case</value>
+    </values>
+    <values>
+        <field>IsActive__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>Priority__c</field>
+        <value xsi:type="xsd:double">10</value>
+    </values>
+    <values>
+        <field>SessionPolicy__c</field>
+        <value xsi:type="xsd:string">Sample_Route_Session</value>
+    </values>
+</CustomMetadata>
