@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InactivityTtlHours__c</fullName>
+    <description>Maximum inactivity window, in hours, before the runtime starts a new interaction session or conversation cycle.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enter the number of inactive hours allowed before a new session should start. Leave blank to disable TTL-based rollover.</inlineHelpText>
+    <label>Inactivity TTL Hours</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <type>Number</type>
+</CustomField>

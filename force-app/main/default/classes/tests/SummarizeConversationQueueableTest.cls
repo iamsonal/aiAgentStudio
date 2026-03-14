@@ -11,7 +11,7 @@ private class SummarizeConversationQueueableTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agentId,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = status,
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'

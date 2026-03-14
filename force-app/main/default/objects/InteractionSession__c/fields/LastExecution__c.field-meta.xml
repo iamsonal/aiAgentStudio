@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>LastExecution__c</fullName>
+    <description>Most recent AgentExecution__c record associated with this durable interaction session.</description>
+    <inlineHelpText>Points to the last execution that processed work for this conversation so operators can jump to the latest runtime record.</inlineHelpText>
+    <label>Last Execution</label>
+    <referenceTo>AgentExecution__c</referenceTo>
+    <relationshipLabel>Interaction Sessions</relationshipLabel>
+    <relationshipName>InteractionSessions</relationshipName>
+    <required>false</required>
+    <type>Lookup</type>
+</CustomField>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Channel__c</fullName>
+    <description>Interaction channel represented by this endpoint record, such as Email, Chat, or API.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Select which runtime channel this endpoint belongs to. Route resolution only considers endpoints for the matching channel.</inlineHelpText>
+    <label>Channel</label>
+    <required>true</required>
+    <type>Picklist</type>
+    <unique>false</unique>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Email</fullName>
+                <default>false</default>
+                <label>Email</label>
+            </value>
+            <value>
+                <fullName>Chat</fullName>
+                <default>true</default>
+                <label>Chat</label>
+            </value>
+            <value>
+                <fullName>API</fullName>
+                <default>false</default>
+                <label>API</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

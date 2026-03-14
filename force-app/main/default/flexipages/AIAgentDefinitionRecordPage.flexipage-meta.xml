@@ -189,16 +189,6 @@
     <flexiPageRegions>
         <itemInstances>
             <componentInstance>
-                <componentName>toolFlowGraphEditor</componentName>
-                <identifier>c_toolFlowGraphEditor</identifier>
-            </componentInstance>
-        </itemInstances>
-        <name>Facet-787b4cf8-5c9e-4c0c-8982-3b232b90955f</name>
-        <type>Facet</type>
-    </flexiPageRegions>
-    <flexiPageRegions>
-        <itemInstances>
-            <componentInstance>
                 <componentInstanceProperties>
                     <name>active</name>
                     <value>true</value>
@@ -231,27 +221,6 @@
                 </componentInstanceProperties>
                 <componentName>flexipage:tab</componentName>
                 <identifier>flexipage_tab</identifier>
-            </componentInstance>
-        </itemInstances>
-        <itemInstances>
-            <componentInstance>
-                <componentInstanceProperties>
-                    <name>body</name>
-                    <value>Facet-787b4cf8-5c9e-4c0c-8982-3b232b90955f</value>
-                </componentInstanceProperties>
-                <componentInstanceProperties>
-                    <name>title</name>
-                    <value>Tool Flow Graph</value>
-                </componentInstanceProperties>
-                <componentName>flexipage:tab</componentName>
-                <identifier>flexipage_tab3</identifier>
-                <visibilityRule>
-                    <criteria>
-                        <leftValue>{!Record.EnableToolFlowGraph__c}</leftValue>
-                        <operator>EQUAL</operator>
-                        <rightValue>true</rightValue>
-                    </criteria>
-                </visibilityRule>
             </componentInstance>
         </itemInstances>
         <name>Facet-7ebc2f8b-4a5e-4c74-87f6-5b13be7dba8b</name>

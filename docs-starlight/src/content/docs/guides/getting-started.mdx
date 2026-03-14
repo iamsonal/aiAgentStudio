@@ -194,12 +194,12 @@ LLM Configurations define how to connect to your AI provider.
 |:------|:------|
 | Name | `Sales Assistant` |
 | Developer Name | `Sales_Assistant` |
-| Agent Type | `Conversational` |
+| Agent Type | `Iterative` |
 | LLM Configuration | `OpenAI_GPT4o` |
 | Is Active | ✓ |
 
 <Aside type="note" title="Core Runtime Scope">
-The open-source core runtime documented here is centered on conversational agents. Function, Email, and pipeline-style orchestrators are available only when addon metadata and mappings are deployed.
+The runtime documented here uses execution strategies. Start with `Iterative` for multi-turn experiences, use `SingleShot` for one-turn automations, and `Pipeline` for sequential orchestration. Channel behavior such as email delivery is configured separately.
 </Aside>
 
 4. Configure memory settings:

@@ -48,7 +48,7 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void testProcessMessage_MissingTurnIdentifier_ReturnsBadRequest() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Rest LLM').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent').withType('SingleShot').withLLM(llm.Id).save();
 
         RestRequest req = new RestRequest();
         RestResponse res = new RestResponse();
@@ -73,9 +73,40 @@ private class AIAgentRestServiceTest {
     }
 
     @IsTest
+    static void testProcessMessage_RejectsLegacySessionIdContract() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Rest LLM Legacy').save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_Legacy').withType('SingleShot').withLLM(llm.Id).save();
+
+        RestRequest req = new RestRequest();
+        RestResponse res = new RestResponse();
+        req.httpMethod = 'POST';
+        req.requestURI = '/services/apexrest/ai/agent/process';
+
+        Map<String, Object> payload = new Map<String, Object>{
+            'sessionId' => 'a0X000000000000',
+            'originalUserId' => UserInfo.getUserId(),
+            'agentDefinitionId' => agent.Id,
+            'turnIdentifier' => 'turn-legacy-001'
+        };
+        req.requestBody = Blob.valueOf(JSON.serialize(payload));
+
+        RestContext.request = req;
+        RestContext.response = res;
+
+        AIAgentRestService.AIAgentResponse response = AIAgentRestService.processMessage();
+
+        System.assertEquals(false, response.success, 'Legacy sessionId contract should be rejected');
+        System.assertEquals(400, RestContext.response.statusCode, 'Should set 400 status');
+        System.assert(
+            response.error != null && response.error.contains('sessionId is no longer supported'),
+            'Should direct callers to executionId and interactionSessionId'
+        );
+    }
+
+    @IsTest
     static void testProcessMessage_InvalidSourceRecordIds_ReturnsBadRequest() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Rest LLM 2').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_2').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_2').withType('SingleShot').withLLM(llm.Id).save();
 
         RestRequest req = new RestRequest();
         RestResponse res = new RestResponse();
@@ -123,12 +154,12 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void testResume_CompletedExecution_ReturnsBadRequest() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Rest LLM 3').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_3').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_3').withType('SingleShot').withLLM(llm.Id).save();
 
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Completed')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-rest-resume-001')
@@ -155,7 +186,7 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void testProcessMessageInContext_Success() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Rest LLM 4').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_4').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_4').withType('Iterative').withLLM(llm.Id).save();
 
         RestRequest req = new RestRequest();
         RestResponse res = new RestResponse();
@@ -183,9 +214,55 @@ private class AIAgentRestServiceTest {
     }
 
     @IsTest
+    static void testProcessMessage_SessionAwareApiRequestReturnsInteractionSessionId() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Rest LLM SessionAware').save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_SessionAware').withType('SingleShot').withLLM(llm.Id).save();
+
+        InteractionSession__c session = new InteractionSession__c(
+            Channel__c = RuntimeRegistryService.CHANNEL_API,
+            ConversationKey__c = 'rest-api-session-001',
+            ParticipantExternalKey__c = String.valueOf(UserInfo.getUserId()),
+            SessionStatus__c = 'Active'
+        );
+        insert session;
+
+        RestRequest req = new RestRequest();
+        RestResponse res = new RestResponse();
+        req.httpMethod = 'POST';
+        req.requestURI = '/services/apexrest/ai/agent/process';
+
+        Map<String, Object> payload = new Map<String, Object>{
+            'originalUserId' => UserInfo.getUserId(),
+            'agentDefinitionId' => agent.Id,
+            'interactionSessionId' => session.Id,
+            'turnIdentifier' => 'turn-rest-session-aware-001',
+            'userMessage' => 'Run this tool'
+        };
+        req.requestBody = Blob.valueOf(JSON.serialize(payload));
+
+        RestContext.request = req;
+        RestContext.response = res;
+
+        Test.setMock(HttpCalloutMock.class, MockHttpResponses.text('Done.'));
+
+        AIAgentRestService.AIAgentResponse response = AIAgentRestService.processMessage();
+
+        AgentExecution__c execution = [
+            SELECT InteractionSession__c, InteractionChannel__c
+            FROM AgentExecution__c
+            WHERE Id = :response.executionId
+        ];
+
+        System.assertEquals(true, response.success, 'Session-aware request should succeed');
+        System.assertEquals(String.valueOf(session.Id), response.interactionSessionId, 'Response should return durable interaction session ID');
+        System.assertEquals(session.Id, execution.InteractionSession__c, 'Execution should be anchored to the provided interaction session');
+        System.assertEquals(RuntimeRegistryService.CHANNEL_API, execution.InteractionChannel__c, 'Execution should remain on API channel');
+    }
+
+    @IsTest
     static void testExecuteApprovedHITLTool_Success() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Rest LLM 5').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_5').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_5').withType('SingleShot').withLLM(llm.Id).save();
 
         AgentCapability__c capability = TestFactory.newCapability()
             .withAgent(agent.Id)
@@ -197,7 +274,7 @@ private class AIAgentRestServiceTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withSourceRecord(testCase.Id)
@@ -253,12 +330,12 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void testExecuteFollowUpLLMCall_Success() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Rest LLM 6').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_6').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_6').withType('Iterative').withLLM(llm.Id).save();
 
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_PROCESSING)
             .withTurnIdentifier('turn-followup-002')
@@ -288,7 +365,7 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void testExecuteApprovedHITLTool_QueuesFollowUpAndNotifies() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Rest LLM 7').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_7').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_7').withType('SingleShot').withLLM(llm.Id).save();
 
         AgentCapability__c capability = TestFactory.newCapability()
             .withAgent(agent.Id)
@@ -302,7 +379,7 @@ private class AIAgentRestServiceTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_PROCESSING)
             .withSourceRecord(testCase.Id)
@@ -367,13 +444,13 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void testResumeInServiceContext_Success() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Rest LLM 8').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_8').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_8').withType('Iterative').withLLM(llm.Id).save();
 
         Case testCase = TestFactory.newCase().withSubject('Resume Case').save();
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Failed')
             .withProcessingStatus(AIAgentConstants.STATUS_FAILED)
             .withSourceRecord(testCase.Id)
@@ -421,7 +498,7 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void testProcessMessage_MissingOriginalUserId_ReturnsBadRequest() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Rest LLM 9').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_9').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_9').withType('SingleShot').withLLM(llm.Id).save();
 
         RestRequest req = new RestRequest();
         RestResponse res = new RestResponse();
@@ -468,7 +545,7 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void testProcessMessage_InvalidCurrentRecordId_ReturnsBadRequest() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Rest LLM 10').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_10').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_10').withType('SingleShot').withLLM(llm.Id).save();
 
         RestRequest req = new RestRequest();
         RestResponse res = new RestResponse();
@@ -496,11 +573,11 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void testHITLExecute_MissingCapabilityId_ReturnsBadRequest() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Rest LLM 11').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_11').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_11').withType('SingleShot').withLLM(llm.Id).save();
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-hitl-002')
@@ -532,11 +609,11 @@ private class AIAgentRestServiceTest {
     @IsTest
     static void testHITLExecute_CapabilityNotFound_ReturnsBadRequest() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Rest LLM 12').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_12').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Rest_Agent_12').withType('SingleShot').withLLM(llm.Id).save();
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-hitl-003')

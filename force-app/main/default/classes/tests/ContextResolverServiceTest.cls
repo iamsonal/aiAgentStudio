@@ -11,7 +11,7 @@ private class ContextResolverServiceTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Processing',
             ProcessingStatus__c = 'Processing',
             TriggerSource__c = 'Chat'

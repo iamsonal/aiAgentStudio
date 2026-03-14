@@ -86,15 +86,18 @@ public class TestFactory {
 
         public AgentSetup save() {
             // Insert in correct order with relationships
-            insert setup.llmConfig;
+            setup.llmConfig = ensureLlmPersisted(setup.llmConfig);
 
             setup.agentDefinition.LLMConfiguration__c = setup.llmConfig.Id;
-            insert setup.agentDefinition;
+            if (setup.agentDefinition.Id == null) {
+                insert setup.agentDefinition;
+            }
 
             for (AgentCapability__c cap : setup.capabilities) {
                 cap.AIAgentDefinition__c = setup.agentDefinition.Id;
             }
             if (!setup.capabilities.isEmpty()) {
+                ensureChildAgentsExist(setup.capabilities, setup.llmConfig.Id);
                 insert setup.capabilities;
             }
 
@@ -110,7 +113,7 @@ public class TestFactory {
                 User__c = UserInfo.getUserId(),
                 AIAgentDefinition__c = setup.agentDefinition.Id,
                 ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
-                ExecutionType__c = 'Conversational'
+                ExecutionType__c = 'Iterative'
             );
             insert setup.agentExecution;
 
@@ -132,7 +135,7 @@ public class TestFactory {
 
         public FunctionAgentSetupBuilder() {
             setup.llmConfig = newLLMConfiguration().build();
-            setup.agentDefinition = newAgentDefinition().withType('Function').build();
+            setup.agentDefinition = newAgentDefinition().withType('SingleShot').build();
             setup.capabilities = new List<AgentCapability__c>();
         }
 
@@ -167,15 +170,18 @@ public class TestFactory {
         }
 
         public FunctionAgentSetup save() {
-            insert setup.llmConfig;
+            setup.llmConfig = ensureLlmPersisted(setup.llmConfig);
 
             setup.agentDefinition.LLMConfiguration__c = setup.llmConfig.Id;
-            insert setup.agentDefinition;
+            if (setup.agentDefinition.Id == null) {
+                insert setup.agentDefinition;
+            }
 
             for (AgentCapability__c cap : setup.capabilities) {
                 cap.AIAgentDefinition__c = setup.agentDefinition.Id;
             }
             if (!setup.capabilities.isEmpty()) {
+                ensureChildAgentsExist(setup.capabilities, setup.llmConfig.Id);
                 insert setup.capabilities;
             }
 
@@ -184,7 +190,7 @@ public class TestFactory {
                     User__c = UserInfo.getUserId(),
                     AIAgentDefinition__c = setup.agentDefinition.Id,
                     ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
-                    ExecutionType__c = 'Function'
+                    ExecutionType__c = 'SingleShot'
                 );
                 insert setup.execution;
             }
@@ -261,7 +267,7 @@ public class TestFactory {
             DeveloperName__c = 'Test_Agent_' + generateRandomString(6),
             WelcomeMessageTemplate__c = 'Hello {User.FirstName}, how can I help you today?',
             IsActive__c = true,
-            AgentType__c = 'Conversational',
+            AgentType__c = 'Iterative',
             MemoryStrategy__c = 'Buffer Window',
             HistoryTurnLimit__c = 10,
             EnableParallelToolCalling__c = true,
@@ -280,7 +286,7 @@ public class TestFactory {
         }
 
         public AgentDefinitionBuilder withType(String agentType) {
-            record.AgentType__c = agentType;
+            record.AgentType__c = normalizeStrategyKey(agentType);
             return this;
         }
 
@@ -471,6 +477,7 @@ public class TestFactory {
         }
 
         public AgentCapability__c save() {
+            ensureChildAgentsExist(new List<AgentCapability__c>{ record }, null);
             insert record;
             return record;
         }
@@ -486,7 +493,7 @@ public class TestFactory {
 
     public class ExecutionBuilder {
         private AgentExecution__c record = new AgentExecution__c(
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = 'Idle',
             TriggerSource__c = 'Test',
@@ -505,7 +512,7 @@ public class TestFactory {
         }
 
         public ExecutionBuilder withExecutionType(String executionType) {
-            record.ExecutionType__c = executionType;
+            record.ExecutionType__c = normalizeStrategyKey(executionType);
             return this;
         }
 
@@ -552,6 +559,102 @@ public class TestFactory {
             insert record;
             return record;
         }
+    }
+
+    private static String normalizeStrategyKey(String strategyKey) {
+        if ('Iterative'.equalsIgnoreCase(strategyKey) || 'Email'.equalsIgnoreCase(strategyKey)) {
+            return 'Iterative';
+        }
+        if ('SingleShot'.equalsIgnoreCase(strategyKey)) {
+            return 'SingleShot';
+        }
+        return strategyKey;
+    }
+
+    private static LLMConfiguration__c ensureLlmPersisted(LLMConfiguration__c llmConfig) {
+        if (llmConfig == null) {
+            llmConfig = newLLMConfiguration().build();
+        }
+        if (llmConfig.Id == null) {
+            insert llmConfig;
+        }
+        return llmConfig;
+    }
+
+    private static void ensureChildAgentsExist(List<AgentCapability__c> capabilities, Id preferredLlmConfigId) {
+        if (capabilities == null || capabilities.isEmpty()) {
+            return;
+        }
+
+        Set<String> requestedDeveloperNames = new Set<String>();
+        for (AgentCapability__c capability : capabilities) {
+            if (capability != null && capability.ImplementationType__c == 'Agent' && String.isNotBlank(capability.ImplementationDetail__c)) {
+                requestedDeveloperNames.add(capability.ImplementationDetail__c.trim());
+            }
+        }
+
+        if (requestedDeveloperNames.isEmpty()) {
+            return;
+        }
+
+        Map<String, AIAgentDefinition__c> existingByDeveloperName = new Map<String, AIAgentDefinition__c>();
+        for (AIAgentDefinition__c agentDef : [
+            SELECT Id, DeveloperName__c, IsActive__c
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c IN :requestedDeveloperNames
+        ]) {
+            existingByDeveloperName.put(agentDef.DeveloperName__c.toLowerCase(), agentDef);
+        }
+
+        List<AIAgentDefinition__c> agentsToActivate = new List<AIAgentDefinition__c>();
+        List<AIAgentDefinition__c> agentsToInsert = new List<AIAgentDefinition__c>();
+        Id llmConfigId = resolveLlmConfigId(preferredLlmConfigId);
+
+        for (String developerName : requestedDeveloperNames) {
+            String key = developerName.toLowerCase();
+            if (existingByDeveloperName.containsKey(key)) {
+                AIAgentDefinition__c existing = existingByDeveloperName.get(key);
+                if (existing.IsActive__c != true) {
+                    agentsToActivate.add(new AIAgentDefinition__c(Id = existing.Id, IsActive__c = true));
+                }
+                continue;
+            }
+
+            agentsToInsert.add(
+                new AIAgentDefinition__c(
+                    Name = developerName.replace('_', ' '),
+                    DeveloperName__c = developerName,
+                    AgentType__c = 'SingleShot',
+                    IsActive__c = true,
+                    LLMConfiguration__c = llmConfigId
+                )
+            );
+        }
+
+        if (!agentsToActivate.isEmpty()) {
+            update agentsToActivate;
+        }
+        if (!agentsToInsert.isEmpty()) {
+            insert agentsToInsert;
+        }
+    }
+
+    private static Id resolveLlmConfigId(Id preferredLlmConfigId) {
+        if (preferredLlmConfigId != null) {
+            return preferredLlmConfigId;
+        }
+
+        List<LLMConfiguration__c> existingConfigs = [
+            SELECT Id
+            FROM LLMConfiguration__c
+            WHERE IsActive__c = TRUE
+            LIMIT 1
+        ];
+        if (!existingConfigs.isEmpty()) {
+            return existingConfigs[0].Id;
+        }
+
+        return newLLMConfiguration().save().Id;
     }
 
     /**

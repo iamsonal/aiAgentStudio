@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SupportsAutonomousReply__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Indicates whether the framework is allowed to send autonomous replies through this endpoint.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enable only when this endpoint is approved for direct agent replies. If disabled, Auto Reply routes downgrade to a review-first behavior.</inlineHelpText>
+    <label>Supports Autonomous Reply</label>
+    <type>Checkbox</type>
+</CustomField>

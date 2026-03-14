@@ -861,8 +861,8 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         // - Conversational/Email agents: queue a follow-up LLM call so the LLM can read the
         //   blocked ToolResults and self-correct by asking the user / replying via email.
         if (allToolsBlocked) {
-            String executionType = context.agentStateSvc.getExecutionType(context.executionId);
-            Boolean canCommunicateWithUser = 'Conversational'.equalsIgnoreCase(executionType) || 'Email'.equalsIgnoreCase(executionType);
+            String strategyKey = context.agentStateSvc.getExecutionType(context.executionId);
+            Boolean canCommunicateWithUser = RuntimeRegistryService.getTraits(context.executionId).routesFailuresBackToUser == true;
 
             if (!canCommunicateWithUser) {
                 System.debug(
@@ -870,7 +870,9 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                     logPrefix +
                         '[ConfidenceGate] All ' +
                         blockedTools.size() +
-                        ' tool(s) blocked for Function agent. Failing turn — no path to request clarification.'
+                        ' tool(s) blocked for strategy ' +
+                        strategyKey +
+                        '. Failing turn — no path to request clarification.'
                 );
                 context.agentStateSvc.failTurn(
                     context.executionId,
@@ -888,8 +890,8 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                     '[ConfidenceGate] All ' +
                     blockedTools.size() +
                     ' tool(s) blocked for ' +
-                    executionType +
-                    ' agent. Queuing follow-up so LLM can ask for clarification.'
+                    strategyKey +
+                    ' strategy. Queuing follow-up so LLM can ask for clarification.'
             );
         }
 
@@ -1346,20 +1348,17 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
             );
         } // End of approval tools loop
 
-        // Delegate agent-specific behavior to orchestrator
-        // This keeps ToolCallResponseHandler agent-agnostic
-        IAgentOrchestrator orchestrator = loadOrchestrator(agentDef);
+        String interactionChannel = RuntimeRegistryService.getInteractionChannel(agentDef, context.executionId);
+        IExecutionStrategy strategy = ExecutionStrategyRegistryService.resolveStrategy(agentDef, interactionChannel);
+        String strategyOutcome = strategy.validateCompletionOutcome(context, approvalToolResults, 'APPROVAL_REQUIRED', agentDef, interactionChannel);
 
-        // Let orchestrator handle agent-specific completion behavior (polymorphic call - no instanceof check needed)
-        String orchestratorOutcome = orchestrator.evaluateToolOutcome(context, approvalToolResults, 'APPROVAL_REQUIRED');
-
-        if (orchestratorOutcome != null) {
-            // Orchestrator handled it
-            return orchestratorOutcome;
+        if (strategyOutcome != null) {
+            // Strategy-specific runtime handled it
+            return strategyOutcome;
         }
 
-        // Default behavior for orchestrators that don't override handleToolCompletion
-        // (Function agents): just pause execution until approval resolved
+        // Default behavior for runtimes that do not provide custom approval completion handling
+        // (typically single-shot agents): pause execution until approval is resolved
         context.agentStateSvc.updateStatus(
             context.executionId,
             'Awaiting Action',
@@ -1369,19 +1368,6 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         );
 
         return OrchestrationService.OUTCOME_QUEUED_ACTION;
-    }
-
-    /**
-     * Loads the appropriate orchestrator for an agent definition.
-     * Delegates to AgentExecutionService.getOrchestrator() so the transaction-level static
-     * cache is used instead of issuing a per-call SOQL against AgentOrchestratorMapping__mdt.
-     */
-    private IAgentOrchestrator loadOrchestrator(AIAgentDefinition__c agentDef) {
-        try {
-            return AgentExecutionService.getOrchestrator(agentDef);
-        } catch (AIAgentException.OrchestrationException e) {
-            throw new ToolProcessingException(e.getMessage());
-        }
     }
 
     // SYNCHRONOUS EXECUTION
@@ -1724,7 +1710,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
      * the LLM's tool call rather than a pipeline step definition.
      *
      * The toolCallId is stored in TriggerPayload__c on the child execution so that when the
-     * child completes, the parent orchestrator can map the result back to the original tool call.
+     * child completes, the parent runtime can map the result back to the original tool call.
      */
     private void queueAgentCapabilities(
         OrchestrationContext context,

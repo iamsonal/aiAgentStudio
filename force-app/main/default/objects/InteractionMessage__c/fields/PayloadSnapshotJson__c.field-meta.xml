@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PayloadSnapshotJson__c</fullName>
+    <description>Serialized snapshot of the inbound or outbound transport payload captured for diagnostics and auditability.</description>
+    <inlineHelpText>Stores the raw message payload or normalized metadata used when this transport message was processed.</inlineHelpText>
+    <label>Payload Snapshot Json</label>
+    <length>131072</length>
+    <type>LongTextArea</type>
+    <visibleLines>5</visibleLines>
+</CustomField>

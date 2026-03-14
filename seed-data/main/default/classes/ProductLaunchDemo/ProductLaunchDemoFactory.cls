@@ -1,8 +1,8 @@
 /**
- * @description Test data factory for Progressive Function Agent Demos
+ * @description Test data factory for progressive SingleShot strategy demos
  *              Three progressive demos showing evolution from basic to sophisticated:
- *              Demo 1: Basic Function Agent (no capabilities) - Case Summary
- *              Demo 2: Single Capability Function Agent - Account Fit Scoring
+ *              Demo 1: Basic SingleShot agent (no capabilities) - Case Summary
+ *              Demo 2: Single-capability SingleShot agent - Account Fit Scoring
  *              Demo 3: Multi-Capability Orchestration - Product Launch Campaign
  *
  * **Demo 1: Case Summary Agent (Basic)**
@@ -14,10 +14,10 @@
  * **Demo 2: Account Scoring Agent (Intermediate)**
  * - Single capability (Flow-based scoring)
  * - Scores account fit for product (0-100)
- * - Shows: Function agent executing capabilities and interpreting results
+ * - Shows: SingleShot strategy executing capabilities and interpreting results
  * - Time: 3-4 minutes
  *
- * **Demo 3: Product Launch Orchestrator (Advanced)**
+ * **Demo 3: Product Launch Agent (Advanced)**
  * - 7 capabilities (2 Apex, 2 Flow, 3 Standard)
  * - Multi-account campaign with AI content generation, HITL, error recovery
  * - Shows: Full orchestration power with real AI intelligence
@@ -56,7 +56,7 @@ public with sharing class ProductLaunchDemoFactory {
      * @return Map<String, Id> Key record IDs for testing
      */
     public static Map<String, Id> createAllDemos() {
-        System.debug('=== PROGRESSIVE FUNCTION AGENT DEMOS ===');
+        System.debug('=== PROGRESSIVE SINGLESHOT STRATEGY DEMOS ===');
 
         deleteExistingDemoData();
 
@@ -163,13 +163,13 @@ public with sharing class ProductLaunchDemoFactory {
     }
 
     /**
-     * @description Deletes Demo 3 data (Product Launch Orchestrator)
+     * @description Deletes Demo 3 data (Product Launch Agent)
      */
     private static void deleteDemo3Data() {
         // Delete agent configuration
-        delete [SELECT Id FROM AgentContextConfig__c WHERE AIAgentDefinition__r.DeveloperName__c = 'Product_Launch_Orchestrator'];
-        delete [SELECT Id FROM AgentCapability__c WHERE AIAgentDefinition__r.DeveloperName__c = 'Product_Launch_Orchestrator'];
-        delete [SELECT Id FROM AIAgentDefinition__c WHERE DeveloperName__c = 'Product_Launch_Orchestrator'];
+        delete [SELECT Id FROM AgentContextConfig__c WHERE AIAgentDefinition__r.DeveloperName__c = 'Product_Launch_Agent'];
+        delete [SELECT Id FROM AgentCapability__c WHERE AIAgentDefinition__r.DeveloperName__c = 'Product_Launch_Agent'];
+        delete [SELECT Id FROM AIAgentDefinition__c WHERE DeveloperName__c = 'Product_Launch_Agent'];
 
         // Delete LLM configuration
         delete [SELECT Id FROM LLMConfiguration__c WHERE DeveloperName__c = 'OpenAI_GPT4_ProductLaunch'];
@@ -1108,7 +1108,7 @@ public with sharing class ProductLaunchDemoFactory {
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Case Summary Agent',
             DeveloperName__c = 'Case_Summary_Agent',
-            AgentType__c = 'Function',
+            AgentType__c = 'SingleShot',
             IsActive__c = true,
             LLMConfiguration__c = llmConfigId,
             AuditLevel__c = 'Full',
@@ -1157,7 +1157,7 @@ public with sharing class ProductLaunchDemoFactory {
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Account Fit Scoring Agent',
             DeveloperName__c = 'Account_Fit_Scoring_Agent',
-            AgentType__c = 'Function',
+            AgentType__c = 'SingleShot',
             IsActive__c = true,
             LLMConfiguration__c = llmConfigId,
             AuditLevel__c = 'Full',
@@ -1263,19 +1263,19 @@ public with sharing class ProductLaunchDemoFactory {
     // ===================================================================================
 
     private static Id createProductLaunchAgent(Id llmConfigId) {
-        System.debug('[Demo 3] Creating Product Launch Orchestrator...');
+        System.debug('[Demo 3] Creating Product Launch Agent...');
 
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
-            Name = 'Product Launch Orchestrator',
-            DeveloperName__c = 'Product_Launch_Orchestrator',
-            AgentType__c = 'Function',
+            Name = 'Product Launch Agent',
+            DeveloperName__c = 'Product_Launch_Agent',
+            AgentType__c = 'SingleShot',
             IsActive__c = true,
             LLMConfiguration__c = llmConfigId,
             AuditLevel__c = 'Full',
             ContextFormatStrategy__c = 'Structured Text',
             EnableParallelToolCalling__c = true,
             EnableToolReasoning__c = true,
-            IdentityPrompt__c = 'You are a B2B marketing orchestrator specializing in product launches. ' +
+            IdentityPrompt__c = 'You are a B2B marketing agent specializing in product launches. ' +
                 'Analyze prospect fit, engagement signals, and buying intent to create targeted campaigns.',
             InstructionsPrompt__c = 'You are building a targeted ABM campaign. Use AI intelligence to qualify prospects, personalize messaging, and make smart approval decisions.\n\n' +
                 'Workflow:\n' +
@@ -1296,7 +1296,7 @@ public with sharing class ProductLaunchDemoFactory {
         createAgentCapabilities(agent.Id);
         createAgentContextConfig(agent.Id);
 
-        System.debug('[Demo 3] ✓ Multi-capability orchestrator created (7 capabilities)');
+        System.debug('[Demo 3] ✓ Multi-capability SingleShot agent created (7 capabilities)');
 
         return agent.Id;
     }

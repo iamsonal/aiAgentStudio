@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Priority__c</fullName>
+    <description>Sort weight used when multiple active routes could match the same inbound interaction. Higher values win first.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Use a higher number to make this route win over other matching routes for the same object type and endpoint.</inlineHelpText>
+    <label>Priority</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <type>Number</type>
+</CustomField>

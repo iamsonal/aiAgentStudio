@@ -891,7 +891,7 @@ private class ActionCalculateAccountHealthTest {
             'ActionCalculateAccountHealth',  // implementationDetail
             'test-turn-1',  // turnIdentifier
             1,              // currentTurnCount
-            'Conversational'  // executionType
+            'Iterative'  // execution strategy
         );
 
         // Execute with configuration
@@ -913,7 +913,7 @@ private class ActionCalculateAccountHealthTest {
         ActionContext ctx = new ActionContext(
             null, UserInfo.getUserId(), UserInfo.getUserId(),
             null, null, null, 'ActionCalculateAccountHealth',
-            'test-turn-1', 1, 'Conversational'
+            'test-turn-1', 1, 'Iterative'
         );
 
         // Missing accountId
@@ -1170,7 +1170,7 @@ The `ErrorRecoveryMode__c` field on `AIAgentDefinition__c` sets the recovery str
 | `Autonomous` (default) | Transient errors are forwarded to the LLM for recovery decisions |
 | `Fail Fast` | Agent halts immediately on any error, regardless of transience |
 
-Use `Fail Fast` for agents where partial execution is worse than no execution (e.g., financial workflows, multi-step record mutations). Use `Autonomous` for conversational agents where the LLM recovering gracefully provides a better user experience.
+Use `Fail Fast` for agents where partial execution is worse than no execution (e.g., financial workflows, multi-step record mutations). Use `Autonomous` for iterative user-facing runtimes where the LLM recovering gracefully provides a better user experience.
 
 ### Reference: All Error Codes
 

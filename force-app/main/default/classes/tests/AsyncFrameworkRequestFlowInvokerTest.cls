@@ -9,7 +9,7 @@ private class AsyncFrameworkRequestFlowInvokerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Conversational',
+            ExecutionType__c = 'Iterative',
             ExecutionStatus__c = status,
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             CurrentTurnIdentifier__c = turnId
@@ -41,7 +41,7 @@ private class AsyncFrameworkRequestFlowInvokerTest {
         insert capability;
 
         Map<String, Object> payload = new Map<String, Object>{
-            'sessionId' => execution.Id,
+            'executionId' => execution.Id,
             'originalUserId' => UserInfo.getUserId(),
             'agentDefId' => execution.AIAgentDefinition__c,
             'parentAsstMsgId' => null,
@@ -80,7 +80,7 @@ private class AsyncFrameworkRequestFlowInvokerTest {
         AgentExecution__c execution = createExecution('turn-follow-001', 'Pending');
 
         Map<String, Object> payload = new Map<String, Object>{
-            'sessionId' => execution.Id,
+            'executionId' => execution.Id,
             'userId' => UserInfo.getUserId(),
             'agentDefId' => execution.AIAgentDefinition__c,
             'turnId' => 'turn-follow-001',
@@ -104,7 +104,7 @@ private class AsyncFrameworkRequestFlowInvokerTest {
         AgentExecution__c execution = createExecution('turn-proc-001', 'Pending');
 
         Map<String, Object> payload = new Map<String, Object>{
-            'sessionId' => execution.Id,
+            'executionId' => execution.Id,
             'originalUserId' => UserInfo.getUserId(),
             'agentDefinitionId' => execution.AIAgentDefinition__c,
             'llmConfigurationId' => null,

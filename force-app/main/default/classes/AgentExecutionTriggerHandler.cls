@@ -155,6 +155,7 @@ public without sharing class AgentExecutionTriggerHandler {
                 [
                     SELECT
                         Id,
+                        ExecutionType__c,
                         AIAgentDefinition__c,
                         AIAgentDefinition__r.DeveloperName__c,
                         AIAgentDefinition__r.AgentType__c,
@@ -213,27 +214,7 @@ public without sharing class AgentExecutionTriggerHandler {
         // Resolve latest logged child errors through the logger abstraction so
         Map<Id, IDecisionStepLogger.LoggedErrorInfo> latestDecisionErrorByExecution = IDecisionStepLogger.getLatestFailedErrors(childIds);
 
-        Map<Id, SequentialPipelineOrchestrator> pipelineOrchestratorsByDefinition = new Map<Id, SequentialPipelineOrchestrator>();
-        for (AgentExecution__c parentExec : parentExecutions.values()) {
-            if (parentExec.PipelineDefinition__c == null || pipelineOrchestratorsByDefinition.containsKey(parentExec.PipelineDefinition__c)) {
-                continue;
-            }
-            try {
-                SequentialPipelineOrchestrator pipelineOrch = new SequentialPipelineOrchestrator();
-                pipelineOrch.configurePipeline(parentExec.PipelineDefinition__c);
-                pipelineOrchestratorsByDefinition.put(parentExec.PipelineDefinition__c, pipelineOrch);
-            } catch (SequentialPipelineOrchestrator.PipelineStateException pse) {
-                String errMsg = 'Trigger handler failed to prepare parent orchestrator for execution ' + parentExec.Id + ': ' + pse.getMessage();
-                System.debug(LoggingLevel.WARN, logPrefix + errMsg);
-                try {
-                    update new AgentExecution__c(Id = parentExec.Id, ExecutionStatus__c = 'Failed', ErrorMessage__c = errMsg);
-                } catch (Exception updateEx) {
-                    System.debug(LoggingLevel.ERROR, logPrefix + 'Could not mark parent execution Failed during preload: ' + updateEx.getMessage());
-                }
-            }
-        }
-
-        // Notify each parent pipeline/orchestrator (one pass over child executions).
+        // Notify each parent runtime/composition boundary once per child completion.
         // On failure: transition the parent to Failed so it does not silently
         // remain stuck in Processing with no error record.
         for (AgentExecution__c childExec : childExecutions) {
@@ -243,7 +224,6 @@ public without sharing class AgentExecutionTriggerHandler {
                     childExec,
                     parentExecutions,
                     agentDefinitionsById,
-                    pipelineOrchestratorsByDefinition,
                     latestStepByExecution,
                     latestDecisionErrorByExecution,
                     logPrefix
@@ -446,7 +426,7 @@ public without sharing class AgentExecutionTriggerHandler {
     /**
      * @description Notifies a parent orchestrator that its child execution has completed.
      * Supports any parent agent type (Pipeline, Function, Conversational) by dynamically
-     * loading the parent's orchestrator via AgentExecutionService.getOrchestrator().
+     * resolving the parent's execution strategy and forwarding the callback there.
      *
      * @param parentExecutionId The parent execution ID
      * @param childExec The completed child execution
@@ -461,7 +441,6 @@ public without sharing class AgentExecutionTriggerHandler {
         AgentExecution__c childExec,
         Map<Id, AgentExecution__c> parentExecutions,
         Map<Id, AIAgentDefinition__c> agentDefinitionsById,
-        Map<Id, SequentialPipelineOrchestrator> pipelineOrchestratorsByDefinition,
         Map<Id, ExecutionStep__c> latestStepByExecution,
         Map<Id, IDecisionStepLogger.LoggedErrorInfo> latestDecisionErrorByExecution,
         String logPrefix
@@ -548,17 +527,11 @@ public without sharing class AgentExecutionTriggerHandler {
             'userMessage' => userMessage
         };
 
-        // Route to SequentialPipelineOrchestrator if parent is a pipeline execution
-        if (parentExec.PipelineDefinition__c != null) {
-            System.debug(LoggingLevel.INFO, logPrefix + 'Parent is a pipeline execution — routing to SequentialPipelineOrchestrator');
-            SequentialPipelineOrchestrator pipelineOrch = pipelineOrchestratorsByDefinition.get(parentExec.PipelineDefinition__c);
-            if (pipelineOrch == null) {
-                pipelineOrch = new SequentialPipelineOrchestrator();
-                pipelineOrch.configurePipeline(parentExec.PipelineDefinition__c);
-                pipelineOrchestratorsByDefinition.put(parentExec.PipelineDefinition__c, pipelineOrch);
-            }
-            pipelineOrch.onChildComplete(parentExecutionId, callbackPayload);
-            System.debug(LoggingLevel.INFO, logPrefix + 'Successfully notified SequentialPipelineOrchestrator');
+        // Route pipeline parents through the explicit composition subsystem.
+        if (PipelineCompositionService.isPipelineExecution(parentExec)) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Parent is a pipeline execution — routing to PipelineCompositionService');
+            PipelineCompositionService.onChildComplete(parentExecutionId, callbackPayload);
+            System.debug(LoggingLevel.INFO, logPrefix + 'Successfully notified PipelineCompositionService');
             return;
         }
 
@@ -582,9 +555,11 @@ public without sharing class AgentExecutionTriggerHandler {
             throw new AgentExecutionTriggerException('Parent agent definition not found: ' + parentExec.AIAgentDefinition__c);
         }
 
-        IAgentOrchestrator orchestrator = AgentExecutionService.getOrchestrator(parentAgentDef);
-        orchestrator.configure(parentAgentDef);
-        orchestrator.onChildComplete(parentExecutionId, callbackPayload);
+        IExecutionStrategy strategy = ExecutionStrategyRegistryService.resolveStrategy(
+            parentAgentDef,
+            RuntimeRegistryService.getInteractionChannel(parentAgentDef, parentExecutionId)
+        );
+        strategy.onChildComplete(parentExecutionId, callbackPayload, parentAgentDef);
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Successfully notified parent orchestrator (type: ' + parentAgentDef.AgentType__c + ')');
     }

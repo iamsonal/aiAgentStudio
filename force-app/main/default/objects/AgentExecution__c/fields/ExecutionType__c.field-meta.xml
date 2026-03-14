@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ExecutionType__c</fullName>
-    <description>Defines the type of agent execution: Conversational (chat), Function (one-shot task), Pipeline (sequential multi-agent orchestration), Email.</description>
-    <inlineHelpText>Select the execution pattern for this agent run.</inlineHelpText>
-    <label>Execution Type</label>
+    <description>Defines the resolved execution mode for this run. Iterative and SingleShot are agent runtime modes, while Pipeline represents a composition workflow run.</description>
+    <inlineHelpText>Shows how this execution is being processed. Pipeline runs belong to the composition subsystem rather than the normal agent runtime registry.</inlineHelpText>
+    <label>Execution Mode</label>
     <required>true</required>
     <trackHistory>false</trackHistory>
     <trackTrending>false</trackTrending>
@@ -13,24 +13,19 @@
         <valueSetDefinition>
             <sorted>false</sorted>
             <value>
-                <fullName>Conversational</fullName>
+                <fullName>Iterative</fullName>
                 <default>true</default>
-                <label>Conversational</label>
+                <label>Iterative</label>
             </value>
             <value>
-                <fullName>Function</fullName>
+                <fullName>SingleShot</fullName>
                 <default>false</default>
-                <label>Function</label>
+                <label>Single Shot</label>
             </value>
             <value>
                 <fullName>Pipeline</fullName>
                 <default>false</default>
                 <label>Pipeline</label>
-            </value>
-            <value>
-                <fullName>Email</fullName>
-                <default>false</default>
-                <label>Email</label>
             </value>
         </valueSetDefinition>
     </valueSet>

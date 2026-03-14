@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ChannelEndpoint__c</fullName>
+    <description>DeveloperName of the ChannelEndpoint__mdt record that defines the inbound endpoint this route listens on.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enter the ChannelEndpoint__mdt DeveloperName to bind this route to a specific inbox, phone number, webhook, or other channel endpoint.</inlineHelpText>
+    <label>Channel Endpoint</label>
+    <length>255</length>
+    <required>true</required>
+    <type>Text</type>
+</CustomField>

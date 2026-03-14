@@ -1,5 +1,5 @@
 /**
- * @description Context provider for Product Launch Orchestrator demo
+ * @description Context provider for Product Launch Agent demo
  *              Fetches Opportunity and pipeline data for engagement analysis
  *
  * This provider returns opportunity context for engagement analysis:

@@ -29,7 +29,7 @@ private class BaseAgentActionTest {
     }
 
     private static ActionContext buildContext() {
-        return new ActionContext(null, UserInfo.getUserId(), UserInfo.getUserId(), null, null, null, null, 'turn-base-001', 1, 'Function');
+        return new ActionContext(null, UserInfo.getUserId(), UserInfo.getUserId(), null, null, null, null, 'turn-base-001', 1, 'SingleShot');
     }
 
     // ========== CONTEXT VALIDATION ==========

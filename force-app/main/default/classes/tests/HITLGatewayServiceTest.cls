@@ -7,9 +7,13 @@ private class HITLGatewayServiceTest {
     static void setupData() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('HITL LLM').save();
 
-        AIAgentDefinition__c convoAgent = TestFactory.newAgentDefinition().withName('HITL_Convo_Agent').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c convoAgent = TestFactory.newAgentDefinition().withName('HITL_Convo_Agent').withType('Iterative').withLLM(llm.Id).save();
 
-        AIAgentDefinition__c nonConversationalAgent = TestFactory.newAgentDefinition().withName('HITL_NonConvo_Agent').withType('Email').withLLM(llm.Id).save();
+        AIAgentDefinition__c nonConversationalAgent = TestFactory.newAgentDefinition()
+            .withName('HITL_NonConvo_Agent')
+            .withType('SingleShot')
+            .withLLM(llm.Id)
+            .save();
 
         AgentCapability__c approvalCap = TestFactory.newCapability()
             .withAgent(convoAgent.Id)
@@ -28,7 +32,7 @@ private class HITLGatewayServiceTest {
         TestFactory.newExecution()
             .withAgent(convoAgent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-hitl-001')
             .save();
@@ -550,7 +554,7 @@ private class HITLGatewayServiceTest {
         System.assertEquals(false, decision.requiresIntervention, 'Invalid config should not require intervention');
         System.assertEquals(false, decision.isValidConfiguration, 'ConfirmationThenApproval on non-conversational agent should be invalid');
         System.assert(
-            String.isNotBlank(decision.configurationError) && decision.configurationError.contains('Conversational'),
+            String.isNotBlank(decision.configurationError) && decision.configurationError.contains('interactive chat agents'),
             'Error should mention Conversational requirement'
         );
     }

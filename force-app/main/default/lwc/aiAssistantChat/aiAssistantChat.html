@@ -8,8 +8,7 @@
                 alternative-text="Start New Chat"
                 title={newChatTooltip}
                 onclick={handleNewChatClick}
-                disabled={isNewChatDisabled}
-            >
+                disabled={isNewChatDisabled}>
             </lightning-button-icon>
         </div>
 
@@ -24,8 +23,7 @@
                                 alternative-text="Error!"
                                 variant="inverse"
                                 size="small"
-                                class="slds-m-right_small"
-                            ></lightning-icon>
+                                class="slds-m-right_small"></lightning-icon>
                             <h2>{criticalError}</h2>
                         </div>
                     </template>
@@ -39,8 +37,7 @@
                                 onclick={handleLoadMoreHistory}
                                 disabled={isLoadingMoreHistory}
                                 variant="neutral"
-                                class="slds-m-bottom_small"
-                            >
+                                class="slds-m-bottom_small">
                             </lightning-button>
                             <template if:true={isLoadingMoreHistory}>
                                 <div class="slds-is-relative slds-p-top_x-small">
@@ -73,8 +70,7 @@
                                                     variant="border-filled"
                                                     class="start-over-icon"
                                                     data-turn-identifier={message.turnIdentifier}
-                                                    onclick={handleStartOverClick}
-                                                >
+                                                    onclick={handleStartOverClick}>
                                                 </lightning-button-icon>
                                             </div>
                                         </template>
@@ -89,8 +85,7 @@
                                                         icon-name="utility:einstein"
                                                         alternative-text="Assistant thinking"
                                                         size="small"
-                                                        class="transient-avatar"
-                                                    >
+                                                        class="transient-avatar">
                                                     </lightning-icon>
                                                 </template>
                                                 <template if:false={message.isTransient}>
@@ -161,8 +156,7 @@
                                 alternative-text="Error!"
                                 variant="inverse"
                                 size="small"
-                                class="slds-m-right_small"
-                            ></lightning-icon>
+                                class="slds-m-right_small"></lightning-icon>
                             <span>Chat is temporarily unavailable. Please refresh the page.</span>
                         </div>
                     </template>
@@ -180,8 +174,7 @@
                                 max-length="32000"
                                 class="slds-chat-input"
                                 disabled={isInputDisabled}
-                                aria-describedby="input-help"
-                            >
+                                aria-describedby="input-help">
                             </lightning-textarea>
                         </div>
 
@@ -196,8 +189,7 @@
                                 onspeechstart={handleSpeechStart}
                                 onspeechend={handleSpeechEnd}
                                 onspeecherror={handleSpeechError}
-                                onspeechnospeech={handleSpeechNoSpeech}
-                            >
+                                onspeechnospeech={handleSpeechNoSpeech}>
                             </c-speech-to-text-input>
 
                             <!-- Send Button -->
@@ -209,8 +201,7 @@
                                 onclick={handleSendMessageClick}
                                 disabled={isInputDisabled}
                                 class="chat-action-button send-button"
-                                size="small"
-                            >
+                                size="small">
                             </lightning-button-icon>
                         </div>
 

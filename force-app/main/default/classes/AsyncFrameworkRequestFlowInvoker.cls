@@ -86,7 +86,7 @@ public with sharing class AsyncFrameworkRequestFlowInvoker {
         capability.AIAgentDefinition__c = (Id) capabilityMap.get('AIAgentDefinition__c');
 
         AsyncActionEngine engine = new AsyncActionEngine(
-            (Id) params.get('sessionId'),
+            (Id) params.get('executionId'),
             (Id) params.get('originalUserId'),
             (Id) params.get('agentDefId'),
             (Id) params.get('parentAsstMsgId'),
@@ -115,7 +115,7 @@ public with sharing class AsyncFrameworkRequestFlowInvoker {
         }
 
         FollowUpLLMEngine engine = new FollowUpLLMEngine(
-            (Id) params.get('sessionId'),
+            (Id) params.get('executionId'),
             (Id) params.get('userId'),
             (Id) params.get('agentDefId'),
             (String) params.get('turnId'),
@@ -134,7 +134,7 @@ public with sharing class AsyncFrameworkRequestFlowInvoker {
     private static void handleProcessLLMMessage(String payloadJson) {
         Map<String, Object> params = (Map<String, Object>) JSON.deserializeUntyped(payloadJson);
 
-        Id sessionId = (Id) params.get('sessionId');
+        Id executionId = (Id) params.get('executionId');
         Id originalUserId = (Id) params.get('originalUserId');
         Id agentDefinitionId = (Id) params.get('agentDefinitionId');
         Id llmConfigurationId = (Id) params.get('llmConfigurationId');
@@ -147,7 +147,7 @@ public with sharing class AsyncFrameworkRequestFlowInvoker {
             LoggingLevel.INFO,
             logPrefix +
                 '[AsyncFrameworkRequestFlowInvoker] Starting initial LLM message processing via Platform Event. SessionId=' +
-                sessionId +
+                executionId +
                 ', TurnId=' +
                 turnIdentifier
         );
@@ -161,7 +161,7 @@ public with sharing class AsyncFrameworkRequestFlowInvoker {
             OrchestrationService orchestrationSvc = new OrchestrationService();
 
             // Initialize the decision step logger - single instance for the entire turn
-            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(sessionId, turnIdentifier, originalUserId);
+            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(executionId, turnIdentifier, originalUserId);
 
             // Get user name and agent name for enhanced logging
             String userName = getUserName(originalUserId);
@@ -170,7 +170,7 @@ public with sharing class AsyncFrameworkRequestFlowInvoker {
 
             // Instantiate LLMInteractionService with the execution user context and decision logger
             LLMInteractionService interactionService = new LLMInteractionService(
-                sessionId,
+                executionId,
                 originalUserId,
                 agentDefinitionId,
                 llmConfigurationId,
@@ -191,7 +191,7 @@ public with sharing class AsyncFrameworkRequestFlowInvoker {
             // Process the LLM result using the orchestration service with the decision logger
             String outcome = orchestrationSvc.processLlmResult(
                 llmResult,
-                sessionId,
+                executionId,
                 originalUserId,
                 UserInfo.getUserId(),
                 agentDefinitionId,
@@ -213,7 +213,7 @@ public with sharing class AsyncFrameworkRequestFlowInvoker {
             try {
                 AgentStateService ass = new AgentStateService();
                 ass.failTurn(
-                    sessionId,
+                    executionId,
                     turnIdentifier,
                     'Initial LLM processing failed: ' + e.getMessage(),
                     AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,

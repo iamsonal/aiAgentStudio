@@ -52,14 +52,12 @@ public with sharing class AgentExecutionResumeController {
                 throw new AuraHandledException('Execution is already completed. Nothing to resume.');
             }
 
-            // Pipeline executions route to SequentialPipelineOrchestrator
-            if (exec.PipelineDefinition__c != null) {
-                SequentialPipelineOrchestrator pipelineOrch = new SequentialPipelineOrchestrator();
-                pipelineOrch.configurePipeline(exec.PipelineDefinition__c);
-                if (!pipelineOrch.canResume(executionId)) {
+            // Pipeline executions route through the explicit composition subsystem
+            if (PipelineCompositionService.isPipelineExecution(exec)) {
+                if (!PipelineCompositionService.canResume(executionId)) {
                     throw new AuraHandledException('Pipeline execution cannot be resumed from its current state.');
                 }
-                pipelineOrch.resume(executionId);
+                PipelineCompositionService.resumeExecution(executionId, new ExecutionResumeModels.ResumeOptions().withReason('Manual resume via UI'));
                 return 'Pipeline execution resumed successfully.';
             }
 
@@ -113,22 +111,22 @@ public with sharing class AgentExecutionResumeController {
             throw new AuraHandledException('Agent definition not found for execution: ' + executionId);
         }
 
-        // Get orchestrator for this agent using AgentExecutionService
-        IAgentOrchestrator orchestrator = AgentExecutionService.getOrchestrator(agentDef);
+        String interactionChannel = RuntimeRegistryService.getInteractionChannel(agentDef, executionId);
+        IExecutionStrategy strategy = ExecutionStrategyRegistryService.resolveStrategy(agentDef, interactionChannel);
 
         // Check if execution can be resumed
-        if (!orchestrator.canResume(executionId)) {
+        if (!strategy.canResume(executionId, agentDef, interactionChannel)) {
             throw new AuraHandledException('Execution cannot be resumed from its current state.');
         }
 
         // Build resume options
-        BaseAgentOrchestrator.ResumeOptions options = new BaseAgentOrchestrator.ResumeOptions().withReason('Manual resume via UI');
+        ExecutionResumeModels.ResumeOptions options = new ExecutionResumeModels.ResumeOptions().withReason('Manual resume via UI');
 
         // Execute resume
         // IMPORTANT: Decision steps are committed during the resume operation.
         // If we throw an exception after resume completes, it will cause a rollback
         // and we'll lose the decision steps. So we return a message instead of throwing.
-        AgentExecutionService.ExecutionResult result = orchestrator.resume(executionId, options);
+        AgentExecutionService.ExecutionResult result = strategy.resumeExecution(executionId, options, agentDef);
 
         if (result.success) {
             return 'Execution resumed successfully: ' + exec.AIAgentDefinition__r.DeveloperName__c + ' (' + executionId + ')';

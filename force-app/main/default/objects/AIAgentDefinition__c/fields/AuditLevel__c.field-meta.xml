@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>AuditLevel__c</fullName>
-    <description>Controls the depth of the audit trail persisted during agent execution. None skips all ExecutionStep records (sync function agents only). Standard writes LLM calls, tool calls, and results — sufficient for memory and debugging. Full adds a curated decision timeline for Storyboard visualization.</description>
-    <inlineHelpText>None: no ExecutionStep records (sync function agents only). Standard: LLM calls, tool calls, and results persisted (default). Full: Standard plus Storyboard visualization.</inlineHelpText>
+    <description>Controls the depth of the audit trail persisted during agent execution. None skips all ExecutionStep records for synchronous SingleShot executions. Standard writes LLM calls, tool calls, and results. Full adds a curated decision timeline for Storyboard visualization.</description>
+    <inlineHelpText>None: no ExecutionStep records for synchronous SingleShot executions. Standard: LLM calls, tool calls, and results persisted (default). Full: Standard plus Storyboard visualization.</inlineHelpText>
     <label>Audit Level</label>
     <required>false</required>
     <trackHistory>false</trackHistory>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProviderMessageId__c</fullName>
+    <description>Provider-native identifier for the source message received from the channel transport.</description>
+    <inlineHelpText>Stores the inbound message ID supplied by the provider so the same transport event can be traced or deduplicated.</inlineHelpText>
+    <label>Provider Message Id</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

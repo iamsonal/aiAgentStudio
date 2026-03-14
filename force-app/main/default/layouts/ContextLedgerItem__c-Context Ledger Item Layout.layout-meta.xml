@@ -15,6 +15,10 @@
                 <field>AgentExecution__c</field>
             </layoutItems>
             <layoutItems>
+                <behavior>Edit</behavior>
+                <field>InteractionSession__c</field>
+            </layoutItems>
+            <layoutItems>
                 <behavior>Required</behavior>
                 <field>ContextType__c</field>
             </layoutItems>

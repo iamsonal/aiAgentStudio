@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Error handling metadata that defines fallback guidance and messaging for framework error categories.</description>
     <label>Error Handler Config</label>
     <pluralLabel>Error Handler Configs</pluralLabel>
     <visibility>Public</visibility>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RouteEndpoint__c</fullName>
+    <description>Endpoint identifier currently associated with the session, such as an inbox, phone number, or webhook target.</description>
+    <inlineHelpText>Captures which concrete endpoint this conversation most recently used on the channel.</inlineHelpText>
+    <label>Route Endpoint</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

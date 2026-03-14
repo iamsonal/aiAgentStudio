@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InboundDedupKey__c</fullName>
+    <description>Stable deduplication key used to detect and suppress repeat processing of the same inbound transport message.</description>
+    <inlineHelpText>Generated from channel and provider message identity. Keeps retries or duplicate webhooks from creating duplicate processing records.</inlineHelpText>
+    <externalId>true</externalId>
+    <label>Inbound Dedup Key</label>
+    <length>64</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

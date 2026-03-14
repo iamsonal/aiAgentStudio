@@ -8,12 +8,11 @@
 
 /**
  * @description
- * Orchestrates sequential multi-agent pipelines. Unlike agent orchestrators (which implement
- * IAgentOrchestrator), pipelines are standalone utilities driven by PipelineDefinition__c /
+ * Specialized sequential pipeline subsystem. Pipelines are standalone utilities driven by PipelineDefinition__c /
  * PipelineStep__c metadata and tracked on AgentExecution__c with ExecutionType__c = 'Pipeline'.
  *
- * Consolidates entry points, step-by-step orchestration, state management (PipelineRunStep__c),
- * and resume logic into a single class.
+ * Provides the sequential pipeline engine behind the explicit composition subsystem.
+ * Owns step-by-step pipeline state management (PipelineRunStep__c) and resume logic.
  *
  * **Execution Pattern:**
  * 1. startPipeline() creates parent execution, initialises run-step records, enqueues first child
@@ -44,6 +43,7 @@ global inherited sharing class SequentialPipelineOrchestrator {
         public String agentName;
         public String agentDisplayName;
         public Id agentDefinitionId;
+        public String strategyKey;
     }
 
     public class PipelineStateException extends Exception {
@@ -205,7 +205,7 @@ global inherited sharing class SequentialPipelineOrchestrator {
         }
 
         List<PipelineStep__c> steps = [
-            SELECT ChildAgent__c, ChildAgent__r.Name, ChildAgent__r.DeveloperName__c, ExecutionOrder__c
+            SELECT ChildAgent__c, ChildAgent__r.Name, ChildAgent__r.DeveloperName__c, ChildAgent__r.AgentType__c, ExecutionOrder__c
             FROM PipelineStep__c
             WHERE PipelineDefinition__c = :pipelineDefId AND IsActive__c = TRUE
             ORDER BY ExecutionOrder__c ASC
@@ -225,6 +225,7 @@ global inherited sharing class SequentialPipelineOrchestrator {
             cfg.agentName = s.ChildAgent__r.DeveloperName__c;
             cfg.agentDisplayName = String.isNotBlank(s.ChildAgent__r.Name) ? s.ChildAgent__r.Name : s.ChildAgent__r.DeveloperName__c;
             cfg.agentDefinitionId = s.ChildAgent__c;
+            cfg.strategyKey = s.ChildAgent__r.AgentType__c;
             this.pipelineSteps.add(cfg);
         }
 
@@ -276,7 +277,7 @@ global inherited sharing class SequentialPipelineOrchestrator {
             if (indices.size() == 1) {
                 InvocableRequest req = requests[indices[0]];
                 try {
-                    ExecutionResult res = startPipelineInternal(req.pipelineName, req.recordId, req.triggerSource);
+                    ExecutionResult res = startPipeline(req.pipelineName, req.recordId, req.triggerSource);
                     results[indices[0]] = res;
                 } catch (Exception e) {
                     results[indices[0]] = new ExecutionResult('PIPELINE_START_FAILED', 'Failed to start pipeline: ' + e.getMessage());
@@ -315,7 +316,18 @@ global inherited sharing class SequentialPipelineOrchestrator {
      * @return ExecutionResult containing the parent AgentExecution__c Id
      */
     public static ExecutionResult startPipeline(String pipelineDeveloperName, Id sourceRecordId) {
-        return startPipelineInternal(pipelineDeveloperName, sourceRecordId, null);
+        return startPipeline(pipelineDeveloperName, sourceRecordId, null);
+    }
+
+    public static ExecutionResult startPipeline(String pipelineDeveloperName, Id sourceRecordId, String triggerSource) {
+        try {
+            AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
+            payload.sourceRecordId = sourceRecordId;
+            payload.triggerSource = triggerSource;
+            return PipelineCompositionService.startPipelineRun(pipelineDeveloperName, payload);
+        } catch (AIAgentException.OrchestrationException e) {
+            throw new PipelineStateException(e.getMessage());
+        }
     }
 
     /**
@@ -326,43 +338,19 @@ global inherited sharing class SequentialPipelineOrchestrator {
      * @return ExecutionResult (batchId is set for multi-record dispatches)
      */
     public static ExecutionResult startPipeline(String pipelineDeveloperName, List<Id> sourceRecordIds) {
-        if (sourceRecordIds == null || sourceRecordIds.isEmpty()) {
-            throw new PipelineStateException('At least one source record ID is required');
-        }
-        if (sourceRecordIds.size() == 1) {
-            return startPipelineInternal(pipelineDeveloperName, sourceRecordIds[0], null);
-        }
-        DispatchResult dispatched = dispatchBulk(pipelineDeveloperName, sourceRecordIds, null);
-        ExecutionResult result = new ExecutionResult(
-            dispatched.executionIds.isEmpty() ? null : dispatched.executionIds[0],
-            'Pending',
-            'Pipeline dispatched for ' + sourceRecordIds.size() + ' records. BatchId: ' + dispatched.batchId
-        );
-        result.batchId = dispatched.batchId;
-        return result;
+        return startPipeline(pipelineDeveloperName, sourceRecordIds, null);
     }
 
-    private static ExecutionResult startPipelineInternal(String pipelineDeveloperName, Id sourceRecordId, String triggerSource) {
-        String logPrefix = LOG_PREFIX + '[startPipeline ' + pipelineDeveloperName + '] ';
-
-        if (String.isBlank(pipelineDeveloperName)) {
-            throw new PipelineStateException('Pipeline developer name is required');
+    public static ExecutionResult startPipeline(String pipelineDeveloperName, List<Id> sourceRecordIds, String triggerSource) {
+        try {
+            AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
+            payload.sourceRecordIds = sourceRecordIds;
+            payload.sourceRecordId = sourceRecordIds != null && !sourceRecordIds.isEmpty() ? sourceRecordIds[0] : null;
+            payload.triggerSource = triggerSource;
+            return PipelineCompositionService.startPipelineRun(pipelineDeveloperName, payload);
+        } catch (AIAgentException.OrchestrationException e) {
+            throw new PipelineStateException(e.getMessage());
         }
-
-        List<PipelineDefinition__c> defs = [
-            SELECT Id
-            FROM PipelineDefinition__c
-            WHERE DeveloperName__c = :pipelineDeveloperName AND IsActive__c = TRUE
-            LIMIT 1
-        ];
-        if (defs.isEmpty()) {
-            throw new PipelineStateException('Active pipeline not found: ' + pipelineDeveloperName);
-        }
-
-        SequentialPipelineOrchestrator orch = new SequentialPipelineOrchestrator();
-        orch.configurePipeline(defs[0].Id);
-        Id parentExecutionId = orch.initiatePipeline(sourceRecordId, triggerSource, logPrefix);
-        return new ExecutionResult(parentExecutionId, AIAgentConstants.STATUS_PROCESSING, 'Pipeline started');
     }
 
     /**
@@ -370,8 +358,12 @@ global inherited sharing class SequentialPipelineOrchestrator {
      * Call configurePipeline() first, then this method.
      */
     public ExecutionResult start(Id sourceRecordId) {
+        return start(sourceRecordId, null);
+    }
+
+    public ExecutionResult start(Id sourceRecordId, String triggerSource) {
         String logPrefix = LOG_PREFIX + '[startPipeline ' + (pipelineDef != null ? pipelineDef.DeveloperName__c : '?') + '] ';
-        Id parentExecutionId = initiatePipeline(sourceRecordId, null, logPrefix);
+        Id parentExecutionId = initiatePipeline(sourceRecordId, triggerSource, logPrefix);
         return new ExecutionResult(parentExecutionId, AIAgentConstants.STATUS_PROCESSING, 'Pipeline started');
     }
 
@@ -381,16 +373,20 @@ global inherited sharing class SequentialPipelineOrchestrator {
      * Call configurePipeline() first, then this method.
      */
     public ExecutionResult start(List<Id> sourceRecordIds) {
+        return start(sourceRecordIds, null);
+    }
+
+    public ExecutionResult start(List<Id> sourceRecordIds, String triggerSource) {
         if (sourceRecordIds == null || sourceRecordIds.isEmpty()) {
             throw new PipelineStateException('At least one source record ID is required');
         }
         if (sourceRecordIds.size() == 1) {
-            return start(sourceRecordIds[0]);
+            return start(sourceRecordIds[0], triggerSource);
         }
         if (pipelineDef == null) {
             throw new PipelineStateException('Pipeline not configured. Call configurePipeline() first.');
         }
-        DispatchResult dispatched = dispatchBulk(pipelineDef.DeveloperName__c, sourceRecordIds, null);
+        DispatchResult dispatched = dispatchBulk(pipelineDef.DeveloperName__c, sourceRecordIds, triggerSource);
         ExecutionResult result = new ExecutionResult(
             dispatched.executionIds.isEmpty() ? null : dispatched.executionIds[0],
             'Pending',
@@ -480,7 +476,15 @@ global inherited sharing class SequentialPipelineOrchestrator {
         String effectiveTriggerSource = String.isNotBlank(triggerSource) ? triggerSource : 'Pipeline';
 
         AgentStateService execSvc = new AgentStateService();
-        Id parentExecutionId = execSvc.createExecution('Pipeline', null, effectiveTriggerSource, null, sourceRecordId, userId, null);
+        Id parentExecutionId = execSvc.createExecution(
+            AIAgentConstants.EXECUTION_MODE_PIPELINE,
+            null,
+            effectiveTriggerSource,
+            null,
+            sourceRecordId,
+            userId,
+            null
+        );
 
         // Set PipelineDefinition lookup on execution
         update new AgentExecution__c(Id = parentExecutionId, PipelineDefinition__c = this.pipelineDefinitionId);
@@ -744,9 +748,10 @@ global inherited sharing class SequentialPipelineOrchestrator {
             AgentExecutionService.ExecutionResult result;
 
             if (shouldResume) {
-                IAgentOrchestrator childOrch = AgentExecutionService.getOrchestrator(agentDef);
-                BaseAgentOrchestrator.ResumeOptions opts = new BaseAgentOrchestrator.ResumeOptions().withReason('Pipeline child agent resume');
-                result = childOrch.resume(childExecutionId, opts);
+                String interactionChannel = RuntimeRegistryService.getInteractionChannel(agentDef, childExecutionId);
+                IExecutionStrategy childStrategy = ExecutionStrategyRegistryService.resolveStrategy(agentDef, interactionChannel);
+                ExecutionResumeModels.ResumeOptions opts = new ExecutionResumeModels.ResumeOptions().withReason('Pipeline child agent resume');
+                result = childStrategy.resumeExecution(childExecutionId, opts, agentDef);
             } else {
                 AgentExecutionService.ExecutionPayload execPayload = new AgentExecutionService.ExecutionPayload();
                 execPayload.userId = userId;
@@ -756,6 +761,7 @@ global inherited sharing class SequentialPipelineOrchestrator {
                 execPayload.turnIdentifier = turnIdentifier;
                 execPayload.existingExecutionId = childExecutionId;
                 execPayload.triggerSource = 'Pipeline';
+                execPayload.interactionChannel = RuntimeRegistryService.getInteractionChannel(agentDef, childExecutionId);
                 result = AgentExecutionService.startExecution(agentDef.DeveloperName__c, execPayload);
             }
 
@@ -1220,7 +1226,7 @@ global inherited sharing class SequentialPipelineOrchestrator {
 
         AgentStateService execSvc = new AgentStateService();
         return execSvc.createExecution(
-            'Function',
+            step.strategyKey,
             step.agentDefinitionId,
             'Pipeline',
             'Pipeline Step: ' + step.agentName,

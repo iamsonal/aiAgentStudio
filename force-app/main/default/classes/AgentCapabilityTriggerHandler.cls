@@ -289,20 +289,22 @@ public with sharing class AgentCapabilityTriggerHandler {
             return;
         }
 
-        // Modes that require Conversational agent type
+        // Modes that require an interactive chat runtime
         Set<String> conversationalOnlyModes = new Set<String>{ 'Confirmation', 'ConfirmationThenApproval' };
 
         // Validation for Confirmation and ConfirmationThenApproval modes
         if (conversationalOnlyModes.contains(hitlMode)) {
-            // Rule 1 & 3: These modes only work with Conversational agents
-            if (agentDef != null && agentDef.AgentType__c != 'Conversational') {
+            if (
+                agentDef != null &&
+                RuntimeRegistryService.getTraits(agentDef, RuntimeRegistryService.getInteractionChannel(agentDef, null)).supportsConfirmationHitl != true
+            ) {
                 String errorMessage =
                     'HITLMode "' +
                     hitlMode +
-                    '" is only supported for Conversational agents. ' +
+                    '" is only supported for interactive chat agents. ' +
                     'Agent "' +
                     agentDef.DeveloperName__c +
-                    '" is type "' +
+                    '" is strategy "' +
                     agentDef.AgentType__c +
                     '". ' +
                     'Use HITLMode "Approval" instead, which works with all agent types.';
@@ -311,7 +313,7 @@ public with sharing class AgentCapabilityTriggerHandler {
                     cap,
                     'HITLMode__c',
                     errorMessage,
-                    'Validation failed: HITLMode ' + hitlMode + ' not supported for agent type ' + agentDef.AgentType__c
+                    'Validation failed: HITLMode ' + hitlMode + ' not supported for strategy ' + agentDef.AgentType__c
                 );
             }
 

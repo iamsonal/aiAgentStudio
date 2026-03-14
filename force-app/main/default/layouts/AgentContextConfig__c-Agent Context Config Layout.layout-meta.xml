@@ -54,6 +54,10 @@
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
+                <field>ApplicableChannels__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Edit</behavior>
                 <field>RequiresRecordContext__c</field>
             </layoutItems>
         </layoutColumns>

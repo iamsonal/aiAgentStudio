@@ -7,15 +7,11 @@
  */
 
 /**
- * @description Unified entry point for agent execution. Handles service user context switching and delegates to orchestrators.
+ * @description Unified public entry point for runtime execution. Resolves either agent runtimes
+ * or pipeline composition runs by developer name, then delegates to the appropriate boundary.
  */
 global inherited sharing class AgentExecutionService {
     private static final String LOG_PREFIX = '[AgentExecutionService] ';
-
-    @TestVisible
-    private static Map<String, AgentOrchestratorMapping__mdt> orchestratorMappingCache;
-    @TestVisible
-    private static Boolean isMappingCacheInitialized = false;
 
     public static ExecutionResult startExecution(String agentDeveloperName, ExecutionPayload payload) {
         String logPrefix = LOG_PREFIX + '[' + agentDeveloperName + '] ';
@@ -36,11 +32,20 @@ global inherited sharing class AgentExecutionService {
             // Full validation happens AFTER routing when we have proper context
             payload.validateIdFormats();
 
-            AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(agentDeveloperName);
-
             // Generate turnIdentifier if not provided (needed for service user routing)
             if (String.isBlank(payload.turnIdentifier)) {
                 payload.turnIdentifier = UUID.randomUUID().toString();
+            }
+
+            AIAgentDefinition__c agentDef = null;
+            try {
+                agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(agentDeveloperName);
+            } catch (AIAgentConfigService.ConfigurationException configEx) {
+                if (PipelineCompositionService.hasActivePipelineDefinition(agentDeveloperName)) {
+                    payload.validate();
+                    return PipelineCompositionService.startExecution(agentDeveloperName, payload);
+                }
+                throw configEx;
             }
 
             // Service user context routing
@@ -59,8 +64,10 @@ global inherited sharing class AgentExecutionService {
             // Full validation now that we're in the correct user context
             payload.validate();
 
-            IAgentOrchestrator orchestrator = getOrchestrator(agentDef);
-            return orchestrator.start(agentDeveloperName, payload);
+            ExecutionRequest request = new ExecutionRequest(agentDeveloperName, payload, agentDef);
+            IExecutionStrategy strategy = ExecutionStrategyRegistryService.resolveStrategy(agentDef, request.interactionChannel);
+            payload.interactionChannel = request.interactionChannel;
+            return strategy.startExecution(agentDeveloperName, payload, agentDef);
         } catch (AIAgentException.OrchestrationException e) {
             throw e;
         } catch (Exception e) {
@@ -114,7 +121,7 @@ global inherited sharing class AgentExecutionService {
             try {
                 AgentStateService stateService = new AgentStateService();
                 stubExecutionId = stateService.createExecution(
-                    agentDef.AgentType__c, // executionType
+                    RuntimeRegistryService.getExecutionStrategyKey(agentDef), // executionType / strategy
                     agentDef.Id, // agentDefinitionId
                     payload.triggerSource ??
                         'API', // triggerSource (API for service user routing)
@@ -170,13 +177,14 @@ global inherited sharing class AgentExecutionService {
         // Track the original position of every request so results are placed back in the
         // same order as inputs. Flow's @InvocableMethod contract requires a strict 1:1
         // positional mapping — results[i] must correspond to requests[i].
-        Map<String, List<Integer>> agentToIndices = new Map<String, List<Integer>>();
+        Map<String, List<Integer>> requestGroupToIndices = new Map<String, List<Integer>>();
         for (Integer i = 0; i < requests.size(); i++) {
             InvocableRequest request = requests[i];
-            if (!agentToIndices.containsKey(request.agentName)) {
-                agentToIndices.put(request.agentName, new List<Integer>());
+            String groupKey = buildInvocableGroupKey(request);
+            if (!requestGroupToIndices.containsKey(groupKey)) {
+                requestGroupToIndices.put(groupKey, new List<Integer>());
             }
-            agentToIndices.get(request.agentName).add(i);
+            requestGroupToIndices.get(groupKey).add(i);
         }
 
         // Pre-fill with nulls so we can assign by index position, not by append order.
@@ -185,9 +193,10 @@ global inherited sharing class AgentExecutionService {
             results.add(null);
         }
 
-        for (String agentName : agentToIndices.keySet()) {
-            List<Integer> indices = agentToIndices.get(agentName);
+        for (String groupKey : requestGroupToIndices.keySet()) {
+            List<Integer> indices = requestGroupToIndices.get(groupKey);
             InvocableRequest sampleRequest = requests[indices[0]];
+            String agentName = sampleRequest.agentName;
 
             try {
                 List<Id> recordIds = new List<Id>();
@@ -197,10 +206,12 @@ global inherited sharing class AgentExecutionService {
 
                 ExecutionPayload payload = new ExecutionPayload();
                 payload.userId = UserInfo.getUserId();
+                payload.sourceRecordId = sampleRequest.recordId;
                 payload.sourceRecordIds = recordIds;
                 payload.userMessage = sampleRequest.userMessage;
                 payload.triggerSource = sampleRequest.triggerSource;
                 payload.triggerPayload = sampleRequest.triggerPayload;
+                payload.interactionChannel = sampleRequest.interactionChannel;
                 payload.turnIdentifier = UUID.randomUUID().toString();
 
                 ExecutionResult batchResult = startExecution(agentName, payload);
@@ -221,6 +232,23 @@ global inherited sharing class AgentExecutionService {
         }
 
         return results;
+    }
+
+    private static String buildInvocableGroupKey(InvocableRequest request) {
+        return String.join(
+            new List<String>{
+                safeGroupValue(request.agentName),
+                safeGroupValue(request.triggerSource),
+                safeGroupValue(request.triggerPayload),
+                safeGroupValue(request.userMessage),
+                safeGroupValue(request.interactionChannel)
+            },
+            '|'
+        );
+    }
+
+    private static String safeGroupValue(String value) {
+        return value != null ? value : '';
     }
 
     private static ExecutionResult routeThroughRestApi(AIAgentDefinition__c agentDef, ExecutionPayload payload, String logPrefix) {
@@ -271,7 +299,7 @@ global inherited sharing class AgentExecutionService {
 
         // Build full payload map with all context fields
         Map<String, Object> requestBody = new Map<String, Object>{
-            'sessionId' => payload.existingExecutionId != null ? String.valueOf(payload.existingExecutionId) : null,
+            'executionId' => payload.existingExecutionId != null ? String.valueOf(payload.existingExecutionId) : null,
             'originalUserId' => String.valueOf(payload.userId),
             'agentDefinitionId' => String.valueOf(agentDef.Id),
             'turnIdentifier' => payload.turnIdentifier,
@@ -281,6 +309,9 @@ global inherited sharing class AgentExecutionService {
             'sourceRecordId' => payload.sourceRecordId != null ? String.valueOf(payload.sourceRecordId) : null,
             'triggerSource' => payload.triggerSource,
             'triggerPayload' => payload.triggerPayload,
+            'interactionSessionId' => payload.interactionSessionId != null ? String.valueOf(payload.interactionSessionId) : null,
+            'conversationKey' => payload.conversationKey,
+            'interactionChannel' => payload.interactionChannel,
             'batchId' => payload.batchId,
             'priority' => payload.priority
         };
@@ -321,9 +352,12 @@ global inherited sharing class AgentExecutionService {
 
         @InvocableVariable(
             Label='Trigger Payload'
-            Description='Optional JSON string with additional context passed to the orchestrator (e.g., {"emailMessageId":"..."})'
+            Description='Optional JSON string with additional context passed to the runtime strategy (e.g., {"emailMessageId":"..."})'
         )
         global String triggerPayload;
+
+        @InvocableVariable(Label='Interaction Channel' Description='Optional interaction channel hint for routing (for example Email, Chat, or API).')
+        global String interactionChannel;
     }
 
     /**
@@ -373,6 +407,12 @@ global inherited sharing class AgentExecutionService {
         public String triggerPayload { get; set; }
         @AuraEnabled
         public String claimToken { get; set; }
+        @AuraEnabled
+        public Id interactionSessionId { get; set; }
+        @AuraEnabled
+        public String conversationKey { get; set; }
+        @AuraEnabled
+        public String interactionChannel { get; set; }
 
         public ExecutionPayload() {
         }
@@ -530,74 +570,61 @@ global inherited sharing class AgentExecutionService {
         }
     }
 
-    private static void ensureOrchestratorMappingCacheInitialized() {
-        if (isMappingCacheInitialized) {
-            return;
-        }
+    /**
+     * @description Canonical strategy-facing execution request derived from the public payload.
+     */
+    public class ExecutionRequest {
+        public String agentDeveloperName { get; set; }
+        public Id agentDefinitionId { get; set; }
+        public String strategyKey { get; set; }
+        public String interactionChannel { get; set; }
+        public Id interactionSessionId { get; set; }
+        public String conversationKey { get; set; }
+        public Id sourceRecordId { get; set; }
+        public Id currentRecordId { get; set; }
+        public Id userId { get; set; }
+        public Id serviceUserId { get; set; }
+        public String triggerSource { get; set; }
+        public String triggerPayload { get; set; }
+        public String userMessage { get; set; }
+        public String turnIdentifier { get; set; }
+        public Id existingExecutionId { get; set; }
+        public List<Id> sourceRecordIds { get; set; }
+        public Boolean isInServiceUserContext { get; set; }
+        public String batchId { get; set; }
+        public Integer priority { get; set; }
 
-        orchestratorMappingCache = new Map<String, AgentOrchestratorMapping__mdt>();
-
-        try {
-            for (AgentOrchestratorMapping__mdt mapping : [
-                SELECT DeveloperName, AgentType__c, OrchestratorClassName__c, RequiresAutonomousRecovery__c
-                FROM AgentOrchestratorMapping__mdt
-                WHERE IsActive__c = TRUE
-            ]) {
-                if (String.isNotBlank(mapping.AgentType__c) && String.isNotBlank(mapping.OrchestratorClassName__c)) {
-                    orchestratorMappingCache.put(mapping.AgentType__c.toLowerCase(), mapping);
-                }
-            }
-        } catch (Exception e) {
-            throw new AIAgentException.OrchestrationException('Failed to load Orchestrator Mappings from Custom Metadata.', e);
-        }
-
-        isMappingCacheInitialized = true;
-    }
-
-    public static AgentOrchestratorMapping__mdt getOrchestratorMapping(String agentType) {
-        ensureOrchestratorMappingCacheInitialized();
-        if (String.isBlank(agentType)) {
-            return null;
-        }
-        return orchestratorMappingCache.get(agentType.toLowerCase());
-    }
-
-    public static Boolean requiresAutonomousRecovery(String agentType) {
-        AgentOrchestratorMapping__mdt mapping = getOrchestratorMapping(agentType);
-        return mapping != null && mapping.RequiresAutonomousRecovery__c == true;
-    }
-
-    public static IAgentOrchestrator getOrchestrator(AIAgentDefinition__c agentDef) {
-        if (String.isBlank(agentDef.AgentType__c)) {
-            throw new AIAgentException.OrchestrationException('AgentType__c is required on agent definition: ' + agentDef.DeveloperName__c);
-        }
-
-        AgentOrchestratorMapping__mdt mapping = getOrchestratorMapping(agentDef.AgentType__c);
-        if (mapping == null) {
-            throw new AIAgentException.OrchestrationException('No active orchestrator mapping found for agent type: "' + agentDef.AgentType__c + '"');
-        }
-
-        try {
-            Type orchestratorType = Type.forName(mapping.OrchestratorClassName__c);
-            if (orchestratorType == null) {
-                throw new AIAgentException.OrchestrationException('Orchestrator class not found: "' + mapping.OrchestratorClassName__c + '"');
-            }
-
-            Object instanceObj = orchestratorType.newInstance();
-            if (!(instanceObj instanceof IAgentOrchestrator)) {
-                throw new AIAgentException.OrchestrationException('Class "' + mapping.OrchestratorClassName__c + '" must implement IAgentOrchestrator');
-            }
-
-            IAgentOrchestrator orchestrator = (IAgentOrchestrator) instanceObj;
-            orchestrator.configure(agentDef);
-            return orchestrator;
-        } catch (AIAgentException.OrchestrationException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new AIAgentException.OrchestrationException(
-                'Failed to instantiate orchestrator "' + mapping.OrchestratorClassName__c + '": ' + e.getMessage(),
-                e
+        public ExecutionRequest(String agentDeveloperName, ExecutionPayload payload, AIAgentDefinition__c agentDefinition) {
+            this.agentDeveloperName = agentDeveloperName;
+            this.agentDefinitionId = agentDefinition != null ? agentDefinition.Id : null;
+            this.strategyKey = RuntimeRegistryService.getExecutionStrategyKey(agentDefinition);
+            this.interactionChannel = InteractionChannelRegistryService.resolveChannel(
+                agentDefinition,
+                payload != null ? payload.existingExecutionId : null,
+                payload != null ? payload.interactionChannel : null
             );
+            this.interactionSessionId = payload != null ? payload.interactionSessionId : null;
+            this.conversationKey = payload != null ? payload.conversationKey : null;
+            this.sourceRecordId = payload != null ? payload.sourceRecordId : null;
+            this.currentRecordId = payload != null ? payload.currentRecordId : null;
+            this.userId = payload != null ? payload.userId : null;
+            this.serviceUserId = payload != null ? payload.serviceUserId : null;
+            this.triggerSource = payload != null ? payload.triggerSource : null;
+            this.triggerPayload = payload != null ? payload.triggerPayload : null;
+            this.userMessage = payload != null ? payload.userMessage : null;
+            this.turnIdentifier = payload != null ? payload.turnIdentifier : null;
+            this.existingExecutionId = payload != null ? payload.existingExecutionId : null;
+            this.sourceRecordIds = payload != null ? payload.sourceRecordIds : null;
+            this.isInServiceUserContext = payload != null ? payload.isInServiceUserContext : null;
+            this.batchId = payload != null ? payload.batchId : null;
+            this.priority = payload != null ? payload.priority : null;
         }
+    }
+
+    public static Boolean requiresAutonomousRecovery(String strategyKey) {
+        if (!ExecutionStrategyRegistryService.isKnownStrategyKey(strategyKey)) {
+            return false;
+        }
+        return String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative).equalsIgnoreCase(strategyKey);
     }
 }

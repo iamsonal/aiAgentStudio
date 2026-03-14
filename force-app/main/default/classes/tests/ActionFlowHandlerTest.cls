@@ -69,7 +69,7 @@ private class ActionFlowHandlerTest {
             implementationDetail,
             'turn-123',
             1,
-            'Conversational'
+            'Iterative'
         );
     }
 

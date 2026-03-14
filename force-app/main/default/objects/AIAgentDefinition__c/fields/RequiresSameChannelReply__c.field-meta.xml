@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RequiresSameChannelReply__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>Controls whether outbound replies must stay on the same originating channel route captured by the interaction session.</description>
+    <inlineHelpText>Enable to require replies to go back through the same channel path or endpoint that received the conversation.</inlineHelpText>
+    <label>Requires Same Channel Reply</label>
+    <type>Checkbox</type>
+</CustomField>

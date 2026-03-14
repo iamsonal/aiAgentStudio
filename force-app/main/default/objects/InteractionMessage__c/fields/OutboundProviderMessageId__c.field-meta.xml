@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>OutboundProviderMessageId__c</fullName>
+    <description>Provider-native identifier returned for the outbound reply or draft created from this message flow.</description>
+    <inlineHelpText>Stores the transport provider's ID for the resulting outbound message when a reply is drafted or sent.</inlineHelpText>
+    <label>Outbound Provider Message Id</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

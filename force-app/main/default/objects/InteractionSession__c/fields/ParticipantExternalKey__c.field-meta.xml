@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ParticipantExternalKey__c</fullName>
+    <description>Channel-native identifier for the participant on the other side of the interaction, such as an email address or chat user key.</description>
+    <inlineHelpText>Stores the external participant identity used to correlate who the conversation belongs to on the channel.</inlineHelpText>
+    <label>Participant External Key</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

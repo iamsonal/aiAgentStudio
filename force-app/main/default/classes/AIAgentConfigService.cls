@@ -38,6 +38,8 @@ public inherited sharing class AIAgentConfigService {
         'SummarizationTriggerTurnCount__c',
         'SummarizationChunkTurnCount__c',
         'WelcomeMessageTemplate__c',
+        'DefaultCompletionMode__c',
+        'RequiresSameChannelReply__c',
         'IdentityPrompt__c',
         'AuditLevel__c',
         'InstructionsPrompt__c',
@@ -62,10 +64,6 @@ public inherited sharing class AIAgentConfigService {
         'PromptSafetyFailureMode__c',
         // Error handling
         'ErrorRecoveryMode__c',
-        // Email agent configuration
-        'EmailReplyMode__c',
-        'EmailParentObject__c',
-        'EmailTerminalStatuses__c',
         // Confidence tracking
         'EnableConfidenceTracking__c',
         'MinConfidenceThreshold__c',
@@ -83,7 +81,8 @@ public inherited sharing class AIAgentConfigService {
         'ApiVersion__c',
         'MaxResponseTokens__c',
         'TimeoutMs__c',
-        'IsActive__c'
+        'IsActive__c',
+        'SupportsVision__c'
     };
 
     private static final List<String> AGENT_CAPABILITY_FIELDS = new List<String>{

@@ -6,8 +6,8 @@ private class UnifiedAgentQueueableTest {
     @TestSetup
     static void setupData() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
-        TestFactory.newAgentDefinition().withName('Queueable_Primary_Agent').withType('Function').withLLM(llm.Id).withAuditLevel('Standard').save();
-        TestFactory.newAgentDefinition().withName('Queueable_Convo_Agent').withType('Conversational').withLLM(llm.Id).save();
+        TestFactory.newAgentDefinition().withName('Queueable_Primary_Agent').withType('SingleShot').withLLM(llm.Id).withAuditLevel('Standard').save();
+        TestFactory.newAgentDefinition().withName('Queueable_Convo_Agent').withType('Iterative').withLLM(llm.Id).save();
     }
 
     @IsTest
@@ -30,7 +30,7 @@ private class UnifiedAgentQueueableTest {
         Test.setMock(HttpCalloutMock.class, MockHttpResponses.text('Summary complete.'));
 
         Test.startTest();
-        Id jobId = System.enqueueJob(new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_FUNCTION, payload));
+        Id jobId = System.enqueueJob(new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_SINGLE_SHOT, payload));
         Test.stopTest();
 
         System.assertNotEquals(null, jobId, 'Job should be enqueued');
@@ -38,19 +38,9 @@ private class UnifiedAgentQueueableTest {
         Integer executionCount = [
             SELECT COUNT()
             FROM AgentExecution__c
-            WHERE AIAgentDefinition__c = :agentDef.Id AND ExecutionType__c = 'Function'
+            WHERE AIAgentDefinition__c = :agentDef.Id AND ExecutionType__c = 'SingleShot'
         ];
-        Integer functionMappingCount = [
-            SELECT COUNT()
-            FROM AgentOrchestratorMapping__mdt
-            WHERE AgentType__c = 'Function' AND IsActive__c = TRUE
-        ];
-
-        if (functionMappingCount > 0) {
-            System.assertEquals(1, executionCount, 'Execution should be created when a compatible mapping is available');
-        } else {
-            System.assertEquals(0, executionCount, 'Execution should not be created when no compatible mapping is available');
-        }
+        System.assertEquals(1, executionCount, 'Execution should be created for the configured function runtime');
     }
 
     @IsTest
@@ -68,7 +58,7 @@ private class UnifiedAgentQueueableTest {
     static void testConstructor_NullPayload_ThrowsException() {
         Boolean threw = false;
         try {
-            new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_FUNCTION, null);
+            new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_SINGLE_SHOT, null);
         } catch (UnifiedAgentQueueable.UnifiedQueueableException e) {
             threw = true;
         }
@@ -99,7 +89,7 @@ private class UnifiedAgentQueueableTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(agentDef.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_PROCESSING)
             .withTurnIdentifier('turn-convo-001')
@@ -116,7 +106,7 @@ private class UnifiedAgentQueueableTest {
         Test.setMock(HttpCalloutMock.class, MockHttpResponses.text('Hello!'));
 
         Test.startTest();
-        Id jobId = System.enqueueJob(new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_CONVERSATIONAL, payload));
+        Id jobId = System.enqueueJob(new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_ITERATIVE, payload));
         Test.stopTest();
 
         System.assertNotEquals(null, jobId, 'Conversational job should be enqueued');

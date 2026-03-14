@@ -6,7 +6,7 @@ private class AgentExecutionServiceTest {
     @TestSetup
     static void setupData() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('ExecSvc LLM').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('ExecSvc_Agent').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('ExecSvc_Agent').withType('SingleShot').withLLM(llm.Id).save();
 
         agent.RequiresServiceUserContext__c = true;
         agent.ServiceUserNamedCredential__c = 'ServiceUser_NC';
@@ -333,7 +333,7 @@ private class AgentExecutionServiceTest {
             LIMIT 1
         ];
         agent.RequiresServiceUserContext__c = false;
-        agent.AgentType__c = 'Conversational'; // Use agent type that has orchestrator mapping
+        agent.AgentType__c = 'Iterative';
         update agent;
 
         Account source = [SELECT Id FROM Account WHERE Name = 'ExecSvc Account 1' LIMIT 1];
@@ -415,12 +415,8 @@ private class AgentExecutionServiceTest {
 
     @IsTest
     static void testRequiresAutonomousRecovery_UsesAvailableOrchestratorMappings() {
-        System.assertEquals(
-            true,
-            AgentExecutionService.requiresAutonomousRecovery('Conversational'),
-            'Conversational mapping should require autonomous recovery'
-        );
-        System.assertEquals(false, AgentExecutionService.requiresAutonomousRecovery('Function'), 'Function mapping should not require autonomous recovery');
+        System.assertEquals(true, AgentExecutionService.requiresAutonomousRecovery('Iterative'), 'Conversational mapping should require autonomous recovery');
+        System.assertEquals(false, AgentExecutionService.requiresAutonomousRecovery('SingleShot'), 'Function mapping should not require autonomous recovery');
         System.assertEquals(false, AgentExecutionService.requiresAutonomousRecovery('UnknownType'), 'Unknown types should not require autonomous recovery');
     }
 
@@ -483,7 +479,7 @@ private class AgentExecutionServiceTest {
         update agentA;
 
         LLMConfiguration__c llm = [SELECT Id FROM LLMConfiguration__c LIMIT 1];
-        AIAgentDefinition__c agentB = TestFactory.newAgentDefinition().withName('ExecSvc_AgentB_MixedOrder').withType('Conversational').withLLM(llm.Id).save();
+        AIAgentDefinition__c agentB = TestFactory.newAgentDefinition().withName('ExecSvc_AgentB_MixedOrder').withType('Iterative').withLLM(llm.Id).save();
 
         List<Account> sources = [SELECT Id FROM Account WHERE Name LIKE 'ExecSvc Account%' ORDER BY Name LIMIT 3];
 

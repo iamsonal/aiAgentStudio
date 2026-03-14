@@ -2,7 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>IsTransient__c</fullName>
     <defaultValue>false</defaultValue>
-    <description>Indicates whether this error is transient and may succeed on retry. Transient errors (e.g., timeouts, rate limits) can trigger automatic retry logic in eligible orchestrators.</description>
+    <description>Indicates whether this error is transient and may succeed on retry. Transient errors (for example timeouts or rate limits) can trigger automatic retry logic in eligible runtime flows.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
     <inlineHelpText>Check if this error type may resolve on retry (e.g., timeout, rate limiting). Unchecked errors are treated as permanent failures and will not be retried.</inlineHelpText>

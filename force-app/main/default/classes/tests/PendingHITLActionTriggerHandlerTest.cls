@@ -6,8 +6,8 @@ private class PendingHITLActionTriggerHandlerTest {
     @TestSetup
     static void setupData() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('HITL Trigger LLM').save();
-        TestFactory.newAgentDefinition().withName('HITL_Trigger_Agent').withType('Function').withLLM(llm.Id).save();
-        TestFactory.newAgentDefinition().withName('HITL_Trigger_Convo_Agent').withType('Conversational').withLLM(llm.Id).save();
+        TestFactory.newAgentDefinition().withName('HITL_Trigger_Agent').withType('SingleShot').withLLM(llm.Id).save();
+        TestFactory.newAgentDefinition().withName('HITL_Trigger_Convo_Agent').withType('Iterative').withLLM(llm.Id).save();
     }
 
     @IsTest
@@ -23,7 +23,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withSourceRecord(testCase.Id)
@@ -70,7 +70,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withSourceRecord(testCase.Id)
@@ -130,7 +130,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withSourceRecord(testCase.Id)
@@ -191,7 +191,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-hitl-noop-001')
@@ -238,7 +238,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withSourceRecord(testCase.Id)
@@ -285,7 +285,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withSourceRecord(testCase.Id)
@@ -364,7 +364,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withSourceRecord(testCase.Id)
@@ -413,7 +413,7 @@ private class PendingHITLActionTriggerHandlerTest {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Conv LLM').save();
         AIAgentDefinition__c conversationalAgent = TestFactory.newAgentDefinition()
             .withName('Conversational_HITL_Test')
-            .withType('Conversational')
+            .withType('Iterative')
             .withLLM(llm.Id)
             .save();
 
@@ -427,7 +427,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(conversationalAgent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withSourceRecord(testCase.Id)
@@ -484,7 +484,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withSourceRecord(testCase.Id)
@@ -543,7 +543,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-notfound-001')
@@ -604,7 +604,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-nocap-001')
@@ -664,7 +664,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withSourceRecord(testCase.Id)
@@ -726,7 +726,7 @@ private class PendingHITLActionTriggerHandlerTest {
         AgentExecution__c exec = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Conversational')
+            .withExecutionType('Iterative')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withSourceRecord(testCase.Id)

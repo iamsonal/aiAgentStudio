@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InteractionSession__c</fullName>
+    <description>Durable interaction session continuity anchor for this context item.</description>
+    <label>Interaction Session</label>
+    <referenceTo>InteractionSession__c</referenceTo>
+    <relationshipLabel>Context Ledger Items</relationshipLabel>
+    <relationshipName>InteractionSessionContextLedgerItems</relationshipName>
+    <required>false</required>
+    <type>Lookup</type>
+</CustomField>

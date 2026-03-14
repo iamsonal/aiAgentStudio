@@ -38,7 +38,7 @@ public inherited sharing class AgentStateService {
      * Caches the result to avoid repeated SOQL queries within the same transaction.
      *
      * @param executionId The AgentExecution__c ID
-     * @return String execution type ('Conversational', 'Function', 'Email', or 'Pipeline')
+     * @return String execution strategy key stored on ExecutionType__c
      */
     public String getExecutionType(Id executionId) {
         if (executionId == null) {
@@ -73,14 +73,13 @@ public inherited sharing class AgentStateService {
 
     /**
      * @description Checks if context tracking should be enabled for the given execution.
-     * Context tracking is only enabled for Conversational agents which need multi-turn memory.
+     * Context tracking is enabled for runtimes whose resolved strategy/channel traits support it.
      *
      * @param executionId The AgentExecution__c ID
      * @return Boolean true if context tracking should be enabled
      */
     public Boolean isContextTrackingEnabled(Id executionId) {
-        String execType = getExecutionType(executionId);
-        return execType == 'Conversational';
+        return RuntimeRegistryService.getTraits(executionId).supportsContextLedger == true;
     }
     public Id createExecution(
         String executionType,
@@ -98,7 +97,7 @@ public inherited sharing class AgentStateService {
      * Creates an AgentExecution__c record with an optional parent link and pre-set turn identifier,
      * allowing child executions to be created in a single DML operation rather than insert + update.
      *
-     * @param executionType      The type of execution (e.g. 'Function', 'Conversational')
+     * @param executionType      The execution strategy key (e.g. 'SingleShot', 'Iterative', 'Pipeline')
      * @param agentDefinitionId  The AIAgentDefinition__c record ID
      * @param triggerSource      The trigger source label
      * @param triggerPayload     Optional trigger payload text
@@ -129,6 +128,7 @@ public inherited sharing class AgentStateService {
 
             AgentExecution__c execution = new AgentExecution__c(
                 ExecutionType__c = executionType,
+                InteractionChannel__c = mapExecutionTypeToChannel(executionType),
                 AIAgentDefinition__c = agentDefinitionId,
                 TriggerSource__c = triggerSource,
                 TriggerPayload__c = triggerPayload,
@@ -155,6 +155,13 @@ public inherited sharing class AgentStateService {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create execution: ' + e.getMessage());
             throw new AgentStateException('Failed to create agent execution: ' + e.getMessage());
         }
+    }
+
+    private static String mapExecutionTypeToChannel(String executionType) {
+        if (String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.SingleShot).equalsIgnoreCase(executionType)) {
+            return RuntimeRegistryService.CHANNEL_API;
+        }
+        return RuntimeRegistryService.CHANNEL_CHAT;
     }
 
     /**
@@ -382,9 +389,15 @@ public inherited sharing class AgentStateService {
      * @param processingStatus The ProcessingStatus__c value returned by the execution (e.g. Idle, Failed)
      * @param logPrefix Log prefix for debug output
      */
-    public void syncFinalizeExecution(Id executionId, String newTurnIdentifier, String processingStatus, String statusMessage, String logPrefix) {
+    @TestVisible
+    private static Boolean forceSyncFinalizeExecutionFailure = false;
+
+    public Boolean syncFinalizeExecution(Id executionId, String newTurnIdentifier, String processingStatus, String statusMessage, String logPrefix) {
         try {
             TransactionContext txnCtx = TransactionContext.getInstance();
+            if (forceSyncFinalizeExecutionFailure) {
+                throw new AgentStateException('Forced sync finalization failure for test coverage');
+            }
             if (txnCtx.isDeferredDMLMode()) {
                 txnCtx.commitBuffer();
                 txnCtx.disableDeferredDMLMode();
@@ -399,7 +412,7 @@ public inherited sharing class AgentStateService {
             ];
 
             if (stale.isEmpty()) {
-                return; // Already stamped correctly by completeTurnSuccessfully()
+                return true; // Already stamped correctly by completeTurnSuccessfully()
             }
 
             AgentExecution__c exec = new AgentExecution__c(
@@ -439,15 +452,33 @@ public inherited sharing class AgentStateService {
                 LoggingLevel.INFO,
                 logPrefix + '[AgentStateService] syncFinalizeExecution stamped turn=' + newTurnIdentifier + ' status=' + exec.ExecutionStatus__c
             );
+            return true;
         } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, logPrefix + '[AgentStateService] syncFinalizeExecution failed (non-fatal): ' + e.getMessage());
+            String detailMessage = 'Synchronous turn finalization recovery failed: ' + e.getMessage();
+            System.debug(LoggingLevel.ERROR, logPrefix + '[AgentStateService] ' + detailMessage);
+
+            TransactionContext txnCtx = TransactionContext.getInstance();
+            if (txnCtx.isDeferredDMLMode()) {
+                txnCtx.discardBufferedRecordsForExecution(executionId);
+                txnCtx.disableDeferredDMLMode();
+            }
+
+            try {
+                Boolean paused = pauseForOperationalIssue(executionId, null, AIAgentConstants.OP_STATE_SYNC_FINALIZATION_FAILED, detailMessage, logPrefix);
+                if (paused) {
+                    update new AgentExecution__c(Id = executionId, EndTime__c = Datetime.now());
+                }
+            } catch (Exception pauseEx) {
+                System.debug(LoggingLevel.ERROR, logPrefix + '[AgentStateService] Failed to persist sync finalization recovery issue: ' + pauseEx.getMessage());
+            }
+            return false;
         } finally {
             TransactionContext.getInstance().clearSyncFinalizationRecovery();
         }
     }
 
-    public void syncFinalizeExecution(Id executionId, String newTurnIdentifier, String processingStatus, String logPrefix) {
-        syncFinalizeExecution(executionId, newTurnIdentifier, processingStatus, null, logPrefix);
+    public Boolean syncFinalizeExecution(Id executionId, String newTurnIdentifier, String processingStatus, String logPrefix) {
+        return syncFinalizeExecution(executionId, newTurnIdentifier, processingStatus, null, logPrefix);
     }
 
     // STATUS UPDATE (Public for direct callers)
@@ -560,8 +591,8 @@ public inherited sharing class AgentStateService {
 
     /**
      * Publishes AgentResponse__e event for AgentExecution__c records to notify UI of completion.
-     * Only publishes events for Conversational executions (chat UI). Function
-     * executions are background/API operations that don't need UI notifications.
+     * Only publishes events for iterative chat executions. SingleShot/API
+     * executions are backend operations that don't need UI notifications.
      *
      * @param executionId The AgentExecution__c ID
      * @param isSuccess Whether the turn completed successfully
@@ -580,7 +611,7 @@ public inherited sharing class AgentStateService {
     ) {
         // Check if we should publish events based on execution type
         if (!shouldPublishEventsForExecution(executionId, logPrefix)) {
-            System.debug(LoggingLevel.INFO, logPrefix + 'Skipping AgentResponse__e event (non-conversational execution type)');
+            System.debug(LoggingLevel.INFO, logPrefix + 'Skipping AgentResponse__e event (non-UI execution channel)');
             return;
         }
 
@@ -646,25 +677,17 @@ public inherited sharing class AgentStateService {
 
     /**
      * Determines if platform events should be published for this execution.
-     * Only conversational agents need UI notification events. Function
-     * executions are backend/API operations that should not trigger UI events.
+     * Only iterative chat executions need UI notification events. SingleShot
+     * and backend/API executions should not trigger UI events.
      *
      * @param executionId The execution ID to check
      * @param logPrefix String prefix for log output
-     * @return true if events should be published (Conversational type), false otherwise
+     * @return true if events should be published for the execution traits, false otherwise
      */
     @TestVisible
     private Boolean shouldPublishEventsForExecution(Id executionId, String logPrefix) {
-        String executionType = getExecutionType(executionId);
-
-        if (executionType == null) {
-            System.debug(LoggingLevel.WARN, logPrefix + 'Execution type not found, defaulting to no event');
-            return false;
-        }
-
-        Boolean shouldPublish = (executionType == 'Conversational');
-        System.debug(LoggingLevel.INFO, logPrefix + 'Event publishing decision: ExecutionType=' + executionType + ', ShouldPublish=' + shouldPublish);
-
+        Boolean shouldPublish = RuntimeRegistryService.getTraits(executionId).publishesUiEvents == true;
+        System.debug(LoggingLevel.INFO, logPrefix + 'Event publishing decision: ShouldPublish=' + shouldPublish);
         return shouldPublish;
     }
 

@@ -172,7 +172,7 @@ public inherited sharing class LLMInteractionService {
                 SystemPromptBuilder promptBuilder = new SystemPromptBuilder(this.decisionLogger, maskingService);
                 finalSystemPrompt = promptBuilder.build(this.executionId, agentConfig, llmConfig, this.currentPageRecordId, this.currentTurnCount, this.userId);
 
-                String orchestratorAdditions = getOrchestratorPromptAdditions(
+                String strategyAdditions = getStrategyPromptAdditions(
                     agentConfig,
                     this.executionId,
                     this.userId,
@@ -182,12 +182,26 @@ public inherited sharing class LLMInteractionService {
                     logPrefix
                 );
 
-                if (String.isNotBlank(orchestratorAdditions)) {
-                    finalSystemPrompt += orchestratorAdditions;
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Added orchestrator-specific prompt additions');
+                if (String.isNotBlank(strategyAdditions)) {
+                    finalSystemPrompt += strategyAdditions;
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Added strategy-specific prompt additions');
                 }
 
-                String confidenceInstructions = buildConfidenceInstructions(agentConfig, logPrefix);
+                String channelAdditions = getChannelPromptAdditions(
+                    agentConfig,
+                    this.executionId,
+                    this.userId,
+                    this.currentTurnCount,
+                    currentTurnUserMessage,
+                    this.currentPageRecordId,
+                    logPrefix
+                );
+                if (String.isNotBlank(channelAdditions)) {
+                    finalSystemPrompt += channelAdditions;
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Added channel-specific prompt additions');
+                }
+
+                String confidenceInstructions = buildConfidenceInstructions(agentConfig, this.executionId, logPrefix);
                 if (String.isNotBlank(confidenceInstructions)) {
                     finalSystemPrompt += confidenceInstructions;
                     System.debug(LoggingLevel.INFO, logPrefix + 'Added confidence guidance instructions to system prompt');
@@ -518,18 +532,19 @@ public inherited sharing class LLMInteractionService {
     }
 
     @TestVisible
-    private static String buildConfidenceInstructions(AIAgentDefinition__c agentConfig, String logPrefix) {
+    private static String buildConfidenceInstructions(AIAgentDefinition__c agentConfig, Id executionId, String logPrefix) {
         if (agentConfig?.EnableConfidenceTracking__c != true) {
             return null;
         }
 
-        String agentType = agentConfig.AgentType__c;
+        String strategy = RuntimeRegistryService.getExecutionStrategyKey(agentConfig);
+        String channel = RuntimeRegistryService.getInteractionChannel(agentConfig, executionId);
 
         String guidance;
-        if ('Conversational'.equalsIgnoreCase(agentType)) {
-            guidance = AIAgentConstants.PROMPT_CONFIDENCE_GUIDANCE_CONVERSATIONAL;
-        } else if ('Email'.equalsIgnoreCase(agentType)) {
+        if (RuntimeRegistryService.CHANNEL_EMAIL.equalsIgnoreCase(channel)) {
             guidance = AIAgentConstants.PROMPT_CONFIDENCE_GUIDANCE_EMAIL;
+        } else if (String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative).equalsIgnoreCase(strategy)) {
+            guidance = AIAgentConstants.PROMPT_CONFIDENCE_GUIDANCE_CONVERSATIONAL;
         } else {
             guidance = AIAgentConstants.PROMPT_CONFIDENCE_GUIDANCE_FUNCTION;
         }
@@ -537,7 +552,10 @@ public inherited sharing class LLMInteractionService {
         String thresholdNote = agentConfig.MinConfidenceThreshold__c != null
             ? ' with enforcement threshold ' + agentConfig.MinConfidenceThreshold__c.intValue()
             : ' (tracking only, no enforcement threshold)';
-        System.debug(LoggingLevel.DEBUG, logPrefix + 'Confidence guidance instructions injected for agent type "' + agentType + '"' + thresholdNote);
+        System.debug(
+            LoggingLevel.DEBUG,
+            logPrefix + 'Confidence guidance instructions injected for strategy "' + strategy + '" and channel "' + channel + '"' + thresholdNote
+        );
         return AIAgentConstants.PROMPT_SECTION_CONFIDENCE_GUIDANCE + guidance;
     }
 
@@ -566,7 +584,7 @@ public inherited sharing class LLMInteractionService {
         return parts.isEmpty() ? null : String.join(parts, '\n\n');
     }
 
-    private String getOrchestratorPromptAdditions(
+    private String getChannelPromptAdditions(
         AIAgentDefinition__c agentConfig,
         Id executionId,
         Id userId,
@@ -584,13 +602,11 @@ public inherited sharing class LLMInteractionService {
                 currentTurnUserMessage,
                 currentPageRecordId
             );
-
-            IAgentOrchestrator orchestrator = loadOrchestrator(agentConfig);
-            String additions = orchestrator.buildSystemPromptAdditions(minimalContext);
-
+            InteractionRuntimeModels.IInteractionChannel channelAdapter = RuntimeRegistryService.getChannelAdapter(agentConfig, executionId);
+            String additions = channelAdapter.buildPromptAdditions(executionId, minimalContext);
             return additions != null ? additions : '';
         } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to get orchestrator prompt additions: ' + e.getMessage());
+            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to get channel prompt additions: ' + e.getMessage());
             return '';
         }
     }
@@ -625,15 +641,43 @@ public inherited sharing class LLMInteractionService {
 
     /**
      * @description
-     * Loads the appropriate orchestrator for an agent definition.
-     * Delegates to AgentExecutionService.getOrchestrator() so the transaction-level static
-     * cache is used instead of issuing a per-call SOQL against AgentOrchestratorMapping__mdt.
+     * Loads the active execution strategy and asks it for prompt additions.
      */
-    private IAgentOrchestrator loadOrchestrator(AIAgentDefinition__c agentConfig) {
+    private IExecutionStrategy loadExecutionStrategy(AIAgentDefinition__c agentConfig, Id executionId) {
         try {
-            return AgentExecutionService.getOrchestrator(agentConfig);
+            return ExecutionStrategyRegistryService.resolveStrategy(agentConfig, RuntimeRegistryService.getInteractionChannel(agentConfig, executionId));
         } catch (AIAgentException.OrchestrationException e) {
             throw new LLMInteractionException(e.getMessage());
+        }
+    }
+
+    private String getStrategyPromptAdditions(
+        AIAgentDefinition__c agentConfig,
+        Id executionId,
+        Id userId,
+        Integer currentTurnCount,
+        MessageData currentTurnUserMessage,
+        Id currentPageRecordId,
+        String logPrefix
+    ) {
+        try {
+            OrchestrationContext minimalContext = buildMinimalContext(
+                executionId,
+                userId,
+                agentConfig.Id,
+                currentTurnCount,
+                currentTurnUserMessage,
+                currentPageRecordId
+            );
+
+            String interactionChannel = RuntimeRegistryService.getInteractionChannel(agentConfig, executionId);
+            IExecutionStrategy strategy = loadExecutionStrategy(agentConfig, executionId);
+            String additions = strategy.buildStrategyPromptAdditions(minimalContext, agentConfig, interactionChannel);
+
+            return additions != null ? additions : '';
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to get strategy prompt additions: ' + e.getMessage());
+            return '';
         }
     }
 }

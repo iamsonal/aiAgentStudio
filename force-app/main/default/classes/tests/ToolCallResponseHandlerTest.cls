@@ -268,7 +268,7 @@ private class ToolCallResponseHandlerTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(functionSetup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-failfast-001')
@@ -963,7 +963,7 @@ private class ToolCallResponseHandlerTest {
         TestFactory.AgentSetup setup = getSetup();
 
         // Update agent to Function type
-        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, AgentType__c = 'Function');
+        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, AgentType__c = 'SingleShot');
 
         AgentCapability__c approvalCap = TestFactory.newCapability()
             .withAgent(setup.agentDefinition.Id)
@@ -976,7 +976,7 @@ private class ToolCallResponseHandlerTest {
         AgentExecution__c functionExec = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-func-approval-001')
@@ -1036,7 +1036,7 @@ private class ToolCallResponseHandlerTest {
         update agentDef;
 
         // Set execution type to Function so all-blocked path fails the turn (not queues follow-up)
-        update new AgentExecution__c(Id = setup.agentExecution.Id, ExecutionType__c = 'Function');
+        update new AgentExecution__c(Id = setup.agentExecution.Id, ExecutionType__c = 'SingleShot');
 
         // Single tool call with confidence below threshold — all tools are blocked
         String argsJson = '{"Id":"' + setup.agentExecution.Id + '","_confidence":35}';
@@ -1093,7 +1093,7 @@ private class ToolCallResponseHandlerTest {
         update agentDef;
 
         // Set execution type to Function so all-blocked path fails the turn (not queues follow-up)
-        update new AgentExecution__c(Id = setup.agentExecution.Id, ExecutionType__c = 'Function');
+        update new AgentExecution__c(Id = setup.agentExecution.Id, ExecutionType__c = 'SingleShot');
 
         // Tool call with NO _confidence — missing field must be treated as 0, not bypassed
         String argsJson = '{"Id":"' + setup.agentExecution.Id + '"}';

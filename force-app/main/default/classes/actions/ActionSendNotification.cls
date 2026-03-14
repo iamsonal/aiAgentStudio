@@ -256,10 +256,13 @@ public with sharing class ActionSendNotification extends BaseAgentAction {
     /**
      * @description
      * Validates that the target record exists and the user has access to it.
+     * objectApiName is derived exclusively from Schema.SObjectType.getDescribe() and is not
+     * user-controlled input, making the dynamic SOQL safe from injection.
      *
      * @param targetId The record ID to validate
      * @return ActionOutcome containing validated Id or error
      */
+    @SuppressWarnings('PMD.ApexSOQLInjection')
     private ActionOutcome validateTargetRecord(String targetId) {
         try {
             Id recordId = Id.valueOf(targetId);

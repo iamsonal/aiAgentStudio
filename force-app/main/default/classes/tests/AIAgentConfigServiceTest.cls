@@ -9,7 +9,7 @@ private class AIAgentConfigServiceTest {
 
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition()
             .withName('CfgSvc_Agent')
-            .withType('Function')
+            .withType('SingleShot')
             .withLLM(llm.Id)
             .withAuditLevel('Standard')
             .save();

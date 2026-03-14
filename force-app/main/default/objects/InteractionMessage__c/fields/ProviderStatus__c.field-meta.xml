@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProviderStatus__c</fullName>
+    <description>Latest provider-specific delivery or processing status recorded for this message.</description>
+    <inlineHelpText>Stores the raw status returned by the transport provider when that detail is available.</inlineHelpText>
+    <label>Provider Status</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

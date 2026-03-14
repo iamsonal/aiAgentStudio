@@ -66,14 +66,16 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
         AgentExecution__c execution = null;
 
         try {
-            // Load and cache the agent definition so getOrchestrator() can reuse it
+            // Load and cache the agent definition so the strategy runtime can reuse it
             // without a second round-trip to AIAgentConfigService.
             try {
                 this.cachedAgentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(agentName);
                 this.agentDefinitionId = this.cachedAgentDef.Id;
-                // Function agents make LLM callouts synchronously in this transaction;
-                // avoid any DML before orchestrator.start() to prevent "uncommitted work pending".
-                this.allowPreCalloutDml = (this.cachedAgentDef.AgentType__c != 'Function');
+                String runtimeChannel = String.isNotBlank(payload.interactionChannel)
+                    ? payload.interactionChannel
+                    : RuntimeRegistryService.getInteractionChannel(this.cachedAgentDef, payload.existingExecutionId);
+                // Strategy-driven pre-callout constraint.
+                this.allowPreCalloutDml = (RuntimeRegistryService.getTraits(this.cachedAgentDef, runtimeChannel).requiresCleanPreCalloutTransaction != true);
             } catch (AIAgentConfigService.ConfigurationException e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Agent definition not found: ' + agentName);
                 return;
@@ -117,6 +119,8 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                 followUpPayload.existingExecutionId = execution.Id;
                 followUpPayload.userMessage = payload.userMessage;
                 followUpPayload.claimToken = payload.claimToken;
+                followUpPayload.interactionChannel = payload.interactionChannel;
+                followUpPayload.conversationKey = payload.conversationKey;
 
                 System.enqueueJob(new AgentExecutionWorker(agentName, followUpPayload));
                 return;
@@ -153,6 +157,7 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                     SELECT
                         Id,
                         SourceRecordId__c,
+                        InteractionChannel__c,
                         User__c,
                         CurrentTurnIdentifier__c,
                         AIAgentDefinition__c,
@@ -207,12 +212,22 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
 
                 if (execution.ExecutionStatus__c == 'Processing') {
                     System.debug(LoggingLevel.INFO, logPrefix + 'Function agent detected - execution already Processing, skipping status update');
+                    payload.interactionChannel = execution.InteractionChannel__c;
                     return execution;
                 }
 
                 // Claim and mark Processing with lock (no callout in this transaction).
                 List<AgentExecution__c> locked = [
-                    SELECT Id, SourceRecordId__c, User__c, CurrentTurnIdentifier__c, AIAgentDefinition__c, ExecutionStatus__c, Priority__c, RetryCount__c
+                    SELECT
+                        Id,
+                        SourceRecordId__c,
+                        InteractionChannel__c,
+                        User__c,
+                        CurrentTurnIdentifier__c,
+                        AIAgentDefinition__c,
+                        ExecutionStatus__c,
+                        Priority__c,
+                        RetryCount__c
                     FROM AgentExecution__c
                     WHERE Id = :executionId AND ExecutionStatus__c = 'Pending'
                     FOR UPDATE
@@ -229,6 +244,7 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                 execution.WorkerClaimToken__c = claimToken;
                 update execution;
                 payload.claimToken = claimToken;
+                payload.interactionChannel = execution.InteractionChannel__c;
                 deferProcessingAfterClaim = true;
 
                 System.debug(LoggingLevel.INFO, logPrefix + 'Locked pre-assigned execution: ' + execution.Id);
@@ -237,7 +253,16 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
 
             // Non-Function agents: lock and update when needed.
             List<AgentExecution__c> executions = [
-                SELECT Id, SourceRecordId__c, User__c, CurrentTurnIdentifier__c, AIAgentDefinition__c, ExecutionStatus__c, Priority__c, RetryCount__c
+                SELECT
+                    Id,
+                    SourceRecordId__c,
+                    InteractionChannel__c,
+                    User__c,
+                    CurrentTurnIdentifier__c,
+                    AIAgentDefinition__c,
+                    ExecutionStatus__c,
+                    Priority__c,
+                    RetryCount__c
                 FROM AgentExecution__c
                 WHERE Id = :executionId AND ExecutionStatus__c IN ('Pending', 'Processing')
                 FOR UPDATE
@@ -258,6 +283,7 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                 System.debug(LoggingLevel.INFO, logPrefix + 'Execution already Processing, skipping status update');
             }
 
+            payload.interactionChannel = execution.InteractionChannel__c;
             System.debug(LoggingLevel.INFO, logPrefix + 'Locked pre-assigned execution: ' + execution.Id);
             return execution;
         } catch (QueryException qe) {
@@ -296,6 +322,7 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                 deferProcessingAfterClaim = true;
             }
 
+            payload.interactionChannel = execution.InteractionChannel__c;
             System.debug(LoggingLevel.INFO, logPrefix + 'Locked pending execution via DLQ: ' + execution.Id + ' (Priority: ' + execution.Priority__c + ')');
             return execution;
         } catch (QueryException qe) {
@@ -316,9 +343,6 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
         System.debug(LoggingLevel.INFO, execLogPrefix + 'Starting AI orchestration...');
 
         try {
-            // Get orchestrator
-            IAgentOrchestrator orchestrator = getOrchestrator();
-
             // Build payload for orchestration
             AgentExecutionService.ExecutionPayload execPayload = new AgentExecutionService.ExecutionPayload();
             execPayload.userId = execution.User__c;
@@ -327,9 +351,10 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
             execPayload.triggerSource = payload.triggerSource != null ? payload.triggerSource : 'DLQ';
             execPayload.existingExecutionId = execution.Id;
             execPayload.userMessage = payload.userMessage;
+            execPayload.interactionChannel = execution.InteractionChannel__c;
 
-            // Execute orchestration
-            orchestrator.start(agentName, execPayload);
+            IExecutionStrategy strategy = ExecutionStrategyRegistryService.resolveStrategy(this.cachedAgentDef, execution.InteractionChannel__c);
+            strategy.startExecution(agentName, execPayload, this.cachedAgentDef);
 
             System.debug(LoggingLevel.INFO, execLogPrefix + 'AI orchestration completed successfully');
         } catch (DmlException dmlEx) {
@@ -376,6 +401,7 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                 chainPayload.triggerSource = 'DLQ';
                 chainPayload.existingExecutionId = nextExecution.Id;
                 chainPayload.claimToken = nextExecution.WorkerClaimToken__c;
+                chainPayload.interactionChannel = nextExecution.InteractionChannel__c;
 
                 try {
                     Id jobId = System.enqueueJob(new AgentExecutionWorker(agentName, chainPayload));
@@ -433,6 +459,7 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
             AgentExecutionService.ExecutionPayload chainPayload = new AgentExecutionService.ExecutionPayload();
             chainPayload.userId = UserInfo.getUserId();
             chainPayload.triggerSource = 'DLQ';
+            chainPayload.interactionChannel = payload.interactionChannel;
             // Note: existingExecutionId NOT set - worker will self-pull
 
             Id jobId = System.enqueueJob(new AgentExecutionWorker(agentName, chainPayload));
@@ -533,7 +560,16 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
         for (AgentExecution__c candidate : candidates) {
             try {
                 List<AgentExecution__c> locked = [
-                    SELECT Id, SourceRecordId__c, User__c, CurrentTurnIdentifier__c, AIAgentDefinition__c, ExecutionStatus__c, Priority__c, RetryCount__c
+                    SELECT
+                        Id,
+                        SourceRecordId__c,
+                        InteractionChannel__c,
+                        User__c,
+                        CurrentTurnIdentifier__c,
+                        AIAgentDefinition__c,
+                        ExecutionStatus__c,
+                        Priority__c,
+                        RetryCount__c
                     FROM AgentExecution__c
                     WHERE Id = :candidate.Id AND ExecutionStatus__c = 'Pending' AND (NextRetryAt__c = NULL OR NextRetryAt__c <= :now)
                     LIMIT 1
@@ -592,21 +628,6 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
             }
         }
         return dmlEx.getMessage().containsIgnoreCase('UNABLE_TO_LOCK_ROW');
-    }
-
-    /**
-     * @description Gets orchestrator for agent, reusing the cached definition from execute().
-     * @return IAgentOrchestrator instance
-     */
-    private IAgentOrchestrator getOrchestrator() {
-        if (this.cachedAgentDef == null) {
-            throw new AgentExecutionException('Agent definition not loaded for: ' + agentName);
-        }
-        try {
-            return AgentExecutionService.getOrchestrator(this.cachedAgentDef);
-        } catch (Exception e) {
-            throw new AgentExecutionException('Failed to load orchestrator for agent: ' + agentName + '. ' + e.getMessage());
-        }
     }
 
     /**

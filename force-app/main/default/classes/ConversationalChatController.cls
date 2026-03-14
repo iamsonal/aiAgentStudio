@@ -26,16 +26,16 @@ public with sharing class ConversationalChatController {
      * Processes a user message for a given agent execution. Delegates to AgentExecutionService for all routing logic.
      */
     @AuraEnabled
-    public static Map<String, Object> sendMessage(Id sessionId, String userMessage, Id currentRecordId, String turnIdentifier) {
-        String logPrefix = '[AIController Turn:' + turnIdentifier.left(8) + ' Exec:' + sessionId + '] ';
+    public static Map<String, Object> sendMessage(Id executionId, String userMessage, Id currentRecordId, String turnIdentifier) {
+        String logPrefix = '[AIController Turn:' + turnIdentifier.left(8) + ' Exec:' + executionId + '] ';
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting message processing for AgentExecution. Page context record: ' + currentRecordId);
 
-        if (sessionId == null || String.isBlank(userMessage)) {
+        if (executionId == null || String.isBlank(userMessage)) {
             throw new AuraHandledException('Execution ID and User Message are required.');
         }
-        validateExecutionAccess(sessionId);
+        validateExecutionAccess(executionId);
         Id originalUserId = UserInfo.getUserId();
-        Map<String, Object> lwcResponse = new Map<String, Object>{ 'success' => false, 'sessionId' => sessionId };
+        Map<String, Object> lwcResponse = new Map<String, Object>{ 'success' => false, 'executionId' => executionId };
 
         try {
             // Get the agent execution details
@@ -49,7 +49,7 @@ public with sharing class ConversationalChatController {
                     User__c,
                     ServiceUser__c
                 FROM AgentExecution__c
-                WHERE Id = :sessionId
+                WHERE Id = :executionId
                 LIMIT 1
             ];
 
@@ -70,7 +70,7 @@ public with sharing class ConversationalChatController {
             payload.userMessage = userMessage;
             payload.currentRecordId = currentRecordId;
             payload.turnIdentifier = turnIdentifier;
-            payload.existingExecutionId = sessionId; // Continue existing execution
+            payload.existingExecutionId = executionId; // Continue existing execution
 
             // Delegate to AgentExecutionService - it will handle service user context switching if needed
             String agentDeveloperName = execution.AIAgentDefinition__r.DeveloperName__c;
@@ -97,7 +97,7 @@ public with sharing class ConversationalChatController {
             // Attempt to mark turn as failed - may fail if execution is invalid
             try {
                 AgentStateService ass = new AgentStateService();
-                ass.failTurn(sessionId, turnIdentifier, 'Controller Error: ' + errorMsg, errorCode, logPrefix);
+                ass.failTurn(executionId, turnIdentifier, 'Controller Error: ' + errorMsg, errorCode, logPrefix);
             } catch (Exception failEx) {
                 System.debug(LoggingLevel.WARN, logPrefix + 'Could not update turn state: ' + failEx.getMessage());
             }
@@ -143,7 +143,36 @@ public with sharing class ConversationalChatController {
             AgentStateService agentStateService = new AgentStateService();
             String executionLabel = 'Chat - ' + Datetime.now().format('MM/dd HH:mm:ss');
 
-            Id newExecutionId = agentStateService.createExecution('Conversational', agentDef.Id, 'Chat', executionLabel, recordId, userId, null);
+            Id newExecutionId = agentStateService.createExecution(
+                RuntimeRegistryService.getExecutionStrategyKey(agentDef),
+                agentDef.Id,
+                'Chat',
+                executionLabel,
+                recordId,
+                userId,
+                null
+            );
+
+            InteractionRuntimeModels.IInteractionChannel chatChannel = new ChatChannelAdapter();
+            String conversationKey = UUID.randomUUID().toString();
+            Map<String, Object> metadata = new Map<String, Object>{
+                'existingExecutionId' => String.valueOf(newExecutionId),
+                'conversationKey' => conversationKey,
+                'userId' => String.valueOf(userId)
+            };
+            InteractionRuntimeModels.InteractionEnvelope envelope = new InboundMessageNormalizer()
+                .normalize(chatChannel, JSON.serialize(metadata), recordId, null);
+            InteractionRuntimeModels.InteractionSessionContext sessionContext = new InteractionSessionResolver()
+                .resolve(chatChannel, agentDef, envelope, logPrefix);
+            if (sessionContext != null && sessionContext.sessionId != null) {
+                update new AgentExecution__c(
+                    Id = newExecutionId,
+                    InteractionChannel__c = RuntimeRegistryService.CHANNEL_CHAT,
+                    InteractionSession__c = sessionContext.sessionId,
+                    SessionStartedAt__c = Datetime.now()
+                );
+                new InteractionSessionService().stampExecution(sessionContext.sessionId, newExecutionId);
+            }
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Successfully created new agent execution: ' + newExecutionId);
 
@@ -160,7 +189,8 @@ public with sharing class ConversationalChatController {
 
             // 5. CONSTRUCT THE RESPONSE DTO
             SessionDetails response = new SessionDetails();
-            response.sessionId = newExecutionId; // Now returns AgentExecution__c ID
+            response.executionId = newExecutionId;
+            response.interactionSessionId = sessionContext != null ? sessionContext.sessionId : null;
             response.welcomeMessage = welcomeMessage;
             response.transientMessagesEnabled = true;
 
@@ -188,27 +218,27 @@ public with sharing class ConversationalChatController {
      * Retrieves the execution history for a given agent execution, applying filtering and pagination for UI display.
      * Now uses the unified AgentExecution__c and ExecutionStep__c data model exclusively.
      *
-     * @param sessionId              The ID of the agent execution (AgentExecution__c).
+     * @param executionId            The ID of the agent execution (AgentExecution__c).
      * @param limitCount             The maximum number of steps to return.
      * @param oldestMessageTimestamp The timestamp to paginate older steps from.
      * @return                       A list of formatted step maps for the UI.
      * @throws AuraHandledException for validation or access errors.
      */
     @AuraEnabled
-    public static List<Map<String, Object>> getChatHistory(Id sessionId, Integer limitCount, DateTime oldestMessageTimestamp) {
-        if (sessionId == null) {
+    public static List<Map<String, Object>> getChatHistory(Id executionId, Integer limitCount, DateTime oldestMessageTimestamp) {
+        if (executionId == null) {
             throw new AuraHandledException('Execution ID required.');
         }
         // Use hardcoded UI history limit (20 messages) for chat display
         Integer uiHistoryLimit = 20;
         Integer effectiveLimit = (limitCount != null && limitCount > 0) ? Math.min(limitCount, uiHistoryLimit) : uiHistoryLimit;
-        validateExecutionAccess(sessionId);
+        validateExecutionAccess(executionId);
 
         List<Map<String, Object>> formattedMessagesForUi = new List<Map<String, Object>>();
 
         System.debug(
             LoggingLevel.DEBUG,
-            '[AIController.getChatHistory] Session: ' + sessionId + ', Limit: ' + effectiveLimit + ', OlderThan: ' + oldestMessageTimestamp
+            '[AIController.getChatHistory] Execution: ' + executionId + ', Limit: ' + effectiveLimit + ', OlderThan: ' + oldestMessageTimestamp
         );
         try {
             // Note: We might need to query more records initially to ensure we have enough "displayable" steps after filtering.
@@ -220,7 +250,7 @@ public with sharing class ConversationalChatController {
             ExecutionStepService executionStepService = new ExecutionStepService();
             List<ExecutionStep__c> rawSteps = getExecutionStepsWithTimestampPagination(
                 executionStepService,
-                sessionId,
+                executionId,
                 queryLimitWithBuffer,
                 sortOrder,
                 oldestMessageTimestamp
@@ -273,7 +303,7 @@ public with sharing class ConversationalChatController {
                 formattedMessagesForUi = reversed;
             }
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, '[AIController.getChatHistory] Error session ' + sessionId + ': ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, '[AIController.getChatHistory] Error execution ' + executionId + ': ' + e.getMessage());
             throw new AuraHandledException('Error retrieving chat history: ' + e.getMessage());
         }
         return formattedMessagesForUi;
@@ -338,7 +368,7 @@ public with sharing class ConversationalChatController {
      *
      * @param agentDeveloperName The developer name of the agent.
      * @param recordId           The current record context, if any.
-     * @return                   SessionDetails wrapper containing the execution ID and processed welcome message, or null if not found.
+     * @return                   SessionDetails wrapper containing the execution and interaction session IDs, or null if not found.
      */
     @AuraEnabled(Cacheable=true)
     public static SessionDetails getMostRecentSession(String agentDeveloperName, Id recordId) {
@@ -351,9 +381,13 @@ public with sharing class ConversationalChatController {
             }
 
             List<AgentExecution__c> executions = [
-                SELECT Id
+                SELECT Id, InteractionSession__c
                 FROM AgentExecution__c
-                WHERE User__c = :userId AND AIAgentDefinition__c = :agentDef.Id AND ExecutionType__c = 'Conversational'
+                WHERE
+                    User__c = :userId
+                    AND AIAgentDefinition__c = :agentDef.Id
+                    AND (InteractionChannel__c = :RuntimeRegistryService.CHANNEL_CHAT
+                    OR InteractionChannel__c = NULL)
                 ORDER BY LastActivityTime__c DESC NULLS LAST
                 LIMIT 1
             ];
@@ -363,8 +397,8 @@ public with sharing class ConversationalChatController {
             }
 
             SessionDetails response = new SessionDetails();
-            response.sessionId = executions[0].Id; // Returns AgentExecution__c ID for UI compatibility
-
+            response.executionId = executions[0].Id;
+            response.interactionSessionId = executions[0].InteractionSession__c;
             String template = agentDef.WelcomeMessageTemplate__c;
             if (String.isNotBlank(template)) {
                 String processedMessage = template.replace('{User.FirstName}', UserInfo.getFirstName());
@@ -385,13 +419,13 @@ public with sharing class ConversationalChatController {
      * enabling a 'start over' feature. This method deletes ExecutionStep__c records and related decision steps (if addons deployed)
      * to ensure a complete cleanup of the conversation history from the specified point.
      *
-     * @param sessionId      The ID of the agent execution.
+     * @param executionId    The ID of the agent execution.
      * @param turnIdentifier The turn identifier of the step to start over from.
      * @throws AuraHandledException for validation, access, or DML errors.
      */
     @AuraEnabled
-    public static void startOverFromMessage(Id sessionId, String turnIdentifier) {
-        validateExecutionAccess(sessionId);
+    public static void startOverFromMessage(Id executionId, String turnIdentifier) {
+        validateExecutionAccess(executionId);
         String logPrefix = '[AIController.startOverFromMessage] ';
 
         try {
@@ -399,7 +433,7 @@ public with sharing class ConversationalChatController {
             List<ExecutionStep__c> targetSteps = [
                 SELECT Timestamp__c
                 FROM ExecutionStep__c
-                WHERE TurnIdentifier__c = :turnIdentifier AND AgentExecution__c = :sessionId
+                WHERE TurnIdentifier__c = :turnIdentifier AND AgentExecution__c = :executionId
                 ORDER BY Timestamp__c ASC
             ];
 
@@ -414,7 +448,7 @@ public with sharing class ConversationalChatController {
             List<ExecutionStep__c> stepsToDelete = [
                 SELECT Id, TurnIdentifier__c
                 FROM ExecutionStep__c
-                WHERE AgentExecution__c = :sessionId AND Timestamp__c >= :targetTimestamp
+                WHERE AgentExecution__c = :executionId AND Timestamp__c >= :targetTimestamp
             ];
 
             if (!stepsToDelete.isEmpty()) {
@@ -431,7 +465,7 @@ public with sharing class ConversationalChatController {
                         'Deleting ' +
                         stepsToDelete.size() +
                         ' execution steps and related decision steps from execution ' +
-                        sessionId +
+                        executionId +
                         ' starting at ' +
                         targetTimestamp
                 );
@@ -478,7 +512,9 @@ public with sharing class ConversationalChatController {
      */
     public class SessionDetails {
         @AuraEnabled
-        public Id sessionId { get; set; }
+        public Id executionId { get; set; }
+        @AuraEnabled
+        public Id interactionSessionId { get; set; }
         @AuraEnabled
         public String welcomeMessage { get; set; }
         @AuraEnabled

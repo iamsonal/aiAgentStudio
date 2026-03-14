@@ -4,6 +4,7 @@
     <description>Confidence category. Used for programmatic access and UI rendering.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Select the confidence bucket this threshold record represents for UI display and runtime classification.</inlineHelpText>
     <label>Category</label>
     <required>true</required>
     <type>Picklist</type>

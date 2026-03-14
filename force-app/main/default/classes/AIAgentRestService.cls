@@ -62,6 +62,7 @@ global with sharing class AIAgentRestService {
             res.statusCode = 200;
             AIAgentResponse resp = new AIAgentResponse(true, outcome, null, requestId);
             resp.executionId = executionIdStr;
+            resp.interactionSessionId = loadInteractionSessionId(executionIdStr);
             return resp;
         } catch (AIAgentRestException e) {
             System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage());
@@ -80,9 +81,15 @@ global with sharing class AIAgentRestService {
 
     private static AIAgentRequest parseAndValidateRequest(String requestBody, String logPrefix) {
         try {
+            Map<String, Object> requestDataMap = (Map<String, Object>) JSON.deserializeUntyped(requestBody);
+            if (requestDataMap != null && requestDataMap.containsKey('sessionId')) {
+                throw new AIAgentRestException(
+                    'sessionId is no longer supported. Use executionId for execution reuse or interactionSessionId for durable session continuity.'
+                );
+            }
             AIAgentRequest requestData = (AIAgentRequest) JSON.deserialize(requestBody, AIAgentRequest.class);
 
-            // sessionId is now OPTIONAL - allows creating new executions in service user context
+            // executionId is optional - null means create a new execution in service user context
             // When blank, a new execution will be created by the service user
             if (String.isBlank(requestData.originalUserId)) {
                 throw new AIAgentRestException('originalUserId is required');
@@ -93,12 +100,14 @@ global with sharing class AIAgentRestService {
             if (String.isBlank(requestData.turnIdentifier)) {
                 throw new AIAgentRestException('turnIdentifier is required');
             }
-            // userMessage is now optional for non-conversational agents
-            // (Function agents may not need a user message)
+            // userMessage is optional for non-interactive channels and single-shot strategies.
 
             // Validate ID formats
-            if (String.isNotBlank(requestData.sessionId)) {
-                validateId(requestData.sessionId, 'sessionId');
+            if (String.isNotBlank(requestData.executionId)) {
+                validateId(requestData.executionId, 'executionId');
+            }
+            if (String.isNotBlank(requestData.interactionSessionId)) {
+                validateId(requestData.interactionSessionId, 'interactionSessionId');
             }
             validateId(requestData.originalUserId, 'originalUserId');
             validateId(requestData.agentDefinitionId, 'agentDefinitionId');
@@ -118,7 +127,7 @@ global with sharing class AIAgentRestService {
                 }
             }
 
-            System.debug(LoggingLevel.INFO, logPrefix + 'Request validation completed successfully. New execution: ' + String.isBlank(requestData.sessionId));
+            System.debug(LoggingLevel.INFO, logPrefix + 'Request validation completed successfully. New execution: ' + String.isBlank(requestData.executionId));
             return requestData;
         } catch (JSONException e) {
             throw new AIAgentRestException('Invalid JSON format: ' + e.getMessage());
@@ -134,8 +143,9 @@ global with sharing class AIAgentRestService {
     }
 
     private static String processMessageInContext(AIAgentRequest requestData, String logPrefix) {
-        // sessionId is now optional - null means create new execution
-        Id sessionId = String.isNotBlank(requestData.sessionId) ? Id.valueOf(requestData.sessionId) : null;
+        // executionId is now optional - null means create new execution
+        Id executionId = String.isNotBlank(requestData.executionId) ? Id.valueOf(requestData.executionId) : null;
+        Id interactionSessionId = String.isNotBlank(requestData.interactionSessionId) ? Id.valueOf(requestData.interactionSessionId) : null;
         Id originalUserId = Id.valueOf(requestData.originalUserId);
         Id agentDefinitionId = Id.valueOf(requestData.agentDefinitionId);
         Id currentRecordId = String.isNotBlank(requestData.currentRecordId) ? Id.valueOf(requestData.currentRecordId) : null;
@@ -154,11 +164,14 @@ global with sharing class AIAgentRestService {
             payload.userMessage = requestData.userMessage;
             payload.currentRecordId = currentRecordId;
             payload.turnIdentifier = requestData.turnIdentifier;
-            payload.existingExecutionId = sessionId; // May be null for new executions
+            payload.existingExecutionId = executionId; // May be null for new executions
             payload.isInServiceUserContext = true;
             payload.sourceRecordId = sourceRecordId;
             payload.batchId = requestData.batchId;
             payload.priority = requestData.priority;
+            payload.interactionChannel = requestData.interactionChannel;
+            payload.conversationKey = requestData.conversationKey;
+            payload.interactionSessionId = interactionSessionId;
 
             // Handle sourceRecordIds array
             if (requestData.sourceRecordIds != null && !requestData.sourceRecordIds.isEmpty()) {
@@ -174,7 +187,7 @@ global with sharing class AIAgentRestService {
 
             System.debug(
                 LoggingLevel.INFO,
-                logPrefix + 'Delegating to AgentExecutionService as service user: ' + UserInfo.getUserName() + '. New execution: ' + (sessionId == null)
+                logPrefix + 'Delegating to AgentExecutionService as service user: ' + UserInfo.getUserName() + '. New execution: ' + (executionId == null)
             );
 
             AgentExecutionService.ExecutionResult result = AgentExecutionService.startExecution(agentDefinition.DeveloperName__c, payload);
@@ -191,11 +204,11 @@ global with sharing class AIAgentRestService {
             throw new AIAgentRestException('Orchestration error: ' + e.getMessage());
         } catch (Exception e) {
             // Only try to fail the turn if we have an existing execution
-            if (sessionId != null) {
+            if (executionId != null) {
                 try {
                     AgentStateService ass = new AgentStateService();
                     ass.failTurn(
-                        sessionId,
+                        executionId,
                         requestData.turnIdentifier,
                         'REST processing failed: ' + e.getMessage(),
                         AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
@@ -299,7 +312,7 @@ global with sharing class AIAgentRestService {
             if (toolRequest.needsFollowUp == true) {
                 queueFollowUpLLMCall(execution, toolRequest, logPrefix);
             } else {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Conversational agent - no follow-up needed (pre-determined)');
+                System.debug(LoggingLevel.INFO, logPrefix + 'Iterative execution - no follow-up needed (pre-determined)');
             }
 
             if (
@@ -506,7 +519,14 @@ global with sharing class AIAgentRestService {
 
             // Load execution and validate
             AgentExecution__c exec = [
-                SELECT Id, ExecutionStatus__c, ExecutionType__c, AIAgentDefinition__c, AIAgentDefinition__r.DeveloperName__c, AIAgentDefinition__r.AgentType__c
+                SELECT
+                    Id,
+                    ExecutionStatus__c,
+                    ExecutionType__c,
+                    PipelineDefinition__c,
+                    AIAgentDefinition__c,
+                    AIAgentDefinition__r.DeveloperName__c,
+                    AIAgentDefinition__r.AgentType__c
                 FROM AgentExecution__c
                 WHERE Id = :executionId
                 LIMIT 1
@@ -516,22 +536,38 @@ global with sharing class AIAgentRestService {
                 throw new AIAgentRestException('Execution is already completed. Nothing to resume.');
             }
 
+            if (PipelineCompositionService.isPipelineExecution(exec)) {
+                if (!PipelineCompositionService.canResume(executionId)) {
+                    throw new AIAgentRestException('Pipeline execution cannot be resumed from its current state.');
+                }
+
+                AgentExecutionService.ExecutionResult result = PipelineCompositionService.resumeExecution(
+                    executionId,
+                    new ExecutionResumeModels.ResumeOptions()
+                        .withReason(String.isNotBlank(resumeRequest.resumeReason) ? resumeRequest.resumeReason : 'Resume via service user context')
+                );
+
+                System.debug(LoggingLevel.INFO, logPrefix + 'Pipeline resume completed. Success: ' + result.success + ', Message: ' + result.message);
+                res.statusCode = 200;
+                return new AIAgentResponse(result.success, result.message, result.errorMessage, requestId);
+            }
+
             // Load agent definition
             AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinition(exec.AIAgentDefinition__c);
             if (agentDef == null) {
                 throw new AIAgentRestException('Agent definition not found for execution: ' + executionId);
             }
 
-            // Get orchestrator for this agent
-            IAgentOrchestrator orchestrator = AgentExecutionService.getOrchestrator(agentDef);
+            String interactionChannel = RuntimeRegistryService.getInteractionChannel(agentDef, executionId);
+            IExecutionStrategy strategy = ExecutionStrategyRegistryService.resolveStrategy(agentDef, interactionChannel);
 
             // Check if execution can be resumed
-            if (!orchestrator.canResume(executionId)) {
+            if (!strategy.canResume(executionId, agentDef, interactionChannel)) {
                 throw new AIAgentRestException('Execution cannot be resumed from its current state.');
             }
 
             // Build resume options
-            BaseAgentOrchestrator.ResumeOptions options = new BaseAgentOrchestrator.ResumeOptions()
+            ExecutionResumeModels.ResumeOptions options = new ExecutionResumeModels.ResumeOptions()
                 .withReason(String.isNotBlank(resumeRequest.resumeReason) ? resumeRequest.resumeReason : 'Resume via service user context');
 
             if (resumeRequest.retryFailedTool != null) {
@@ -539,7 +575,7 @@ global with sharing class AIAgentRestService {
             }
 
             // Execute resume
-            AgentExecutionService.ExecutionResult result = orchestrator.resume(executionId, options);
+            AgentExecutionService.ExecutionResult result = strategy.resumeExecution(executionId, options, agentDef);
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Resume completed. Success: ' + result.success + ', Message: ' + result.message);
 
@@ -608,18 +644,43 @@ global with sharing class AIAgentRestService {
         return String.valueOf(Crypto.getRandomLong()).substring(1, 9);
     }
 
+    private static String loadInteractionSessionId(String executionIdStr) {
+        if (String.isBlank(executionIdStr)) {
+            return null;
+        }
+
+        try {
+            List<AgentExecution__c> executions = [
+                SELECT InteractionSession__c
+                FROM AgentExecution__c
+                WHERE Id = :Id.valueOf(executionIdStr)
+                LIMIT 1
+            ];
+            if (!executions.isEmpty() && executions[0].InteractionSession__c != null) {
+                return String.valueOf(executions[0].InteractionSession__c);
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, LOG_PREFIX + 'Unable to resolve interaction session for response: ' + e.getMessage());
+        }
+
+        return null;
+    }
+
     public class AIAgentRequest {
-        public String sessionId { get; set; } // Optional for new executions
+        public String executionId { get; set; } // Optional for new executions
+        public String interactionSessionId { get; set; } // Optional durable session anchor
         public String originalUserId { get; set; }
         public String agentDefinitionId { get; set; }
         public String turnIdentifier { get; set; }
         public String userMessage { get; set; }
         public String currentRecordId { get; set; }
+        public String conversationKey { get; set; }
         // Additional fields for full context support (new in service user routing)
         public String sourceRecordId { get; set; }
         public List<String> sourceRecordIds { get; set; }
         public String triggerPayload { get; set; }
         public String triggerSource { get; set; }
+        public String interactionChannel { get; set; }
         public String batchId { get; set; }
         public Integer priority { get; set; }
     }
@@ -630,6 +691,7 @@ global with sharing class AIAgentRestService {
         public String error { get; set; }
         public String requestId { get; set; }
         public String executionId { get; set; }
+        public String interactionSessionId { get; set; }
 
         public AIAgentResponse(Boolean success, String outcome, String error, String requestId) {
             this.success = success;

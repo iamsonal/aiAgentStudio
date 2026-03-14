@@ -101,7 +101,7 @@ public inherited sharing class AgentJobEnqueuer {
         String logPrefix
     ) {
         Map<String, Object> payload = new Map<String, Object>{
-            'sessionId' => executionId,
+            'executionId' => executionId,
             'userId' => userId,
             'agentDefId' => agentDefId,
             'turnId' => turnId,
@@ -180,7 +180,7 @@ public inherited sharing class AgentJobEnqueuer {
      * Dynamically routes to either Platform Events (for High dispatch type) or Queueable jobs (for Low dispatch type)
      * based on the agent's AsyncDispatchType__c setting.
      *
-     * @param sessionId         The ID of the chat session.
+     * @param executionId       The ID of the execution.
      * @param originalUserId    The ID of the user.
      * @param agentDefId        The ID of the agent definition.
      * @param parentAsstMsgId   The ID of the assistant message that requested this action.
@@ -194,7 +194,7 @@ public inherited sharing class AgentJobEnqueuer {
      * @throws DispatchException if event publication fails.
      */
     public void enqueueAsyncAction(
-        Id sessionId,
+        Id executionId,
         Id originalUserId,
         Id agentDefId,
         Id parentAsstMsgId,
@@ -213,7 +213,7 @@ public inherited sharing class AgentJobEnqueuer {
             if ('High'.equalsIgnoreCase(asyncDispatchType)) {
                 // High dispatch type: Use Platform Event for maximum throughput (fire-and-forget)
                 this.enqueueAsyncActionViaPlatformEvent(
-                    sessionId,
+                    executionId,
                     originalUserId,
                     agentDefId,
                     parentAsstMsgId,
@@ -228,7 +228,7 @@ public inherited sharing class AgentJobEnqueuer {
             } else {
                 // Low dispatch type (or null): Use Queueable for guaranteed sequential processing
                 this.enqueueAsyncActionViaQueueable(
-                    sessionId,
+                    executionId,
                     originalUserId,
                     agentDefId,
                     parentAsstMsgId,
@@ -242,7 +242,7 @@ public inherited sharing class AgentJobEnqueuer {
                 );
             }
         } catch (Exception e) {
-            this.handleDispatchFailure(sessionId, turnId, jobDetails, e, logPrefix);
+            this.handleDispatchFailure(executionId, turnId, jobDetails, e, logPrefix);
         }
     }
 
@@ -250,7 +250,7 @@ public inherited sharing class AgentJobEnqueuer {
      * Enqueues an asynchronous action via Platform Event (for High dispatch type agents).
      */
     private void enqueueAsyncActionViaPlatformEvent(
-        Id sessionId,
+        Id executionId,
         Id originalUserId,
         Id agentDefId,
         Id parentAsstMsgId,
@@ -263,7 +263,7 @@ public inherited sharing class AgentJobEnqueuer {
         String logPrefix
     ) {
         Map<String, Object> payload = new Map<String, Object>{
-            'sessionId' => sessionId,
+            'executionId' => executionId,
             'originalUserId' => originalUserId,
             'agentDefId' => agentDefId,
             'parentAsstMsgId' => parentAsstMsgId,
@@ -275,7 +275,7 @@ public inherited sharing class AgentJobEnqueuer {
             'currentTurnCount' => currentTurnCount
         };
         AsyncFrameworkRequest__e event = new AsyncFrameworkRequest__e(
-            AgentExecutionId__c = sessionId,
+            AgentExecutionId__c = executionId,
             TurnIdentifier__c = turnId,
             JobType__c = 'ExecuteAction',
             Payload__c = JSON.serialize(payload)
@@ -293,8 +293,8 @@ public inherited sharing class AgentJobEnqueuer {
                 capability.CapabilityName__c +
                 '", turnId=' +
                 turnId +
-                ', sessionId=' +
-                sessionId +
+                ', executionId=' +
+                executionId +
                 ', currentTurnCount=' +
                 currentTurnCount
         );
@@ -304,7 +304,7 @@ public inherited sharing class AgentJobEnqueuer {
      * Enqueues an asynchronous action via Queueable (for Low dispatch type agents).
      */
     private void enqueueAsyncActionViaQueueable(
-        Id sessionId,
+        Id executionId,
         Id originalUserId,
         Id agentDefId,
         Id parentAsstMsgId,
@@ -317,7 +317,7 @@ public inherited sharing class AgentJobEnqueuer {
         String logPrefix
     ) {
         AsyncActionEngine queueable = new AsyncActionEngine(
-            sessionId,
+            executionId,
             originalUserId,
             agentDefId,
             parentAsstMsgId,
@@ -347,8 +347,8 @@ public inherited sharing class AgentJobEnqueuer {
                 capability.CapabilityName__c +
                 '", turnId=' +
                 turnId +
-                ', sessionId=' +
-                sessionId +
+                ', executionId=' +
+                executionId +
                 ', currentTurnCount=' +
                 currentTurnCount
         );
@@ -444,21 +444,21 @@ public inherited sharing class AgentJobEnqueuer {
      * Handles failures during event dispatch by updating session state and re-throwing a DispatchException.
      * Ensures error tracking and prevents orphaned processing states.
      *
-     * @param sessionId       The ID of the chat session.
+     * @param executionId     The ID of the execution.
      * @param turnId          The unique identifier for the current turn (may be null for some jobs).
      * @param jobDescription  A human-readable description of the job/event being dispatched.
      * @param enqueueException The exception thrown during event publication.
      * @param logPrefix       A logging prefix for debug output.
-     * @throws DispatchException Always thrown to notify the orchestrator of the failure.
+     * @throws DispatchException Always thrown to notify the calling runtime of the failure.
      */
-    private void handleDispatchFailure(Id sessionId, String turnId, String jobDescription, Exception enqueueException, String logPrefix) {
+    private void handleDispatchFailure(Id executionId, String turnId, String jobDescription, Exception enqueueException, String logPrefix) {
         String errorMsg = 'Failed to dispatch ' + jobDescription;
         String errorDetailForState = errorMsg + ': ' + enqueueException.getMessage();
         System.debug(LoggingLevel.ERROR, logPrefix + '[AgentJobEnqueuer] ' + errorDetailForState);
 
-        this.agentStateSvc.failTurn(sessionId, turnId, errorDetailForState, AIAgentConstants.ERR_CODE_SYSTEM_LIMIT, logPrefix);
+        this.agentStateSvc.failTurn(executionId, turnId, errorDetailForState, AIAgentConstants.ERR_CODE_SYSTEM_LIMIT, logPrefix);
 
-        // Always re-throw to notify the calling orchestrator of the dispatch failure
+        // Always re-throw to notify the calling runtime of the dispatch failure
         throw new DispatchException('Failed to dispatch ' + jobDescription, enqueueException);
     }
 

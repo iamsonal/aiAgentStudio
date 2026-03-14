@@ -7,15 +7,14 @@
  */
 
 /**
- * @description Dispatcher that delegates all async agent execution to the appropriate IAgentOrchestrator implementation.
+ * @description Dispatcher that delegates async agent execution through the strategy runtime.
  */
 public without sharing class UnifiedAgentQueueable implements Queueable, Database.AllowsCallouts {
     private final String jobType;
     private final Map<String, Object> payload;
 
-    public static final String JOB_TYPE_FUNCTION = 'Function';
-    public static final String JOB_TYPE_CONVERSATIONAL = 'Conversational';
-    public static final String JOB_TYPE_EMAIL = 'Email';
+    public static final String JOB_TYPE_SINGLE_SHOT = 'SingleShot';
+    public static final String JOB_TYPE_ITERATIVE = 'Iterative';
     public UnifiedAgentQueueable(String jobType, Map<String, Object> payload) {
         if (String.isBlank(jobType)) {
             throw new UnifiedQueueableException('Job type is required for UnifiedAgentQueueable');
@@ -25,7 +24,7 @@ public without sharing class UnifiedAgentQueueable implements Queueable, Databas
             throw new UnifiedQueueableException('Payload is required for UnifiedAgentQueueable');
         }
 
-        Set<String> validJobTypes = new Set<String>{ JOB_TYPE_FUNCTION, JOB_TYPE_CONVERSATIONAL, JOB_TYPE_EMAIL };
+        Set<String> validJobTypes = new Set<String>{ JOB_TYPE_SINGLE_SHOT, JOB_TYPE_ITERATIVE };
         if (!validJobTypes.contains(jobType)) {
             throw new UnifiedQueueableException('Invalid job type: ' + jobType + '. Must be one of: ' + String.join(new List<String>(validJobTypes), ', '));
         }
@@ -41,11 +40,13 @@ public without sharing class UnifiedAgentQueueable implements Queueable, Databas
         System.debug(LoggingLevel.INFO, logPrefix + 'Starting execution');
 
         try {
-            IAgentOrchestrator orchestrator = loadOrchestrator(logPrefix);
-            // Inject jobType into payload so orchestrators can branch on it
+            AIAgentDefinition__c agentDef = loadAgentDefinition(logPrefix);
+            String interactionChannel = (String) payload.get('interactionChannel');
+            IExecutionStrategy strategy = ExecutionStrategyRegistryService.resolveStrategy(agentDef, interactionChannel);
+            // Inject jobType into payload so compatibility seams can still inspect it where needed
             Map<String, Object> enrichedPayload = new Map<String, Object>(payload);
             enrichedPayload.put('jobType', jobType);
-            orchestrator.runAsync(enrichedPayload, logPrefix);
+            strategy.runAsync(enrichedPayload, logPrefix, agentDef, interactionChannel);
 
             Long duration = System.currentTimeMillis() - startTime;
             System.debug(LoggingLevel.INFO, logPrefix + 'Completed successfully in ' + duration + 'ms');
@@ -62,7 +63,7 @@ public without sharing class UnifiedAgentQueueable implements Queueable, Databas
             Id executionIdToUpdate = null;
             String errorMessage = e.getMessage();
 
-            if (jobType == JOB_TYPE_CONVERSATIONAL || jobType == JOB_TYPE_EMAIL) {
+            if (jobType == JOB_TYPE_ITERATIVE) {
                 executionIdToUpdate = (Id) payload.get('executionId');
             }
 
@@ -82,7 +83,7 @@ public without sharing class UnifiedAgentQueueable implements Queueable, Databas
         }
     }
 
-    private IAgentOrchestrator loadOrchestrator(String logPrefix) {
+    private AIAgentDefinition__c loadAgentDefinition(String logPrefix) {
         try {
             Id agentDefinitionId = getAgentDefinitionId(logPrefix);
 
@@ -91,27 +92,25 @@ public without sharing class UnifiedAgentQueueable implements Queueable, Databas
                 throw new UnifiedQueueableException('Agent definition not found: ' + agentDefinitionId);
             }
 
-            IAgentOrchestrator orchestrator = AgentExecutionService.getOrchestrator(agentDef);
-
             System.debug(
                 LoggingLevel.INFO,
-                logPrefix + 'Loaded orchestrator for agent: ' + agentDef.DeveloperName__c + ' (type: ' + agentDef.AgentType__c + ')'
+                logPrefix + 'Loaded runtime implementation for agent: ' + agentDef.DeveloperName__c + ' (strategy: ' + agentDef.AgentType__c + ')'
             );
-            return orchestrator;
+            return agentDef;
         } catch (Exception e) {
-            throw new UnifiedQueueableException('Failed to load orchestrator: ' + e.getMessage());
+            throw new UnifiedQueueableException('Failed to load runtime implementation: ' + e.getMessage());
         }
     }
 
     private Id getAgentDefinitionId(String logPrefix) {
         Id agentDefinitionId = null;
 
-        if (jobType == JOB_TYPE_CONVERSATIONAL || jobType == JOB_TYPE_EMAIL) {
+        if (jobType == JOB_TYPE_ITERATIVE) {
             agentDefinitionId = (Id) payload.get('agentDefinitionId');
-        } else if (jobType == JOB_TYPE_FUNCTION) {
+        } else if (jobType == JOB_TYPE_SINGLE_SHOT) {
             String agentDeveloperName = (String) payload.get('agentDeveloperName');
             if (String.isBlank(agentDeveloperName)) {
-                throw new UnifiedQueueableException('agentDeveloperName is required for Function job type');
+                throw new UnifiedQueueableException('agentDeveloperName is required for SingleShot job type');
             }
 
             AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(agentDeveloperName);

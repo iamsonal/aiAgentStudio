@@ -38,10 +38,10 @@ public inherited sharing class ContentResponseHandler implements ILLMResponseHan
             return OrchestrationService.OUTCOME_FAILED;
         }
 
-        // Apply agent-specific content validation (e.g., Function agent strict recovery validation)
+        // Apply strategy-specific content validation (for example strict single-shot recovery rules)
         String agentValidationResult = applyAgentSpecificContentValidation(context, assistantData.content, logPrefix);
         if (agentValidationResult != null) {
-            // Agent-specific validation failed - the orchestrator has already handled the failure
+            // Strategy-specific validation failed and already handled the failure path
             return agentValidationResult;
         }
 
@@ -74,6 +74,24 @@ public inherited sharing class ContentResponseHandler implements ILLMResponseHan
             );
         }
 
+        try {
+            ChannelDeliveryPolicyService.DeliveryResult deliveryResult = new OutboundMessageDispatcher()
+                .dispatchContent(context, assistantData.content, logPrefix);
+            if (deliveryResult != null && deliveryResult.isSuccess == false) {
+                return deliveryResult.outcome;
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Channel delivery failed: ' + e.getMessage());
+            context.agentStateSvc.failTurn(
+                context.executionId,
+                context.turnIdentifier,
+                'Channel delivery failed: ' + e.getMessage(),
+                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+                logPrefix
+            );
+            return OrchestrationService.OUTCOME_FAILED;
+        }
+
         // Commit the turn context to the ledger (Conversational agents only)
         // Skip for Function agents which don't need multi-turn context tracking
         if (context.agentStateSvc.isContextTrackingEnabled(context.executionId)) {
@@ -104,9 +122,8 @@ public inherited sharing class ContentResponseHandler implements ILLMResponseHan
 
     /**
      * @description
-     * Applies agent-specific content validation by delegating to the orchestrator.
-     * This allows each orchestrator to implement its own validation rules without
-     * polluting the generic ContentResponseHandler with agent-specific logic.
+     * Applies strategy-specific content validation so terminality rules stay owned
+     * by the execution strategy layer.
      *
      * @param context The orchestration context
      * @param contentResponse The content response from the LLM
@@ -115,62 +132,16 @@ public inherited sharing class ContentResponseHandler implements ILLMResponseHan
      */
     private String applyAgentSpecificContentValidation(OrchestrationContext context, String contentResponse, String logPrefix) {
         try {
-            // Load the orchestrator for this agent
             AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinition(context.agentDefinitionId);
-            IAgentOrchestrator orchestrator = loadOrchestrator(agentDef);
-
-            // Use evaluateToolOutcome with a special scenario for content responses (polymorphic call - no instanceof check needed)
-            // Pass an empty list since this is a content-only response (no tools)
+            String interactionChannel = RuntimeRegistryService.getInteractionChannel(agentDef, context.executionId);
+            IExecutionStrategy strategy = ExecutionStrategyRegistryService.resolveStrategy(agentDef, interactionChannel);
             List<ToolCallResponseHandler.ToolExecutionResult> emptyToolResults = new List<ToolCallResponseHandler.ToolExecutionResult>();
 
-            return orchestrator.evaluateToolOutcome(context, emptyToolResults, 'CONTENT_ONLY_RESPONSE');
+            return strategy.validateCompletionOutcome(context, emptyToolResults, 'CONTENT_ONLY_RESPONSE', agentDef, interactionChannel);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Error in agent-specific content validation: ' + e.getMessage());
             // Fail open - don't block execution if validation itself fails
             return null;
         }
-    }
-
-    /**
-     * @description
-     * Loads the appropriate orchestrator for an agent definition.
-     * This is a simplified version that only handles the orchestrator types we need.
-     */
-    private IAgentOrchestrator loadOrchestrator(AIAgentDefinition__c agentDef) {
-        String agentType = agentDef.AgentType__c;
-
-        if (String.isBlank(agentType)) {
-            throw new IllegalArgumentException('AgentType__c is required on agent definition');
-        }
-
-        // Query orchestrator mapping
-        List<AgentOrchestratorMapping__mdt> mappings = [
-            SELECT OrchestratorClassName__c
-            FROM AgentOrchestratorMapping__mdt
-            WHERE AgentType__c = :agentType AND IsActive__c = TRUE
-            LIMIT 1
-        ];
-
-        if (mappings.isEmpty()) {
-            throw new IllegalArgumentException('No orchestrator mapping found for agent type: ' + agentType);
-        }
-
-        String orchestratorClassName = mappings[0].OrchestratorClassName__c;
-
-        // Instantiate orchestrator
-        Type orchestratorType = Type.forName(orchestratorClassName);
-        if (orchestratorType == null) {
-            throw new IllegalArgumentException('Orchestrator class not found: ' + orchestratorClassName);
-        }
-
-        Object instanceObj = orchestratorType.newInstance();
-        if (!(instanceObj instanceof IAgentOrchestrator)) {
-            throw new IllegalArgumentException('Class does not implement IAgentOrchestrator: ' + orchestratorClassName);
-        }
-
-        IAgentOrchestrator orchestrator = (IAgentOrchestrator) instanceObj;
-        orchestrator.configure(agentDef);
-
-        return orchestrator;
     }
 }

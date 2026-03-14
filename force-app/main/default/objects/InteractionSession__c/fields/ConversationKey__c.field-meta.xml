@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ConversationKey__c</fullName>
+    <description>Channel-native conversation or thread identifier used to group related interactions into one durable session.</description>
+    <inlineHelpText>Stores the source conversation key, such as an email thread ID or chat conversation ID.</inlineHelpText>
+    <label>Conversation Key</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

@@ -1,5 +1,5 @@
 /**
- * @description Context provider for Product Launch Orchestrator demo
+ * @description Context provider for Product Launch Agent demo
  *              Fetches Account profile and product fit data
  *
  * This provider returns comprehensive account context for product fit analysis:

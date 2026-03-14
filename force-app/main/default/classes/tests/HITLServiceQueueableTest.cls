@@ -7,7 +7,7 @@ private class HITLServiceQueueableTest {
     @TestSetup
     static void setupData() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('HITLQueue LLM').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('HITLQueue_Agent').withType('Function').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('HITLQueue_Agent').withType('SingleShot').withLLM(llm.Id).save();
 
         // Set ServiceUserNamedCredential__c so callout logic is reached
         agent.ServiceUserNamedCredential__c = 'AgentStudio_ServiceUser';
@@ -23,7 +23,7 @@ private class HITLServiceQueueableTest {
         TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Function')
+            .withExecutionType('SingleShot')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-hitlq-001')
             .save();
