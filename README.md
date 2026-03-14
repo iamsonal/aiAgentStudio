@@ -133,7 +133,7 @@ All operations run asynchronously using Platform Events or Queueables, ensuring 
 
 | Feature | Description |
 |:--------|:------------|
-| **Multiple Agent Patterns** | Conversational agents, function agents, email agents, sequential pipelines, and sub-agent workflows |
+| **Multiple Runtime Patterns** | Iterative and SingleShot agent runtimes plus a dedicated Pipeline composition subsystem across chat, email, API, and sub-agent workflows |
 | **Metadata-Driven Capabilities** | Define tools, prompts, trust controls, and workflow behavior through Salesforce configuration |
 | **Smart Memory** | Buffer window and summary-based conversation history |
 | **Built-in Security** | Automatic CRUD, FLS, and sharing rule enforcement |
@@ -252,9 +252,9 @@ Once your API key is configured:
 ## 🏗️ Architecture
 
 **Framework Capabilities:**
-- Conversational agents for multi-turn chat experiences
-- Function-style agents for targeted automation and decision support
-- Email agents for triage, replies, and workflow routing
+- Iterative strategy for multi-turn chat and email experiences
+- SingleShot strategy for targeted automation and decision support
+- Channel-aware routing for chat, email, API, and future transports
 - Sequential pipelines and sub-agent workflows for multi-step orchestration
 - Tool execution across data operations, flows, and custom business logic
 - Human-in-the-loop approvals, observability, and trust controls
