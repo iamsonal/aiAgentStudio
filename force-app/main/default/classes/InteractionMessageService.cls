@@ -12,6 +12,12 @@
  * without overloading ExecutionStep__c with provider-level transport state.
  */
 public inherited sharing class InteractionMessageService {
+    public class InboundMessageRef {
+        public Id messageId { get; set; }
+        public Id sessionId { get; set; }
+        public Id executionId { get; set; }
+    }
+
     public String buildInboundDedupKey(String channel, String provider, String endpointIdentifier, String inboundMessageKey, String fallbackFingerprint) {
         String raw =
             channel +
@@ -25,19 +31,32 @@ public inherited sharing class InteractionMessageService {
     }
 
     public Boolean hasProcessedInbound(String dedupKey) {
-        if (String.isBlank(dedupKey)) {
-            return false;
-        }
-        return ![
-                SELECT Id
-                FROM InteractionMessage__c
-                WHERE InboundDedupKey__c = :dedupKey
-                LIMIT 1
-            ]
-            .isEmpty();
+        return getInboundMessageRefByDedupKey(dedupKey) != null;
     }
 
-    public void recordInboundProcessing(
+    public InboundMessageRef getInboundMessageRefByDedupKey(String dedupKey) {
+        if (String.isBlank(dedupKey)) {
+            return null;
+        }
+        List<InteractionMessage__c> messages = [
+            SELECT Id, InteractionSession__c, Execution__c
+            FROM InteractionMessage__c
+            WHERE InboundDedupKey__c = :dedupKey
+            ORDER BY CreatedDate DESC
+            LIMIT 1
+        ];
+        if (messages.isEmpty()) {
+            return null;
+        }
+
+        InboundMessageRef ref = new InboundMessageRef();
+        ref.messageId = messages[0].Id;
+        ref.sessionId = messages[0].InteractionSession__c;
+        ref.executionId = messages[0].Execution__c;
+        return ref;
+    }
+
+    public Id recordInboundProcessing(
         Id sessionId,
         Id executionId,
         String channel,
@@ -47,7 +66,7 @@ public inherited sharing class InteractionMessageService {
         String turnIdentifier,
         String payloadJson
     ) {
-        insert new InteractionMessage__c(
+        InteractionMessage__c inboundMessage = new InteractionMessage__c(
             InteractionSession__c = sessionId,
             Execution__c = executionId,
             TurnIdentifier__c = turnIdentifier,
@@ -60,6 +79,34 @@ public inherited sharing class InteractionMessageService {
             OccurredAt__c = Datetime.now(),
             PayloadSnapshotJson__c = payloadJson
         );
+        insert inboundMessage;
+        return inboundMessage.Id;
+    }
+
+    public Id recordOutboundMessage(
+        Id sessionId,
+        Id executionId,
+        String channel,
+        String provider,
+        String providerMessageId,
+        String turnIdentifier,
+        String payloadJson,
+        String status
+    ) {
+        InteractionMessage__c outboundMessage = new InteractionMessage__c(
+            InteractionSession__c = sessionId,
+            Execution__c = executionId,
+            TurnIdentifier__c = turnIdentifier,
+            Channel__c = channel,
+            Provider__c = provider,
+            ProviderMessageId__c = providerMessageId,
+            Direction__c = 'Outbound',
+            Status__c = String.isNotBlank(status) ? status : 'Sent',
+            OccurredAt__c = Datetime.now(),
+            PayloadSnapshotJson__c = payloadJson
+        );
+        insert outboundMessage;
+        return outboundMessage.Id;
     }
 
     public Boolean claimOutboundSlot(String dedupKey, String logPrefix) {
@@ -116,5 +163,36 @@ public inherited sharing class InteractionMessageService {
             messages[0].ErrorMessage__c = errorMessage;
         }
         update messages[0];
+    }
+
+    public void updateProviderMessageStatus(String providerMessageId, String providerStatus, String normalizedStatus, String errorCode, String errorMessage) {
+        if (String.isBlank(providerMessageId)) {
+            return;
+        }
+        List<InteractionMessage__c> messages = [
+            SELECT Id, Status__c, ProviderStatus__c, ErrorCode__c, ErrorMessage__c
+            FROM InteractionMessage__c
+            WHERE ProviderMessageId__c = :providerMessageId OR OutboundProviderMessageId__c = :providerMessageId
+            ORDER BY CreatedDate DESC
+            LIMIT 1
+        ];
+        if (messages.isEmpty()) {
+            return;
+        }
+
+        InteractionMessage__c message = messages[0];
+        if (String.isNotBlank(providerStatus)) {
+            message.ProviderStatus__c = providerStatus;
+        }
+        if (String.isNotBlank(normalizedStatus)) {
+            message.Status__c = normalizedStatus;
+        }
+        if (String.isNotBlank(errorCode)) {
+            message.ErrorCode__c = errorCode;
+        }
+        if (String.isNotBlank(errorMessage)) {
+            message.ErrorMessage__c = errorMessage;
+        }
+        update message;
     }
 }

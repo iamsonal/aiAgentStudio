@@ -13,8 +13,8 @@ public without sharing class UnifiedAgentQueueable implements Queueable, Databas
     private final String jobType;
     private final Map<String, Object> payload;
 
-    public static final String JOB_TYPE_SINGLE_SHOT = 'SingleShot';
-    public static final String JOB_TYPE_ITERATIVE = 'Iterative';
+    public static final String JOB_TYPE_SINGLE_SHOT = 'Direct';
+    public static final String JOB_TYPE_ITERATIVE = 'Conversational';
     public UnifiedAgentQueueable(String jobType, Map<String, Object> payload) {
         if (String.isBlank(jobType)) {
             throw new UnifiedQueueableException('Job type is required for UnifiedAgentQueueable');
@@ -94,7 +94,7 @@ public without sharing class UnifiedAgentQueueable implements Queueable, Databas
 
             System.debug(
                 LoggingLevel.INFO,
-                logPrefix + 'Loaded runtime implementation for agent: ' + agentDef.DeveloperName__c + ' (strategy: ' + agentDef.AgentType__c + ')'
+                logPrefix + 'Loaded runtime implementation for agent: ' + agentDef.DeveloperName__c + ' (strategy: ' + agentDef.RuntimeStrategy__c + ')'
             );
             return agentDef;
         } catch (Exception e) {
@@ -110,7 +110,7 @@ public without sharing class UnifiedAgentQueueable implements Queueable, Databas
         } else if (jobType == JOB_TYPE_SINGLE_SHOT) {
             String agentDeveloperName = (String) payload.get('agentDeveloperName');
             if (String.isBlank(agentDeveloperName)) {
-                throw new UnifiedQueueableException('agentDeveloperName is required for SingleShot job type');
+                throw new UnifiedQueueableException('agentDeveloperName is required for Direct job type');
             }
 
             AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinitionByDeveloperName(agentDeveloperName);

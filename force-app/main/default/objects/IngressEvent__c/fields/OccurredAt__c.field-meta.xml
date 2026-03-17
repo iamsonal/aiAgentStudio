@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>OccurredAt__c</fullName>
+    <description>Timestamp supplied by the source system for when the event originally occurred.</description>
+    <inlineHelpText>Use the provider or middleware event time when available instead of only relying on the Salesforce receive time.</inlineHelpText>
+    <label>Occurred At</label>
+    <required>false</required>
+    <type>DateTime</type>
+</CustomField>

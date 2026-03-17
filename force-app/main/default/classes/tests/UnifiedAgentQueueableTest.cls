@@ -6,8 +6,8 @@ private class UnifiedAgentQueueableTest {
     @TestSetup
     static void setupData() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
-        TestFactory.newAgentDefinition().withName('Queueable_Primary_Agent').withType('SingleShot').withLLM(llm.Id).withAuditLevel('Standard').save();
-        TestFactory.newAgentDefinition().withName('Queueable_Convo_Agent').withType('Iterative').withLLM(llm.Id).save();
+        TestFactory.newAgentDefinition().withName('Queueable_Primary_Agent').withType('Direct').withLLM(llm.Id).withAuditLevel('Standard').save();
+        TestFactory.newAgentDefinition().withName('Queueable_Convo_Agent').withType('Conversational').withLLM(llm.Id).save();
     }
 
     @IsTest
@@ -38,7 +38,7 @@ private class UnifiedAgentQueueableTest {
         Integer executionCount = [
             SELECT COUNT()
             FROM AgentExecution__c
-            WHERE AIAgentDefinition__c = :agentDef.Id AND ExecutionType__c = 'SingleShot'
+            WHERE AIAgentDefinition__c = :agentDef.Id AND ExecutionType__c = 'Direct'
         ];
         System.assertEquals(1, executionCount, 'Execution should be created for the configured function runtime');
     }
@@ -80,7 +80,7 @@ private class UnifiedAgentQueueableTest {
     @IsTest
     static void testConversationalJobType_QueuesAndExecutes() {
         AIAgentDefinition__c agentDef = [
-            SELECT Id, DeveloperName__c
+            SELECT Id, DeveloperName__c, LLMConfiguration__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'Queueable_Convo_Agent%'
             LIMIT 1
@@ -89,7 +89,7 @@ private class UnifiedAgentQueueableTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(agentDef.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_PROCESSING)
             .withTurnIdentifier('turn-convo-001')
@@ -97,10 +97,13 @@ private class UnifiedAgentQueueableTest {
 
         Map<String, Object> payload = new Map<String, Object>{
             'executionId' => execution.Id,
-            'userId' => UserInfo.getUserId(),
+            'originalUserId' => UserInfo.getUserId(),
+            'executionUserId' => UserInfo.getUserId(),
+            'agentDefinitionId' => agentDef.Id,
+            'llmConfigurationId' => agentDef.LLMConfiguration__c,
             'turnIdentifier' => 'turn-convo-001',
-            'turnCount' => 1,
-            'input' => 'Hello'
+            'userMessage' => 'Hello',
+            'interactionChannel' => RuntimeRegistryService.CHANNEL_CHAT
         };
 
         Test.setMock(HttpCalloutMock.class, MockHttpResponses.text('Hello!'));
@@ -110,6 +113,14 @@ private class UnifiedAgentQueueableTest {
         Test.stopTest();
 
         System.assertNotEquals(null, jobId, 'Conversational job should be enqueued');
+
+        AgentExecution__c updatedExecution = [
+            SELECT ExecutionStatus__c, ProcessingStatus__c, ErrorMessage__c
+            FROM AgentExecution__c
+            WHERE Id = :execution.Id
+        ];
+        System.assertNotEquals('Failed', updatedExecution.ExecutionStatus__c, 'Conversational job should not fail after enqueueing valid payload');
+        System.assertEquals(null, updatedExecution.ErrorMessage__c, 'Conversational job should not leave an execution error when payload is valid');
     }
 
     @IsTest

@@ -9,7 +9,7 @@ private class AsyncFrameworkRequestFlowInvokerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Iterative',
+            ExecutionType__c = 'Conversational',
             ExecutionStatus__c = status,
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             CurrentTurnIdentifier__c = turnId
@@ -123,5 +123,6 @@ private class AsyncFrameworkRequestFlowInvokerTest {
         AgentExecution__c reloaded = [SELECT ExecutionStatus__c, ProcessingStatus__c FROM AgentExecution__c WHERE Id = :execution.Id];
         System.assertEquals('Failed', reloaded.ExecutionStatus__c, 'Missing LLM config should fail turn');
         System.assertEquals(AIAgentConstants.STATUS_FAILED, reloaded.ProcessingStatus__c, 'Processing status should be Failed');
+        System.assertEquals(false, TransactionContext.getInstance().isDeferredDMLMode(), 'Shared iterative turn executor should clean up deferred DML mode.');
     }
 }

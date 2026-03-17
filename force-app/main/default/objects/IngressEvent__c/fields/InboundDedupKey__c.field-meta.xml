@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InboundDedupKey__c</fullName>
+    <description>Computed deduplication fingerprint used to suppress repeated inbound processing.</description>
+    <inlineHelpText>Stores the normalized dedupe key calculated by the runtime so operators can trace duplicate suppression decisions.</inlineHelpText>
+    <label>Inbound Dedup Key</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

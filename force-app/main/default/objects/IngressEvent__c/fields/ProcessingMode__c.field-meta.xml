@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProcessingMode__c</fullName>
+    <description>Whether the event was handled directly or first persisted into the staging boundary.</description>
+    <inlineHelpText>Use Direct when the caller can be processed inline. Use Staged when the event should first be persisted for replay, buffering, or asynchronous processing.</inlineHelpText>
+    <label>Processing Mode</label>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>Direct</fullName><default>false</default><label>Direct</label></value>
+            <value><fullName>Staged</fullName><default>true</default><label>Staged</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

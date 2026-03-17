@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>CapabilityName__c</fullName>
-    <description>The unique, machine-readable name for this capability (tool). This is the &quot;function name&quot; the LLM will call. It must be unique within the scope of a single AI Agent Definition.</description>
+    <description>Unique developer-facing name for this capability.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Enter a unique, descriptive name for this tool (e.g., get_case_details, create_opportunity). Use lowercase with underscores. The AI uses this exact name to call the action.</inlineHelpText>
+    <inlineHelpText>Enter a unique, descriptive tool name such as get_case_details or create_opportunity. Use lowercase with underscores.</inlineHelpText>
     <label>Capability Name</label>
     <length>255</length>
     <required>false</required>

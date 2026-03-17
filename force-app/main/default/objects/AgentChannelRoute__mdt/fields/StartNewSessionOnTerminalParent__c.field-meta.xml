@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>StartNewSessionOnTerminalParent__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Whether a new interaction session should start when the matched parent record is already in a terminal state.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enable this when closed or terminal parent records should force the next inbound message onto a new interaction session.</inlineHelpText>
+    <label>Start New Session On Terminal Parent</label>
+    <type>Checkbox</type>
+</CustomField>

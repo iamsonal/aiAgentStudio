@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ConversationalRuntimeClass__c</fullName>
+    <description>Apex class that implements IAgentRuntime for conversational executions on this channel.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enter the conversational runtime Apex class name for this channel, such as ChatConversationalRuntimeService or another channel-specific runtime class.</inlineHelpText>
+    <label>Conversational Runtime Class</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

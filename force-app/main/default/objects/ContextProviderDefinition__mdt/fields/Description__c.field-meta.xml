@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Description__c</fullName>
+    <description>Admin-facing explanation of what this provider returns and when it should be used.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Describe what this provider adds to context so admins can choose the right definition.</inlineHelpText>
+    <label>Description</label>
+    <length>1000</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

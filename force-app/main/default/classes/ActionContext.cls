@@ -41,7 +41,7 @@ public inherited sharing class ActionContext {
         this.implementationDetail = implDetail;
         this.turnIdentifier = turnId;
         this.currentTurnCount = turnCount;
-        this.executionType = execType != null ? execType : String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative);
+        this.executionType = execType != null ? execType : String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational);
 
         System.debug(
             LoggingLevel.FINER,

@@ -2,9 +2,9 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>MaxToolRetries__c</fullName>
     <defaultValue>2</defaultValue>
-    <description>Maximum consecutive failures for a single tool before stopping execution. Prevents infinite retry loops. Applies to SingleShot executions. Iterative executions let the LLM handle retries.</description>
+    <description>Maximum consecutive failures for a single tool before stopping execution. Prevents infinite retry loops. Applies to Direct executions. Conversational executions let the LLM handle retries.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Max consecutive tool failures before execution stops. Prevents infinite loops. SingleShot executions only. Default: 2.</inlineHelpText>
+    <inlineHelpText>Max consecutive tool failures before execution stops. Prevents infinite loops. Direct executions only. Default: 2.</inlineHelpText>
     <label>Maximum Tool Retries</label>
     <precision>3</precision>
     <required>false</required>

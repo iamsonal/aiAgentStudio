@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SupportsFieldSetProjection__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Indicates whether this provider can safely project its root records through a field set.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Check this when the provider returns root records that can be reduced to a field set without breaking the intended context shape.</inlineHelpText>
+    <label>Supports Field Set Projection</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

@@ -186,7 +186,7 @@ public with sharing class HITLGatewayService {
                 ', HITLMode: ' +
                 hitlMode +
                 ', Strategy: ' +
-                context.agentDefinition.AgentType__c
+                context.agentDefinition.RuntimeStrategy__c
         );
 
         if (hitlMode == null) {
@@ -207,7 +207,7 @@ public with sharing class HITLGatewayService {
                     'but agent "' +
                     context.agentDefinition.DeveloperName__c +
                     '" is strategy "' +
-                    context.agentDefinition.AgentType__c +
+                    context.agentDefinition.RuntimeStrategy__c +
                     '". Use Approval mode instead or change agent type.';
                 System.debug(LoggingLevel.ERROR, debugPrefix + errorMsg);
                 return createInvalidConfigDecision(errorMsg);
@@ -241,7 +241,7 @@ public with sharing class HITLGatewayService {
                     'but agent "' +
                     context.agentDefinition.DeveloperName__c +
                     '" is strategy "' +
-                    context.agentDefinition.AgentType__c +
+                    context.agentDefinition.RuntimeStrategy__c +
                     '". Use Approval mode instead.';
                 System.debug(LoggingLevel.ERROR, debugPrefix + errorMsg);
                 return createInvalidConfigDecision(errorMsg);

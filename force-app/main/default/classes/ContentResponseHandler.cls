@@ -38,7 +38,7 @@ public inherited sharing class ContentResponseHandler implements ILLMResponseHan
             return OrchestrationService.OUTCOME_FAILED;
         }
 
-        // Apply strategy-specific content validation (for example strict single-shot recovery rules)
+        // Apply strategy-specific content validation (for example strict direct recovery rules)
         String agentValidationResult = applyAgentSpecificContentValidation(context, assistantData.content, logPrefix);
         if (agentValidationResult != null) {
             // Strategy-specific validation failed and already handled the failure path
@@ -92,13 +92,13 @@ public inherited sharing class ContentResponseHandler implements ILLMResponseHan
             return OrchestrationService.OUTCOME_FAILED;
         }
 
-        // Commit the turn context to the ledger (Conversational agents only)
+        // Commit the turn context as lightweight context references (Conversational agents only)
         // Skip for Function agents which don't need multi-turn context tracking
         if (context.agentStateSvc.isContextTrackingEnabled(context.executionId)) {
             try {
                 context.contextManagerSvc.commitExecutionTurnContext(context.executionId, context.currentTurnCount, context.currentPageRecordId, null);
             } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Context ledger update failed: ' + e.getMessage());
+                System.debug(LoggingLevel.ERROR, logPrefix + 'Context reference update failed: ' + e.getMessage());
             }
         }
 

@@ -181,7 +181,7 @@ public inherited sharing class IDecisionStepLogger {
     /**
      * Creates a logger before a persisted AgentExecution__c exists by resolving
      * audit level directly from the agent definition. Intended for pre-callout
-     * SingleShot paths that must buffer decision steps before execution creation.
+     * Direct paths that must buffer decision steps before execution creation.
      */
     public static ILogger createForAgent(Id agentDefinitionId, String turnIdentifier, Id originalUserId) {
         if (!AIAgentFrameworkSettings.isDecisionStepLoggingEnabled()) {
@@ -250,7 +250,7 @@ public inherited sharing class IDecisionStepLogger {
 
     private static Boolean isFullAuditLevel(Id executionId) {
         if (executionId == null) {
-            return true; // No execution yet (e.g. SingleShotSyncRuntimeService pre-creation) — let the logger buffer; SingleShotSyncRuntimeService manages its own guard.
+            return true; // No execution yet (e.g. DirectSyncRuntimeService pre-creation) — let the logger buffer; DirectSyncRuntimeService manages its own guard.
         }
 
         if (auditLevelCache.containsKey(executionId)) {

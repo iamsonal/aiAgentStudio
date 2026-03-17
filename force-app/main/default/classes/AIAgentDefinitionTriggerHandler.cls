@@ -63,8 +63,8 @@ public with sharing class AIAgentDefinitionTriggerHandler {
                 warnings.add('Parallel tool calling setting was changed. ' + 'Review the flow graph for parallel step compatibility.');
             }
 
-            if (rec.AgentType__c != old.AgentType__c) {
-                warnings.add('Execution strategy (agent type) was changed. ' + 'The flow graph may need restructuring.');
+            if (rec.RuntimeStrategy__c != old.RuntimeStrategy__c) {
+                warnings.add('Runtime strategy was changed. ' + 'The flow graph may need restructuring.');
             }
 
             if (rec.InstructionsPrompt__c != old.InstructionsPrompt__c) {
@@ -78,7 +78,7 @@ public with sharing class AIAgentDefinitionTriggerHandler {
     }
 
     private static void enforceErrorRecoveryMode(AIAgentDefinition__c rec) {
-        if (rec == null || !AgentExecutionService.requiresAutonomousRecovery(rec.AgentType__c)) {
+        if (rec == null || !AgentExecutionService.requiresAutonomousRecovery(rec.RuntimeStrategy__c)) {
             return;
         }
 

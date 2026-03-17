@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>PromptTokens__c</fullName>
-    <description>Number of tokens used in the prompt/input for LLM calls.</description>
+    <description>Number of input tokens recorded for this model call.</description>
     <externalId>false</externalId>
-    <inlineHelpText>The number of tokens in the prompt sent to the LLM.</inlineHelpText>
+    <inlineHelpText>Shows the number of input tokens used for this model call.</inlineHelpText>
     <label>Prompt Tokens</label>
     <precision>18</precision>
     <required>false</required>

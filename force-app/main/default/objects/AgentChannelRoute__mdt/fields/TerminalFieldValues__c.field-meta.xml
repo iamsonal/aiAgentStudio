@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>TerminalFieldValues__c</fullName>
+    <description>Comma-separated field values that should be treated as terminal for the configured parent field.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enter the values that indicate the matched parent record is terminal, for example Closed, Resolved, or true.</inlineHelpText>
+    <label>Terminal Field Values</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

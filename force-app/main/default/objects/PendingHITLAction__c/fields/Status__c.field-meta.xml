@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Status__c</fullName>
-    <description>Current status of the HITL action request. Pending = awaiting response, Confirmed/Approved = proceed with execution, Declined/Rejected = do not execute, Expired = timed out without response.</description>
+    <description>Current status of this confirmation or approval request.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Current state of this HITL request.</inlineHelpText>
+    <inlineHelpText>Shows whether this request is pending, approved, confirmed, declined, rejected, or expired.</inlineHelpText>
     <label>Status</label>
     <required>true</required>
     <trackHistory>true</trackHistory>

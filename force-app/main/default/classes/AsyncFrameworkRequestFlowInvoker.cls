@@ -152,98 +152,19 @@ public with sharing class AsyncFrameworkRequestFlowInvoker {
                 turnIdentifier
         );
 
-        try {
-            // Prepare the user message data for LLM interaction
-            LLMInteractionService.MessageData currentUserMessageData = new LLMInteractionService.MessageData();
-            currentUserMessageData.role = AIAgentConstants.ROLE_USER;
-            currentUserMessageData.content = userMessage;
-
-            OrchestrationService orchestrationSvc = new OrchestrationService();
-
-            // Initialize the decision step logger - single instance for the entire turn
-            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(executionId, turnIdentifier, originalUserId);
-
-            // Get user name and agent name for enhanced logging
-            String userName = getUserName(originalUserId);
-            String agentName = AIAgentConfigService.getAgentName(agentDefinitionId);
-            decisionLogger.log(IDecisionStepLogger.EventType.USER_INPUT, new List<Object>{ userMessage, userName, agentName });
-
-            // Instantiate LLMInteractionService with the execution user context and decision logger
-            LLMInteractionService interactionService = new LLMInteractionService(
-                executionId,
-                originalUserId,
-                agentDefinitionId,
-                llmConfigurationId,
-                turnIdentifier,
-                1, // Turn count (always 1 for initial LLM processing)
-                currentRecordId,
-                false, // Not a retry
-                decisionLogger
-            );
-
-            // Execute LLM interaction (HTTP callouts are permitted in Flow-triggered async context)
-            LLMInteractionService.LLMInteractionResult llmResult = interactionService.prepareAndCallLLM(currentUserMessageData);
-
-            if (llmResult == null) {
-                throw new AsyncFrameworkException('LLMInteractionService returned a null result');
-            }
-
-            // Process the LLM result using the orchestration service with the decision logger
-            String outcome = orchestrationSvc.processLlmResult(
-                llmResult,
+        ConversationalTurnExecutionService.RunResult result = new ConversationalTurnExecutionService()
+            .executeInitialTurn(
                 executionId,
                 originalUserId,
                 UserInfo.getUserId(),
                 agentDefinitionId,
+                llmConfigurationId,
                 turnIdentifier,
-                1, // Turn count
-                currentUserMessageData,
+                userMessage,
                 currentRecordId,
-                decisionLogger
+                logPrefix
             );
 
-            System.debug(
-                LoggingLevel.INFO,
-                logPrefix + '[AsyncFrameworkRequestFlowInvoker] Initial LLM message processing completed successfully. Outcome: ' + outcome
-            );
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, logPrefix + e.getTypeName() + ': ' + e.getMessage() + '\n' + e.getStackTraceString());
-
-            // Attempt to mark turn as failed - may fail if execution is invalid
-            try {
-                AgentStateService ass = new AgentStateService();
-                ass.failTurn(
-                    executionId,
-                    turnIdentifier,
-                    'Initial LLM processing failed: ' + e.getMessage(),
-                    AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                    logPrefix
-                );
-            } catch (Exception failEx) {
-                System.debug(LoggingLevel.WARN, logPrefix + 'Could not update turn state: ' + failEx.getMessage());
-            }
-        }
-    }
-
-    /**
-     * Helper method to get user name for enhanced logging
-     */
-    private static String getUserName(Id userId) {
-        if (userId == null)
-            return null;
-
-        try {
-            List<User> users = [SELECT Name FROM User WHERE Id = :userId LIMIT 1];
-            return users.isEmpty() ? null : users[0].Name;
-        } catch (Exception e) {
-            System.debug(LoggingLevel.WARN, '[AsyncFrameworkRequestFlowInvoker] Failed to query user name for ID: ' + userId + '. Error: ' + e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * Exception for unrecoverable errors during async framework processing.
-     */
-    public class AsyncFrameworkException extends Exception {
+        System.debug(LoggingLevel.INFO, logPrefix + '[AsyncFrameworkRequestFlowInvoker] Initial LLM message processing completed. Outcome: ' + result.outcome);
     }
 }

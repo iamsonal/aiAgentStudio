@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProviderDefinition__c</fullName>
+    <description>Identifies which provider definition metadata record this binding should use.</description>
+    <inlineHelpText>Enter the provider definition key exactly as it appears in the matching Context Provider Definition metadata record. This key is used at runtime to resolve the provider implementation.</inlineHelpText>
+    <label>Provider Definition</label>
+    <length>255</length>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

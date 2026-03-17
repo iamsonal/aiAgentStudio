@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ErrorHandlingMode__c</fullName>
-    <description>Controls how the pipeline handles step failures. FailFast stops the pipeline immediately on first failure. ContinueOnError skips failed steps and advances to the next.</description>
-    <inlineHelpText>FailFast: stop on first error. ContinueOnError: skip failed steps and continue.</inlineHelpText>
+    <description>Controls whether the pipeline stops at the first failed step or continues to the next step.</description>
+    <inlineHelpText>Choose Fail Fast to stop on the first error. Choose Continue On Error to skip failed steps and keep running.</inlineHelpText>
     <label>Error Handling Mode</label>
     <required>false</required>
     <trackHistory>true</trackHistory>

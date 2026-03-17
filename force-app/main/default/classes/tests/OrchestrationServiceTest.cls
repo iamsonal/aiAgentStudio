@@ -22,7 +22,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-text-001')
@@ -68,7 +68,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-tool-001')
@@ -118,7 +118,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-fail-001')
@@ -162,7 +162,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-invalid-tool-001')
@@ -206,7 +206,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-immediate-001')
@@ -271,7 +271,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-null-001')
@@ -387,7 +387,7 @@ private class OrchestrationServiceTest {
     @IsTest
     static void testShouldFailFast_SuccessOutcome_ReturnsFalse() {
         AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'SingleShot', ErrorRecoveryMode__c = 'Autonomous');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(RuntimeStrategy__c = 'Direct', ErrorRecoveryMode__c = 'Autonomous');
         ActionOutcome success = ActionOutcome.success();
 
         System.assertEquals(false, OrchestrationService.shouldFailFast(cap, agent, success, null, '[test] '), 'Success outcome should never fail fast');
@@ -396,7 +396,7 @@ private class OrchestrationServiceTest {
     @IsTest
     static void testShouldFailFast_NullOutcome_ReturnsFalse() {
         AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'SingleShot', ErrorRecoveryMode__c = 'Autonomous');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(RuntimeStrategy__c = 'Direct', ErrorRecoveryMode__c = 'Autonomous');
 
         System.assertEquals(false, OrchestrationService.shouldFailFast(cap, agent, null, null, '[test] '), 'Null outcome should return false');
     }
@@ -404,7 +404,7 @@ private class OrchestrationServiceTest {
     @IsTest
     static void testShouldFailFast_FailFastMode_ReturnsTrue() {
         AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'SingleShot', ErrorRecoveryMode__c = 'Fail Fast');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(RuntimeStrategy__c = 'Direct', ErrorRecoveryMode__c = 'Fail Fast');
         ActionOutcome failure = ActionOutcome.failure('ERR', 'Failed');
 
         System.assertEquals(true, OrchestrationService.shouldFailFast(cap, agent, failure, null, '[test] '), 'Fail Fast mode should immediately return true');
@@ -413,7 +413,7 @@ private class OrchestrationServiceTest {
     @IsTest
     static void testShouldFailFast_AutonomousMode_AllowsLLMRecovery() {
         AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Iterative', ErrorRecoveryMode__c = 'Autonomous');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(RuntimeStrategy__c = 'Conversational', ErrorRecoveryMode__c = 'Autonomous');
 
         // Transient errors flow to LLM
         ActionOutcome transientFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient network error');
@@ -449,7 +449,7 @@ private class OrchestrationServiceTest {
     @IsTest
     static void testShouldFailFast_NonTransientError_FlowsToLLMInAutonomousMode() {
         AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'test_tool');
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'SingleShot', ErrorRecoveryMode__c = 'Autonomous');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(RuntimeStrategy__c = 'Direct', ErrorRecoveryMode__c = 'Autonomous');
 
         // Non-transient errors should reach the LLM in Autonomous mode — the LLM decides recovery.
         // isTransient only informs retry logic; it should not gate whether the LLM sees the result.
@@ -511,14 +511,14 @@ private class OrchestrationServiceTest {
 
         AIAgentDefinition__c functionAgent = TestFactory.newAgentDefinition()
             .withName('BulkCount_Function_Agent')
-            .withType('SingleShot')
+            .withType('Direct')
             .withLLM(setup.llmConfig.Id)
             .save();
 
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(functionAgent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('SingleShot')
+            .withExecutionType('Direct')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-bulkcount-001')
@@ -562,7 +562,7 @@ private class OrchestrationServiceTest {
     @IsTest
     static void testShouldFailFast_WithPreloadedCount_UsesPreloadedValue() {
         AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'preloaded_tool');
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'SingleShot', ErrorRecoveryMode__c = 'Autonomous');
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(RuntimeStrategy__c = 'Direct', ErrorRecoveryMode__c = 'Autonomous');
 
         // Must use a transient error code so the non-transient shortcut does not short-circuit before the preloaded count is evaluated
         ActionOutcome retryableFailure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient network failure');
@@ -603,14 +603,14 @@ private class OrchestrationServiceTest {
 
         AIAgentDefinition__c functionAgent = TestFactory.newAgentDefinition()
             .withName('Function_FailFast_Agent')
-            .withType('SingleShot')
+            .withType('Direct')
             .withLLM(setup.llmConfig.Id)
             .save();
 
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(functionAgent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('SingleShot')
+            .withExecutionType('Direct')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-maxretries-001')
@@ -645,7 +645,7 @@ private class OrchestrationServiceTest {
 
         // Reload agent with full details
         AIAgentDefinition__c agentFull = [
-            SELECT Id, AgentType__c, ErrorRecoveryMode__c
+            SELECT Id, RuntimeStrategy__c, ErrorRecoveryMode__c
             FROM AIAgentDefinition__c
             WHERE Id = :functionAgent.Id
         ];
@@ -666,7 +666,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('SingleShot')
+            .withExecutionType('Direct')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-comparator-001')
@@ -733,7 +733,7 @@ private class OrchestrationServiceTest {
         TestFactory.AgentSetup setup = getSetup();
         Integer maxRetries = AIAgentFrameworkSettings.getMaxToolRetries();
         ActionOutcome failure = ActionOutcome.failure(AIAgentConstants.ERR_CODE_CONNECT_API_ERROR, 'Transient tool failure');
-        String agentType = 'Iterative';
+        String agentType = 'Conversational';
 
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition()
             .withName(agentType + '_CircuitBreaker_Agent')
@@ -774,7 +774,7 @@ private class OrchestrationServiceTest {
         }
 
         AIAgentDefinition__c agentFull = [
-            SELECT Id, AgentType__c, ErrorRecoveryMode__c
+            SELECT Id, RuntimeStrategy__c, ErrorRecoveryMode__c
             FROM AIAgentDefinition__c
             WHERE Id = :agent.Id
         ];
@@ -831,7 +831,7 @@ private class OrchestrationServiceTest {
         }
 
         AIAgentDefinition__c agent = [
-            SELECT Id, AgentType__c, ErrorRecoveryMode__c
+            SELECT Id, RuntimeStrategy__c, ErrorRecoveryMode__c
             FROM AIAgentDefinition__c
             WHERE Id = :setup.agentDefinition.Id
         ];
@@ -855,7 +855,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('SingleShot')
+            .withExecutionType('Direct')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-scope-resume-001')
@@ -920,7 +920,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('SingleShot')
+            .withExecutionType('Direct')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-scope-success-001')
@@ -978,7 +978,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('SingleShot')
+            .withExecutionType('Direct')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_ACTION)
             .withTurnIdentifier('turn-bulk-scope-001')
@@ -1033,15 +1033,15 @@ private class OrchestrationServiceTest {
 
     /**
      * @description Verifies that Fail Fast mode halts immediately for non-Function agent types.
-     *              ErrorRecoveryMode__c = Fail Fast must apply uniformly regardless of AgentType__c.
+     *              ErrorRecoveryMode__c = Fail Fast must apply uniformly regardless of RuntimeStrategy__c.
      */
     @IsTest
     static void testShouldFailFast_FailFastMode_AppliesToAllAgentTypes() {
         ActionOutcome failure = ActionOutcome.failure('ERR_TEST', 'Tool failed');
 
-        for (String agentType : new List<String>{ 'Iterative', 'Email', 'SingleShot' }) {
+        for (String agentType : new List<String>{ 'Conversational', 'Email', 'Direct' }) {
             AgentCapability__c cap = new AgentCapability__c(CapabilityName__c = 'cap_ff_' + agentType.toLowerCase());
-            AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = agentType, ErrorRecoveryMode__c = 'Fail Fast');
+            AIAgentDefinition__c agent = new AIAgentDefinition__c(RuntimeStrategy__c = agentType, ErrorRecoveryMode__c = 'Fail Fast');
 
             System.assertEquals(
                 true,
@@ -1063,7 +1063,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-duf-001')
@@ -1090,7 +1090,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-duf-002')
@@ -1147,7 +1147,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-duf-003')
@@ -1198,7 +1198,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-duf-004')
@@ -1272,7 +1272,7 @@ private class OrchestrationServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-duf-005')

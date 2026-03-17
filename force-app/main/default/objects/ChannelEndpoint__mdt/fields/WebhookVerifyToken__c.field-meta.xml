@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>WebhookVerifyToken__c</fullName>
+    <description>Optional token that an inbound webhook must echo during challenge verification before the endpoint is trusted.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Set the provider's webhook verification token for this endpoint so GET challenge requests can be validated before activation.</inlineHelpText>
+    <label>Webhook Verify Token</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

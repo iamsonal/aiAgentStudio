@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SupportsProjectionDefinition__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>Indicates whether this provider supports reusable projection definition metadata.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Check this when the provider output can be shaped by reusable projection definition metadata.</inlineHelpText>
+    <label>Supports Projection Definition</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

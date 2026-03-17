@@ -111,7 +111,7 @@ public without sharing class AsyncActionEngine implements Queueable, Database.Al
                     this.currentTurnCount,
                     this.executionId != null
                         ? RuntimeRegistryService.getExecutionStrategyKey(this.executionId)
-                        : String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative)
+                        : String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational)
                 );
                 outcome = actionService.executeSingleAction(this.capability, this.llmArgumentsJson, actionContext);
             } catch (Exception ex) {

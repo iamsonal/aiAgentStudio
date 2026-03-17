@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>HITLMode__c</fullName>
-    <description>Human-in-the-Loop mode for this capability. Leave blank to execute immediately without human intervention. Confirmation = LLM asks the user inline before executing (iterative chat executions only). Approval = ALWAYS require formal approval (all strategies). ConfirmationThenApproval = LLM confirms inline, then submits for formal approval (iterative chat executions only). ConditionalApproval = LLM decides whether approval is needed based on context and rules in capability description.</description>
+    <description>Human-in-the-loop mode that determines whether this capability needs confirmation or approval before it runs.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Leave blank for no human check. Confirmation = LLM asks in chat. Approval = always require approval. ConfirmationThenApproval = both (iterative chat only). ConditionalApproval = LLM decides based on context (for example high-value accounts or large amounts).</inlineHelpText>
+    <inlineHelpText>Leave blank to run immediately. Use Confirmation for inline confirmation, Approval for formal approval, Confirmation Then Approval for both, or Conditional Approval to let the model decide based on context.</inlineHelpText>
     <label>HITL Mode</label>
     <required>false</required>
     <trackTrending>false</trackTrending>

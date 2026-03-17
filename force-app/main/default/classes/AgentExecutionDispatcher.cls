@@ -158,7 +158,7 @@ public with sharing class AgentExecutionDispatcher {
 
         update updates;
 
-        System.debug(LoggingLevel.INFO, logPrefix + 'Pre-marked ' + cappedCount + ' execution(s) as Processing for single-shot worker dispatch');
+        System.debug(LoggingLevel.INFO, logPrefix + 'Pre-marked ' + cappedCount + ' execution(s) as Processing for direct worker dispatch');
     }
 
     /**
@@ -191,7 +191,7 @@ public with sharing class AgentExecutionDispatcher {
                     ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
                     AIAgentDefinition__c = agentDef.Id,
                     User__c = payload.userId,
-                    ExecutionType__c = agentDef.AgentType__c,
+                    ExecutionType__c = agentDef.RuntimeStrategy__c,
                     InteractionChannel__c = interactionChannel,
                     TriggerSource__c = payload.triggerSource != null ? payload.triggerSource : 'Apex',
                     TriggerPayload__c = payload.triggerPayload,
@@ -315,7 +315,7 @@ public with sharing class AgentExecutionDispatcher {
                 Id,
                 AIAgentDefinition__c,
                 AIAgentDefinition__r.DeveloperName__c,
-                AIAgentDefinition__r.AgentType__c,
+                AIAgentDefinition__r.RuntimeStrategy__c,
                 Priority__c,
                 CreatedDate,
                 LastActivityTime__c
@@ -341,7 +341,7 @@ public with sharing class AgentExecutionDispatcher {
             }
             if (!executionsByAgent.containsKey(agentName)) {
                 executionsByAgent.put(agentName, new List<AgentExecution__c>());
-                agentTypeByName.put(agentName, exec.AIAgentDefinition__r.AgentType__c);
+                agentTypeByName.put(agentName, exec.AIAgentDefinition__r.RuntimeStrategy__c);
             }
             executionsByAgent.get(agentName).add(exec);
         }

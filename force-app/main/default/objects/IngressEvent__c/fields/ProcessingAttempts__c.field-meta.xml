@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProcessingAttempts__c</fullName>
+    <description>Number of times internal processing has attempted to handle this event.</description>
+    <inlineHelpText>Increment this each time a worker claims the row so retries and poison-message behavior can be monitored.</inlineHelpText>
+    <label>Processing Attempts</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <type>Number</type>
+</CustomField>

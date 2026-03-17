@@ -528,7 +528,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_InjectsRationaleAndNextStep() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent').withType('SingleShot').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent').withType('Direct').withLLM(llm.Id).save();
         agent.EnableToolReasoning__c = true;
         agent.EnableNextStepSuggestion__c = true;
         update agent;
@@ -553,7 +553,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_HitlConfirmation_AppendsDescriptionSuffix() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM HITL').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_HITL').withType('Iterative').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_HITL').withType('Conversational').withLLM(llm.Id).save();
 
         TestFactory.newCapability()
             .withAgent(agent.Id)
@@ -572,7 +572,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_HitlConfirmation_SkipsSuffixIfAlreadyPresent() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM HITL Skip').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_HITL_Skip').withType('Iterative').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_HITL_Skip').withType('Conversational').withLLM(llm.Id).save();
 
         TestFactory.newCapability()
             .withAgent(agent.Id)
@@ -593,7 +593,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_ConditionalApproval_InjectsApprovalAndConfidenceParams() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM Cond').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Cond').withType('SingleShot').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Cond').withType('Direct').withLLM(llm.Id).save();
         agent.EnableToolReasoning__c = true;
         agent.EnableConfidenceTracking__c = true;
         update agent;
@@ -614,7 +614,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_AgentLevelConfidenceTracking_InjectsConfidenceOnAllTools() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Conf Track LLM').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Conf_Track_Agent').withType('SingleShot').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Conf_Track_Agent').withType('Direct').withLLM(llm.Id).save();
         agent.EnableConfidenceTracking__c = true;
         update agent;
 
@@ -638,7 +638,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_ConfidenceTrackingDisabled_DoesNotInjectConfidence() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('No Conf LLM').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('No_Conf_Agent').withType('SingleShot').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('No_Conf_Agent').withType('Direct').withLLM(llm.Id).save();
 
         TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').save();
 
@@ -654,7 +654,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_NoExternalCapabilities_ReturnsEmptyList() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM None').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_None').withType('SingleShot').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_None').withType('Direct').withLLM(llm.Id).save();
 
         // No capabilities created for this agent
         List<Map<String, Object>> tools = LLMFormattingService.formatToolsForApi(agent.Id, agent, 'test-none');
@@ -665,7 +665,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_SchemaMissingTypeAndProperties_AutoFixed() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM Fix').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Fix').withType('SingleShot').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Fix').withType('Direct').withLLM(llm.Id).save();
 
         AgentCapability__c cap = TestFactory.newCapability()
             .withAgent(agent.Id)
@@ -690,7 +690,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_TwoArgOverload_DelegatesToFourArg() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM 2arg').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_2arg').withType('SingleShot').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_2arg').withType('Direct').withLLM(llm.Id).save();
 
         TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').save();
 
@@ -803,7 +803,7 @@ private class LLMFormattingServiceTest {
     @IsTest
     static void testFormatTools_EnrichesSchemaWithFieldMetadata() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Format LLM Enrich').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Enrich').withType('SingleShot').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Format_Agent_Enrich').withType('Direct').withLLM(llm.Id).save();
 
         // Create a capability for Account with recordData property that contains field names
         AgentCapability__c cap = TestFactory.newCapability()
@@ -854,7 +854,11 @@ private class LLMFormattingServiceTest {
 
     @IsTest
     static void testBuildConfidenceInstructions_DisabledTracking_ReturnsNull() {
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'SingleShot', EnableConfidenceTracking__c = false, MinConfidenceThreshold__c = 50);
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(
+            RuntimeStrategy__c = 'Direct',
+            EnableConfidenceTracking__c = false,
+            MinConfidenceThreshold__c = 50
+        );
         String result = LLMInteractionService.buildConfidenceInstructions(agent, null, '[Test] ');
         System.assertEquals(null, result, 'Should return null when confidence tracking is disabled');
     }
@@ -865,7 +869,7 @@ private class LLMFormattingServiceTest {
         // so the LLM knows to provide scores. MinConfidenceThreshold__c only gates blocking,
         // not whether guidance is sent.
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
-            AgentType__c = 'SingleShot',
+            RuntimeStrategy__c = 'Direct',
             EnableConfidenceTracking__c = true,
             MinConfidenceThreshold__c = null
         );
@@ -876,7 +880,11 @@ private class LLMFormattingServiceTest {
 
     @IsTest
     static void testBuildConfidenceInstructions_FunctionAgent_UsesLookupGuidance() {
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'SingleShot', EnableConfidenceTracking__c = true, MinConfidenceThreshold__c = 60);
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(
+            RuntimeStrategy__c = 'Direct',
+            EnableConfidenceTracking__c = true,
+            MinConfidenceThreshold__c = 60
+        );
         String result = LLMInteractionService.buildConfidenceInstructions(agent, null, '[Test] ');
         System.assertNotEquals(null, result, 'Should return instructions for Function agent');
         System.assert(result.contains('lookup or search'), 'Function agent guidance should mention lookup tools');
@@ -885,32 +893,14 @@ private class LLMFormattingServiceTest {
 
     @IsTest
     static void testBuildConfidenceInstructions_ConversationalAgent_UsesAskUserGuidance() {
-        AIAgentDefinition__c agent = new AIAgentDefinition__c(AgentType__c = 'Iterative', EnableConfidenceTracking__c = true, MinConfidenceThreshold__c = 50);
+        AIAgentDefinition__c agent = new AIAgentDefinition__c(
+            RuntimeStrategy__c = 'Conversational',
+            EnableConfidenceTracking__c = true,
+            MinConfidenceThreshold__c = 50
+        );
         String result = LLMInteractionService.buildConfidenceInstructions(agent, null, '[Test] ');
         System.assertNotEquals(null, result, 'Should return instructions for Conversational agent');
         System.assert(result.containsIgnoreCase('ask the user'), 'Conversational guidance should instruct LLM to ask user');
         System.assert(!result.contains('50'), 'Threshold value must not be exposed in instructions — prevents LLM gaming');
-    }
-
-    @IsTest
-    static void testBuildConfidenceInstructions_EmailAgent_UsesEmailReplyGuidance() {
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition()
-            .withName('Confidence_Email_Agent')
-            .withType('Iterative')
-            .withLLM(TestFactory.newLLMConfiguration().save().Id)
-            .save();
-        update new AIAgentDefinition__c(Id = agent.Id, EnableConfidenceTracking__c = true, MinConfidenceThreshold__c = 70);
-
-        AgentExecution__c execution = TestFactory.newExecution().withAgent(agent.Id).withUser(UserInfo.getUserId()).withExecutionType('Iterative').save();
-        update new AgentExecution__c(Id = execution.Id, InteractionChannel__c = RuntimeRegistryService.CHANNEL_EMAIL);
-
-        String result = LLMInteractionService.buildConfidenceInstructions(
-            [SELECT Id, AgentType__c, EnableConfidenceTracking__c, MinConfidenceThreshold__c FROM AIAgentDefinition__c WHERE Id = :agent.Id],
-            execution.Id,
-            '[Test] '
-        );
-        System.assertNotEquals(null, result, 'Should return instructions for Email agent');
-        System.assert(result.containsIgnoreCase('email reply'), 'Email guidance should mention email reply');
-        System.assert(!result.contains('70'), 'Threshold value must not be exposed in instructions — prevents LLM gaming');
     }
 }

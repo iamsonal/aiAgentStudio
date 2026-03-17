@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IncludeRecordUrls__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Controls whether formatted context should include Salesforce record URLs when this projection definition is applied.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Check this when formatted context should include direct Salesforce links for the returned records.</inlineHelpText>
+    <label>Include Record Urls</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

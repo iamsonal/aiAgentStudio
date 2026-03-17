@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InactivityTtlHours__c</fullName>
+    <description>Optional inactivity threshold in hours before a new interaction session cycle should begin for this route.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enter the maximum idle time in hours before the next inbound message should start a new conversation cycle for this route.</inlineHelpText>
+    <label>Inactivity TTL Hours</label>
+    <precision>6</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <type>Number</type>
+</CustomField>

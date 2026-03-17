@@ -67,7 +67,7 @@ private class ExecutionStepServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent([SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .save();
 
@@ -100,7 +100,7 @@ private class ExecutionStepServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent([SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .save();
 
@@ -170,7 +170,7 @@ private class ExecutionStepServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent([SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .save();
 
@@ -396,7 +396,7 @@ private class ExecutionStepServiceTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent([SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .save();
 

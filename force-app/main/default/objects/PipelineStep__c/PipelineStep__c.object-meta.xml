@@ -43,7 +43,7 @@
     <allowInChatterGroups>false</allowInChatterGroups>
     <compactLayoutAssignment>SYSTEM</compactLayoutAssignment>
     <deploymentStatus>Deployed</deploymentStatus>
-    <description>Defines a step within a sequential pipeline, linking a PipelineDefinition__c to a child AI agent with an execution order.</description>
+    <description>Defines one configured step in a sequential pipeline, including which agent runs and in what order.</description>
     <enableActivities>false</enableActivities>
     <enableBulkApi>true</enableBulkApi>
     <enableFeeds>false</enableFeeds>

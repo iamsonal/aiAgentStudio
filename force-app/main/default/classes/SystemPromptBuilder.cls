@@ -7,17 +7,10 @@
  */
 
 /**
- * @description Centralized service for composing system prompts sent to LLMs. Assembles prompts from agent configuration, context data, and temporal information.
+ * @description Centralized service for composing system prompts sent to LLMs.
  */
 public inherited sharing class SystemPromptBuilder {
-    private final ContextManagerService contextManager;
     private final ContextResolverService contextResolver;
-    private static final Map<String, String> SECTION_HEADERS = new Map<String, String>{
-        'primary' => '## Current Primary Context',
-        'recent' => '## Recently Discussed',
-        'related' => '## Related Records',
-        'background' => '## Background Context'
-    };
     private final IDecisionStepLogger.ILogger decisionLogger;
     private PIIMaskingService piiMaskingService;
 
@@ -25,30 +18,24 @@ public inherited sharing class SystemPromptBuilder {
     private static Exception mockFormatterException;
 
     public SystemPromptBuilder() {
-        this(new ContextManagerService(), new ContextResolverService(), null, null);
+        this(new ContextResolverService(), null, null);
     }
 
     public SystemPromptBuilder(IDecisionStepLogger.ILogger decisionLogger) {
-        this(new ContextManagerService(), new ContextResolverService(), decisionLogger, null);
+        this(new ContextResolverService(), decisionLogger, null);
     }
 
     public SystemPromptBuilder(IDecisionStepLogger.ILogger decisionLogger, PIIMaskingService piiMaskingService) {
-        this(new ContextManagerService(), new ContextResolverService(), decisionLogger, piiMaskingService);
+        this(new ContextResolverService(), decisionLogger, piiMaskingService);
     }
 
     @TestVisible
-    private SystemPromptBuilder(ContextManagerService contextService, ContextResolverService contextResolverSvc, IDecisionStepLogger.ILogger decisionLogger) {
-        this(contextService, contextResolverSvc, decisionLogger, null);
+    private SystemPromptBuilder(ContextResolverService contextResolverSvc, IDecisionStepLogger.ILogger decisionLogger) {
+        this(contextResolverSvc, decisionLogger, null);
     }
 
     @TestVisible
-    private SystemPromptBuilder(
-        ContextManagerService contextService,
-        ContextResolverService contextResolverSvc,
-        IDecisionStepLogger.ILogger decisionLogger,
-        PIIMaskingService piiMaskingService
-    ) {
-        this.contextManager = contextService;
+    private SystemPromptBuilder(ContextResolverService contextResolverSvc, IDecisionStepLogger.ILogger decisionLogger, PIIMaskingService piiMaskingService) {
         this.contextResolver = contextResolverSvc;
         this.decisionLogger = decisionLogger;
         this.piiMaskingService = piiMaskingService;
@@ -66,9 +53,7 @@ public inherited sharing class SystemPromptBuilder {
         System.debug(LoggingLevel.INFO, logPrefix + 'Composing system prompt for Agent: ' + agentConfig.DeveloperName__c);
 
         List<String> promptParts = new List<String>();
-
-        String temporalContext = buildTemporalContext(conversationalUserId);
-        promptParts.add('# System Context\n\n' + temporalContext);
+        promptParts.add('# System Context\n\n' + buildTemporalContext(conversationalUserId));
 
         if (String.isNotBlank(agentConfig.IdentityPrompt__c)) {
             promptParts.add('# Identity\n\n' + agentConfig.IdentityPrompt__c);
@@ -100,16 +85,12 @@ public inherited sharing class SystemPromptBuilder {
                     loggablePromptParts.add(part);
                 }
             }
-
-            String systemPromptComponents = String.join(loggablePromptParts, '\n\n');
-
-            this.decisionLogger.log(IDecisionStepLogger.EventType.SYSTEM_PROMPT_BUILT, new List<Object>{ systemPromptComponents });
+            this.decisionLogger.log(IDecisionStepLogger.EventType.SYSTEM_PROMPT_BUILT, new List<Object>{ String.join(loggablePromptParts, '\n\n') });
         }
 
         String composedPrompt = String.join(promptParts, '\n\n');
         System.debug(LoggingLevel.INFO, logPrefix + 'System prompt composition complete. Prompt length: ' + composedPrompt.length());
         System.debug(LoggingLevel.DEBUG, logPrefix + 'Composed Prompt:\n' + composedPrompt);
-
         return composedPrompt;
     }
 
@@ -123,115 +104,104 @@ public inherited sharing class SystemPromptBuilder {
     ) {
         String logPrefix = '[SystemPromptBuilder.EnhancedContext] ';
         List<String> contextBlocks = new List<String>();
+        List<String> warningBlocks = new List<String>();
 
         String summary = getConversationSummary(executionId, agentConfig, logPrefix);
         if (String.isNotBlank(summary)) {
             contextBlocks.add('<CONVERSATION_SUMMARY>\n' + sanitizeForDelimiter(stripInjectionPatterns(summary)) + '\n</CONVERSATION_SUMMARY>');
         }
 
-        String formatStrategy = String.isNotBlank(agentConfig.ContextFormatStrategy__c) ? agentConfig.ContextFormatStrategy__c : null;
+        String formatStrategy = String.isBlank(agentConfig.ContextFormatStrategy__c) ? 'JSON' : agentConfig.ContextFormatStrategy__c;
 
-        if (String.isBlank(formatStrategy)) {
-            System.debug(LoggingLevel.INFO, logPrefix + 'No ContextFormatStrategy__c configured. Skipping context resolution and formatting.');
-        } else {
-            try {
-                ContextResolverService.ResolutionResult resolvedContext = this.contextResolver.resolve(
-                    executionId,
-                    agentConfig.Id,
-                    conversationalUserId,
-                    currentPageRecordId,
-                    currentTurn
-                );
+        try {
+            ContextResolverService.ResolutionResult resolvedContext = this.contextResolver.resolve(
+                executionId,
+                agentConfig.Id,
+                conversationalUserId,
+                currentPageRecordId,
+                currentTurn
+            );
 
-                if (resolvedContext != null && !resolvedContext.recordsToLoad.isEmpty()) {
-                    try {
-                        ContextFormattingService formatter = new ContextFormattingService();
+            if (resolvedContext != null) {
+                for (String warningMessage : resolvedContext.warnings) {
+                    warningBlocks.add('<CONTEXT_WARNING>\n' + sanitizeForDelimiter(stripInjectionPatterns(warningMessage)) + '\n</CONTEXT_WARNING>');
+                }
+            }
 
-                        ContextFormattingService.FormattingOptions formatOptions = new ContextFormattingService.FormattingOptions();
+            if (resolvedContext != null && !resolvedContext.contextBlocks.isEmpty()) {
+                try {
+                    ContextFormattingService formatter = new ContextFormattingService();
+                    List<SObject> loggableRecords = new List<SObject>();
+                    List<String> formattedSections = new List<String>();
+
+                    if (Test.isRunningTest() && mockFormatterException != null) {
+                        throw mockFormatterException;
+                    }
+
+                    for (ContextResolverService.ResolvedContextBlock block : resolvedContext.contextBlocks) {
+                        ContextFormattingService.ProjectionSettings projectionSettings = formatter.buildProjectionSettings(
+                            block.config,
+                            block.projectionDefinition,
+                            this.piiMaskingService
+                        );
                         if (this.piiMaskingService != null) {
-                            formatOptions.withPIIMasking(this.piiMaskingService);
                             System.debug(LoggingLevel.DEBUG, logPrefix + 'PII schema masking enabled for context data formatting');
                         }
 
-                        if (Test.isRunningTest() && mockFormatterException != null) {
-                            throw mockFormatterException;
+                        List<SObject> recordsForBlock = applyRecordLimit(block.records, projectionSettings.recordLimit);
+                        loggableRecords.addAll(recordsForBlock);
+                        if (recordsForBlock.isEmpty()) {
+                            continue;
                         }
 
-                        String formattedRecords = formatter.formatContext(resolvedContext.recordsToLoad, logPrefix, formatStrategy, formatOptions);
-
-                        if (this.decisionLogger != null) {
-                            this.decisionLogger.log(
-                                IDecisionStepLogger.EventType.CONTEXT_GATHERED,
-                                new List<Object>{ resolvedContext.recordsToLoad, formattedRecords }
-                            );
-                        }
-
+                        String formattedRecords = formatter.formatContext(recordsForBlock, logPrefix, formatStrategy, projectionSettings.formattingOptions);
                         if (String.isNotBlank(formattedRecords)) {
-                            contextBlocks.add(
-                                '<RESOLVED_CONTEXT_DATA>\n' + sanitizeForDelimiter(stripInjectionPatterns(formattedRecords)) + '\n</RESOLVED_CONTEXT_DATA>'
-                            );
-                            System.debug(
-                                LoggingLevel.INFO,
-                                logPrefix +
-                                    'Added ' +
-                                    resolvedContext.recordsToLoad.size() +
-                                    ' resolved records to context using ' +
-                                    formatStrategy +
-                                    ' format.'
-                            );
+                            String sectionContent = String.isNotBlank(projectionSettings.sectionName)
+                                ? '### ' + projectionSettings.sectionName + '\n' + formattedRecords
+                                : formattedRecords;
+                            formattedSections.add(sectionContent);
                         }
-                    } catch (Exception formatterEx) {
-                        System.debug(
-                            LoggingLevel.ERROR,
-                            logPrefix + 'Failed to execute formatter for strategy: ' + formatStrategy + '. Error: ' + formatterEx.getMessage()
-                        );
-                        contextBlocks.add(String.format(AIAgentConstants.PROMPT_CONTEXT_FORMAT_WARN_TEMPLATE, new List<Object>{ formatterEx.getMessage() }));
                     }
-                } else {
-                    System.debug(LoggingLevel.INFO, logPrefix + 'No records resolved from context providers.');
-                }
 
-                if (String.isNotBlank(resolvedContext.longTermContextSummary)) {
-                    contextBlocks.add(
-                        '<LONG_TERM_CONTEXT>\n' +
-                            sanitizeForDelimiter(stripInjectionPatterns(resolvedContext.longTermContextSummary)) +
-                            '\n</LONG_TERM_CONTEXT>'
+                    if (this.decisionLogger != null) {
+                        this.decisionLogger.log(
+                            IDecisionStepLogger.EventType.CONTEXT_GATHERED,
+                            new List<Object>{ loggableRecords, String.join(formattedSections, '\n\n') }
+                        );
+                    }
+
+                    if (!formattedSections.isEmpty()) {
+                        contextBlocks.add(
+                            '<RESOLVED_CONTEXT_DATA>\n' +
+                                sanitizeForDelimiter(stripInjectionPatterns(String.join(formattedSections, '\n\n'))) +
+                                '\n</RESOLVED_CONTEXT_DATA>'
+                        );
+                    }
+                } catch (Exception formatterEx) {
+                    System.debug(
+                        LoggingLevel.ERROR,
+                        logPrefix + 'Failed to execute formatter for strategy: ' + formatStrategy + '. Error: ' + formatterEx.getMessage()
                     );
+                    warningBlocks.add(String.format(AIAgentConstants.PROMPT_CONTEXT_FORMAT_WARN_TEMPLATE, new List<Object>{ formatterEx.getMessage() }));
                 }
-            } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to resolve context via ContextResolverService: ' + e.getMessage());
-                contextBlocks.add(AIAgentConstants.PROMPT_CONTEXT_LOAD_WARN);
+            } else {
+                System.debug(LoggingLevel.INFO, logPrefix + 'No records resolved from context providers.');
             }
-        }
 
-        String structuredContextPrompt = buildStructuredContextPrompt(executionId, currentTurn, false);
-        if (String.isNotBlank(structuredContextPrompt)) {
-            contextBlocks.add('<CONTEXT_LEDGER_OVERVIEW>\n' + structuredContextPrompt + '\n</CONTEXT_LEDGER_OVERVIEW>');
-        }
-
-        return String.join(contextBlocks, '\n\n');
-    }
-
-    @TestVisible
-    private String buildStructuredContextPrompt(Id executionId, Integer currentTurn, Boolean includeMetadata) {
-        Map<String, List<ContextManagerService.ContextItem>> structuredContext = this.contextManager.getStructuredContext(executionId, currentTurn);
-
-        if (structuredContext.isEmpty()) {
-            return '';
-        }
-
-        List<String> promptSections = new List<String>();
-        String[] sectionOrder = new List<String>{ 'primary', 'recent', 'related', 'background' };
-
-        for (String sectionKey : sectionOrder) {
-            List<ContextManagerService.ContextItem> items = structuredContext.get(sectionKey);
-            if (items != null && !items.isEmpty()) {
-                String section = buildContextPromptSection(sectionKey, items, currentTurn, includeMetadata);
-                promptSections.add(section);
+            if (resolvedContext != null && String.isNotBlank(resolvedContext.longTermContextSummary)) {
+                contextBlocks.add(
+                    '<LONG_TERM_CONTEXT>\n' + sanitizeForDelimiter(stripInjectionPatterns(resolvedContext.longTermContextSummary)) + '\n</LONG_TERM_CONTEXT>'
+                );
             }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to resolve context via ContextResolverService: ' + e.getMessage());
+            warningBlocks.add(AIAgentConstants.PROMPT_CONTEXT_LOAD_WARN);
         }
 
-        return String.join(promptSections, '\n\n');
+        List<String> allBlocks = new List<String>();
+        allBlocks.addAll(contextBlocks);
+        allBlocks.addAll(warningBlocks);
+        return String.join(allBlocks, '\n\n');
     }
 
     private String getConversationSummary(Id executionId, AIAgentDefinition__c agentConfig, String logPrefix) {
@@ -264,70 +234,20 @@ public inherited sharing class SystemPromptBuilder {
             );
         }
 
-        List<String> contextLines = new List<String>{
-            '- Current Date: ' + now.format('yyyy-MM-dd'),
-            '- Current Day: ' + now.format('EEEE'),
-            '- Current Time (User TZ): ' + now.format('HH:mm:ss', userTimezone),
-            '- User Timezone: ' + userTimezone
-        };
-
-        return String.join(contextLines, '\n');
-    }
-
-    @TestVisible
-    private String buildContextPromptSection(String sectionKey, List<ContextManagerService.ContextItem> items, Integer currentTurn, Boolean includeMetadata) {
-        List<String> sectionLines = new List<String>();
-        sectionLines.add(SECTION_HEADERS.get(sectionKey));
-
-        for (ContextManagerService.ContextItem item : items) {
-            String itemLine = formatContextItem(item, currentTurn, includeMetadata);
-            if (String.isNotBlank(itemLine)) {
-                sectionLines.add(itemLine);
-            }
-        }
-
-        return String.join(sectionLines, '\n');
-    }
-
-    @TestVisible
-    private String formatContextItem(ContextManagerService.ContextItem item, Integer currentTurn, Boolean includeMetadata) {
-        List<String> parts = new List<String>();
-
-        parts.add('**' + item.type + ': ' + item.id + '**');
-
-        String temporal = item.getTemporalLabel(currentTurn);
-        if (temporal != 'Current Turn') {
-            parts.add('*(' + temporal + ')*');
-        }
-
-        String contextExplanation = getContextTypeExplanation(item);
-        if (String.isNotBlank(contextExplanation)) {
-            parts.add('*' + contextExplanation + '*');
-        }
-
-        if (String.isNotBlank(item.sourceId)) {
-            parts.add('*Related to: ' + item.sourceId + '*');
-        }
-
-        if (!item.childIds.isEmpty()) {
-            parts.add('*Has related: ' + String.join(item.childIds, ', ') + '*');
-        }
-
-        if (includeMetadata && !item.metadata.isEmpty()) {
-            List<String> metadataParts = new List<String>();
-            for (String key : item.metadata.keySet()) {
-                metadataParts.add(key + ': ' + item.metadata.get(key));
-            }
-            parts.add('*[' + String.join(metadataParts, ', ') + ']*');
-        }
-
-        return String.join(parts, ' ');
+        return String.join(
+            new List<String>{
+                '- Current Date: ' + now.format('yyyy-MM-dd'),
+                '- Current Day: ' + now.format('EEEE'),
+                '- Current Time (User TZ): ' + now.format('HH:mm:ss', userTimezone),
+                '- User Timezone: ' + userTimezone
+            },
+            '\n'
+        );
     }
 
     /**
      * @description Neutralises XML closing-tag sequences in user-controlled content before it is
-     * embedded inside an XML delimiter block.  Replaces '</' with '< /' so the LLM reads it as a
-     * visual artefact rather than a structural closing tag, preventing delimiter-escape injection.
+     * embedded inside an XML delimiter block.
      */
     @TestVisible
     private static String sanitizeForDelimiter(String content) {
@@ -338,9 +258,7 @@ public inherited sharing class SystemPromptBuilder {
     }
 
     /**
-     * @description Strips known prompt-injection payload markers from user-controlled context data
-     * after serialisation and before XML-delimiter wrapping.  The strip list is maintained in
-     * AIAgentConstants.PROMPT_INJECTION_PATTERNS so it can be reviewed and extended in one place.
+     * @description Strips known prompt-injection payload markers from user-controlled context data.
      */
     @TestVisible
     private static String stripInjectionPatterns(String content) {
@@ -355,29 +273,18 @@ public inherited sharing class SystemPromptBuilder {
     }
 
     @TestVisible
-    private String getContextTypeExplanation(ContextManagerService.ContextItem item) {
-        switch on item.contextType {
-            when IMPLICIT_PRIMARY {
-                return 'User is currently viewing this record';
-            }
-            when ACTION_GENERATED {
-                return 'Created by you in a previous turn';
-            }
-            when USER_MENTIONED {
-                return 'Explicitly mentioned by user';
-            }
-            when SEARCH_RESULT {
-                return 'Found via search';
-            }
-            when PINNED {
-                return 'Pinned by user for reference';
-            }
-            when RELATED_RECORD {
-                return 'Related to other context records';
-            }
-            when else {
-                return null;
-            }
+    private static List<SObject> applyRecordLimit(List<SObject> records, Integer recordLimit) {
+        if (records == null || records.isEmpty()) {
+            return new List<SObject>();
         }
+        if (recordLimit == null || recordLimit <= 0 || records.size() <= recordLimit) {
+            return new List<SObject>(records);
+        }
+
+        List<SObject> trimmed = new List<SObject>();
+        for (Integer i = 0; i < recordLimit; i++) {
+            trimmed.add(records[i]);
+        }
+        return trimmed;
     }
 }

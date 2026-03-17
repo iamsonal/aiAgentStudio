@@ -2,8 +2,8 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Priority__c</fullName>
     <defaultValue>0</defaultValue>
-    <description>Execution priority for DLQ processing. Higher values indicate higher priority. Workers process records ordered by Priority DESC, CreatedDate ASC.</description>
-    <inlineHelpText>Priority level (higher = more urgent). Default is 0.</inlineHelpText>
+    <description>Priority used when queued executions are selected for processing.</description>
+    <inlineHelpText>Higher values are processed first. Default is 0.</inlineHelpText>
     <label>Priority</label>
     <precision>18</precision>
     <required>false</required>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProjectionMode__c</fullName>
+    <description>Determines how the provider output should be shaped before it is formatted into prompt context.</description>
+    <inlineHelpText>Select Provider Default to let the provider control its output shape, Field Set to project only fields from a named field set, or Projection Definition to use reusable projection metadata.</inlineHelpText>
+    <label>Projection Mode</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>Provider Default</fullName><default>true</default><label>Provider Default</label></value>
+            <value><fullName>Field Set</fullName><default>false</default><label>Field Set</label></value>
+            <value><fullName>Projection Definition</fullName><default>false</default><label>Projection Definition</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

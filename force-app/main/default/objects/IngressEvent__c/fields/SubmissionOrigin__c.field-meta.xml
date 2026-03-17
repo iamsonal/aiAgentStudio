@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SubmissionOrigin__c</fullName>
+    <description>Origin category describing who or what submitted the normalized ingress event.</description>
+    <inlineHelpText>Use this to distinguish middleware submissions, direct provider callbacks, or internal platform/API sources while keeping the downstream flow consistent.</inlineHelpText>
+    <label>Submission Origin</label>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>Middleware</fullName><default>false</default><label>Middleware</label></value>
+            <value><fullName>DirectExternal</fullName><default>true</default><label>Direct External</label></value>
+            <value><fullName>InternalPlatform</fullName><default>false</default><label>Internal Platform</label></value>
+            <value><fullName>InternalApi</fullName><default>false</default><label>Internal API</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

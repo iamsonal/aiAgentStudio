@@ -2,8 +2,8 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>PipelineDefinition__c</fullName>
     <deleteConstraint>SetNull</deleteConstraint>
-    <description>Lookup to the PipelineDefinition__c that this execution is running. Set only for pipeline-type executions (ExecutionType__c = 'Pipeline'). Null for agent-type executions.</description>
-    <inlineHelpText>The pipeline definition being executed (pipeline executions only).</inlineHelpText>
+    <description>Pipeline definition being run by this execution, when applicable.</description>
+    <inlineHelpText>Populated for pipeline executions to show which pipeline definition is being run.</inlineHelpText>
     <label>Pipeline Definition</label>
     <referenceTo>PipelineDefinition__c</referenceTo>
     <relationshipLabel>Pipeline Executions</relationshipLabel>

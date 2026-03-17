@@ -229,37 +229,42 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AgentContextConfig__c.ApplicableSObjectTypes__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
         <field>AgentContextConfig__c.ApplicableChannels__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AgentContextConfig__c.ImplementationConfigJson__c</field>
+        <field>AgentContextConfig__c.ApplicableObjects__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AgentContextConfig__c.ImplementationName__c</field>
+        <field>AgentContextConfig__c.FieldSetName__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AgentContextConfig__c.ImplementationType__c</field>
+        <field>AgentContextConfig__c.OutputSectionName__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>AgentContextConfig__c.ProjectionDefinition__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>AgentContextConfig__c.ProviderConfigJson__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>AgentContextConfig__c.RecordLimit__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
         <field>AgentContextConfig__c.IsActive__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>AgentContextConfig__c.RequiresRecordContext__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -425,46 +430,6 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>AgentExecution__c.WorkerClaimToken__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ContextLedgerItem__c.ChildRecordIds__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ContextLedgerItem__c.LastDataRefreshTime__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ContextLedgerItem__c.Metadata__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ContextLedgerItem__c.InteractionSession__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ContextLedgerItem__c.OriginalContextType__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ContextLedgerItem__c.PrunedAt__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ContextLedgerItem__c.PrunedReason__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>ContextLedgerItem__c.SourceRecordId__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -821,7 +786,7 @@
         <allowEdit>true</allowEdit>
         <allowRead>true</allowRead>
         <modifyAllRecords>true</modifyAllRecords>
-        <object>ContextLedgerItem__c</object>
+        <object>ContextReference__c</object>
         <viewAllFields>true</viewAllFields>
         <viewAllRecords>true</viewAllRecords>
     </objectPermissions>
@@ -881,7 +846,7 @@
         <allowEdit>true</allowEdit>
         <allowRead>true</allowRead>
         <modifyAllRecords>true</modifyAllRecords>
-        <object>SessionPolicy__mdt</object>
+        <object>InteractionChannelType__mdt</object>
         <viewAllFields>true</viewAllFields>
         <viewAllRecords>true</viewAllRecords>
     </objectPermissions>
@@ -949,10 +914,6 @@
     </tabSettings>
     <tabSettings>
         <tab>InteractionSession__c</tab>
-        <visibility>Visible</visibility>
-    </tabSettings>
-    <tabSettings>
-        <tab>InteractionMessage__c</tab>
         <visibility>Visible</visibility>
     </tabSettings>
     <tabSettings>

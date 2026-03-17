@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Channel__c</fullName>
+    <description>Interaction channel that this ingress event belongs to.</description>
+    <inlineHelpText>Choose the channel that will own the interaction, such as Email, Chat, WhatsApp, Slack, or Direct.</inlineHelpText>
+    <label>Channel</label>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetName>InteractionChannels</valueSetName>
+    </valueSet>
+</CustomField>

@@ -1358,7 +1358,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         }
 
         // Default behavior for runtimes that do not provide custom approval completion handling
-        // (typically single-shot agents): pause execution until approval is resolved
+        // (typically direct agents): pause execution until approval is resolved
         context.agentStateSvc.updateStatus(
             context.executionId,
             'Awaiting Action',
@@ -1761,7 +1761,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
 
                 AgentStateService agentStateSvc = new AgentStateService();
                 Id childExecutionId = agentStateSvc.createExecution(
-                    childAgentDef.AgentType__c,
+                    childAgentDef.RuntimeStrategy__c,
                     childAgentDef.Id,
                     'AgentCapability',
                     triggerPayload,
@@ -2055,7 +2055,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         // Reasons: tool performed DML/callout, max calls reached, or deferred mode not enabled
         System.debug(LoggingLevel.INFO, logPrefix + 'Multi-LLM optimization not applicable, queueing follow-up');
 
-        // Commit page context to ledger (Conversational agents only)
+        // Commit page context as lightweight context references (Conversational agents only)
         // Skip for Function agents since:
         // 1. Context was already resolved upfront from the recordId
         // 2. Function agents don't need multi-turn context tracking

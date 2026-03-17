@@ -100,7 +100,7 @@ global with sharing class AIAgentRestService {
             if (String.isBlank(requestData.turnIdentifier)) {
                 throw new AIAgentRestException('turnIdentifier is required');
             }
-            // userMessage is optional for non-interactive channels and single-shot strategies.
+            // userMessage is optional for non-interactive channels and direct strategies.
 
             // Validate ID formats
             if (String.isNotBlank(requestData.executionId)) {
@@ -312,7 +312,7 @@ global with sharing class AIAgentRestService {
             if (toolRequest.needsFollowUp == true) {
                 queueFollowUpLLMCall(execution, toolRequest, logPrefix);
             } else {
-                System.debug(LoggingLevel.INFO, logPrefix + 'Iterative execution - no follow-up needed (pre-determined)');
+                System.debug(LoggingLevel.INFO, logPrefix + 'Conversational execution - no follow-up needed (pre-determined)');
             }
 
             if (
@@ -518,7 +518,7 @@ global with sharing class AIAgentRestService {
             );
 
             // Load execution and validate
-            AgentExecution__c exec = [
+            List<AgentExecution__c> executions = [
                 SELECT
                     Id,
                     ExecutionStatus__c,
@@ -526,11 +526,15 @@ global with sharing class AIAgentRestService {
                     PipelineDefinition__c,
                     AIAgentDefinition__c,
                     AIAgentDefinition__r.DeveloperName__c,
-                    AIAgentDefinition__r.AgentType__c
+                    AIAgentDefinition__r.RuntimeStrategy__c
                 FROM AgentExecution__c
                 WHERE Id = :executionId
                 LIMIT 1
             ];
+            if (executions.isEmpty()) {
+                throw new AIAgentRestException('Execution not found: ' + executionId);
+            }
+            AgentExecution__c exec = executions[0];
 
             if (exec.ExecutionStatus__c == 'Completed') {
                 throw new AIAgentRestException('Execution is already completed. Nothing to resume.');

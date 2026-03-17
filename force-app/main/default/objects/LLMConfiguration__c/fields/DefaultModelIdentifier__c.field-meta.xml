@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>DefaultModelIdentifier__c</fullName>
-    <description>The specific model name exactly as required by the LLM provider&apos;s API for chat completions.</description>
+    <description>Default model identifier to send to the provider for this configuration.</description>
     <externalId>false</externalId>
-    <inlineHelpText>e.g., &apos;gpt-4o-mini&apos;, &apos;gpt-5-nano&apos;. Must match the provider&apos;s documentation for the desired model.</inlineHelpText>
+    <inlineHelpText>Enter the provider&apos;s exact model identifier, such as &apos;gpt-4o-mini&apos; or &apos;gpt-5-nano&apos;.</inlineHelpText>
     <label>Default Model Identifier</label>
     <length>255</length>
     <required>true</required>

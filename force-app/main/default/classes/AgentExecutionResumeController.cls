@@ -39,7 +39,7 @@ public with sharing class AgentExecutionResumeController {
                     ExecutionType__c,
                     AIAgentDefinition__c,
                     AIAgentDefinition__r.DeveloperName__c,
-                    AIAgentDefinition__r.AgentType__c,
+                    AIAgentDefinition__r.RuntimeStrategy__c,
                     AIAgentDefinition__r.RequiresServiceUserContext__c,
                     PipelineDefinition__c
                 FROM AgentExecution__c

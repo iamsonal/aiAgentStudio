@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>FailureMode__c</fullName>
+    <description>Determines how the framework should react when this binding cannot be resolved or formatted successfully.</description>
+    <inlineHelpText>Select Skip On Error to silently omit failed context, Warn to surface a warning in the prompt, or Fail Resolution to stop context resolution for this binding with an error.</inlineHelpText>
+    <label>Failure Mode</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>Skip On Error</fullName><default>true</default><label>Skip On Error</label></value>
+            <value><fullName>Warn</fullName><default>false</default><label>Warn</label></value>
+            <value><fullName>Fail Resolution</fullName><default>false</default><label>Fail Resolution</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

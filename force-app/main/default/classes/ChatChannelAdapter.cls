@@ -20,11 +20,15 @@ public inherited sharing class ChatChannelAdapter extends BaseInteractionChannel
         envelope.channel = RuntimeRegistryService.CHANNEL_CHAT;
         envelope.provider = PROVIDER_NAME;
         envelope.endpointIdentifier = ENDPOINT_IDENTIFIER;
+        envelope.entryObjectType = sourceRecordId != null ? sourceRecordId.getSObjectType().getDescribe().getName() : null;
         envelope.conversationKey = (String) payload.get('conversationKey');
         if (String.isBlank(envelope.conversationKey)) {
             envelope.conversationKey = (String) payload.get('turnIdentifier');
         }
         envelope.participantKey = (String) payload.get('userId');
+        envelope.inboundMessageKey = String.isNotBlank((String) payload.get('providerMessageId'))
+            ? (String) payload.get('providerMessageId')
+            : (String) payload.get('messageId');
         envelope.replyRouteKey = envelope.participantKey;
         envelope.channelMetadataJson = payloadJson;
         envelope.sourceRecordId = sourceRecordId;

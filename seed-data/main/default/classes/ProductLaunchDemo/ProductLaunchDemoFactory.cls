@@ -1,8 +1,8 @@
 /**
- * @description Test data factory for progressive SingleShot strategy demos
+ * @description Test data factory for progressive Direct strategy demos
  *              Three progressive demos showing evolution from basic to sophisticated:
- *              Demo 1: Basic SingleShot agent (no capabilities) - Case Summary
- *              Demo 2: Single-capability SingleShot agent - Account Fit Scoring
+ *              Demo 1: Basic Direct agent (no capabilities) - Case Summary
+ *              Demo 2: Single-capability Direct agent - Account Fit Scoring
  *              Demo 3: Multi-Capability Orchestration - Product Launch Campaign
  *
  * **Demo 1: Case Summary Agent (Basic)**
@@ -14,7 +14,7 @@
  * **Demo 2: Account Scoring Agent (Intermediate)**
  * - Single capability (Flow-based scoring)
  * - Scores account fit for product (0-100)
- * - Shows: SingleShot strategy executing capabilities and interpreting results
+ * - Shows: Direct strategy executing capabilities and interpreting results
  * - Time: 3-4 minutes
  *
  * **Demo 3: Product Launch Agent (Advanced)**
@@ -56,7 +56,7 @@ public with sharing class ProductLaunchDemoFactory {
      * @return Map<String, Id> Key record IDs for testing
      */
     public static Map<String, Id> createAllDemos() {
-        System.debug('=== PROGRESSIVE SINGLESHOT STRATEGY DEMOS ===');
+        System.debug('=== PROGRESSIVE DIRECT STRATEGY DEMOS ===');
 
         deleteExistingDemoData();
 
@@ -1108,7 +1108,7 @@ public with sharing class ProductLaunchDemoFactory {
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Case Summary Agent',
             DeveloperName__c = 'Case_Summary_Agent',
-            AgentType__c = 'SingleShot',
+            RuntimeStrategy__c = 'Direct',
             IsActive__c = true,
             LLMConfiguration__c = llmConfigId,
             AuditLevel__c = 'Full',
@@ -1135,12 +1135,17 @@ public with sharing class ProductLaunchDemoFactory {
     private static void createCaseSummaryContextConfig(Id agentId) {
         AgentContextConfig__c context = new AgentContextConfig__c(
             AIAgentDefinition__c = agentId,
-            ContextLabel__c = 'Case Summary Data',
-            ImplementationType__c = 'Apex',
-            ImplementationName__c = 'CaseContext',
-            ApplicableSObjectTypes__c = 'Case',
-            RequiresRecordContext__c = true,
-            ExecutionOrder__c = 10,
+            AdminLabel__c = 'Case Summary Data',
+            ProviderDefinition__c = 'Case Context',
+            ApplicableObjects__c = 'Case',
+            Scope__c = 'Record',
+            Priority__c = 10,
+            FailureMode__c = 'Warn',
+            FreshnessPolicy__c = 'Session',
+            OverlapMode__c = 'Prefer Highest Priority',
+            ProjectionMode__c = 'Projection Definition',
+            ProjectionDefinition__c = 'Case Summary Projection',
+            OutputSectionName__c = 'Case Summary',
             IsActive__c = true
         );
         insert context;
@@ -1157,7 +1162,7 @@ public with sharing class ProductLaunchDemoFactory {
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Account Fit Scoring Agent',
             DeveloperName__c = 'Account_Fit_Scoring_Agent',
-            AgentType__c = 'SingleShot',
+            RuntimeStrategy__c = 'Direct',
             IsActive__c = true,
             LLMConfiguration__c = llmConfigId,
             AuditLevel__c = 'Full',
@@ -1246,12 +1251,17 @@ public with sharing class ProductLaunchDemoFactory {
     private static void createAccountScoringContextConfig(Id agentId) {
         AgentContextConfig__c context = new AgentContextConfig__c(
             AIAgentDefinition__c = agentId,
-            ContextLabel__c = 'Account Profile',
-            ImplementationType__c = 'Apex',
-            ImplementationName__c = 'AccountProductFitContext',
-            ApplicableSObjectTypes__c = 'Account',
-            RequiresRecordContext__c = true,
-            ExecutionOrder__c = 10,
+            AdminLabel__c = 'Account Profile',
+            ProviderDefinition__c = 'Account Product Fit Context',
+            ApplicableObjects__c = 'Account',
+            Scope__c = 'Record',
+            Priority__c = 10,
+            FailureMode__c = 'Warn',
+            FreshnessPolicy__c = 'Session',
+            OverlapMode__c = 'Prefer Highest Priority',
+            ProjectionMode__c = 'Projection Definition',
+            ProjectionDefinition__c = 'Account Summary Projection',
+            OutputSectionName__c = 'Account Profile',
             IsActive__c = true
         );
         insert context;
@@ -1268,7 +1278,7 @@ public with sharing class ProductLaunchDemoFactory {
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Product Launch Agent',
             DeveloperName__c = 'Product_Launch_Agent',
-            AgentType__c = 'SingleShot',
+            RuntimeStrategy__c = 'Direct',
             IsActive__c = true,
             LLMConfiguration__c = llmConfigId,
             AuditLevel__c = 'Full',
@@ -1296,7 +1306,7 @@ public with sharing class ProductLaunchDemoFactory {
         createAgentCapabilities(agent.Id);
         createAgentContextConfig(agent.Id);
 
-        System.debug('[Demo 3] ✓ Multi-capability SingleShot agent created (7 capabilities)');
+        System.debug('[Demo 3] ✓ Multi-capability Direct agent created (7 capabilities)');
 
         return agent.Id;
     }
@@ -1649,42 +1659,62 @@ public with sharing class ProductLaunchDemoFactory {
         List<AgentContextConfig__c> contexts = new List<AgentContextConfig__c>{
             new AgentContextConfig__c(
                 AIAgentDefinition__c = agentId,
-                ContextLabel__c = 'Account Profile & Product Fit',
-                ImplementationType__c = 'Apex',
-                ImplementationName__c = 'AccountProductFitContext',
-                ApplicableSObjectTypes__c = 'Account',
-                RequiresRecordContext__c = true,
-                ExecutionOrder__c = 10,
+                AdminLabel__c = 'Account Profile & Product Fit',
+                ProviderDefinition__c = 'Account Product Fit Context',
+                ApplicableObjects__c = 'Account',
+                Scope__c = 'Record',
+                Priority__c = 10,
+                FailureMode__c = 'Warn',
+                FreshnessPolicy__c = 'Session',
+                OverlapMode__c = 'Prefer Highest Priority',
+                ProjectionMode__c = 'Projection Definition',
+                ProjectionDefinition__c = 'Account Summary Projection',
+                OutputSectionName__c = 'Account Profile & Product Fit',
                 IsActive__c = true
             ),
             new AgentContextConfig__c(
                 AIAgentDefinition__c = agentId,
-                ContextLabel__c = 'Opportunity & Pipeline',
-                ImplementationType__c = 'Apex',
-                ImplementationName__c = 'OpportunityEngagementContext',
-                ApplicableSObjectTypes__c = 'Account',
-                RequiresRecordContext__c = true,
-                ExecutionOrder__c = 20,
+                AdminLabel__c = 'Opportunity & Pipeline',
+                ProviderDefinition__c = 'Opportunity Engagement Context',
+                ApplicableObjects__c = 'Account',
+                Scope__c = 'Record',
+                Priority__c = 20,
+                FailureMode__c = 'Warn',
+                FreshnessPolicy__c = 'Session',
+                OverlapMode__c = 'Prefer Highest Priority',
+                ProjectionMode__c = 'Projection Definition',
+                ProjectionDefinition__c = 'Opportunity Summary Projection',
+                OutputSectionName__c = 'Opportunity & Pipeline',
                 IsActive__c = true
             ),
             new AgentContextConfig__c(
                 AIAgentDefinition__c = agentId,
-                ContextLabel__c = 'Support & Engagement History',
-                ImplementationType__c = 'Apex',
-                ImplementationName__c = 'SupportEngagementContext',
-                ApplicableSObjectTypes__c = 'Account',
-                RequiresRecordContext__c = true,
-                ExecutionOrder__c = 30,
+                AdminLabel__c = 'Support & Engagement History',
+                ProviderDefinition__c = 'Support Engagement Context',
+                ApplicableObjects__c = 'Account',
+                Scope__c = 'Record',
+                Priority__c = 30,
+                FailureMode__c = 'Warn',
+                FreshnessPolicy__c = 'Session',
+                OverlapMode__c = 'Prefer Highest Priority',
+                ProjectionMode__c = 'Projection Definition',
+                ProjectionDefinition__c = 'Support Engagement Projection',
+                OutputSectionName__c = 'Support & Engagement History',
                 IsActive__c = true
             ),
             new AgentContextConfig__c(
                 AIAgentDefinition__c = agentId,
-                ContextLabel__c = 'Activity Timeline',
-                ImplementationType__c = 'Apex',
-                ImplementationName__c = 'ActivityTimelineContext',
-                ApplicableSObjectTypes__c = 'Account',
-                RequiresRecordContext__c = true,
-                ExecutionOrder__c = 40,
+                AdminLabel__c = 'Activity Timeline',
+                ProviderDefinition__c = 'Activity Timeline Context',
+                ApplicableObjects__c = 'Account',
+                Scope__c = 'Record',
+                Priority__c = 40,
+                FailureMode__c = 'Warn',
+                FreshnessPolicy__c = 'Session',
+                OverlapMode__c = 'Prefer Highest Priority',
+                ProjectionMode__c = 'Projection Definition',
+                ProjectionDefinition__c = 'Activity Timeline Projection',
+                OutputSectionName__c = 'Activity Timeline',
                 IsActive__c = true
             )
         };

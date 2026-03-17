@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>LowConfidenceAction__c</fullName>
-    <description>Controls what happens when a tool call confidence score falls below MinConfidenceThreshold__c. None: track and display only, no execution change. Block: skip the tool call, write a synthetic failed tool result so the LLM self-corrects on the next ReAct iteration. The system prompt automatically instructs the LLM how to handle low confidence based on the agent type (ask user, request info in reply, or use lookup tools).</description>
+    <description>Controls what happens when a tool call confidence score falls below MinConfidenceThreshold__c. None: track and display only, no execution change. Block: skip the tool call, write a synthetic failed tool result so the LLM self-corrects on the next ReAct iteration. The system prompt automatically instructs the LLM how to handle low confidence based on the runtime strategy (ask user, request info in reply, or use lookup tools).</description>
     <inlineHelpText>None (default): log and display confidence in Storyboard only. Block: prevent tool execution and let the LLM self-correct. Requires EnableConfidenceTracking__c and MinConfidenceThreshold__c to be set.</inlineHelpText>
     <label>Low Confidence Action</label>
     <required>false</required>

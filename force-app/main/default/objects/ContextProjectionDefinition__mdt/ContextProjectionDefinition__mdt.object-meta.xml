@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Reusable metadata that shapes how provider output should be trimmed and formatted before it is added to prompt context.</description>
+    <label>Context Projection Definition</label>
+    <pluralLabel>Context Projection Definitions</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

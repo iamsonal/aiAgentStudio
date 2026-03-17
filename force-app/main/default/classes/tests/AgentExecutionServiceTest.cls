@@ -6,7 +6,7 @@ private class AgentExecutionServiceTest {
     @TestSetup
     static void setupData() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('ExecSvc LLM').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('ExecSvc_Agent').withType('SingleShot').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('ExecSvc_Agent').withType('Direct').withLLM(llm.Id).save();
 
         agent.RequiresServiceUserContext__c = true;
         agent.ServiceUserNamedCredential__c = 'ServiceUser_NC';
@@ -320,20 +320,23 @@ private class AgentExecutionServiceTest {
             AgentExecutionService.startExecution(agent.DeveloperName__c, payload);
             System.assert(false, 'Should throw for null ID in sourceRecordIds');
         } catch (Exception e) {
-            System.assert(e.getMessage().contains('null') || e.getMessage().contains('de-reference'), 'Should indicate null ID issue');
+            System.assert(
+                e.getMessage().contains('sourceRecordIds[1] cannot be null') || e.getMessage().contains('sourceRecordIds cannot contain null values'),
+                'Should indicate the null list entry clearly'
+            );
         }
     }
 
     @IsTest
     static void testStartExecution_PayloadWithAllOptionalFields_Succeeds() {
         AIAgentDefinition__c agent = [
-            SELECT Id, DeveloperName__c, RequiresServiceUserContext__c, AgentType__c
+            SELECT Id, DeveloperName__c, RequiresServiceUserContext__c, RuntimeStrategy__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'ExecSvc_Agent%'
             LIMIT 1
         ];
         agent.RequiresServiceUserContext__c = false;
-        agent.AgentType__c = 'Iterative';
+        agent.RuntimeStrategy__c = 'Conversational';
         update agent;
 
         Account source = [SELECT Id FROM Account WHERE Name = 'ExecSvc Account 1' LIMIT 1];
@@ -415,8 +418,12 @@ private class AgentExecutionServiceTest {
 
     @IsTest
     static void testRequiresAutonomousRecovery_UsesAvailableOrchestratorMappings() {
-        System.assertEquals(true, AgentExecutionService.requiresAutonomousRecovery('Iterative'), 'Conversational mapping should require autonomous recovery');
-        System.assertEquals(false, AgentExecutionService.requiresAutonomousRecovery('SingleShot'), 'Function mapping should not require autonomous recovery');
+        System.assertEquals(
+            true,
+            AgentExecutionService.requiresAutonomousRecovery('Conversational'),
+            'Conversational mapping should require autonomous recovery'
+        );
+        System.assertEquals(false, AgentExecutionService.requiresAutonomousRecovery('Direct'), 'Function mapping should not require autonomous recovery');
         System.assertEquals(false, AgentExecutionService.requiresAutonomousRecovery('UnknownType'), 'Unknown types should not require autonomous recovery');
     }
 
@@ -479,7 +486,7 @@ private class AgentExecutionServiceTest {
         update agentA;
 
         LLMConfiguration__c llm = [SELECT Id FROM LLMConfiguration__c LIMIT 1];
-        AIAgentDefinition__c agentB = TestFactory.newAgentDefinition().withName('ExecSvc_AgentB_MixedOrder').withType('Iterative').withLLM(llm.Id).save();
+        AIAgentDefinition__c agentB = TestFactory.newAgentDefinition().withName('ExecSvc_AgentB_MixedOrder').withType('Conversational').withLLM(llm.Id).save();
 
         List<Account> sources = [SELECT Id FROM Account WHERE Name LIKE 'ExecSvc Account%' ORDER BY Name LIMIT 3];
 

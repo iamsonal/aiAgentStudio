@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>EntryObjectType__c</fullName>
-    <description>API name of the Salesforce object that this inbound route applies to, such as Case or Lead.</description>
+    <description>API name of the Salesforce object that this route applies to, such as Case or Lead. Leave blank or use * to match the endpoint regardless of record type.</description>
     <fieldManageability>DeveloperControlled</fieldManageability>
-    <inlineHelpText>Enter the parent or source object's API name. The route only matches inbound traffic associated with that object type.</inlineHelpText>
+    <inlineHelpText>Enter the source object API name, such as Case or Lead. Leave blank or enter * to match the endpoint regardless of record type.</inlineHelpText>
     <label>Entry Object Type</label>
     <length>255</length>
     <required>false</required>

@@ -11,6 +11,10 @@
  */
 public inherited sharing class ChannelRoutingService {
     private static final String LOG_PREFIX = '[ChannelRoutingService] ';
+    @TestVisible
+    private static List<AgentChannelRoute__mdt> testRoutes;
+    @TestVisible
+    private static Map<String, ChannelEndpoint__mdt> testEndpointsByDeveloperName;
 
     public class ResolvedRoute {
         public String channel { get; set; }
@@ -18,17 +22,50 @@ public inherited sharing class ChannelRoutingService {
         public String entryObjectType { get; set; }
         public String endpointDeveloperName { get; set; }
         public String endpointIdentifier { get; set; }
+        public String routeKey { get; set; }
         public String provider { get; set; }
         public Boolean supportsAutonomousReply { get; set; }
         public String defaultDeliveryMode { get; set; }
-        public String sessionPolicyDeveloperName { get; set; }
+        public Decimal inactivityTtlHours { get; set; }
+        public Boolean startNewSessionOnTerminalParent { get; set; }
+        public String terminalFieldApiName { get; set; }
+        public String terminalFieldValues { get; set; }
         public Decimal priority { get; set; }
+    }
+
+    @TestVisible
+    static void setTestRoutingData(List<ChannelEndpoint__mdt> endpoints, List<AgentChannelRoute__mdt> routes) {
+        testEndpointsByDeveloperName = new Map<String, ChannelEndpoint__mdt>();
+        if (endpoints != null) {
+            for (ChannelEndpoint__mdt endpoint : endpoints) {
+                if (endpoint != null && String.isNotBlank(endpoint.DeveloperName)) {
+                    testEndpointsByDeveloperName.put(endpoint.DeveloperName, endpoint);
+                }
+            }
+        }
+
+        testRoutes = routes == null ? new List<AgentChannelRoute__mdt>() : new List<AgentChannelRoute__mdt>(routes);
+    }
+
+    @TestVisible
+    static void clearTestRoutingData() {
+        testRoutes = null;
+        testEndpointsByDeveloperName = null;
     }
 
     public Map<String, ResolvedRoute> resolveInboundRoutes(String channel, Set<String> entryObjectTypes, Set<String> endpointIdentifiers) {
         Map<String, ResolvedRoute> routesByKey = new Map<String, ResolvedRoute>();
-        if (String.isBlank(channel) || entryObjectTypes == null || entryObjectTypes.isEmpty()) {
+        if (String.isBlank(channel)) {
             return routesByKey;
+        }
+
+        Set<String> normalizedEntryObjectTypes = new Set<String>();
+        if (entryObjectTypes != null) {
+            for (String entryObjectType : entryObjectTypes) {
+                if (String.isNotBlank(entryObjectType)) {
+                    normalizedEntryObjectTypes.add(entryObjectType.trim());
+                }
+            }
         }
 
         Set<String> normalizedEndpointIdentifiers = new Set<String>();
@@ -41,13 +78,15 @@ public inherited sharing class ChannelRoutingService {
         }
 
         Map<String, ChannelEndpoint__mdt> allEndpointsByDeveloperName = new Map<String, ChannelEndpoint__mdt>();
-        Map<String, ChannelEndpoint__mdt> endpointsByDeveloperName = new Map<String, ChannelEndpoint__mdt>();
-        for (ChannelEndpoint__mdt endpoint : [
-            SELECT DeveloperName, Channel__c, Provider__c, EndpointIdentifier__c, IsActive__c, RouteKey__c, SupportsAutonomousReply__c
-            FROM ChannelEndpoint__mdt
-            WHERE Channel__c = :channel AND IsActive__c = TRUE
-        ]) {
+        for (ChannelEndpoint__mdt endpoint : queryActiveEndpoints()) {
             allEndpointsByDeveloperName.put(endpoint.DeveloperName, endpoint);
+        }
+
+        Map<String, ChannelEndpoint__mdt> endpointsByDeveloperName = new Map<String, ChannelEndpoint__mdt>();
+        for (ChannelEndpoint__mdt endpoint : allEndpointsByDeveloperName.values()) {
+            if (endpoint.Channel__c != channel) {
+                continue;
+            }
             if (!normalizedEndpointIdentifiers.isEmpty()) {
                 String normalizedIdentifier = String.isNotBlank(endpoint.EndpointIdentifier__c) ? endpoint.EndpointIdentifier__c.trim().toLowerCase() : null;
                 if (!normalizedEndpointIdentifiers.contains(normalizedIdentifier)) {
@@ -61,15 +100,13 @@ public inherited sharing class ChannelRoutingService {
             return routesByKey;
         }
 
-        List<AgentChannelRoute__mdt> routes = [
-            SELECT AgentDeveloperName__c, ChannelEndpoint__c, EntryObjectType__c, Priority__c, DefaultDeliveryMode__c, SessionPolicy__c, IsActive__c
-            FROM AgentChannelRoute__mdt
-            WHERE EntryObjectType__c IN :entryObjectTypes AND IsActive__c = TRUE
-            ORDER BY Priority__c DESC, DeveloperName ASC
-        ];
+        List<AgentChannelRoute__mdt> routes = queryActiveRoutes();
 
         for (AgentChannelRoute__mdt route : routes) {
             validateRouteEndpointReference(route, allEndpointsByDeveloperName);
+            if (!matchesEntryObjectType(normalizedEntryObjectTypes, route.EntryObjectType__c)) {
+                continue;
+            }
 
             ChannelEndpoint__mdt endpoint = endpointsByDeveloperName.get(route.ChannelEndpoint__c);
             if (endpoint == null) {
@@ -87,10 +124,14 @@ public inherited sharing class ChannelRoutingService {
             resolved.entryObjectType = route.EntryObjectType__c;
             resolved.endpointDeveloperName = route.ChannelEndpoint__c;
             resolved.endpointIdentifier = endpoint.EndpointIdentifier__c;
+            resolved.routeKey = endpoint.RouteKey__c;
             resolved.provider = endpoint.Provider__c;
             resolved.supportsAutonomousReply = endpoint.SupportsAutonomousReply__c;
             resolved.defaultDeliveryMode = route.DefaultDeliveryMode__c;
-            resolved.sessionPolicyDeveloperName = route.SessionPolicy__c;
+            resolved.inactivityTtlHours = route.InactivityTtlHours__c;
+            resolved.startNewSessionOnTerminalParent = route.StartNewSessionOnTerminalParent__c;
+            resolved.terminalFieldApiName = route.TerminalFieldApiName__c;
+            resolved.terminalFieldValues = route.TerminalFieldValues__c;
             resolved.priority = route.Priority__c;
             routesByKey.put(key, resolved);
         }
@@ -108,51 +149,6 @@ public inherited sharing class ChannelRoutingService {
             return routes.get(exactKey);
         }
         return routes.get(buildRouteKey(entryObjectType, null));
-    }
-
-    public SessionPolicy__mdt loadSessionPolicy(ResolvedRoute route, String parentObjectApiName) {
-        if (route != null && String.isNotBlank(route.sessionPolicyDeveloperName)) {
-            List<SessionPolicy__mdt> namedPolicies = [
-                SELECT
-                    DeveloperName,
-                    InactivityTtlHours__c,
-                    StartNewSessionOnTerminalParent__c,
-                    ParentObjectApiName__c,
-                    TerminalFieldApiName__c,
-                    TerminalFieldValues__c
-                FROM SessionPolicy__mdt
-                WHERE DeveloperName = :route.sessionPolicyDeveloperName
-                LIMIT 1
-            ];
-            if (!namedPolicies.isEmpty()) {
-                return namedPolicies[0];
-            }
-            throw new AIAgentException.OrchestrationException(
-                'Invalid AgentChannelRoute__mdt configuration. Active route "' +
-                    String.valueOf(route.endpointDeveloperName) +
-                    '" references missing SessionPolicy__mdt "' +
-                    route.sessionPolicyDeveloperName +
-                    '".'
-            );
-        }
-
-        if (String.isBlank(parentObjectApiName)) {
-            return null;
-        }
-
-        List<SessionPolicy__mdt> parentPolicies = [
-            SELECT
-                DeveloperName,
-                InactivityTtlHours__c,
-                StartNewSessionOnTerminalParent__c,
-                ParentObjectApiName__c,
-                TerminalFieldApiName__c,
-                TerminalFieldValues__c
-            FROM SessionPolicy__mdt
-            WHERE ParentObjectApiName__c = :parentObjectApiName
-            LIMIT 1
-        ];
-        return parentPolicies.isEmpty() ? null : parentPolicies[0];
     }
 
     public String resolveCompletionMode(AIAgentDefinition__c agentDefinition, ResolvedRoute route) {
@@ -203,7 +199,6 @@ public inherited sharing class ChannelRoutingService {
             return;
         }
 
-        Set<String> referencedPolicyNames = new Set<String>();
         for (ResolvedRoute route : routes) {
             if (route == null) {
                 continue;
@@ -226,38 +221,59 @@ public inherited sharing class ChannelRoutingService {
                         '".'
                 );
             }
-            if (String.isNotBlank(route.sessionPolicyDeveloperName)) {
-                referencedPolicyNames.add(route.sessionPolicyDeveloperName);
+        }
+    }
+
+    private Boolean matchesEntryObjectType(Set<String> entryObjectTypes, String routeEntryObjectType) {
+        if (String.isBlank(routeEntryObjectType) || '*'.equals(routeEntryObjectType.trim())) {
+            return true;
+        }
+        return entryObjectTypes != null && entryObjectTypes.contains(routeEntryObjectType.trim());
+    }
+
+    private List<ChannelEndpoint__mdt> queryActiveEndpoints() {
+        if (Test.isRunningTest() && testEndpointsByDeveloperName != null) {
+            List<ChannelEndpoint__mdt> endpoints = new List<ChannelEndpoint__mdt>();
+            for (ChannelEndpoint__mdt endpoint : testEndpointsByDeveloperName.values()) {
+                if (endpoint != null && endpoint.IsActive__c == true) {
+                    endpoints.add(endpoint);
+                }
             }
+            return endpoints;
         }
+        return [
+            SELECT DeveloperName, Channel__c, Provider__c, EndpointIdentifier__c, IsActive__c, RouteKey__c, SupportsAutonomousReply__c
+            FROM ChannelEndpoint__mdt
+            WHERE IsActive__c = TRUE
+        ];
+    }
 
-        if (referencedPolicyNames.isEmpty()) {
-            return;
-        }
-
-        Map<String, SessionPolicy__mdt> policiesByDeveloperName = new Map<String, SessionPolicy__mdt>();
-        for (SessionPolicy__mdt policy : [
-            SELECT DeveloperName
-            FROM SessionPolicy__mdt
-            WHERE DeveloperName IN :referencedPolicyNames
-        ]) {
-            policiesByDeveloperName.put(policy.DeveloperName.toLowerCase(), policy);
-        }
-
-        for (ResolvedRoute route : routes) {
-            if (
-                route != null &&
-                String.isNotBlank(route.sessionPolicyDeveloperName) &&
-                !policiesByDeveloperName.containsKey(route.sessionPolicyDeveloperName.toLowerCase())
-            ) {
-                throw new AIAgentException.OrchestrationException(
-                    'Invalid AgentChannelRoute__mdt configuration. Active route "' +
-                        String.valueOf(route.endpointDeveloperName) +
-                        '" references missing SessionPolicy__mdt "' +
-                        route.sessionPolicyDeveloperName +
-                        '".'
-                );
+    private List<AgentChannelRoute__mdt> queryActiveRoutes() {
+        if (Test.isRunningTest() && testRoutes != null) {
+            List<AgentChannelRoute__mdt> activeRoutes = new List<AgentChannelRoute__mdt>();
+            for (AgentChannelRoute__mdt route : testRoutes) {
+                if (route != null && route.IsActive__c == true) {
+                    activeRoutes.add(route);
+                }
             }
+            return activeRoutes;
         }
+        return [
+            SELECT
+                DeveloperName,
+                AgentDeveloperName__c,
+                ChannelEndpoint__c,
+                EntryObjectType__c,
+                Priority__c,
+                DefaultDeliveryMode__c,
+                InactivityTtlHours__c,
+                StartNewSessionOnTerminalParent__c,
+                TerminalFieldApiName__c,
+                TerminalFieldValues__c,
+                IsActive__c
+            FROM AgentChannelRoute__mdt
+            WHERE IsActive__c = TRUE
+            ORDER BY Priority__c DESC, DeveloperName ASC
+        ];
     }
 }

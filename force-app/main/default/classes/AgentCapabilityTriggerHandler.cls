@@ -67,7 +67,7 @@ public with sharing class AgentCapabilityTriggerHandler {
         Map<Id, AIAgentDefinition__c> agentDefMap = new Map<Id, AIAgentDefinition__c>();
         if (!agentIds.isEmpty()) {
             for (AIAgentDefinition__c agentDef : [
-                SELECT Id, AgentType__c, DeveloperName__c
+                SELECT Id, RuntimeStrategy__c, DeveloperName__c
                 FROM AIAgentDefinition__c
                 WHERE Id IN :agentIds
             ]) {
@@ -305,7 +305,7 @@ public with sharing class AgentCapabilityTriggerHandler {
                     'Agent "' +
                     agentDef.DeveloperName__c +
                     '" is strategy "' +
-                    agentDef.AgentType__c +
+                    agentDef.RuntimeStrategy__c +
                     '". ' +
                     'Use HITLMode "Approval" instead, which works with all agent types.';
 
@@ -313,7 +313,7 @@ public with sharing class AgentCapabilityTriggerHandler {
                     cap,
                     'HITLMode__c',
                     errorMessage,
-                    'Validation failed: HITLMode ' + hitlMode + ' not supported for strategy ' + agentDef.AgentType__c
+                    'Validation failed: HITLMode ' + hitlMode + ' not supported for strategy ' + agentDef.RuntimeStrategy__c
                 );
             }
 

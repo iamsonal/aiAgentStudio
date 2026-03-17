@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Provider__c</fullName>
+    <description>Transport provider that originated the ingress event.</description>
+    <inlineHelpText>Use this to distinguish provider implementations such as Salesforce-native email, chat, or direct handling, Meta WhatsApp Cloud, or Slack.</inlineHelpText>
+    <label>Provider</label>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>SalesforceEmail</fullName><default>false</default><label>Salesforce Email</label></value>
+            <value><fullName>SalesforceChat</fullName><default>false</default><label>Salesforce Chat</label></value>
+            <value><fullName>SalesforceAPI</fullName><default>false</default><label>Salesforce API</label></value>
+            <value><fullName>MetaWhatsAppCloud</fullName><default>true</default><label>Meta WhatsApp Cloud</label></value>
+            <value><fullName>Slack</fullName><default>false</default><label>Slack</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

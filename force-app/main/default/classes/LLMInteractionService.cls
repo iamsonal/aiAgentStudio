@@ -541,9 +541,7 @@ public inherited sharing class LLMInteractionService {
         String channel = RuntimeRegistryService.getInteractionChannel(agentConfig, executionId);
 
         String guidance;
-        if (RuntimeRegistryService.CHANNEL_EMAIL.equalsIgnoreCase(channel)) {
-            guidance = AIAgentConstants.PROMPT_CONFIDENCE_GUIDANCE_EMAIL;
-        } else if (String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative).equalsIgnoreCase(strategy)) {
+        if (String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational).equalsIgnoreCase(strategy)) {
             guidance = AIAgentConstants.PROMPT_CONFIDENCE_GUIDANCE_CONVERSATIONAL;
         } else {
             guidance = AIAgentConstants.PROMPT_CONFIDENCE_GUIDANCE_FUNCTION;

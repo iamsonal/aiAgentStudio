@@ -7,7 +7,7 @@ private class FollowUpLLMEngineTest {
     static void setupData() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('FollowUp LLM').save();
 
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('FollowUp_Agent').withType('Iterative').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('FollowUp_Agent').withType('Conversational').withLLM(llm.Id).save();
 
         TestFactory.newCapability().withAgent(agent.Id).forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' }).withName('followup_get_case').save();
 
@@ -26,7 +26,7 @@ private class FollowUpLLMEngineTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_FOLLOWUP)
             .withTurnIdentifier('turn-followup-text-001')
@@ -69,7 +69,7 @@ private class FollowUpLLMEngineTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_FOLLOWUP)
             .withTurnIdentifier('turn-followup-tool-001')
@@ -116,7 +116,7 @@ private class FollowUpLLMEngineTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Completed')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-followup-stale-001')
@@ -148,7 +148,7 @@ private class FollowUpLLMEngineTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_AWAITING_FOLLOWUP)
             .withTurnIdentifier('turn-followup-current-001')

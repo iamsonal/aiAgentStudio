@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RouteKey__c</fullName>
+    <description>Open-ended transport route identifier supplied by the provider or middleware.</description>
+    <inlineHelpText>Examples include phone number IDs, inbox route IDs, or middleware routing handles used to identify the delivery path.</inlineHelpText>
+    <label>Route Key</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

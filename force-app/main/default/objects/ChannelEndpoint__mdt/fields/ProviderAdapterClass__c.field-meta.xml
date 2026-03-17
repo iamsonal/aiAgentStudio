@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProviderAdapterClass__c</fullName>
+    <description>Apex class that implements IExternalMessagingProvider for provider-backed webhook or transport endpoints.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enter the provider adapter class only for provider-backed messaging endpoints, such as MetaWhatsAppProvider or SlackProvider. Leave blank for channels that do not use an external messaging provider seam.</inlineHelpText>
+    <label>Provider Adapter Class</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

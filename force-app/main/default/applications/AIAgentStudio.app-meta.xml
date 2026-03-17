@@ -47,6 +47,8 @@
     <tabs>AgentCapability__c</tabs>
     <tabs>AgentExecution__c</tabs>
     <tabs>PipelineDefinition__c</tabs>
+    <tabs>IngressEvent__c</tabs>
+    <tabs>InteractionSession__c</tabs>
     <uiType>Lightning</uiType>
     <utilityBar>AI_Agent_Studio_UtilityBar</utilityBar>
 </CustomApplication>

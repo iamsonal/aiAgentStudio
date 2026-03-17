@@ -756,22 +756,30 @@ Create an `AgentContextConfig__c` record:
 | Field | Value |
 |:------|:------|
 | AI Agent Definition | (Your agent) |
-| Implementation Type | `Apex` |
-| Implementation Name | `AccountContextProvider` |
-| Applicable SObject Types | `Account` |
-| Requires Record Context | `true` |
+| Provider Definition | `Account Context` |
+| Scope | `Record` |
+| Applicable Objects | `Account` |
+| Priority | `10` |
+| Failure Mode | `Warn` |
+| Freshness Policy | `Session` |
+| Overlap Mode | `Prefer Highest Priority` |
+| Projection Mode | `Provider Default` |
 | Is Active | `true` |
-| Execution Order | `10` |
-| Context Label | `Account Context` |
-| Implementation Config JSON | `{"caseLimit": 10, "activityDays": 30}` |
+| Admin Label | `Account Context` |
+| Provider Config Json | `{"caseLimit": 10, "activityDays": 30}` |
 
 For user-centric providers:
 
 | Field | Value |
 |:------|:------|
-| Implementation Name | `UserContextProvider` |
-| Requires Record Context | `false` |
-| Applicable SObject Types | (leave blank) |
+| Provider Definition | `User Details Provider` |
+| Scope | `User` |
+| Priority | `20` |
+| Failure Mode | `Warn` |
+| Freshness Policy | `Current Only` |
+| Overlap Mode | `Allow` |
+| Projection Mode | `Provider Default` |
+| Applicable Objects | (leave blank) |
 
 ### Best Practices for Context Providers
 
@@ -891,7 +899,7 @@ private class ActionCalculateAccountHealthTest {
             'ActionCalculateAccountHealth',  // implementationDetail
             'test-turn-1',  // turnIdentifier
             1,              // currentTurnCount
-            'Iterative'  // execution strategy
+            'Conversational'  // execution strategy
         );
 
         // Execute with configuration
@@ -913,7 +921,7 @@ private class ActionCalculateAccountHealthTest {
         ActionContext ctx = new ActionContext(
             null, UserInfo.getUserId(), UserInfo.getUserId(),
             null, null, null, 'ActionCalculateAccountHealth',
-            'test-turn-1', 1, 'Iterative'
+            'test-turn-1', 1, 'Conversational'
         );
 
         // Missing accountId
@@ -1222,9 +1230,9 @@ Use `Fail Fast` for agents where partial execution is worse than no execution (e
   </Card>
   <Card title="Context Provider — Metadata" icon="seti:config">
     - [ ] `AgentContextConfig__c` record created
-    - [ ] `ApplicableSObjectTypes__c` configured correctly
-    - [ ] `RequiresRecordContext__c` set appropriately
-    - [ ] `ExecutionOrder__c` set for proper sequencing
+    - [ ] `ProviderDefinition__c` points to the correct provider definition
+    - [ ] `Scope__c` and `ApplicableObjects__c` are configured correctly
+    - [ ] `Priority__c` set for proper sequencing
     - [ ] `IsActive__c = true`
   </Card>
 </CardGrid>
@@ -1255,9 +1263,9 @@ Use `Fail Fast` for agents where partial execution is worse than no execution (e
 
 <Steps>
 1. Check `AgentContextConfig__c.IsActive__c` is `true`.
-2. Verify `ApplicableSObjectTypes__c` includes the record type in context.
-3. Confirm `RequiresRecordContext__c` matches your use case.
-4. Check `ExecutionOrder__c` — providers run in order; earlier ones may suppress later ones.
+2. Verify `ProviderDefinition__c` points to an active `ContextProviderDefinition__mdt` record.
+3. Confirm `Scope__c` and `ApplicableObjects__c` match your use case.
+4. Check `Priority__c` and `OverlapMode__c` — earlier bindings may suppress later ones.
 5. Review debug logs for provider errors.
 </Steps>
 

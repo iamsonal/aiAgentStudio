@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>HITLType__c</fullName>
-    <description>The type of human intervention required: Approval (formal approval process), ConfirmationThenApproval (LLM confirms first, then formal approval), or ConditionalApproval (LLM decides if approval needed based on context).</description>
+    <description>Type of human review required before this action can continue.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Approval = always require formal approval. ConfirmationThenApproval = LLM confirms, then formal approval. ConditionalApproval = LLM analyzes context to decide if approval needed.</inlineHelpText>
+    <inlineHelpText>Approval always requires formal approval. Confirmation Then Approval requires inline confirmation first. Conditional Approval lets the model decide whether approval is needed.</inlineHelpText>
     <label>HITL Type</label>
     <required>true</required>
     <trackHistory>true</trackHistory>

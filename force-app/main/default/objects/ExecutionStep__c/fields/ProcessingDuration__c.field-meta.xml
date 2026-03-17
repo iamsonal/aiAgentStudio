@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ProcessingDuration__c</fullName>
-    <description>Duration in milliseconds for tool execution processing. Used for ToolResult step types to track how long the tool/capability took to execute. This is different from LLMCalloutDurationMs__c, which measures LLM API callout time.</description>
-    <inlineHelpText>Tool execution duration in milliseconds. Only populated for ToolResult steps. Distinct from LLM callout duration.</inlineHelpText>
+    <description>Duration in milliseconds for tool or capability execution on this step.</description>
+    <inlineHelpText>Populated for tool-result steps to show how long the tool execution took.</inlineHelpText>
     <label>Processing Duration (ms)</label>
     <precision>18</precision>
     <required>false</required>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>TerminalFieldApiName__c</fullName>
+    <description>Optional parent record field used to determine whether the matched record is in a terminal state.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enter the API name of the parent field used for terminal-state checks, such as Status or IsConverted.</inlineHelpText>
+    <label>Terminal Field API Name</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

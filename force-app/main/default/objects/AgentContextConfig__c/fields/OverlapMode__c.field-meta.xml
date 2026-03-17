@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>OverlapMode__c</fullName>
+    <description>Controls how duplicate records from this binding should be handled relative to other bindings.</description>
+    <inlineHelpText>Select Allow to keep all returned records, Prefer Highest Priority to drop duplicates already supplied by earlier bindings, or Suppress Duplicates to remove duplicate records within this binding's own output.</inlineHelpText>
+    <label>Overlap Mode</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>Allow</fullName><default>true</default><label>Allow</label></value>
+            <value><fullName>Prefer Highest Priority</fullName><default>false</default><label>Prefer Highest Priority</label></value>
+            <value><fullName>Suppress Duplicates</fullName><default>false</default><label>Suppress Duplicates</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -1,30 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Channel__c</fullName>
-    <description>Interaction channel that produced or received this transport message, such as Email, Chat, or API.</description>
-    <inlineHelpText>Shows which channel this message belongs to. Used for transport diagnostics and routing history.</inlineHelpText>
+    <description>Interaction channel that produced or received this message, such as Email, Chat, WhatsApp, Slack, or Direct.</description>
+    <inlineHelpText>Shows which channel this message belongs to for diagnostics, reporting, and routing history.</inlineHelpText>
     <label>Channel</label>
     <required>false</required>
     <type>Picklist</type>
     <valueSet>
         <restricted>true</restricted>
-        <valueSetDefinition>
-            <sorted>false</sorted>
-            <value>
-                <fullName>Email</fullName>
-                <default>false</default>
-                <label>Email</label>
-            </value>
-            <value>
-                <fullName>Chat</fullName>
-                <default>true</default>
-                <label>Chat</label>
-            </value>
-            <value>
-                <fullName>API</fullName>
-                <default>false</default>
-                <label>API</label>
-            </value>
-        </valueSetDefinition>
+        <valueSetName>InteractionChannels</valueSetName>
     </valueSet>
 </CustomField>

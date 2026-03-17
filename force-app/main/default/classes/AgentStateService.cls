@@ -97,7 +97,7 @@ public inherited sharing class AgentStateService {
      * Creates an AgentExecution__c record with an optional parent link and pre-set turn identifier,
      * allowing child executions to be created in a single DML operation rather than insert + update.
      *
-     * @param executionType      The execution strategy key (e.g. 'SingleShot', 'Iterative', 'Pipeline')
+     * @param executionType      The execution strategy key (e.g. 'Direct', 'Conversational', 'Pipeline')
      * @param agentDefinitionId  The AIAgentDefinition__c record ID
      * @param triggerSource      The trigger source label
      * @param triggerPayload     Optional trigger payload text
@@ -158,8 +158,8 @@ public inherited sharing class AgentStateService {
     }
 
     private static String mapExecutionTypeToChannel(String executionType) {
-        if (String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.SingleShot).equalsIgnoreCase(executionType)) {
-            return RuntimeRegistryService.CHANNEL_API;
+        if (String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Direct).equalsIgnoreCase(executionType)) {
+            return RuntimeRegistryService.CHANNEL_DIRECT;
         }
         return RuntimeRegistryService.CHANNEL_CHAT;
     }
@@ -317,7 +317,6 @@ public inherited sharing class AgentStateService {
         // Publish AgentResponse__e event for UI notification
         publishAgentResponseEvent(executionId, true, finalAssistantMessageId, null, turnIdentifier, logPrefix);
 
-        AgentNotificationService.notify(executionId, AgentNotificationService.EVENT_TURN_COMPLETED);
         return true;
     }
 
@@ -344,7 +343,6 @@ public inherited sharing class AgentStateService {
         // Publish AgentResponse__e event for UI notification of failure
         publishAgentResponseEvent(executionId, false, null, errorMessage, turnIdentifier, logPrefix);
 
-        AgentNotificationService.notify(executionId, AgentNotificationService.EVENT_EXECUTION_FAILED);
         return true;
     }
 
@@ -443,10 +441,8 @@ public inherited sharing class AgentStateService {
             update exec;
             if (exec.ExecutionStatus__c == 'Completed') {
                 publishAgentResponseEvent(executionId, true, null, null, newTurnIdentifier, logPrefix);
-                AgentNotificationService.notify(executionId, AgentNotificationService.EVENT_TURN_COMPLETED);
             } else if (exec.ExecutionStatus__c == 'Failed') {
                 publishAgentResponseEvent(executionId, false, null, statusMessage, newTurnIdentifier, logPrefix);
-                AgentNotificationService.notify(executionId, AgentNotificationService.EVENT_EXECUTION_FAILED);
             }
             System.debug(
                 LoggingLevel.INFO,
@@ -591,7 +587,7 @@ public inherited sharing class AgentStateService {
 
     /**
      * Publishes AgentResponse__e event for AgentExecution__c records to notify UI of completion.
-     * Only publishes events for iterative chat executions. SingleShot/API
+     * Only publishes events for iterative chat executions. Direct/API
      * executions are backend operations that don't need UI notifications.
      *
      * @param executionId The AgentExecution__c ID
@@ -677,7 +673,7 @@ public inherited sharing class AgentStateService {
 
     /**
      * Determines if platform events should be published for this execution.
-     * Only iterative chat executions need UI notification events. SingleShot
+     * Only iterative chat executions need UI notification events. Direct
      * and backend/API executions should not trigger UI events.
      *
      * @param executionId The execution ID to check

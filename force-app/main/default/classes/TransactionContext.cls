@@ -380,7 +380,7 @@ public inherited sharing class TransactionContext {
     /**
      * Replaces a placeholder execution ID with the real one in all buffered SObject records.
      *
-     * Used by SingleShotAsyncRuntimeService when an execution is created mid-flow: the initial
+     * Used by DirectAsyncRuntimeService when an execution is created mid-flow: the initial
      * LLM call uses a temporary placeholder ID (no real AgentExecution__c exists yet), but
      * services like LLMInteractionService buffer ExecutionStep__c records against that fake
      * ID. Once the real execution is created, this method patches every buffered record so

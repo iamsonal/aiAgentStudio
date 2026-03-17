@@ -143,7 +143,7 @@
     <allowInChatterGroups>false</allowInChatterGroups>
     <compactLayoutAssignment>SYSTEM</compactLayoutAssignment>
     <deploymentStatus>Deployed</deploymentStatus>
-    <description>Universal execution container for AI agents supporting conversational, batch, scheduled, email, and triggered execution patterns.</description>
+    <description>Runtime record for a single agent or pipeline execution, including its status, context, and outcome.</description>
     <enableActivities>false</enableActivities>
     <enableBulkApi>true</enableBulkApi>
     <enableFeeds>false</enableFeeds>

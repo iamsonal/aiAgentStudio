@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>Channel routing metadata that maps inbound channel traffic to the correct agent and delivery policy.</description>
+    <description>Routing metadata that maps an inbound channel endpoint and record context to the agent and reply policy that should handle the interaction.</description>
     <label>Agent Channel Route</label>
     <pluralLabel>Agent Channel Routes</pluralLabel>
     <visibility>Public</visibility>

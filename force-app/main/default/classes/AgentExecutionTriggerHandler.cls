@@ -158,7 +158,7 @@ public without sharing class AgentExecutionTriggerHandler {
                         ExecutionType__c,
                         AIAgentDefinition__c,
                         AIAgentDefinition__r.DeveloperName__c,
-                        AIAgentDefinition__r.AgentType__c,
+                        AIAgentDefinition__r.RuntimeStrategy__c,
                         SourceRecordId__c,
                         TriggerPayload__c,
                         PipelineDefinition__c
@@ -543,7 +543,7 @@ public without sharing class AgentExecutionTriggerHandler {
                 ', Success=' +
                 success +
                 ', ParentAgentType=' +
-                parentExec.AIAgentDefinition__r.AgentType__c
+                parentExec.AIAgentDefinition__r.RuntimeStrategy__c
         );
 
         AIAgentDefinition__c parentAgentDef = agentDefinitionsById.get(parentExec.AIAgentDefinition__c);
@@ -561,7 +561,7 @@ public without sharing class AgentExecutionTriggerHandler {
         );
         strategy.onChildComplete(parentExecutionId, callbackPayload, parentAgentDef);
 
-        System.debug(LoggingLevel.INFO, logPrefix + 'Successfully notified parent orchestrator (type: ' + parentAgentDef.AgentType__c + ')');
+        System.debug(LoggingLevel.INFO, logPrefix + 'Successfully notified parent orchestrator (type: ' + parentAgentDef.RuntimeStrategy__c + ')');
     }
 
     /**

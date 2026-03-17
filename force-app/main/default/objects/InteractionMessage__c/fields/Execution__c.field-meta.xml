@@ -2,7 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Execution__c</fullName>
     <description>Agent execution that processed or generated this message record.</description>
-    <inlineHelpText>Links the transport message to the AgentExecution__c work unit that handled the turn.</inlineHelpText>
+    <inlineHelpText>Links the message to the agent execution that handled the turn.</inlineHelpText>
     <label>Execution</label>
     <referenceTo>AgentExecution__c</referenceTo>
     <relationshipLabel>Interaction Messages</relationshipLabel>

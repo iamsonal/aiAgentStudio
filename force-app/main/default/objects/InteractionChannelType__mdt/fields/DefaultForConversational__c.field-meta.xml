@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DefaultForConversational__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Whether this channel should be the default interaction channel for conversational executions when none is explicitly specified.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Select this only for the single channel that should be used by default for conversational executions.</inlineHelpText>
+    <label>Default For Conversational</label>
+    <type>Checkbox</type>
+</CustomField>

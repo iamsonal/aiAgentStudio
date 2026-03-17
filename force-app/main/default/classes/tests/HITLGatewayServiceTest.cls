@@ -7,11 +7,11 @@ private class HITLGatewayServiceTest {
     static void setupData() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('HITL LLM').save();
 
-        AIAgentDefinition__c convoAgent = TestFactory.newAgentDefinition().withName('HITL_Convo_Agent').withType('Iterative').withLLM(llm.Id).save();
+        AIAgentDefinition__c convoAgent = TestFactory.newAgentDefinition().withName('HITL_Convo_Agent').withType('Conversational').withLLM(llm.Id).save();
 
         AIAgentDefinition__c nonConversationalAgent = TestFactory.newAgentDefinition()
             .withName('HITL_NonConvo_Agent')
-            .withType('SingleShot')
+            .withType('Direct')
             .withLLM(llm.Id)
             .save();
 
@@ -32,7 +32,7 @@ private class HITLGatewayServiceTest {
         TestFactory.newExecution()
             .withAgent(convoAgent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-hitl-001')
             .save();
@@ -41,7 +41,7 @@ private class HITLGatewayServiceTest {
     @IsTest
     static void testEvaluate_ApprovalRequiresIntervention() {
         AIAgentDefinition__c agent = [
-            SELECT Id, AgentType__c, DeveloperName__c
+            SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
             LIMIT 1
@@ -70,7 +70,7 @@ private class HITLGatewayServiceTest {
     @IsTest
     static void testEvaluate_ConfirmationInvalidForNonConversationalAgent() {
         AIAgentDefinition__c agent = [
-            SELECT Id, AgentType__c, DeveloperName__c
+            SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'HITL_NonConvo_Agent%'
             LIMIT 1
@@ -206,7 +206,7 @@ private class HITLGatewayServiceTest {
     @IsTest
     static void testEvaluate_NullHITLMode_ProceedsWithoutIntervention() {
         AIAgentDefinition__c agent = [
-            SELECT Id, AgentType__c, DeveloperName__c
+            SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
             LIMIT 1
@@ -229,7 +229,7 @@ private class HITLGatewayServiceTest {
     @IsTest
     static void testEvaluate_ConfirmationWithConversationalAgent_IsValid() {
         AIAgentDefinition__c agent = [
-            SELECT Id, AgentType__c, DeveloperName__c
+            SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
             LIMIT 1
@@ -323,7 +323,7 @@ private class HITLGatewayServiceTest {
     @IsTest
     static void testEvaluate_ConditionalApproval_ProceedsWithoutIntervention() {
         AIAgentDefinition__c agent = [
-            SELECT Id, AgentType__c, DeveloperName__c
+            SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
             LIMIT 1
@@ -351,7 +351,7 @@ private class HITLGatewayServiceTest {
     @IsTest
     static void testEvaluate_ApprovalAsync_RequiresIntervention() {
         AIAgentDefinition__c agent = [
-            SELECT Id, AgentType__c, DeveloperName__c
+            SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
             LIMIT 1
@@ -381,7 +381,7 @@ private class HITLGatewayServiceTest {
     @IsTest
     static void testInitiateHITL_Approval_Mode() {
         AIAgentDefinition__c agent = [
-            SELECT Id, AgentType__c, DeveloperName__c
+            SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
             LIMIT 1
@@ -438,7 +438,7 @@ private class HITLGatewayServiceTest {
     @IsTest
     static void testInitiateHITL_ConfirmationThenApproval_Mode() {
         AIAgentDefinition__c agent = [
-            SELECT Id, AgentType__c, DeveloperName__c
+            SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
             LIMIT 1
@@ -499,7 +499,7 @@ private class HITLGatewayServiceTest {
     @IsTest
     static void testEvaluate_ConfirmationWithAsyncTool_IsInvalidConfig() {
         AIAgentDefinition__c agent = [
-            SELECT Id, AgentType__c, DeveloperName__c
+            SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
             LIMIT 1
@@ -530,7 +530,7 @@ private class HITLGatewayServiceTest {
     @IsTest
     static void testEvaluate_ConfirmationThenApprovalWithNonConversationalAgent_IsInvalidConfig() {
         AIAgentDefinition__c nonConversationalAgent = [
-            SELECT Id, AgentType__c, DeveloperName__c
+            SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'HITL_NonConvo_Agent%'
             LIMIT 1
@@ -562,7 +562,7 @@ private class HITLGatewayServiceTest {
     @IsTest
     static void testEvaluate_ConfirmationThenApprovalWithAsyncTool_IsInvalidConfig() {
         AIAgentDefinition__c agent = [
-            SELECT Id, AgentType__c, DeveloperName__c
+            SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
             LIMIT 1
@@ -593,7 +593,7 @@ private class HITLGatewayServiceTest {
     @IsTest
     static void testEvaluate_UnknownHITLMode_ReturnsInvalidConfig() {
         AIAgentDefinition__c agent = [
-            SELECT Id, AgentType__c, DeveloperName__c
+            SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
             LIMIT 1

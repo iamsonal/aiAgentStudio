@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>WorkerClaimToken__c</fullName>
-    <description>Opaque claim token assigned when a DLQ worker is pre-bound to an execution. Workers must present the matching token before processing a pre-assigned execution.</description>
-    <inlineHelpText>Internal DLQ worker claim token used to prevent wrong-worker execution of pre-assigned records.</inlineHelpText>
+    <description>Internal claim token used to ensure only the assigned worker processes this execution.</description>
+    <inlineHelpText>Framework-managed claim token for worker coordination.</inlineHelpText>
     <label>Worker Claim Token</label>
     <length>80</length>
     <required>false</required>
