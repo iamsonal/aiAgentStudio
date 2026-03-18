@@ -8,8 +8,8 @@ private class InboundInteractionPipelineServiceTest {
 
         Map<String, Object> triggerMetadata = new Map<String, Object>{
             'channel' => RuntimeRegistryService.CHANNEL_CHAT,
-            'provider' => 'SalesforceChat',
-            'endpointIdentifier' => 'SalesforceChatUI',
+            'provider' => 'Salesforce Chat',
+            'endpointIdentifier' => 'Salesforce Chat UI',
             'conversationKey' => 'thread-001',
             'userId' => 'customer@example.com',
             'messageId' => '<msg-001@example.com>'

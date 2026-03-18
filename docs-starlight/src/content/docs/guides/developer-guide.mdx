@@ -1230,8 +1230,8 @@ Use `Fail Fast` for agents where partial execution is worse than no execution (e
   </Card>
   <Card title="Context Provider — Metadata" icon="seti:config">
     - [ ] `AgentContextConfig__c` record created
-    - [ ] `ProviderDefinition__c` points to the correct provider definition
-    - [ ] `Scope__c` and `ApplicableObjects__c` are configured correctly
+    - [ ] `ContextDefinition__c` points to the correct context definition
+    - [ ] The bound `ContextDefinition__mdt` record is active and uses the intended scope
     - [ ] `Priority__c` set for proper sequencing
     - [ ] `IsActive__c = true`
   </Card>
@@ -1263,9 +1263,9 @@ Use `Fail Fast` for agents where partial execution is worse than no execution (e
 
 <Steps>
 1. Check `AgentContextConfig__c.IsActive__c` is `true`.
-2. Verify `ProviderDefinition__c` points to an active `ContextProviderDefinition__mdt` record.
-3. Confirm `Scope__c` and `ApplicableObjects__c` match your use case.
-4. Check `Priority__c` and `OverlapMode__c` — earlier bindings may suppress later ones.
+2. Verify `ContextDefinition__c` points to an active `ContextDefinition__mdt` record.
+3. Confirm the definition's `DefaultScope__c` and mode match your use case.
+4. Check `Priority__c` when multiple bindings exist for the same agent.
 5. Review debug logs for provider errors.
 </Steps>
 

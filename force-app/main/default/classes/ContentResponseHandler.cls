@@ -96,7 +96,11 @@ public inherited sharing class ContentResponseHandler implements ILLMResponseHan
         // Skip for Function agents which don't need multi-turn context tracking
         if (context.agentStateSvc.isContextTrackingEnabled(context.executionId)) {
             try {
-                context.contextManagerSvc.commitExecutionTurnContext(context.executionId, context.currentTurnCount, context.currentPageRecordId, null);
+                context.contextManagerSvc.commitContextDelta(
+                    context.executionId,
+                    context.currentTurnCount,
+                    context.contextManagerSvc.buildTurnContextDelta(context.executionId, context.currentPageRecordId, null)
+                );
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, logPrefix + 'Context reference update failed: ' + e.getMessage());
             }

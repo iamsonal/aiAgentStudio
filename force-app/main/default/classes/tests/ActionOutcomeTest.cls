@@ -20,6 +20,7 @@ private class ActionOutcomeTest {
         System.assertEquals(null, outcome.errorMessage);
         System.assertEquals(null, outcome.correctionGuidance);
         System.assertEquals(null, outcome.llmFriendlyMessage, 'Success should have no LLM message');
+        System.assertEquals(0, outcome.contextEffects.size(), 'Success should initialize an empty context effect list');
     }
 
     @IsTest
@@ -29,6 +30,36 @@ private class ActionOutcomeTest {
         System.assertEquals(true, outcome.isSuccess);
         System.assertEquals(null, outcome.data);
         System.assertEquals(null, outcome.llmFriendlyMessage);
+        System.assertEquals(0, outcome.contextEffects.size());
+    }
+
+    @IsTest
+    static void testWithCreatedRecord_AddsContextEffect() {
+        Account account = TestFactory.newAccount().withName('Outcome Effect Account').save();
+
+        ActionOutcome outcome = ActionOutcome.success('ok').withCreatedRecord(account.Id, 'Created during tool execution.');
+
+        System.assertEquals(1, outcome.contextEffects.size(), 'Created record helper should append one context effect');
+        System.assertEquals(String.valueOf(account.Id), outcome.contextEffects[0].recordId);
+        System.assertEquals(ContextManagerService.ReferenceRole.Created.name(), outcome.contextEffects[0].referenceRole);
+        System.assertEquals(ContextManagerService.ReferenceSource.ToolOutput.name(), outcome.contextEffects[0].referenceSource);
+        System.assertEquals('Created during tool execution.', outcome.contextEffects[0].explanation);
+    }
+
+    @IsTest
+    static void testMentionedAndRelatedHelpers_AddContextEffects() {
+        Account mentionedAccount = TestFactory.newAccount().withName('Mentioned Outcome Account').save();
+        Contact relatedContact = TestFactory.newContact().withName('Related', 'Outcome').save();
+
+        ActionOutcome outcome = ActionOutcome.success('ok')
+            .withMentionedRecord(mentionedAccount.Id, 'Mentioned in structured runtime input.')
+            .withRelatedRecord(relatedContact.Id, 'Promoted by framework execution logic.');
+
+        System.assertEquals(2, outcome.contextEffects.size(), 'Both helper methods should append context effects');
+        System.assertEquals(ContextManagerService.ReferenceRole.Mentioned.name(), outcome.contextEffects[0].referenceRole);
+        System.assertEquals(ContextManagerService.ReferenceSource.UserMention.name(), outcome.contextEffects[0].referenceSource);
+        System.assertEquals(ContextManagerService.ReferenceRole.Related.name(), outcome.contextEffects[1].referenceRole);
+        System.assertEquals(ContextManagerService.ReferenceSource.InternalSystem.name(), outcome.contextEffects[1].referenceSource);
     }
 
     @IsTest

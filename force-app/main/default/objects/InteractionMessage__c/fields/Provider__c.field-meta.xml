@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Provider__c</fullName>
-    <description>Transport provider or connector associated with this message, such as SalesforceEmail or another channel integration.</description>
+    <description>Transport provider or connector associated with this message, such as Salesforce Email or another channel integration.</description>
     <inlineHelpText>Use this to identify which provider handled the message for troubleshooting and reporting.</inlineHelpText>
     <label>Provider</label>
     <length>80</length>

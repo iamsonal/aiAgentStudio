@@ -37,6 +37,36 @@ private class ActionUpdateRecordTest {
     }
 
     @IsTest
+    static void testExecute_UpdatesDifferentRecord_AddsRelatedContextEffect() {
+        Contact contact = [SELECT Id FROM Contact WHERE FirstName = 'John' LIMIT 1];
+        ActionUpdateRecord action = new ActionUpdateRecord();
+
+        ActionContext context = new ActionContext(
+            null,
+            UserInfo.getUserId(),
+            UserInfo.getUserId(),
+            null,
+            null,
+            null,
+            null,
+            'turn-update-related-001',
+            1,
+            'Direct'
+        );
+        ActionOutcome outcome = action.execute(
+            JSON.serialize(new Map<String, Object>{ 'objectApiName' => 'Contact' }),
+            JSON.serialize(new Map<String, Object>{ 'recordId' => contact.Id, 'recordData' => new Map<String, Object>{ 'FirstName' => 'RelatedUpdated' } }),
+            context
+        );
+
+        System.assertEquals(true, outcome.isSuccess, 'Update should succeed');
+        System.assertEquals(1, outcome.contextEffects.size(), 'Updating a different explicit record should create a related context effect');
+        System.assertEquals(ContextManagerService.ReferenceRole.Related.name(), outcome.contextEffects[0].referenceRole);
+        System.assertEquals(ContextManagerService.ReferenceSource.InternalSystem.name(), outcome.contextEffects[0].referenceSource);
+        System.assertEquals(String.valueOf(contact.Id), outcome.contextEffects[0].recordId);
+    }
+
+    @IsTest
     static void testUpdateContact_MultipleFields_VerifiesDbState() {
         Contact testContact = [SELECT Id FROM Contact WHERE FirstName = 'John' LIMIT 1];
         ActionUpdateRecord action = new ActionUpdateRecord();

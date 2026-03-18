@@ -50,7 +50,7 @@ private class InteractionChannelRegistryServiceTest {
         );
         InteractionChannelType__mdt direct = new InteractionChannelType__mdt(
             ChannelKey__c = RuntimeRegistryService.CHANNEL_DIRECT,
-            InteractionAdapterClass__c = 'DirectInteractionChannel',
+            InteractionAdapterClass__c = 'DirectChannelAdapter',
             ConversationalRuntimeClass__c = 'ChatConversationalRuntimeService',
             DefaultForDirect__c = true,
             IsActive__c = true
@@ -68,7 +68,7 @@ private class InteractionChannelRegistryServiceTest {
         );
         InteractionChannelType__mdt direct = new InteractionChannelType__mdt(
             ChannelKey__c = RuntimeRegistryService.CHANNEL_DIRECT,
-            InteractionAdapterClass__c = 'DirectInteractionChannel',
+            InteractionAdapterClass__c = 'DirectChannelAdapter',
             ConversationalRuntimeClass__c = 'ChatConversationalRuntimeService',
             DefaultForDirect__c = true,
             IsActive__c = true
@@ -110,7 +110,7 @@ private class InteractionChannelRegistryServiceTest {
             );
 
             System.assert(chatAdapter instanceof ChatChannelAdapter, 'Chat channel should resolve to ChatChannelAdapter');
-            System.assert(directAdapter instanceof DirectInteractionChannel, 'Direct channel should resolve to DirectInteractionChannel');
+            System.assert(directAdapter instanceof DirectChannelAdapter, 'Direct channel should resolve to DirectChannelAdapter');
         } finally {
             InteractionChannelRegistryService.clearTestChannelTypes();
         }

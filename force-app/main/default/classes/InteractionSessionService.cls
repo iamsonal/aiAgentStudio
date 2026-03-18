@@ -98,14 +98,15 @@ public inherited sharing class InteractionSessionService {
             session.RouteEndpoint__c = String.isNotBlank(endpointIdentifier) ? endpointIdentifier : session.RouteEndpoint__c;
             session.ParticipantExternalKey__c = String.isNotBlank(participantKey) ? participantKey : session.ParticipantExternalKey__c;
             session.ParticipantHash__c = String.isNotBlank(participantKey) ? buildHash(participantKey) : session.ParticipantHash__c;
-            session.ParentRecordId__c = sourceRecordId != null ? String.valueOf(sourceRecordId) : session.ParentRecordId__c;
+            if (String.isBlank(session.ParentRecordId__c) && sourceRecordId != null) {
+                session.ParentRecordId__c = String.valueOf(sourceRecordId);
+            }
             session.SessionStatus__c = 'Active';
             session.LastInboundAt__c = Datetime.now();
             update session;
         }
 
         InteractionRuntimeModels.InteractionSessionContext context = toContext(session, provider);
-        context.sourceRecordId = sourceRecordId;
         return context;
     }
 

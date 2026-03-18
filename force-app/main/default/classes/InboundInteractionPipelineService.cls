@@ -16,6 +16,7 @@ public inherited sharing class InboundInteractionPipelineService {
         public InteractionRuntimeModels.InteractionSessionContext sessionContext { get; set; }
         public ChannelRoutingService.ResolvedRoute route { get; set; }
         public String inboundDedupKey { get; set; }
+        public Set<Id> frameworkRelatedRecordIds { get; set; }
     }
 
     public ResolvedInbound prepare(
@@ -26,6 +27,7 @@ public inherited sharing class InboundInteractionPipelineService {
         String logPrefix
     ) {
         ResolvedInbound resolved = new ResolvedInbound();
+        resolved.frameworkRelatedRecordIds = new Set<Id>();
         InboundMessageNormalizer normalizer = new InboundMessageNormalizer();
         InteractionMessageService interactionMessageService = new InteractionMessageService();
         ChannelRoutingService channelRoutingService = new ChannelRoutingService();
@@ -44,6 +46,9 @@ public inherited sharing class InboundInteractionPipelineService {
             resolved.envelope.entryObjectType,
             resolved.envelope.endpointIdentifier
         );
+        if (sourceRecordId != null) {
+            resolved.frameworkRelatedRecordIds.add(sourceRecordId);
+        }
         return resolved;
     }
 
@@ -58,6 +63,12 @@ public inherited sharing class InboundInteractionPipelineService {
         }
         InteractionSessionResolver sessionResolver = new InteractionSessionResolver();
         resolved.sessionContext = sessionResolver.resolve(adapter, agentDefinition, resolved.envelope, logPrefix);
+        if (resolved.sessionContext != null && resolved.sessionContext.sourceRecordId != null) {
+            if (resolved.frameworkRelatedRecordIds == null) {
+                resolved.frameworkRelatedRecordIds = new Set<Id>();
+            }
+            resolved.frameworkRelatedRecordIds.add(resolved.sessionContext.sourceRecordId);
+        }
         return resolved.sessionContext;
     }
 

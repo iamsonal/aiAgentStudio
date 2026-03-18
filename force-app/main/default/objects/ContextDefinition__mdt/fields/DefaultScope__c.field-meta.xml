@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>DefaultScope__c</fullName>
-    <description>Default scope this provider is designed to run in.</description>
+    <description>Authoritative anchor scope the framework should use when resolving this context definition.</description>
     <fieldManageability>DeveloperControlled</fieldManageability>
-    <inlineHelpText>Select the scope this provider is primarily designed for, such as Record or User.</inlineHelpText>
+    <inlineHelpText>Choose where this definition should look for its anchor. Record uses the current record, User uses the current user, Session uses the interaction session, and Global runs without an anchor.</inlineHelpText>
     <label>Default Scope</label>
     <required>true</required>
     <trackTrending>false</trackTrending>

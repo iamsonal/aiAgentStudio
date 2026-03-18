@@ -18,6 +18,8 @@ public inherited sharing class AIAgentFrameworkSettings {
     private static final Integer FINAL_DEFAULT_MaxLLMCallsPerTransaction = 2;
     private static final Boolean FINAL_DEFAULT_EnableDecisionStepLogging = true;
     private static final Boolean FINAL_DEFAULT_ExtendQueueableChainLimit = false;
+    private static final Integer FINAL_DEFAULT_MaxContextDeltaItemsPerTurn = 10;
+    private static final Integer FINAL_DEFAULT_MaxActiveContextReferences = 50;
     public static AIAgentFrameworkSettings__c getInstance() {
         if (settings == null) {
             settings = AIAgentFrameworkSettings__c.getOrgDefaults();
@@ -213,6 +215,22 @@ public inherited sharing class AIAgentFrameworkSettings {
             return Integer.valueOf(instance.MaxLLMCallsPerTransaction__c);
         }
         return FINAL_DEFAULT_MaxLLMCallsPerTransaction;
+    }
+
+    /**
+     * Gets the maximum number of context delta items the framework will persist for a single turn.
+     * This is intentionally hard-capped in code until a custom-setting field is introduced.
+     */
+    public static Integer getMaxContextDeltaItemsPerTurn() {
+        return FINAL_DEFAULT_MaxContextDeltaItemsPerTurn;
+    }
+
+    /**
+     * Gets the maximum number of active context references maintained for a single execution/session scope.
+     * This is intentionally hard-capped in code until a custom-setting field is introduced.
+     */
+    public static Integer getMaxActiveContextReferences() {
+        return FINAL_DEFAULT_MaxActiveContextReferences;
     }
 
     /**

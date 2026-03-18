@@ -1,9 +1,9 @@
 @IsTest
 private class IngressRequestedTriggerHandlerTest {
-    private static final String CHAT_PROVIDER = 'SalesforceChat';
+    private static final String CHAT_PROVIDER = 'Salesforce Chat';
     private static final String CHAT_ENDPOINT_DEV = 'CoreChatIngress';
     private static final String CHAT_AGENT_NAME = 'Core Chat Ingress Agent';
-    private static final String CHAT_ENDPOINT_IDENTIFIER = 'SalesforceChatUI';
+    private static final String CHAT_ENDPOINT_IDENTIFIER = 'Salesforce Chat UI';
     private class TestParticipantResolver implements IChannelParticipantResolver {
         private final Map<String, Id> resolvedRecordIdsByKey;
 
@@ -154,6 +154,74 @@ private class IngressRequestedTriggerHandlerTest {
         System.assertEquals(1, messages.size());
         System.assertEquals(RuntimeRegistryService.CHANNEL_CHAT, messages[0].Channel__c);
         System.assertEquals('Inbound', messages[0].Direction__c);
+    }
+
+    @IsTest
+    static void testAccept_DirectInboundMessage_PreservesResolvedAndSessionRelatedRecordIds() {
+        configureChatIngressFixture();
+        Test.setMock(HttpCalloutMock.class, MockHttpResponses.text('Handled via chat runtime.'));
+
+        Case sessionCase = TestFactory.newCase().withSubject('Session Source Case').save();
+        Case matchedCase = TestFactory.newCase().withSubject('Matched Source Case').save();
+
+        InteractionSession__c existingSession = new InteractionSession__c(
+            Channel__c = RuntimeRegistryService.CHANNEL_CHAT,
+            Provider__c = CHAT_PROVIDER,
+            ConversationKey__c = 'chat-conversation-001',
+            ConversationKeyHash__c = InteractionSessionService.buildSessionScopeHash(
+                RuntimeRegistryService.CHANNEL_CHAT,
+                CHAT_PROVIDER,
+                CHAT_ENDPOINT_IDENTIFIER,
+                'chat-conversation-001'
+            ),
+            ReplyRouteKey__c = 'chat-user-001',
+            RouteEndpoint__c = CHAT_ENDPOINT_IDENTIFIER,
+            ParticipantExternalKey__c = 'chat-user-001',
+            ParticipantHash__c = InteractionSessionService.buildHash('chat-user-001'),
+            SessionStatus__c = 'Active',
+            ParentRecordId__c = sessionCase.Id
+        );
+        insert existingSession;
+
+        NormalizedIngressModels.Request request = buildInboundMessageRequest('chat.direct.related.001', NormalizedIngressModels.MODE_DIRECT);
+        request.matchedRecordId = matchedCase.Id;
+
+        Test.startTest();
+        NormalizedIngressModels.AcceptResult result = new IngressProcessingService().accept(request, '[test] ');
+        Test.stopTest();
+
+        System.assertNotEquals(null, result.interactionMessageId, 'Inbound processing should record a transport message.');
+        InteractionMessage__c interactionMessage = [
+            SELECT Execution__c, InteractionSession__c, PayloadSnapshotJson__c
+            FROM InteractionMessage__c
+            WHERE Id = :result.interactionMessageId
+            LIMIT 1
+        ];
+        System.assertEquals(existingSession.Id, interactionMessage.InteractionSession__c, 'Inbound processing should reuse the existing session.');
+
+        Map<String, Object> triggerPayload = (Map<String, Object>) JSON.deserializeUntyped(interactionMessage.PayloadSnapshotJson__c);
+        List<Object> relatedRecordIds = (List<Object>) triggerPayload.get('relatedRecordIds');
+
+        System.assertNotEquals(null, relatedRecordIds, 'Framework-owned related record ids should be persisted into trigger payload.');
+        System.assert(relatedRecordIds.contains(String.valueOf(sessionCase.Id)), 'Session source record should be carried as a related/system anchor.');
+        System.assert(
+            relatedRecordIds.contains(String.valueOf(matchedCase.Id)),
+            'Participant or matched source record should be carried as a related/system anchor.'
+        );
+
+        if (interactionMessage.Execution__c != null) {
+            AgentExecution__c execution = [
+                SELECT SourceRecordId__c
+                FROM AgentExecution__c
+                WHERE Id = :interactionMessage.Execution__c
+                LIMIT 1
+            ];
+            System.assertEquals(
+                sessionCase.Id,
+                execution.SourceRecordId__c,
+                'Existing session source record should remain canonical when execution creation succeeds.'
+            );
+        }
     }
 
     @IsTest
@@ -310,7 +378,7 @@ private class IngressRequestedTriggerHandlerTest {
     private static void configureDirectChannelWithParticipantResolver(String resolverClassName) {
         InteractionChannelType__mdt direct = new InteractionChannelType__mdt(
             ChannelKey__c = RuntimeRegistryService.CHANNEL_DIRECT,
-            InteractionAdapterClass__c = 'DirectInteractionChannel',
+            InteractionAdapterClass__c = 'DirectChannelAdapter',
             ConversationalRuntimeClass__c = 'ChatConversationalRuntimeService',
             ParticipantResolverClass__c = resolverClassName,
             IsActive__c = true

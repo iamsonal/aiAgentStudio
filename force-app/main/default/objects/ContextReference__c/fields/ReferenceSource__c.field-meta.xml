@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ReferenceSource__c</fullName>
-    <description>How this record entered the context set.</description>
-    <inlineHelpText>Select where this reference came from, such as the current page context, a user mention, tool output, or internal system logic.</inlineHelpText>
+    <description>How this record was introduced into the agent's durable working context ledger.</description>
+    <inlineHelpText>Indicates how the record entered context: Page Context from the active record, User Mention from structured user-supplied references, Tool Output from an action result, or System from deliberate framework routing or resolution logic.</inlineHelpText>
     <label>Reference Source</label>
     <required>true</required>
     <trackHistory>false</trackHistory>

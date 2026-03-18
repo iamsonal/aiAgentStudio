@@ -7,45 +7,34 @@
  */
 
 /**
- * @description Resolves relevant context records for an execution by combining stored references with provider-based enrichment.
+ * @description Resolves relevant context records for an execution by loading the
+ * configured context definition for each active agent binding.
  */
 public inherited sharing class ContextResolverService {
-    public class ProviderDefinition {
-        public String providerKey { get; private set; }
-        public String apexClassName { get; private set; }
+    public class ContextDefinition {
+        public String contextKey { get; private set; }
+        public String definitionMode { get; private set; }
         public String defaultScope { get; private set; }
-        public Boolean supportsFieldSetProjection { get; private set; }
-        public Boolean supportsProjectionDefinition { get; private set; }
-        public Boolean isActive { get; private set; }
-        public String description { get; private set; }
-
-        public ProviderDefinition(ContextProviderDefinition__mdt record) {
-            this.providerKey = record.ProviderKey__c;
-            this.apexClassName = record.ApexClassName__c;
-            this.defaultScope = record.DefaultScope__c;
-            this.supportsFieldSetProjection = record.SupportsFieldSetProjection__c;
-            this.supportsProjectionDefinition = record.SupportsProjectionDefinition__c;
-            this.isActive = record.IsActive__c;
-            this.description = record.Description__c;
-        }
-    }
-
-    public class ProjectionDefinition {
-        public String projectionKey { get; private set; }
+        public String apexClassName { get; private set; }
         public String rootObjectApiName { get; private set; }
         public String fieldSetName { get; private set; }
         public Integer recordLimit { get; private set; }
         public Boolean excludeIdFields { get; private set; }
         public Boolean includeRecordUrls { get; private set; }
+        public Boolean isActive { get; private set; }
         public String description { get; private set; }
 
-        public ProjectionDefinition(ContextProjectionDefinition__mdt record) {
-            this.projectionKey = record.ProjectionKey__c;
+        public ContextDefinition(ContextDefinition__mdt record) {
+            this.contextKey = record.ContextKey__c;
+            this.definitionMode = record.DefinitionMode__c;
+            this.defaultScope = record.DefaultScope__c;
+            this.apexClassName = record.ApexClassName__c;
             this.rootObjectApiName = record.RootObjectApiName__c;
             this.fieldSetName = record.FieldSetName__c;
             this.recordLimit = record.RecordLimit__c == null ? null : record.RecordLimit__c.intValue();
             this.excludeIdFields = record.ExcludeIdFields__c;
             this.includeRecordUrls = record.IncludeRecordUrls__c;
+            this.isActive = record.IsActive__c;
             this.description = record.Description__c;
         }
     }
@@ -53,22 +42,22 @@ public inherited sharing class ContextResolverService {
     public class ResolvedContextBlock {
         public AgentContextConfig__c config { get; private set; }
         public List<SObject> records { get; private set; }
-        public String providerKey { get; private set; }
+        public String contextKey { get; private set; }
         public String sectionName { get; private set; }
-        public ProjectionDefinition projectionDefinition { get; private set; }
+        public ContextDefinition contextDefinition { get; private set; }
 
         public ResolvedContextBlock(
             AgentContextConfig__c configRecord,
             List<SObject> resolvedRecords,
-            String resolvedProviderKey,
+            String resolvedContextKey,
             String resolvedSectionName,
-            ProjectionDefinition projectionDef
+            ContextDefinition definitionRecord
         ) {
             this.config = configRecord;
             this.records = resolvedRecords == null ? new List<SObject>() : resolvedRecords;
-            this.providerKey = resolvedProviderKey;
+            this.contextKey = resolvedContextKey;
             this.sectionName = resolvedSectionName;
-            this.projectionDefinition = projectionDef;
+            this.contextDefinition = definitionRecord;
         }
     }
 
@@ -103,30 +92,23 @@ public inherited sharing class ContextResolverService {
     public class ResolutionException extends AIAgentException {
     }
 
-    private final ContextManagerService contextReferences;
     private final Map<String, IAgentContextProvider> providerCache = new Map<String, IAgentContextProvider>();
     @TestVisible
     private static Map<String, IAgentContextProvider> testProviderOverrides = new Map<String, IAgentContextProvider>();
 
     public ContextResolverService() {
-        this(new ContextManagerService());
     }
 
     @TestVisible
-    private ContextResolverService(ContextManagerService referenceService) {
-        this.contextReferences = referenceService;
-    }
-
-    @TestVisible
-    static void setTestProviderOverride(String providerKey, IAgentContextProvider provider) {
-        if (String.isBlank(providerKey)) {
+    static void setTestProviderOverride(String contextKey, IAgentContextProvider provider) {
+        if (String.isBlank(contextKey)) {
             return;
         }
         if (provider == null) {
-            testProviderOverrides.remove(providerKey);
+            testProviderOverrides.remove(contextKey);
             return;
         }
-        testProviderOverrides.put(providerKey, provider);
+        testProviderOverrides.put(contextKey, provider);
     }
 
     @TestVisible
@@ -145,10 +127,7 @@ public inherited sharing class ContextResolverService {
             return result;
         }
 
-        Map<String, ProviderDefinition> providerDefinitions = getProviderDefinitions(collectProviderKeys(configs));
-        Map<String, ProjectionDefinition> projectionDefinitions = getProjectionDefinitions(collectProjectionKeys(configs));
-
-        Set<String> seenRecordIds = new Set<String>();
+        Map<String, ContextDefinition> contextDefinitions = getContextDefinitions(collectContextKeys(configs));
         for (AgentContextConfig__c config : configs) {
             if (!isChannelApplicable(config, activeChannel)) {
                 handleFailure(
@@ -160,28 +139,27 @@ public inherited sharing class ContextResolverService {
                 continue;
             }
 
-            ProviderDefinition providerDef = providerDefinitions.get(config.ProviderDefinition__c);
-            if (providerDef == null || providerDef.isActive != true || String.isBlank(providerDef.apexClassName)) {
-                handleFailure(config, 'No active provider definition was found for "' + config.ProviderDefinition__c + '".', null, result);
+            ContextDefinition contextDefinition = contextDefinitions.get(config.ContextDefinition__c);
+            if (contextDefinition == null || contextDefinition.isActive != true) {
+                handleFailure(config, 'No active context definition was found for "' + config.ContextDefinition__c + '".', null, result);
                 continue;
             }
 
-            ProjectionDefinition projectionDef = projectionDefinitions.get(config.ProjectionDefinition__c);
-
             try {
-                Set<Id> anchorIds = resolveAnchorIds(executionId, userId, immediatePageRecordId, config);
-                if ('Record'.equalsIgnoreCase(config.Scope__c) && anchorIds.isEmpty()) {
+                validateContextDefinition(config, contextDefinition);
+
+                Set<Id> anchorIds = resolveAnchorIds(executionId, userId, immediatePageRecordId, contextDefinition.defaultScope);
+                if (!'Global'.equalsIgnoreCase(contextDefinition.defaultScope) && anchorIds.isEmpty()) {
                     continue;
                 }
 
-                List<SObject> providerRecords = invokeProvider(config, providerDef, anchorIds, userId, logPrefix);
-                providerRecords = applyOverlapMode(providerRecords, config.OverlapMode__c, seenRecordIds);
-                if (providerRecords.isEmpty()) {
+                List<SObject> resolvedRecords = resolveContextRecords(config, contextDefinition, anchorIds, userId, logPrefix);
+                if (resolvedRecords.isEmpty()) {
                     continue;
                 }
 
                 String sectionName = String.isNotBlank(config.OutputSectionName__c) ? config.OutputSectionName__c : config.AdminLabel__c;
-                ResolvedContextBlock block = new ResolvedContextBlock(config, providerRecords, providerDef.providerKey, sectionName, projectionDef);
+                ResolvedContextBlock block = new ResolvedContextBlock(config, resolvedRecords, contextDefinition.contextKey, sectionName, contextDefinition);
                 result.addBlock(block);
             } catch (Exception e) {
                 handleFailure(config, 'Context binding "' + config.AdminLabel__c + '" failed: ' + e.getMessage(), e, result);
@@ -192,61 +170,39 @@ public inherited sharing class ContextResolverService {
         return result;
     }
 
-    private Set<String> collectProviderKeys(List<AgentContextConfig__c> configs) {
-        Set<String> providerKeys = new Set<String>();
+    private Set<String> collectContextKeys(List<AgentContextConfig__c> configs) {
+        Set<String> contextKeys = new Set<String>();
         for (AgentContextConfig__c config : configs) {
-            if (String.isNotBlank(config.ProviderDefinition__c)) {
-                providerKeys.add(config.ProviderDefinition__c);
+            if (String.isNotBlank(config.ContextDefinition__c)) {
+                contextKeys.add(config.ContextDefinition__c);
             }
         }
-        return providerKeys;
+        return contextKeys;
     }
 
-    private Set<String> collectProjectionKeys(List<AgentContextConfig__c> configs) {
-        Set<String> projectionKeys = new Set<String>();
-        for (AgentContextConfig__c config : configs) {
-            if (String.isNotBlank(config.ProjectionDefinition__c)) {
-                projectionKeys.add(config.ProjectionDefinition__c);
-            }
-        }
-        return projectionKeys;
-    }
-
-    private Map<String, ProviderDefinition> getProviderDefinitions(Set<String> providerKeys) {
-        Map<String, ProviderDefinition> definitionsByKey = new Map<String, ProviderDefinition>();
-        if (providerKeys == null || providerKeys.isEmpty()) {
+    private Map<String, ContextDefinition> getContextDefinitions(Set<String> contextKeys) {
+        Map<String, ContextDefinition> definitionsByKey = new Map<String, ContextDefinition>();
+        if (contextKeys == null || contextKeys.isEmpty()) {
             return definitionsByKey;
         }
 
-        for (ContextProviderDefinition__mdt record : [
+        for (ContextDefinition__mdt record : [
             SELECT
-                ProviderKey__c,
-                ApexClassName__c,
+                ContextKey__c,
+                DefinitionMode__c,
                 DefaultScope__c,
-                SupportsFieldSetProjection__c,
-                SupportsProjectionDefinition__c,
+                ApexClassName__c,
+                RootObjectApiName__c,
+                FieldSetName__c,
+                RecordLimit__c,
+                ExcludeIdFields__c,
+                IncludeRecordUrls__c,
                 IsActive__c,
                 Description__c
-            FROM ContextProviderDefinition__mdt
-            WHERE ProviderKey__c IN :providerKeys
+            FROM ContextDefinition__mdt
+            WHERE ContextKey__c IN :contextKeys
         ]) {
-            definitionsByKey.put(record.ProviderKey__c, new ProviderDefinition(record));
-        }
-        return definitionsByKey;
-    }
-
-    private Map<String, ProjectionDefinition> getProjectionDefinitions(Set<String> projectionKeys) {
-        Map<String, ProjectionDefinition> definitionsByKey = new Map<String, ProjectionDefinition>();
-        if (projectionKeys == null || projectionKeys.isEmpty()) {
-            return definitionsByKey;
-        }
-
-        for (ContextProjectionDefinition__mdt record : [
-            SELECT ProjectionKey__c, RootObjectApiName__c, FieldSetName__c, RecordLimit__c, ExcludeIdFields__c, IncludeRecordUrls__c, Description__c
-            FROM ContextProjectionDefinition__mdt
-            WHERE ProjectionKey__c IN :projectionKeys
-        ]) {
-            definitionsByKey.put(record.ProjectionKey__c, new ProjectionDefinition(record));
+            definitionsByKey.put(record.ContextKey__c, new ContextDefinition(record));
         }
         return definitionsByKey;
     }
@@ -263,12 +219,11 @@ public inherited sharing class ContextResolverService {
         return normalizedChannels.split(',').contains(activeChannel.toLowerCase());
     }
 
-    private Set<Id> resolveAnchorIds(Id executionId, Id userId, Id immediatePageRecordId, AgentContextConfig__c config) {
+    private Set<Id> resolveAnchorIds(Id executionId, Id userId, Id immediatePageRecordId, String scope) {
         Set<Id> anchorIds = new Set<Id>();
-        String scope = String.isBlank(config.Scope__c) ? 'Record' : config.Scope__c;
 
         if ('Record'.equalsIgnoreCase(scope)) {
-            anchorIds.addAll(gatherRecordAnchors(executionId, immediatePageRecordId, config));
+            anchorIds.addAll(resolvePrimaryRecordAnchors(executionId, immediatePageRecordId));
         } else if ('User'.equalsIgnoreCase(scope)) {
             if (userId != null) {
                 anchorIds.add(userId);
@@ -278,53 +233,82 @@ public inherited sharing class ContextResolverService {
             if (sessionId != null) {
                 anchorIds.add(sessionId);
             }
+        } else if ('Global'.equalsIgnoreCase(scope)) {
+            return anchorIds;
         }
 
         return anchorIds;
     }
 
-    private Set<Id> gatherRecordAnchors(Id executionId, Id immediatePageRecordId, AgentContextConfig__c config) {
-        Set<Id> relevantIds = new Set<Id>();
+    private Set<Id> resolvePrimaryRecordAnchors(Id executionId, Id immediatePageRecordId) {
+        Set<Id> anchorIds = new Set<Id>();
         if (immediatePageRecordId != null) {
-            relevantIds.add(immediatePageRecordId);
+            anchorIds.add(immediatePageRecordId);
+            return anchorIds;
         }
 
-        String freshnessPolicy = String.isBlank(config.FreshnessPolicy__c) ? 'Current Only' : config.FreshnessPolicy__c;
-        if (!'Current Only'.equalsIgnoreCase(freshnessPolicy)) {
-            relevantIds.addAll(this.contextReferences.getRelevantRecordIds(executionId, freshnessPolicy));
-        }
-
-        return filterAnchorsByApplicableObjects(relevantIds, config.ApplicableObjects__c);
-    }
-
-    private Set<Id> filterAnchorsByApplicableObjects(Set<Id> anchorIds, String applicableObjects) {
-        if (anchorIds == null || anchorIds.isEmpty() || String.isBlank(applicableObjects)) {
-            return anchorIds == null ? new Set<Id>() : anchorIds;
-        }
-
-        Set<String> allowedObjectNames = new Set<String>();
-        for (String objectName : applicableObjects.split(';')) {
-            if (String.isNotBlank(objectName)) {
-                allowedObjectNames.add(objectName.trim().toLowerCase());
-            }
-        }
-
-        Set<Id> filteredIds = new Set<Id>();
-        for (Id anchorId : anchorIds) {
-            if (anchorId == null) {
+        for (ContextReference__c record : [
+            SELECT RecordId__c
+            FROM ContextReference__c
+            WHERE
+                AgentExecution__c = :executionId
+                AND ReferenceRole__c = :ContextManagerService.ReferenceRole.Primary.name()
+                AND Status__c = :ContextManagerService.ReferenceStatus.Active.name()
+            ORDER BY LastUsedAt__c DESC, CreatedDate DESC
+            LIMIT 5
+        ]) {
+            if (String.isBlank(record.RecordId__c)) {
                 continue;
             }
-            String objectName = anchorId.getSObjectType().getDescribe().getName().toLowerCase();
-            if (allowedObjectNames.contains(objectName)) {
-                filteredIds.add(anchorId);
+            try {
+                anchorIds.add((Id) record.RecordId__c);
+            } catch (Exception ignored) {
+                // Ignore malformed record ids in the ledger.
             }
         }
-        return filteredIds;
+        return anchorIds;
     }
 
-    private List<SObject> invokeProvider(AgentContextConfig__c config, ProviderDefinition providerDef, Set<Id> anchorIds, Id userId, String logPrefix) {
-        System.debug(LoggingLevel.INFO, logPrefix + 'Invoking provider: ' + providerDef.providerKey + ' | Anchor count: ' + anchorIds.size());
-        IAgentContextProvider provider = getProviderInstance(providerDef);
+    private void validateContextDefinition(AgentContextConfig__c config, ContextDefinition contextDefinition) {
+        if ('Apex Provider'.equalsIgnoreCase(contextDefinition.definitionMode)) {
+            if (String.isBlank(contextDefinition.apexClassName)) {
+                throw new ResolutionException(
+                    'Context binding "' + config.AdminLabel__c + '" points to Apex Provider mode but the definition has no Apex class.'
+                );
+            }
+            return;
+        }
+
+        if ('Field Set'.equalsIgnoreCase(contextDefinition.definitionMode)) {
+            if (String.isBlank(contextDefinition.rootObjectApiName) || String.isBlank(contextDefinition.fieldSetName)) {
+                throw new ResolutionException(
+                    'Context binding "' + config.AdminLabel__c + '" points to Field Set mode but the definition is missing the root object or field set.'
+                );
+            }
+            return;
+        }
+
+        throw new ResolutionException(
+            'Context binding "' + config.AdminLabel__c + '" points to an unsupported definition mode: ' + contextDefinition.definitionMode
+        );
+    }
+
+    private List<SObject> resolveContextRecords(
+        AgentContextConfig__c config,
+        ContextDefinition contextDefinition,
+        Set<Id> anchorIds,
+        Id userId,
+        String logPrefix
+    ) {
+        if ('Field Set'.equalsIgnoreCase(contextDefinition.definitionMode)) {
+            return loadFieldSetContext(anchorIds, contextDefinition);
+        }
+        return invokeProvider(config, contextDefinition, anchorIds, userId, logPrefix);
+    }
+
+    private List<SObject> invokeProvider(AgentContextConfig__c config, ContextDefinition contextDefinition, Set<Id> anchorIds, Id userId, String logPrefix) {
+        System.debug(LoggingLevel.INFO, logPrefix + 'Invoking context definition: ' + contextDefinition.contextKey + ' | Anchor count: ' + anchorIds.size());
+        IAgentContextProvider provider = getProviderInstance(contextDefinition);
         Map<String, List<SObject>> providerResult = provider.getContext(anchorIds, userId, config.ProviderConfigJson__c);
         List<SObject> records = new List<SObject>();
         if (providerResult != null) {
@@ -337,63 +321,66 @@ public inherited sharing class ContextResolverService {
         return records;
     }
 
-    private IAgentContextProvider getProviderInstance(ProviderDefinition providerDef) {
-        if (testProviderOverrides.containsKey(providerDef.providerKey)) {
-            return testProviderOverrides.get(providerDef.providerKey);
+    private List<SObject> loadFieldSetContext(Set<Id> anchorIds, ContextDefinition contextDefinition) {
+        Set<Id> matchingAnchorIds = new Set<Id>();
+        for (Id anchorId : anchorIds) {
+            if (anchorId != null && anchorId.getSObjectType().getDescribe().getName().equalsIgnoreCase(contextDefinition.rootObjectApiName)) {
+                matchingAnchorIds.add(anchorId);
+            }
         }
-        if (testProviderOverrides.containsKey(providerDef.apexClassName)) {
-            return testProviderOverrides.get(providerDef.apexClassName);
+        if (matchingAnchorIds.isEmpty()) {
+            return new List<SObject>();
         }
 
-        if (!providerCache.containsKey(providerDef.providerKey)) {
-            Type providerType = Type.forName(providerDef.apexClassName);
+        Schema.SObjectType sObjectType = Schema.getGlobalDescribe().get(contextDefinition.rootObjectApiName);
+        if (sObjectType == null) {
+            throw new ResolutionException('Unknown root object for context definition: ' + contextDefinition.rootObjectApiName);
+        }
+
+        Schema.FieldSet fieldSet = sObjectType.getDescribe().fieldSets.getMap().get(contextDefinition.fieldSetName);
+        if (fieldSet == null) {
+            throw new ResolutionException('Field set not found: ' + contextDefinition.rootObjectApiName + '.' + contextDefinition.fieldSetName);
+        }
+
+        Set<String> selectFields = new Set<String>{ 'Id' };
+        for (Schema.FieldSetMember member : fieldSet.getFields()) {
+            String fieldPath = member.getFieldPath();
+            if (String.isNotBlank(fieldPath) && !fieldPath.contains('.')) {
+                selectFields.add(fieldPath);
+            }
+        }
+
+        List<String> selectFieldList = new List<String>();
+        selectFieldList.addAll(selectFields);
+        selectFieldList.sort();
+
+        String soql = 'SELECT ' + String.join(selectFieldList, ', ') + ' FROM ' + contextDefinition.rootObjectApiName + ' WHERE Id IN :matchingAnchorIds';
+        if (contextDefinition.recordLimit != null) {
+            soql += ' LIMIT ' + contextDefinition.recordLimit;
+        }
+        return Database.query(soql);
+    }
+
+    private IAgentContextProvider getProviderInstance(ContextDefinition contextDefinition) {
+        if (testProviderOverrides.containsKey(contextDefinition.contextKey)) {
+            return testProviderOverrides.get(contextDefinition.contextKey);
+        }
+        if (testProviderOverrides.containsKey(contextDefinition.apexClassName)) {
+            return testProviderOverrides.get(contextDefinition.apexClassName);
+        }
+
+        if (!providerCache.containsKey(contextDefinition.contextKey)) {
+            Type providerType = Type.forName(contextDefinition.apexClassName);
             if (providerType == null) {
-                throw new ResolutionException('Provider class not found: ' + providerDef.apexClassName);
+                throw new ResolutionException('Provider class not found: ' + contextDefinition.apexClassName);
             }
             Object instance = providerType.newInstance();
             if (!(instance instanceof IAgentContextProvider)) {
-                throw new ResolutionException('Class ' + providerDef.apexClassName + ' does not implement IAgentContextProvider.');
+                throw new ResolutionException('Class ' + contextDefinition.apexClassName + ' does not implement IAgentContextProvider.');
             }
-            providerCache.put(providerDef.providerKey, (IAgentContextProvider) instance);
+            providerCache.put(contextDefinition.contextKey, (IAgentContextProvider) instance);
         }
-        return providerCache.get(providerDef.providerKey);
-    }
-
-    private List<SObject> applyOverlapMode(List<SObject> providerRecords, String overlapMode, Set<String> seenRecordIds) {
-        List<SObject> filteredRecords = new List<SObject>();
-        if (providerRecords == null || providerRecords.isEmpty()) {
-            return filteredRecords;
-        }
-
-        Set<String> localIds = new Set<String>();
-        for (SObject record : providerRecords) {
-            String recordKey = getRecordKey(record);
-            if ('Suppress Duplicates'.equalsIgnoreCase(overlapMode) && String.isNotBlank(recordKey) && localIds.contains(recordKey)) {
-                continue;
-            }
-            if ('Prefer Highest Priority'.equalsIgnoreCase(overlapMode) && String.isNotBlank(recordKey) && seenRecordIds.contains(recordKey)) {
-                continue;
-            }
-
-            filteredRecords.add(record);
-            if (String.isNotBlank(recordKey)) {
-                localIds.add(recordKey);
-                seenRecordIds.add(recordKey);
-            }
-        }
-        return filteredRecords;
-    }
-
-    private String getRecordKey(SObject record) {
-        if (record == null) {
-            return null;
-        }
-        try {
-            Object recordId = record.get('Id');
-            return recordId == null ? null : String.valueOf(recordId);
-        } catch (Exception e) {
-            return null;
-        }
+        return providerCache.get(contextDefinition.contextKey);
     }
 
     private void handleFailure(AgentContextConfig__c config, String message, Exception cause, ResolutionResult result) {
@@ -426,24 +413,15 @@ public inherited sharing class ContextResolverService {
             return [
                 SELECT
                     Id,
-                    Name,
                     AIAgentDefinition__c,
                     AdminLabel__c,
                     ApplicableChannels__c,
-                    ApplicableObjects__c,
+                    ContextDefinition__c,
                     FailureMode__c,
-                    FieldSetName__c,
-                    FreshnessPolicy__c,
                     IsActive__c,
                     OutputSectionName__c,
-                    OverlapMode__c,
                     Priority__c,
-                    ProjectionDefinition__c,
-                    ProjectionMode__c,
-                    ProviderConfigJson__c,
-                    ProviderDefinition__c,
-                    RecordLimit__c,
-                    Scope__c
+                    ProviderConfigJson__c
                 FROM AgentContextConfig__c
                 WHERE AIAgentDefinition__c = :agentDefinitionId AND IsActive__c = TRUE
                 ORDER BY Priority__c ASC, CreatedDate ASC

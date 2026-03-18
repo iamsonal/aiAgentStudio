@@ -10,9 +10,9 @@ private class InteractionSessionServiceTest {
             'chat-conversation-001',
             'user-001',
             'user-001',
-            'SalesforceChat',
+            'Salesforce Chat',
             null,
-            'SalesforceChatUI',
+            'Salesforce Chat UI',
             '[test] '
         );
         InteractionRuntimeModels.InteractionSessionContext secondContext = service.resolveOrCreateSession(
@@ -20,9 +20,9 @@ private class InteractionSessionServiceTest {
             'chat-conversation-001',
             'user-001',
             'user-001',
-            'SalesforceChat',
+            'Salesforce Chat',
             null,
-            'SalesforceChatUI',
+            'Salesforce Chat UI',
             '[test] '
         );
         Test.stopTest();
@@ -76,7 +76,7 @@ private class InteractionSessionServiceTest {
             null,
             'API',
             'user-001',
-            'SalesforceAPI',
+            'Salesforce Direct',
             null,
             'API',
             '[test] '

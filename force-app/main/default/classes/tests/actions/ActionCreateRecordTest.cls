@@ -26,6 +26,10 @@ private class ActionCreateRecordTest {
         System.assertEquals(true, outcome.isSuccess, 'Create record should succeed');
         ActionCreateRecord.CreateResult result = (ActionCreateRecord.CreateResult) outcome.data;
         System.assertNotEquals(null, result.recordId, 'Should return created record Id');
+        System.assertEquals(1, outcome.contextEffects.size(), 'Create record should emit one created-record context effect');
+        System.assertEquals(result.recordId, outcome.contextEffects[0].recordId);
+        System.assertEquals(ContextManagerService.ReferenceRole.Created.name(), outcome.contextEffects[0].referenceRole);
+        System.assertEquals(ContextManagerService.ReferenceSource.ToolOutput.name(), outcome.contextEffects[0].referenceSource);
 
         Account created = [SELECT Name FROM Account WHERE Id = :result.recordId LIMIT 1];
         System.assertEquals('Acme Create', created.Name, 'Record should be created with provided name');

@@ -1,6 +1,6 @@
 @IsTest
 private class ChannelRoutingServiceTest {
-    private static final String CASE_CHAT_ENDPOINT = 'SalesforceChatUI';
+    private static final String CASE_CHAT_ENDPOINT = 'Salesforce Chat UI';
     private static final String DIRECT_ENDPOINT = 'DirectApi';
     private static final String MISSING_AGENT_ENDPOINT = 'MissingDirectApi';
 
@@ -16,7 +16,7 @@ private class ChannelRoutingServiceTest {
         configureRoutingFixture(
             RuntimeRegistryService.CHANNEL_CHAT,
             'CaseSupport_Chat',
-            'SalesforceChat',
+            'Salesforce Chat',
             CASE_CHAT_ENDPOINT,
             null,
             'Case_Support_Chat_Agent',

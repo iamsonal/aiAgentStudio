@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ContextDefinition__c</fullName>
+    <description>Identifies which reusable context definition metadata record this binding should activate for the agent.</description>
+    <inlineHelpText>Enter the context definition key exactly as it appears in the matching Context Definition metadata record. This key is how the framework resolves the bound context block at runtime.</inlineHelpText>
+    <label>Context Definition</label>
+    <length>255</length>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

@@ -2,9 +2,9 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>IsActive__c</fullName>
     <defaultValue>true</defaultValue>
-    <description>Controls whether this provider definition can be selected and resolved at runtime.</description>
+    <description>Controls whether this context definition is available for binding and runtime resolution.</description>
     <fieldManageability>DeveloperControlled</fieldManageability>
-    <inlineHelpText>Leave checked to allow Agent Context Config records to use this provider definition.</inlineHelpText>
+    <inlineHelpText>Leave this on when the definition is ready for use. Turn it off to hide it from active use without deleting the record.</inlineHelpText>
     <label>Is Active</label>
     <trackTrending>false</trackTrending>
     <type>Checkbox</type>

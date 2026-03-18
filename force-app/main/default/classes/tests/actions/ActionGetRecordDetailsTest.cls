@@ -68,6 +68,21 @@ private class ActionGetRecordDetailsTest {
         System.assertEquals(5000000.00, record.get('AnnualRevenue'));
     }
 
+    @IsTest
+    static void testGetRecord_AddsMentionedContextEffect() {
+        Account testAccount = [SELECT Id FROM Account WHERE Name = 'Tech Innovations Inc' LIMIT 1];
+        ActionGetRecordDetails action = new ActionGetRecordDetails();
+        String config = JSON.serialize(new Map<String, Object>{ 'objectApiName' => 'Account', 'defaultFields' => new List<String>{ 'Id', 'Name' } });
+
+        ActionOutcome outcome = action.execute(config, JSON.serialize(new Map<String, Object>{ 'Id' => testAccount.Id }), buildContext());
+
+        System.assertEquals(true, outcome.isSuccess, 'Lookup should succeed');
+        System.assertEquals(1, outcome.contextEffects.size(), 'Explicit record lookup should publish one context effect');
+        System.assertEquals(ContextManagerService.ReferenceRole.Mentioned.name(), outcome.contextEffects[0].referenceRole);
+        System.assertEquals(ContextManagerService.ReferenceSource.UserMention.name(), outcome.contextEffects[0].referenceSource);
+        System.assertEquals(String.valueOf(testAccount.Id), outcome.contextEffects[0].recordId);
+    }
+
     // ========== SUCCESS - ALTERNATE IDENTIFIERS ==========
 
     @IsTest

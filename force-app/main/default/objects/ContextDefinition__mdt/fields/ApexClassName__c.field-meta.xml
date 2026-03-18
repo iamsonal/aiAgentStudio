@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ApexClassName__c</fullName>
-    <description>Apex class that implements the context provider for this definition.</description>
+    <description>Apex class used when Definition Mode is Apex Provider.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
-    <inlineHelpText>Enter the Apex class name that implements IAgentContextProvider for this provider definition.</inlineHelpText>
+    <inlineHelpText>Select the Apex class that should fetch or assemble the context for this definition. The class must implement `IAgentContextProvider`.</inlineHelpText>
     <label>Apex Class Name</label>
     <length>255</length>
-    <required>true</required>
+    <required>false</required>
     <trackTrending>false</trackTrending>
     <type>Text</type>
     <unique>false</unique>

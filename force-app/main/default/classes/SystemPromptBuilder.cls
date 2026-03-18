@@ -141,7 +141,7 @@ public inherited sharing class SystemPromptBuilder {
                     for (ContextResolverService.ResolvedContextBlock block : resolvedContext.contextBlocks) {
                         ContextFormattingService.ProjectionSettings projectionSettings = formatter.buildProjectionSettings(
                             block.config,
-                            block.projectionDefinition,
+                            block.contextDefinition,
                             this.piiMaskingService
                         );
                         if (this.piiMaskingService != null) {
@@ -193,6 +193,9 @@ public inherited sharing class SystemPromptBuilder {
                     '<LONG_TERM_CONTEXT>\n' + sanitizeForDelimiter(stripInjectionPatterns(resolvedContext.longTermContextSummary)) + '\n</LONG_TERM_CONTEXT>'
                 );
             }
+        } catch (ContextResolverService.ResolutionException e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Fatal context resolution failure: ' + e.getMessage());
+            throw e;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to resolve context via ContextResolverService: ' + e.getMessage());
             warningBlocks.add(AIAgentConstants.PROMPT_CONTEXT_LOAD_WARN);

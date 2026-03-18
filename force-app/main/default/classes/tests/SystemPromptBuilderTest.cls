@@ -91,15 +91,9 @@ private class SystemPromptBuilderTest {
         insert new AgentContextConfig__c(
             AIAgentDefinition__c = agent.Id,
             AdminLabel__c = 'Record Context',
-            ProviderDefinition__c = 'Test Provider',
-            ApplicableObjects__c = 'Account',
-            Scope__c = 'Record',
+            ContextDefinition__c = 'Test Provider',
             Priority__c = 1,
             FailureMode__c = 'Warn',
-            FreshnessPolicy__c = 'Session',
-            OverlapMode__c = 'Allow',
-            ProjectionMode__c = 'Projection Definition',
-            ProjectionDefinition__c = 'Test Projection',
             OutputSectionName__c = 'Resolved Account Summary',
             IsActive__c = true
         );
@@ -152,14 +146,9 @@ private class SystemPromptBuilderTest {
         insert new AgentContextConfig__c(
             AIAgentDefinition__c = agent.Id,
             AdminLabel__c = 'Record Context',
-            ProviderDefinition__c = 'Test Provider',
-            ApplicableObjects__c = 'Account',
-            Scope__c = 'Record',
+            ContextDefinition__c = 'Test Provider',
             Priority__c = 1,
             FailureMode__c = 'Warn',
-            FreshnessPolicy__c = 'Session',
-            OverlapMode__c = 'Allow',
-            ProjectionMode__c = 'Provider Default',
             IsActive__c = true
         );
 
@@ -169,6 +158,55 @@ private class SystemPromptBuilderTest {
         System.assert(prompt.contains('<CONTEXT_WARNING>'), 'Should include CONTEXT_WARNING block');
         System.assert(prompt.contains('Context binding "Record Context" failed'), 'Should include provider failure details');
         System.assert(!prompt.contains('<RESOLVED_CONTEXT_DATA>'), 'Should not include resolved context when provider resolution fails');
+    }
+
+    @IsTest
+    static void testBuild_FailResolutionRemainsFatal() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withLLM(llm.Id).build();
+        agent.ContextFormatStrategy__c = 'JSON';
+        insert agent;
+
+        AgentExecution__c execution = new AgentExecution__c(
+            AIAgentDefinition__c = agent.Id,
+            User__c = UserInfo.getUserId(),
+            ExecutionType__c = 'Conversational',
+            ExecutionStatus__c = 'Pending',
+            ProcessingStatus__c = AIAgentConstants.STATUS_IDLE
+        );
+        insert execution;
+
+        Account account = new Account(Name = 'Fatal Context Account');
+        insert account;
+
+        insert new ContextReference__c(
+            AgentExecution__c = execution.Id,
+            RecordId__c = account.Id,
+            RecordType__c = 'Account',
+            ReferenceRole__c = ContextManagerService.ReferenceRole.Primary.name(),
+            ReferenceSource__c = 'Page Context',
+            Status__c = ContextManagerService.ReferenceStatus.Active.name(),
+            LastUsedAt__c = Datetime.now(),
+            UseCount__c = 1,
+            Explanation__c = 'Primary page record.'
+        );
+
+        insert new AgentContextConfig__c(
+            AIAgentDefinition__c = agent.Id,
+            AdminLabel__c = 'Fatal Context Binding',
+            ContextDefinition__c = 'Test Provider',
+            Priority__c = 1,
+            FailureMode__c = 'Fail Resolution',
+            IsActive__c = true
+        );
+
+        SystemPromptBuilder builder = new SystemPromptBuilder();
+        try {
+            builder.build(execution.Id, agent, llm, account.Id, 1, UserInfo.getUserId());
+            System.assert(false, 'Fail Resolution should propagate a fatal resolver exception.');
+        } catch (ContextResolverService.ResolutionException expected) {
+            System.assert(expected.getMessage().contains('Provider class not found'), 'Fatal error should preserve the resolver failure reason.');
+        }
     }
 
     @IsTest

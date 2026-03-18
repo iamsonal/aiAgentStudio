@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>FieldSetName__c</fullName>
-    <description>Optional field set API name used to limit the root fields included by this projection definition.</description>
+    <description>Optional field set API name used when the definition should shape records through a field set.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
-    <inlineHelpText>Enter a field set API name when this projection definition should limit root-object fields through a field set.</inlineHelpText>
+    <inlineHelpText>Select the field set that decides which fields from the chosen object should appear in the prompt. Use this when you want a clean, curated record summary instead of every field.</inlineHelpText>
     <label>Field Set Name</label>
     <length>255</length>
     <required>false</required>

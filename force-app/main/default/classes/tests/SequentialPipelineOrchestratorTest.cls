@@ -112,11 +112,25 @@ private class SequentialPipelineOrchestratorTest {
             LIMIT 1
         ];
 
+        Account propagatedAccount = TestFactory.newAccount().withName('Pipeline Propagated Account').save();
+        insert new ContextReference__c(
+            AgentExecution__c = childExecution.Id,
+            RecordId__c = propagatedAccount.Id,
+            RecordType__c = 'Account',
+            ReferenceRole__c = ContextManagerService.ReferenceRole.Created.name(),
+            ReferenceSource__c = 'Tool Output',
+            Status__c = ContextManagerService.ReferenceStatus.Active.name(),
+            LastUsedAt__c = Datetime.now(),
+            UseCount__c = 1,
+            Explanation__c = 'Created by pipeline child.'
+        );
+
         Map<String, Object> asyncPayload = new Map<String, Object>{
             'completedAgent' => firstStep.ChildAgent__r.DeveloperName__c,
             'childExecutionId' => childExecution.Id,
             'success' => true,
-            'response' => 'Step complete'
+            'response' => 'Step complete',
+            'contextEffects' => new ContextManagerService().getPropagatableContextPayload(childExecution.Id)
         };
 
         orchestrator.onChildComplete(executionId, asyncPayload);
@@ -143,6 +157,14 @@ private class SequentialPipelineOrchestratorTest {
             updatedParent.CurrentPipelineStep__c,
             'Current pipeline step should advance to the step order key'
         );
+
+        ContextReference__c propagatedReference = [
+            SELECT RecordId__c, ReferenceRole__c
+            FROM ContextReference__c
+            WHERE AgentExecution__c = :executionId AND RecordId__c = :String.valueOf(propagatedAccount.Id)
+            LIMIT 1
+        ];
+        System.assertEquals(ContextManagerService.ReferenceRole.Created.name(), propagatedReference.ReferenceRole__c);
     }
 
     @IsTest

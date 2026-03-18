@@ -235,6 +235,7 @@ public inherited sharing class IngressProcessingService {
         if (result.interactionSessionId != null) {
             triggerMetadata.put('interactionSessionId', result.interactionSessionId);
         }
+        addFrameworkRelatedRecordIds(triggerMetadata, resolvedInbound.frameworkRelatedRecordIds);
 
         if (resolvedInbound.route == null) {
             Id interactionMessageId = messageService.recordInboundProcessing(
@@ -362,6 +363,22 @@ public inherited sharing class IngressProcessingService {
         metadata.put('providerEventType', stringValue(metadata.get('providerEventType')));
         metadata.put('timestamp', stringValue(metadata.get('timestamp')));
         return metadata;
+    }
+
+    private void addFrameworkRelatedRecordIds(Map<String, Object> metadata, Set<Id> relatedRecordIds) {
+        if (metadata == null || relatedRecordIds == null || relatedRecordIds.isEmpty()) {
+            return;
+        }
+
+        List<String> serializedIds = new List<String>();
+        for (Id relatedRecordId : relatedRecordIds) {
+            if (relatedRecordId != null) {
+                serializedIds.add(String.valueOf(relatedRecordId));
+            }
+        }
+        if (!serializedIds.isEmpty()) {
+            metadata.put('relatedRecordIds', serializedIds);
+        }
     }
 
     private Id resolveSourceRecordId(NormalizedIngressModels.Request request) {

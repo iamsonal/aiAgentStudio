@@ -663,6 +663,16 @@ global inherited sharing class SequentialPipelineOrchestrator {
                 return;
             }
 
+            List<ContextManagerService.ContextDeltaItem> propagatedDeltaItems = new ContextManagerService()
+                .deserializePayloadContextEffects(asyncPayload.get('contextEffects'));
+            if (!propagatedDeltaItems.isEmpty()) {
+                try {
+                    new ContextManagerService().commitContextDelta(parentExecutionId, 0, propagatedDeltaItems);
+                } catch (Exception e) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Failed to propagate child context anchors to pipeline parent: ' + e.getMessage());
+                }
+            }
+
             // Mark step complete
             markStepComplete(state, currentStepKey, childExecutionId, response);
             System.debug(LoggingLevel.INFO, logPrefix + 'Step completed: ' + completedAgent + '. ' + getProgressSummary(state));

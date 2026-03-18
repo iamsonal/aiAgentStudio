@@ -412,13 +412,27 @@ private class DirectRuntimeServiceTest {
         );
         update childExec;
 
+        Account createdByChild = TestFactory.newAccount().withName('Child Propagated Account').save();
+        insert new ContextReference__c(
+            AgentExecution__c = childExec.Id,
+            RecordId__c = createdByChild.Id,
+            RecordType__c = 'Account',
+            ReferenceRole__c = ContextManagerService.ReferenceRole.Created.name(),
+            ReferenceSource__c = 'Tool Output',
+            Status__c = ContextManagerService.ReferenceStatus.Active.name(),
+            LastUsedAt__c = Datetime.now(),
+            UseCount__c = 1,
+            Explanation__c = 'Created by child execution.'
+        );
+
         Map<String, Object> asyncPayload = new Map<String, Object>{
             'childExecutionId' => childExec.Id,
             'completedAgent' => childAgentDef.DeveloperName__c,
             'success' => true,
             'response' => 'Child agent completed the analysis.',
             'errorMessage' => null,
-            'errorCode' => null
+            'errorCode' => null,
+            'contextEffects' => new ContextManagerService().getPropagatableContextPayload(childExec.Id)
         };
 
         Test.startTest();
@@ -435,6 +449,15 @@ private class DirectRuntimeServiceTest {
         System.assertEquals(toolCallId, toolResults[0].ToolCallId__c, 'ToolResult should map back to the original toolCallId');
         System.assertEquals(agentCap.CapabilityName__c, toolResults[0].ToolName__c, 'ToolResult should reference the agent capability name');
         System.assertEquals(false, toolResults[0].IsError__c, 'Successful child should not be marked as error');
+
+        ContextReference__c parentReference = [
+            SELECT RecordId__c, ReferenceRole__c, ReferenceSource__c
+            FROM ContextReference__c
+            WHERE AgentExecution__c = :parentExec.Id AND RecordId__c = :String.valueOf(createdByChild.Id)
+            LIMIT 1
+        ];
+        System.assertEquals(ContextManagerService.ReferenceRole.Created.name(), parentReference.ReferenceRole__c);
+        System.assertEquals('Tool Output', parentReference.ReferenceSource__c);
     }
 
     @IsTest

@@ -134,6 +134,26 @@ private class ActionFlowHandlerTest {
     }
 
     @IsTest
+    static void testFlowHandler_ExplicitRecordOutputs_AddContextEffects() {
+        Account createdAccount = TestFactory.newAccount().withName('Flow Created Account').save();
+        Contact promotedContact = TestFactory.newContact().withName('Flow', 'Promoted').save();
+
+        ActionFlowHandler.mockFlowExecution = new SuccessFlowMock(
+            new Map<String, Object>{ 'createdRecordId' => createdAccount.Id, 'recordId' => promotedContact.Id }
+        );
+
+        ActionFlowHandler action = new ActionFlowHandler();
+        ActionOutcome outcome = action.execute('{}', '{}', createTestContext(TEST_FLOW_API_NAME));
+
+        System.assertEquals(true, outcome.isSuccess, 'Flow execution should succeed');
+        System.assertEquals(2, outcome.contextEffects.size(), 'Explicit flow output records should become context effects');
+        System.assertEquals(ContextManagerService.ReferenceRole.Created.name(), outcome.contextEffects[0].referenceRole);
+        System.assertEquals(ContextManagerService.ReferenceRole.Related.name(), outcome.contextEffects[1].referenceRole);
+
+        ActionFlowHandler.mockFlowExecution = null;
+    }
+
+    @IsTest
     static void testFlowHandler_NullArgs_Succeeds() {
         ActionFlowHandler.mockFlowExecution = new SuccessFlowMock(new Map<String, Object>());
 

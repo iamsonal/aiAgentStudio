@@ -174,8 +174,9 @@ public with sharing class ActionCreateRecord extends BaseAgentAction {
             successMessage += '.';
 
             return ActionOutcome.success(
-                new CreateResult(saveResult.getId(), successMessage, new List<String>(typedData.keySet()), nameFieldValue, nameFieldLabel)
-            );
+                    new CreateResult(saveResult.getId(), successMessage, new List<String>(typedData.keySet()), nameFieldValue, nameFieldLabel)
+                )
+                .withCreatedRecord(saveResult.getId(), 'Record created by ActionCreateRecord.');
         } else {
             String enhancedMessage = enhanceCreateErrorMessage(saveResult.getErrors()[0], typedData);
             System.debug(LoggingLevel.ERROR, '[ActionCreateRecord] Record creation failed for ' + config.objectApiName + ': ' + enhancedMessage);

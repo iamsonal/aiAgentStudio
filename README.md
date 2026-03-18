@@ -119,11 +119,13 @@ flowchart LR
     D --> H[✅ Response]
 ```
 
-1. **User sends a message** through the chat component or API
+1. **User sends a message** through chat, email, WhatsApp/webhook, middleware-backed normalized ingress, or API
 2. **Context is gathered** from the current record, user profile, and related data
 3. **LLM analyzes** the request with full conversation history
 4. **Tools execute** Salesforce operations (query, create, update, post)
 5. **Response is delivered** back to the user with full audit trail
+
+Public messaging/webhook traffic can first land in a normalized ingress boundary and optional staging object before the core runtime creates `InteractionSession__c`, `InteractionMessage__c`, and `AgentExecution__c`. When staged guest ingress is used, processing is handed off through a Platform Event subscriber configured to run as an internal user instead of continuing in guest context.
 
 All operations run asynchronously using Platform Events or Queueables, ensuring scalability for enterprise workloads.
 
@@ -133,7 +135,7 @@ All operations run asynchronously using Platform Events or Queueables, ensuring 
 
 | Feature | Description |
 |:--------|:------------|
-| **Multiple Runtime Patterns** | Iterative and SingleShot agent runtimes plus a dedicated Pipeline composition subsystem across chat, email, API, and sub-agent workflows |
+| **Multiple Runtime Patterns** | Conversational and Direct agent runtimes plus a dedicated Pipeline composition subsystem across chat, email, WhatsApp, API, and sub-agent workflows |
 | **Metadata-Driven Capabilities** | Define tools, prompts, trust controls, and workflow behavior through Salesforce configuration |
 | **Smart Memory** | Buffer window and summary-based conversation history |
 | **Built-in Security** | Automatic CRUD, FLS, and sharing rule enforcement |
@@ -252,9 +254,10 @@ Once your API key is configured:
 ## 🏗️ Architecture
 
 **Framework Capabilities:**
-- Iterative strategy for multi-turn chat and email experiences
-- SingleShot strategy for targeted automation and decision support
-- Channel-aware routing for chat, email, API, and future transports
+- Conversational strategy for multi-turn chat, email, and external messaging experiences
+- Direct strategy for targeted automation and decision support
+- Channel-aware routing for chat, email, WhatsApp, API, and future transports
+- Provider-backed webhook/channel seams for external messaging transports such as WhatsApp
 - Sequential pipelines and sub-agent workflows for multi-step orchestration
 - Tool execution across data operations, flows, and custom business logic
 - Human-in-the-loop approvals, observability, and trust controls

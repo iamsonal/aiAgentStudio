@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExcludeIdFields__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Controls whether Salesforce ID fields should be removed when this context definition is formatted.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Turn this on when record IDs would just add noise. Leave it off only if downstream logic or the prompt genuinely needs the raw Salesforce IDs.</inlineHelpText>
+    <label>Exclude ID Fields</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

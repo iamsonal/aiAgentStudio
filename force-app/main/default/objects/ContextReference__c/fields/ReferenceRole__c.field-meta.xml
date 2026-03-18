@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ReferenceRole__c</fullName>
-    <description>Role this record currently plays in the agent's working context.</description>
-    <inlineHelpText>Select why this record matters right now, such as the current primary record, a user-mentioned record, or a record created by the agent.</inlineHelpText>
+    <description>Role this record currently plays in the agent's durable working context ledger.</description>
+    <inlineHelpText>Indicates why this record is in context: Primary for the main page record, Mentioned for an explicit user-referenced record, Created for tool-created output, or Related for framework-promoted supporting records.</inlineHelpText>
     <label>Reference Role</label>
     <required>true</required>
     <trackHistory>false</trackHistory>
@@ -31,11 +31,6 @@
                 <fullName>Related</fullName>
                 <default>false</default>
                 <label>Related</label>
-            </value>
-            <value>
-                <fullName>Background</fullName>
-                <default>false</default>
-                <label>Background</label>
             </value>
         </valueSetDefinition>
     </valueSet>

@@ -10,8 +10,8 @@
  * @description Channel adapter for Salesforce-native chat interactions.
  */
 public inherited sharing class ChatChannelAdapter extends BaseInteractionChannel {
-    private static final String PROVIDER_NAME = 'SalesforceChat';
-    private static final String ENDPOINT_IDENTIFIER = 'SalesforceChatUI';
+    private static final String PROVIDER_NAME = 'Salesforce Chat';
+    private static final String ENDPOINT_IDENTIFIER = 'Salesforce Chat UI';
 
     public override InteractionRuntimeModels.InteractionEnvelope normalizeInbound(String payloadJson, Id sourceRecordId, String userMessage) {
         Map<String, Object> payload = String.isNotBlank(payloadJson) ? (Map<String, Object>) JSON.deserializeUntyped(payloadJson) : new Map<String, Object>();

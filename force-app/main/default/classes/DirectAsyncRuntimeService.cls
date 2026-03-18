@@ -201,7 +201,7 @@ public with sharing class DirectAsyncRuntimeService {
             if (recordId != null) {
                 try {
                     ContextManagerService contextMgr = new ContextManagerService();
-                    contextMgr.commitExecutionTurnContext(executionId, 1, recordId, null);
+                    contextMgr.commitContextDelta(executionId, 1, contextMgr.buildTurnContextDelta(executionId, recordId, null));
                     System.debug(LoggingLevel.INFO, logPrefix + 'Committed page context references: ' + recordId);
                 } catch (Exception e) {
                     System.debug(LoggingLevel.ERROR, logPrefix + 'Non-fatal: Failed to commit page context references: ' + e.getMessage());

@@ -8,7 +8,7 @@
     </values>
     <values>
         <field>InteractionAdapterClass__c</field>
-        <value xsi:type="xsd:string">DirectInteractionChannel</value>
+        <value xsi:type="xsd:string">DirectChannelAdapter</value>
     </values>
     <values>
         <field>ConversationalRuntimeClass__c</field>

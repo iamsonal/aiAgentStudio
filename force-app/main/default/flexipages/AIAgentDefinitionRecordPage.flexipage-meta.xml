@@ -153,10 +153,7 @@
                             <value>AdminLabel__c</value>
                         </valueListItems>
                         <valueListItems>
-                            <value>ProviderDefinition__c</value>
-                        </valueListItems>
-                        <valueListItems>
-                            <value>Scope__c</value>
+                            <value>ContextDefinition__c</value>
                         </valueListItems>
                         <valueListItems>
                             <value>IsActive__c</value>

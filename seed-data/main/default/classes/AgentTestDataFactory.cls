@@ -1284,21 +1284,16 @@ public with sharing class AgentTestDataFactory {
         return new AgentContextConfig__c(
             AIAgentDefinition__c = agentId,
             AdminLabel__c = label,
-            ProviderDefinition__c = mapProviderDefinition(implName),
-            ApplicableObjects__c = applicableSObjects == null ? null : applicableSObjects.replace(',', ';'),
-            Scope__c = requiresRecord ? 'Record' : 'User',
+            ContextDefinition__c = mapContextDefinition(implName),
             Priority__c = order,
             FailureMode__c = 'Warn',
-            FreshnessPolicy__c = requiresRecord ? 'Session' : 'Current Only',
-            OverlapMode__c = 'Prefer Highest Priority',
-            ProjectionMode__c = 'Provider Default',
             OutputSectionName__c = label,
             ProviderConfigJson__c = configJson,
             IsActive__c = true
         );
     }
 
-    private static String mapProviderDefinition(String implName) {
+    private static String mapContextDefinition(String implName) {
         if ('CaseContext'.equalsIgnoreCase(implName)) return 'Case Context';
         if ('CaseProcessingContextProvider'.equalsIgnoreCase(implName)) return 'Case Processing Context Provider';
         if ('AccountContext'.equalsIgnoreCase(implName)) return 'Account Context';

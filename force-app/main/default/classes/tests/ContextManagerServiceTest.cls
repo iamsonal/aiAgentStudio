@@ -61,6 +61,47 @@ private class ContextManagerServiceTest {
     }
 
     @IsTest
+    static void testCommitContextDelta_CreatesTypedReferences() {
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent([SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .save();
+
+        Account pageContext = TestFactory.newAccount().withName('Delta Page Context').save();
+        Contact createdContact = new Contact(LastName = 'Delta Created Contact');
+        insert createdContact;
+
+        ContextManagerService service = new ContextManagerService();
+        service.commitContextDelta(
+            execution.Id,
+            1,
+            new List<ContextManagerService.ContextDeltaItem>{
+                new ContextManagerService.ContextDeltaItem(
+                    pageContext.Id,
+                    ContextManagerService.ReferenceRole.Primary,
+                    ContextManagerService.ReferenceSource.PageContext,
+                    'Primary record for this turn.'
+                ),
+                new ContextManagerService.ContextDeltaItem(
+                    createdContact.Id,
+                    ContextManagerService.ReferenceRole.Created,
+                    ContextManagerService.ReferenceSource.ToolOutput,
+                    'Created by a tool.'
+                )
+            }
+        );
+
+        List<ContextReference__c> references = [
+            SELECT RecordId__c, ReferenceRole__c, ReferenceSource__c
+            FROM ContextReference__c
+            WHERE AgentExecution__c = :execution.Id
+        ];
+        System.assertEquals(2, references.size(), 'Typed context delta API should persist both anchors');
+    }
+
+    @IsTest
     static void testCommitExecutionTurnContext_ReusesExistingReference() {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent([SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id)
@@ -128,5 +169,45 @@ private class ContextManagerServiceTest {
 
         Set<Id> relevantIds = service.getRelevantRecordIds(secondExecution.Id);
         System.assert(relevantIds.contains(accountRecord.Id), 'A later execution in the same interaction session should reuse session-scoped references');
+    }
+
+    @IsTest
+    static void testBuildTurnContextDelta_IncludesStructuredMentionsAndSystemSourceRecord() {
+        Id agentId = [SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id;
+        Account pageContext = TestFactory.newAccount().withName('Turn Delta Page').save();
+        Contact sourceContact = TestFactory.newContact().withName('Turn', 'Source').save();
+        Case mentionedCase = TestFactory.newCase().withSubject('Mentioned From Payload').save();
+        Account relatedAccount = TestFactory.newAccount().withName('Related From Payload').save();
+
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(agentId)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .withSourceRecord(sourceContact.Id)
+            .save();
+        update new AgentExecution__c(
+            Id = execution.Id,
+            TriggerPayload__c = JSON.serialize(
+                new Map<String, Object>{
+                    'mentionedRecordIds' => new List<String>{ String.valueOf(mentionedCase.Id) },
+                    'relatedRecordIds' => new List<String>{ String.valueOf(relatedAccount.Id) }
+                }
+            )
+        );
+
+        ContextManagerService service = new ContextManagerService();
+        List<ContextManagerService.ContextDeltaItem> deltaItems = service.buildTurnContextDelta(execution.Id, pageContext.Id, null);
+
+        Map<String, ContextManagerService.ContextDeltaItem> deltaByRecordId = new Map<String, ContextManagerService.ContextDeltaItem>();
+        for (ContextManagerService.ContextDeltaItem item : deltaItems) {
+            deltaByRecordId.put(item.recordId, item);
+        }
+
+        System.assertEquals(4, deltaByRecordId.size(), 'Turn delta should include page, source, mention, and related anchors');
+        System.assertEquals(ContextManagerService.ReferenceRole.Primary, deltaByRecordId.get(String.valueOf(pageContext.Id)).referenceRole);
+        System.assertEquals(ContextManagerService.ReferenceRole.Related, deltaByRecordId.get(String.valueOf(sourceContact.Id)).referenceRole);
+        System.assertEquals(ContextManagerService.ReferenceRole.Mentioned, deltaByRecordId.get(String.valueOf(mentionedCase.Id)).referenceRole);
+        System.assertEquals(ContextManagerService.ReferenceRole.Related, deltaByRecordId.get(String.valueOf(relatedAccount.Id)).referenceRole);
     }
 }

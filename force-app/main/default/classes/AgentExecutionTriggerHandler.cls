@@ -517,6 +517,8 @@ public without sharing class AgentExecutionTriggerHandler {
             }
         }
 
+        List<Map<String, Object>> propagatedContextPayload = new ContextManagerService().getPropagatableContextPayload(childExec.Id);
+
         Map<String, Object> callbackPayload = new Map<String, Object>{
             'completedAgent' => childExec.AIAgentDefinition__r.DeveloperName__c,
             'childExecutionId' => childExec.Id,
@@ -524,7 +526,8 @@ public without sharing class AgentExecutionTriggerHandler {
             'response' => response,
             'errorCode' => errorCode,
             'errorMessage' => errorMessage,
-            'userMessage' => userMessage
+            'userMessage' => userMessage,
+            'contextEffects' => propagatedContextPayload
         };
 
         // Route pipeline parents through the explicit composition subsystem.

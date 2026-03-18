@@ -560,6 +560,8 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
         String response = (String) asyncPayload.get('response');
         String errorMessage = (String) asyncPayload.get('errorMessage');
         String completedAgent = (String) asyncPayload.get('completedAgent');
+        List<ContextManagerService.ContextDeltaItem> propagatedDeltaItems = new ContextManagerService()
+            .deserializePayloadContextEffects(asyncPayload.get('contextEffects'));
 
         System.debug(
             LoggingLevel.INFO,
@@ -643,13 +645,15 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
         String resultContent;
         Boolean isError = false;
         if (success) {
-            resultContent = JSON.serialize(
-                new Map<String, Object>{
-                    'success' => true,
-                    'agent' => completedAgent,
-                    'result' => String.isNotBlank(response) ? response : 'Agent completed successfully.'
-                }
-            );
+            Map<String, Object> successPayload = new Map<String, Object>{
+                'success' => true,
+                'agent' => completedAgent,
+                'result' => String.isNotBlank(response) ? response : 'Agent completed successfully.'
+            };
+            if (!propagatedDeltaItems.isEmpty()) {
+                successPayload.put('contextEffects', asyncPayload.get('contextEffects'));
+            }
+            resultContent = JSON.serialize(successPayload);
         } else {
             isError = true;
             resultContent = JSON.serialize(
@@ -680,6 +684,14 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
             System.debug(LoggingLevel.INFO, logPrefix + 'Created ToolResult step for agent capability: ' + toolName);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to create ToolResult step: ' + e.getMessage());
+        }
+
+        if (success && !propagatedDeltaItems.isEmpty()) {
+            try {
+                new ContextManagerService().commitContextDelta(executionId, currentTurnCount, propagatedDeltaItems);
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Failed to propagate child context anchors: ' + e.getMessage());
+            }
         }
 
         // Decrement the async counter and potentially trigger follow-up LLM call
@@ -755,7 +767,7 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
             'conversationKey' => payload != null ? payload.conversationKey : null
         };
 
-        InteractionRuntimeModels.IInteractionChannel adapter = new DirectInteractionChannel();
+        InteractionRuntimeModels.IInteractionChannel adapter = new DirectChannelAdapter();
         InboundInteractionPipelineService.ResolvedInbound resolved = new InboundInteractionPipelineService()
             .resolve(
                 agentDefinition,

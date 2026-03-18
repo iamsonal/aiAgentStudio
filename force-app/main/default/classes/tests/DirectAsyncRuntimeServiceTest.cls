@@ -162,6 +162,54 @@ private class DirectAsyncRuntimeServiceTest {
     }
 
     @IsTest
+    static void testExecute_SyncToolCall_PersistsFrameworkRelatedAnchorsFromTriggerPayload() {
+        TestFactory.FunctionAgentSetup setup = getSetup();
+        Case testCase = [SELECT Id FROM Case LIMIT 1];
+        Contact relatedContact = TestFactory.newContact().withName('Async', 'Related').save();
+
+        List<AgentCapability__c> capabilities = [
+            SELECT Id, CapabilityName__c, RunAsynchronously__c
+            FROM AgentCapability__c
+            WHERE AIAgentDefinition__c = :setup.agentDefinition.Id
+        ];
+
+        AgentCapability__c syncCapability = [
+            SELECT CapabilityName__c
+            FROM AgentCapability__c
+            WHERE AIAgentDefinition__c = :setup.agentDefinition.Id AND RunAsynchronously__c = FALSE
+            LIMIT 1
+        ];
+
+        DirectAsyncRuntimeService orchestrator = new DirectAsyncRuntimeService(setup.agentDefinition, setup.llmConfig);
+        orchestrator.setTriggerPayload(JSON.serialize(new Map<String, Object>{ 'relatedRecordIds' => new List<String>{ String.valueOf(relatedContact.Id) } }));
+
+        MockHttpResponses mock = MockHttpResponses.conversational()
+            .addResponse(MockHttpResponses.toolCallResponse(syncCapability.CapabilityName__c, '{"Id":"' + testCase.Id + '"}', 'Fetching case details'))
+            .addTextResponse('Case details ready.');
+        Test.setMock(HttpCalloutMock.class, mock);
+
+        Test.startTest();
+        DirectExecutionResult result = orchestrator.execute(
+            'Get case details',
+            testCase.Id,
+            UserInfo.getUserId(),
+            'turn-async-related-001',
+            capabilities,
+            null
+        );
+        Test.stopTest();
+
+        ContextReference__c relatedReference = [
+            SELECT RecordId__c, ReferenceRole__c, ReferenceSource__c
+            FROM ContextReference__c
+            WHERE AgentExecution__c = :result.executionId AND RecordId__c = :String.valueOf(relatedContact.Id)
+            LIMIT 1
+        ];
+        System.assertEquals(ContextManagerService.ReferenceRole.Related.name(), relatedReference.ReferenceRole__c);
+        System.assertEquals('System', relatedReference.ReferenceSource__c);
+    }
+
+    @IsTest
     static void testExecute_SyncToolCall_DisablesDeferredDml() {
         TestFactory.FunctionAgentSetup setup = getSetup();
         Case testCase = [SELECT Id FROM Case LIMIT 1];

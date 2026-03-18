@@ -176,7 +176,7 @@ public inherited sharing class ContextFormattingService {
 
     public ProjectionSettings buildProjectionSettings(
         AgentContextConfig__c config,
-        ContextResolverService.ProjectionDefinition projectionDefinition,
+        ContextResolverService.ContextDefinition contextDefinition,
         PIIMaskingService piiMaskingService
     ) {
         ProjectionSettings settings = new ProjectionSettings();
@@ -185,20 +185,14 @@ public inherited sharing class ContextFormattingService {
         }
 
         settings.sectionName = String.isNotBlank(config.OutputSectionName__c) ? config.OutputSectionName__c : config.AdminLabel__c;
-
-        if (config.RecordLimit__c != null) {
-            settings.recordLimit = config.RecordLimit__c.intValue();
-        } else if (projectionDefinition != null) {
-            settings.recordLimit = projectionDefinition.recordLimit;
+        if (contextDefinition != null) {
+            settings.recordLimit = contextDefinition.recordLimit;
+            settings.formattingOptions.withExcludeIdFields(contextDefinition.excludeIdFields == true);
+            settings.formattingOptions.withRecordUrls(contextDefinition.includeRecordUrls == true);
         }
 
-        if (projectionDefinition != null) {
-            settings.formattingOptions.withExcludeIdFields(projectionDefinition.excludeIdFields == true);
-            settings.formattingOptions.withRecordUrls(projectionDefinition.includeRecordUrls == true);
-        }
-
-        String rootObjectApiName = resolveRootObjectApiName(config, projectionDefinition);
-        String fieldSetName = resolveFieldSetName(config, projectionDefinition);
+        String rootObjectApiName = resolveRootObjectApiName(contextDefinition);
+        String fieldSetName = resolveFieldSetName(contextDefinition);
         if (String.isNotBlank(rootObjectApiName) && String.isNotBlank(fieldSetName)) {
             Set<String> includeFields = getFieldSetFields(rootObjectApiName, fieldSetName);
             if (!includeFields.isEmpty()) {
@@ -615,24 +609,12 @@ public inherited sharing class ContextFormattingService {
         return meta;
     }
 
-    private String resolveRootObjectApiName(AgentContextConfig__c config, ContextResolverService.ProjectionDefinition projectionDefinition) {
-        if (projectionDefinition != null && String.isNotBlank(projectionDefinition.rootObjectApiName)) {
-            return projectionDefinition.rootObjectApiName;
-        }
-        if (String.isBlank(config.ApplicableObjects__c)) {
-            return null;
-        }
-        return config.ApplicableObjects__c.split(';')[0].trim();
+    private String resolveRootObjectApiName(ContextResolverService.ContextDefinition contextDefinition) {
+        return contextDefinition == null ? null : contextDefinition.rootObjectApiName;
     }
 
-    private String resolveFieldSetName(AgentContextConfig__c config, ContextResolverService.ProjectionDefinition projectionDefinition) {
-        if ('Field Set'.equalsIgnoreCase(config.ProjectionMode__c)) {
-            return config.FieldSetName__c;
-        }
-        if ('Projection Definition'.equalsIgnoreCase(config.ProjectionMode__c) && projectionDefinition != null) {
-            return projectionDefinition.fieldSetName;
-        }
-        return null;
+    private String resolveFieldSetName(ContextResolverService.ContextDefinition contextDefinition) {
+        return contextDefinition == null ? null : contextDefinition.fieldSetName;
     }
 
     private Set<String> getFieldSetFields(String objectApiName, String fieldSetName) {

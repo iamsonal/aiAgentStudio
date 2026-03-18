@@ -1,8 +1,10 @@
 /**
- * @description Tests for ContextResolverService provider orchestration.
+ * @description Tests for ContextResolverService under the simplified context definition model.
  */
 @IsTest
 private class ContextResolverServiceTest {
+    private static Integer globalInvocationAnchorCount;
+
     private class TestProvider implements IAgentContextProvider {
         public Map<String, List<SObject>> getContext(Set<Id> anchorIds, Id userId, String configJson) {
             List<SObject> records = new List<SObject>();
@@ -30,6 +32,13 @@ private class ContextResolverServiceTest {
             }
 
             return new Map<String, List<SObject>>{ 'records' => records };
+        }
+    }
+
+    private class GlobalProvider implements IAgentContextProvider {
+        public Map<String, List<SObject>> getContext(Set<Id> anchorIds, Id userId, String configJson) {
+            globalInvocationAnchorCount = anchorIds == null ? -1 : anchorIds.size();
+            return new Map<String, List<SObject>>{ 'records' => [SELECT Id, Name FROM User WHERE Id = :UserInfo.getUserId()] };
         }
     }
 
@@ -67,31 +76,23 @@ private class ContextResolverServiceTest {
             new AgentContextConfig__c(
                 AIAgentDefinition__c = agent.Id,
                 AdminLabel__c = 'Record Context',
-                ProviderDefinition__c = 'Test Provider',
-                ApplicableObjects__c = 'Account',
-                Scope__c = 'Record',
+                ContextDefinition__c = 'Test Provider',
                 Priority__c = 1,
                 FailureMode__c = 'Warn',
-                FreshnessPolicy__c = 'Session',
-                OverlapMode__c = 'Allow',
-                ProjectionMode__c = 'Provider Default',
                 IsActive__c = true
             ),
             new AgentContextConfig__c(
                 AIAgentDefinition__c = agent.Id,
                 AdminLabel__c = 'User Context',
-                ProviderDefinition__c = 'Test Provider',
-                Scope__c = 'User',
+                ContextDefinition__c = 'User Details Provider',
                 Priority__c = 2,
                 FailureMode__c = 'Warn',
-                FreshnessPolicy__c = 'Current Only',
-                OverlapMode__c = 'Allow',
-                ProjectionMode__c = 'Provider Default',
                 IsActive__c = true
             )
         };
 
         ContextResolverService.setTestProviderOverride('Test Provider', new TestProvider());
+        ContextResolverService.setTestProviderOverride('User Details Provider', new TestProvider());
         try {
             ContextResolverService resolver = new ContextResolverService();
             ContextResolverService.ResolutionResult result = resolver.resolve(execution.Id, agent.Id, UserInfo.getUserId(), null, 1);
@@ -104,6 +105,126 @@ private class ContextResolverServiceTest {
             System.assertEquals(2, result.contextBlocks.size(), 'Should create one block per applicable binding');
             System.assert(loadedIds.contains(account.Id), 'Should load account context from stored references');
             System.assert(loadedIds.contains(UserInfo.getUserId()), 'Should load user context');
+        } finally {
+            ContextResolverService.clearTestProviderOverrides();
+        }
+    }
+
+    @IsTest
+    static void testResolve_MissingProviderWarnsAndSkipsBinding() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Warning Context Agent').withLLM(llm.Id).save();
+
+        AgentExecution__c execution = new AgentExecution__c(
+            AIAgentDefinition__c = agent.Id,
+            User__c = UserInfo.getUserId(),
+            ExecutionType__c = 'Conversational',
+            ExecutionStatus__c = 'Processing',
+            ProcessingStatus__c = 'Processing',
+            TriggerSource__c = 'Chat'
+        );
+        insert execution;
+
+        Account account = new Account(Name = 'Warning Context Account');
+        insert account;
+
+        insert new ContextReference__c(
+            AgentExecution__c = execution.Id,
+            RecordId__c = account.Id,
+            RecordType__c = 'Account',
+            ReferenceRole__c = ContextManagerService.ReferenceRole.Primary.name(),
+            ReferenceSource__c = 'Page Context',
+            Status__c = ContextManagerService.ReferenceStatus.Active.name(),
+            LastUsedAt__c = Datetime.now(),
+            UseCount__c = 1,
+            Explanation__c = 'Primary page record.'
+        );
+
+        insert new AgentContextConfig__c(
+            AIAgentDefinition__c = agent.Id,
+            AdminLabel__c = 'Warn On Missing Provider',
+            ContextDefinition__c = 'Test Provider',
+            Priority__c = 1,
+            FailureMode__c = 'Warn',
+            IsActive__c = true
+        );
+
+        ContextResolverService resolver = new ContextResolverService();
+        ContextResolverService.ResolutionResult result = resolver.resolve(execution.Id, agent.Id, UserInfo.getUserId(), null, 1);
+
+        System.assertEquals(0, result.contextBlocks.size(), 'Missing providers should skip the binding when configured to warn.');
+        System.assertEquals(1, result.warnings.size(), 'Warn bindings should surface a warning.');
+        System.assert(result.warnings[0].contains('Provider class not found'), 'Warning should explain the missing provider class.');
+    }
+
+    @IsTest
+    static void testResolve_BlankScopeUsesProviderDefaultScope() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Provider Default Scope Agent').withLLM(llm.Id).save();
+
+        AgentExecution__c execution = new AgentExecution__c(
+            AIAgentDefinition__c = agent.Id,
+            User__c = UserInfo.getUserId(),
+            ExecutionType__c = 'Conversational',
+            ExecutionStatus__c = 'Processing',
+            ProcessingStatus__c = 'Processing',
+            TriggerSource__c = 'Chat'
+        );
+        insert execution;
+
+        insert new AgentContextConfig__c(
+            AIAgentDefinition__c = agent.Id,
+            AdminLabel__c = 'Default User Context',
+            ContextDefinition__c = 'User Details Provider',
+            Priority__c = 1,
+            FailureMode__c = 'Warn',
+            IsActive__c = true
+        );
+
+        ContextResolverService.setTestProviderOverride('User Details Provider', new TestProvider());
+        try {
+            ContextResolverService resolver = new ContextResolverService();
+            ContextResolverService.ResolutionResult result = resolver.resolve(execution.Id, agent.Id, UserInfo.getUserId(), null, 1);
+
+            System.assertEquals(1, result.recordsToLoad.size(), 'Blank binding scope should inherit the provider default scope.');
+            System.assertEquals(UserInfo.getUserId(), (Id) result.recordsToLoad[0].get('Id'));
+        } finally {
+            ContextResolverService.clearTestProviderOverrides();
+        }
+    }
+
+    @IsTest
+    static void testResolve_GlobalScopeInvokesProviderWithoutAnchors() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Global Scope Agent').withLLM(llm.Id).save();
+
+        AgentExecution__c execution = new AgentExecution__c(
+            AIAgentDefinition__c = agent.Id,
+            User__c = UserInfo.getUserId(),
+            ExecutionType__c = 'Conversational',
+            ExecutionStatus__c = 'Processing',
+            ProcessingStatus__c = 'Processing',
+            TriggerSource__c = 'Chat'
+        );
+        insert execution;
+
+        insert new AgentContextConfig__c(
+            AIAgentDefinition__c = agent.Id,
+            AdminLabel__c = 'Global Context',
+            ContextDefinition__c = 'Global Test Provider',
+            Priority__c = 1,
+            FailureMode__c = 'Warn',
+            IsActive__c = true
+        );
+
+        globalInvocationAnchorCount = null;
+        ContextResolverService.setTestProviderOverride('Global Test Provider', new GlobalProvider());
+        try {
+            ContextResolverService resolver = new ContextResolverService();
+            ContextResolverService.ResolutionResult result = resolver.resolve(execution.Id, agent.Id, UserInfo.getUserId(), null, 1);
+
+            System.assertEquals(0, globalInvocationAnchorCount, 'Global scope should intentionally invoke the provider with no anchors.');
+            System.assertEquals(1, result.recordsToLoad.size(), 'Global provider output should still be accepted.');
         } finally {
             ContextResolverService.clearTestProviderOverrides();
         }

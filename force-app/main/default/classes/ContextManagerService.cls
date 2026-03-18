@@ -10,6 +10,9 @@
  * @description Stores and resolves lightweight context references for an execution or interaction session.
  */
 public inherited sharing class ContextManagerService {
+    private static final Integer MAX_CONTEXT_DELTA_ITEMS_PER_TURN = AIAgentFrameworkSettings.getMaxContextDeltaItemsPerTurn();
+    private static final Integer MAX_ACTIVE_CONTEXT_REFERENCES = AIAgentFrameworkSettings.getMaxActiveContextReferences();
+
     public class ContextManagementException extends AIAgentException {
     }
 
@@ -17,8 +20,7 @@ public inherited sharing class ContextManagerService {
         Primary,
         Mentioned,
         Created,
-        Related,
-        Background
+        Related
     }
 
     public enum ReferenceSource {
@@ -34,10 +36,25 @@ public inherited sharing class ContextManagerService {
         Dropped
     }
 
+    public class ContextDeltaItem {
+        public String recordId;
+        public ReferenceRole referenceRole;
+        public ReferenceSource referenceSource;
+        public String explanation;
+
+        public ContextDeltaItem(Id targetRecordId, ReferenceRole role, ReferenceSource source, String note) {
+            this.recordId = targetRecordId == null ? null : String.valueOf(targetRecordId);
+            this.referenceRole = role;
+            this.referenceSource = source;
+            this.explanation = note;
+        }
+    }
+
     @TestVisible
     public class ContextReferenceItem {
         public String recordId;
         public String recordType;
+        public Id interactionSessionId;
         public ReferenceRole referenceRole;
         public ReferenceSource referenceSource;
         public ReferenceStatus status;
@@ -59,6 +76,7 @@ public inherited sharing class ContextManagerService {
         public ContextReferenceItem(ContextReference__c record) {
             this.recordId = record.RecordId__c;
             this.recordType = record.RecordType__c;
+            this.interactionSessionId = record.InteractionSession__c;
             this.referenceRole = parseRole(record.ReferenceRole__c);
             this.referenceSource = parseSource(record.ReferenceSource__c);
             this.status = parseStatus(record.Status__c);
@@ -98,8 +116,27 @@ public inherited sharing class ContextManagerService {
             Id interactionSessionId = resolveSessionId(executionId);
             List<ContextReferenceItem> references = new List<ContextReferenceItem>();
             for (ContextReference__c record : queryReferences(executionId, interactionSessionId, true)) {
-                references.add(new ContextReferenceItem(record));
+                try {
+                    ContextReferenceItem item = new ContextReferenceItem(record);
+                    if (item.referenceRole == null) {
+                        System.debug(
+                            LoggingLevel.WARN,
+                            '[ContextManagerService.getContextReferences] Skipping context reference with invalid role. RecordId=' +
+                                record.RecordId__c +
+                                ', StoredRole=' +
+                                record.ReferenceRole__c
+                        );
+                        continue;
+                    }
+                    references.add(item);
+                } catch (Exception e) {
+                    System.debug(
+                        LoggingLevel.WARN,
+                        '[ContextManagerService.getContextReferences] Skipping malformed context reference row ' + record.Id + ': ' + e.getMessage()
+                    );
+                }
             }
+            sortContextReferences(references);
             return references;
         } catch (Exception e) {
             System.debug(
@@ -114,7 +151,7 @@ public inherited sharing class ContextManagerService {
      * Returns the set of valid Salesforce record IDs represented by active references.
      */
     public Set<Id> getRelevantRecordIds(Id executionId) {
-        return getRelevantRecordIds(executionId, 'Persistent');
+        return getRelevantRecordIds(executionId, 'Session');
     }
 
     /**
@@ -122,10 +159,31 @@ public inherited sharing class ContextManagerService {
      * filtered by the requested freshness policy.
      */
     public Set<Id> getRelevantRecordIds(Id executionId, String freshnessPolicy) {
+        return getRelevantRecordIds(executionId, freshnessPolicy, null, null);
+    }
+
+    /**
+     * Returns the set of valid Salesforce record IDs represented by active references,
+     * filtered by freshness and optional role/source filters.
+     */
+    public Set<Id> getRelevantRecordIds(Id executionId, String freshnessPolicy, Set<ReferenceRole> roleFilter, Set<ReferenceSource> sourceFilter) {
         Set<Id> relevantIds = new Set<Id>();
         Datetime recentCutoff = Datetime.now().addDays(-7);
+        Id interactionSessionId = resolveSessionId(executionId);
         for (ContextReferenceItem item : getContextReferences(executionId)) {
             if (String.isBlank(item.recordId)) {
+                continue;
+            }
+            if (roleFilter != null && !roleFilter.isEmpty() && (item.referenceRole == null || !roleFilter.contains(item.referenceRole))) {
+                continue;
+            }
+            if (sourceFilter != null && !sourceFilter.isEmpty() && (item.referenceSource == null || !sourceFilter.contains(item.referenceSource))) {
+                continue;
+            }
+            if ('Session'.equalsIgnoreCase(freshnessPolicy) && interactionSessionId != null && item.interactionSessionId != interactionSessionId) {
+                continue;
+            }
+            if ('Session'.equalsIgnoreCase(freshnessPolicy) && interactionSessionId == null) {
                 continue;
             }
             if ('Recent'.equalsIgnoreCase(freshnessPolicy) && item.lastUsedAt != null && item.lastUsedAt < recentCutoff) {
@@ -148,50 +206,64 @@ public inherited sharing class ContextManagerService {
             return;
         }
 
+        List<ContextDeltaItem> deltaItems = new List<ContextDeltaItem>();
+        if (pageContextId != null) {
+            deltaItems.add(
+                new ContextDeltaItem(pageContextId, ReferenceRole.Primary, ReferenceSource.PageContext, 'Primary record in the current interaction.')
+            );
+        }
+        if (newRecordFromActionId != null) {
+            deltaItems.add(
+                new ContextDeltaItem(newRecordFromActionId, ReferenceRole.Created, ReferenceSource.ToolOutput, 'Record created during agent execution.')
+            );
+        }
+        commitContextDelta(executionId, currentTurn, deltaItems);
+    }
+
+    /**
+     * Commits a typed set of context anchor deltas for the current turn.
+     */
+    public void commitContextDelta(Id executionId, Integer currentTurn, List<ContextDeltaItem> deltaItems) {
+        if (executionId == null || deltaItems == null || deltaItems.isEmpty()) {
+            return;
+        }
+
         String logPrefix = '[ContextManager.Commit ' + executionId + '] ';
 
         try {
             Id interactionSessionId = resolveSessionId(executionId);
-            Set<String> recordIds = new Set<String>();
-            if (pageContextId != null) {
-                recordIds.add(String.valueOf(pageContextId));
-            }
-            if (newRecordFromActionId != null) {
-                recordIds.add(String.valueOf(newRecordFromActionId));
+            List<ContextDeltaItem> normalizedDeltaItems = normalizeDeltaItems(deltaItems);
+            if (normalizedDeltaItems.isEmpty()) {
+                return;
             }
 
-            Map<String, ContextReference__c> existingByRecordId = getExistingReferences(executionId, interactionSessionId, recordIds);
+            Map<String, ContextReference__c> existingByReferenceKey = getExistingReferences(executionId, interactionSessionId, normalizedDeltaItems);
+            normalizedDeltaItems = applyActiveReferenceCap(executionId, interactionSessionId, normalizedDeltaItems, existingByReferenceKey, logPrefix);
+            if (normalizedDeltaItems.isEmpty()) {
+                return;
+            }
             Datetime touchedAt = Datetime.now();
             List<ContextReference__c> recordsToSave = new List<ContextReference__c>();
-
-            if (pageContextId != null) {
-                recordsToSave.add(
-                    prepareReference(
-                        existingByRecordId.get(String.valueOf(pageContextId)),
-                        executionId,
-                        interactionSessionId,
-                        pageContextId,
-                        ReferenceRole.Primary,
-                        ReferenceSource.PageContext,
-                        'Primary record in the current interaction.',
-                        touchedAt
-                    )
-                );
+            for (ContextDeltaItem item : normalizedDeltaItems) {
+                try {
+                    recordsToSave.add(
+                        prepareReference(
+                            existingByReferenceKey.get(buildReferenceKey(item.recordId, item.referenceRole, item.referenceSource)),
+                            executionId,
+                            interactionSessionId,
+                            Id.valueOf(item.recordId),
+                            item.referenceRole,
+                            item.referenceSource,
+                            item.explanation,
+                            touchedAt
+                        )
+                    );
+                } catch (Exception e) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Skipping invalid context delta item for record "' + item.recordId + '": ' + e.getMessage());
+                }
             }
-
-            if (newRecordFromActionId != null) {
-                recordsToSave.add(
-                    prepareReference(
-                        existingByRecordId.get(String.valueOf(newRecordFromActionId)),
-                        executionId,
-                        interactionSessionId,
-                        newRecordFromActionId,
-                        ReferenceRole.Created,
-                        ReferenceSource.ToolOutput,
-                        'Record created during agent execution.',
-                        touchedAt
-                    )
-                );
+            if (recordsToSave.isEmpty()) {
+                return;
             }
 
             upsertReferences(recordsToSave);
@@ -200,6 +272,176 @@ public inherited sharing class ContextManagerService {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Context reference update failed: ' + e.getMessage());
             throw new ContextManagementException('Context reference update failed: ' + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Builds the full turn-level delta list for the execution from page context, explicit tool outcomes,
+     * structured mention metadata, and framework-owned source-record promotion.
+     */
+    public List<ContextDeltaItem> buildTurnContextDelta(Id executionId, Id pageContextId, List<ContextDeltaItem> outcomeDeltaItems) {
+        List<ContextDeltaItem> deltaItems = new List<ContextDeltaItem>();
+
+        if (pageContextId != null) {
+            deltaItems.add(
+                new ContextDeltaItem(pageContextId, ReferenceRole.Primary, ReferenceSource.PageContext, 'Primary record in the current interaction.')
+            );
+        }
+
+        if (executionId != null) {
+            try {
+                AgentExecution__c execution = [
+                    SELECT SourceRecordId__c, TriggerPayload__c
+                    FROM AgentExecution__c
+                    WHERE Id = :executionId
+                    LIMIT 1
+                ];
+
+                if (execution.SourceRecordId__c != null && execution.SourceRecordId__c != pageContextId) {
+                    deltaItems.add(
+                        new ContextDeltaItem(
+                            execution.SourceRecordId__c,
+                            ReferenceRole.Related,
+                            ReferenceSource.InternalSystem,
+                            'Framework-resolved source record retained for working context.'
+                        )
+                    );
+                }
+
+                Map<String, Object> triggerPayload = parseTriggerPayload(execution.TriggerPayload__c);
+                for (Id mentionedRecordId : parseRecordIdList(triggerPayload, 'mentionedRecordIds')) {
+                    deltaItems.add(
+                        new ContextDeltaItem(
+                            mentionedRecordId,
+                            ReferenceRole.Mentioned,
+                            ReferenceSource.UserMention,
+                            'Explicit structured record mention supplied with the runtime request.'
+                        )
+                    );
+                }
+                for (Id relatedRecordId : parseRecordIdList(triggerPayload, 'relatedRecordIds')) {
+                    deltaItems.add(
+                        new ContextDeltaItem(
+                            relatedRecordId,
+                            ReferenceRole.Related,
+                            ReferenceSource.InternalSystem,
+                            'Framework-supplied related record carried in runtime metadata.'
+                        )
+                    );
+                }
+                for (Id relatedRecordId : parseRecordIdList(triggerPayload, 'systemRecordIds')) {
+                    deltaItems.add(
+                        new ContextDeltaItem(
+                            relatedRecordId,
+                            ReferenceRole.Related,
+                            ReferenceSource.InternalSystem,
+                            'Framework-supplied system record carried in runtime metadata.'
+                        )
+                    );
+                }
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, '[ContextManagerService] Failed to assemble turn context metadata: ' + e.getMessage());
+            }
+        }
+
+        if (outcomeDeltaItems != null && !outcomeDeltaItems.isEmpty()) {
+            deltaItems.addAll(outcomeDeltaItems);
+        }
+
+        return normalizeDeltaItems(deltaItems);
+    }
+
+    /**
+     * Converts explicit action context effects into typed context delta items.
+     */
+    public List<ContextDeltaItem> buildDeltaItemsFromContextEffects(List<ActionOutcome.ContextEffect> contextEffects) {
+        List<ContextDeltaItem> deltaItems = new List<ContextDeltaItem>();
+        if (contextEffects == null) {
+            return deltaItems;
+        }
+
+        for (ActionOutcome.ContextEffect effect : contextEffects) {
+            if (effect == null || String.isBlank(effect.recordId) || String.isBlank(effect.referenceRole) || String.isBlank(effect.referenceSource)) {
+                continue;
+            }
+            try {
+                deltaItems.add(
+                    new ContextDeltaItem(
+                        Id.valueOf(effect.recordId),
+                        ReferenceRole.valueOf(effect.referenceRole),
+                        ReferenceSource.valueOf(effect.referenceSource),
+                        effect.explanation
+                    )
+                );
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, '[ContextManagerService] Skipping invalid action context effect: ' + e.getMessage());
+            }
+        }
+        return deltaItems;
+    }
+
+    /**
+     * Produces a serializable payload of child-execution anchors that can be re-emitted by a parent runtime.
+     */
+    public List<Map<String, Object>> getPropagatableContextPayload(Id executionId) {
+        List<Map<String, Object>> payloadItems = new List<Map<String, Object>>();
+        if (executionId == null) {
+            return payloadItems;
+        }
+
+        for (ContextReferenceItem item : getContextReferences(executionId)) {
+            if (item == null || String.isBlank(item.recordId) || item.referenceRole == null || item.referenceSource == null) {
+                continue;
+            }
+            if (item.referenceRole == ReferenceRole.Primary && item.referenceSource == ReferenceSource.PageContext) {
+                continue;
+            }
+            payloadItems.add(
+                new Map<String, Object>{
+                    'recordId' => item.recordId,
+                    'referenceRole' => item.referenceRole.name(),
+                    'referenceSource' => item.referenceSource.name(),
+                    'explanation' => item.explanation
+                }
+            );
+        }
+        return payloadItems;
+    }
+
+    /**
+     * Rehydrates serialized context-effect payloads into typed context delta items.
+     */
+    public List<ContextDeltaItem> deserializePayloadContextEffects(Object payloadValue) {
+        List<ContextDeltaItem> deltaItems = new List<ContextDeltaItem>();
+        if (payloadValue == null || !(payloadValue instanceof List<Object>)) {
+            return deltaItems;
+        }
+
+        for (Object rawItem : (List<Object>) payloadValue) {
+            if (!(rawItem instanceof Map<String, Object>)) {
+                continue;
+            }
+            Map<String, Object> item = (Map<String, Object>) rawItem;
+            try {
+                String recordId = (String) item.get('recordId');
+                String roleName = (String) item.get('referenceRole');
+                String sourceName = (String) item.get('referenceSource');
+                if (String.isBlank(recordId) || String.isBlank(roleName) || String.isBlank(sourceName)) {
+                    continue;
+                }
+                deltaItems.add(
+                    new ContextDeltaItem(
+                        Id.valueOf(recordId),
+                        ReferenceRole.valueOf(roleName),
+                        ReferenceSource.valueOf(sourceName),
+                        (String) item.get('explanation')
+                    )
+                );
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, '[ContextManagerService] Skipping invalid propagated context payload item: ' + e.getMessage());
+            }
+        }
+
+        return deltaItems;
     }
 
     private ContextReference__c prepareReference(
@@ -229,10 +471,20 @@ public inherited sharing class ContextManagerService {
         return record;
     }
 
-    private Map<String, ContextReference__c> getExistingReferences(Id executionId, Id interactionSessionId, Set<String> recordIds) {
-        Map<String, ContextReference__c> referencesByRecordId = new Map<String, ContextReference__c>();
-        if (recordIds == null || recordIds.isEmpty()) {
-            return referencesByRecordId;
+    private Map<String, ContextReference__c> getExistingReferences(Id executionId, Id interactionSessionId, List<ContextDeltaItem> deltaItems) {
+        Map<String, ContextReference__c> referencesByKey = new Map<String, ContextReference__c>();
+        if (deltaItems == null || deltaItems.isEmpty()) {
+            return referencesByKey;
+        }
+
+        Set<String> recordIds = new Set<String>();
+        for (ContextDeltaItem item : deltaItems) {
+            if (item != null && String.isNotBlank(item.recordId)) {
+                recordIds.add(item.recordId);
+            }
+        }
+        if (recordIds.isEmpty()) {
+            return referencesByKey;
         }
 
         List<ContextReference__c> existingRecords;
@@ -273,9 +525,23 @@ public inherited sharing class ContextManagerService {
         }
 
         for (ContextReference__c record : existingRecords) {
-            referencesByRecordId.put(record.RecordId__c, record);
+            ReferenceRole role = parseRole(record.ReferenceRole__c);
+            ReferenceSource source = parseSource(record.ReferenceSource__c);
+            if (role == null || source == null) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    '[ContextManagerService] Skipping existing context reference with invalid role/source. RecordId=' +
+                        record.RecordId__c +
+                        ', Role=' +
+                        record.ReferenceRole__c +
+                        ', Source=' +
+                        record.ReferenceSource__c
+                );
+                continue;
+            }
+            referencesByKey.put(buildReferenceKey(record.RecordId__c, role, source), record);
         }
-        return referencesByRecordId;
+        return referencesByKey;
     }
 
     private List<ContextReference__c> queryReferences(Id executionId, Id interactionSessionId, Boolean activeOnly) {
@@ -424,9 +690,14 @@ public inherited sharing class ContextManagerService {
 
     private static ReferenceRole parseRole(String storedValue) {
         if (String.isBlank(storedValue)) {
-            return ReferenceRole.Background;
+            return null;
         }
-        return ReferenceRole.valueOf(storedValue);
+        try {
+            return ReferenceRole.valueOf(storedValue);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, '[ContextManagerService] Invalid stored context reference role: ' + storedValue);
+            return null;
+        }
     }
 
     private static ReferenceSource parseSource(String storedValue) {
@@ -464,6 +735,236 @@ public inherited sharing class ContextManagerService {
             }
         }
         return 'System';
+    }
+
+    private static List<ContextDeltaItem> normalizeDeltaItems(List<ContextDeltaItem> deltaItems) {
+        Map<String, ContextDeltaItem> dedupedByKey = new Map<String, ContextDeltaItem>();
+        if (deltaItems == null) {
+            return new List<ContextDeltaItem>();
+        }
+
+        for (ContextDeltaItem item : deltaItems) {
+            if (item == null || String.isBlank(item.recordId) || item.referenceRole == null || item.referenceSource == null) {
+                continue;
+            }
+            Id normalizedRecordId;
+            try {
+                normalizedRecordId = Id.valueOf(item.recordId);
+            } catch (Exception e) {
+                continue;
+            }
+            item.recordId = String.valueOf(normalizedRecordId);
+            String key = buildReferenceKey(item.recordId, item.referenceRole, item.referenceSource);
+            if (!dedupedByKey.containsKey(key)) {
+                dedupedByKey.put(key, item);
+            }
+        }
+
+        List<ContextDeltaItem> filteredItems = filterAccessibleExistingDeltaItems(dedupedByKey.values());
+        if (filteredItems.size() <= MAX_CONTEXT_DELTA_ITEMS_PER_TURN) {
+            return filteredItems;
+        }
+
+        List<ContextDeltaItem> truncatedItems = new List<ContextDeltaItem>();
+        for (Integer i = 0; i < MAX_CONTEXT_DELTA_ITEMS_PER_TURN; i++) {
+            truncatedItems.add(filteredItems[i]);
+        }
+        return truncatedItems;
+    }
+
+    private static List<ContextDeltaItem> filterAccessibleExistingDeltaItems(List<ContextDeltaItem> deltaItems) {
+        List<ContextDeltaItem> filteredItems = new List<ContextDeltaItem>();
+        if (deltaItems == null || deltaItems.isEmpty()) {
+            return filteredItems;
+        }
+
+        Map<String, List<ContextDeltaItem>> itemsByObject = new Map<String, List<ContextDeltaItem>>();
+        Map<String, Set<Id>> idsByObject = new Map<String, Set<Id>>();
+        for (ContextDeltaItem item : deltaItems) {
+            if (item == null || String.isBlank(item.recordId)) {
+                continue;
+            }
+            try {
+                Id recordId = Id.valueOf(item.recordId);
+                String objectApiName = recordId.getSObjectType().getDescribe().getName();
+                if (!itemsByObject.containsKey(objectApiName)) {
+                    itemsByObject.put(objectApiName, new List<ContextDeltaItem>());
+                    idsByObject.put(objectApiName, new Set<Id>());
+                }
+                itemsByObject.get(objectApiName).add(item);
+                idsByObject.get(objectApiName).add(recordId);
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, '[ContextManagerService] Skipping invalid context delta record id: ' + item.recordId);
+            }
+        }
+
+        for (String objectApiName : itemsByObject.keySet()) {
+            Set<Id> accessibleIds = queryAccessibleIds(objectApiName, idsByObject.get(objectApiName));
+            for (ContextDeltaItem item : itemsByObject.get(objectApiName)) {
+                if (accessibleIds.contains(Id.valueOf(item.recordId))) {
+                    filteredItems.add(item);
+                }
+            }
+        }
+
+        return filteredItems;
+    }
+
+    private static Set<Id> queryAccessibleIds(String objectApiName, Set<Id> recordIds) {
+        Set<Id> accessibleIds = new Set<Id>();
+        if (String.isBlank(objectApiName) || recordIds == null || recordIds.isEmpty()) {
+            return accessibleIds;
+        }
+
+        try {
+            List<SObject> records = Database.queryWithBinds(
+                'SELECT Id FROM ' + objectApiName + ' WHERE Id IN :recordIds',
+                new Map<String, Object>{ 'recordIds' => new List<Id>(recordIds) },
+                AccessLevel.USER_MODE
+            );
+            for (SObject record : records) {
+                accessibleIds.add((Id) record.get('Id'));
+            }
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.WARN,
+                '[ContextManagerService] Failed to validate accessible context anchors for ' + objectApiName + ': ' + e.getMessage()
+            );
+        }
+        return accessibleIds;
+    }
+
+    private List<ContextDeltaItem> applyActiveReferenceCap(
+        Id executionId,
+        Id interactionSessionId,
+        List<ContextDeltaItem> deltaItems,
+        Map<String, ContextReference__c> existingByReferenceKey,
+        String logPrefix
+    ) {
+        if (deltaItems == null || deltaItems.isEmpty()) {
+            return new List<ContextDeltaItem>();
+        }
+
+        Integer activeReferenceCount = countActiveReferences(executionId, interactionSessionId);
+        Integer availableNewSlots = Math.max(0, MAX_ACTIVE_CONTEXT_REFERENCES - activeReferenceCount);
+        List<ContextDeltaItem> cappedItems = new List<ContextDeltaItem>();
+
+        for (ContextDeltaItem item : deltaItems) {
+            String referenceKey = buildReferenceKey(item.recordId, item.referenceRole, item.referenceSource);
+            if (existingByReferenceKey.containsKey(referenceKey)) {
+                cappedItems.add(item);
+                continue;
+            }
+            if (availableNewSlots <= 0) {
+                System.debug(LoggingLevel.WARN, logPrefix + 'Skipping new context anchor because the active reference cap was reached: ' + item.recordId);
+                continue;
+            }
+            cappedItems.add(item);
+            availableNewSlots--;
+        }
+
+        return cappedItems;
+    }
+
+    private Integer countActiveReferences(Id executionId, Id interactionSessionId) {
+        String activeStatus = ReferenceStatus.Active.name();
+        if (interactionSessionId != null) {
+            return [
+                SELECT COUNT()
+                FROM ContextReference__c
+                WHERE InteractionSession__c = :interactionSessionId AND Status__c = :activeStatus
+            ];
+        }
+        return [
+            SELECT COUNT()
+            FROM ContextReference__c
+            WHERE AgentExecution__c = :executionId AND Status__c = :activeStatus
+        ];
+    }
+
+    private static String buildReferenceKey(String recordId, ReferenceRole role, ReferenceSource source) {
+        return String.valueOf(recordId) + '|' + String.valueOf(role) + '|' + String.valueOf(source);
+    }
+
+    private static Map<String, Object> parseTriggerPayload(String triggerPayload) {
+        if (String.isBlank(triggerPayload)) {
+            return new Map<String, Object>();
+        }
+        Object rawPayload = JSON.deserializeUntyped(triggerPayload);
+        return rawPayload instanceof Map<String, Object> ? (Map<String, Object>) rawPayload : new Map<String, Object>();
+    }
+
+    private static List<Id> parseRecordIdList(Map<String, Object> payload, String key) {
+        List<Id> recordIds = new List<Id>();
+        if (payload == null || String.isBlank(key) || !payload.containsKey(key) || !(payload.get(key) instanceof List<Object>)) {
+            return recordIds;
+        }
+
+        for (Object rawValue : (List<Object>) payload.get(key)) {
+            try {
+                if (rawValue != null) {
+                    recordIds.add(Id.valueOf(String.valueOf(rawValue)));
+                }
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, '[ContextManagerService] Ignoring invalid record id in payload key "' + key + '": ' + rawValue);
+            }
+        }
+        return recordIds;
+    }
+
+    private static void sortContextReferences(List<ContextReferenceItem> references) {
+        if (references == null || references.size() < 2) {
+            return;
+        }
+
+        Integer n = references.size();
+        for (Integer i = 0; i < n - 1; i++) {
+            for (Integer j = 0; j < n - i - 1; j++) {
+                if (shouldSortAfter(references[j], references[j + 1])) {
+                    ContextReferenceItem current = references[j];
+                    references[j] = references[j + 1];
+                    references[j + 1] = current;
+                }
+            }
+        }
+    }
+
+    private static Boolean shouldSortAfter(ContextReferenceItem left, ContextReferenceItem right) {
+        Integer leftPriority = getReferencePriority(left);
+        Integer rightPriority = getReferencePriority(right);
+        if (leftPriority != rightPriority) {
+            return leftPriority > rightPriority;
+        }
+
+        Long leftLastUsed = left != null && left.lastUsedAt != null ? left.lastUsedAt.getTime() : 0L;
+        Long rightLastUsed = right != null && right.lastUsedAt != null ? right.lastUsedAt.getTime() : 0L;
+        if (leftLastUsed != rightLastUsed) {
+            return leftLastUsed < rightLastUsed;
+        }
+
+        Integer leftUseCount = left != null && left.useCount != null ? left.useCount : 0;
+        Integer rightUseCount = right != null && right.useCount != null ? right.useCount : 0;
+        return leftUseCount < rightUseCount;
+    }
+
+    private static Integer getReferencePriority(ContextReferenceItem item) {
+        if (item == null || item.referenceRole == null) {
+            return 99;
+        }
+
+        if (item.referenceRole == ReferenceRole.Primary && item.referenceSource == ReferenceSource.PageContext) {
+            return 1;
+        }
+        if (item.referenceRole == ReferenceRole.Created && item.referenceSource == ReferenceSource.ToolOutput) {
+            return 2;
+        }
+        if (item.referenceRole == ReferenceRole.Mentioned && item.referenceSource == ReferenceSource.UserMention) {
+            return 3;
+        }
+        if (item.referenceRole == ReferenceRole.Related && item.referenceSource == ReferenceSource.InternalSystem) {
+            return 4;
+        }
+        return 10;
     }
 
     private static ReferenceStatus parseStatus(String storedValue) {

@@ -9,8 +9,8 @@
 /**
  * @description Channel adapter for direct/headless executions.
  */
-public inherited sharing class DirectInteractionChannel extends BaseInteractionChannel {
-    private static final String PROVIDER_NAME = 'SalesforceAPI';
+public inherited sharing class DirectChannelAdapter extends BaseInteractionChannel {
+    private static final String PROVIDER_NAME = 'Salesforce Direct';
 
     public override InteractionRuntimeModels.InteractionEnvelope normalizeInbound(String payloadJson, Id sourceRecordId, String userMessage) {
         Map<String, Object> payload = String.isNotBlank(payloadJson) ? (Map<String, Object>) JSON.deserializeUntyped(payloadJson) : new Map<String, Object>();

@@ -246,8 +246,7 @@
     <relatedLists>
         <fields>NAME</fields>
         <fields>AdminLabel__c</fields>
-        <fields>ProviderDefinition__c</fields>
-        <fields>Scope__c</fields>
+        <fields>ContextDefinition__c</fields>
         <fields>IsActive__c</fields>
         <relatedList>AgentContextConfig__c.AIAgentDefinition__c</relatedList>
     </relatedLists>
