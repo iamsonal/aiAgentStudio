@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>TimeoutMs__c</fullName>
-    <description>HTTP timeout for LLM provider callouts in milliseconds.</description>
+    <description>Timeout, in milliseconds, for provider requests made with this configuration.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Default 120000 (2 minutes) if left blank.</inlineHelpText>
+    <inlineHelpText>Leave blank to use the default timeout of 120000 milliseconds.</inlineHelpText>
     <label>Timeout (ms)</label>
     <precision>18</precision>
     <required>false</required>

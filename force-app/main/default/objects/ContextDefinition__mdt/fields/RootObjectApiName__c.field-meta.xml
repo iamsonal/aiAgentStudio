@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RootObjectApiName__c</fullName>
+    <description>Primary object API name this context definition is designed to format.</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Choose the Salesforce object this definition is built around, such as Account, Case, or Opportunity. This matters most when you are formatting context from a field set.</inlineHelpText>
+    <label>Root Object API Name</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

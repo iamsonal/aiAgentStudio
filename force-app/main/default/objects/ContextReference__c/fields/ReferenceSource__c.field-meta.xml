@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ReferenceSource__c</fullName>
+    <description>How this record was introduced into the agent's durable working context ledger.</description>
+    <inlineHelpText>Indicates how the record entered context: Page Context from the active record, User Mention from structured user-supplied references, Tool Output from an action result, or System from deliberate framework routing or resolution logic.</inlineHelpText>
+    <label>Reference Source</label>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Page Context</fullName>
+                <default>true</default>
+                <label>Page Context</label>
+            </value>
+            <value>
+                <fullName>User Mention</fullName>
+                <default>false</default>
+                <label>User Mention</label>
+            </value>
+            <value>
+                <fullName>Tool Output</fullName>
+                <default>false</default>
+                <label>Tool Output</label>
+            </value>
+            <value>
+                <fullName>System</fullName>
+                <default>false</default>
+                <label>System</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

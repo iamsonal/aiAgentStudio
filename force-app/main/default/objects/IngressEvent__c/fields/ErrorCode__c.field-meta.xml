@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ErrorCode__c</fullName>
+    <description>Latest machine-friendly error code captured while verifying or processing this ingress event.</description>
+    <inlineHelpText>Stores a stable code for operational diagnostics and retry decisions without depending only on free-form messages.</inlineHelpText>
+    <label>Error Code</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

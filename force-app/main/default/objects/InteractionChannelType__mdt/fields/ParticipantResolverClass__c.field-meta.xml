@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ParticipantResolverClass__c</fullName>
+    <description>Optional Apex class that resolves a participant key to a source record for this channel.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enter an optional Apex class that maps a channel participant identifier to a Salesforce record, or leave blank if the channel does not need participant resolution.</inlineHelpText>
+    <label>Participant Resolver Class</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

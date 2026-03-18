@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>SessionStartedAt__c</fullName>
-    <description>Timestamp when this execution was first attached to its durable interaction session.</description>
-    <inlineHelpText>Records when the execution entered or established the underlying InteractionSession__c conversation.</inlineHelpText>
+    <description>Timestamp when this execution first became associated with an interaction session.</description>
+    <inlineHelpText>Records when the execution entered or created its related interaction session.</inlineHelpText>
     <label>Session Started At</label>
     <required>false</required>
     <type>DateTime</type>

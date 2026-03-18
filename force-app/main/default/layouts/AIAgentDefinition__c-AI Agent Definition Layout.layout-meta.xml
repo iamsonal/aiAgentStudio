@@ -18,7 +18,7 @@
             </layoutItems>
             <layoutItems>
                 <behavior>Required</behavior>
-                <field>AgentType__c</field>
+                <field>RuntimeStrategy__c</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
@@ -245,9 +245,8 @@
     </layoutSections>
     <relatedLists>
         <fields>NAME</fields>
-        <fields>ContextLabel__c</fields>
-        <fields>ImplementationName__c</fields>
-        <fields>RequiresRecordContext__c</fields>
+        <fields>AdminLabel__c</fields>
+        <fields>ContextDefinition__c</fields>
         <fields>IsActive__c</fields>
         <relatedList>AgentContextConfig__c.AIAgentDefinition__c</relatedList>
     </relatedLists>

@@ -113,7 +113,7 @@ public class TestFactory {
                 User__c = UserInfo.getUserId(),
                 AIAgentDefinition__c = setup.agentDefinition.Id,
                 ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
-                ExecutionType__c = 'Iterative'
+                ExecutionType__c = 'Conversational'
             );
             insert setup.agentExecution;
 
@@ -135,7 +135,7 @@ public class TestFactory {
 
         public FunctionAgentSetupBuilder() {
             setup.llmConfig = newLLMConfiguration().build();
-            setup.agentDefinition = newAgentDefinition().withType('SingleShot').build();
+            setup.agentDefinition = newAgentDefinition().withType('Direct').build();
             setup.capabilities = new List<AgentCapability__c>();
         }
 
@@ -190,7 +190,7 @@ public class TestFactory {
                     User__c = UserInfo.getUserId(),
                     AIAgentDefinition__c = setup.agentDefinition.Id,
                     ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
-                    ExecutionType__c = 'SingleShot'
+                    ExecutionType__c = 'Direct'
                 );
                 insert setup.execution;
             }
@@ -267,7 +267,7 @@ public class TestFactory {
             DeveloperName__c = 'Test_Agent_' + generateRandomString(6),
             WelcomeMessageTemplate__c = 'Hello {User.FirstName}, how can I help you today?',
             IsActive__c = true,
-            AgentType__c = 'Iterative',
+            RuntimeStrategy__c = 'Conversational',
             MemoryStrategy__c = 'Buffer Window',
             HistoryTurnLimit__c = 10,
             EnableParallelToolCalling__c = true,
@@ -286,7 +286,7 @@ public class TestFactory {
         }
 
         public AgentDefinitionBuilder withType(String agentType) {
-            record.AgentType__c = normalizeStrategyKey(agentType);
+            record.RuntimeStrategy__c = normalizeStrategyKey(agentType);
             return this;
         }
 
@@ -491,9 +491,17 @@ public class TestFactory {
         return new ExecutionBuilder();
     }
 
+    public static PipelineSetupBuilder createPipelineSetup() {
+        return new PipelineSetupBuilder();
+    }
+
+    public static PipelineExecutionBuilder newPipelineExecution(Id pipelineDefId) {
+        return new PipelineExecutionBuilder(pipelineDefId);
+    }
+
     public class ExecutionBuilder {
         private AgentExecution__c record = new AgentExecution__c(
-            ExecutionType__c = 'Iterative',
+            ExecutionType__c = 'Conversational',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = 'Idle',
             TriggerSource__c = 'Test',
@@ -561,12 +569,164 @@ public class TestFactory {
         }
     }
 
-    private static String normalizeStrategyKey(String strategyKey) {
-        if ('Iterative'.equalsIgnoreCase(strategyKey) || 'Email'.equalsIgnoreCase(strategyKey)) {
-            return 'Iterative';
+    public class PipelineSetupBuilder {
+        private PipelineSetup setup = new PipelineSetup();
+        private Integer stepCount = 2;
+        private Boolean createExecution = false;
+
+        public PipelineSetupBuilder() {
+            setup.llmConfig = newLLMConfiguration().build();
+
+            SObject pipelineDefinition = newAddonSObject('PipelineDefinition__c');
+            pipelineDefinition.put('Name', 'Test Pipeline ' + generateRandomString(6));
+            pipelineDefinition.put('DeveloperName__c', 'Test_Pipeline_' + generateRandomString(6));
+            pipelineDefinition.put('IsActive__c', true);
+            setup.pipelineDefinitionRecord = pipelineDefinition;
+            setup.childAgents = new List<AIAgentDefinition__c>();
+            setup.steps = new List<SObject>();
         }
-        if ('SingleShot'.equalsIgnoreCase(strategyKey)) {
-            return 'SingleShot';
+
+        public PipelineSetupBuilder withLLM(LLMConfiguration__c llm) {
+            setup.llmConfig = llm;
+            return this;
+        }
+
+        public PipelineSetupBuilder withPipelineDefinition(SObject pipelineDef) {
+            setup.pipelineDefinitionRecord = pipelineDef;
+            return this;
+        }
+
+        public PipelineSetupBuilder withStepCount(Integer count) {
+            stepCount = count;
+            return this;
+        }
+
+        public PipelineSetupBuilder withChildAgent(AIAgentDefinition__c childAgent) {
+            setup.childAgents.add(childAgent);
+            return this;
+        }
+
+        public PipelineSetupBuilder withExecution() {
+            createExecution = true;
+            return this;
+        }
+
+        public PipelineSetup save() {
+            setup.llmConfig = ensureLlmPersisted(setup.llmConfig);
+
+            insert setup.pipelineDefinitionRecord;
+            setup.pipelineDefinitionId = (Id) setup.pipelineDefinitionRecord.get('Id');
+
+            if (setup.childAgents.isEmpty()) {
+                for (Integer i = 1; i <= stepCount; i++) {
+                    AIAgentDefinition__c childAgent = TestFactory.newAgentDefinition()
+                        .withName('Pipeline_Step_' + i + '_' + TestFactory.generateRandomString(6))
+                        .withType('Direct')
+                        .withLLM(setup.llmConfig.Id)
+                        .build();
+                    setup.childAgents.add(childAgent);
+                }
+            }
+
+            insert setup.childAgents;
+
+            Integer order = 1;
+            for (AIAgentDefinition__c child : setup.childAgents) {
+                SObject step = newAddonSObject('PipelineStep__c');
+                step.put('PipelineDefinition__c', setup.pipelineDefinitionId);
+                step.put('ChildAgent__c', child.Id);
+                step.put('ExecutionOrder__c', order);
+                step.put('IsActive__c', true);
+                setup.steps.add(step);
+                order++;
+            }
+            if (!setup.steps.isEmpty()) {
+                insert setup.steps;
+            }
+
+            if (createExecution) {
+                setup.execution = newPipelineExecution(setup.pipelineDefinitionId)
+                    .withUser(UserInfo.getUserId())
+                    .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+                    .save();
+            }
+
+            return setup;
+        }
+    }
+
+    public class PipelineExecutionBuilder {
+        private AgentExecution__c record;
+
+        public PipelineExecutionBuilder(Id pipelineDefId) {
+            record = TestFactory.newExecution().withExecutionType('Pipeline').build();
+            record.put('PipelineDefinition__c', pipelineDefId);
+        }
+
+        public PipelineExecutionBuilder withUser(Id userId) {
+            record.User__c = userId;
+            record.OwnerId = userId;
+            return this;
+        }
+
+        public PipelineExecutionBuilder withStatus(String status) {
+            record.ExecutionStatus__c = status;
+            return this;
+        }
+
+        public PipelineExecutionBuilder withProcessingStatus(String status) {
+            record.ProcessingStatus__c = status;
+            return this;
+        }
+
+        public PipelineExecutionBuilder withBatchId(String batchId) {
+            record.BatchId__c = batchId;
+            return this;
+        }
+
+        public PipelineExecutionBuilder withTurnIdentifier(String turnId) {
+            record.CurrentTurnIdentifier__c = turnId;
+            return this;
+        }
+
+        public PipelineExecutionBuilder withAgent(Id agentId) {
+            record.AIAgentDefinition__c = agentId;
+            return this;
+        }
+
+        public AgentExecution__c build() {
+            return record;
+        }
+
+        public AgentExecution__c save() {
+            insert record;
+            return record;
+        }
+    }
+
+    public class PipelineSetup {
+        public LLMConfiguration__c llmConfig { get; set; }
+        public Id pipelineDefinitionId { get; set; }
+        public SObject pipelineDefinitionRecord { get; set; }
+        public AgentExecution__c execution { get; set; }
+        public List<AIAgentDefinition__c> childAgents { get; set; }
+        public List<SObject> steps { get; set; }
+    }
+
+    private static SObject newAddonSObject(String apiName) {
+        Schema.SObjectType sObjectType = Schema.getGlobalDescribe().get(apiName);
+        if (sObjectType == null) {
+            throw new IllegalArgumentException('Required addon object not available in test context: ' + apiName);
+        }
+        return sObjectType.newSObject();
+    }
+
+    private static String normalizeStrategyKey(String strategyKey) {
+        if ('Conversational'.equalsIgnoreCase(strategyKey) || 'Email'.equalsIgnoreCase(strategyKey)) {
+            return 'Conversational';
+        }
+        if ('Direct'.equalsIgnoreCase(strategyKey)) {
+            return 'Direct';
         }
         return strategyKey;
     }
@@ -624,7 +784,7 @@ public class TestFactory {
                 new AIAgentDefinition__c(
                     Name = developerName.replace('_', ' '),
                     DeveloperName__c = developerName,
-                    AgentType__c = 'SingleShot',
+                    RuntimeStrategy__c = 'Direct',
                     IsActive__c = true,
                     LLMConfiguration__c = llmConfigId
                 )

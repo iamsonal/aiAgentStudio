@@ -6,12 +6,12 @@ private class AgentStateServiceTest {
     @TestSetup
     static void setupData() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('StateSvc_Agent').withType('SingleShot').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('StateSvc_Agent').withType('Direct').withLLM(llm.Id).save();
 
         TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('SingleShot')
+            .withExecutionType('Direct')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-state-001')
@@ -23,7 +23,7 @@ private class AgentStateServiceTest {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE DeveloperName__c LIKE 'StateSvc_Agent%' LIMIT 1];
 
         AgentStateService svc = new AgentStateService();
-        Id executionId = svc.createExecution('SingleShot', agent.Id, 'Test', 'Payload', null, UserInfo.getUserId(), null);
+        Id executionId = svc.createExecution('Direct', agent.Id, 'Test', 'Payload', null, UserInfo.getUserId(), null);
 
         AgentExecution__c execution = [
             SELECT ExecutionStatus__c, ProcessingStatus__c, ExecutionType__c, CurrentTurnIdentifier__c
@@ -32,7 +32,7 @@ private class AgentStateServiceTest {
         ];
         System.assertEquals('Pending', execution.ExecutionStatus__c, 'Execution should start Pending');
         System.assertEquals(AIAgentConstants.STATUS_IDLE, execution.ProcessingStatus__c, 'Processing should start Idle');
-        System.assertEquals('SingleShot', execution.ExecutionType__c, 'Execution type should match');
+        System.assertEquals('Direct', execution.ExecutionType__c, 'Execution type should match');
         System.assert(String.isNotBlank(execution.CurrentTurnIdentifier__c), 'Turn identifier should be set');
     }
 
@@ -380,7 +380,7 @@ private class AgentStateServiceTest {
         AgentExecution__c conversational = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-ctx-001')
             .save();
@@ -388,7 +388,7 @@ private class AgentStateServiceTest {
         AgentExecution__c functionExec = [
             SELECT Id
             FROM AgentExecution__c
-            WHERE ExecutionType__c = 'SingleShot'
+            WHERE ExecutionType__c = 'Direct'
             LIMIT 1
         ];
 

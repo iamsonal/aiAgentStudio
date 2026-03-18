@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>VerificationStatus__c</fullName>
+    <description>Result of signature, token, or other verification checks applied before processing.</description>
+    <inlineHelpText>Use this to track whether verification was not needed, still pending, confirmed, or explicitly rejected.</inlineHelpText>
+    <label>Verification Status</label>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>NotRequired</fullName><default>true</default><label>Not Required</label></value>
+            <value><fullName>Pending</fullName><default>false</default><label>Pending</label></value>
+            <value><fullName>Verified</fullName><default>false</default><label>Verified</label></value>
+            <value><fullName>Rejected</fullName><default>false</default><label>Rejected</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GlobalValueSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customValue>
+        <fullName>Email</fullName>
+        <default>false</default>
+        <label>Email</label>
+    </customValue>
+    <customValue>
+        <fullName>Chat</fullName>
+        <default>true</default>
+        <label>Chat</label>
+    </customValue>
+    <customValue>
+        <fullName>Direct</fullName>
+        <default>false</default>
+        <label>Direct</label>
+    </customValue>
+    <customValue>
+        <fullName>WhatsApp</fullName>
+        <default>false</default>
+        <label>WhatsApp</label>
+    </customValue>
+    <customValue>
+        <fullName>Slack</fullName>
+        <default>false</default>
+        <label>Slack</label>
+    </customValue>
+    <masterLabel>Interaction Channels</masterLabel>
+    <sorted>false</sorted>
+</GlobalValueSet>

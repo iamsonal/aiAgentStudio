@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProviderConfigJson__c</fullName>
+    <description>Optional provider-specific configuration payload used only for implementation details owned by the selected provider.</description>
+    <inlineHelpText>Use this JSON field only for provider-specific arguments. Do not put framework-owned semantics like scope, anchor filters, projection selection, or failure behavior here.</inlineHelpText>
+    <label>Provider Config Json</label>
+    <length>32768</length>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>4</visibleLines>
+</CustomField>

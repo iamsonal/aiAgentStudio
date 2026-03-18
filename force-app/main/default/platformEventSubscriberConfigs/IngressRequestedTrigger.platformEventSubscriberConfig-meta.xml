@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PlatformEventSubscriberConfig xmlns="http://soap.sforce.com/2006/04/metadata">
+    <batchSize>50</batchSize>
+    <isProtected>false</isProtected>
+    <masterLabel>Ingress Requested Trigger Subscriber</masterLabel>
+    <platformEventConsumer>IngressRequestedTrigger</platformEventConsumer>
+    <user>test-acmofhwncgdf@example.com</user>
+</PlatformEventSubscriberConfig>

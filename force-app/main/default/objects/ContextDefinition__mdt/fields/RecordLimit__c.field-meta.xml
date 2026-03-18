@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RecordLimit__c</fullName>
+    <description>Optional maximum number of top-level records this context definition should contribute.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Optionally limit how many records this definition can add. Leave this blank when you want the full result, or set a number to keep prompts shorter and more focused.</inlineHelpText>
+    <label>Record Limit</label>
+    <precision>4</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

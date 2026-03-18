@@ -2,8 +2,8 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>SupportsVision__c</fullName>
     <defaultValue>false</defaultValue>
-    <description>Indicates whether the underlying model supports multimodal (vision) input, enabling image and binary file content to be sent as base64-encoded content arrays rather than plain text.</description>
-    <inlineHelpText>Enable for vision-capable models (e.g. GPT-4o, Claude 3 Sonnet, Gemini Pro Vision). When checked, ActionAnalyzeFile returns image and PDF content as base64 for the LLM to interpret directly.</inlineHelpText>
+    <description>Indicates whether this model configuration supports image or other vision-style inputs.</description>
+    <inlineHelpText>Enable this for models that can accept image or vision input.</inlineHelpText>
     <label>Supports Vision</label>
     <trackTrending>false</trackTrending>
     <type>Checkbox</type>

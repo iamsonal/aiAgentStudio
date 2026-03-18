@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>AsyncDispatchType__c</fullName>
-    <description>Async dispatch strategy for iterative channel-based executions. Low uses Queueables for controlled sequential processing, while High uses Platform Events for higher-throughput fire-and-forget dispatch.</description>
-    <inlineHelpText>Choose Low when order and controlled sequencing matter more than throughput. Choose High for higher-volume iterative traffic where strict ordering is less important.</inlineHelpText>
+    <description>Async dispatch strategy for conversational channel-based executions. Low uses Queueables for controlled sequential processing, while High uses Platform Events for higher-throughput fire-and-forget dispatch.</description>
+    <inlineHelpText>Choose Low when order and controlled sequencing matter more than throughput. Choose High for higher-volume conversational traffic where strict ordering is less important.</inlineHelpText>
     <label>Async Dispatch Type</label>
     <required>false</required>
     <trackTrending>false</trackTrending>

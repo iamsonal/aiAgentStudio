@@ -12,6 +12,20 @@
  * ErrorHandlerConfig__mdt — one record per error code, keyed by DeveloperName.
  */
 public inherited sharing class ActionOutcome {
+    public class ContextEffect {
+        public String recordId { get; private set; }
+        public String referenceRole { get; private set; }
+        public String referenceSource { get; private set; }
+        public String explanation { get; private set; }
+
+        public ContextEffect(Id recordId, ContextManagerService.ReferenceRole role, ContextManagerService.ReferenceSource source, String explanation) {
+            this.recordId = recordId == null ? null : String.valueOf(recordId);
+            this.referenceRole = role == null ? null : role.name();
+            this.referenceSource = source == null ? null : source.name();
+            this.explanation = explanation;
+        }
+    }
+
     @AuraEnabled
     public Boolean isSuccess { get; private set; }
 
@@ -32,6 +46,8 @@ public inherited sharing class ActionOutcome {
 
     @AuraEnabled
     public String errorCategory { get; private set; }
+
+    public List<ContextEffect> contextEffects { get; private set; }
 
     // ---------------------------------------------------------------------------
     // Metadata cache — zero-SOQL via getAll(), loaded once per transaction
@@ -59,6 +75,7 @@ public inherited sharing class ActionOutcome {
         this.data = data;
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
+        this.contextEffects = new List<ContextEffect>();
 
         if (!isSuccess) {
             ErrorHandlerConfig__mdt cfg = getErrorConfig(errorCode);
@@ -79,6 +96,31 @@ public inherited sharing class ActionOutcome {
 
     public static ActionOutcome success() {
         return success(null);
+    }
+
+    public ActionOutcome withContextEffect(
+        Id recordId,
+        ContextManagerService.ReferenceRole role,
+        ContextManagerService.ReferenceSource source,
+        String explanation
+    ) {
+        if (recordId == null || role == null || source == null) {
+            return this;
+        }
+        this.contextEffects.add(new ContextEffect(recordId, role, source, explanation));
+        return this;
+    }
+
+    public ActionOutcome withCreatedRecord(Id recordId, String explanation) {
+        return withContextEffect(recordId, ContextManagerService.ReferenceRole.Created, ContextManagerService.ReferenceSource.ToolOutput, explanation);
+    }
+
+    public ActionOutcome withMentionedRecord(Id recordId, String explanation) {
+        return withContextEffect(recordId, ContextManagerService.ReferenceRole.Mentioned, ContextManagerService.ReferenceSource.UserMention, explanation);
+    }
+
+    public ActionOutcome withRelatedRecord(Id recordId, String explanation) {
+        return withContextEffect(recordId, ContextManagerService.ReferenceRole.Related, ContextManagerService.ReferenceSource.InternalSystem, explanation);
     }
 
     /**

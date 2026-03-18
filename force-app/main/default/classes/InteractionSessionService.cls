@@ -19,6 +19,21 @@ public inherited sharing class InteractionSessionService {
         return EncodingUtil.convertToHex(Crypto.generateDigest('SHA-256', Blob.valueOf(rawValue)));
     }
 
+    public static String buildSessionScopeHash(String channel, String provider, String endpointIdentifier, String conversationKey) {
+        if (String.isBlank(conversationKey)) {
+            return null;
+        }
+        return buildHash(
+            String.valueOf(channel).trim().toLowerCase() +
+                '|' +
+                String.valueOf(provider).trim().toLowerCase() +
+                '|' +
+                String.valueOf(endpointIdentifier).trim().toLowerCase() +
+                '|' +
+                conversationKey.trim().toLowerCase()
+        );
+    }
+
     public InteractionRuntimeModels.InteractionSessionContext resolveOrCreateSession(
         String channel,
         String conversationKey,
@@ -38,14 +53,16 @@ public inherited sharing class InteractionSessionService {
             return statelessContext;
         }
 
-        String keyHash = buildHash(channel + '|' + conversationKey);
+        String keyHash = buildSessionScopeHash(channel, provider, endpointIdentifier, conversationKey);
         List<InteractionSession__c> sessions = String.isNotBlank(keyHash)
             ? [
                   SELECT
                       Id,
                       Channel__c,
+                      Provider__c,
                       ConversationKey__c,
                       ReplyRouteKey__c,
+                      RouteEndpoint__c,
                       ParticipantExternalKey__c,
                       ParentRecordId__c,
                       LastInboundAt__c,
@@ -62,6 +79,7 @@ public inherited sharing class InteractionSessionService {
         if (sessions.isEmpty()) {
             session = new InteractionSession__c(
                 Channel__c = channel,
+                Provider__c = provider,
                 ConversationKey__c = conversationKey,
                 ConversationKeyHash__c = keyHash,
                 ReplyRouteKey__c = replyRouteKey,
@@ -75,18 +93,20 @@ public inherited sharing class InteractionSessionService {
             insert session;
         } else {
             session = sessions[0];
+            session.Provider__c = String.isNotBlank(provider) ? provider : session.Provider__c;
             session.ReplyRouteKey__c = String.isNotBlank(replyRouteKey) ? replyRouteKey : session.ReplyRouteKey__c;
             session.RouteEndpoint__c = String.isNotBlank(endpointIdentifier) ? endpointIdentifier : session.RouteEndpoint__c;
             session.ParticipantExternalKey__c = String.isNotBlank(participantKey) ? participantKey : session.ParticipantExternalKey__c;
             session.ParticipantHash__c = String.isNotBlank(participantKey) ? buildHash(participantKey) : session.ParticipantHash__c;
-            session.ParentRecordId__c = sourceRecordId != null ? String.valueOf(sourceRecordId) : session.ParentRecordId__c;
+            if (String.isBlank(session.ParentRecordId__c) && sourceRecordId != null) {
+                session.ParentRecordId__c = String.valueOf(sourceRecordId);
+            }
             session.SessionStatus__c = 'Active';
             session.LastInboundAt__c = Datetime.now();
             update session;
         }
 
         InteractionRuntimeModels.InteractionSessionContext context = toContext(session, provider);
-        context.sourceRecordId = sourceRecordId;
         return context;
     }
 
@@ -99,8 +119,10 @@ public inherited sharing class InteractionSessionService {
             SELECT
                 Id,
                 Channel__c,
+                Provider__c,
                 ConversationKey__c,
                 ReplyRouteKey__c,
+                RouteEndpoint__c,
                 ParticipantExternalKey__c,
                 ParentRecordId__c,
                 LastInboundAt__c,
@@ -153,7 +175,7 @@ public inherited sharing class InteractionSessionService {
         InteractionRuntimeModels.InteractionSessionContext context = new InteractionRuntimeModels.InteractionSessionContext();
         context.sessionId = session.Id;
         context.channel = session.Channel__c;
-        context.provider = provider;
+        context.provider = String.isNotBlank(session.Provider__c) ? session.Provider__c : provider;
         context.conversationKey = session.ConversationKey__c;
         context.replyRouteKey = session.ReplyRouteKey__c;
         context.participantKey = session.ParticipantExternalKey__c;

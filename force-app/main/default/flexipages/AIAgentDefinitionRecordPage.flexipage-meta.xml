@@ -150,13 +150,10 @@
                             <value>NAME</value>
                         </valueListItems>
                         <valueListItems>
-                            <value>ContextLabel__c</value>
+                            <value>AdminLabel__c</value>
                         </valueListItems>
                         <valueListItems>
-                            <value>ImplementationName__c</value>
-                        </valueListItems>
-                        <valueListItems>
-                            <value>RequiresRecordContext__c</value>
+                            <value>ContextDefinition__c</value>
                         </valueListItems>
                         <valueListItems>
                             <value>IsActive__c</value>

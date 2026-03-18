@@ -3,8 +3,8 @@
  *              Creates realistic business scenarios using standard Salesforce objects.
  *
  * **Runtime Examples Created:**
- * 1. Iterative chat agent - Customer Support Copilot (multi-turn conversations)
- * 2. SingleShot strategy agents:
+ * 1. Conversational chat agent - Customer Support Copilot (multi-turn conversations)
+ * 2. Direct strategy agents:
  *    - Case Summarizer (tool-terminating: 0 tools, pure LLM text generation)
  *    - Lead Qualifier (tool-terminating: 1 tool, LLM as router)
  *
@@ -43,7 +43,7 @@ public with sharing class AgentTestDataFactory {
         LLMConfiguration__c llmConfig = createLLMConfiguration();
 
         createIterativeChatAgent(llmConfig.Id);
-        createSingleShotAgents(llmConfig.Id);
+        createDirectAgents(llmConfig.Id);
         createEmailAgent(llmConfig.Id);
 
         System.debug('========================================');
@@ -861,12 +861,12 @@ public with sharing class AgentTestDataFactory {
      * Demonstrates multi-turn conversations with context, tools, and memory
      */
     private static void createIterativeChatAgent(Id llmConfigId) {
-        System.debug('[Agent:Iterative] Creating Customer Support Copilot...');
+        System.debug('[Agent:Conversational] Creating Customer Support Copilot...');
 
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Customer Support Copilot',
             DeveloperName__c = 'Customer_Support_Copilot',
-            AgentType__c = 'Iterative',
+            RuntimeStrategy__c = 'Conversational',
             IsActive__c = true,
             MemoryStrategy__c = 'Buffer Window',
             ContextFormatStrategy__c = 'Structured Text',
@@ -882,7 +882,7 @@ public with sharing class AgentTestDataFactory {
             PromptFooter__c = '**Important:** Always verify record IDs and data before taking actions. If information is unclear, ask clarifying questions.'
         );
         insert agent;
-        idMap.put('Iterative Agent', agent.Id);
+        idMap.put('Conversational Agent', agent.Id);
 
         // Context providers
         List<AgentContextConfig__c> contexts = new List<AgentContextConfig__c>{
@@ -982,18 +982,18 @@ public with sharing class AgentTestDataFactory {
         };
         insert capabilities;
 
-        System.debug('[Agent:Iterative] ✓ Customer Support Copilot created with ' + capabilities.size() + ' capabilities');
+        System.debug('[Agent:Conversational] ✓ Customer Support Copilot created with ' + capabilities.size() + ' capabilities');
     }
 
     // ===================================================================================
-    // SINGLESHOT STRATEGY AGENTS
+    // DIRECT STRATEGY AGENTS
     // ===================================================================================
 
     /**
-     * @description Creates multiple SingleShot strategy agents demonstrating different execution patterns
+     * @description Creates multiple Direct strategy agents demonstrating different execution patterns
      */
-    private static void createSingleShotAgents(Id llmConfigId) {
-        System.debug('[Agent:SingleShot] Creating SingleShot agents...');
+    private static void createDirectAgents(Id llmConfigId) {
+        System.debug('[Agent:Direct] Creating Direct agents...');
 
         // 1. TOOL-TERMINATING PATTERN: 0 tools (pure LLM text generation)
         createCaseSummarizerAgent(llmConfigId);
@@ -1001,7 +1001,7 @@ public with sharing class AgentTestDataFactory {
         // 2. TOOL-TERMINATING PATTERN: 1 tool (LLM as router)
         createLeadQualifierAgent(llmConfigId);
 
-        System.debug('[Agent:SingleShot] ✓ All SingleShot agents created');
+        System.debug('[Agent:Direct] ✓ All Direct agents created');
     }
 
     /**
@@ -1012,7 +1012,7 @@ public with sharing class AgentTestDataFactory {
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Case Summarizer',
             DeveloperName__c = 'Case_Summarizer',
-            AgentType__c = 'SingleShot',
+            RuntimeStrategy__c = 'Direct',
             IsActive__c = true,
             LLMConfiguration__c = llmConfigId,
             AuditLevel__c = 'Standard',
@@ -1031,7 +1031,7 @@ public with sharing class AgentTestDataFactory {
         // NO capabilities - pure LLM text generation
         // This demonstrates the tool-terminating pattern with 0 tools
 
-        System.debug('[Agent:SingleShot] ✓ Case Summarizer (0 tools - pure LLM with case context)');
+        System.debug('[Agent:Direct] ✓ Case Summarizer (0 tools - pure LLM with case context)');
     }
 
     /**
@@ -1042,7 +1042,7 @@ public with sharing class AgentTestDataFactory {
         AIAgentDefinition__c agent = new AIAgentDefinition__c(
             Name = 'Lead Qualifier',
             DeveloperName__c = 'Lead_Qualifier',
-            AgentType__c = 'SingleShot',
+            RuntimeStrategy__c = 'Direct',
             IsActive__c = true,
             LLMConfiguration__c = llmConfigId,
             AuditLevel__c = 'Standard',
@@ -1075,7 +1075,7 @@ public with sharing class AgentTestDataFactory {
         );
         insert updateLeadCap;
 
-        System.debug('[Agent:SingleShot] ✓ Lead Qualifier (1 tool - LLM as router)');
+        System.debug('[Agent:Direct] ✓ Lead Qualifier (1 tool - LLM as router)');
     }
 
     /**
@@ -1096,7 +1096,7 @@ public with sharing class AgentTestDataFactory {
         AIAgentDefinition__c emailAgent = new AIAgentDefinition__c(
             Name = 'Customer Support Email Agent',
             DeveloperName__c = 'Customer_Support_Email_Agent',
-            AgentType__c = 'Iterative',
+            RuntimeStrategy__c = 'Conversational',
             LLMConfiguration__c = llmConfigId,
             DefaultCompletionMode__c = 'Auto Reply',
             RequiresSameChannelReply__c = true,
@@ -1180,7 +1180,7 @@ public with sharing class AgentTestDataFactory {
         };
         insert contexts;
 
-        System.debug('[Agent:Email] ✓ Customer Support Email Agent created (Iterative email runtime, ' + capabilities.size() + ' capabilities)');
+        System.debug('[Agent:Email] ✓ Customer Support Email Agent created (Conversational email runtime, ' + capabilities.size() + ' capabilities)');
     }
 
     // ===================================================================================
@@ -1283,14 +1283,28 @@ public with sharing class AgentTestDataFactory {
     ) {
         return new AgentContextConfig__c(
             AIAgentDefinition__c = agentId,
-            ContextLabel__c = label,
-            ImplementationType__c = 'Apex',
-            ImplementationName__c = implName,
-            ApplicableSObjectTypes__c = applicableSObjects,
-            RequiresRecordContext__c = requiresRecord,
-            ExecutionOrder__c = order,
-            ImplementationConfigJson__c = configJson,
+            AdminLabel__c = label,
+            ContextDefinition__c = mapContextDefinition(implName),
+            Priority__c = order,
+            FailureMode__c = 'Warn',
+            OutputSectionName__c = label,
+            ProviderConfigJson__c = configJson,
             IsActive__c = true
         );
+    }
+
+    private static String mapContextDefinition(String implName) {
+        if ('CaseContext'.equalsIgnoreCase(implName)) return 'Case Context';
+        if ('CaseProcessingContextProvider'.equalsIgnoreCase(implName)) return 'Case Processing Context Provider';
+        if ('AccountContext'.equalsIgnoreCase(implName)) return 'Account Context';
+        if ('LeadContext'.equalsIgnoreCase(implName)) return 'Lead Context';
+        if ('OrderContext'.equalsIgnoreCase(implName)) return 'Order Context';
+        if ('UserDetailsProvider'.equalsIgnoreCase(implName)) return 'User Details Provider';
+        if ('EmailThreadContext'.equalsIgnoreCase(implName)) return 'Email Thread Context';
+        if ('AccountProductFitContext'.equalsIgnoreCase(implName)) return 'Account Product Fit Context';
+        if ('OpportunityEngagementContext'.equalsIgnoreCase(implName)) return 'Opportunity Engagement Context';
+        if ('SupportEngagementContext'.equalsIgnoreCase(implName)) return 'Support Engagement Context';
+        if ('ActivityTimelineContext'.equalsIgnoreCase(implName)) return 'Activity Timeline Context';
+        return implName;
     }
 }

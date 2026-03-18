@@ -448,9 +448,7 @@ global inherited sharing class AgentExecutionService {
             }
             if (sourceRecordIds != null) {
                 for (Integer i = 0; i < sourceRecordIds.size(); i++) {
-                    if (sourceRecordIds[i] != null) {
-                        validateIdFormat(sourceRecordIds[i], 'sourceRecordIds[' + i + ']');
-                    }
+                    validateIdFormat(sourceRecordIds[i], 'sourceRecordIds[' + i + ']');
                 }
             }
         }
@@ -482,7 +480,12 @@ global inherited sharing class AgentExecutionService {
             }
 
             if (sourceRecordIds != null && !sourceRecordIds.isEmpty()) {
-                recordIds.addAll(sourceRecordIds);
+                for (Id recordId : sourceRecordIds) {
+                    if (recordId == null) {
+                        throw new AIAgentException.OrchestrationException('sourceRecordIds cannot contain null values');
+                    }
+                    recordIds.add(recordId);
+                }
             }
 
             if (!recordIds.isEmpty()) {
@@ -625,6 +628,6 @@ global inherited sharing class AgentExecutionService {
         if (!ExecutionStrategyRegistryService.isKnownStrategyKey(strategyKey)) {
             return false;
         }
-        return String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative).equalsIgnoreCase(strategyKey);
+        return String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational).equalsIgnoreCase(strategyKey);
     }
 }

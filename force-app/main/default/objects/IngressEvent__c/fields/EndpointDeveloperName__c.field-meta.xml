@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EndpointDeveloperName__c</fullName>
+    <description>DeveloperName of the ChannelEndpoint__mdt record that received or should receive this ingress event.</description>
+    <inlineHelpText>Stores the DeveloperName of the channel endpoint metadata record that matched this event.</inlineHelpText>
+    <label>Endpoint Developer Name</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

@@ -370,6 +370,15 @@ public inherited sharing class AgentJobEnqueuer {
         // TEST CONTEXT GUARD: hasMaxStackDepth() throws error in tests
         // "hasMaxStackDepth is not allowed outside a Queueable of Finalizer execution"
         if (Test.isRunningTest()) {
+            // AsyncOptions can only be applied to the first queueable in a chain.
+            // In tests we cannot safely inspect the existing max depth, so the
+            // conservative behavior is to skip AsyncOptions once we are already
+            // executing inside a queueable.
+            if (System.isQueueable()) {
+                System.debug(LoggingLevel.DEBUG, logPrefix + '[AgentJobEnqueuer] TEST MODE: already inside queueable - skipping AsyncOptions reset');
+                return null;
+            }
+
             Integer maxProcessingCycles = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
             Integer maxStackDepth = maxProcessingCycles + 2; // Buffer for safety
 

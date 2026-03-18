@@ -15,12 +15,25 @@ public inherited sharing class ContextFormattingService {
 
     public ContextFormattingService() {
     }
+
+    public class ProjectionSettings {
+        public FormattingOptions formattingOptions { get; private set; }
+        public Integer recordLimit { get; private set; }
+        public String sectionName { get; private set; }
+
+        public ProjectionSettings() {
+            this.formattingOptions = new FormattingOptions();
+            this.recordLimit = null;
+            this.sectionName = null;
+        }
+    }
     public class FormattingOptions {
         public Integer maxChars = DEFAULT_MAX_CHARS;
         public Boolean includeMetadata = true;
         public Boolean includeRecordUrls = false;
         public Boolean excludeIdFields = false; // When true, skips all Salesforce ID fields for token efficiency
         public Set<String> excludeFields = new Set<String>();
+        public Map<String, Set<String>> includeFieldsByType = new Map<String, Set<String>>();
 
         // PII Masking support - caller supplies the PIIMaskingService; internal helpers are not exposed.
         public PIIMaskingService piiMaskingService = null;
@@ -46,6 +59,13 @@ public inherited sharing class ContextFormattingService {
         }
         public FormattingOptions withExcludeFields(Set<String> fields) {
             this.excludeFields = fields;
+            return this;
+        }
+        public FormattingOptions withIncludeFields(String objectApiName, Set<String> fields) {
+            if (String.isBlank(objectApiName) || fields == null || fields.isEmpty()) {
+                return this;
+            }
+            this.includeFieldsByType.put(objectApiName.toLowerCase(), fields);
             return this;
         }
 
@@ -154,6 +174,35 @@ public inherited sharing class ContextFormattingService {
         return result;
     }
 
+    public ProjectionSettings buildProjectionSettings(
+        AgentContextConfig__c config,
+        ContextResolverService.ContextDefinition contextDefinition,
+        PIIMaskingService piiMaskingService
+    ) {
+        ProjectionSettings settings = new ProjectionSettings();
+        if (piiMaskingService != null) {
+            settings.formattingOptions.withPIIMasking(piiMaskingService);
+        }
+
+        settings.sectionName = String.isNotBlank(config.OutputSectionName__c) ? config.OutputSectionName__c : config.AdminLabel__c;
+        if (contextDefinition != null) {
+            settings.recordLimit = contextDefinition.recordLimit;
+            settings.formattingOptions.withExcludeIdFields(contextDefinition.excludeIdFields == true);
+            settings.formattingOptions.withRecordUrls(contextDefinition.includeRecordUrls == true);
+        }
+
+        String rootObjectApiName = resolveRootObjectApiName(contextDefinition);
+        String fieldSetName = resolveFieldSetName(contextDefinition);
+        if (String.isNotBlank(rootObjectApiName) && String.isNotBlank(fieldSetName)) {
+            Set<String> includeFields = getFieldSetFields(rootObjectApiName, fieldSetName);
+            if (!includeFields.isEmpty()) {
+                settings.formattingOptions.withIncludeFields(rootObjectApiName, includeFields);
+            }
+        }
+
+        return settings;
+    }
+
     // JSON FORMATTING
 
     private String formatAsJson(List<SObject> records, String logPrefix, FormattingOptions options) {
@@ -229,6 +278,9 @@ public inherited sharing class ContextFormattingService {
         Set<String> sensitiveFields = options.getSensitiveFieldsForType(objDescribe.getSObjectType());
 
         for (String fieldName : populatedFields.keySet()) {
+            if (!shouldIncludeField(objDescribe.getName(), fieldName, options)) {
+                continue;
+            }
             if (options.excludeFields.contains(fieldName.toLowerCase()))
                 continue;
 
@@ -362,6 +414,9 @@ public inherited sharing class ContextFormattingService {
 
         Boolean isFirst = true;
         for (String fieldName : populatedFields.keySet()) {
+            if (!shouldIncludeField(objDescribe.getName(), fieldName, options)) {
+                continue;
+            }
             if (options.excludeFields.contains(fieldName.toLowerCase()))
                 continue;
 
@@ -512,6 +567,9 @@ public inherited sharing class ContextFormattingService {
             Set<String> sensitiveFields = options.getSensitiveFieldsForType(relatedDescribe.getSObjectType());
 
             for (String fieldName : relatedPopulated.keySet()) {
+                if (!shouldIncludeField(relatedDescribe.getName(), fieldName, options)) {
+                    continue;
+                }
                 Object fieldValue = relatedPopulated.get(fieldName);
 
                 // Skip nested relationships
@@ -549,6 +607,50 @@ public inherited sharing class ContextFormattingService {
         meta.put('generated', Datetime.now().formatGmt('yyyy-MM-dd\'T\'HH:mm:ss\'Z\''));
         meta.put('records', recordCount);
         return meta;
+    }
+
+    private String resolveRootObjectApiName(ContextResolverService.ContextDefinition contextDefinition) {
+        return contextDefinition == null ? null : contextDefinition.rootObjectApiName;
+    }
+
+    private String resolveFieldSetName(ContextResolverService.ContextDefinition contextDefinition) {
+        return contextDefinition == null ? null : contextDefinition.fieldSetName;
+    }
+
+    private Set<String> getFieldSetFields(String objectApiName, String fieldSetName) {
+        Set<String> fields = new Set<String>();
+        if (String.isBlank(objectApiName) || String.isBlank(fieldSetName)) {
+            return fields;
+        }
+
+        Schema.SObjectType sObjectType = Schema.getGlobalDescribe().get(objectApiName);
+        if (sObjectType == null) {
+            return fields;
+        }
+
+        Schema.FieldSet fieldSet = sObjectType.getDescribe().fieldSets.getMap().get(fieldSetName);
+        if (fieldSet == null) {
+            return fields;
+        }
+
+        for (Schema.FieldSetMember member : fieldSet.getFields()) {
+            String fieldPath = member.getFieldPath();
+            if (String.isNotBlank(fieldPath) && !fieldPath.contains('.')) {
+                fields.add(fieldPath.toLowerCase());
+            }
+        }
+        return fields;
+    }
+
+    private Boolean shouldIncludeField(String objectApiName, String fieldName, FormattingOptions options) {
+        if (String.isBlank(objectApiName) || fieldName == null || options == null || options.includeFieldsByType.isEmpty()) {
+            return true;
+        }
+        Set<String> includeFields = options.includeFieldsByType.get(objectApiName.toLowerCase());
+        if (includeFields == null || includeFields.isEmpty()) {
+            return true;
+        }
+        return includeFields.contains(fieldName.toLowerCase());
     }
 
     private String getRecordUrl(Id recordId) {

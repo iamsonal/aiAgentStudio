@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DefaultForDirect__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Whether this channel should be the default interaction channel for direct executions when none is explicitly specified.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Select this only for the single channel that should be used by default for direct executions.</inlineHelpText>
+    <label>Default For Direct</label>
+    <type>Checkbox</type>
+</CustomField>

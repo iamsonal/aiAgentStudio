@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>TotalTokens__c</fullName>
-    <description>Total number of tokens used (prompt + completion) for LLM calls.</description>
+    <description>Total number of tokens recorded for this model call.</description>
     <externalId>false</externalId>
-    <inlineHelpText>The total tokens used for this LLM call (prompt + completion).</inlineHelpText>
+    <inlineHelpText>Shows the total input and output tokens for this model call.</inlineHelpText>
     <label>Total Tokens</label>
     <precision>18</precision>
     <required>false</required>

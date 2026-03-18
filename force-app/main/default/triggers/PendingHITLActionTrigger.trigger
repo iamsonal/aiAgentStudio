@@ -9,7 +9,7 @@
 /**
  * @description Trigger for PendingHITLAction__c to handle HITL status changes.
  */
-trigger PendingHITLActionTrigger on PendingHITLAction__c (after update) {
+trigger PendingHITLActionTrigger on PendingHITLAction__c(after update) {
     if (Trigger.isAfter && Trigger.isUpdate) {
         PendingHITLActionTriggerHandler.handleAfterUpdate(Trigger.new, Trigger.oldMap);
     }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InteractionMessage__c</fullName>
+    <description>InteractionMessage__c transport record created for this ingress event.</description>
+    <inlineHelpText>Links the ingress event to the inbound transport audit record once processing reaches the canonical interaction message layer.</inlineHelpText>
+    <label>Interaction Message</label>
+    <referenceTo>InteractionMessage__c</referenceTo>
+    <relationshipLabel>Ingress Events</relationshipLabel>
+    <relationshipName>IngressInteractionMessages</relationshipName>
+    <required>false</required>
+    <type>Lookup</type>
+</CustomField>

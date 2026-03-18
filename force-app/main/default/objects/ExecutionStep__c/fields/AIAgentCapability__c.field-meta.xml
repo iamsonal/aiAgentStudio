@@ -2,7 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>AIAgentCapability__c</fullName>
     <deleteConstraint>SetNull</deleteConstraint>
-    <description>The capability/tool that was called or resulted in this step. Used for navigation from storyboard to capability configuration.</description>
+    <description>Agent capability associated with this step, when the step involves a capability call or result.</description>
     <externalId>false</externalId>
     <label>Agent Capability</label>
     <referenceTo>AgentCapability__c</referenceTo>

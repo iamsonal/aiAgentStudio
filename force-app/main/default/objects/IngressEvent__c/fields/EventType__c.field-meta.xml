@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EventType__c</fullName>
+    <description>Normalized type of event represented by this ingress row.</description>
+    <inlineHelpText>Use this to distinguish inbound user messages from delivery callbacks, verification requests, or unknown payloads.</inlineHelpText>
+    <label>Event Type</label>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>InboundMessage</fullName><default>true</default><label>Inbound Message</label></value>
+            <value><fullName>DeliveryStatus</fullName><default>false</default><label>Delivery Status</label></value>
+            <value><fullName>Verification</fullName><default>false</default><label>Verification</label></value>
+            <value><fullName>Unknown</fullName><default>false</default><label>Unknown</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

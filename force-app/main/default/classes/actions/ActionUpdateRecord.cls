@@ -241,9 +241,13 @@ public with sharing class ActionUpdateRecord extends BaseAgentAction {
 
         if (saveResult.isSuccess()) {
             System.debug(LoggingLevel.DEBUG, '[ActionUpdateRecord] Update succeeded for record ' + recordId);
-            return ActionOutcome.success(
+            ActionOutcome outcome = ActionOutcome.success(
                 new UpdateResult(recordId.toString(), 'Successfully updated record ' + recordId + '.', new List<String>(typedData.keySet()))
             );
+            if (this.actionContext == null || this.actionContext.relatedRecordId == null || this.actionContext.relatedRecordId != recordId) {
+                outcome.withRelatedRecord(recordId, 'Explicit record updated during agent execution and promoted into durable context.');
+            }
+            return outcome;
         } else {
             Database.Error error = saveResult.getErrors()[0];
             String enhancedMessage = enhanceUpdateErrorMessage(error, recordId, typedData);

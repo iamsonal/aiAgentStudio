@@ -2,9 +2,9 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ResolvedBy__c</fullName>
     <deleteConstraint>SetNull</deleteConstraint>
-    <description>The user who resolved this HITL action (confirmed, declined, approved, or rejected).</description>
+    <description>User who resolved this pending request.</description>
     <externalId>false</externalId>
-    <inlineHelpText>User who resolved this request.</inlineHelpText>
+    <inlineHelpText>Identifies who resolved this request.</inlineHelpText>
     <label>Resolved By</label>
     <referenceTo>User</referenceTo>
     <relationshipName>ResolvedHITLActions</relationshipName>

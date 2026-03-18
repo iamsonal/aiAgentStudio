@@ -6,16 +6,11 @@
  * Copyright (c) 2025 Sonal
  */
 
-trigger AgentCapabilityTrigger on AgentCapability__c(
-    before insert, before update,
-    after insert, after update, after delete, after undelete
-) {
+trigger AgentCapabilityTrigger on AgentCapability__c(before insert, before update, after insert, after update, after delete, after undelete) {
     if (Trigger.isBefore) {
         AgentCapabilityTriggerHandler.handleTrigger(Trigger.new, Trigger.oldMap);
     }
     if (Trigger.isAfter) {
-        AgentCapabilityTriggerHandler.handleAfterTrigger(
-            Trigger.new, Trigger.old, Trigger.operationType
-        );
+        AgentCapabilityTriggerHandler.handleAfterTrigger(Trigger.new, Trigger.old, Trigger.operationType);
     }
 }

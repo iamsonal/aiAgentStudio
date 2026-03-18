@@ -43,7 +43,7 @@
     <allowInChatterGroups>false</allowInChatterGroups>
     <compactLayoutAssignment>SYSTEM</compactLayoutAssignment>
     <deploymentStatus>Deployed</deploymentStatus>
-    <description>Tracks pending Human-in-the-Loop (HITL) actions requiring user confirmation or formal approval before execution. Central state management for all HITL workflows across agent types.</description>
+    <description>Tracks capability actions that are waiting for confirmation or approval before they can continue.</description>
     <enableActivities>false</enableActivities>
     <enableBulkApi>true</enableBulkApi>
     <enableFeeds>false</enableFeeds>

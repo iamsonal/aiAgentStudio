@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Registry metadata that defines each supported interaction channel and the Apex components used to run it.</description>
+    <label>Interaction Channel Type</label>
+    <pluralLabel>Interaction Channel Types</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

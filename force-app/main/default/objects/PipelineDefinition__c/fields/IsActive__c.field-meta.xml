@@ -2,7 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>IsActive__c</fullName>
     <defaultValue>true</defaultValue>
-    <description>Indicates whether this pipeline definition is active and can be executed.</description>
+    <description>Controls whether this pipeline can be started.</description>
     <inlineHelpText>Uncheck to disable this pipeline without deleting it.</inlineHelpText>
     <label>Is Active</label>
     <trackHistory>true</trackHistory>

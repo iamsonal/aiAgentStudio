@@ -9,23 +9,6 @@
     <visibleLines>4</visibleLines>
     <valueSet>
         <restricted>true</restricted>
-        <valueSetDefinition>
-            <sorted>false</sorted>
-            <value>
-                <fullName>Email</fullName>
-                <default>false</default>
-                <label>Email</label>
-            </value>
-            <value>
-                <fullName>Chat</fullName>
-                <default>false</default>
-                <label>Chat</label>
-            </value>
-            <value>
-                <fullName>API</fullName>
-                <default>false</default>
-                <label>API</label>
-            </value>
-        </valueSetDefinition>
+        <valueSetName>InteractionChannels</valueSetName>
     </valueSet>
 </CustomField>

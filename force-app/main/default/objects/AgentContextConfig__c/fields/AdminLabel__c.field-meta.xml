@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AdminLabel__c</fullName>
+    <description>Admin-facing label that explains the purpose of this context binding.</description>
+    <inlineHelpText>Enter a clear label for admins, such as Case Summary Context or Account Fit Context. This label helps identify the binding in setup and troubleshooting.</inlineHelpText>
+    <label>Admin Label</label>
+    <length>255</length>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

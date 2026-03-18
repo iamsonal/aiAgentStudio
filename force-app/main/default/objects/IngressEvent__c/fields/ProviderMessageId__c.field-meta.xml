@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProviderMessageId__c</fullName>
+    <description>Provider-native message identifier associated with this ingress event.</description>
+    <inlineHelpText>Use the raw provider message ID for correlation with delivery callbacks, support logs, and duplicate handling.</inlineHelpText>
+    <label>Provider Message Id</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

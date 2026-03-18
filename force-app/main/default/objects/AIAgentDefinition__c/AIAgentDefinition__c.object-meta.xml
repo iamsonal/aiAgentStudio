@@ -143,7 +143,7 @@
     <allowInChatterGroups>false</allowInChatterGroups>
     <compactLayoutAssignment>SYSTEM</compactLayoutAssignment>
     <deploymentStatus>Deployed</deploymentStatus>
-    <description>Defines the complete configuration, behavior, personality, and capabilities (tools) of a specific conversational AI agent instance. Combines an LLM configuration, system prompt, conversation history settings, and linked tools (via Agent Capability Bindings) to create a functional agent that can be used in Chat Sessions. Enable Feed Tracking if desired.</description>
+    <description>Defines an agent's runtime configuration, prompts, model settings, safety controls, and linked capabilities.</description>
     <enableActivities>false</enableActivities>
     <enableBulkApi>true</enableBulkApi>
     <enableFeeds>false</enableFeeds>
@@ -163,7 +163,7 @@
     <searchLayouts>
         <searchResultsAdditionalFields>DeveloperName__c</searchResultsAdditionalFields>
         <searchResultsAdditionalFields>LLMConfiguration__c</searchResultsAdditionalFields>
-        <searchResultsAdditionalFields>AgentType__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>RuntimeStrategy__c</searchResultsAdditionalFields>
         <searchResultsAdditionalFields>IsActive__c</searchResultsAdditionalFields>
     </searchLayouts>
     <sharingModel>ReadWrite</sharingModel>

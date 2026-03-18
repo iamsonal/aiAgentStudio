@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DefinitionMode__c</fullName>
+    <description>Determines whether the framework should invoke an Apex provider or format the anchor record directly through a field set.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Choose Apex Provider when custom code should gather the context for you. Choose Field Set when the framework should take an existing record and format only the fields you selected.</inlineHelpText>
+    <label>Definition Mode</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>Apex Provider</fullName><default>true</default><label>Apex Provider</label></value>
+            <value><fullName>Field Set</fullName><default>false</default><label>Field Set</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

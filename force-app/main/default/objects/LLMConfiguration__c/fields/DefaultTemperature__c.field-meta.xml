@@ -2,9 +2,9 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>DefaultTemperature__c</fullName>
     <defaultValue>0.1</defaultValue>
-    <description>Default creativity/randomness setting for the LLM (typically 0.0 to 2.0). Lower values result in more deterministic and focused output, while higher values increase randomness and creativity.</description>
+    <description>Default temperature setting used for this model configuration.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Controls the randomness of the LLM&apos;s responses. Consult provider documentation for allowed range and default behavior if left blank (though a default is provided here).</inlineHelpText>
+    <inlineHelpText>Lower values make responses more deterministic. Higher values allow more variation. Leave blank to use the configured default.</inlineHelpText>
     <label>Default Temperature</label>
     <precision>5</precision>
     <required>false</required>

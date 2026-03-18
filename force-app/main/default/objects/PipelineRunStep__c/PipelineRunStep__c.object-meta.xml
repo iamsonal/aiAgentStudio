@@ -43,7 +43,7 @@
     <allowInChatterGroups>false</allowInChatterGroups>
     <compactLayoutAssignment>SYSTEM</compactLayoutAssignment>
     <deploymentStatus>Deployed</deploymentStatus>
-    <description>Tracks the runtime state of each step in a pipeline execution. Enables native Salesforce reporting on pipeline step performance, duration, failure rates, and bottlenecks.</description>
+    <description>Tracks the runtime state and outcome of each step in a pipeline execution.</description>
     <enableActivities>false</enableActivities>
     <enableBulkApi>true</enableBulkApi>
     <enableFeeds>false</enableFeeds>

@@ -4,7 +4,7 @@
     <deleteConstraint>SetNull</deleteConstraint>
     <description>The capability/tool that requires HITL intervention before execution.</description>
     <externalId>false</externalId>
-    <inlineHelpText>The tool that triggered this HITL request.</inlineHelpText>
+    <inlineHelpText>Shows which capability triggered this pending confirmation or approval request.</inlineHelpText>
     <label>Agent Capability</label>
     <referenceTo>AgentCapability__c</referenceTo>
     <relationshipLabel>Pending HITL Actions</relationshipLabel>

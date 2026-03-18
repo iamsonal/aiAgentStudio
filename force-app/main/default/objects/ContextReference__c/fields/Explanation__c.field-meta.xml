@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Explanation__c</fullName>
+    <description>Optional plain-language note that explains why this reference was kept.</description>
+    <inlineHelpText>Use this field when you want an admin-friendly explanation for why the record was retained in context.</inlineHelpText>
+    <label>Explanation</label>
+    <length>1000</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

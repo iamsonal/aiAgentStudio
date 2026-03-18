@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EndpointIdentifier__c</fullName>
+    <description>Provider-facing identifier for the inbound endpoint, such as a phone number, inbox address, or channel address.</description>
+    <inlineHelpText>Use the raw endpoint identifier that external systems know about so routing and analytics remain channel-agnostic.</inlineHelpText>
+    <label>Endpoint Identifier</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ErrorMessage__c</fullName>
+    <description>Latest human-readable failure detail for verification or processing of this ingress event.</description>
+    <inlineHelpText>Stores the most useful operator-facing error summary for why the event could not be processed cleanly.</inlineHelpText>
+    <label>Error Message</label>
+    <length>32768</length>
+    <type>LongTextArea</type>
+    <visibleLines>4</visibleLines>
+</CustomField>

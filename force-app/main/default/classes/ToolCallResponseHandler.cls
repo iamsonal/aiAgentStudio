@@ -1358,7 +1358,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         }
 
         // Default behavior for runtimes that do not provide custom approval completion handling
-        // (typically single-shot agents): pause execution until approval is resolved
+        // (typically direct agents): pause execution until approval is resolved
         context.agentStateSvc.updateStatus(
             context.executionId,
             'Awaiting Action',
@@ -1761,7 +1761,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
 
                 AgentStateService agentStateSvc = new AgentStateService();
                 Id childExecutionId = agentStateSvc.createExecution(
-                    childAgentDef.AgentType__c,
+                    childAgentDef.RuntimeStrategy__c,
                     childAgentDef.Id,
                     'AgentCapability',
                     triggerPayload,
@@ -1912,11 +1912,13 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
             if (hasFailures) {
                 String errorDetail = String.isNotBlank(failureMessage) ? failureMessage : 'Tool execution failed';
                 String errorCode = String.isNotBlank(failureCode) ? failureCode : AIAgentConstants.ERR_CODE_ACTION_EXECUTION;
+                commitContextAnchorsIfNeeded(context, syncResults, logPrefix);
                 context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, errorDetail, errorCode, logPrefix);
                 publishTransientAssistantMessage(context.executionId, savedAssistantMessageId, assistantMessageContent, logPrefix);
                 return OrchestrationService.OUTCOME_FAILED;
             }
 
+            commitContextAnchorsIfNeeded(context, syncResults, logPrefix);
             context.agentStateSvc.completeTurnSuccessfully(context.executionId, context.turnIdentifier, null, logPrefix);
             publishTransientAssistantMessage(context.executionId, savedAssistantMessageId, assistantMessageContent, logPrefix);
             return OrchestrationService.OUTCOME_COMPLETED;
@@ -2004,6 +2006,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         }
 
         if (shouldHalt) {
+            commitContextAnchorsIfNeeded(context, syncResults, logPrefix);
             publishTransientAssistantMessage(context.executionId, savedAssistantMessageId, assistantMessageContent, logPrefix);
             return OrchestrationService.OUTCOME_FAILED;
         }
@@ -2013,6 +2016,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         Integer maxTurns = AIAgentFrameworkSettings.getMaxProcessingCycles(agentDef);
         if ((context.currentTurnCount + 1) > maxTurns) {
             String limitErrorMsg = 'Maximum processing cycles (' + maxTurns + ') exceeded.';
+            commitContextAnchorsIfNeeded(context, syncResults, logPrefix);
             context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, limitErrorMsg, AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED, logPrefix);
             publishTransientAssistantMessage(context.executionId, savedAssistantMessageId, assistantMessageContent, logPrefix);
             return OrchestrationService.OUTCOME_FAILED;
@@ -2055,18 +2059,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         // Reasons: tool performed DML/callout, max calls reached, or deferred mode not enabled
         System.debug(LoggingLevel.INFO, logPrefix + 'Multi-LLM optimization not applicable, queueing follow-up');
 
-        // Commit page context to ledger (Conversational agents only)
-        // Skip for Function agents since:
-        // 1. Context was already resolved upfront from the recordId
-        // 2. Function agents don't need multi-turn context tracking
-        // 3. Reduces unnecessary DML for stateless execution patterns
-        if (context.currentPageRecordId != null && context.agentStateSvc.isContextTrackingEnabled(context.executionId)) {
-            try {
-                context.contextManagerSvc.commitExecutionTurnContext(context.executionId, context.currentTurnCount, context.currentPageRecordId, null);
-            } catch (Exception e) {
-                System.debug(LoggingLevel.ERROR, logPrefix + 'Non-fatal: Failed to commit context: ' + e.getMessage());
-            }
-        }
+        commitContextAnchorsIfNeeded(context, syncResults, logPrefix);
 
         // Commit buffer before queueing (if in deferred mode)
         if (txnCtx.isDeferredDMLMode()) {
@@ -2096,6 +2089,45 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         );
 
         return OrchestrationService.OUTCOME_QUEUED_FOLLOWUP;
+    }
+
+    private void commitContextAnchorsIfNeeded(OrchestrationContext context, List<ToolExecutionResult> syncResults, String logPrefix) {
+        if (context == null || context.agentStateSvc.isContextTrackingEnabled(context.executionId) != true) {
+            return;
+        }
+
+        List<ContextManagerService.ContextDeltaItem> deltaItems = context.contextManagerSvc.buildTurnContextDelta(
+            context.executionId,
+            context.currentPageRecordId,
+            buildContextDeltaItems(syncResults, context.contextManagerSvc)
+        );
+        if (deltaItems.isEmpty()) {
+            return;
+        }
+
+        try {
+            context.contextManagerSvc.commitContextDelta(context.executionId, context.currentTurnCount, deltaItems);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Non-fatal: Failed to commit context anchors: ' + e.getMessage());
+        }
+    }
+
+    private List<ContextManagerService.ContextDeltaItem> buildContextDeltaItems(
+        List<ToolExecutionResult> syncResults,
+        ContextManagerService contextManagerSvc
+    ) {
+        List<ContextManagerService.ContextDeltaItem> deltaItems = new List<ContextManagerService.ContextDeltaItem>();
+        if (syncResults == null || contextManagerSvc == null) {
+            return deltaItems;
+        }
+
+        for (ToolExecutionResult result : syncResults) {
+            if (result == null || result.outcome == null || result.outcome.isSuccess != true || result.outcome.contextEffects == null) {
+                continue;
+            }
+            deltaItems.addAll(contextManagerSvc.buildDeltaItemsFromContextEffects(result.outcome.contextEffects));
+        }
+        return deltaItems;
     }
 
     /**

@@ -1,5 +1,5 @@
 /**
- * @description Focused tests for ContextManagerService categorization and relevance behavior
+ * @description Focused tests for the minimal ContextManagerService reference model.
  */
 @IsTest
 private class ContextManagerServiceTest {
@@ -9,211 +9,205 @@ private class ContextManagerServiceTest {
     }
 
     @IsTest
-    static void testGetStructuredContext_CategorizesItems() {
+    static void testCommitExecutionTurnContext_CreatesPrimaryAndCreatedReferences() {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent([SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
-            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
-            .save();
-
-        Account accPinned = TestFactory.newAccount().withName('Pinned').save();
-        Account accPrimary = TestFactory.newAccount().withName('Primary').save();
-        Account accRecent = TestFactory.newAccount().withName('Recent').save();
-        Account accRelated = TestFactory.newAccount().withName('Related').save();
-        Account accStale = TestFactory.newAccount().withName('Stale').save();
-
-        Integer currentTurn = 20;
-
-        ContextManagerService.ContextItem pinnedItem = new ContextManagerService.ContextItem(accPinned.Id, ContextManagerService.ContextType.PINNED, 1, null);
-        pinnedItem.lastAccessed = currentTurn - 5;
-        ContextLedgerItem__c pinnedRecord = pinnedItem.toRecord(execution.Id);
-
-        ContextManagerService.ContextItem primaryItem = new ContextManagerService.ContextItem(
-            accPrimary.Id,
-            ContextManagerService.ContextType.IMPLICIT_PRIMARY,
-            2,
-            null
-        );
-        primaryItem.lastAccessed = currentTurn - 3;
-        ContextLedgerItem__c primaryRecord = primaryItem.toRecord(execution.Id);
-
-        ContextManagerService.ContextItem recentItem = new ContextManagerService.ContextItem(
-            accRecent.Id,
-            ContextManagerService.ContextType.USER_MENTIONED,
-            5,
-            null
-        );
-        recentItem.lastAccessed = currentTurn - 1;
-        ContextLedgerItem__c recentRecord = recentItem.toRecord(execution.Id);
-
-        ContextManagerService.ContextItem relatedItem = new ContextManagerService.ContextItem(
-            accRelated.Id,
-            ContextManagerService.ContextType.ACTION_GENERATED,
-            6,
-            null
-        );
-        relatedItem.lastAccessed = currentTurn - 5;
-        ContextLedgerItem__c relatedRecord = relatedItem.toRecord(execution.Id);
-
-        ContextManagerService.ContextItem staleItem = new ContextManagerService.ContextItem(
-            accStale.Id,
-            ContextManagerService.ContextType.BACKGROUND_CONTEXT,
-            1,
-            null
-        );
-        staleItem.lastAccessed = currentTurn - 15;
-        ContextLedgerItem__c staleRecord = staleItem.toRecord(execution.Id);
-
-        insert new List<ContextLedgerItem__c>{ pinnedRecord, primaryRecord, recentRecord, relatedRecord, staleRecord };
-
-        ContextManagerService svc = new ContextManagerService();
-        Map<String, List<ContextManagerService.ContextItem>> structured = svc.getStructuredContext(execution.Id, currentTurn);
-
-        System.assert(containsId(structured.get('pinned'), String.valueOf(accPinned.Id)), 'Pinned item should be categorized as pinned');
-        System.assert(containsId(structured.get('primary'), String.valueOf(accPrimary.Id)), 'Primary item should be categorized as primary');
-        System.assert(containsId(structured.get('recent'), String.valueOf(accRecent.Id)), 'Recent item should be categorized as recent');
-        System.assert(containsId(structured.get('related'), String.valueOf(accRelated.Id)), 'Related item should be categorized as related');
-        System.assert(containsId(structured.get('stale'), String.valueOf(accStale.Id)), 'Stale item should be categorized as stale');
-    }
-
-    @IsTest
-    static void testContextItemUpdateRelevance_PinnedNeverDecays() {
-        Account acc = TestFactory.newAccount().withName('Pinned Relevance').save();
-        ContextManagerService.ContextItem pinned = new ContextManagerService.ContextItem(acc.Id, ContextManagerService.ContextType.PINNED, 1, null);
-        pinned.lastAccessed = 1;
-        pinned.accessCount = 1;
-
-        pinned.updateRelevance(100);
-
-        System.assertEquals(9999.0, pinned.relevanceScore, 'Pinned relevance should remain at pinned score');
-        System.assertEquals(ContextManagerService.ContextStatus.ACTIVE, pinned.status, 'Pinned items should remain active');
-    }
-
-    @IsTest
-    static void testCommitExecutionTurnContext_PromotesPageAndLinksChild() {
-        AgentExecution__c execution = TestFactory.newExecution()
-            .withAgent([SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id)
-            .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .save();
 
         Account pageContext = TestFactory.newAccount().withName('Page Context').save();
-        Contact actionRecord = new Contact(LastName = 'Action Child', AccountId = pageContext.Id);
+        Contact actionRecord = new Contact(LastName = 'Created By Agent', AccountId = pageContext.Id);
         insert actionRecord;
 
-        ContextLedgerItem__c existing = new ContextLedgerItem__c(
-            AgentExecution__c = execution.Id,
-            RecordId__c = pageContext.Id,
-            RecordType__c = 'Account',
-            ContextType__c = ContextManagerService.ContextType.USER_MENTIONED.name(),
-            Status__c = ContextManagerService.ContextStatus.ACTIVE.name(),
-            TurnAdded__c = 1,
-            LastAccessedTurn__c = 1,
-            AccessCount__c = 1,
-            RelevanceScore__c = 100
-        );
-        insert existing;
+        ContextManagerService service = new ContextManagerService();
+        service.commitExecutionTurnContext(execution.Id, 1, pageContext.Id, actionRecord.Id);
 
-        ContextManagerService svc = new ContextManagerService();
-        svc.commitExecutionTurnContext(execution.Id, 5, pageContext.Id, actionRecord.Id);
+        Map<String, ContextReference__c> referencesByRecordId = new Map<String, ContextReference__c>();
+        for (ContextReference__c reference : [
+            SELECT
+                AgentExecution__c,
+                InteractionSession__c,
+                RecordId__c,
+                RecordType__c,
+                ReferenceRole__c,
+                ReferenceSource__c,
+                Status__c,
+                LastUsedAt__c,
+                UseCount__c,
+                Explanation__c
+            FROM ContextReference__c
+            WHERE AgentExecution__c = :execution.Id
+        ]) {
+            referencesByRecordId.put(reference.RecordId__c, reference);
+        }
 
-        ContextLedgerItem__c updatedPage = [
-            SELECT ContextType__c, OriginalContextType__c, ChildRecordIds__c
-            FROM ContextLedgerItem__c
-            WHERE AgentExecution__c = :execution.Id AND RecordId__c = :pageContext.Id
-            LIMIT 1
-        ];
-        System.assertEquals(
-            ContextManagerService.ContextType.IMPLICIT_PRIMARY.name(),
-            updatedPage.ContextType__c,
-            'Page context should be promoted to primary'
-        );
-        System.assertEquals(
-            ContextManagerService.ContextType.USER_MENTIONED.name(),
-            updatedPage.OriginalContextType__c,
-            'Original context type should be preserved'
-        );
-        System.assert(
-            updatedPage.ChildRecordIds__c != null && updatedPage.ChildRecordIds__c.contains(String.valueOf(actionRecord.Id)),
-            'Page context should link to child action record'
-        );
+        System.assertEquals(2, referencesByRecordId.size(), 'Should create two minimal context references');
 
-        ContextLedgerItem__c actionItem = [
-            SELECT ContextType__c, SourceRecordId__c, Metadata__c
-            FROM ContextLedgerItem__c
-            WHERE AgentExecution__c = :execution.Id AND RecordId__c = :actionRecord.Id
-            LIMIT 1
-        ];
-        System.assertEquals(
-            ContextManagerService.ContextType.ACTION_GENERATED.name(),
-            actionItem.ContextType__c,
-            'Action record should be stored as action-generated context'
-        );
-        System.assertEquals(String.valueOf(pageContext.Id), actionItem.SourceRecordId__c, 'Action record should reference page context as source');
-        Map<String, Object> metadata = (Map<String, Object>) JSON.deserializeUntyped(actionItem.Metadata__c);
-        System.assertEquals(true, metadata.get('createdByAgent'), 'Action metadata should mark createdByAgent');
+        ContextReference__c pageReference = referencesByRecordId.get(String.valueOf(pageContext.Id));
+        System.assertEquals('Account', pageReference.RecordType__c);
+        System.assertEquals(ContextManagerService.ReferenceRole.Primary.name(), pageReference.ReferenceRole__c);
+        System.assertEquals('Page Context', pageReference.ReferenceSource__c);
+        System.assertEquals(ContextManagerService.ReferenceStatus.Active.name(), pageReference.Status__c);
+        System.assertEquals(1, pageReference.UseCount__c.intValue());
+        System.assert(String.isNotBlank(pageReference.Explanation__c), 'Primary reference should have an admin-friendly explanation');
+
+        ContextReference__c createdReference = referencesByRecordId.get(String.valueOf(actionRecord.Id));
+        System.assertEquals('Contact', createdReference.RecordType__c);
+        System.assertEquals(ContextManagerService.ReferenceRole.Created.name(), createdReference.ReferenceRole__c);
+        System.assertEquals('Tool Output', createdReference.ReferenceSource__c);
+        System.assertEquals(ContextManagerService.ReferenceStatus.Active.name(), createdReference.Status__c);
     }
 
     @IsTest
-    static void testGetFilteredContext_FiltersByTypeAndRelevance() {
+    static void testCommitContextDelta_CreatesTypedReferences() {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent([SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .save();
 
-        Account actionAccount = TestFactory.newAccount().withName('Action Context').save();
-        Account mentionAccount = TestFactory.newAccount().withName('Mention Context').save();
+        Account pageContext = TestFactory.newAccount().withName('Delta Page Context').save();
+        Contact createdContact = new Contact(LastName = 'Delta Created Contact');
+        insert createdContact;
 
-        insert new List<ContextLedgerItem__c>{
-            new ContextLedgerItem__c(
-                AgentExecution__c = execution.Id,
-                RecordId__c = actionAccount.Id,
-                RecordType__c = 'Account',
-                ContextType__c = ContextManagerService.ContextType.ACTION_GENERATED.name(),
-                Status__c = ContextManagerService.ContextStatus.ACTIVE.name(),
-                TurnAdded__c = 5,
-                LastAccessedTurn__c = 5,
-                AccessCount__c = 1,
-                RelevanceScore__c = 180
-            ),
-            new ContextLedgerItem__c(
-                AgentExecution__c = execution.Id,
-                RecordId__c = mentionAccount.Id,
-                RecordType__c = 'Account',
-                ContextType__c = ContextManagerService.ContextType.USER_MENTIONED.name(),
-                Status__c = ContextManagerService.ContextStatus.ACTIVE.name(),
-                TurnAdded__c = 5,
-                LastAccessedTurn__c = 5,
-                AccessCount__c = 1,
-                RelevanceScore__c = 160
-            )
-        };
-
-        ContextManagerService svc = new ContextManagerService();
-        List<ContextManagerService.ContextItem> filtered = svc.getFilteredContext(
+        ContextManagerService service = new ContextManagerService();
+        service.commitContextDelta(
             execution.Id,
-            5,
-            new Set<ContextManagerService.ContextType>{ ContextManagerService.ContextType.ACTION_GENERATED },
-            50
+            1,
+            new List<ContextManagerService.ContextDeltaItem>{
+                new ContextManagerService.ContextDeltaItem(
+                    pageContext.Id,
+                    ContextManagerService.ReferenceRole.Primary,
+                    ContextManagerService.ReferenceSource.PageContext,
+                    'Primary record for this turn.'
+                ),
+                new ContextManagerService.ContextDeltaItem(
+                    createdContact.Id,
+                    ContextManagerService.ReferenceRole.Created,
+                    ContextManagerService.ReferenceSource.ToolOutput,
+                    'Created by a tool.'
+                )
+            }
         );
 
-        System.assertEquals(1, filtered.size(), 'Filtered context should return only action-generated items');
-        System.assertEquals(String.valueOf(actionAccount.Id), filtered[0].id, 'Filtered item should match action record');
+        List<ContextReference__c> references = [
+            SELECT RecordId__c, ReferenceRole__c, ReferenceSource__c
+            FROM ContextReference__c
+            WHERE AgentExecution__c = :execution.Id
+        ];
+        System.assertEquals(2, references.size(), 'Typed context delta API should persist both anchors');
     }
 
-    private static Boolean containsId(List<ContextManagerService.ContextItem> items, String idValue) {
-        if (items == null) {
-            return false;
+    @IsTest
+    static void testCommitExecutionTurnContext_ReusesExistingReference() {
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent([SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .save();
+
+        Account pageContext = TestFactory.newAccount().withName('Repeated Page Context').save();
+
+        ContextManagerService service = new ContextManagerService();
+        service.commitExecutionTurnContext(execution.Id, 1, pageContext.Id, null);
+        service.commitExecutionTurnContext(execution.Id, 2, pageContext.Id, null);
+
+        List<ContextReference__c> references = [
+            SELECT RecordId__c, UseCount__c, LastUsedAt__c
+            FROM ContextReference__c
+            WHERE AgentExecution__c = :execution.Id AND RecordId__c = :String.valueOf(pageContext.Id)
+        ];
+        System.assertEquals(1, references.size(), 'The same record should be updated instead of duplicated');
+        System.assertEquals(2, references[0].UseCount__c.intValue(), 'Use count should increment when the reference is refreshed');
+        System.assertNotEquals(null, references[0].LastUsedAt__c, 'Last used timestamp should be recorded');
+    }
+
+    @IsTest
+    static void testGetRelevantRecordIds_ReusesInteractionSessionContinuity() {
+        Account accountRecord = new Account(Name = 'Session Reference Account');
+        insert accountRecord;
+
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Session Reference Agent').withType('Conversational').withLLM(llm.Id).save();
+
+        InteractionSession__c session = new InteractionSession__c(
+            Channel__c = RuntimeRegistryService.CHANNEL_CHAT,
+            ConversationKey__c = 'session-reference-001',
+            ParticipantExternalKey__c = 'user-001',
+            SessionStatus__c = 'Active'
+        );
+        insert session;
+
+        AgentExecution__c firstExecution = TestFactory.newExecution()
+            .withAgent(agent.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_PROCESSING)
+            .withTurnIdentifier('turn-reference-001')
+            .save();
+        AgentExecution__c secondExecution = TestFactory.newExecution()
+            .withAgent(agent.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withStatus('Processing')
+            .withProcessingStatus(AIAgentConstants.STATUS_PROCESSING)
+            .withTurnIdentifier('turn-reference-002')
+            .save();
+
+        update new List<AgentExecution__c>{
+            new AgentExecution__c(Id = firstExecution.Id, InteractionSession__c = session.Id),
+            new AgentExecution__c(Id = secondExecution.Id, InteractionSession__c = session.Id)
+        };
+
+        ContextManagerService service = new ContextManagerService();
+        service.commitExecutionTurnContext(firstExecution.Id, 1, accountRecord.Id, null);
+
+        Set<Id> relevantIds = service.getRelevantRecordIds(secondExecution.Id);
+        System.assert(relevantIds.contains(accountRecord.Id), 'A later execution in the same interaction session should reuse session-scoped references');
+    }
+
+    @IsTest
+    static void testBuildTurnContextDelta_IncludesStructuredMentionsAndSystemSourceRecord() {
+        Id agentId = [SELECT Id FROM AIAgentDefinition__c LIMIT 1].Id;
+        Account pageContext = TestFactory.newAccount().withName('Turn Delta Page').save();
+        Contact sourceContact = TestFactory.newContact().withName('Turn', 'Source').save();
+        Case mentionedCase = TestFactory.newCase().withSubject('Mentioned From Payload').save();
+        Account relatedAccount = TestFactory.newAccount().withName('Related From Payload').save();
+
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(agentId)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .withSourceRecord(sourceContact.Id)
+            .save();
+        update new AgentExecution__c(
+            Id = execution.Id,
+            TriggerPayload__c = JSON.serialize(
+                new Map<String, Object>{
+                    'mentionedRecordIds' => new List<String>{ String.valueOf(mentionedCase.Id) },
+                    'relatedRecordIds' => new List<String>{ String.valueOf(relatedAccount.Id) }
+                }
+            )
+        );
+
+        ContextManagerService service = new ContextManagerService();
+        List<ContextManagerService.ContextDeltaItem> deltaItems = service.buildTurnContextDelta(execution.Id, pageContext.Id, null);
+
+        Map<String, ContextManagerService.ContextDeltaItem> deltaByRecordId = new Map<String, ContextManagerService.ContextDeltaItem>();
+        for (ContextManagerService.ContextDeltaItem item : deltaItems) {
+            deltaByRecordId.put(item.recordId, item);
         }
-        for (ContextManagerService.ContextItem item : items) {
-            if (item != null && item.id == idValue) {
-                return true;
-            }
-        }
-        return false;
+
+        System.assertEquals(4, deltaByRecordId.size(), 'Turn delta should include page, source, mention, and related anchors');
+        System.assertEquals(ContextManagerService.ReferenceRole.Primary, deltaByRecordId.get(String.valueOf(pageContext.Id)).referenceRole);
+        System.assertEquals(ContextManagerService.ReferenceRole.Related, deltaByRecordId.get(String.valueOf(sourceContact.Id)).referenceRole);
+        System.assertEquals(ContextManagerService.ReferenceRole.Mentioned, deltaByRecordId.get(String.valueOf(mentionedCase.Id)).referenceRole);
+        System.assertEquals(ContextManagerService.ReferenceRole.Related, deltaByRecordId.get(String.valueOf(relatedAccount.Id)).referenceRole);
     }
 }

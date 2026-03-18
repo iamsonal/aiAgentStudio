@@ -55,6 +55,45 @@ private class ToolCallResponseHandlerTest {
     }
 
     @IsTest
+    static void testHandle_CreateRecordTool_PersistsPageAndCreatedContextReferences() {
+        AgentCapability__c createCapability = TestFactory.newCapability().forCreateRecord('Account').withName('create_account_sync').build();
+        TestFactory.AgentSetup setup = TestFactory.createFullAgentSetup().withCapability(createCapability).save();
+        Case pageCase = TestFactory.newCase().withSubject('Create Context Case').save();
+
+        List<Map<String, String>> actions = new List<Map<String, String>>{
+            TestFactory.createToolCallAction(createCapability.CapabilityName__c, '{"recordData":{"Name":"Created From Tool Handler"}}', 'call-create-001')
+        };
+        LLMInteractionService.LLMInteractionResult llmResult = TestFactory.createLlmToolCallResult('Create account', actions);
+
+        OrchestrationContext context = TestFactory.newOrchestrationContext()
+            .withSetup(setup)
+            .withLlmResult(llmResult)
+            .withUserMessage('Create an account for me')
+            .withTurn('turn-create-ctx-001', 1)
+            .withPageRecord(pageCase.Id)
+            .build();
+
+        String outcome = new ToolCallResponseHandler().handle(context);
+
+        System.assertEquals(OrchestrationService.OUTCOME_QUEUED_FOLLOWUP, outcome, 'Sync create tool should queue a follow-up turn');
+
+        List<ContextReference__c> references = [
+            SELECT RecordId__c, ReferenceRole__c, ReferenceSource__c
+            FROM ContextReference__c
+            WHERE AgentExecution__c = :setup.agentExecution.Id
+        ];
+        System.assertEquals(2, references.size(), 'Should persist both page and created record anchors');
+
+        Map<String, ContextReference__c> referencesByRole = new Map<String, ContextReference__c>();
+        for (ContextReference__c reference : references) {
+            referencesByRole.put(reference.ReferenceRole__c, reference);
+        }
+        System.assertEquals(String.valueOf(pageCase.Id), referencesByRole.get('Primary').RecordId__c);
+        System.assertEquals('Page Context', referencesByRole.get('Primary').ReferenceSource__c);
+        System.assertEquals('Tool Output', referencesByRole.get('Created').ReferenceSource__c);
+    }
+
+    @IsTest
     static void testHandle_AsyncToolCall_QueuesActionAndSkipsImmediateResult() {
         TestFactory.AgentSetup setup = getSetup();
         AgentCapability__c capability = [
@@ -268,7 +307,7 @@ private class ToolCallResponseHandlerTest {
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(functionSetup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('SingleShot')
+            .withExecutionType('Direct')
             .withStatus('Pending')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-failfast-001')
@@ -963,7 +1002,7 @@ private class ToolCallResponseHandlerTest {
         TestFactory.AgentSetup setup = getSetup();
 
         // Update agent to Function type
-        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, AgentType__c = 'SingleShot');
+        update new AIAgentDefinition__c(Id = setup.agentDefinition.Id, RuntimeStrategy__c = 'Direct');
 
         AgentCapability__c approvalCap = TestFactory.newCapability()
             .withAgent(setup.agentDefinition.Id)
@@ -976,7 +1015,7 @@ private class ToolCallResponseHandlerTest {
         AgentExecution__c functionExec = TestFactory.newExecution()
             .withAgent(setup.agentDefinition.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('SingleShot')
+            .withExecutionType('Direct')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-func-approval-001')
@@ -1036,7 +1075,7 @@ private class ToolCallResponseHandlerTest {
         update agentDef;
 
         // Set execution type to Function so all-blocked path fails the turn (not queues follow-up)
-        update new AgentExecution__c(Id = setup.agentExecution.Id, ExecutionType__c = 'SingleShot');
+        update new AgentExecution__c(Id = setup.agentExecution.Id, ExecutionType__c = 'Direct');
 
         // Single tool call with confidence below threshold — all tools are blocked
         String argsJson = '{"Id":"' + setup.agentExecution.Id + '","_confidence":35}';
@@ -1093,7 +1132,7 @@ private class ToolCallResponseHandlerTest {
         update agentDef;
 
         // Set execution type to Function so all-blocked path fails the turn (not queues follow-up)
-        update new AgentExecution__c(Id = setup.agentExecution.Id, ExecutionType__c = 'SingleShot');
+        update new AgentExecution__c(Id = setup.agentExecution.Id, ExecutionType__c = 'Direct');
 
         // Tool call with NO _confidence — missing field must be treated as 0, not bypassed
         String argsJson = '{"Id":"' + setup.agentExecution.Id + '"}';

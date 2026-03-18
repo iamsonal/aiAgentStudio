@@ -8,32 +8,37 @@
 
 /**
  * @description Central registry for agent execution strategy, interaction channel,
- * and runtime traits. AgentType__c is the canonical strategy field for agent runtimes,
+ * and runtime traits. RuntimeStrategy__c is the canonical strategy field for agent runtimes,
  * while pipeline composition is handled outside this registry.
  */
 public inherited sharing class RuntimeRegistryService {
     public static final String CHANNEL_EMAIL = 'Email';
     public static final String CHANNEL_CHAT = 'Chat';
-    public static final String CHANNEL_API = 'API';
+    public static final String CHANNEL_DIRECT = 'Direct';
+    public static final String CHANNEL_WHATSAPP = 'WhatsApp';
+    public static final String CHANNEL_SLACK = 'Slack';
 
     public static String getExecutionStrategyKey(AIAgentDefinition__c agentDefinition) {
         if (agentDefinition == null) {
-            return String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative);
+            return String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational);
         }
-        String strategyKey = (String) agentDefinition.getPopulatedFieldsAsMap().get('AgentType__c');
+        String strategyKey = (String) agentDefinition.getPopulatedFieldsAsMap().get('RuntimeStrategy__c');
         if (String.isBlank(strategyKey) && agentDefinition.Id != null) {
             try {
-                strategyKey = AIAgentConfigService.getAgentDefinition(agentDefinition.Id).AgentType__c;
+                strategyKey = AIAgentConfigService.getAgentDefinition(agentDefinition.Id).RuntimeStrategy__c;
             } catch (Exception e) {
-                System.debug(LoggingLevel.WARN, '[RuntimeRegistryService] Failed to hydrate AgentType__c for ' + agentDefinition.Id + ': ' + e.getMessage());
+                System.debug(
+                    LoggingLevel.WARN,
+                    '[RuntimeRegistryService] Failed to hydrate RuntimeStrategy__c for ' + agentDefinition.Id + ': ' + e.getMessage()
+                );
             }
         }
-        return String.isNotBlank(strategyKey) ? strategyKey : String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative);
+        return String.isNotBlank(strategyKey) ? strategyKey : String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational);
     }
 
     public static String getExecutionStrategyKey(Id executionId) {
         if (executionId == null) {
-            return String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative);
+            return String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational);
         }
 
         List<AgentExecution__c> executions = [
@@ -43,11 +48,11 @@ public inherited sharing class RuntimeRegistryService {
             LIMIT 1
         ];
         if (executions.isEmpty()) {
-            return String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative);
+            return String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational);
         }
 
         String strategyKey = executions[0].ExecutionType__c;
-        return String.isNotBlank(strategyKey) ? strategyKey : String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative);
+        return String.isNotBlank(strategyKey) ? strategyKey : String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational);
     }
 
     public static String getInteractionChannel(AIAgentDefinition__c agentDefinition, Id executionId) {
@@ -71,7 +76,9 @@ public inherited sharing class RuntimeRegistryService {
             return InteractionChannelRegistryService.resolveDefaultChannelForStrategy(strategyKey);
         }
 
-        return InteractionChannelRegistryService.resolveDefaultChannelForStrategy(String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative));
+        return InteractionChannelRegistryService.resolveDefaultChannelForStrategy(
+            String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational)
+        );
     }
 
     public static InteractionRuntimeModels.TraitSet getTraits(AIAgentDefinition__c agentDefinition, String channel) {
@@ -94,7 +101,7 @@ public inherited sharing class RuntimeRegistryService {
         }
         String strategyKey = String.isNotBlank(executions[0].ExecutionType__c)
             ? executions[0].ExecutionType__c
-            : String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative);
+            : String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational);
         ExecutionStrategyRegistryService.IExecutionStrategyDescriptor descriptor = ExecutionStrategyRegistryService.resolveDescriptor(strategyKey);
         if (descriptor == null) {
             return new InteractionRuntimeModels.TraitSet();

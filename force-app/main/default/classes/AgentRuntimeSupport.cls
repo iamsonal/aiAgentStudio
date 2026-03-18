@@ -27,7 +27,7 @@ public inherited sharing class AgentRuntimeSupport {
                 ProcessingStatus__c,
                 AIAgentDefinition__c,
                 AIAgentDefinition__r.DeveloperName__c,
-                AIAgentDefinition__r.AgentType__c,
+                AIAgentDefinition__r.RuntimeStrategy__c,
                 CurrentTurnIdentifier__c,
                 User__c,
                 SourceRecordId__c,

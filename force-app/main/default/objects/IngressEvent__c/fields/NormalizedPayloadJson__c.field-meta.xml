@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>NormalizedPayloadJson__c</fullName>
+    <description>Canonical normalized payload that downstream processing uses instead of re-parsing the raw source body.</description>
+    <inlineHelpText>Stores the lightweight normalized ingress contract so staged processing can replay without provider-specific parsing logic.</inlineHelpText>
+    <label>Normalized Payload Json</label>
+    <length>131072</length>
+    <type>LongTextArea</type>
+    <visibleLines>8</visibleLines>
+</CustomField>

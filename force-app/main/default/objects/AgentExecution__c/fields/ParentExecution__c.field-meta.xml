@@ -2,7 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ParentExecution__c</fullName>
     <deleteConstraint>SetNull</deleteConstraint>
-    <description>Reference to a parent execution for hierarchical or sub-execution relationships (e.g., batch jobs spawning individual item processing).</description>
+    <description>Parent execution for this record, when it was started as part of another execution.</description>
     <inlineHelpText>Parent execution if this is a sub-execution.</inlineHelpText>
     <label>Parent Execution</label>
     <referenceTo>AgentExecution__c</referenceTo>

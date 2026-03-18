@@ -19,7 +19,7 @@ private class PipelineCompositionServiceTest {
     @IsTest
     static void testStartExecution_StartsPipelineComposition() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Pipeline Composition LLM').save();
-        AIAgentDefinition__c childAgent = TestFactory.newAgentDefinition().withName('Pipeline Composition Child').withType('SingleShot').withLLM(llm.Id).save();
+        AIAgentDefinition__c childAgent = TestFactory.newAgentDefinition().withName('Pipeline Composition Child').withType('Direct').withLLM(llm.Id).save();
 
         PipelineDefinition__c pipelineDef = new PipelineDefinition__c(
             Name = 'Pipeline Composition Start',
@@ -66,7 +66,7 @@ private class PipelineCompositionServiceTest {
     @IsTest
     static void testAgentExecutionService_StartExecutionRoutesPipelineThroughCompositionBoundary() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Pipeline Entry LLM').save();
-        AIAgentDefinition__c childAgent = TestFactory.newAgentDefinition().withName('Pipeline Entry Child').withType('SingleShot').withLLM(llm.Id).save();
+        AIAgentDefinition__c childAgent = TestFactory.newAgentDefinition().withName('Pipeline Entry Child').withType('Direct').withLLM(llm.Id).save();
 
         PipelineDefinition__c pipelineDef = new PipelineDefinition__c(
             Name = 'Pipeline Entry Routing',
@@ -144,11 +144,11 @@ private class PipelineCompositionServiceTest {
     @IsTest
     static void testResumeExecution_RejectsNonPipelineExecution() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Non Pipeline Resume LLM').save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Non Pipeline Resume Agent').withType('Iterative').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Non Pipeline Resume Agent').withType('Conversational').withLLM(llm.Id).save();
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Failed')
             .withProcessingStatus(AIAgentConstants.STATUS_FAILED)
             .save();

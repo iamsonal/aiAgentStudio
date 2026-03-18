@@ -7,7 +7,7 @@ private class SummaryBufferMemoryManagerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agentId,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Iterative',
+            ExecutionType__c = 'Conversational',
             ExecutionStatus__c = 'Processing',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'

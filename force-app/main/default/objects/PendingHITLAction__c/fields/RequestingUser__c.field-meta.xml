@@ -2,9 +2,9 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>RequestingUser__c</fullName>
     <deleteConstraint>SetNull</deleteConstraint>
-    <description>The user who initiated the agent execution that triggered this HITL action.</description>
+    <description>User who initiated the execution that created this request.</description>
     <externalId>false</externalId>
-    <inlineHelpText>User who initiated the agent execution.</inlineHelpText>
+    <inlineHelpText>Identifies who originally triggered this pending request.</inlineHelpText>
     <label>Requesting User</label>
     <referenceTo>User</referenceTo>
     <relationshipName>RequestedHITLActions</relationshipName>

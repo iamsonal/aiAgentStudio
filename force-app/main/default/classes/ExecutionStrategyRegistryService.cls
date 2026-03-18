@@ -11,19 +11,14 @@
  * This is the strategy-native seam between agent configuration and concrete strategy classes.
  */
 public inherited sharing class ExecutionStrategyRegistryService {
-    private static final Map<String, String> STRATEGY_CLASSES = new Map<String, String>{
-        String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.SingleShot) => 'SingleShotExecutionStrategy',
-        String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative) => 'IterativeExecutionStrategy'
-    };
-
     public interface IExecutionStrategyDescriptor {
         String getKey();
         InteractionRuntimeModels.TraitSet getTraits(String channel);
     }
 
-    public class SingleShotStrategyDescriptor implements IExecutionStrategyDescriptor {
+    public class DirectStrategyDescriptor implements IExecutionStrategyDescriptor {
         public String getKey() {
-            return String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.SingleShot);
+            return String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Direct);
         }
 
         public InteractionRuntimeModels.TraitSet getTraits(String channel) {
@@ -33,9 +28,9 @@ public inherited sharing class ExecutionStrategyRegistryService {
         }
     }
 
-    public class IterativeStrategyDescriptor implements IExecutionStrategyDescriptor {
+    public class ConversationalStrategyDescriptor implements IExecutionStrategyDescriptor {
         public String getKey() {
-            return String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative);
+            return String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational);
         }
 
         public InteractionRuntimeModels.TraitSet getTraits(String channel) {
@@ -60,12 +55,12 @@ public inherited sharing class ExecutionStrategyRegistryService {
     }
 
     public static IExecutionStrategyDescriptor resolveDescriptor(String key) {
-        String normalizedKey = String.isNotBlank(key) ? key : String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative);
-        if (String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.SingleShot).equalsIgnoreCase(normalizedKey)) {
-            return new SingleShotStrategyDescriptor();
+        String normalizedKey = String.isNotBlank(key) ? key : String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational);
+        if (String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Direct).equalsIgnoreCase(normalizedKey)) {
+            return new DirectStrategyDescriptor();
         }
-        if (String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative).equalsIgnoreCase(normalizedKey)) {
-            return new IterativeStrategyDescriptor();
+        if (String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational).equalsIgnoreCase(normalizedKey)) {
+            return new ConversationalStrategyDescriptor();
         }
         return null;
     }
@@ -83,14 +78,10 @@ public inherited sharing class ExecutionStrategyRegistryService {
     }
 
     private static IExecutionStrategy instantiateStrategy(String key) {
-        String normalizedKey = String.isNotBlank(key) ? key : String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative);
-        String className = STRATEGY_CLASSES.containsKey(normalizedKey)
-            ? STRATEGY_CLASSES.get(normalizedKey)
-            : STRATEGY_CLASSES.get(String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Iterative));
-        Type strategyType = Type.forName(className);
-        if (strategyType == null) {
-            throw new AIAgentException.OrchestrationException('Strategy class not found: ' + className);
+        String normalizedKey = String.isNotBlank(key) ? key : String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational);
+        if (String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Direct).equalsIgnoreCase(normalizedKey)) {
+            return new DirectRuntimeService();
         }
-        return (IExecutionStrategy) strategyType.newInstance();
+        return new ConversationalExecutionStrategy();
     }
 }

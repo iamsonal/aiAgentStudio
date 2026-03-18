@@ -128,7 +128,9 @@ public with sharing class ActionFlowHandler extends BaseAgentAction {
         Long executionTime = System.currentTimeMillis() - startTime;
         System.debug(LoggingLevel.INFO, '[ActionFlowHandler] Flow execution for "' + flowApiName + '" completed in ' + executionTime + ' ms.');
 
-        return ActionOutcome.success(new FlowResult(flowApiName, flowResult, 'Flow "' + flowApiName + '" completed successfully.'));
+        ActionOutcome outcome = ActionOutcome.success(new FlowResult(flowApiName, flowResult, 'Flow "' + flowApiName + '" completed successfully.'));
+        addFlowContextEffects(outcome, flowResult);
+        return outcome;
     }
 
     /**
@@ -477,6 +479,97 @@ public with sharing class ActionFlowHandler extends BaseAgentAction {
         }
 
         return ActionOutcome.success(flowDataPayload);
+    }
+
+    private void addFlowContextEffects(ActionOutcome outcome, Object flowResult) {
+        if (outcome == null || flowResult == null) {
+            return;
+        }
+
+        for (Id createdRecordId : collectNamedRecordIds(flowResult, new Set<String>{ 'createdRecordId', 'createdRecordIds' })) {
+            outcome.withCreatedRecord(createdRecordId, 'Flow output explicitly exposed a created record.');
+        }
+        for (Id relatedRecordId : collectNamedRecordIds(flowResult, new Set<String>{ 'recordId', 'recordIds', 'promotedRecordId', 'promotedRecordIds' })) {
+            outcome.withRelatedRecord(relatedRecordId, 'Flow output explicitly promoted a record into durable context.');
+        }
+        for (Id relatedRecordId : collectDirectSObjectIds(flowResult)) {
+            outcome.withRelatedRecord(relatedRecordId, 'Flow output returned an explicit record result.');
+        }
+    }
+
+    private Set<Id> collectNamedRecordIds(Object value, Set<String> allowedKeys) {
+        Set<Id> recordIds = new Set<Id>();
+        if (!(value instanceof Map<String, Object>) || allowedKeys == null || allowedKeys.isEmpty()) {
+            return recordIds;
+        }
+
+        Map<String, Object> resultMap = (Map<String, Object>) value;
+        for (String key : allowedKeys) {
+            if (!resultMap.containsKey(key)) {
+                continue;
+            }
+
+            Object rawValue = resultMap.get(key);
+            if (rawValue instanceof List<Object>) {
+                for (Object entry : (List<Object>) rawValue) {
+                    Id parsedId = tryParseId(entry);
+                    if (parsedId != null) {
+                        recordIds.add(parsedId);
+                    }
+                }
+                continue;
+            }
+
+            Id parsedId = tryParseId(rawValue);
+            if (parsedId != null) {
+                recordIds.add(parsedId);
+            }
+        }
+        return recordIds;
+    }
+
+    private Set<Id> collectDirectSObjectIds(Object value) {
+        Set<Id> recordIds = new Set<Id>();
+        if (value instanceof SObject) {
+            Id directId = (Id) ((SObject) value).get('Id');
+            if (directId != null) {
+                recordIds.add(directId);
+            }
+            return recordIds;
+        }
+        if (!(value instanceof Map<String, Object>)) {
+            return recordIds;
+        }
+
+        for (Object nestedValue : ((Map<String, Object>) value).values()) {
+            if (nestedValue instanceof SObject) {
+                Id directId = (Id) ((SObject) nestedValue).get('Id');
+                if (directId != null) {
+                    recordIds.add(directId);
+                }
+            } else if (nestedValue instanceof List<Object>) {
+                for (Object listItem : (List<Object>) nestedValue) {
+                    if (listItem instanceof SObject) {
+                        Id directId = (Id) ((SObject) listItem).get('Id');
+                        if (directId != null) {
+                            recordIds.add(directId);
+                        }
+                    }
+                }
+            }
+        }
+        return recordIds;
+    }
+
+    private Id tryParseId(Object rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+        try {
+            return Id.valueOf(String.valueOf(rawValue));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**

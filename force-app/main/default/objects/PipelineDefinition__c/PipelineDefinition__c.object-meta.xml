@@ -43,7 +43,7 @@
     <allowInChatterGroups>false</allowInChatterGroups>
     <compactLayoutAssignment>SYSTEM</compactLayoutAssignment>
     <deploymentStatus>Deployed</deploymentStatus>
-    <description>Defines a sequential pipeline that orchestrates multiple AI agents in order. Each pipeline has ordered steps (PipelineStep__c) that execute child agents sequentially, passing context between steps.</description>
+    <description>Defines a sequential pipeline that runs multiple agents in a configured order.</description>
     <enableActivities>false</enableActivities>
     <enableBulkApi>true</enableBulkApi>
     <enableFeeds>false</enableFeeds>

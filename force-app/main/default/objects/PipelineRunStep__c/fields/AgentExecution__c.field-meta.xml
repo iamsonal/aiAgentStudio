@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>AgentExecution__c</fullName>
-    <description>Master-Detail relationship to the parent AgentExecution__c pipeline execution. Steps are automatically deleted when the parent execution is deleted.</description>
-    <inlineHelpText>The parent pipeline execution this step belongs to.</inlineHelpText>
+    <description>Parent pipeline execution that this run-step record belongs to.</description>
+    <inlineHelpText>Identifies the parent execution for this pipeline run step.</inlineHelpText>
     <label>Agent Execution</label>
     <referenceTo>AgentExecution__c</referenceTo>
     <relationshipLabel>Pipeline Run Steps</relationshipLabel>

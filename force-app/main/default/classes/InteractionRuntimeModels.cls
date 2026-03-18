@@ -13,8 +13,8 @@
  */
 public inherited sharing class InteractionRuntimeModels {
     public enum ExecutionStrategyType {
-        SingleShot,
-        Iterative
+        Direct,
+        Conversational
     }
 
     public enum DeliveryAction {
@@ -47,10 +47,14 @@ public inherited sharing class InteractionRuntimeModels {
         public String channel { get; set; }
         public String provider { get; set; }
         public String endpointIdentifier { get; set; }
+        public String entryObjectType { get; set; }
         public String conversationKey { get; set; }
         public String participantKey { get; set; }
         public String inboundMessageKey { get; set; }
+        public String fallbackDedupKey { get; set; }
         public String replyRouteKey { get; set; }
+        public String providerEventType { get; set; }
+        public String providerStatus { get; set; }
         public String channelMetadataJson { get; set; }
         public Id sourceRecordId { get; set; }
         public String messageContent { get; set; }

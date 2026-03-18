@@ -288,7 +288,7 @@ public with sharing class PendingHITLActionTriggerHandler {
         }
 
         AgentExecution__c execution = [
-            SELECT Id, InteractionChannel__c, AIAgentDefinition__r.AgentType__c
+            SELECT Id, InteractionChannel__c, AIAgentDefinition__r.RuntimeStrategy__c
             FROM AgentExecution__c
             WHERE Id = :fullAction.AgentExecution__c
             LIMIT 1

@@ -205,7 +205,7 @@ global inherited sharing class SequentialPipelineOrchestrator {
         }
 
         List<PipelineStep__c> steps = [
-            SELECT ChildAgent__c, ChildAgent__r.Name, ChildAgent__r.DeveloperName__c, ChildAgent__r.AgentType__c, ExecutionOrder__c
+            SELECT ChildAgent__c, ChildAgent__r.Name, ChildAgent__r.DeveloperName__c, ChildAgent__r.RuntimeStrategy__c, ExecutionOrder__c
             FROM PipelineStep__c
             WHERE PipelineDefinition__c = :pipelineDefId AND IsActive__c = TRUE
             ORDER BY ExecutionOrder__c ASC
@@ -225,7 +225,7 @@ global inherited sharing class SequentialPipelineOrchestrator {
             cfg.agentName = s.ChildAgent__r.DeveloperName__c;
             cfg.agentDisplayName = String.isNotBlank(s.ChildAgent__r.Name) ? s.ChildAgent__r.Name : s.ChildAgent__r.DeveloperName__c;
             cfg.agentDefinitionId = s.ChildAgent__c;
-            cfg.strategyKey = s.ChildAgent__r.AgentType__c;
+            cfg.strategyKey = s.ChildAgent__r.RuntimeStrategy__c;
             this.pipelineSteps.add(cfg);
         }
 
@@ -452,7 +452,7 @@ global inherited sharing class SequentialPipelineOrchestrator {
         Integer workerCount = Math.min(AIAgentFrameworkSettings.calculateOptimalWorkerCount(executions.size()), executions.size());
 
         for (Integer i = 0; i < workerCount; i++) {
-            System.enqueueJob(new PipelineExecutionWorker(pipelineDefId, executions[i].Id));
+            enqueueQueueable(new PipelineExecutionWorker(pipelineDefId, executions[i].Id), logPrefix);
         }
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Enqueued ' + workerCount + ' PipelineExecutionWorker(s) for ' + executions.size() + ' records');
@@ -661,6 +661,16 @@ global inherited sharing class SequentialPipelineOrchestrator {
             if (!success) {
                 handleChildFailure(parentExecutionId, completedAgent, childExecutionId, asyncPayload, state, stepRecordIds, decisionLogger, logPrefix);
                 return;
+            }
+
+            List<ContextManagerService.ContextDeltaItem> propagatedDeltaItems = new ContextManagerService()
+                .deserializePayloadContextEffects(asyncPayload.get('contextEffects'));
+            if (!propagatedDeltaItems.isEmpty()) {
+                try {
+                    new ContextManagerService().commitContextDelta(parentExecutionId, 0, propagatedDeltaItems);
+                } catch (Exception e) {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'Failed to propagate child context anchors to pipeline parent: ' + e.getMessage());
+                }
             }
 
             // Mark step complete
@@ -1186,13 +1196,24 @@ global inherited sharing class SequentialPipelineOrchestrator {
                 'jobType' => 'PipelineChild'
             };
 
-            System.enqueueJob(new AgentExecutionWorker(step.agentName, buildWorkerPayload(step, childExecutionId, parentExecutionId, payload, stepScopedTurn)));
+            enqueueQueueable(
+                new AgentExecutionWorker(step.agentName, buildWorkerPayload(step, childExecutionId, parentExecutionId, payload, stepScopedTurn)),
+                logPrefix
+            );
             System.debug(logPrefix + 'Enqueued child agent for step ' + step.stepOrder + ' (' + step.agentName + ')');
             return childExecutionId;
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, logPrefix + 'Failed to enqueue child agent: ' + e.getMessage());
             throw new PipelineStateException('Failed to enqueue child agent: ' + e.getMessage());
         }
+    }
+
+    private static Id enqueueQueueable(Queueable job, String logPrefix) {
+        AsyncOptions asyncOptions = new AgentJobEnqueuer().getAsyncOptions(logPrefix);
+        if (asyncOptions != null) {
+            return System.enqueueJob(job, asyncOptions);
+        }
+        return System.enqueueJob(job);
     }
 
     private AgentExecutionService.ExecutionPayload buildWorkerPayload(

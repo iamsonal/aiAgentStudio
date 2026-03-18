@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ToolFlowGraphWarning__c</fullName>
-    <description>Persistent warning set by triggers when graph-relevant configuration changes occur (capability mutations, parallel calling toggle, agent type change, instructions prompt update). Cleared automatically when the Tool Flow Graph is saved or regenerated.</description>
+    <description>Persistent warning set by triggers when graph-relevant configuration changes occur (capability mutations, parallel calling toggle, runtime strategy change, instructions prompt update). Cleared automatically when the Tool Flow Graph is saved or regenerated.</description>
     <inlineHelpText>Shows why the current Tool Flow Graph may be out of date. Save or regenerate the graph to clear this warning.</inlineHelpText>
     <label>Tool Flow Graph Warning</label>
     <length>1000</length>

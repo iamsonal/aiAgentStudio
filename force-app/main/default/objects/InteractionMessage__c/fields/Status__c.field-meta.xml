@@ -30,6 +30,16 @@
                 <label>Sent</label>
             </value>
             <value>
+                <fullName>Delivered</fullName>
+                <default>false</default>
+                <label>Delivered</label>
+            </value>
+            <value>
+                <fullName>Read</fullName>
+                <default>false</default>
+                <label>Read</label>
+            </value>
+            <value>
                 <fullName>Suppressed</fullName>
                 <default>false</default>
                 <label>Suppressed</label>

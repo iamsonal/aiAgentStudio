@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InteractionAdapterClass__c</fullName>
+    <description>Apex class that implements InteractionRuntimeModels.IInteractionChannel for this channel type.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enter the Apex adapter class that normalizes and runs this channel, such as ChatChannelAdapter, DirectChannelAdapter, or WhatsAppChannelAdapter.</inlineHelpText>
+    <label>Interaction Adapter Class</label>
+    <length>255</length>
+    <required>true</required>
+    <type>Text</type>
+</CustomField>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Order Context</label>
+    <protected>false</protected>
+    <values><field>ContextKey__c</field><value xsi:type="xsd:string">Order Context</value></values>
+    <values><field>DefinitionMode__c</field><value xsi:type="xsd:string">Apex Provider</value></values>
+    <values><field>DefaultScope__c</field><value xsi:type="xsd:string">Record</value></values>
+    <values><field>ApexClassName__c</field><value xsi:type="xsd:string">OrderContext</value></values>
+    <values><field>RootObjectApiName__c</field><value xsi:type="xsd:string">Order</value></values>
+    <values><field>IsActive__c</field><value xsi:type="xsd:boolean">true</value></values>
+    <values><field>Description__c</field><value xsi:type="xsd:string">Provides order-level business context for record-centric agents.</value></values>
+</CustomMetadata>

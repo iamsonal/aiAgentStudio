@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>RequestedAt__c</fullName>
-    <description>Timestamp when the HITL action was requested. Used for timeout calculations and audit.</description>
+    <description>Timestamp when this confirmation or approval request was created.</description>
     <externalId>false</externalId>
-    <inlineHelpText>When this HITL request was created.</inlineHelpText>
+    <inlineHelpText>Shows when this pending request was created.</inlineHelpText>
     <label>Requested At</label>
     <required>true</required>
     <trackHistory>false</trackHistory>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InteractionSession__c</fullName>
+    <description>Interaction session that this reference belongs to when context is reused across executions.</description>
+    <inlineHelpText>Populate this when the reference should stay available across multiple executions in the same interaction session.</inlineHelpText>
+    <label>Interaction Session</label>
+    <referenceTo>InteractionSession__c</referenceTo>
+    <relationshipLabel>Context References</relationshipLabel>
+    <relationshipName>InteractionSessionContextReferences</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

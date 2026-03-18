@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>MaxResponseTokens__c</fullName>
-    <description>Maximum tokens to request in provider responses (max_tokens, maxOutputTokens).</description>
+    <description>Maximum output tokens to request from the provider for this configuration.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Leave blank to use provider defaults. Large values increase cost and latency.</inlineHelpText>
+    <inlineHelpText>Leave blank to use the provider default. Larger values can increase cost and latency.</inlineHelpText>
     <label>Max Response Tokens</label>
     <precision>18</precision>
     <required>false</required>

@@ -36,7 +36,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Iterative',
+            ExecutionType__c = 'Conversational',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'
@@ -94,7 +94,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Iterative',
+            ExecutionType__c = 'Conversational',
             ExecutionStatus__c = 'Processing',
             ProcessingStatus__c = AIAgentConstants.STATUS_AWAITING_ACTION,
             TriggerSource__c = 'Chat'
@@ -117,7 +117,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Iterative',
+            ExecutionType__c = 'Conversational',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'
@@ -137,7 +137,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Iterative',
+            ExecutionType__c = 'Conversational',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'
@@ -173,7 +173,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Iterative',
+            ExecutionType__c = 'Conversational',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'
@@ -235,7 +235,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Iterative',
+            ExecutionType__c = 'Conversational',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'
@@ -295,7 +295,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Iterative',
+            ExecutionType__c = 'Conversational',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'
@@ -329,7 +329,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Iterative',
+            ExecutionType__c = 'Conversational',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'
@@ -384,7 +384,7 @@ private class ConversationalChatControllerTest {
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Iterative',
+            ExecutionType__c = 'Conversational',
             ExecutionStatus__c = 'Pending',
             ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
             TriggerSource__c = 'Chat'

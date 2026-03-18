@@ -341,7 +341,7 @@ public with sharing class ActionGetRecordDetails extends BaseAgentAction {
                 '[ActionGetRecordDetails] Success. Record retrieved in ' + duration + 'ms via ' + identifierField + '. Fields: ' + accessibleFields.size()
             );
 
-            return ActionOutcome.success(response);
+            return ActionOutcome.success(response).withMentionedRecord(record.Id, 'Record explicitly promoted into working context by a get-record request.');
         } catch (QueryException qe) {
             return ActionOutcome.fromException(qe);
         } catch (Exception e) {

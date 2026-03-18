@@ -13,7 +13,7 @@
  * - Email Messages: Email thread history (nested) — disable via includeEmails:false
  * - Case History: Meaningful field changes and audit trail (nested, filtered)
  *
- * **Configuration (via AgentContextConfig__c.ImplementationConfigJson__c):**
+ * **Configuration (via AgentContextConfig__c.ProviderConfigJson__c):**
  * ```json
  * {
  *   "historyLimit": 20,

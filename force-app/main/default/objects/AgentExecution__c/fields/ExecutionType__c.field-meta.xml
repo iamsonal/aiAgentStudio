@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ExecutionType__c</fullName>
-    <description>Defines the resolved execution mode for this run. Iterative and SingleShot are agent runtime modes, while Pipeline represents a composition workflow run.</description>
+    <description>Defines the resolved execution mode for this run. Conversational and Direct are agent runtime modes, while Pipeline represents a composition workflow run.</description>
     <inlineHelpText>Shows how this execution is being processed. Pipeline runs belong to the composition subsystem rather than the normal agent runtime registry.</inlineHelpText>
     <label>Execution Mode</label>
     <required>true</required>
@@ -13,14 +13,14 @@
         <valueSetDefinition>
             <sorted>false</sorted>
             <value>
-                <fullName>Iterative</fullName>
+                <fullName>Conversational</fullName>
                 <default>true</default>
-                <label>Iterative</label>
+                <label>Conversational</label>
             </value>
             <value>
-                <fullName>SingleShot</fullName>
+                <fullName>Direct</fullName>
                 <default>false</default>
-                <label>Single Shot</label>
+                <label>Direct</label>
             </value>
             <value>
                 <fullName>Pipeline</fullName>

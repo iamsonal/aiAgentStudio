@@ -76,7 +76,7 @@ private class AIAgentFrameworkSettingsTest {
     @IsTest
     static void testGetMaxProcessingCycles_AgentOverride_ReturnsAgentValue() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Cycles_Agent').withType('SingleShot').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Cycles_Agent').withType('Direct').withLLM(llm.Id).save();
         agent.MaxProcessingCycles__c = 25;
         update agent;
 
@@ -88,7 +88,7 @@ private class AIAgentFrameworkSettingsTest {
     @IsTest
     static void testGetMaxProcessingCycles_NoOverride_FallsBackToOrgDefault() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('NoOverride_Agent').withType('SingleShot').withLLM(llm.Id).save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('NoOverride_Agent').withType('Direct').withLLM(llm.Id).save();
 
         Integer cycles = AIAgentFrameworkSettings.getMaxProcessingCycles(agent.DeveloperName__c);
 

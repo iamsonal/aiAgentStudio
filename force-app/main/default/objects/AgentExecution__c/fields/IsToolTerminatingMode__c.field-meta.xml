@@ -2,8 +2,8 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>IsToolTerminatingMode__c</fullName>
     <defaultValue>false</defaultValue>
-    <description>Indicates if this execution is in tool-terminating mode where the tool result is the final response without follow-up LLM processing. Used for SingleShot executions with 0-1 capabilities where the tool output should be returned directly.</description>
-    <inlineHelpText>When true, tool results are treated as final responses without additional LLM processing. Used for minimal-capability SingleShot executions.</inlineHelpText>
+    <description>Indicates that a tool result can be returned as the final response without an additional model call.</description>
+    <inlineHelpText>When enabled, the execution can finish directly from the tool result instead of making a follow-up model call.</inlineHelpText>
     <label>Is Tool Terminating Mode</label>
     <trackHistory>false</trackHistory>
     <trackTrending>false</trackTrending>

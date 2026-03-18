@@ -24,14 +24,14 @@ private class ServiceUserContextQueueableTest {
     @IsTest
     static void testExecute_MissingNamedCredential_FailsStubExecution() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withType('Iterative').withLLM(llm.Id).build();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withType('Conversational').withLLM(llm.Id).build();
         agent.ServiceUserNamedCredential__c = null;
         insert agent;
 
         AgentExecution__c execution = new AgentExecution__c(
             AIAgentDefinition__c = agent.Id,
             User__c = UserInfo.getUserId(),
-            ExecutionType__c = 'Iterative',
+            ExecutionType__c = 'Conversational',
             ExecutionStatus__c = 'Processing',
             ProcessingStatus__c = 'Processing',
             TriggerSource__c = 'Apex'
@@ -67,14 +67,14 @@ private class ServiceUserContextQueueableTest {
     @IsTest
     static void testExecute_SuccessfulResponse_DoesNotFailExecution() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withType('Iterative').withLLM(llm.Id).build();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withType('Conversational').withLLM(llm.Id).build();
         agent.ServiceUserNamedCredential__c = 'Test_NC';
         insert agent;
 
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_PROCESSING)
             .withTurnIdentifier('turn-svc-002')
@@ -106,14 +106,14 @@ private class ServiceUserContextQueueableTest {
     @IsTest
     static void testExecute_HttpError_FailsStubExecution() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withType('Iterative').withLLM(llm.Id).build();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withType('Conversational').withLLM(llm.Id).build();
         agent.ServiceUserNamedCredential__c = 'Test_NC';
         insert agent;
 
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(agent.Id)
             .withUser(UserInfo.getUserId())
-            .withExecutionType('Iterative')
+            .withExecutionType('Conversational')
             .withStatus('Processing')
             .withProcessingStatus(AIAgentConstants.STATUS_PROCESSING)
             .withTurnIdentifier('turn-svc-003')

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AgentExecution__c</fullName>
+    <description>Agent execution started from this ingress event, when applicable.</description>
+    <inlineHelpText>Links the ingress event to the execution that handled the inbound turn.</inlineHelpText>
+    <label>Agent Execution</label>
+    <referenceTo>AgentExecution__c</referenceTo>
+    <relationshipLabel>Ingress Events</relationshipLabel>
+    <relationshipName>IngressAgentExecutions</relationshipName>
+    <required>false</required>
+    <type>Lookup</type>
+</CustomField>
