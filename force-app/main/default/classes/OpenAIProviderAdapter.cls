@@ -12,6 +12,7 @@
 public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter {
     private static final String LOG_PREFIX = '[OpenAIAdapter] ';
     private static final Integer DEFAULT_TIMEOUT_MS = 120000;
+    private static final String DEFAULT_MAX_TOKENS_PARAMETER_NAME = 'max_tokens';
 
     public class OpenAIParseException extends AIAgentException.ProviderException {
     }
@@ -41,7 +42,8 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
             body.put('temperature', llmConfig.DefaultTemperature__c);
         }
         if (llmConfig.MaxResponseTokens__c != null) {
-            body.put('max_tokens', llmConfig.MaxResponseTokens__c.intValue());
+            String tokenParamName = resolveMaxTokensParameterName(llmConfig.DefaultModelIdentifier__c);
+            body.put(tokenParamName, llmConfig.MaxResponseTokens__c.intValue());
         }
 
         if (openAITools != null && !openAITools.isEmpty()) {
@@ -58,7 +60,17 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
         Integer timeoutMs = llmConfig.TimeoutMs__c != null ? llmConfig.TimeoutMs__c.intValue() : DEFAULT_TIMEOUT_MS;
         req.setTimeout(timeoutMs);
         System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'HTTP request prepared. Payload size: ' + req.getBody().length() + ' characters.');
+        System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'HTTP request body: ' + req.getBody());
         return req;
+    }
+
+    @TestVisible
+    private static String resolveMaxTokensParameterName(String modelIdentifier) {
+        LLMModelPricing__mdt pricing = AIAgentConfigService.getLLMPricing(modelIdentifier);
+        if (pricing != null && String.isNotBlank(pricing.MaxTokensParameterName__c)) {
+            return pricing.MaxTokensParameterName__c.trim();
+        }
+        return DEFAULT_MAX_TOKENS_PARAMETER_NAME;
     }
 
     @TestVisible

@@ -1139,7 +1139,6 @@ public with sharing class ProductLaunchDemoFactory {
             ContextDefinition__c = 'Case Context',
             Priority__c = 10,
             FailureMode__c = 'Warn',
-            OutputSectionName__c = 'Case Summary',
             IsActive__c = true
         );
         insert context;
@@ -1249,7 +1248,6 @@ public with sharing class ProductLaunchDemoFactory {
             ContextDefinition__c = 'Account Product Fit Context',
             Priority__c = 10,
             FailureMode__c = 'Warn',
-            OutputSectionName__c = 'Account Profile',
             IsActive__c = true
         );
         insert context;
@@ -1651,7 +1649,6 @@ public with sharing class ProductLaunchDemoFactory {
                 ContextDefinition__c = 'Account Product Fit Context',
                 Priority__c = 10,
                 FailureMode__c = 'Warn',
-                OutputSectionName__c = 'Account Profile & Product Fit',
                 IsActive__c = true
             ),
             new AgentContextConfig__c(
@@ -1660,7 +1657,6 @@ public with sharing class ProductLaunchDemoFactory {
                 ContextDefinition__c = 'Opportunity Engagement Context',
                 Priority__c = 20,
                 FailureMode__c = 'Warn',
-                OutputSectionName__c = 'Opportunity & Pipeline',
                 IsActive__c = true
             ),
             new AgentContextConfig__c(
@@ -1669,7 +1665,6 @@ public with sharing class ProductLaunchDemoFactory {
                 ContextDefinition__c = 'Support Engagement Context',
                 Priority__c = 30,
                 FailureMode__c = 'Warn',
-                OutputSectionName__c = 'Support & Engagement History',
                 IsActive__c = true
             ),
             new AgentContextConfig__c(
@@ -1678,7 +1673,6 @@ public with sharing class ProductLaunchDemoFactory {
                 ContextDefinition__c = 'Activity Timeline Context',
                 Priority__c = 40,
                 FailureMode__c = 'Warn',
-                OutputSectionName__c = 'Activity Timeline',
                 IsActive__c = true
             )
         };

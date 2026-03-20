@@ -218,6 +218,17 @@ public inherited sharing class AIAgentFrameworkSettings {
     }
 
     /**
+     * Gets the org-wide LLM configuration override for Tool Flow Graph generation.
+     * When blank, graph generation should fall back to the agent's linked runtime
+     * LLM configuration.
+     *
+     * @return The LLMConfiguration__c DeveloperName__c to use for Tool Flow generation, or null when no override is configured.
+     */
+    public static String getToolFlowGenerationLlmConfigurationDeveloperName() {
+        return getInstance().ToolFlowGenLLMConfig__c;
+    }
+
+    /**
      * Gets the maximum number of context delta items the framework will persist for a single turn.
      * This is intentionally hard-capped in code until a custom-setting field is introduced.
      */

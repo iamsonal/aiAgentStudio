@@ -450,6 +450,47 @@ public inherited sharing class AIAgentConfigService {
     }
 
     /**
+     * Retrieves an active LLMConfiguration__c by its unique Developer Name (case-insensitive).
+     * Queries consistent fields and caches the result for future lookups.
+     *
+     * @param developerName The DeveloperName__c of the LLMConfiguration__c record.
+     * @return              The corresponding active LLMConfiguration__c record.
+     * @throws ConfigurationException if the name is blank, record not found, or record is not active.
+     */
+    public static LLMConfiguration__c getLLMConfigurationByDeveloperName(String developerName) {
+        if (String.isBlank(developerName)) {
+            throw new ConfigurationException('LLM Configuration Developer Name cannot be blank.');
+        }
+        String cacheKey = developerName.toLowerCase();
+
+        if (!llmConfigNameCache.containsKey(cacheKey)) {
+            System.debug(LoggingLevel.DEBUG, '[AIAgentConfigService] Loading LLM Configuration by name from database: ' + developerName);
+
+            String queryString = buildQuery(
+                'LLMConfiguration__c',
+                LLM_CONFIGURATION_FIELDS,
+                'DeveloperName__c = :developerName AND IsActive__c = TRUE'
+            );
+            List<LLMConfiguration__c> results = Database.query(queryString);
+
+            if (results.isEmpty()) {
+                throw new ConfigurationException('Active LLM Configuration not found for Developer Name: "' + developerName + '"');
+            }
+            if (results.size() > 1) {
+                throw new ConfigurationException(
+                    'CRITICAL CONFIG ERROR: Multiple active LLM Configurations found for Developer Name: "' +
+                    developerName +
+                    '". Ensure developer names are unique.'
+                );
+            }
+            cacheLLMConfiguration(results[0]);
+        } else {
+            System.debug(LoggingLevel.DEBUG, '[AIAgentConfigService] Cache HIT for LLM Name: ' + developerName);
+        }
+        return llmConfigNameCache.get(cacheKey);
+    }
+
+    /**
      * Retrieves the active LLMConfiguration__c linked to a specific Agent Definition ID.
      * Uses cached lookups for both Agent Definition and LLM Configuration.
      *
@@ -608,7 +649,7 @@ public inherited sharing class AIAgentConfigService {
 
         try {
             List<LLMModelPricing__mdt> pricingRecords = [
-                SELECT ModelIdentifier__c, PromptPricePer1MTokens__c, CompletionPricePer1MTokens__c
+                SELECT ModelIdentifier__c, PromptPricePer1MTokens__c, CompletionPricePer1MTokens__c, MaxTokensParameterName__c
                 FROM LLMModelPricing__mdt
                 WHERE IsActive__c = TRUE
             ];

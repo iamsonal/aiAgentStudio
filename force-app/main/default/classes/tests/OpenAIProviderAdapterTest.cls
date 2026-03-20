@@ -66,6 +66,50 @@ private class OpenAIProviderAdapterTest {
     }
 
     @IsTest
+    static void testSendMessage_UsesConfiguredMaxTokensParameterFromModelCatalog() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withModel('gpt-5-mini').build();
+        llm.TimeoutMs__c = 30000;
+        llm.MaxResponseTokens__c = 512;
+        llm.DefaultTemperature__c = 0.10;
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().build();
+
+        List<Map<String, Object>> messages = new List<Map<String, Object>>{
+            new Map<String, Object>{ 'role' => 'user', 'content' => 'Hello' }
+        };
+
+        Test.setMock(HttpCalloutMock.class, new CapturingMock(200, '{"choices":[{"message":{"role":"assistant","content":"ok"}}]}'));
+
+        OpenAIProviderAdapter adapter = new OpenAIProviderAdapter();
+        adapter.sendMessage(messages, null, llm, agent);
+
+        Map<String, Object> body = (Map<String, Object>) JSON.deserializeUntyped(lastRequest.getBody());
+        System.assertEquals(512, body.get('max_completion_tokens'), 'Model catalog should drive max_completion_tokens for GPT-5 mini');
+        System.assertEquals(null, body.get('max_tokens'), 'Configured token parameter should replace the default token field');
+        System.assertEquals(0.10, body.get('temperature'), 'Temperature should now come directly from the LLM configuration');
+    }
+
+    @IsTest
+    static void testSendMessage_DefaultsToMaxTokensWhenModelCatalogDoesNotOverride() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withModel('gpt-4o-mini').build();
+        llm.TimeoutMs__c = 30000;
+        llm.MaxResponseTokens__c = 256;
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().build();
+
+        List<Map<String, Object>> messages = new List<Map<String, Object>>{
+            new Map<String, Object>{ 'role' => 'user', 'content' => 'Hello' }
+        };
+
+        Test.setMock(HttpCalloutMock.class, new CapturingMock(200, '{"choices":[{"message":{"role":"assistant","content":"ok"}}]}'));
+
+        OpenAIProviderAdapter adapter = new OpenAIProviderAdapter();
+        adapter.sendMessage(messages, null, llm, agent);
+
+        Map<String, Object> body = (Map<String, Object>) JSON.deserializeUntyped(lastRequest.getBody());
+        System.assertEquals(256, body.get('max_tokens'), 'Default token parameter should remain max_tokens when the model catalog does not override it');
+        System.assertEquals(null, body.get('max_completion_tokens'), 'Fallback behavior should not send max_completion_tokens');
+    }
+
+    @IsTest
     static void testNormalizePromptSafetyPreset_BlankDefaultsToStandard() {
         System.assertEquals(BaseProviderAdapter.PRESET_STANDARD, BaseProviderAdapter.normalizePromptSafetyPreset(null));
         System.assertEquals(BaseProviderAdapter.PRESET_STANDARD, BaseProviderAdapter.normalizePromptSafetyPreset(''));

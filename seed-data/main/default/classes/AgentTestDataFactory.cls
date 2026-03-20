@@ -822,7 +822,7 @@ public with sharing class AgentTestDataFactory {
             ProviderAdapterClass__c = 'OpenAIProviderAdapter',
             NamedCredential__c = 'OpenAI_API',
             DefaultModelIdentifier__c = 'gpt-5-mini',
-            DefaultTemperature__c = 0.1,
+            DefaultTemperature__c = 1,
             MaxResponseTokens__c = 2048,
             IsActive__c = true
         );
@@ -1287,7 +1287,6 @@ public with sharing class AgentTestDataFactory {
             ContextDefinition__c = mapContextDefinition(implName),
             Priority__c = order,
             FailureMode__c = 'Warn',
-            OutputSectionName__c = label,
             ProviderConfigJson__c = configJson,
             IsActive__c = true
         );

@@ -17,6 +17,7 @@ private class AIAgentFrameworkSettingsTest {
         System.assertEquals(5, instance.BulkFailureThreshold__c, 'Default failure threshold should be 5');
         System.assertEquals(true, instance.EnableDecisionStepLogging__c, 'Decision step logging should be enabled by default');
         System.assertEquals(false, instance.ExtendQueueableChainLimit__c, 'Extend chain limit should be false by default');
+        System.assertEquals(null, instance.ToolFlowGenLLMConfig__c, 'Tool Flow generation LLM override should default to blank');
     }
 
     @IsTest
@@ -183,5 +184,26 @@ private class AIAgentFrameworkSettingsTest {
 
         Integer maxCalls = AIAgentFrameworkSettings.getMaxLLMCallsPerTransaction();
         System.assertEquals(8, maxCalls, 'Should return configured max LLM calls');
+    }
+
+    @IsTest
+    static void testGetToolFlowGenerationLlmConfigurationDeveloperName_ReturnsNullByDefault() {
+        System.assertEquals(
+            null,
+            AIAgentFrameworkSettings.getToolFlowGenerationLlmConfigurationDeveloperName(),
+            'Tool Flow generation LLM override should be null when not configured'
+        );
+    }
+
+    @IsTest
+    static void testGetToolFlowGenerationLlmConfigurationDeveloperName_ReturnsConfiguredValue() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
+        insert new AIAgentFrameworkSettings__c(ToolFlowGenLLMConfig__c = llm.DeveloperName__c);
+
+        System.assertEquals(
+            llm.DeveloperName__c,
+            AIAgentFrameworkSettings.getToolFlowGenerationLlmConfigurationDeveloperName(),
+            'Tool Flow generation LLM override should return the configured LLM configuration'
+        );
     }
 }
