@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsActive__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>Controls whether this model appears in LLM Setup and is used for runtime pricing and request-parameter lookups.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Keep this enabled while the model should be selectable and recognized by the framework. Turn it off when the model should no longer be used for new configurations.</inlineHelpText>
+    <label>Active</label>
+    <type>Checkbox</type>
+</CustomField>

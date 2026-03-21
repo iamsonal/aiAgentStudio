@@ -239,11 +239,6 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>AgentContextConfig__c.OutputSectionName__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
         <field>AgentContextConfig__c.ProviderConfigJson__c</field>
         <readable>true</readable>
     </fieldPermissions>

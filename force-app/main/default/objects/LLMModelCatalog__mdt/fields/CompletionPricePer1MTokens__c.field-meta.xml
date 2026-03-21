@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CompletionPricePer1MTokens__c</fullName>
+    <description>Estimated USD cost per 1,000,000 completion tokens for this model.</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enter the current completion-side price per 1,000,000 tokens so execution logs and setup screens can estimate cost consistently.</inlineHelpText>
+    <label>Completion Price Per 1M Tokens ($)</label>
+    <precision>18</precision>
+    <required>true</required>
+    <scale>6</scale>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ToolFlowGenLLMConfig__c</fullName>
+    <description>Optional org-wide override for Tool Flow Graph generation. Stores the DeveloperName__c of the active LLM configuration to use for graph authoring. Leave blank to fall back to the agent's linked runtime LLM configuration.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Optional org-wide override for Tool Flow Graph generation. Stores the LLM Configuration Developer Name. Leave blank to use the agent's linked LLM Configuration.</inlineHelpText>
+    <label>Tool Flow Gen LLM Config</label>
+    <length>255</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

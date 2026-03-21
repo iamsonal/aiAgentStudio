@@ -94,7 +94,6 @@ private class SystemPromptBuilderTest {
             ContextDefinition__c = 'Test Provider',
             Priority__c = 1,
             FailureMode__c = 'Warn',
-            OutputSectionName__c = 'Resolved Account Summary',
             IsActive__c = true
         );
 
@@ -104,7 +103,7 @@ private class SystemPromptBuilderTest {
             String prompt = builder.build(execution.Id, agent, llm, account.Id, 1, UserInfo.getUserId());
 
             System.assert(prompt.contains('<RESOLVED_CONTEXT_DATA>'), 'Resolved context should be included');
-            System.assert(prompt.contains('Resolved Account Summary'), 'Configured output section should be included');
+            System.assert(prompt.contains('Record Context'), 'Configured admin label should be included as the section heading');
             System.assert(prompt.contains('Resolved Account'), 'Resolved record data should be formatted into prompt');
             System.assert(!prompt.contains((String) account.Id), 'Projection definition should exclude Id fields');
         } finally {

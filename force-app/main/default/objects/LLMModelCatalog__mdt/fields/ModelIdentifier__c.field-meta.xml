@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ModelIdentifier__c</fullName>
+    <description>Exact provider model identifier the framework sends in API requests and uses to match runtime responses and pricing.</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enter the exact model identifier expected by the provider API. Choose a stable value because LLM configurations, request formatting, and runtime reporting depend on it.</inlineHelpText>
+    <label>Model Identifier</label>
+    <length>100</length>
+    <required>true</required>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

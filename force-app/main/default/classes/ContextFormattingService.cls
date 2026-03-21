@@ -184,7 +184,7 @@ public inherited sharing class ContextFormattingService {
             settings.formattingOptions.withPIIMasking(piiMaskingService);
         }
 
-        settings.sectionName = String.isNotBlank(config.OutputSectionName__c) ? config.OutputSectionName__c : config.AdminLabel__c;
+        settings.sectionName = config.AdminLabel__c;
         if (contextDefinition != null) {
             settings.recordLimit = contextDefinition.recordLimit;
             settings.formattingOptions.withExcludeIdFields(contextDefinition.excludeIdFields == true);

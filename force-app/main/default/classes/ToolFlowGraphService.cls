@@ -432,8 +432,7 @@ public inherited sharing class ToolFlowGraphService {
 
     // ── Private helpers ────────────────────────────────────────────────────────
 
-    @TestVisible
-    private static ValidationResult collectValidationIssues(FlowGraph graph, Set<String> validCapabilityNames, Boolean parallelCallingEnabled) {
+    public static ValidationResult collectValidationIssues(FlowGraph graph, Set<String> validCapabilityNames, Boolean parallelCallingEnabled) {
         ValidationResult result = new ValidationResult();
         if (graph == null) {
             result.errors.add('Graph payload is required.');
@@ -554,12 +553,6 @@ public inherited sharing class ToolFlowGraphService {
             }
         }
 
-        Set<String> reachable = computeReachableTools(graph.entry, adjacency);
-        for (String capabilityName : validCapabilityNames) {
-            if (!reachable.contains(capabilityName)) {
-                result.errors.add('Capability "' + capabilityName + '" is not reachable from the graph entry set.');
-            }
-        }
         if (hasCycle(adjacency)) {
             result.errors.add('Tool Flow Graph cannot contain cycles.');
         }

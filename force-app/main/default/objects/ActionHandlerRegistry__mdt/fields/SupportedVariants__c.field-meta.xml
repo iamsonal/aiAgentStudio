@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SupportedVariants__c</fullName>
+    <description>Variant-definition JSON that lets one action type expose multiple admin-selectable modes with distinct config and parameter schemas.</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Use this when one handler supports multiple modes. Each variant can define its own labels, descriptions, config fields, parameter fields, and generated JSON schemas.</inlineHelpText>
+    <label>Supported Variants</label>
+    <length>131072</length>
+    <type>LongTextArea</type>
+    <visibleLines>10</visibleLines>
+</CustomField>

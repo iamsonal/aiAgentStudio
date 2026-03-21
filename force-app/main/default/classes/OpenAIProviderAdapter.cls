@@ -41,7 +41,8 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
             body.put('temperature', llmConfig.DefaultTemperature__c);
         }
         if (llmConfig.MaxResponseTokens__c != null) {
-            body.put('max_tokens', llmConfig.MaxResponseTokens__c.intValue());
+            String tokenParamName = resolveMaxTokensParameterName(llmConfig.DefaultModelIdentifier__c);
+            body.put(tokenParamName, llmConfig.MaxResponseTokens__c.intValue());
         }
 
         if (openAITools != null && !openAITools.isEmpty()) {
@@ -58,7 +59,21 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
         Integer timeoutMs = llmConfig.TimeoutMs__c != null ? llmConfig.TimeoutMs__c.intValue() : DEFAULT_TIMEOUT_MS;
         req.setTimeout(timeoutMs);
         System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'HTTP request prepared. Payload size: ' + req.getBody().length() + ' characters.');
+        System.debug(LoggingLevel.DEBUG, LOG_PREFIX + 'HTTP request body: ' + req.getBody());
         return req;
+    }
+
+    @TestVisible
+    private static String resolveMaxTokensParameterName(String modelIdentifier) {
+        LLMModelCatalog__mdt modelCatalogRecord = AIAgentConfigService.getLLMModelCatalogRecord(modelIdentifier);
+        if (modelCatalogRecord != null && String.isNotBlank(modelCatalogRecord.MaxTokensParameterName__c)) {
+            return modelCatalogRecord.MaxTokensParameterName__c.trim();
+        }
+        throw new AIAgentException.ProviderException(
+            'Max Tokens Parameter Name must be configured in LLMModelCatalog__mdt for model "' +
+            String.valueOf(modelIdentifier) +
+            '".'
+        );
     }
 
     @TestVisible

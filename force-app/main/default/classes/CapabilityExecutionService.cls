@@ -11,7 +11,7 @@
  */
 public inherited sharing class CapabilityExecutionService {
     @TestVisible
-    private static Map<String, StandardActionHandler__mdt> standardHandlerCache;
+    private static Map<String, ActionHandlerRegistry__mdt> actionHandlerRegistryCache;
     @TestVisible
     private static Boolean isCacheInitialized = false;
 
@@ -114,10 +114,10 @@ public inherited sharing class CapabilityExecutionService {
         try {
             // Direct handler instantiation here supports Standard, Apex, and Flow capability types.
             if ('Standard'.equalsIgnoreCase(implType)) {
-                StandardActionHandler__mdt handlerMdt = standardHandlerCache.get(stdActionType.toLowerCase());
+                ActionHandlerRegistry__mdt handlerMdt = actionHandlerRegistryCache.get(stdActionType.toLowerCase());
                 if (handlerMdt == null) {
-                    System.debug(LoggingLevel.ERROR, '[CapabilityExecutionService] No StandardActionHandler__mdt found for key: "' + stdActionType + '".');
-                    throw new CapabilityExecutionException('No active StandardActionHandler registered for key: "' + stdActionType + '".');
+                    System.debug(LoggingLevel.ERROR, '[CapabilityExecutionService] No ActionHandlerRegistry__mdt entry found for key: "' + stdActionType + '".');
+                    throw new CapabilityExecutionException('No active action handler registry entry is registered for key: "' + stdActionType + '".');
                 }
                 return instantiateAndCheckInterface(Type.forName(handlerMdt.HandlerClassName__c), handlerMdt.HandlerClassName__c);
             } else if ('Apex'.equalsIgnoreCase(implType)) {
@@ -515,36 +515,36 @@ public inherited sharing class CapabilityExecutionService {
         if (isCacheInitialized)
             return;
 
-        standardHandlerCache = new Map<String, StandardActionHandler__mdt>();
+        actionHandlerRegistryCache = new Map<String, ActionHandlerRegistry__mdt>();
 
         try {
-            List<StandardActionHandler__mdt> handlers = [
+            List<ActionHandlerRegistry__mdt> handlers = [
                 SELECT DeveloperName, MasterLabel, HandlerClassName__c, IsActive__c
-                FROM StandardActionHandler__mdt
+                FROM ActionHandlerRegistry__mdt
                 WHERE IsActive__c = TRUE
             ];
 
-            for (StandardActionHandler__mdt h : handlers) {
+            for (ActionHandlerRegistry__mdt h : handlers) {
                 if (String.isNotBlank(h.DeveloperName) && String.isNotBlank(h.HandlerClassName__c)) {
-                    standardHandlerCache.put(h.DeveloperName.toLowerCase(), h);
+                    actionHandlerRegistryCache.put(h.DeveloperName.toLowerCase(), h);
                 } else {
                     System.debug(
                         LoggingLevel.ERROR,
-                        '[CapabilityExecutionService] Skipped StandardActionHandler__mdt record (Id=' + h.Id + '): missing DeveloperName or HandlerClassName.'
+                        '[CapabilityExecutionService] Skipped ActionHandlerRegistry__mdt record (Id=' + h.Id + '): missing DeveloperName or HandlerClassName.'
                     );
                 }
             }
 
             System.debug(
                 LoggingLevel.INFO,
-                '[CapabilityExecutionService] Handler cache initialized: ' + standardHandlerCache.size() + ' active handlers loaded.'
+                '[CapabilityExecutionService] Handler cache initialized: ' + actionHandlerRegistryCache.size() + ' active handlers loaded.'
             );
         } catch (Exception e) {
             System.debug(
                 LoggingLevel.ERROR,
-                '[CapabilityExecutionService] CRITICAL: Unable to load Standard Action Handlers from Custom Metadata. Exception: ' + e.getMessage()
+                '[CapabilityExecutionService] CRITICAL: Unable to load action handler registry entries from custom metadata. Exception: ' + e.getMessage()
             );
-            throw new CapabilityExecutionException('Failed to load Standard Action Handlers from Custom Metadata. Check CMDT configuration.', e);
+            throw new CapabilityExecutionException('Failed to load action handler registry entries from custom metadata. Check CMDT configuration.', e);
         }
 
         isCacheInitialized = true;
@@ -566,7 +566,7 @@ public inherited sharing class CapabilityExecutionService {
 
     @TestVisible
     private static void clearCache_TestOnly() {
-        standardHandlerCache = null;
+        actionHandlerRegistryCache = null;
         isCacheInitialized = false;
     }
 }

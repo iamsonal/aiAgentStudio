@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ParametersSchema__c</fullName>
+    <description>Field-definition JSON that describes the runtime arguments the LLM or caller can send to this action type.</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Store the action-parameter schema as a JSON array of field descriptors. This drives parameter authoring, validation, and tool schema generation.</inlineHelpText>
+    <label>Parameters Schema</label>
+    <length>131072</length>
+    <type>LongTextArea</type>
+    <visibleLines>10</visibleLines>
+</CustomField>

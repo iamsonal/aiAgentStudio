@@ -158,7 +158,7 @@ public inherited sharing class ContextResolverService {
                     continue;
                 }
 
-                String sectionName = String.isNotBlank(config.OutputSectionName__c) ? config.OutputSectionName__c : config.AdminLabel__c;
+                String sectionName = config.AdminLabel__c;
                 ResolvedContextBlock block = new ResolvedContextBlock(config, resolvedRecords, contextDefinition.contextKey, sectionName, contextDefinition);
                 result.addBlock(block);
             } catch (Exception e) {
@@ -419,7 +419,6 @@ public inherited sharing class ContextResolverService {
                     ContextDefinition__c,
                     FailureMode__c,
                     IsActive__c,
-                    OutputSectionName__c,
                     Priority__c,
                     ProviderConfigJson__c
                 FROM AgentContextConfig__c
