@@ -1,256 +1,168 @@
 ---
 title: Getting Started
-description: Deploy and configure your first AI agent.
+description: Deploy the core runtime, connect an LLM provider, and create your first agent.
 ---
 
-import { Aside, Badge, Card, CardGrid, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
-
+import { Aside, Card, CardGrid, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # Getting Started
 
-Complete guide to deploying and configuring your first AI agent.
+This guide gets the core framework running in a Salesforce org and walks through the shortest safe
+path to a first agent.
 
-<Aside type="tip" title="Fastest path">
-Run `cci flow run dev_org --org dev` with [CumulusCI](https://cumulusci.readthedocs.io/en/stable/get-started.html) to get a fully configured scratch org in one command.
+<Aside type="tip" title="Recommended first goal">
+Get a simple conversational agent running with one read-only capability first. Add write actions,
+approvals, and external integrations only after the core runtime path is working.
 </Aside>
 
 ## Setup Flow
 
 <Steps>
-1. Deploy the framework.
-2. Configure Named Credentials.
-3. Create an LLM Configuration.
-4. Create your first agent.
-5. Add capabilities.
-6. Add the chat component and test.
+1. Deploy the core metadata.
+2. Configure a provider Named Credential.
+3. Create an `LLMConfiguration__c` record.
+4. Create an `AIAgentDefinition__c` record.
+5. Add one or two capabilities.
+6. Test through chat or API.
 </Steps>
-
-<CardGrid>
-  <LinkCard title="Configuration Reference" href="../configuration/">
-    Field-level settings for agents, safety controls, and runtime behavior.
-  </LinkCard>
-  <LinkCard title="Developer Guide" href="../developer-guide/">
-    Build custom actions and context providers.
-  </LinkCard>
-  <LinkCard title="Troubleshooting" href="../troubleshooting/">
-    Diagnose setup and runtime issues quickly.
-  </LinkCard>
-</CardGrid>
-
 
 ## Prerequisites
 
 <CardGrid>
-  <Card title="Salesforce Org" icon="seti:salesforce">
-    Sandbox recommended for initial setup and testing. System Administrator access or equivalent permissions.
+  <Card title="Salesforce org" icon="seti:salesforce">
+    Use a sandbox or scratch org with System Administrator access for the initial setup.
   </Card>
-  <Card title="AI Provider API Key" icon="seti:key">
-    [OpenAI](https://platform.openai.com/api-keys), any OpenAI-compatible service, or your preferred enterprise AI provider setup.
+  <Card title="Provider access" icon="seti:key">
+    You need an API key or equivalent access for OpenAI or another OpenAI-compatible provider.
   </Card>
-  <Card title="Salesforce CLI" icon="seti:shell">
-    Required for source-based deployments. [Install here](https://developer.salesforce.com/tools/salesforcecli). CumulusCI users also need the [CumulusCI CLI](https://cumulusci.readthedocs.io/en/stable/get-started.html).
+  <Card title="CLI tooling" icon="seti:shell">
+    Use Salesforce CLI for source deployments. CumulusCI is optional but useful for scratch org flows.
   </Card>
 </CardGrid>
 
----
-
-## Step 1: Deploy the Framework
+## Step 1: Deploy the Core Runtime
 
 <Tabs>
-  <TabItem label="CumulusCI (Recommended)">
-
-[CumulusCI](https://cumulusci.readthedocs.io/en/stable/get-started/) provides the fastest way to get started with a fully configured scratch org.
-
-```bash
-# Clone the repository
-git clone https://github.com/iamsonal/aiAgentStudio.git
-cd aiAgentStudio
-
-# Run the dev_org flow
-cci flow run dev_org --org dev
-```
-
-This single command performs all of the following:
-
-| Step | What it does |
-|:-----|:-------------|
-| Deploy Framework | Deploys all Apex classes, LWCs, objects, and metadata from `force-app` |
-| Deploy Seed Data | Deploys utility classes from `seed-data` folder |
-| Assign Permission Sets | Assigns `AIAgentStudioConfigurator` and `AIAgentStudioEndUser` |
-| Enable Knowledge | Enables Knowledge user and assigns `KnowledgeDemo` permission set |
-| Create Sample Data | Runs `AgentTestDataFactory.createComprehensiveShowcase()` to create sample agents and test data |
-| Addons Setup | If addons are available, deploys them, assigns `AIAgentStudioConfiguratorAdvanced`, and runs addon setup |
-
-After the flow completes, open your scratch org:
-
-```bash
-cci org browser dev
-```
-
-You'll have working sample agents ready to test. Explore the `seed-data` folder and `AgentTestDataFactory` class to see what gets created.
-
-  </TabItem>
   <TabItem label="Salesforce CLI">
 
-For existing orgs or when you need more control over the deployment:
-
 ```bash
-# Clone the repository
 git clone https://github.com/iamsonal/aiAgentStudio.git
 cd aiAgentStudio
 
-# Authenticate to your org
 sf org login web -a your-org-alias
-
-# Deploy the framework
 sf project deploy start -d force-app/main/default -o your-org-alias
 ```
 
+Optional seed data for local experimentation:
+
+```bash
+sf project deploy start -d seed-data/main/default -o your-org-alias
+```
+
+  </TabItem>
+  <TabItem label="CumulusCI">
+
+If you use CumulusCI for scratch org setup, the repo includes a dev flow that can deploy the
+framework and convenience metadata in one pass:
+
+```bash
+git clone https://github.com/iamsonal/aiAgentStudio.git
+cd aiAgentStudio
+cci flow run dev_org --org dev
+```
+
   </TabItem>
 </Tabs>
 
----
-
-## Step 2: Configure Named Credentials
+## Step 2: Configure Provider Credentials
 
 <Aside type="caution">
-Never commit API keys to source control. Named Credentials keep secrets out of metadata.
+Do not store provider secrets in source control. Use Salesforce Named Credentials and External
+Credentials so authentication stays out of metadata files.
 </Aside>
 
-Named Credentials securely store your AI provider API keys.
-
-<Tabs>
-  <TabItem label="OpenAI">
-
-The framework already includes:
+The core package includes an OpenAI-oriented setup:
 
 - Named Credential: `OpenAI_API`
 - External Credential: `OpenAIEC`
+- Provider adapter: `OpenAIProviderAdapter`
 
-To activate it:
+For OpenAI:
 
-1. Go to **Setup → External Credentials**
-2. Open **OpenAIEC**
-3. Edit the **OpenAI** principal
-4. Set the `OpenAIKey` authentication parameter to your API key
-5. Save the changes
+1. Open **Setup → External Credentials**.
+2. Open `OpenAIEC`.
+3. Edit the principal and set the `OpenAIKey` authentication parameter.
+4. Save the credential and confirm the corresponding Named Credential is active.
 
-Use `OpenAI_API` in your `LLMConfiguration__c` record after the key is populated.
+For another OpenAI-compatible provider:
 
-  </TabItem>
-  <TabItem label="OpenAI-compatible APIs">
+1. Clone the same credential pattern with the provider's base URL.
+2. Configure the provider-specific authentication method.
+3. Point `LLMConfiguration__c.ProviderAdapterClass__c` to `OpenAIProviderAdapter`.
 
-`OpenAIProviderAdapter` works with any API that speaks the OpenAI chat completions format. The easiest path is to clone the packaged OpenAI credential setup and point it at your provider:
+## Step 3: Create an LLM Configuration
 
-1. Create a new External Credential modeled after `OpenAIEC`
-2. Create a Named Credential that points to your provider base URL
-3. Configure the provider-specific auth parameter/header
-4. In `LLMConfiguration__c`, set `ProviderAdapterClass__c = OpenAIProviderAdapter`
+Create an `LLMConfiguration__c` record for the provider and model you want to use.
 
-  </TabItem>
-  <TabItem label="Other providers">
+| Field | Example value | Notes |
+| :-- | :-- | :-- |
+| `DeveloperName__c` | `OpenAI_GPT4oMini` | Stable API-facing name |
+| `NamedCredential__c` | `OpenAI_API` | The credential created in the previous step |
+| `ProviderAdapterClass__c` | `OpenAIProviderAdapter` | Core adapter for OpenAI-compatible APIs |
+| `DefaultModelIdentifier__c` | `gpt-4o-mini` | Model name to send on provider calls |
+| `DefaultTemperature__c` | `0.3` | Lower values are better for predictable tool usage |
+| `IsActive__c` | `true` | Enable for agent use |
 
-For providers with a non-OpenAI API format, extend `BaseProviderAdapter` and implement `buildProviderRequest()` and `parseProviderResponse()`. The framework instantiates adapters dynamically via the `ProviderAdapterClass__c` field, so no framework code changes are needed.
+## Step 4: Create an Agent Definition
 
-  </TabItem>
-</Tabs>
+Create an `AIAgentDefinition__c` record with a narrow first use case.
 
----
+| Field | Suggested starting value |
+| :-- | :-- |
+| `DeveloperName__c` | `Sales_Assistant` |
+| `RuntimeStrategy__c` | `Conversational` |
+| `LLMConfiguration__c` | your new LLM configuration |
+| `MemoryStrategy__c` | `Buffer Window` |
+| `HistoryTurnLimit__c` | `8` to `10` |
+| `IsActive__c` | `true` |
 
-## Step 3: Create LLM Configuration
+Suggested prompt pair:
 
-LLM Configurations define how to connect to your AI provider.
-
-1. Open **App Launcher → LLM Configurations**
-2. Click **New**
-3. Fill in the fields:
-
-| Field | Value | Description |
-|:------|:------|:------------|
-| Developer Name | `OpenAI_GPT4o` | Unique identifier |
-| Named Credential | `OpenAI_API` | Packaged named credential backed by `OpenAIEC` |
-| Provider Adapter Class | `OpenAIProviderAdapter` | Provider-specific adapter |
-| Default Model | `gpt-4o-mini` | Model to use |
-| Default Temperature | `0.7` | Creativity (0-1) |
-| Max Tokens | `4096` | Maximum response length |
-| Is Active | ✓ | Enable this configuration |
-
-### Available Provider Adapters
-
-| Provider | Adapter Class | Location |
-|:---------|:--------------|:---------|
-| OpenAI + any OpenAI-compatible API | `OpenAIProviderAdapter` | Core |
-| Custom | Extend `BaseProviderAdapter` | Your code |
-
----
-
-## Step 4: Create Your First Agent
-
-1. Open **App Launcher → AI Agent Definitions**
-2. Click **New**
-3. Configure basic settings:
-
-| Field | Value |
-|:------|:------|
-| Name | `Sales Assistant` |
-| Developer Name | `Sales_Assistant` |
-| Runtime Strategy | `Conversational` |
-| LLM Configuration | `OpenAI_GPT4o` |
-| Is Active | ✓ |
-
-<Aside type="note" title="Core Runtime Scope">
-The runtime documented here uses execution strategies. Start with `Conversational` for multi-turn experiences, use `Direct` for one-turn automations, and `Pipeline` for sequential orchestration. Channel behavior such as email delivery is configured separately.
-</Aside>
-
-4. Configure memory settings:
-
-| Field | Value | Description |
-|:------|:------|:------------|
-| Memory Strategy | `Buffer Window` | How to manage history |
-| History Turn Limit | `10` | Conversations to remember |
-
-5. Configure prompts:
-
-**Identity Prompt** (Who the agent is):
-```
-You are a helpful Salesforce assistant for the sales team.
-You help users find accounts, contacts, and opportunities.
-You are professional, concise, and always confirm before making changes.
+```text
+Identity prompt
+You are a Salesforce assistant for the sales team.
+You help users inspect account, contact, and opportunity data and propose next steps.
 ```
 
-**Instructions Prompt** (How to behave):
+```text
+Instructions prompt
+- Be concise and explicit about what you know from Salesforce data
+- Ask clarifying questions when the user does not provide a unique identifier
+- Confirm before any record mutation
+- Prefer read-only actions until the user clearly asks for a change
 ```
-- Always greet users warmly
-- Ask clarifying questions when requests are ambiguous
-- Confirm before creating or updating records
-- Provide summaries of search results
-- If you can't help, explain why and suggest alternatives
-```
 
----
+## Step 5: Add Initial Capabilities
 
-## Step 5: Add Capabilities
-
-<Aside type="note">
-Capabilities are the tools your agent can use. Start with read-only capabilities, then add write capabilities with approvals.
+<Aside type="note" title="Start read-only">
+Begin with a retrieval capability, prove the runtime path, then add one low-risk create or update
+action with confirmation or approval.
 </Aside>
 
 <Tabs>
-  <TabItem label="Lookup Contact By Email">
+  <TabItem label="Read-only lookup">
 
-1. Open **App Launcher → Agent Capabilities**
-2. Click **New**
-3. Configure:
+Example capability built on `GetRecordDetails`:
 
-| Field | Value |
-|:------|:------|
-| Capability Name | `lookup_contact_by_email` |
-| Description | `Retrieve a contact by email address and return key contact details. Use when the user already knows the email and needs the matching Salesforce contact record.` |
-| Implementation Type | `Standard` |
-| Standard Action Type | `GetRecordDetails` |
-| AI Agent Definition | `Sales Assistant` |
+| Field | Example value |
+| :-- | :-- |
+| `CapabilityName__c` | `lookup_contact_by_email` |
+| `ImplementationType__c` | `Standard` |
+| `StandardActionType__c` | `GetRecordDetails` |
+| `ExposureLevel__c` | `External` |
 
-4. Add Backend Configuration:
+Backend configuration:
+
 ```json
 {
   "variant": "field_list",
@@ -259,7 +171,8 @@ Capabilities are the tools your agent can use. Start with read-only capabilities
 }
 ```
 
-5. Add Parameters (JSON Schema):
+Parameters schema:
+
 ```json
 {
   "type": "object",
@@ -274,48 +187,39 @@ Capabilities are the tools your agent can use. Start with read-only capabilities
 ```
 
   </TabItem>
-  <TabItem label="Create Task">
+  <TabItem label="Low-risk create">
 
-| Field | Value |
-|:------|:------|
-| Capability Name | `create_task` |
-| Description | `Create a follow-up task. Use when users want to schedule reminders or to-dos.` |
-| Implementation Type | `Standard` |
-| Standard Action Type | `CreateRecord` |
-| HITL Mode | `Confirmation` |
+Example capability built on `CreateRecord`:
 
-Backend Configuration:
+| Field | Example value |
+| :-- | :-- |
+| `CapabilityName__c` | `create_follow_up_task` |
+| `ImplementationType__c` | `Standard` |
+| `StandardActionType__c` | `CreateRecord` |
+| `HITLMode__c` | `Confirmation` |
+
+Backend configuration:
+
 ```json
 {
   "objectApiName": "Task",
   "defaultFieldValues": {
-    "Status": "Not Started"
+    "Status": "Not Started",
+    "Priority": "Normal"
   }
 }
 ```
 
-Parameters:
+Parameters schema:
+
 ```json
 {
   "type": "object",
-  "required": ["Subject"],
+  "required": ["recordData"],
   "properties": {
-    "Subject": {
-      "type": "string",
-      "description": "Task subject/title"
-    },
-    "Description": {
-      "type": "string",
-      "description": "Task details"
-    },
-    "ActivityDate": {
-      "type": "string",
-      "description": "Due date in YYYY-MM-DD format"
-    },
-    "Priority": {
-      "type": "string",
-      "enum": ["High", "Normal", "Low"],
-      "description": "Task priority"
+    "recordData": {
+      "type": "object",
+      "description": "Field names and values for the task to create"
     }
   }
 }
@@ -324,63 +228,54 @@ Parameters:
   </TabItem>
 </Tabs>
 
----
+## Step 6: Test the Agent
 
-## Step 6: Add Chat Component to a Page
+You can test the framework through the chat UI or the REST surface.
 
-<Steps>
-1. Go to **Setup → Lightning App Builder**.
-2. Edit an existing page or create a new one.
-3. Find **aiAssistantChat** in the components panel.
-4. Drag it onto your page.
-5. Set **Agent Developer Name** to `Sales_Assistant`.
-6. Click **Save** and **Activate** the page.
-</Steps>
+### Chat UI path
 
----
+1. Open **Lightning App Builder**.
+2. Add the `aiAssistantChat` component to a page.
+3. Set the agent developer name to your agent record.
+4. Save and activate the page.
 
-## Step 7: Test Your Agent
+### API path
 
-Open the page with your chat component and try these conversations:
+Send a request to:
 
-```
-You: Hi there!
-Agent: Hello! I'm your Sales Assistant. How can I help you today?
-
-You: Look up the contact with email john.smith@acme.com
-Agent: I found John Smith at Acme Corp. He is listed as Director of Operations.
-
-You: Create a task to follow up with John Smith next week
-Agent: I'll create a follow-up task for John Smith. Here are the details:
-       - Subject: Follow up with John Smith
-       - Due Date: [next week]
-       Should I proceed?
-
-You: Yes
-Agent: ✓ Task created successfully!
+```text
+/services/apexrest/ai/agent/process
 ```
 
----
+Use a payload that includes:
+
+- `originalUserId`
+- `agentDefinitionId`
+- `turnIdentifier`
+- `userMessage`
+
+## Step 7: Validate the Runtime
+
+Before adding more capabilities, confirm these outcomes:
+
+- an `AgentExecution__c` record is created
+- `ExecutionStep__c` rows are written
+- the agent can call the read-only capability correctly
+- any write action pauses for confirmation or approval when configured
 
 ## Next Steps
 
 <CardGrid>
-  <LinkCard title="Configuration Reference" href="../configuration/">
-    Deep dive into all agent, capability, safety, and runtime settings.
+  <LinkCard title="Configuration" href="../configuration/">
+    Understand agent, capability, trust, and runtime settings in more depth.
+  </LinkCard>
+  <LinkCard title="Runtime Model" href="../../reference/runtime-model/">
+    Learn the current strategy, channel, and continuity model used by the core runtime.
   </LinkCard>
   <LinkCard title="Standard Actions" href="../../reference/actions/">
-    All built-in actions with configuration examples and best practices.
+    Review the packaged action contracts before adding more capabilities.
   </LinkCard>
-  <LinkCard title="Custom Actions" href="../developer-guide/#custom-actions">
-    Build your own capabilities with `IAgentAction`.
-  </LinkCard>
-  <LinkCard title="Security" href="../../reference/security/">
-    Permissions, PII masking, and governance best practices.
-  </LinkCard>
-  <LinkCard title="Troubleshooting" href="../troubleshooting/">
-    Common issues and solutions for setup and runtime problems.
-  </LinkCard>
-  <LinkCard title="Examples" href="../examples/">
-    Complete agent configurations ready to deploy.
+  <LinkCard title="Developer Guide" href="../developer-guide/">
+    Extend the framework when configuration alone is not enough.
   </LinkCard>
 </CardGrid>

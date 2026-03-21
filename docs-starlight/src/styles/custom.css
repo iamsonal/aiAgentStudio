@@ -1,95 +1,130 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 :root {
-  --sl-font: 'IBM Plex Sans', 'Segoe UI', sans-serif;
-  --sl-font-system: 'IBM Plex Sans', 'Segoe UI', sans-serif;
-  --sl-font-mono: 'JetBrains Mono', 'SFMono-Regular', monospace;
+  --sl-font: 'Manrope', 'Segoe UI', sans-serif;
+  --sl-font-system: 'Manrope', 'Segoe UI', sans-serif;
+  --sl-font-mono: 'IBM Plex Mono', 'SFMono-Regular', monospace;
 
-  --sl-color-accent-low: #042e58;
-  --sl-color-accent: #1aa0ff;
-  --sl-color-accent-high: #89d2ff;
+  --sl-color-accent-low: #13263c;
+  --sl-color-accent: #66a8ff;
+  --sl-color-accent-high: #c9ddff;
 
-  --sl-color-white: #f5fbff;
-  --sl-color-gray-1: #e9f4ff;
-  --sl-color-gray-2: #d1e7ff;
-  --sl-color-gray-3: #a5c4e4;
-  --sl-color-gray-4: #5e85ad;
-  --sl-color-gray-5: #3e668d;
-  --sl-color-gray-6: #27486b;
-  --sl-color-gray-7: #1b3450;
-  --sl-color-gray-8: #11263d;
-  --sl-color-gray-9: #09172b;
-  --sl-color-black: #050d1c;
+  --sl-color-white: #f7f9fc;
+  --sl-color-gray-1: #edf2f8;
+  --sl-color-gray-2: #d8e0eb;
+  --sl-color-gray-3: #afbdd0;
+  --sl-color-gray-4: #8494ab;
+  --sl-color-gray-5: #61718a;
+  --sl-color-gray-6: #425269;
+  --sl-color-gray-7: #2d3a4f;
+  --sl-color-gray-8: #1d2738;
+  --sl-color-gray-9: #131a27;
+  --sl-color-black: #0d121b;
 }
 
 :global(body) {
   background:
-    radial-gradient(circle at 90% -20%, rgba(26, 160, 255, 0.24), transparent 42%),
-    radial-gradient(circle at 0% 15%, rgba(57, 198, 255, 0.14), transparent 30%),
-    linear-gradient(180deg, #050d1c 0%, #08152a 60%, #091a2f 100%);
+    radial-gradient(circle at top, rgba(102, 168, 255, 0.12), transparent 32%),
+    linear-gradient(180deg, #0d121b 0%, #111826 58%, #131b29 100%);
 }
 
 :global(h1),
 :global(h2),
 :global(h3),
 :global(h4) {
-  font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
-  letter-spacing: -0.02em;
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  letter-spacing: -0.03em;
+}
+
+:global(main a) {
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
 }
 
 :global(.hero-shell) {
-  padding: 1.4rem;
-  border-radius: 1rem;
-  border: 1px solid rgba(146, 209, 255, 0.3);
-  background: linear-gradient(160deg, rgba(6, 26, 47, 0.82), rgba(14, 48, 82, 0.62));
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.32);
-  animation: rise 500ms ease-out both;
+  max-width: 60rem;
+  padding: 1.75rem;
+  border: 1px solid rgba(196, 215, 245, 0.14);
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
+    rgba(15, 21, 32, 0.68);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.24);
 }
 
 :global(.hero-kicker) {
+  margin-bottom: 0.6rem;
+  color: #c7d8f5;
   font-size: 0.78rem;
-  letter-spacing: 0.11em;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #8bd7ff;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
+}
+
+:global(.hero-copy) {
+  max-width: 44rem;
+  color: #dbe4f3;
+  font-size: 1.02rem;
+  line-height: 1.75;
 }
 
 :global(.hero-grid) {
-  margin-top: 1.25rem;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0.85rem;
+  margin-top: 1.35rem;
 }
 
 :global(.stat-tile) {
-  border: 1px solid rgba(114, 193, 255, 0.28);
-  border-radius: 0.8rem;
-  padding: 0.75rem;
-  background: rgba(2, 18, 37, 0.66);
+  border: 1px solid rgba(196, 215, 245, 0.12);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 :global(.stat-tile strong) {
-  font-size: 1.05rem;
-  color: #a6e4ff;
+  display: inline-block;
+  margin-bottom: 0.3rem;
+  color: #f7f9fc;
+  font-size: 1rem;
 }
 
-:global(.rail-card) {
-  border: 1px solid rgba(116, 193, 255, 0.2);
-  background: linear-gradient(180deg, rgba(8, 27, 50, 0.9), rgba(10, 34, 61, 0.78));
+:global(.section-lead) {
+  max-width: 46rem;
+  color: #c7d2e3;
 }
 
-:global(.starlight-aside--tip) {
-  border-color: rgba(108, 196, 255, 0.35);
-  background: rgba(5, 23, 43, 0.72);
+:global(.starlight-aside) {
+  border-radius: 1rem;
+}
+
+:global(.starlight-aside--note),
+:global(.starlight-aside--tip),
+:global(.starlight-aside--caution) {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(196, 215, 245, 0.14);
+}
+
+:global(.card),
+:global(.sl-link-card) {
+  border-radius: 1rem;
+  border-color: rgba(196, 215, 245, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
+}
+
+:global(.card:hover),
+:global(.sl-link-card:hover) {
+  border-color: rgba(196, 215, 245, 0.24);
+  background: rgba(255, 255, 255, 0.045);
 }
 
 :global(.mermaid) {
   margin: 1.1rem 0;
-  padding: 0.75rem;
-  border-radius: 0.8rem;
-  border: 1px solid rgba(114, 193, 255, 0.22);
-  background: rgba(4, 20, 39, 0.72);
+  padding: 0.9rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(196, 215, 245, 0.12);
+  background: rgba(255, 255, 255, 0.025);
   overflow-x: auto;
 }
 
@@ -100,24 +135,16 @@
 
 :global(.mermaid-fallback) {
   white-space: pre;
-  font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', monospace;
   font-size: 0.82rem;
 }
 
 @media (max-width: 56rem) {
+  :global(.hero-shell) {
+    padding: 1.2rem;
+  }
+
   :global(.hero-grid) {
     grid-template-columns: 1fr;
-  }
-}
-
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }

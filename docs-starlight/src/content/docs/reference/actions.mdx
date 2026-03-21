@@ -1,255 +1,76 @@
 ---
 title: Standard Actions
-description: Built-in actions available in AI Agent Studio.
+description: Core packaged action contracts and configuration patterns.
 ---
 
-import { Card, CardGrid, Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+import { Aside, Card, CardGrid, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # Standard Actions
 
-AI Agent Studio includes packaged standard actions for common Salesforce operations. These actions follow the same capability contract as custom actions: `Description__c` guides the LLM, `Parameters__c` defines runtime inputs, and `BackendConfiguration__c` controls admin-owned behavior.
+Standard actions are the packaged tool implementations shipped in the core framework. Admins expose
+them to the model by creating `AgentCapability__c` records with descriptions, backend config, and
+parameter schemas.
 
-## Core Actions
+## Capability Contract
 
-These actions are included in the core `force-app` framework package.
+Every capability built on a standard action still depends on the same core fields:
+
+- `Description__c` tells the model when to use the tool
+- `Parameters__c` defines the runtime input schema
+- `BackendConfiguration__c` holds admin-owned operating settings
+- `HITLMode__c` and `ExposureLevel__c` control review and visibility
+
+## Core Packaged Standard Actions
 
 <CardGrid>
   <Card title="GetRecordDetails" icon="seti:search">
-    **Purpose**: Retrieve a Salesforce record by exactly one identifier field.
-    
-    **Use Cases**: Lookup a case by Case Number, fetch a contact by email, retrieve an opportunity by Id.
-    
-    **Security**: Validates identifier fields, checks read access, and fails closed on ambiguous matches.
+    Retrieves a record by ID or another configured identifier field and returns a curated field set.
   </Card>
   <Card title="CreateRecord" icon="seti:plus">
-    **Purpose**: Create new Salesforce records with schema validation.
-    
-    **Use Cases**: Create tasks, log cases, add contacts, create opportunities.
-    
-    **Security**: Security.stripInaccessible enforces FLS, type coercion validates field access.
+    Creates a Salesforce record with field validation, FLS enforcement, and user-mode DML.
   </Card>
   <Card title="UpdateRecord" icon="seti:gear">
-    **Purpose**: Update existing records with permission and approval controls.
-    
-    **Use Cases**: Update case status, change opportunity stage, modify account details.
-    
-    **Security**: FLS enforcement on updates, supports HITL approval workflows.
+    Updates a Salesforce record with object and field-level enforcement plus type coercion.
   </Card>
   <Card title="PostChatter" icon="seti:comment">
-    **Purpose**: Post Chatter updates to records or groups.
-    
-    **Use Cases**: Notify teams, log agent actions, create audit trail in Chatter feed.
-    
-    **Security**: User must have Chatter access and record visibility.
+    Posts a message to a Chatter feed with feed-type targeting, mentions, and optional topics.
   </Card>
-  <Card title="FlowHandler" icon="seti:flow">
-    **Purpose**: Execute an active Salesforce Flow whose API name is stored in `ImplementationDetail__c`.
-
-    **Use Cases**: Reuse declarative automation, wrap existing business flows, and return typed flow outputs.
-
-    **Security**: Validates flow existence, active version, and input variables before execution.
+  <Card title="SendEmail" icon="seti:mail">
+    Sends outbound email in direct-content or template mode using Salesforce email facilities.
+  </Card>
+  <Card title="HttpCallout" icon="seti:cloud">
+    Makes a bounded REST callout through a Salesforce Named Credential.
   </Card>
 </CardGrid>
 
-## Action Configuration Pattern
+<Aside type="note" title="Not the same as implementation type">
+`Flow` and `Agent` are valid capability implementation types, but they are not packaged standard
+action types in the same sense as the core actions listed here.
+</Aside>
 
-All actions follow a consistent configuration pattern:
+## Action Reference
+
+| Action | What admins configure | What the model supplies |
+| :-- | :-- | :-- |
+| `GetRecordDetails` | object, field list or field set | one identifier field |
+| `CreateRecord` | object and default field values | `recordData` object |
+| `UpdateRecord` | optional object type and default values | `recordId` and `recordData` |
+| `PostChatter` | feed type and target ID | `messageText` and optional topics |
+| `SendEmail` | variant, sender defaults, template defaults | recipients plus direct-content or template arguments |
+| `HttpCallout` | named credential, endpoint path, method, headers | path variables, query params, optional body |
+
+## Configuration Patterns
 
 <Tabs>
-  <TabItem label="Capability Record">
-
-Create an `AgentCapability__c` record:
-
-| Field | Description | Example |
-|-------|-------------|---------|
-| `CapabilityName__c` | Tool name exposed to LLM (snake_case) | `lookup_contact_by_email` |
-| `Description__c` | When and how to use this tool (critical for LLM guidance) | "Retrieve a contact by exact email address. Use when the user already knows the email and needs the matching Salesforce contact record." |
-| `ImplementationType__c` | Standard / Apex / Flow / Agent | `Standard` |
-| `StandardActionType__c` | Maps to `ActionHandlerRegistry__mdt` | `GetRecordDetails` |
-| `AIAgentDefinition__c` | Agent this capability belongs to | (Your agent record) |
-| `BackendConfiguration__c` | Admin config JSON | `{"variant":"field_list","objectApiName":"Contact","defaultFields":["Id","Name","Email"]}` |
-| `Parameters__c` | JSON Schema for LLM | See examples below |
-| `HITLMode__c` | Human approval requirement | Blank (none), Confirmation, Approval, ConfirmationThenApproval, ConditionalApproval |
-| `RunAsynchronously__c` | Execute in separate queueable | ☐ (unchecked for most) |
-
-  </TabItem>
-  <TabItem label="Backend Config">
-
-**Backend Configuration** (`BackendConfiguration__c`) provides admin-controlled settings passed to the action implementation.
-
-**Common Patterns**:
+  <TabItem label="GetRecordDetails">
 
 ```json
-// GetRecordDetails - configure one of the supported field-selection variants
 {
   "variant": "field_list",
   "objectApiName": "Contact",
   "defaultFields": ["Id", "FirstName", "LastName", "Email", "Phone", "Account.Name"]
 }
-
-// GetRecordDetails - fieldset variant
-{
-  "variant": "fieldset",
-  "objectApiName": "Case",
-  "fieldSetName": "AI_Agent_Details"
-}
-
-// CreateRecord - specify object and default values
-{
-  "objectApiName": "Task",
-  "defaultFieldValues": {
-    "OwnerId": "$User.Id",
-    "Status": "Not Started",
-    "Priority": "Normal"
-  }
-}
-
-// UpdateRecord - specify object
-{
-  "objectApiName": "Case"
-}
-
-// FlowHandler - Flow API name goes in ImplementationDetail__c
-{
-  "defaultInputValues": {
-    "source": "AI_Agent"
-  }
-}
-
-// PostChatter - target configuration
-{
-  "mentionUsers": ["005..."],
-  "visibility": "AllUsers"
-}
 ```
-
-  </TabItem>
-  <TabItem label="Parameters Schema">
-
-**Parameters** (`Parameters__c`) use JSON Schema to define LLM-provided arguments at runtime.
-
-**Basic Example**:
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "name": {
-      "type": "string",
-      "description": "Contact's full name"
-    }
-  }
-}
-```
-
-**With Required Fields**:
-
-```json
-{
-  "type": "object",
-  "required": ["email"],
-  "properties": {
-    "email": {
-      "type": "string",
-      "description": "Email address (required)"
-    },
-    "name": {
-      "type": "string",
-      "description": "Optional name filter"
-    }
-  }
-}
-```
-
-**With Enums** (constrained values):
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "priority": {
-      "type": "string",
-      "enum": ["High", "Normal", "Low"],
-      "description": "Task priority level"
-    },
-    "status": {
-      "type": "string",
-      "enum": ["Not Started", "In Progress", "Completed"],
-      "description": "Task status"
-    }
-  }
-}
-```
-
-**Complex Schema** (nested objects, arrays):
-
-```json
-{
-  "type": "object",
-  "required": ["objectType"],
-  "properties": {
-    "objectType": {
-      "type": "string",
-      "enum": ["Account", "Contact", "Opportunity"],
-      "description": "Salesforce object to search"
-    },
-    "filters": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "field": {"type": "string", "description": "Field API name"},
-          "operator": {"type": "string", "enum": ["=", "!=", "LIKE"], "description": "Comparison operator"},
-          "value": {"type": "string", "description": "Filter value"}
-        }
-      },
-      "description": "Search filters to apply"
-    },
-    "limit": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 100,
-      "default": 10,
-      "description": "Maximum records to return"
-    }
-  }
-}
-```
-
-  </TabItem>
-</Tabs>
-
-## Detailed Action Reference
-
-### GetRecordDetails
-
-**Purpose**: Search and retrieve Salesforce records.
-
-**Implementation**: `ActionGetRecordDetails` extends `BaseAgentAction`
-
-**Standard Action Type**: `GetRecordDetails`
-
-**Backend Configuration**:
-
-```json
-{
-  "variant": "field_list",
-  "objectApiName": "Contact",
-  "defaultFields": ["Id", "FirstName", "LastName", "Email", "Phone", "Title", "Account.Name"]
-}
-```
-
-Alternative fieldset-based configuration:
-
-```json
-{
-  "variant": "fieldset",
-  "objectApiName": "Case",
-  "fieldSetName": "AI_Agent_Details"
-}
-```
-
-**Parameters Schema**:
 
 ```json
 {
@@ -264,134 +85,34 @@ Alternative fieldset-based configuration:
 }
 ```
 
-**Example Capability Description**:
-
-```
-Retrieve a contact record when the user already knows the exact email address.
-
-Use this capability when:
-- User provides an email and wants the matching Salesforce contact
-- User needs the phone, title, or account for a known contact
-
-Do NOT use when:
-- User wants to search broadly across many contacts
-- User wants to create or update a contact
-
-Examples:
-- "Look up john.smith@acme.com"
-- "Get the contact record for sara.lee@example.com"
-- "Show me the phone number for the contact with email alex@contoso.com"
-```
-
-**Security**: Enforces object access, validates the identifier field, checks field accessibility including relationship paths, and returns a validation error when multiple records match the provided identifier.
-
----
-
-### CreateRecord
-
-**Purpose**: Create new Salesforce records.
-
-**Implementation**: `ActionCreateRecord` extends `BaseAgentAction`
-
-**Standard Action Type**: `CreateRecord`
-
-**Backend Configuration**:
+  </TabItem>
+  <TabItem label="CreateRecord">
 
 ```json
 {
   "objectApiName": "Task",
   "defaultFieldValues": {
-    "OwnerId": "$User.Id",
     "Status": "Not Started",
     "Priority": "Normal"
   }
 }
 ```
 
-**Parameters Schema**:
-
 ```json
 {
   "type": "object",
-  "required": ["Subject"],
+  "required": ["recordData"],
   "properties": {
-    "Subject": {
-      "type": "string",
-      "description": "Task subject/title (required)"
-    },
-    "Description": {
-      "type": "string",
-      "description": "Detailed task description"
-    },
-    "ActivityDate": {
-      "type": "string",
-      "description": "Due date in YYYY-MM-DD format"
-    },
-    "Priority": {
-      "type": "string",
-      "enum": ["High", "Normal", "Low"],
-      "description": "Task priority level"
-    },
-    "Status": {
-      "type": "string",
-      "enum": ["Not Started", "In Progress", "Completed"],
-      "description": "Task status"
-    },
-    "WhatId": {
-      "type": "string",
-      "description": "Related record ID (Account, Opportunity, etc.)"
-    },
-    "WhoId": {
-      "type": "string",
-      "description": "Related contact or lead ID"
+    "recordData": {
+      "type": "object",
+      "description": "Field names and values for the record to create"
     }
   }
 }
 ```
 
-**Example Capability Description**:
-
-```
-Create a new task in Salesforce for follow-up or to-dos.
-
-Use this capability when:
-- User asks to create a task, reminder, or follow-up
-- User says "remind me to" or "schedule a"
-- User wants to create a to-do item
-- User asks to log an action item
-
-ALWAYS ask for confirmation before creating tasks unless user explicitly approves.
-
-Required information:
-- Subject (what the task is about)
-
-Optional information (ask if relevant):
-- Due date (when it should be completed)
-- Priority (High/Normal/Low)
-- Description (additional details)
-- Related record (which account, contact, or opportunity)
-
-Examples:
-- "Create a task to follow up with John Smith next week"
-- "Remind me to call Acme Corp tomorrow"
-- "Schedule a follow-up for this opportunity"
-```
-
-**Security**: Uses `Security.stripInaccessible(AccessType.CREATABLE)` to enforce FLS. Type coercion validates field access and types.
-
-**HITL**: Consider setting `HITLMode__c` to `Confirmation`, `Approval`, or `ConditionalApproval` for production use depending on risk and agent type.
-
----
-
-### UpdateRecord
-
-**Purpose**: Update existing Salesforce records.
-
-**Implementation**: `ActionUpdateRecord` extends `BaseAgentAction`
-
-**Standard Action Type**: `UpdateRecord`
-
-**Backend Configuration**:
+  </TabItem>
+  <TabItem label="UpdateRecord">
 
 ```json
 {
@@ -402,173 +123,85 @@ Examples:
 }
 ```
 
-**Parameters Schema**:
-
 ```json
 {
   "type": "object",
-  "required": ["recordId"],
+  "required": ["recordId", "recordData"],
   "properties": {
     "recordId": {
       "type": "string",
-      "description": "Salesforce record ID to update (required)"
+      "description": "Salesforce ID of the record to update"
     },
-    "Status": {
-      "type": "string",
-      "enum": ["New", "Working", "Escalated", "Closed"],
-      "description": "Case status"
-    },
-    "Priority": {
-      "type": "string",
-      "enum": ["High", "Medium", "Low"],
-      "description": "Case priority"
-    },
-    "Description": {
-      "type": "string",
-      "description": "Updated case description"
+    "recordData": {
+      "type": "object",
+      "description": "Field names and values to update"
     }
   }
 }
 ```
 
-**Example Capability Description**:
-
-```
-Update an existing case in Salesforce.
-
-Use this capability when:
-- User asks to update, modify, or change a case
-- User wants to change case status or priority
-- User asks to escalate or resolve a case
-
-ALWAYS confirm with user before updating records.
-
-Required information:
-- Record ID (which case to update)
-- At least one field to update
-
-Examples:
-- "Update case 00001234 to status Working"
-- "Change the priority of this case to High"
-- "Mark the case as Escalated"
-```
-
-**Security**: Uses `Security.stripInaccessible(AccessType.UPDATABLE)` to enforce FLS. Validates user has update access to record and fields.
-
-**HITL**: **Strongly recommended** to set `HITLMode__c` to `Approval` or `ConditionalApproval` for updates in production.
-
----
-
-### PostChatter
-
-**Purpose**: Post updates to Chatter feeds.
-
-**Implementation**: `ActionPostChatter` extends `BaseAgentAction`
-
-**Standard Action Type**: `PostChatter`
-
-**Backend Configuration**:
+  </TabItem>
+  <TabItem label="HttpCallout">
 
 ```json
 {
-  "mentionUsers": [],
-  "mentionGroups": [],
-  "visibility": "AllUsers"
+  "namedCredential": "Customer_API",
+  "endpoint": "/v1/cases/{caseId}",
+  "method": "PATCH",
+  "timeout": 10000
 }
 ```
-
-**Parameters Schema**:
 
 ```json
 {
   "type": "object",
-  "required": ["message"],
   "properties": {
-    "message": {
-      "type": "string",
-      "description": "Message to post (required)"
+    "pathVariables": {
+      "type": "object"
     },
-    "recordId": {
-      "type": "string",
-      "description": "Record ID to post to (uses context record if not provided)"
+    "queryParams": {
+      "type": "object"
     },
-    "mentionUsers": {
-      "type": "array",
-      "items": {"type": "string"},
-      "description": "User IDs to @mention in the post"
+    "body": {
+      "type": "object"
     }
   }
 }
 ```
 
-**Example Capability Description**:
+  </TabItem>
+</Tabs>
 
-```
-Post an update to the Chatter feed for a record.
+## Design Guidance
 
-Use this capability when:
-- User asks to post to Chatter
-- You need to notify team members
-- Creating audit trail of agent actions
-- User says "post to", "notify team", or "share with"
+### Descriptions matter more than most teams expect
 
-Examples:
-- "Post to Chatter that I completed the follow-up"
-- "Let the team know about this update"
-- "Notify the account team on Chatter"
-```
+The capability description is one of the strongest signals the model sees when it decides whether to
+call a tool.
 
-**Security**: User must have Chatter access. Record visibility enforced by sharing rules.
+Good descriptions usually include:
 
-## Best Practices
+- when to use the capability
+- when not to use it
+- what identifier or input the user should provide
+- examples of correct usage
 
-<Steps>
+### Start narrow
 
-1. **Write Explicit Descriptions**
-   
-   The capability description is THE most important field. LLM uses it to decide when to call the tool. Be specific about when to use, when NOT to use, and provide examples.
+- prefer one business purpose per capability
+- keep field lists intentionally small
+- use enums and tight schemas where possible
+- add write actions only after retrieval behavior is stable
 
-2. **Use Enums for Constrained Values**
-   
-   When a parameter has specific allowed values (like picklist values), use `enum` in JSON Schema to constrain LLM's choices.
+### Add review for side effects
 
-3. **Start Read-Only, Add Writes Later**
-   
-   Begin with GetRecordDetails actions only. Once validated, add CreateRecord. Add UpdateRecord last with HITL approval.
+For `CreateRecord`, `UpdateRecord`, `SendEmail`, and `HttpCallout`, decide up front whether
+confirmation or approval is required in your workflow.
 
-4. **Enable HITL for Sensitive Operations**
-   
-   Set `HITLMode__c` to `Approval` or `ConditionalApproval` for updates, external side effects, and irreversible operations. Use `Confirmation` for lower-risk conversational creates.
+## Common Mistakes
 
-5. **Set Appropriate Error Recovery Mode**
-
-   For agents handling critical operations (e.g., payments), set `ErrorRecoveryMode__c = 'Fail Fast'` on the `AIAgentDefinition__c` to halt immediately on any tool failure. For all other agents, leave it as `Autonomous` to let the LLM decide recovery.
-
-6. **Limit Field Exposure**
-   
-   Keep `defaultFields`, Field Sets, and parameter schemas intentionally narrow. Do not expose sensitive fields unless the capability genuinely needs them.
-
-7. **Use Default Values**
-   
-   For CreateRecord and UpdateRecord, provide `defaultFieldValues` in Backend Configuration to set standard values such as `OwnerId`, `RecordTypeId`, or operational defaults that the LLM should not control directly.
-
-8. **Test Parameter Schemas**
-   
-   Validate JSON Schema is correct using [JSON Schema Validator](https://www.jsonschemavalidator.net/). Invalid schema will cause capability to fail at runtime.
-
-</Steps>
-
-## Typical Action Contract
-
-Every action follows this contract:
-
-1. **Description** (capability record): Human-readable explanation of when/how to use
-2. **JSON Schema** (Parameters__c): Formal parameter definitions for LLM guidance
-3. **Backend Configuration** (BackendConfiguration__c): Admin-controlled operational settings
-4. **Security Enforcement**: CRUD/FLS checks, WITH USER_MODE queries, stripInaccessible DML
-5. **Error Handling**: Returns ActionOutcome.success() or ActionOutcome.failure() with error codes
-6. **Optional HITL**: Human review workflow integration via `HITLMode__c`
-
-<Aside type="tip" title="Creating Custom Actions">
-Need custom business logic? See the [Developer Guide](/guides/developer-guide/#custom-actions) for how to create custom actions extending BaseAgentAction.
-</Aside>
+- exposing too many write capabilities at once
+- using vague descriptions such as “updates records”
+- treating backend config as model-controlled input
+- allowing external callouts without clear approval policy
+- assuming `Flow` is a packaged standard action type

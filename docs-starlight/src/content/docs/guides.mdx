@@ -1,26 +1,28 @@
 ---
 title: Guides
-description: Step-by-step tutorials for setup, configuration, development, and operations.
+description: Guided paths for adopting, configuring, extending, and operating the core framework.
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 # Guides
 
+Use these guides to move from first deployment to production hardening and framework extension.
+
 <CardGrid>
-  <Card title="Getting Started" href="getting-started/" icon="rocket">
-    Deploy the framework and run your first agent.
-  </Card>
-  <Card title="Configuration" href="configuration/" icon="seti:settings">
-    Configure agents, capabilities, and runtime behavior.
-  </Card>
-  <Card title="Developer Guide" href="developer-guide/" icon="seti:code">
-    Build custom actions and context providers.
-  </Card>
-  <Card title="Use Cases" href="examples/" icon="seti:lightbulb">
-    Implementation patterns you can adapt quickly.
-  </Card>
-  <Card title="Troubleshooting" href="troubleshooting/" icon="warning">
-    Diagnose and resolve common runtime issues.
-  </Card>
+  <LinkCard title="Getting Started" href="getting-started/">
+    Deploy the core runtime, connect a provider, create an agent, and validate a first execution.
+  </LinkCard>
+  <LinkCard title="Configuration" href="configuration/">
+    Learn how agent, capability, trust, and runtime settings fit together in the current core model.
+  </LinkCard>
+  <LinkCard title="Developer Guide" href="developer-guide/">
+    Extend the platform with custom actions, context providers, provider adapters, and tests.
+  </LinkCard>
+  <LinkCard title="Use Cases" href="use-cases/">
+    Review practical patterns for support, sales, and workflow-driven agent experiences.
+  </LinkCard>
+  <LinkCard title="Troubleshooting" href="troubleshooting/">
+    Diagnose common configuration, permission, runtime, and tool-selection issues.
+  </LinkCard>
 </CardGrid>

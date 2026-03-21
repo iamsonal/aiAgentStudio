@@ -1,254 +1,126 @@
 ---
 title: Troubleshooting
-description: Common issues and resolutions.
+description: Diagnose common setup, routing, tool, and runtime issues.
 ---
 
-import { Aside, Card, CardGrid, LinkButton, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import { Aside, Card, CardGrid, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # Troubleshooting
 
-Common issues and how to resolve them.
+When the framework behaves unexpectedly, work from the outside in: credentials, permissions,
+configuration, then model behavior.
 
-<Aside type="tip" title="Triage Order">
-Validate credentials first, then permissions, then model behavior, then performance tuning.
+<Aside type="tip" title="Fastest debugging loop">
+Verify Named Credentials and object access first. Many “AI issues” are actually credential,
+sharing, or schema problems.
 </Aside>
 
-<LinkButton href="../configuration/" variant="secondary">Check Configuration</LinkButton>
-<LinkButton href="../getting-started/" icon="right-arrow">Re-run Setup Flow</LinkButton>
+## Agent Does Not Respond
 
+Check these first:
 
-## Agent Not Responding
-
-**Symptoms**: Chat shows loading indefinitely · No response after sending message · Timeout errors
-
-**Check Named Credential**
 <Steps>
-1. Go to **Setup → External Credentials** and open `OpenAIEC` (or your provider-specific external credential).
-2. Verify the principal is configured and the auth parameter, such as `OpenAIKey`, is populated.
-3. Go to **Setup → Named Credentials** and confirm the `LLMConfiguration__c.NamedCredential__c` value points to an active named credential such as `OpenAI_API`.
+1. Confirm the provider Named Credential and External Credential are active.
+2. Verify the `LLMConfiguration__c` record is active and points to the expected adapter.
+3. Confirm the `AIAgentDefinition__c` record is active and bound to that configuration.
+4. Reproduce with debug logs enabled.
 </Steps>
 
-**Verify API Key**
-<Steps>
-1. Check that the API key is valid and not expired.
-2. Verify the account has available credits.
-3. Test the key directly with the provider's API.
-</Steps>
+## Permission or Access Failures
 
-**Check Agent Status**
-<Steps>
-1. Open the AI Agent Definition.
-2. Ensure `IsActive__c` is checked.
-3. Verify `LLMConfiguration__c` is set.
-</Steps>
+Symptoms usually include missing fields, empty results, or explicit permission-denied errors.
 
-**Review Debug Logs**
-<Steps>
-1. Enable debug logging for your user in **Setup → Debug Logs**.
-2. Reproduce the issue.
-3. Check for errors in the log.
-</Steps>
+Check:
 
----
+- object CRUD for the running user
+- field-level security on queried or updated fields
+- sharing access for the target records
+- whether custom code is using user-mode query and DML patterns
 
-## Permission Denied Errors
+## Unexpected Tool Selection
 
-**Symptoms**: "Insufficient privileges" messages · Agent can't access certain records · Fields missing from responses
-
-**Check Object Permissions**
-
-```sql
--- Query to check user's object access
-SELECT Id, Name, Profile.Name
-FROM User
-WHERE Id = :userId
-```
-
-Then verify the profile/permission set grants CRUD on target objects.
-
-**Check Field-Level Security**
-<Steps>
-1. Go to **Setup → Object Manager → [Object] → Fields**.
-2. Click on the field.
-3. Click **Field-Level Security**.
-4. Ensure the user's profile has access.
-</Steps>
-
-**Check Sharing Rules**
-<Steps>
-1. Go to **Setup → Sharing Settings**.
-2. Review OWD for the object.
-3. Check sharing rules and verify the user has access to specific records.
-</Steps>
-
----
-
-## High CPU Time / Timeouts
-
-**Symptoms**: "CPU time limit exceeded" errors · Slow responses · Incomplete executions
-
-<CardGrid>
-  <Card title="Reduce History" icon="seti:clock">
-    Lower `HistoryTurnLimit__c` (try 5–7). Switch to `Summary Buffer` memory strategy to compress older turns.
-  </Card>
-  <Card title="Simplify Capabilities" icon="seti:gear">
-    Reduce the number of active capabilities. Simplify parameter schemas and shorten descriptions.
-  </Card>
-  <Card title="Use Async Processing" icon="rocket">
-    Set `AsyncDispatchType__c` to `High`. Enable `RunAsynchronously__c` on heavy capabilities.
-  </Card>
-  <Card title="Optimize Queries" icon="seti:db">
-    Add indexes to frequently queried fields. Limit fields in `BackendConfiguration__c` and use selective filters.
-  </Card>
-</CardGrid>
-
----
-
-## Unexpected Tool Calls
-
-**Symptoms**: Agent uses wrong capability · Agent calls tools unnecessarily · Inconsistent behavior
-
-**Improve Descriptions**
+The most common causes are configuration quality, not model instability.
 
 <Tabs>
-  <TabItem label="Poor example">
+  <TabItem label="Check descriptions">
 
-```text
-Gets contacts
-```
+Make sure the capability description says:
 
-Too vague — the model will choose tools inconsistently or ignore them entirely.
+<ul>
+  <li>when to use the tool</li>
+  <li>when not to use it</li>
+  <li>what identifier or input is required</li>
+  <li>examples of correct usage</li>
+</ul>
 
   </TabItem>
-  <TabItem label="Better example">
+  <TabItem label="Check schemas">
 
-```text
-Retrieve a contact by exact email address.
-Use when the user already knows the email and needs the matching contact record.
-Do NOT use for broad contact searches, account lookups, or contact creation.
-```
+Validate that:
+
+<ul>
+  <li>JSON Schema is valid</li>
+  <li>required fields are actually required</li>
+  <li>enums are used for constrained values</li>
+  <li>parameter names match what the action expects</li>
+</ul>
 
   </TabItem>
 </Tabs>
 
-**Add Examples to Descriptions**
-```
-Examples of when to use:
-- "Look up john.smith@acme.com"
-- "Get the contact record for sara.lee@example.com"
-- "Show me the phone number for the contact with email alex@contoso.com"
-```
+## Write Actions Behave Unsafely
 
-**Other Fixes**
-- **Lower Temperature** — reduce `DefaultTemperature__c` to 0.3–0.5 for more predictable tool selection
-- **Review Parameters** — ensure JSON Schema is valid, add clear descriptions to each parameter, use enums where appropriate
+If updates, emails, or external callouts happen without the expected review:
 
----
-
-## Context Lost Between Turns
-
-**Symptoms**: Agent forgets previous messages · Asks for information already provided · Doesn't maintain conversation flow
-
-**Check Memory Strategy**
 <Steps>
-1. Open AI Agent Definition.
-2. Verify `MemoryStrategy__c` is set (`Buffer Window` for precise context).
-3. Raise `HistoryTurnLimit__c` (try 10–15).
+1. Check `HITLMode__c` on the capability.
+2. Confirm the capability is the one the model actually called.
+3. Review the execution steps to see whether confirmation or approval logic was entered.
+4. For `ConfirmationThenApproval`, verify the capability is not asynchronous and the agent is conversational.
 </Steps>
 
-**Verify Execution Steps**
-
-```sql
-SELECT Id, UserMessage__c, AssistantMessage__c
-FROM ExecutionStep__c
-WHERE AgentExecution__c = :executionId
-ORDER BY CreatedDate ASC
-```
-
-Ensure steps are being created for each turn.
-
----
-
-## JSON Parse Errors
-
-**Symptoms**: "Invalid JSON" errors · Capability configuration failures · Parameter validation errors
-
-Use a JSON validator to check `BackendConfiguration__c` and `Parameters__c`. Common mistakes:
-
-<Tabs>
-  <TabItem label="Trailing comma (invalid)">
-
-```json
-{
-  "field": "value",
-}
-```
-
-  </TabItem>
-  <TabItem label="Valid JSON">
-
-```json
-{
-  "field": "value"
-}
-```
-
-  </TabItem>
-  <TabItem label="Single quotes (invalid)">
-
-```json
-{
-  'field': 'value'
-}
-```
-
-  </TabItem>
-</Tabs>
-
----
-
-## Debug Tips
+## Slow or Failing Executions
 
 <CardGrid>
-  <Card title="1. Use the Execution Storyboard" icon="seti:log">
-    If your org includes the addon UI, open the **Execution Storyboard** for the affected `AgentExecution__c` record. Otherwise inspect `ExecutionStep__c` rows directly to see prompts, tool calls, and failures.
+  <Card title="Too much context" icon="seti:history">
+    Reduce `HistoryTurnLimit__c`, review context provider size, and keep prompts tighter.
   </Card>
-  <Card title="2. Enable Debug Logging" icon="seti:shell">
-    Go to **Setup → Debug Logs**, add your user, and set Apex Code, Callout, and System all to `DEBUG`. Reproduce the issue and examine the log.
+  <Card title="Too many capabilities" icon="seti:tools">
+    Narrow the tool set. Broad tool menus make model selection slower and less predictable.
   </Card>
-  <Card title="3. Test Capabilities Individually" icon="seti:gear">
-    Use Developer Console to invoke a capability in isolation before wiring it to an agent. This isolates whether the issue is in the tool itself or in the LLM's routing.
+  <Card title="Illegal callout path" icon="seti:cloud">
+    Custom code that performs DML before callout can break runtime assumptions. Review custom
+    actions and service-user routing.
   </Card>
-  <Card title="4. Monitor Token Usage" icon="seti:graph-line">
-    Token counts and estimated costs are recorded per execution step. Build a report or dashboard on the execution data objects to track spend by agent, user, or day.
-  </Card>
-  <Card title="5. Check Platform Events" icon="rocket">
-    If using High Concurrency mode: **Setup → Platform Events** → check event delivery status and review any failed deliveries.
+  <Card title="Async routing issues" icon="rocket">
+    Review dispatch settings and whether a heavy tool should be asynchronous instead of inline.
   </Card>
 </CardGrid>
 
----
+## Session or Continuity Problems
 
-## Getting Help
+If the agent appears to forget prior turns:
 
-Gather this information before opening an issue:
+- verify `MemoryStrategy__c` and `HistoryTurnLimit__c`
+- confirm `InteractionSession__c` is being reused where expected
+- inspect `ExecutionStep__c` rows to confirm user and assistant steps are being written
 
-<Steps>
-1. Agent configuration (type, memory strategy, history limit).
-2. Capability configuration (description, parameters JSON).
-3. Exact error messages.
-4. Decision step data (query above).
-5. Relevant debug log excerpts.
-</Steps>
+## Useful Records to Inspect
 
-<CardGrid>
-  <LinkCard title="GitHub Issues" href="https://github.com/iamsonal/aiAgentStudio/issues">
-    Report bugs with reproduction steps.
-  </LinkCard>
-  <LinkCard title="GitHub Discussions" href="https://github.com/iamsonal/aiAgentStudio/discussions">
-    Ask questions and share patterns.
-  </LinkCard>
-  <LinkCard title="Salesforce Developer Forums" href="https://developer.salesforce.com/forums">
-    General Salesforce platform help.
-  </LinkCard>
-</CardGrid>
+| Record or metadata | Why it helps |
+| :-- | :-- |
+| `AgentExecution__c` | Status, channel, strategy, and top-level execution state |
+| `ExecutionStep__c` | Detailed trace of prompts, tool calls, results, and failures |
+| `InteractionSession__c` | Durable continuity anchor across turns |
+| `InteractionMessage__c` | Transport-level message history |
+| `AgentCapability__c` | Tool description, schema, HITL mode, and exposure |
+
+## Before Opening an Issue
+
+Gather:
+
+- the agent and capability configuration involved
+- the exact error or unexpected behavior
+- relevant `AgentExecution__c` and `ExecutionStep__c` records
+- any custom action or context provider code involved
+- debug log excerpts that show the failure path

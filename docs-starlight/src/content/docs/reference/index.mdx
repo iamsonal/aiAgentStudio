@@ -1,23 +1,26 @@
 ---
 title: Reference
-description: Technical reference and API details.
+description: Core runtime concepts, action contracts, security controls, and API surfaces.
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 # Reference
 
 <CardGrid>
-  <Card title="API Reference" href="api-reference/" icon="seti:api-blueprint">
-    REST endpoints, payloads, and OpenAPI assets.
-  </Card>
-  <Card title="Standard Actions" href="actions/" icon="seti:tools">
-    Built-in actions and schema examples.
-  </Card>
-  <Card title="Architecture" href="architecture/" icon="seti:graph-line">
-    Runtime components and orchestration flow.
-  </Card>
-  <Card title="Security" href="security/" icon="seti:lock">
-    Governance controls, safety layers, and hardening guidance.
-  </Card>
+  <LinkCard title="Runtime Model" href="runtime-model/">
+    Strategy, channel, execution, and session concepts for the current core framework.
+  </LinkCard>
+  <LinkCard title="Architecture" href="architecture/">
+    Service-level view of the execution path, orchestration flow, and inbound pipeline.
+  </LinkCard>
+  <LinkCard title="Standard Actions" href="actions/">
+    Core packaged actions and the capability contract admins configure around them.
+  </LinkCard>
+  <LinkCard title="Security" href="security/">
+    Governance controls, trust layers, user-mode enforcement, and HITL guidance.
+  </LinkCard>
+  <LinkCard title="API Reference" href="api-reference/">
+    REST endpoints, request expectations, and OpenAPI assets.
+  </LinkCard>
 </CardGrid>
