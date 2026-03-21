@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Analyze File</label>
+    <protected>false</protected>
+    <values>
+        <field>Description__c</field>
+        <value xsi:type="xsd:string">Reads the text content of a file attached to a Salesforce record or email</value>
+    </values>
+    <values>
+        <field>HandlerClassName__c</field>
+        <value xsi:type="xsd:string">ActionAnalyzeFile</value>
+    </values>
+    <values>
+        <field>IsActive__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>IsStandardAction__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>RequiresSObject__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
+        <field>ConfigSchema__c</field>
+        <value xsi:type="xsd:string">[]</value>
+    </values>
+    <values>
+        <field>ConfigJsonSchema__c</field>
+        <value xsi:type="xsd:string">{&quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: {}}</value>
+    </values>
+    <values>
+        <field>ParametersSchema__c</field>
+        <value xsi:type="xsd:string">[]</value>
+    </values>
+    <values>
+        <field>ParametersJsonSchema__c</field>
+        <value xsi:type="xsd:string">{&quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: {}}</value>
+    </values>
+    <values>
+        <field>SupportedVariants__c</field>
+        <value xsi:type="xsd:string">[
+  {
+    &quot;name&quot;: &quot;from_record&quot;,
+    &quot;label&quot;: &quot;From Record&quot;,
+    &quot;description&quot;: &quot;Read a file attached to the current record. Call with no arguments to auto-read the only file, or supply contentDocumentId to target a specific one.&quot;,
+    &quot;configFields&quot;: [
+      {
+        &quot;name&quot;: &quot;maxFileSizeKb&quot;,
+        &quot;type&quot;: &quot;integer&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;Maximum file size in kilobytes that this tool will attempt to decode. Files exceeding this limit return a structured failure. Default: 50 KB.&quot;,
+        &quot;label&quot;: &quot;Max File Size (KB)&quot;,
+        &quot;placeholder&quot;: &quot;50&quot;
+      },
+      {
+        &quot;name&quot;: &quot;allowedFileExtensions&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;Optional restriction list. If set, only files whose extension matches an entry are processed; all others receive an unsupported-format failure. If omitted, all extensions are attempted.&quot;,
+        &quot;label&quot;: &quot;Allowed File Extensions&quot;,
+        &quot;placeholder&quot;: &quot;[\&quot;csv\&quot;,\&quot;txt\&quot;,\&quot;json\&quot;]&quot;
+      }
+    ],
+    &quot;parameterFields&quot;: [],
+    &quot;configJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;maxFileSizeKb&quot;: {
+          &quot;type&quot;: &quot;integer&quot;,
+          &quot;description&quot;: &quot;Maximum file size in kilobytes that this tool will attempt to decode. Files exceeding this limit return a structured failure. Default: 50 KB.&quot;
+        },
+        &quot;allowedFileExtensions&quot;: {
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;description&quot;: &quot;Optional restriction list. If set, only files whose extension matches an entry are processed; all others receive an unsupported-format failure. If omitted, all extensions are attempted.&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;string&quot;
+          }
+        },
+        &quot;variant&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;enum&quot;: [
+            &quot;from_record&quot;
+          ]
+        }
+      }
+    },
+    &quot;parametersJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {},
+      &quot;required&quot;: []
+    }
+  },
+  {
+    &quot;name&quot;: &quot;by_file_id&quot;,
+    &quot;label&quot;: &quot;By File ID&quot;,
+    &quot;description&quot;: &quot;Read a specific file using its Salesforce ContentDocument ID. Use when the file ID is already known (e.g. surfaced in the email attachment list).&quot;,
+    &quot;configFields&quot;: [
+      {
+        &quot;name&quot;: &quot;maxFileSizeKb&quot;,
+        &quot;type&quot;: &quot;integer&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;Maximum file size in kilobytes that this tool will attempt to decode. Files exceeding this limit return a structured failure. Default: 50 KB.&quot;,
+        &quot;label&quot;: &quot;Max File Size (KB)&quot;,
+        &quot;placeholder&quot;: &quot;50&quot;
+      },
+      {
+        &quot;name&quot;: &quot;allowedFileExtensions&quot;,
+        &quot;type&quot;: &quot;array&quot;,
+        &quot;required&quot;: false,
+        &quot;help&quot;: &quot;Optional restriction list. If set, only files whose extension matches an entry are processed; all others receive an unsupported-format failure. If omitted, all extensions are attempted.&quot;,
+        &quot;label&quot;: &quot;Allowed File Extensions&quot;,
+        &quot;placeholder&quot;: &quot;[\&quot;csv\&quot;,\&quot;txt\&quot;,\&quot;json\&quot;]&quot;
+      }
+    ],
+    &quot;parameterFields&quot;: [],
+    &quot;configJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;maxFileSizeKb&quot;: {
+          &quot;type&quot;: &quot;integer&quot;,
+          &quot;description&quot;: &quot;Maximum file size in kilobytes that this tool will attempt to decode. Files exceeding this limit return a structured failure. Default: 50 KB.&quot;
+        },
+        &quot;allowedFileExtensions&quot;: {
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;description&quot;: &quot;Optional restriction list. If set, only files whose extension matches an entry are processed; all others receive an unsupported-format failure. If omitted, all extensions are attempted.&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;string&quot;
+          }
+        },
+        &quot;variant&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;enum&quot;: [
+            &quot;by_file_id&quot;
+          ]
+        }
+      }
+    },
+    &quot;parametersJsonSchema&quot;: {
+      &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {},
+      &quot;required&quot;: []
+    }
+  }
+]</value>
+    </values>
+</CustomMetadata>

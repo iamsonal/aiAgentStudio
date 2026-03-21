@@ -89,7 +89,7 @@ private class OpenAIProviderAdapterTest {
     }
 
     @IsTest
-    static void testSendMessage_DefaultsToMaxTokensWhenModelCatalogDoesNotOverride() {
+    static void testSendMessage_UsesConfiguredMaxTokensParameterForGpt4oMini() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withModel('gpt-4o-mini').build();
         llm.TimeoutMs__c = 30000;
         llm.MaxResponseTokens__c = 256;
@@ -105,8 +105,8 @@ private class OpenAIProviderAdapterTest {
         adapter.sendMessage(messages, null, llm, agent);
 
         Map<String, Object> body = (Map<String, Object>) JSON.deserializeUntyped(lastRequest.getBody());
-        System.assertEquals(256, body.get('max_tokens'), 'Default token parameter should remain max_tokens when the model catalog does not override it');
-        System.assertEquals(null, body.get('max_completion_tokens'), 'Fallback behavior should not send max_completion_tokens');
+        System.assertEquals(256, body.get('max_tokens'), 'GPT-4o mini should explicitly use the configured max_tokens parameter');
+        System.assertEquals(null, body.get('max_completion_tokens'), 'Only the configured token parameter should be sent');
     }
 
     @IsTest

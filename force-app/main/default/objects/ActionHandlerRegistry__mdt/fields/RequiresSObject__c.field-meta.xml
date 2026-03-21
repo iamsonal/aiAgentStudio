@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RequiresSObject__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>Controls whether Setup should require an object selection before this action type can be configured.</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enable this for action types that operate on a Salesforce object context, such as record create, update, or lookup actions.</inlineHelpText>
+    <label>Requires SObject Selection</label>
+    <required>false</required>
+    <type>Checkbox</type>
+</CustomField>

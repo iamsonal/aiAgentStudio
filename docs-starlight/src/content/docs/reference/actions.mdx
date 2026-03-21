@@ -65,7 +65,7 @@ Create an `AgentCapability__c` record:
 | `CapabilityName__c` | Tool name exposed to LLM (snake_case) | `lookup_contact_by_email` |
 | `Description__c` | When and how to use this tool (critical for LLM guidance) | "Retrieve a contact by exact email address. Use when the user already knows the email and needs the matching Salesforce contact record." |
 | `ImplementationType__c` | Standard / Apex / Flow / Agent | `Standard` |
-| `StandardActionType__c` | Maps to StandardActionHandler__mdt | `GetRecordDetails` |
+| `StandardActionType__c` | Maps to `ActionHandlerRegistry__mdt` | `GetRecordDetails` |
 | `AIAgentDefinition__c` | Agent this capability belongs to | (Your agent record) |
 | `BackendConfiguration__c` | Admin config JSON | `{"variant":"field_list","objectApiName":"Contact","defaultFields":["Id","Name","Email"]}` |
 | `Parameters__c` | JSON Schema for LLM | See examples below |

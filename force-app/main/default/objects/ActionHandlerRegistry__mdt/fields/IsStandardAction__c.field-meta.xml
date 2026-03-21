@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsStandardAction__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>Marks whether this registry entry should appear as a standard action choice in admin-facing capability configuration.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enable this when the entry should appear in the Standard Action Type picker. Leave it off for framework-managed or reusable handler entries that should stay out of that picker.</inlineHelpText>
+    <label>Is Standard Action</label>
+    <type>Checkbox</type>
+</CustomField>

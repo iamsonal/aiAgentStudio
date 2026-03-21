@@ -566,7 +566,7 @@ private class CapabilityExecutionServiceTest {
             service.executeSingleAction(capability, '{}', context);
         } catch (CapabilityExecutionService.CapabilityExecutionException e) {
             exceptionThrown = true;
-            System.assert(e.getMessage().contains('No active StandardActionHandler'), 'Should indicate handler not found');
+            System.assert(e.getMessage().contains('No active action handler registry entry'), 'Should indicate handler not found');
         }
 
         System.assert(exceptionThrown, 'Should throw exception for unknown standard handler');
@@ -621,7 +621,7 @@ private class CapabilityExecutionServiceTest {
         service.executeSingleAction(capability, '{"recordData":{"Name":"Test"}}', context);
 
         System.assertEquals(true, CapabilityExecutionService.isCacheInitialized, 'Cache should be initialized after first execution');
-        System.assertNotEquals(null, CapabilityExecutionService.standardHandlerCache, 'Cache should be populated');
+        System.assertNotEquals(null, CapabilityExecutionService.actionHandlerRegistryCache, 'Cache should be populated');
     }
 
     /**

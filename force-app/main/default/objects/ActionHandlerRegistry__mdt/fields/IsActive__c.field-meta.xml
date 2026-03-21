@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsActive__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>Controls whether this registry entry is available in Setup and eligible for runtime handler lookup.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Keep this enabled while admins should be able to select this action type and the runtime should be allowed to resolve it.</inlineHelpText>
+    <label>Active</label>
+    <type>Checkbox</type>
+</CustomField>

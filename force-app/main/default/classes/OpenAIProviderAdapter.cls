@@ -12,7 +12,6 @@
 public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter {
     private static final String LOG_PREFIX = '[OpenAIAdapter] ';
     private static final Integer DEFAULT_TIMEOUT_MS = 120000;
-    private static final String DEFAULT_MAX_TOKENS_PARAMETER_NAME = 'max_tokens';
 
     public class OpenAIParseException extends AIAgentException.ProviderException {
     }
@@ -66,11 +65,15 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
 
     @TestVisible
     private static String resolveMaxTokensParameterName(String modelIdentifier) {
-        LLMModelPricing__mdt pricing = AIAgentConfigService.getLLMPricing(modelIdentifier);
-        if (pricing != null && String.isNotBlank(pricing.MaxTokensParameterName__c)) {
-            return pricing.MaxTokensParameterName__c.trim();
+        LLMModelCatalog__mdt modelCatalogRecord = AIAgentConfigService.getLLMModelCatalogRecord(modelIdentifier);
+        if (modelCatalogRecord != null && String.isNotBlank(modelCatalogRecord.MaxTokensParameterName__c)) {
+            return modelCatalogRecord.MaxTokensParameterName__c.trim();
         }
-        return DEFAULT_MAX_TOKENS_PARAMETER_NAME;
+        throw new AIAgentException.ProviderException(
+            'Max Tokens Parameter Name must be configured in LLMModelCatalog__mdt for model "' +
+            String.valueOf(modelIdentifier) +
+            '".'
+        );
     }
 
     @TestVisible

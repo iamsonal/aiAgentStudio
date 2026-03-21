@@ -20,9 +20,9 @@ public inherited sharing class AIAgentConfigService {
     private static Map<Id, AgentCapability__c> agentCapabilityIdCache = new Map<Id, AgentCapability__c>();
     private static Map<String, AgentCapability__c> agentCapabilityNameCache = new Map<String, AgentCapability__c>();
 
-    // LLM Model Pricing Cache
-    private static Map<String, LLMModelPricing__mdt> pricingCache;
-    private static Boolean isPricingCacheInitialized = false;
+    // LLM Model Catalog cache
+    private static Map<String, LLMModelCatalog__mdt> modelCatalogCache;
+    private static Boolean isModelCatalogCacheInitialized = false;
 
     private static final List<String> AGENT_DEFINITION_FIELDS = new List<String>{
         'Id',
@@ -582,12 +582,12 @@ public inherited sharing class AIAgentConfigService {
     }
 
     // ========================================================================
-    // LLM MODEL PRICING METHODS
+    // LLM MODEL CATALOG METHODS
     // ========================================================================
 
     /**
-     * Calculate estimated cost based on LLM model pricing and token usage.
-     * Pricing is retrieved from LLMModelPricing__mdt custom metadata with transaction-level caching.
+     * Calculate estimated cost based on LLM model catalog pricing and token usage.
+     * Pricing is retrieved from LLMModelCatalog__mdt custom metadata with transaction-level caching.
      *
      * This method provides centralized pricing calculation to avoid duplicate queries
      * across ExecutionStepService and AgentDecisionStepLogger.
@@ -602,86 +602,86 @@ public inherited sharing class AIAgentConfigService {
             return null;
         }
 
-        ensurePricingCacheInitialized();
+        ensureModelCatalogCacheInitialized();
 
         // Normalize model identifier to lowercase for matching
         String normalizedModel = modelIdentifier.toLowerCase();
 
-        if (pricingCache.containsKey(normalizedModel)) {
-            LLMModelPricing__mdt pricing = pricingCache.get(normalizedModel);
-            Decimal promptCost = (Decimal.valueOf(promptTokens) / 1000000.0) * pricing.PromptPricePer1MTokens__c;
-            Decimal completionCost = (Decimal.valueOf(completionTokens) / 1000000.0) * pricing.CompletionPricePer1MTokens__c;
+        if (modelCatalogCache.containsKey(normalizedModel)) {
+            LLMModelCatalog__mdt modelCatalogRecord = modelCatalogCache.get(normalizedModel);
+            Decimal promptCost = (Decimal.valueOf(promptTokens) / 1000000.0) * modelCatalogRecord.PromptPricePer1MTokens__c;
+            Decimal completionCost = (Decimal.valueOf(completionTokens) / 1000000.0) * modelCatalogRecord.CompletionPricePer1MTokens__c;
             return promptCost + completionCost;
         }
 
-        System.debug(LoggingLevel.WARN, '[AIAgentConfigService] No pricing found for model: ' + modelIdentifier);
+        System.debug(LoggingLevel.WARN, '[AIAgentConfigService] No model catalog entry found for model: ' + modelIdentifier);
         return null;
     }
 
     /**
-     * Retrieves the pricing metadata for a specific LLM model.
-     * Useful for displaying pricing information in UI or detailed cost breakdowns.
+     * Retrieves the model catalog metadata for a specific LLM model.
+     * Useful for displaying model metadata in setup flows and provider adapters.
      *
      * @param modelIdentifier The model identifier (case-insensitive)
-     * @return                The LLMModelPricing__mdt record, or null if not found
+     * @return                The LLMModelCatalog__mdt record, or null if not found
      */
-    public static LLMModelPricing__mdt getLLMPricing(String modelIdentifier) {
+    public static LLMModelCatalog__mdt getLLMModelCatalogRecord(String modelIdentifier) {
         if (String.isBlank(modelIdentifier)) {
             return null;
         }
 
-        ensurePricingCacheInitialized();
-        return pricingCache.get(modelIdentifier.toLowerCase());
+        ensureModelCatalogCacheInitialized();
+        return modelCatalogCache.get(modelIdentifier.toLowerCase());
     }
 
     /**
-     * Ensures the LLM pricing cache is initialized with active model pricing records.
+     * Ensures the LLM model catalog cache is initialized with active model records.
      * Uses a static flag to prevent repeated queries within the same transaction.
      *
-     * This method is called automatically by calculateLLMCost() and getLLMPricing().
+     * This method is called automatically by calculateLLMCost() and getLLMModelCatalogRecord().
      */
-    private static void ensurePricingCacheInitialized() {
-        if (isPricingCacheInitialized) {
+    private static void ensureModelCatalogCacheInitialized() {
+        if (isModelCatalogCacheInitialized) {
             return;
         }
 
-        pricingCache = new Map<String, LLMModelPricing__mdt>();
+        modelCatalogCache = new Map<String, LLMModelCatalog__mdt>();
 
         try {
-            List<LLMModelPricing__mdt> pricingRecords = [
+            List<LLMModelCatalog__mdt> modelCatalogRecords = [
                 SELECT ModelIdentifier__c, PromptPricePer1MTokens__c, CompletionPricePer1MTokens__c, MaxTokensParameterName__c
-                FROM LLMModelPricing__mdt
+                FROM LLMModelCatalog__mdt
                 WHERE IsActive__c = TRUE
             ];
 
-            if (pricingRecords.isEmpty()) {
-                System.debug(LoggingLevel.WARN, '[AIAgentConfigService] No active LLM pricing metadata found. Cost calculation will be unavailable.');
+            if (modelCatalogRecords.isEmpty()) {
+                System.debug(LoggingLevel.WARN, '[AIAgentConfigService] No active LLM model catalog metadata found. Cost calculation will be unavailable.');
             }
 
-            for (LLMModelPricing__mdt pricing : pricingRecords) {
-                if (String.isNotBlank(pricing.ModelIdentifier__c)) {
-                    pricingCache.put(pricing.ModelIdentifier__c.toLowerCase(), pricing);
+            for (LLMModelCatalog__mdt modelCatalogRecord : modelCatalogRecords) {
+                if (String.isNotBlank(modelCatalogRecord.ModelIdentifier__c)) {
+                    modelCatalogCache.put(modelCatalogRecord.ModelIdentifier__c.toLowerCase(), modelCatalogRecord);
                 }
             }
 
-            isPricingCacheInitialized = true;
-            System.debug(LoggingLevel.DEBUG, '[AIAgentConfigService] Initialized LLM pricing cache with ' + pricingCache.size() + ' models');
+            isModelCatalogCacheInitialized = true;
+            System.debug(LoggingLevel.DEBUG, '[AIAgentConfigService] Initialized LLM model catalog cache with ' + modelCatalogCache.size() + ' models');
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, '[AIAgentConfigService] Failed to initialize LLM pricing cache: ' + e.getMessage());
-            // Do NOT set isPricingCacheInitialized = true on failure to allow retry
-            throw new ConfigurationException('LLM pricing cache initialization failed: ' + e.getMessage(), e);
+            System.debug(LoggingLevel.ERROR, '[AIAgentConfigService] Failed to initialize LLM model catalog cache: ' + e.getMessage());
+            // Do NOT set isModelCatalogCacheInitialized = true on failure to allow retry
+            throw new ConfigurationException('LLM model catalog cache initialization failed: ' + e.getMessage(), e);
         }
     }
 
     /**
-     * Returns the current size of the LLM pricing cache.
+     * Returns the current size of the LLM model catalog cache.
      * Useful for monitoring and diagnostics.
      *
-     * @return Number of models in the pricing cache
+     * @return Number of models in the model catalog cache
      */
     @TestVisible
-    private static Integer getLLMPricingCacheSize() {
-        ensurePricingCacheInitialized();
-        return pricingCache.size();
+    private static Integer getLLMModelCatalogCacheSize() {
+        ensureModelCatalogCacheInitialized();
+        return modelCatalogCache.size();
     }
 }
