@@ -1,0 +1,129 @@
+---
+title: Use Cases
+description: Practical patterns for adopting the framework in common Salesforce workflows.
+---
+
+import { Aside, Card, CardGrid, TabItem, Tabs } from '@astrojs/starlight/components';
+
+# Use Cases
+
+These examples show how to think about the framework as a set of runtime patterns, not just a list
+of prompts or actions.
+
+<Aside type="note" title="How to use these patterns">
+Treat these as starting points. Adapt the runtime strategy, trust controls, and capability set to
+fit your org's data model, approvals, and operating risk.
+</Aside>
+
+## Pattern Library
+
+<CardGrid>
+  <Card title="Support Assistant" icon="seti:comment">
+    Conversational runtime for case triage, response drafting, follow-up work, and controlled
+    record updates.
+  </Card>
+  <Card title="Sales Copilot" icon="seti:graph-line">
+    Conversational runtime for account and opportunity support, meeting prep, and activity capture.
+  </Card>
+  <Card title="Direct Automation" icon="seti:gear">
+    Direct runtime for one-turn classification, enrichment, scoring, routing, and background work.
+  </Card>
+  <Card title="External Service Workflow" icon="seti:cloud">
+    Combine Salesforce actions with named-credential callouts when the agent needs governed
+    interaction with external systems.
+  </Card>
+</CardGrid>
+
+## Support Assistant
+
+**Best fit:** conversational agents that help service teams inspect cases, draft responses, and
+perform low-risk actions with human confirmation or approval around updates.
+
+<Tabs>
+  <TabItem label="Recommended setup">
+
+<ul>
+  <li>Runtime strategy: <code>Conversational</code></li>
+  <li>Memory strategy: <code>Buffer Window</code> for shorter, detail-sensitive conversations</li>
+  <li>Suggested actions: <code>GetRecordDetails</code>, <code>UpdateRecord</code>, <code>CreateRecord</code>, <code>PostChatter</code>, <code>SendEmail</code></li>
+  <li>Trust controls: confirmation or approval on updates, masking for sensitive fields, Tool Flow Graph for ordered triage paths</li>
+</ul>
+
+  </TabItem>
+  <TabItem label="Common prompts">
+
+<ul>
+  <li>summarize the open case and recent activity</li>
+  <li>draft a response email but wait for approval before sending</li>
+  <li>create a follow-up task when the next step is clear</li>
+  <li>update status or priority only after confirmation</li>
+</ul>
+
+  </TabItem>
+</Tabs>
+
+## Sales Copilot
+
+**Best fit:** conversational assistants that help sellers review pipeline context, inspect records,
+prepare for meetings, and capture activities.
+
+<Tabs>
+  <TabItem label="Recommended setup">
+
+<ul>
+  <li>Runtime strategy: <code>Conversational</code></li>
+  <li>Memory strategy: <code>Summary Buffer</code> for longer interactions</li>
+  <li>Suggested actions: <code>GetRecordDetails</code>, <code>CreateRecord</code>, <code>UpdateRecord</code>, <code>PostChatter</code></li>
+  <li>Context providers: account, opportunity, and activity context around the current record</li>
+</ul>
+
+  </TabItem>
+  <TabItem label="Good guardrails">
+
+<ul>
+  <li>keep write actions behind confirmation or approval</li>
+  <li>narrow action descriptions so lookup and mutation behavior are distinct</li>
+  <li>limit returned fields to what sellers actually need in the conversation</li>
+  <li>use context providers for account state instead of asking the model to reconstruct it from long prompts</li>
+</ul>
+
+  </TabItem>
+</Tabs>
+
+## Direct Automation
+
+**Best fit:** targeted jobs where the user or an automation flow needs a result, not a multi-turn
+conversation.
+
+Examples:
+
+- classify an inbound record
+- enrich a case or opportunity
+- score a record against business rules
+- produce a report-like answer from one or two actions
+
+This pattern works well when you want:
+
+- minimal orchestration overhead
+- a clear input and output contract
+- background execution for heavier tasks
+- strong separation from conversational UX
+
+## External Service Workflow
+
+When a workflow must combine Salesforce data with an external system:
+
+- keep credentials and authentication in Salesforce Named Credentials
+- use `ActionHttpCallout` for bounded REST interactions
+- keep request shape narrow so the model only fills runtime values
+- use approval controls for side effects with financial, contractual, or customer impact
+
+## Choosing the Right Pattern
+
+| If you need... | Start with... |
+| :-- | :-- |
+| multi-turn user interaction | conversational runtime |
+| one-shot classification or enrichment | direct runtime |
+| durable thread or conversation continuity | channel-aware conversational runtime plus `InteractionSession__c` |
+| sensitive side effects | HITL plus narrow capability contracts |
+| external API integration | named credentials plus `ActionHttpCallout` |

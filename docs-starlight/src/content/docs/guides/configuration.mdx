@@ -1,365 +1,178 @@
 ---
 title: Configuration
-description: Complete reference for agent and capability settings.
+description: Configure agents, capabilities, trust layers, and runtime behavior in the core framework.
 ---
 
-import { Aside, Badge, Card, CardGrid, LinkButton, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import { Aside, Card, CardGrid, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
-# Configuration Guide
+# Configuration
 
-Complete reference for all agent and capability settings.
+This guide maps the current core runtime model to the admin settings you configure in Salesforce.
 
-<Aside type="note" title="Use This Page As Your Admin Baseline">
-Start with agent + provider settings, then tune safety and performance as usage grows.
+<Aside type="note" title="Public docs boundary">
+This page focuses on core configuration in `force-app`. Addon-only authoring surfaces and internal
+extensions are intentionally not documented here.
 </Aside>
 
-<CardGrid>
-  <Card title="Agent Settings" icon="seti:settings">Identity, memory, behavior, and runtime controls.</Card>
-  <Card title="Trust & Safety" icon="seti:lock">PII masking and prompt safety thresholds.</Card>
-  <Card title="Capability Design" icon="seti:tools">Implementation type, schemas, and execution rules.</Card>
-</CardGrid>
-
-<p><Badge text="Admin" variant="note" size="small" /> <Badge text="Security Critical" variant="caution" size="small" /> <Badge text="Reference" variant="default" size="small" /></p>
-
-<Steps>
-1. Configure core agent and LLM settings.
-2. Enable trust and safety controls.
-3. Define capability contracts and execution policies.
-4. Validate in sandbox before production rollout.
-</Steps>
-
-<LinkButton href="../troubleshooting/" variant="secondary">Troubleshooting Guide</LinkButton>
-<LinkButton href="../../reference/security/" icon="right-arrow">Security Reference</LinkButton>
-
-
-## Agent Configuration
-
-### Basic Settings
-
-| Field | Type | Description |
-|:------|:-----|:------------|
-| `Name` | Text | Display name for the agent |
-| `DeveloperName__c` | Text | Unique API identifier (no spaces) |
-| `RuntimeStrategy__c` | Picklist | Runtime strategy: `Conversational` or `Direct`. Pipeline composition is configured separately through pipeline metadata, not the runtime strategy field. |
-| `IsActive__c` | Checkbox | Enable/disable the agent |
-
-### AI Provider Settings
-
-| Field | Type | Description |
-|:------|:-----|:------------|
-| `LLMConfiguration__c` | Lookup | Which AI provider configuration to use |
-| `MemoryStrategy__c` | Picklist | How to manage conversation history |
-| `HistoryTurnLimit__c` | Number | Number of conversation turns to remember |
-
-### Memory Strategies
+## Configuration Layers
 
 <CardGrid>
-  <Card title="Buffer Window" icon="seti:clock">
-    Keeps the last N turns verbatim. Best for short conversations where precise recent context matters.
+  <Card title="Agent definition" icon="seti:settings">
+    Sets prompts, provider binding, runtime strategy, memory behavior, trust controls, and
+    execution preferences.
   </Card>
-  <Card title="Summary Buffer" icon="seti:text">
-    Summarizes older turns while keeping recent ones verbatim. Best for long conversations and cost optimization.
+  <Card title="Capabilities" icon="seti:tools">
+    Define the tools exposed to the model, including implementation type, schema, and human-review
+    settings.
+  </Card>
+  <Card title="Provider config" icon="seti:cloud">
+    Controls how the framework talks to the LLM provider, including credentials, adapter class, and
+    model defaults.
+  </Card>
+  <Card title="Channel metadata" icon="seti:mail">
+    Routes inbound channel traffic and delivery policy independently from the runtime strategy.
   </Card>
 </CardGrid>
 
-### Behavior Settings
+## Agent Definition
 
-| Field | Type | Description |
-|:------|:-----|:------------|
-| `IdentityPrompt__c` | Long Text | Defines who the agent is (persona) |
-| `InstructionsPrompt__c` | Long Text | How the agent should behave |
-| `EnableActionTransparency__c` | Checkbox | Show tool execution details to users |
-| `EnableToolReasoning__c` | Checkbox | Require LLM to explain tool selection for better transparency |
-| `AuditLevel__c` | Picklist | None, Standard, or Detailed logging |
-| `EnableToolFlowGraph__c` | Checkbox | Enforce the Tool Flow Graph at runtime — LLM only sees tools eligible at the current step |
-| `ToolFlowGraph__c` | Long Text | JSON Tool Flow Graph defining entry tools and typed transitions (`sequential`, `parallel`, `exclusive`) |
-| `EnableNextStepSuggestion__c` | Checkbox | Injects `_nextStepSuggestion` into tools (experimental) |
+### Core fields
 
-### Performance Settings
+| Field | Purpose | Notes |
+| :-- | :-- | :-- |
+| `DeveloperName__c` | Stable API-facing name | Used in entrypoints and component configuration |
+| `RuntimeStrategy__c` | Execution style | Core values are `Conversational` and `Direct` |
+| `LLMConfiguration__c` | Provider binding | Points to the provider configuration record |
+| `IsActive__c` | Activation state | Disable quickly when troubleshooting or rolling back |
 
-| Field | Type | Description |
-|:------|:-----|:------------|
-| `AsyncDispatchType__c` | Picklist | High (Platform Events) or Low (Queueables) |
-| `EnableParallelToolCalling__c` | Checkbox | Execute multiple tools simultaneously |
-| `MaxProcessingCycles__c` | Number | Max LLM cycles per execution |
+### Prompt and behavior fields
 
-### Service User Context (Optional)
+| Field | Purpose |
+| :-- | :-- |
+| `IdentityPrompt__c` | Who the agent is |
+| `InstructionsPrompt__c` | How the agent should behave |
+| `EnableActionTransparency__c` | Whether tool execution details are exposed to users |
+| `EnableToolReasoning__c` | Whether tool-choice rationale is captured |
+| `AuditLevel__c` | Logging depth for execution traces |
 
-| Field | Type | Description |
-|:------|:-----|:------------|
-| `RequiresServiceUserContext__c` | Checkbox | Route execution through service user context via REST callout |
-| `ServiceUserNamedCredential__c` | Text | Named Credential for loopback callouts |
+### Memory and execution fields
 
-### Trust & Safety
+| Field | Purpose | Typical starting point |
+| :-- | :-- | :-- |
+| `MemoryStrategy__c` | How history is retained | `Buffer Window` for shorter conversations |
+| `HistoryTurnLimit__c` | Number of turns carried forward | `8` to `10` |
+| `AsyncDispatchType__c` | Queueable vs high-throughput dispatch choice | `Low` for debugging, `High` for scale |
+| `MaxProcessingCycles__c` | Limits LLM-tool iteration depth | Keep conservative for early rollout |
 
-| Field | Type | Description |
-|:------|:-----|:------------|
-| `PIIMaskingPreset__c` | Picklist | Off, Standard, or Strict |
-| `PromptSafetyPreset__c` | Picklist | Off or Standard — delegates to the provider adapter's native safety pre-check |
+### Trust and control fields
 
----
+| Field | Purpose |
+| :-- | :-- |
+| `PIIMaskingPreset__c` | Controls masking breadth before provider calls |
+| `PromptSafetyPreset__c` | Enables provider-adapter safety behavior |
+| `EnableToolFlowGraph__c` | Turns on runtime tool gating |
+| `ToolFlowGraph__c` | JSON graph describing entry tools and allowed transitions |
 
-## Async Dispatch Types
+### Service-user routing
 
-<CardGrid>
-  <Card title="High — Platform Events" icon="rocket">
-    **Best for**: Production environments with many concurrent users.
+Use service-user routing only when the workflow genuinely needs a different execution user context.
 
-    - Handles thousands of simultaneous conversations
-    - Event-driven, highly scalable architecture
-    - Better throughput under governor limits
-    - Harder to debug (no synchronous log trail)
-  </Card>
-  <Card title="Low — Queueables" icon="seti:gear">
-    **Best for**: Development, testing, and debugging.
-
-    - Sequential processing with full debug log support
-    - Guaranteed execution order
-    - Easy to trace in Developer Console
-    - Limited concurrent executions
-  </Card>
-</CardGrid>
-
----
+| Field | Purpose |
+| :-- | :-- |
+| `RequiresServiceUserContext__c` | Routes through the service-user path |
+| `ServiceUserNamedCredential__c` | Named Credential used for loopback service-user calls |
 
 ## LLM Configuration
 
-| Field | Type | Description |
-|:------|:-----|:------------|
-| `DeveloperName__c` | Text | Unique identifier |
-| `NamedCredential__c` | Text | Named Credential API name |
-| `ProviderAdapterClass__c` | Text | Apex class for provider integration |
-| `DefaultModelIdentifier__c` | Text | Model identifier (e.g., gpt-4o) |
-| `DefaultTemperature__c` | Number | Creativity level (0.0 - 1.0) |
-| `IsActive__c` | Checkbox | Enable this configuration |
+`LLMConfiguration__c` records define how the framework talks to a model provider.
 
-### Temperature Guide
+| Field | Purpose |
+| :-- | :-- |
+| `NamedCredential__c` | Provider endpoint and auth |
+| `ProviderAdapterClass__c` | Adapter implementation such as `OpenAIProviderAdapter` |
+| `DefaultModelIdentifier__c` | Model sent on provider calls |
+| `DefaultTemperature__c` | Default response variability |
+| `IsActive__c` | Controls availability for agents |
 
-<CardGrid>
-  <Card title="0.0 – 0.3 · Deterministic" icon="seti:config">
-    Focused, consistent output. Use for data retrieval, classification, and structured extraction where predictability matters.
-  </Card>
-  <Card title="0.4 – 0.7 · Balanced" icon="approve-check">
-    Natural-sounding responses with reasonable variety. The right default for general-purpose assistants.
-  </Card>
-  <Card title="0.8 – 1.0 · Creative" icon="star">
-    Varied, imaginative output. Use for content generation, brainstorming, and conversational personas where diversity is desirable.
-  </Card>
-</CardGrid>
+<Aside type="tip" title="Predictable tool use">
+For early production rollout, start with a lower default temperature. It usually produces more
+consistent action selection and less prompt drift.
+</Aside>
 
----
+## Capabilities
 
-## Capability Configuration
+Capabilities are the tool contracts the model sees. Keep them narrow, explicit, and observable.
 
-### Basic Info
+### Capability fields
 
-| Field | Type | Description |
-|:------|:-----|:------------|
-| `CapabilityName__c` | Text | Tool name shown to AI (use snake_case) |
-| `Description__c` | Long Text | When and how to use this tool |
-| `ImplementationType__c` | Picklist | Standard, Apex, Flow, or Agent |
+| Field | Purpose |
+| :-- | :-- |
+| `CapabilityName__c` | Tool name surfaced to the model |
+| `Description__c` | Primary model guidance for when and how to use the tool |
+| `ImplementationType__c` | `Standard`, `Apex`, `Flow`, or `Agent` |
+| `BackendConfiguration__c` | Admin-owned JSON configuration |
+| `Parameters__c` | JSON Schema for runtime inputs |
+| `ExposureLevel__c` | Whether the tool is visible to the model |
+| `RunAsynchronously__c` | Moves tool execution into a separate transaction when appropriate |
 
-### Implementation Types
+### Human review fields
 
-<CardGrid>
-  <Card title="Standard" icon="seti:settings">
-    Built-in actions for common Salesforce operations such as `GetRecordDetails`, `CreateRecord`, `UpdateRecord`, `HttpCallout`, `SendEmail`, and `PostChatter`.
-  </Card>
-  <Card title="Apex" icon="seti:apex">
-    Custom Apex class implementing `IAgentAction`. Full access to Salesforce data, callouts, and complex business logic.
-  </Card>
-  <Card title="Flow" icon="seti:flow">
-    Salesforce Flow invocation. Ideal for no-code automation reuse. Set the Flow API name in `ImplementationDetail__c`.
-  </Card>
-  <Card title="Agent" icon="seti:repo">
-    Invoke another agent as a capability. This is intended for multi-agent patterns and is routed through the function-agent orchestration path in addon-enabled orgs.
-  </Card>
-</CardGrid>
+| Field | Purpose | Notes |
+| :-- | :-- | :-- |
+| `HITLMode__c` | Human review mode | Includes `Confirmation`, `Approval`, `ConfirmationThenApproval`, and `ConditionalApproval` |
+| `HITLNotificationPreference__c` | Notification behavior for approval-based flows | Used when approval records are involved |
 
-### Execution Settings
+<Aside type="caution" title="Configuration caveat">
+`ConfirmationThenApproval` is only valid for interactive conversational agents and should not be
+combined with asynchronous tool execution.
+</Aside>
 
-| Field | Type | Description |
-|:------|:-----|:------------|
-| `HITLMode__c` | Picklist | Human-in-the-Loop mode: blank (no HITL), Confirmation (LLM asks in chat), Approval (formal approval process), or ConfirmationThenApproval (both) |
-| `HITLNotificationPreference__c` | Picklist | Controls when to send notifications for HITL actions: "Always Notify" (default) sends notifications for approvals, rejections, and errors; "Notify on Rejection Only" only sends notifications when actions are rejected. Only applies when `HITLMode__c` is "Approval" or "ConfirmationThenApproval". |
-| `RunAsynchronously__c` | Checkbox | Execute in separate transaction |
-| `ExposureLevel__c` | Picklist | External (visible to LLM), Internal (framework only), or Disabled |
+## Channel and Routing Metadata
 
-### Configuration Fields
+For channel-driven interaction, the framework uses metadata and registries instead of burying route
+logic inside prompts.
 
-| Field | Type | Description |
-|:------|:-----|:------------|
-| `BackendConfiguration__c` | Long Text | Admin settings (JSON) |
-| `Parameters__c` | Long Text | Tool parameters (JSON Schema) |
+| Metadata or object | Role |
+| :-- | :-- |
+| `AgentChannelRoute__mdt` | Maps channel and entry conditions to an agent |
+| `ChannelEndpoint__mdt` | Defines endpoint and provider settings for channel ingress and delivery |
+| `InteractionChannelType__mdt` | Describes available channel types and adapter classes |
 
----
+This is where channel routing lives. It is distinct from `RuntimeStrategy__c`.
 
-## Writing Effective Descriptions
-
-The capability description is crucial for the AI to understand when to use a tool.
+## Recommended Starting Profiles
 
 <Tabs>
-  <TabItem label="Good example">
+  <TabItem label="Conversational assistant">
 
-```
-Retrieve a contact record when the user already knows the exact email address.
-Use this capability when:
-- User provides an email and wants the matching Salesforce contact
-- User needs the phone, title, or account for a known contact
-
-Do NOT use when:
-- User wants to search broadly across many contacts
-- User wants to create or update a contact
-```
+<ul>
+  <li><code>RuntimeStrategy__c = Conversational</code></li>
+  <li><code>MemoryStrategy__c = Buffer Window</code></li>
+  <li>one read-only capability first</li>
+  <li>confirmation or approval on any write capability</li>
+  <li>masking and prompt safety enabled for sensitive domains</li>
+</ul>
 
   </TabItem>
-  <TabItem label="Bad example">
+  <TabItem label="Direct automation">
 
-```
-Gets contacts
-```
-
-Vague descriptions cause the LLM to misuse or ignore the capability. Always specify **when to use**, **when not to use**, and the **expected inputs**.
+<ul>
+  <li><code>RuntimeStrategy__c = Direct</code></li>
+  <li>minimal capability set</li>
+  <li>lower temperature</li>
+  <li>asynchronous execution for heavier tasks</li>
+  <li>strict schemas and concise tool descriptions</li>
+</ul>
 
   </TabItem>
 </Tabs>
 
----
+## Configuration Review Checklist
 
-## JSON Schema for Parameters
-
-Parameters use [JSON Schema](https://json-schema.org/) format.
-
-<Tabs>
-  <TabItem label="Basic">
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "name": {
-      "type": "string",
-      "description": "The contact's full name"
-    }
-  }
-}
-```
-
-  </TabItem>
-  <TabItem label="With required fields">
-
-```json
-{
-  "type": "object",
-  "required": ["email"],
-  "properties": {
-    "email": {
-      "type": "string",
-      "description": "Email address (required)"
-    },
-    "name": {
-      "type": "string",
-      "description": "Optional name filter"
-    }
-  }
-}
-```
-
-  </TabItem>
-  <TabItem label="With enums">
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "priority": {
-      "type": "string",
-      "enum": ["High", "Normal", "Low"],
-      "description": "Task priority level"
-    }
-  }
-}
-```
-
-  </TabItem>
-  <TabItem label="Complex">
-
-```json
-{
-  "type": "object",
-  "required": ["objectType"],
-  "properties": {
-    "objectType": {
-      "type": "string",
-      "enum": ["Account", "Contact", "Opportunity"],
-      "description": "Salesforce object to search"
-    },
-    "filters": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "field": {"type": "string"},
-          "operator": {"type": "string", "enum": ["=", "!=", "LIKE"]},
-          "value": {"type": "string"}
-        }
-      },
-      "description": "Search filters to apply"
-    },
-    "limit": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 100,
-      "default": 10,
-      "description": "Maximum records to return"
-    }
-  }
-}
-```
-
-  </TabItem>
-</Tabs>
-
----
-
-## Backend Configuration Examples
-
-<Tabs>
-  <TabItem label="GetRecordDetails">
-
-```json
-{
-  "variant": "field_list",
-  "objectApiName": "Contact",
-  "defaultFields": ["Id", "FirstName", "LastName", "Email", "Phone", "Account.Name"]
-}
-```
-
-  </TabItem>
-  <TabItem label="CreateRecord">
-
-```json
-{
-  "objectApiName": "Task",
-  "defaultFieldValues": {
-    "OwnerId": "$User.Id",
-    "Status": "Not Started"
-  }
-}
-```
-
-  </TabItem>
-  <TabItem label="Flow">
-
-For Flow implementation, set `ImplementationType__c` to `Flow` and put the Flow API name in `ImplementationDetail__c`.
-
-```json
-{
-  "defaultInputValues": {
-    "source": "AI_Agent"
-  }
-}
-```
-
-  </TabItem>
-</Tabs>
+<Steps>
+1. Verify strategy, provider, and memory settings on the agent definition.
+2. Confirm capability descriptions, JSON schema, and backend configuration are narrow and specific.
+3. Turn on approval or confirmation for any side-effecting capability.
+4. Validate Named Credentials and provider adapter settings before debugging prompts.
+5. Test with realistic users to confirm sharing, CRUD, FLS, and route behavior.
+</Steps>

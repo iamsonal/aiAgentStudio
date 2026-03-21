@@ -1,51 +1,41 @@
 ---
 title: Security
-description: Security controls and governance model.
+description: Governance controls, trust layers, and production hardening guidance.
 ---
 
-import { Card, CardGrid, Steps, Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+import { Aside, Card, CardGrid, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
-# Security & Governance
+# Security
 
-AI Agent Studio applies defense in depth across user context, data access, model interactions, human approvals, and auditability.
+AI Agent Studio is designed so security and governance live inside the runtime model, not only in
+surrounding process documentation.
 
-<Aside type="note" title="Scope">
-This page focuses on user-facing security capabilities rather than internal implementation details.
-</Aside>
-
-## Security Architecture
+## Core Security Layers
 
 <CardGrid>
-  <Card title="Platform-Native Security" icon="seti:lock">
-    Execution stays inside Salesforce security boundaries: user context, sharing, CRUD, field-level access, and approval processes.
+  <Card title="Salesforce security model" icon="seti:lock">
+    User context, sharing, CRUD, and field-level access remain the first boundary for all framework
+    behavior.
   </Card>
-  <Card title="Trust Layers" icon="seti:shield">
-    The framework can mask sensitive data before provider calls, run provider-native prompt safety checks, and constrain tool usage with a runtime flow graph.
+  <Card title="Trust layers" icon="seti:shield">
+    Masking, prompt safety, tool gating, and approval controls reduce risk before an action is
+    executed or a prompt leaves Salesforce.
   </Card>
-  <Card title="Human Review" icon="seti:gear">
-    Human-in-the-loop controls let you require confirmation or approval before sensitive actions execute.
+  <Card title="Operational auditability" icon="seti:graph-line">
+    Executions and execution steps are persisted so teams can review what happened after the fact.
   </Card>
-  <Card title="Auditability" icon="seti:graph-line">
-    Durable execution logs capture prompts, tool calls, outcomes, token usage, and optional tool rationale for review and support.
+  <Card title="Controlled side effects" icon="approve-check">
+    Human-in-the-loop settings let teams keep sensitive changes under explicit review.
   </Card>
 </CardGrid>
 
-## Platform-Native Controls
+## Platform-Native Enforcement
 
-### User context and sharing
+### Data access
 
-- Agents execute in the initiating user context by default.
-- Record visibility follows Salesforce sharing rules.
-- When service-user routing is configured, the original user context is still preserved for audit and tracking.
-
-<Aside type="tip" title="Service User Context">
-Use service-user routing only when a workflow genuinely needs elevated execution context. Keep the service user narrowly permissioned.
-</Aside>
-
-### CRUD and FLS enforcement
-
-- Queries should respect user access, commonly through `WITH USER_MODE`.
-- DML should strip inaccessible fields before save and prefer `Database.*(..., AccessLevel.USER_MODE)` when the action is intended to run in user context.
+- queries should respect access through `WITH USER_MODE` or equivalent user-mode patterns
+- DML should enforce field accessibility and run in user mode where intended
+- the framework does not depend on privilege escalation to make normal agent behavior work
 
 ```apex
 List<Account> accounts = [
@@ -64,163 +54,100 @@ SObjectAccessDecision decision = Security.stripInaccessible(
 Database.update(decision.getRecords(), false, AccessLevel.USER_MODE);
 ```
 
+### Service-user routing
+
+<Aside type="caution" title="Use sparingly">
+Service-user routing should be used only when the workflow genuinely requires a separate execution
+user context. Keep the service user tightly permissioned and operationally monitored.
+</Aside>
+
 ## Trust Layers
 
 <Tabs>
   <TabItem label="PII Masking">
 
-PII masking reduces the chance that sensitive values leave Salesforce in raw form.
+Masking reduces the chance that raw sensitive values leave Salesforce.
 
-- Hybrid approach: schema-based detection plus pattern-based masking
-- Session-scoped token mapping for deterministic mask and unmask behavior
-- Applies to model-facing content and relevant tool arguments
-
-Configuration:
-
-- `PIIMaskingPreset__c = Off`: disabled
-- `PIIMaskingPreset__c = Standard`: common categories and classifications
-- `PIIMaskingPreset__c = Strict`: broader masking coverage
-
-Example:
-
-```text
-Original: Update the case for SSN 123-45-6789
-Masked:   Update the case for SSN [SSN:001]
-```
+<ul>
+  <li>schema-aware and pattern-aware masking can be applied before provider calls</li>
+  <li>masking behavior is configured per agent through <code>PIIMaskingPreset__c</code></li>
+  <li>masking is especially important when prompts include record content or user-entered data</li>
+</ul>
 
   </TabItem>
   <TabItem label="Prompt Safety">
 
-Prompt safety is delegated to the provider adapter so checks align with the provider's own moderation model.
+Provider adapters can run safety behavior before or during model interaction.
 
 <ul>
-  <li>pre-checks can happen before the main provider request</li>
-  <li>providers can also return safety signals as part of the response</li>
-  <li>organizations can choose how broadly to enable these checks per agent</li>
-</ul>
-
-Configuration:
-
-<ul>
-  <li><code>PromptSafetyPreset__c = Off</code>: skip pre-check</li>
-  <li><code>PromptSafetyPreset__c = Standard</code>: run native safety behavior when the adapter supports it</li>
+  <li>controlled through <code>PromptSafetyPreset__c</code></li>
+  <li>implemented in the provider adapter layer</li>
+  <li>useful when the org wants a provider-native moderation step before full execution</li>
 </ul>
 
   </TabItem>
   <TabItem label="Tool Flow Graph">
 
-The Tool Flow Graph constrains which tools the LLM can see at each step.
+The Tool Flow Graph limits which tools the model can currently see.
 
 <ul>
-  <li>entry tools are initially visible</li>
-  <li>downstream tools unlock only after prerequisite tools succeed</li>
-  <li>exclusive branches permanently lock siblings once a branch is chosen</li>
+  <li>entry tools are initially eligible</li>
+  <li>downstream tools unlock only after valid prior steps</li>
+  <li>exclusive branches can permanently lock sibling choices for the current execution</li>
 </ul>
-
-This is configured on the agent through:
-
-<ul>
-  <li><code>EnableToolFlowGraph__c</code></li>
-  <li><code>ToolFlowGraph__c</code></li>
-</ul>
-
-At runtime, the framework exposes only the tools that are currently eligible.
 
   </TabItem>
 </Tabs>
 
-## Human-in-the-Loop
+## Human-in-the-Loop Modes
 
-Sensitive actions can require user confirmation or formal approval before they execute.
+| Mode | What it does | Best fit |
+| :-- | :-- | :-- |
+| `Confirmation` | The user confirms directly in the conversation | lower-risk conversational writes |
+| `Approval` | The runtime pauses for a formal approval step | higher-risk or external side effects |
+| `ConfirmationThenApproval` | Requires chat confirmation before formal approval | conversational agents with elevated risk |
+| `ConditionalApproval` | The model indicates whether approval is needed at runtime | cases where risk depends on the proposed action |
 
-<CardGrid>
-  <Card title="Confirmation" icon="chat">
-    The agent asks the user to confirm before proceeding. This is conversational and does not require a formal approval record. It is intended for conversational agents.
-  </Card>
-  <Card title="Approval" icon="approve-check">
-    The framework pauses execution and resumes only after an approver acts.
-  </Card>
-  <Card title="ConfirmationThenApproval" icon="warning">
-    Combines conversational confirmation with formal approval for higher-risk actions. This mode is conversational-agent only and is incompatible with async tool execution.
-  </Card>
-  <Card title="ConditionalApproval" icon="seti:settings">
-    Lets the workflow decide at runtime whether approval should be required based on the capability description and LLM decisioning.
-  </Card>
-</CardGrid>
+<Aside type="note" title="Mode constraints">
+`ConfirmationThenApproval` is only valid for interactive conversational agents and should not be
+combined with asynchronous tool execution.
+</Aside>
 
-Operationally:
+## What the Runtime Records
 
-- approvals pause the execution
-- `HITLNotificationPreference__c` controls whether users are notified on approval and rejection outcomes for approval-based modes
-- approvers must have access to the underlying business context
-- outcomes are written back into the execution trace for auditability
-
-## Audit and Observability
-
-Every execution produces a durable trace.
-
-Captured data can include:
+Captured audit data can include:
 
 - user messages
 - assistant responses
 - tool calls and tool results
-- failures
+- failure details and status transitions
 - token counts and estimated cost
-- tool rationale when reasoning capture is enabled
+- tool rationale when enabled
 
-This gives teams a concrete review path for support, compliance, and prompt/tool tuning.
+This makes the framework easier to operate in production because the execution path is inspectable.
 
-## Recommended Practices
+## Production Hardening Checklist
 
 <Steps>
-
 1. **Start in sandbox**
 
-   Validate CRUD, FLS, sharing, approvals, and provider behavior using realistic users and data.
+   Validate realistic users, data visibility, approvals, and provider behavior before rollout.
 
 2. **Use least privilege**
 
-   Keep service users, integration users, and approvers scoped to the minimum permissions needed.
+   Keep users, service users, and approvers narrowly permissioned.
 
-3. **Turn on trust layers incrementally**
+3. **Protect side effects**
 
-   Start with masking and approval controls, then add prompt safety and tool-flow constraints after validating provider behavior.
+   Put confirmation or approval in front of record updates, email sends, external callouts, and
+   other impactful actions.
 
-4. **Protect high-impact actions**
+4. **Turn on trust layers deliberately**
 
-   Use approvals for deletes, external side effects, financial updates, and irreversible workflows.
+   Add masking, safety, and tool gating based on the workflow risk instead of enabling everything
+   blindly.
 
-5. **Monitor execution data**
+5. **Watch execution data**
 
-   Watch for unusual failure rates, token spikes, approval rejections, and prompt-safety events.
-
+   Monitor failure rates, token spikes, repeated approval rejections, and unusual routing behavior.
 </Steps>
-
-## Security Checklist
-
-<Aside type="caution" title="Production Readiness">
-Test with production-like data volume and user profiles before rollout. Make sure you can quickly disable or restrict agents if behavior is unexpected.
-</Aside>
-
-<CardGrid>
-  <Card title="Access Controls" icon="seti:lock">
-    - [ ] Users and service users have least-privilege access
-    - [ ] Custom actions respect sharing, CRUD, and FLS
-    - [ ] DML strips inaccessible fields before save
-  </Card>
-  <Card title="Trust Layers" icon="seti:shield">
-    - [ ] PII masking is enabled appropriately
-    - [ ] Prompt safety is enabled where supported
-    - [ ] Tool Flow Graph is enabled for ordered workflows
-  </Card>
-  <Card title="Approvals" icon="approve-check">
-    - [ ] High-risk capabilities require HITL
-    - [ ] Approvers can access the business context they are approving
-    - [ ] Approval notifications and operational ownership are defined
-  </Card>
-  <Card title="Monitoring" icon="seti:graph-line">
-    - [ ] Execution trace retention and review process are defined
-    - [ ] Alerts exist for failures and abnormal cost patterns
-    - [ ] Teams know how to disable or pause unsafe agents quickly
-  </Card>
-</CardGrid>

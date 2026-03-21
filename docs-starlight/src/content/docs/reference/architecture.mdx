@@ -1,182 +1,163 @@
 ---
 title: Architecture
-description: Runtime architecture and orchestration model.
+description: Service-level architecture and execution flow for the core framework.
 ---
 
-import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 
 # Architecture Overview
 
-AI Agent Studio combines execution strategies, interaction channels, workflow controls, trust layers, and observability into a single Salesforce-native framework. This page focuses on the capabilities users get from the framework rather than the internal implementation details.
+This page shows how the core runtime is wired together at the service level. For the conceptual
+model of strategies, channels, sessions, and executions, start with the Runtime Model page.
 
 <Aside type="note" title="Scope">
-This page is intentionally feature-focused. It avoids internal class-level and object-level implementation detail while still describing the full functionality available in the framework experience.
+This page covers the public core architecture in `force-app`. It intentionally avoids addon-only
+implementation details and private orchestration mechanics.
 </Aside>
 
-<Aside type="note" title="Core vs Addons">
-The open-source runtime is strategy- and channel-aware. Addons extend the framework with additional UI, pipeline tooling, and provider/action implementations.
-</Aside>
+## Main Execution Path
 
-## Agent Patterns
+```mermaid
+flowchart TD
+  Start[AgentExecutionService.startExecution]
+  ResolveTarget[ResolveAgentDefinition]
+  RouteServiceUser[OptionalServiceUserRouting]
+  BuildRequest[BuildExecutionRequest]
+  ResolveStrategy[ExecutionStrategyRegistryService]
+  ResolveChannel[RuntimeRegistryService]
+  StartRuntime[IAgentRuntimeOrStrategy.startExecution]
+  CallLLM[LLMInteractionService.prepareAndCallLLM]
+  ProcessResult[OrchestrationService.processLlmResult]
+  ExecuteCapability[CapabilityExecutionService]
+  UpdateState[AgentStateServiceAndExecutionStepService]
+
+  Start --> ResolveTarget
+  ResolveTarget --> RouteServiceUser
+  RouteServiceUser --> BuildRequest
+  BuildRequest --> ResolveStrategy
+  BuildRequest --> ResolveChannel
+  ResolveStrategy --> StartRuntime
+  ResolveChannel --> StartRuntime
+  StartRuntime --> CallLLM
+  CallLLM --> ProcessResult
+  ProcessResult --> ExecuteCapability
+  ExecuteCapability --> CallLLM
+  ProcessResult --> UpdateState
+  ExecuteCapability --> UpdateState
+```
+
+## Core Services
 
 <CardGrid>
-  <Card title="Conversational Strategy" icon="chat">
-    Multi-turn assistants for support, sales, service, and record-aware conversations. The same strategy can run across chat, email, and future messaging channels.
+  <Card title="AgentExecutionService" icon="seti:play">
+    Unified public entry point. Resolves the target, performs service-user routing when needed,
+    validates payload shape, and delegates to the correct runtime boundary.
   </Card>
-  <Card title="Direct Strategy" icon="seti:gear">
-    Focused executions for targeted jobs such as enrichment, classification, routing, scoring, and guided business actions where the user wants a fast, purpose-built result.
+  <Card title="RuntimeRegistryService" icon="seti:settings">
+    Resolves strategy, channel, and runtime traits while keeping execution strategy separate from
+    interaction channel.
   </Card>
-  <Card title="Channel Adapters" icon="seti:mail">
-    Channel-native workflows for triage, draft generation, routing, follow-up, and customer communication, all governed by the same trust and audit controls as other agent experiences.
+  <Card title="LLMInteractionService" icon="seti:cloud">
+    Builds prompt payloads, includes history and tool definitions, invokes the provider adapter, and
+    returns parsed provider results.
   </Card>
-  <Card title="Sequential Pipelines" icon="seti:graph-line">
-    Fixed multi-agent workflows for predictable business processes where each stage has a clear responsibility and output.
+  <Card title="OrchestrationService" icon="seti:graph-line">
+    Interprets LLM output, selects response handlers, continues follow-up turns, and routes tool
+    results back into the runtime loop.
   </Card>
-  <Card title="Sub-Agents" icon="seti:git-branch">
-    Specialized agents can be invoked from within a broader workflow when a task needs a different toolset, prompt strategy, or decision boundary.
+  <Card title="CapabilityExecutionService" icon="seti:tools">
+    Executes capabilities across standard actions, custom Apex actions, and Flow-backed
+    implementations.
+  </Card>
+  <Card title="AgentStateService and ExecutionStepService" icon="seti:list-unordered">
+    Own execution lifecycle updates and durable trace records so every run can be inspected and
+    debugged.
   </Card>
 </CardGrid>
 
-## What The Framework Coordinates
+## Inbound Channel Architecture
+
+Channel-driven traffic shares a normalized inbound pipeline instead of duplicating logic in each
+entrypoint.
+
+```mermaid
+flowchart TD
+  ChannelInbound[ChannelOrWebhookIngress]
+  Normalize[NormalizeInboundEnvelope]
+  ResolveRoute[ChannelRoutingService]
+  ResolveSession[InteractionSessionResolver]
+  PersistMessage[InteractionMessageService]
+  StartExec[AgentExecutionService]
+
+  ChannelInbound --> Normalize
+  Normalize --> ResolveRoute
+  ResolveRoute --> ResolveSession
+  ResolveSession --> PersistMessage
+  PersistMessage --> StartExec
+```
+
+That pattern allows the framework to:
+
+- keep channel adapters thin
+- preserve durable session continuity
+- support route and endpoint metadata independently from prompts
+- apply the same execution engine after the transport boundary is normalized
+
+## Continuity and Observability
+
+<CardGrid>
+  <Card title="InteractionSessionService" icon="seti:history">
+    Resolves or creates durable session anchors so the framework can preserve continuity across
+    turns and executions.
+  </Card>
+  <Card title="InteractionMessageService" icon="seti:mail">
+    Stores inbound and outbound message records at the transport layer, separate from agent
+    reasoning and tool traces.
+  </Card>
+  <Card title="ExecutionStepService" icon="seti:timeline">
+    Persists user turns, assistant content, tool calls, tool results, and failures for operational
+    review.
+  </Card>
+  <Card title="TransactionContext" icon="seti:database">
+    Tracks deferred DML and unsafe operations so the runtime can decide whether follow-up LLM turns
+    are still legal in the current transaction.
+  </Card>
+</CardGrid>
+
+## Trust and Control Services
+
+<CardGrid>
+  <Card title="PIIMaskingService" icon="seti:shield">
+    Masks sensitive values before provider calls using framework-controlled masking rules.
+  </Card>
+  <Card title="HITLGatewayService" icon="approve-check">
+    Applies confirmation and approval behavior for capabilities that require human review.
+  </Card>
+  <Card title="ToolFlowGraphService" icon="seti:git-branch">
+    Filters tool eligibility at runtime so the model only sees tools that are currently legal to
+    use.
+  </Card>
+  <Card title="ChannelDeliveryPolicyService" icon="seti:mail">
+    Applies channel-specific reply and delivery policy after the runtime decides what to send.
+  </Card>
+</CardGrid>
+
+## Architectural Constraints That Matter
 
 <Steps>
+1. **Callout legality shapes the runtime**
 
-1. **Request Intake**
+   The framework is explicitly designed around Salesforce's no-callout-after-uncommitted-work rule.
+   Service-user routing, async dispatch, and deferred DML all exist in part to preserve legal
+   execution paths.
 
-   Requests can originate from chat, automation, APIs, email scenarios, or higher-level workflow compositions. The framework resolves both execution strategy and interaction channel before starting work.
+2. **Durable state beats transient state**
 
-2. **Prompt and Context Preparation**
+   Sessions, messages, executions, and execution steps are persisted so work can resume safely,
+   concurrency can be guarded, and operators can inspect what actually happened.
 
-   The framework assembles identity, instructions, memory, business context, and available actions so the model has the information needed to respond or take action.
+3. **Trust controls are runtime concerns**
 
-3. **Model Decision-Making**
-
-   The model can reply directly, choose tools, request clarification, or move the process into a governed workflow that includes approvals or follow-up steps.
-
-4. **Workflow Execution**
-
-   The framework executes the required actions, coordinates multi-step progress, and continues until the work is complete or needs human intervention.
-
-5. **Tracking and Completion**
-
-   Every run is tracked in a durable execution history so teams can monitor status, inspect what happened, review reasoning, and understand cost and performance.
-
+   Masking, safety checks, approval gates, and tool-flow constraints are part of the execution path,
+   not just admin documentation.
 </Steps>
-
-## Key Capabilities
-
-<CardGrid>
-  <Card title="Tool Use" icon="seti:tools">
-    Agents can search data, read details, create records, update records, call flows, and run custom business logic.
-  </Card>
-  <Card title="Memory and Context" icon="seti:database">
-    Agents can use prior conversation history, summarized memory, and related Salesforce context to stay grounded in the business workflow.
-  </Card>
-  <Card title="Approvals and Governance" icon="approve-check">
-    Sensitive actions can require confirmation or approval before they execute, which helps teams safely automate higher-impact workflows.
-  </Card>
-  <Card title="Observability" icon="seti:graph-line">
-    Execution histories, reasoning capture, and token usage data provide transparency for production operations. The storyboard-style UI is addon-provided.
-  </Card>
-  <Card title="Trust Layers" icon="seti:shield">
-    PII masking, prompt safety, and tool-flow controls help keep agent behavior aligned with enterprise security and reliability expectations.
-  </Card>
-  <Card title="Provider Flexibility" icon="seti:cloud">
-    The framework supports OpenAI-compatible APIs and broader enterprise provider strategies so teams can align AI choices with their platform requirements.
-  </Card>
-</CardGrid>
-
-## Configuration Areas
-
-<Tabs>
-  <TabItem label="Agent Setup">
-
-Configure the overall behavior of an agent:
-
-<ul>
-  <li>identity and instructions</li>
-  <li>provider and model choice</li>
-  <li>memory behavior</li>
-  <li>trust controls</li>
-  <li>async preferences</li>
-  <li>reasoning and observability settings</li>
-</ul>
-
-  </TabItem>
-  <TabItem label="Capabilities">
-
-Define what an agent can do:
-
-<ul>
-  <li>which actions are available</li>
-  <li>when each action should be used</li>
-  <li>the inputs it expects</li>
-  <li>whether it runs immediately or in the background</li>
-  <li>whether it requires confirmation, approval, or conditional approval</li>
-</ul>
-
-  </TabItem>
-  <TabItem label="Workflow Controls">
-
-Control how the framework behaves operationally:
-
-<ul>
-  <li>approvals</li>
-  <li>ordered tool flows</li>
-  <li>execution limits</li>
-  <li>routing and scale settings</li>
-  <li>retry and resilience behavior</li>
-</ul>
-
-  </TabItem>
-  <TabItem label="Observability">
-
-Review and analyze what happened:
-
-<ul>
-  <li>execution status</li>
-  <li>step history</li>
-  <li>approval outcomes</li>
-  <li>token and cost metrics</li>
-  <li>reasoning and decision traces</li>
-</ul>
-
-  </TabItem>
-</Tabs>
-
-## Extension Areas
-
-<CardGrid>
-  <Card title="Actions" icon="seti:code">
-    Add custom business logic and integrations when packaged actions do not cover your use case.
-  </Card>
-  <Card title="Context Providers" icon="seti:database">
-    Enrich agents with related records, computed context, and domain-specific information.
-  </Card>
-  <Card title="LLM Providers" icon="seti:cloud">
-    Support additional model providers and enterprise AI stacks as your deployment needs evolve.
-  </Card>
-  <Card title="Memory Strategies" icon="seti:text">
-    Tune how history is retained, summarized, and reused in longer-running interactions.
-  </Card>
-  <Card title="Strategies and Channels" icon="seti:settings">
-    Add new execution strategies or interaction channels when your business process needs a different runtime style or delivery surface.
-  </Card>
-</CardGrid>
-
-## Design Principles
-
-<CardGrid>
-  <Card title="Built for Salesforce" icon="warning">
-    The framework is designed around Salesforce security, transaction rules, and governor limits so AI workflows remain practical in real orgs.
-  </Card>
-  <Card title="Safe Automation" icon="rocket">
-    Multi-step workflows can continue across turns, tools, approvals, and background work while preserving control and auditability.
-  </Card>
-  <Card title="Deterministic Guardrails" icon="seti:history">
-    Ordered tool flows, approval gates, and trust layers help keep agent behavior predictable in sensitive workflows.
-  </Card>
-  <Card title="Enterprise Visibility" icon="seti:git">
-    Every run is observable so teams can troubleshoot, optimize prompts, monitor spend, and build confidence in production use.
-  </Card>
-</CardGrid>

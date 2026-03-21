@@ -1,62 +1,72 @@
 ---
 title: API Reference
-description: REST API access patterns and artifacts.
+description: REST entrypoints and request expectations for the core framework.
 ---
 
-import { LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside, LinkCard } from '@astrojs/starlight/components';
 
 # API Reference
 
-## Base Endpoint
+The core framework exposes REST surfaces for agent execution and normalized inbound traffic.
 
-`/services/apexrest/ai/agent`
+## Agent REST Surface
 
-## Common Endpoints
+Base path:
 
-- `POST /process` for chat turn processing
-- `POST /hitl/execute` for executing an approved HITL action
-- `POST /hitl/followup` for queueing follow-up LLM work after rejection, expiry, or decline
-- `POST /resume` for resuming an execution in service-user context
+```text
+/services/apexrest/ai/agent
+```
+
+Common endpoints:
+
+- `POST /process`
+- `POST /hitl/execute`
+- `POST /hitl/followup`
+- `POST /resume`
+
+### `/process`
+
+Use this endpoint to start a new execution or continue an existing one in the agent REST flow.
+
+Important request notes:
+
+- `originalUserId`, `agentDefinitionId`, and `turnIdentifier` are required
+- `executionId` is optional when continuing an existing execution
+- `interactionSessionId` is optional when you want durable session continuity across executions
+- `userMessage` may be omitted for non-interactive or non-chat scenarios
+
+## Normalized Ingress Surface
+
+Base path:
+
+```text
+/services/apexrest/ai/ingress
+```
+
+This REST surface is intended for middleware or channel integrations that already speak the
+framework's normalized inbound contract.
+
+<Aside type="note" title="Why there are two surfaces">
+The `/ai/agent` endpoints are centered on agent execution. The `/ai/ingress` surface exists for
+channel-style ingress flows that need normalization, routing, and session resolution before the
+agent execution begins.
+</Aside>
 
 ## Authentication
 
-Use Salesforce authentication (session token or OAuth) and include:
-
-<Tabs>
-  <TabItem label="Headers">
+Use normal Salesforce authentication such as a session token or OAuth bearer token.
 
 ```text
 Authorization: Bearer YOUR_ACCESS_TOKEN
 Content-Type: application/json
 ```
 
-  </TabItem>
-  <TabItem label="cURL Example">
-
-```bash
-curl -X POST "https://YOUR-INSTANCE.salesforce.com/services/apexrest/ai/agent/process" \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"originalUserId":"005...","agentDefinitionId":"a0Y...","turnIdentifier":"turn-001","userMessage":"hello"}'
-```
-
-  </TabItem>
-</Tabs>
-
-## Request Notes
-
-- `executionId` is optional on `/process`; provide it to continue the same `AgentExecution__c`.
-- `interactionSessionId` is optional on `/process`; provide it to preserve durable `InteractionSession__c` continuity across executions.
-- `originalUserId`, `agentDefinitionId`, and `turnIdentifier` are required on `/process`.
-- `/hitl/execute` expects the pending action, execution, capability, and serialized tool arguments produced by the HITL workflow.
-- `/resume` is used by service-user routing and recovery flows, not normal end-user chat traffic.
-
 ## OpenAPI Assets
 
 <LinkCard title="openapi.yml" href="/openapi.yml">
-  YAML specification for generated clients and API tooling.
+  YAML specification for generated clients and tooling.
 </LinkCard>
 
 <LinkCard title="openapi.json" href="/openapi.json">
-  JSON specification for machine-consumable workflows.
+  JSON specification for machine-consumable integrations.
 </LinkCard>
