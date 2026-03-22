@@ -1,120 +1,264 @@
 ---
 title: AI Agent Studio
-description: Governed AI agent orchestration for Salesforce with runtime control, trust layers, and extensibility built in.
+description: A governed AI runtime for Salesforce that separates strategy, channels, trust, and extensibility into one operable system.
 template: splash
 hero:
-  tagline: Governed AI Agent Orchestration for Salesforce
+  tagline: Governed AI Runtime for Salesforce
   actions:
-    - text: Get Started
+    - text: Start Building
       link: getting-started/
       icon: right-arrow
       variant: primary
-    - text: Runtime Model
-      link: reference/runtime-model/
+    - text: Explore the Architecture
+      link: reference/architecture/
       variant: secondary
     - text: GitHub Repository
       link: https://github.com/iamsonal/aiAgentStudio
       variant: minimal
 ---
 
-import { Aside, Card, CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, LinkCard, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 <div class="hero-shell">
   <div class="hero-kicker">Built for real Salesforce runtime constraints</div>
   <p class="hero-copy">
-    AI Agent Studio is a Salesforce-native framework for building governed AI agents that can run
-    conversational and direct executions, call tools safely, work through channel-aware delivery,
-    and stay observable in production.
+    AI Agent Studio is a Salesforce-native runtime for AI agents. It accepts requests from multiple
+    entry surfaces, chooses the right runtime style, manages tools and continuity, applies trust
+    layers, and records what happened in durable system records your team can actually operate.
   </p>
 
   <div class="hero-grid">
-    <div class="stat-tile"><strong>Strategy-aware runtime</strong><br />Separate runtime strategy from interaction channel so chat, email, API, and future transports can share a common execution model.</div>
-    <div class="stat-tile"><strong>Trust layers built in</strong><br />PII masking, prompt safety, human approval controls, and runtime tool gating are first-class parts of the platform.</div>
-    <div class="stat-tile"><strong>Designed to extend</strong><br />Add actions, context providers, provider adapters, and memory strategies without forking the framework core.</div>
+    <div class="stat-tile"><strong>Multiple runtime styles</strong><br />Use conversational runtimes for ongoing interactions and direct runtimes for bounded work such as classification, enrichment, and controlled automation.</div>
+    <div class="stat-tile"><strong>Channel-aware execution</strong><br />Keep runtime strategy separate from interaction channel so the same framework can work across chat, email, API, and provider-backed messaging surfaces.</div>
+    <div class="stat-tile"><strong>Governed by design</strong><br />Combine user-mode security, approval controls, PII masking, prompt safety, and runtime tool gating in one architecture rather than scattering them across custom code.</div>
   </div>
 </div>
 
-<Aside type="caution" title="Repository Scope">
-These public docs focus on the core framework in `force-app`. The repository also contains addon packages and internal docs, but those implementation details are intentionally kept out of this site.
+<div class="badge-row">
+  <Badge text="Core Runtime" variant="success" />
+  <Badge text="Salesforce Native" variant="note" />
+  <Badge text="Governed by Design" variant="tip" />
+  <Badge text="Public Docs" variant="caution" />
+</div>
+
+<Aside type="caution" title="Public Docs Scope">
+These docs focus on the core runtime in `force-app`. The repository also contains addon packages and
+internal implementation documents, but those internals are intentionally not described in detail
+here.
 </Aside>
 
-## Start Here
+## Why This Exists
+
+Many Salesforce AI projects start as one prompt, one model call, and one UI surface. That works for
+early demos, but it breaks down when you need:
+
+- multiple entry points such as chat, email, APIs, and automation
+- durable conversation or thread continuity
+- governed tool execution and human review
+- platform-safe async behavior under Salesforce transaction limits
+- clear auditability for support, compliance, and operational debugging
+
+AI Agent Studio exists to solve that larger problem. It gives you an operating model, not just an
+LLM integration.
+
+## What Makes It Different
+
+<p class="section-lead">
+The platform is opinionated in a useful way. It separates concerns that many first-generation AI
+implementations blur together, which makes the runtime easier to operate, extend, and trust.
+</p>
 
 <CardGrid>
-  <LinkCard title="Getting Started" href="guides/getting-started/">
-    Deploy the core package, connect an LLM provider, create your first agent, and validate the runtime path.
-  </LinkCard>
-  <LinkCard title="Runtime Model" href="reference/runtime-model/">
-    Learn the current strategy, channel, session, and execution concepts before going deeper into the architecture.
-  </LinkCard>
-  <LinkCard title="Developer Guide" href="guides/developer-guide/">
-    Extend the framework with custom actions, context providers, provider adapters, and tests.
-  </LinkCard>
+  <Card title="Runtime Strategy" icon="rocket">
+    The framework asks what kind of work this is. `Conversational` runtimes handle ongoing
+    interaction. `Direct` runtimes handle bounded work such as classification, enrichment, and
+    controlled automation.
+  </Card>
+  <Card title="Channel-Aware Delivery" icon="email">
+    Runtime strategy and interaction channel stay separate, so the same framework can work across
+    chat, email, API, and provider-backed messaging without collapsing into brittle channel-specific
+    agent variants.
+  </Card>
+  <Card title="Governed by Design" icon="approve-check-circle">
+    Trust layers, approval controls, user-mode access, and durable audit records are part of the
+    runtime itself, not post-hoc process wrapped around a prompt.
+  </Card>
 </CardGrid>
 
-## Why Teams Use It
+## What It Models
+
+<p class="section-lead">
+The fastest way to understand the framework is to understand the boundaries it models as separate
+things.
+</p>
 
 <CardGrid>
-  <Card title="Built for Salesforce constraints" icon="seti:settings">
-    The framework is designed around callout safety, user-mode data access, queueable and event-driven execution, and durable execution history.
+  <Card title="Agent Definition" icon="information">
+    `AIAgentDefinition__c` describes what an agent is: prompts, model configuration, runtime style,
+    tools, trust controls, and behavior settings.
   </Card>
-  <Card title="Clear runtime control" icon="seti:graph-line">
-    Strategy resolution, channel routing, trust controls, and execution lifecycle tracking are explicit rather than hidden inside prompts or UI-only workflows.
+  <Card title="Execution" icon="rocket">
+    `AgentExecution__c` is a unit of runtime work. It tracks lifecycle state, resolved strategy,
+    channel, and turn coordination.
   </Card>
-  <Card title="Governance by default" icon="seti:lock">
-    CRUD, FLS, sharing, trust layers, and human approval controls are part of the framework model, not bolted on after the fact.
+  <Card title="Session" icon="comment-alt">
+    `InteractionSession__c` is the continuity anchor for a conversation, thread, or longer-lived
+    interaction.
   </Card>
-  <Card title="Extensible where it matters" icon="seti:code">
-    Build new capabilities and provider integrations while preserving the common execution pipeline, memory model, and security posture.
+  <Card title="Message" icon="email">
+    `InteractionMessage__c` captures transport-level inbound and outbound messages.
+  </Card>
+  <Card title="Execution Step" icon="list-format">
+    `ExecutionStep__c` is the detailed audit trail of what the runtime actually did while handling a
+    request.
   </Card>
 </CardGrid>
+
+That separation is one of the framework's biggest strengths. A conversation is not the same thing as
+a runtime work item. A transport message is not the same thing as an execution step. Once those
+boundaries are clear, the system becomes much easier to reason about.
+
+## The Mental Model
+
+The right mental model is simple:
+
+a request enters through an entry surface, the system resolves routing and continuity, starts or
+resumes execution, lets runtime strategy and interaction channel shape behavior, runs the LLM and
+tool loop, and then writes the outcome back into durable records.
+
+That is enough for the homepage. If you want the system walkthrough, service map, and diagrams, go
+next to `Runtime Model` and `Architecture`.
+
+## What You Can Build
+
+<p class="section-lead">
+This is where the framework should feel less abstract and more like a product foundation. The same
+runtime can support user-facing assistants, bounded AI workflow steps, and shared internal AI
+platforms.
+</p>
+
+<Tabs>
+  <TabItem label="Service">
+
+Build case support assistants that can inspect context, draft responses, suggest next actions, and
+update records with confirmation or approval controls.
+
+This is one of the strongest first product shapes because the value is visible, the human stays in
+the loop, and the runtime trace is easy to inspect in production.
+
+  </TabItem>
+  <TabItem label="Sales">
+
+Build seller copilots that help with account research, opportunity inspection, meeting prep,
+activity capture, and guided follow-up workflows.
+
+This is the right shape when you want a copilot that feels embedded in the CRM, not bolted on next
+to it.
+
+  </TabItem>
+  <TabItem label="Automation">
+
+Build direct runtimes that classify records, enrich data, summarize activity, route work, or run
+bounded AI tasks from Flow or API triggers.
+
+This is a strong fit when the business need is not "give me a chatbot," but "add a reliable AI step
+to a governed workflow."
+
+  </TabItem>
+  <TabItem label="Platform">
+
+Build an internal AI foundation where multiple teams can configure agents, add capabilities, plug in
+new providers, and reuse the same runtime, routing, and governance model.
+
+This is where the story becomes most powerful: one governed runtime, many business-facing AI
+experiences.
+
+  </TabItem>
+</Tabs>
 
 ## Core Capabilities
 
 <CardGrid>
-  <Card title="Conversational Runtime" icon="chat">
-    Multi-turn agent experiences with memory, tool use, follow-up turns, and channel-aware continuity.
+  <Card title="Conversational Agents" icon="comment">
+    Build assistants that preserve continuity across turns, sessions, and channel-aware reply flows.
   </Card>
-  <Card title="Direct Runtime" icon="seti:gear">
-    Focused one-turn or minimal-orchestration executions for classification, enrichment, scoring, and targeted business actions.
+  <Card title="Direct Agents" icon="rocket">
+    Run bounded work units for classification, enrichment, automation, routing, or structured
+    decision support.
   </Card>
-  <Card title="Channel-Aware Delivery" icon="seti:mail">
-    Interaction channels are handled independently from runtime strategy, allowing the framework to preserve the same execution semantics across different delivery surfaces.
+  <Card title="Metadata-Driven Routing" icon="random">
+    Use metadata to decide which agent owns a request, how a channel behaves, and how delivery
+    should work.
   </Card>
-  <Card title="Trust and observability" icon="seti:shield">
-    Durable execution steps, token and cost tracking, tool reasoning capture, masking, safety checks, and HITL controls support production use.
+  <Card title="Trust Layers" icon="approve-check-circle">
+    Combine masking, prompt safety, tool gating, and approval flows as runtime concerns rather than
+    post-hoc guardrails.
+  </Card>
+  <Card title="Observability" icon="magnifier">
+    Inspect executions, steps, messages, sessions, token usage, and outcomes with durable system
+    records.
+  </Card>
+  <Card title="Extensibility" icon="puzzle">
+    Add actions, context providers, LLM adapters, and memory strategies without throwing away the
+    core runtime model.
   </Card>
 </CardGrid>
+
+## Who This Is For
+
+AI Agent Studio is especially useful for teams that need more than a single chatbot or a one-off
+model integration.
+
+It is a strong fit when you are building:
+
+- Salesforce-native assistants that need durable continuity
+- governed business automations that must respect user permissions and approval rules
+- channel-aware agent experiences across chat, email, API, or provider-backed messaging
+- extensible agent platforms where new tools, providers, and context sources will be added over time
+- production systems where observability, auditability, and operational safety matter as much as the model itself
+
+It is a weaker fit if all you need is a single prompt, a single response, and no durable runtime or
+governance layer.
 
 ## Reader Paths
 
 <Steps>
-1. **Adopting the framework**
+1. **Start building**
 
-   Start with the setup and configuration guides to deploy the core runtime, connect an LLM provider, and stand up a first agent safely.
+   Deploy the core package, connect a provider, create an agent, and validate your first runtime
+   path.
 
-2. **Understanding how it works**
+2. **Understand the system**
 
-   Read the runtime model and architecture pages to understand strategy resolution, channel handling, session continuity, and tool execution boundaries.
+   Read the `Runtime Model` and `Architecture` pages to form the right mental model before diving
+   into implementation details.
 
-3. **Extending the platform**
+3. **Configure production behavior**
 
-   Use the developer guide and standard actions reference to decide when to configure, extend, or compose new capabilities.
+   Use `Configuration`, `Security`, and `Standard Actions` to decide how agents should behave in a
+   governed environment.
+
+4. **Extend the framework**
+
+   Use the `Developer Guide` when configuration is no longer enough and you need custom actions,
+   context providers, or provider adapters.
 </Steps>
 
-## Continue
+## Go Next
 
 <CardGrid>
+  <LinkCard title="Getting Started" href="guides/getting-started/">
+    Deploy the core runtime, connect an LLM provider, create your first agent, and verify the first
+    execution flow.
+  </LinkCard>
+  <LinkCard title="Runtime Model" href="reference/runtime-model/">
+    Learn the strategy, channel, execution, session, and message concepts that define the core
+    runtime.
+  </LinkCard>
   <LinkCard title="Configuration" href="guides/configuration/">
-    Agent, capability, trust, and execution settings for the core framework.
+    Map the runtime model to agent settings, capabilities, trust controls, and operational behavior.
   </LinkCard>
-  <LinkCard title="Architecture" href="reference/architecture/">
-    Service-level architecture and the main execution path through the runtime.
-  </LinkCard>
-  <LinkCard title="Security" href="reference/security/">
-    User-mode enforcement, trust layers, and human approval controls.
-  </LinkCard>
-  <LinkCard title="Standard Actions" href="reference/actions/">
-    Core packaged actions and the capability contract they follow.
+  <LinkCard title="Use Cases" href="guides/use-cases/">
+    See how support, sales, direct automation, and service workflows fit the runtime model.
   </LinkCard>
 </CardGrid>

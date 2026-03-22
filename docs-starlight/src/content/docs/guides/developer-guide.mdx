@@ -3,30 +3,76 @@ title: Developer Guide
 description: Extend the framework with custom actions, context providers, adapters, and tests.
 ---
 
-import { Aside, Card, CardGrid, FileTree, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, FileTree, LinkButton, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # Developer Guide
 
-Use this guide when configuration alone is not enough and you need to extend the core framework.
+<p class="section-lead">
+Use this guide when metadata configuration is no longer enough and you need to extend the core
+framework with code.
+</p>
+
+The goal of extension is not just to “make the agent do more.” The goal is to add new behavior
+without breaking the runtime model that makes the framework governable, testable, and operable.
+
+<div class="badge-row">
+  <Badge text="Extension Guide" variant="success" />
+  <Badge text="Apex Required" variant="note" />
+  <Badge text="Runtime-Safe Design" variant="tip" />
+</div>
+
+<div class="button-row">
+  <LinkButton href="../../reference/actions/" variant="secondary">Review Standard Actions</LinkButton>
+  <LinkButton href="../../reference/security/" variant="minimal">Review Security Model</LinkButton>
+</div>
+
+Before you add code, make sure the behavior truly cannot be expressed through:
+
+- a packaged standard action
+- tighter capability descriptions and schemas
+- backend configuration
+- a context provider instead of a new tool
+
+That discipline matters. Many extension codebases become harder than necessary because teams jump to
+custom Apex before they have exhausted the simpler configuration seams.
 
 ## Core Extension Points
 
 <CardGrid>
-  <Card title="Custom actions" icon="seti:tools">
+  <Card title="Custom actions" icon="puzzle">
     Implement new business logic by extending `BaseAgentAction` and returning structured
     `ActionOutcome` results.
   </Card>
-  <Card title="Context providers" icon="seti:database">
+  <Card title="Context providers" icon="list-format">
     Supply dynamic business context through `IAgentContextProvider` implementations.
   </Card>
-  <Card title="Provider adapters" icon="seti:cloud">
+  <Card title="Provider adapters" icon="external">
     Add non-default model providers by extending `BaseProviderAdapter`.
   </Card>
-  <Card title="Memory strategies" icon="seti:history">
+  <Card title="Memory strategies" icon="comment-alt">
     Implement alternative memory behavior through `IMemoryManager` when the shipped strategies are
     not enough.
   </Card>
 </CardGrid>
+
+## Choose The Right Extension Seam
+
+The most important design choice is often not "how do I code this?" but "where should this behavior
+live?"
+
+| If you need to... | Usually start with... |
+| :-- | :-- |
+| add business logic that performs a task | custom action |
+| inject more relevant business context before the LLM call | context provider |
+| support a provider with a different request or response contract | provider adapter |
+| change how conversation history is retained | memory strategy |
+| expose an existing admin-owned process | Flow-backed capability |
+
+The wrong seam creates long-term friction. For example:
+
+- a custom action is the wrong place to solve missing record context that belongs in a context provider
+- a provider adapter is the wrong place to enforce business policy that belongs in capability design
+- a custom tool is often unnecessary when a packaged action plus better configuration would work
 
 ## Suggested Workspace Areas
 
@@ -49,12 +95,25 @@ Use this guide when configuration alone is not enough and you need to extend the
 
 Custom actions are the primary way to add business-specific capability logic.
 
+They are the right answer when the framework needs to perform a task that cannot be expressed cleanly
+through packaged actions or Flow-backed capabilities.
+
 ### When to build one
 
 - the packaged standard actions are too generic
 - you need custom business rules, orchestration, or calculations
 - you need an external integration with strict request shaping
 - you need richer output objects than a generic CRUD action provides
+
+### What a good custom action looks like
+
+A good action is:
+
+- narrow in business purpose
+- explicit in inputs and outputs
+- aligned with user-mode security
+- safe under Salesforce callout and DML rules
+- easy to test through observable outcomes
 
 ### Implementation pattern
 
@@ -110,9 +169,15 @@ public with sharing class ActionAccountHealth extends BaseAgentAction {
 }
 ```
 
+The action class should own business execution logic, not general runtime orchestration. Let the
+framework remain responsible for agent flow, tool selection, retries, and execution state.
+
 ## Context Providers
 
 Context providers inject relevant data before the model decides what to do.
+
+In many cases, a context provider is a better extension than a new action because the real problem is
+not missing capability, but missing context at decision time.
 
 ### Good use cases
 
@@ -154,6 +219,9 @@ public with sharing class AccountContextProvider implements IAgentContextProvide
 }
 ```
 
+The best context providers are selective. They provide the data the model actually needs, not a full
+data dump because “more context might help.”
+
 ## Provider Adapters
 
 Use a custom provider adapter when the provider does not speak the OpenAI-compatible contract used
@@ -165,25 +233,51 @@ Implementation path:
 2. Implement the request-building and response-parsing methods.
 3. Register the adapter class name in `LLMConfiguration__c.ProviderAdapterClass__c`.
 
+Keep provider adapters focused on transport and provider-contract behavior. Business policy,
+capability semantics, and user-facing instructions should stay outside the adapter.
+
+Provider adapters should answer questions like:
+
+- how is the request formatted?
+- how is authentication applied?
+- how is the provider response interpreted?
+- how are safety or moderation results surfaced back into the runtime?
+
+They should not become a hidden place where business rules accumulate.
+
+## Memory Strategies
+
+Most teams will use the shipped memory behavior, but the framework does expose `IMemoryManager` as
+an extension seam when conversation retention needs differ from the defaults.
+
+Reach for this only when:
+
+- the existing memory models do not fit the interaction pattern
+- the problem is truly memory policy, not prompt quality or excessive context payload
+- you are prepared to test the effect on later turns, summaries, and runtime trace behavior
+
 ## Security Expectations
 
 <CardGrid>
-  <Card title="User-mode data access" icon="seti:lock">
+  <Card title="User-mode data access" icon="approve-check">
     Use `WITH USER_MODE` for queries and prefer user-mode DML paths so framework extensions stay
     aligned with Salesforce permissions.
   </Card>
-  <Card title="Field-level protection" icon="seti:shield">
+  <Card title="Field-level protection" icon="approve-check-circle">
     Use `Security.stripInaccessible(...)` and related platform checks for creates and updates.
   </Card>
-  <Card title="Error semantics" icon="seti:warning">
+  <Card title="Error semantics" icon="warning">
     Return meaningful error codes so the runtime can decide whether the LLM should retry, halt, or
     ask for correction.
   </Card>
-  <Card title="Callout safety" icon="seti:cloud">
+  <Card title="Callout safety" icon="external">
     Remember that DML before callout is a runtime constraint. Avoid introducing illegal callout
     paths in custom logic.
   </Card>
 </CardGrid>
+
+If an extension works functionally but bypasses these expectations, it is not a successful
+integration with the framework. It is a local workaround that will be expensive later.
 
 ## Testing Expectations
 
@@ -199,6 +293,7 @@ status, step creation, failure behavior, and async routing, not just line covera
 - permission failures and security filtering
 - async behavior when applicable
 - returned result shape and message content
+- observable state changes in `AgentExecution__c` and `ExecutionStep__c` when the extension participates in runtime flow
 
 ### Test shape
 
@@ -232,6 +327,10 @@ private class ActionAccountHealthTest {
 }
 ```
 
+When possible, test the extension in the way the runtime actually uses it, not only as an isolated
+utility. That gives you much better confidence that configuration, execution state, and error
+handling behave correctly together.
+
 ## Practical Guidance
 
 <Tabs>
@@ -256,6 +355,30 @@ private class ActionAccountHealthTest {
 
   </TabItem>
 </Tabs>
+
+## Common Extension Mistakes
+
+- creating broad “do everything” actions that mix lookup, mutation, and external callouts
+- solving missing context with a new tool instead of a context provider
+- putting business policy inside a provider adapter
+- returning vague or unstructured error information
+- ignoring user-mode access because the custom path “works in tests”
+- adding custom code before proving the packaged actions cannot meet the need
+
+## Reading Order For New Contributors
+
+If you are new to the codebase, a good order is:
+
+1. `AgentExecutionService`
+2. `RuntimeRegistryService`
+3. one runtime implementation
+4. `LLMInteractionService`
+5. `OrchestrationService`
+6. `CapabilityExecutionService`
+7. the relevant extension interface and base class
+
+That order gives you the runtime shape first, so your extension is built to fit the framework rather
+than accidentally fighting it.
 
 ## Continue
 

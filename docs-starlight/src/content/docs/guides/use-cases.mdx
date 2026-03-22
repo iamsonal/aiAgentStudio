@@ -3,32 +3,66 @@ title: Use Cases
 description: Practical patterns for adopting the framework in common Salesforce workflows.
 ---
 
-import { Aside, Card, CardGrid, TabItem, Tabs } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, LinkButton, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # Use Cases
 
-These examples show how to think about the framework as a set of runtime patterns, not just a list
-of prompts or actions.
+<p class="section-lead">
+Use this page to choose a realistic first pattern for adoption.
+</p>
+
+The goal is not to copy these examples literally. The goal is to recognize the runtime shape that
+fits your workflow and then configure the framework accordingly.
+
+These patterns are especially useful when a team knows it wants “an agent,” but has not yet decided
+whether the problem is really:
+
+- a conversational assistant
+- a bounded automation
+- a governed communication workflow
+- or a system-to-system integration pattern with AI in the middle
+
+<div class="badge-row">
+  <Badge text="Pattern Library" variant="success" />
+  <Badge text="Start Narrow" variant="tip" />
+  <Badge text="Production Rollout" variant="note" />
+</div>
+
+<div class="button-row">
+  <LinkButton href="../../reference/runtime-model/" variant="secondary">Understand Runtime Shapes</LinkButton>
+  <LinkButton href="../configuration/" variant="minimal">Match Patterns to Configuration</LinkButton>
+</div>
 
 <Aside type="note" title="How to use these patterns">
 Treat these as starting points. Adapt the runtime strategy, trust controls, and capability set to
 fit your org's data model, approvals, and operating risk.
 </Aside>
 
+## How To Pick A Pattern
+
+Choose the pattern based on what the user or system actually needs:
+
+<Steps>
+1. Decide whether the work is conversational or bounded.
+2. Decide whether continuity across turns or messages matters.
+3. Decide whether the outcome is mainly retrieval, mutation, communication, or external integration.
+4. Decide where review and approval are needed before the workflow becomes user-facing.
+</Steps>
+
 ## Pattern Library
 
 <CardGrid>
-  <Card title="Support Assistant" icon="seti:comment">
+  <Card title="Support Assistant" icon="comment">
     Conversational runtime for case triage, response drafting, follow-up work, and controlled
     record updates.
   </Card>
-  <Card title="Sales Copilot" icon="seti:graph-line">
+  <Card title="Sales Copilot" icon="star">
     Conversational runtime for account and opportunity support, meeting prep, and activity capture.
   </Card>
-  <Card title="Direct Automation" icon="seti:gear">
+  <Card title="Direct Automation" icon="rocket">
     Direct runtime for one-turn classification, enrichment, scoring, routing, and background work.
   </Card>
-  <Card title="External Service Workflow" icon="seti:cloud">
+  <Card title="External Service Workflow" icon="external">
     Combine Salesforce actions with named-credential callouts when the agent needs governed
     interaction with external systems.
   </Card>
@@ -38,6 +72,17 @@ fit your org's data model, approvals, and operating risk.
 
 **Best fit:** conversational agents that help service teams inspect cases, draft responses, and
 perform low-risk actions with human confirmation or approval around updates.
+
+This pattern is usually the best first production use case because the business value is easy to
+see, the interaction is naturally conversational, and the trust model is easier to explain to
+support leaders than a fully autonomous workflow.
+
+Typical outcomes:
+
+- summarize a case and recent interaction history
+- propose next-best actions for the support rep
+- draft a reply that a human reviews before sending
+- update case state only after explicit confirmation or approval
 
 <Tabs>
   <TabItem label="Recommended setup">
@@ -62,10 +107,27 @@ perform low-risk actions with human confirmation or approval around updates.
   </TabItem>
 </Tabs>
 
+Why this pattern works well:
+
+- the user stays in the loop
+- retrieval value is obvious even before mutation is enabled
+- approval logic is easier to justify to business stakeholders
+- execution traces are easy to inspect against visible outcomes
+
 ## Sales Copilot
 
 **Best fit:** conversational assistants that help sellers review pipeline context, inspect records,
 prepare for meetings, and capture activities.
+
+Sales copilots usually work best when they behave as context-rich assistants rather than autonomous
+operators. Retrieval, summarization, and drafting are often the highest-value starting points.
+
+Typical outcomes:
+
+- summarize account and opportunity context before a call
+- suggest follow-up tasks or meeting notes
+- capture activity details after a conversation
+- prepare draft updates that a seller confirms before the record changes
 
 <Tabs>
   <TabItem label="Recommended setup">
@@ -90,6 +152,9 @@ prepare for meetings, and capture activities.
   </TabItem>
 </Tabs>
 
+This pattern usually fails when teams make it too broad too early. A strong sales copilot is usually
+better at a few high-value workflows than at trying to be a general-purpose seller assistant.
+
 ## Direct Automation
 
 **Best fit:** targeted jobs where the user or an automation flow needs a result, not a multi-turn
@@ -109,6 +174,23 @@ This pattern works well when you want:
 - background execution for heavier tasks
 - strong separation from conversational UX
 
+Typical examples include:
+
+- lead or case classification
+- record summarization for downstream workflows
+- enrichment against a constrained set of fields
+- structured recommendations returned to Flow or custom UI
+
+This is often the right pattern when teams say “we do not need a chatbot; we need a reliable AI step
+inside a business process.”
+
+Good characteristics of this pattern:
+
+- callers usually know what input they are providing
+- the result should be easy to validate
+- the runtime can stay narrow and predictable
+- there is less temptation to overfit prompts around long conversational context
+
 ## External Service Workflow
 
 When a workflow must combine Salesforce data with an external system:
@@ -117,6 +199,18 @@ When a workflow must combine Salesforce data with an external system:
 - use `ActionHttpCallout` for bounded REST interactions
 - keep request shape narrow so the model only fills runtime values
 - use approval controls for side effects with financial, contractual, or customer impact
+
+This pattern is most successful when the external interaction is tightly bounded. The model should
+not invent endpoint shapes, authentication details, or arbitrary payload contracts at runtime.
+
+Good uses:
+
+- retrieve or update a well-defined external case or order record
+- submit a structured payload to a downstream workflow API
+- coordinate Salesforce context with a narrow external service contract
+
+Risk increases quickly when external callouts are vague, high-impact, or allowed to vary too much at
+runtime. Keep this pattern more constrained than teams usually think they need.
 
 ## Choosing the Right Pattern
 
@@ -127,3 +221,32 @@ When a workflow must combine Salesforce data with an external system:
 | durable thread or conversation continuity | channel-aware conversational runtime plus `InteractionSession__c` |
 | sensitive side effects | HITL plus narrow capability contracts |
 | external API integration | named credentials plus `ActionHttpCallout` |
+
+## Recommended First Production Choices
+
+If you are choosing a first rollout, the usual safest order is:
+
+1. Support assistant with read-heavy behavior
+2. Sales copilot with retrieval and drafting
+3. Direct automation for narrow business tasks
+4. External service workflow only after the core trust model is already proven
+
+## Rollout Advice
+
+- start with one narrow workflow before attempting a broad departmental assistant
+- prove observability and approval handling before expanding autonomy
+- keep the first capability set small enough that tool choice is obvious
+- use real business prompts during testing instead of synthetic happy-path examples only
+
+## Questions To Ask Before You Commit
+
+- Does the user expect a conversation, or a result?
+- Does continuity across turns actually matter?
+- Are the highest-value actions read-only, write-oriented, or external?
+- Who is expected to review or approve sensitive outcomes?
+- Can the workflow be explained clearly to support, sales, security, and platform teams?
+
+<div class="button-row">
+  <LinkButton href="../getting-started/" icon="right-arrow">Build Your First Pattern</LinkButton>
+  <LinkButton href="../../reference/actions/" variant="secondary">Review Standard Actions</LinkButton>
+</div>

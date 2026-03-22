@@ -1,33 +1,70 @@
 ---
 title: Security
-description: Governance controls, trust layers, and production hardening guidance.
+description: How access control, trust layers, approvals, and auditability work together in the core runtime.
 ---
 
-import { Aside, Card, CardGrid, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, LinkButton, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # Security
 
-AI Agent Studio is designed so security and governance live inside the runtime model, not only in
-surrounding process documentation.
+<p class="section-lead">
+AI Agent Studio is designed so security and governance live inside the runtime itself, not only in
+process documents, training, or admin convention.
+</p>
+
+<div class="badge-row">
+  <Badge text="Governance" variant="success" />
+  <Badge text="Trust Layers" variant="note" />
+  <Badge text="Production Safety" variant="tip" />
+</div>
+
+<div class="button-row">
+  <LinkButton href="../../guides/configuration/" variant="secondary">Review Configuration Controls</LinkButton>
+  <LinkButton href="../actions/" variant="minimal">Review Action Risk Surfaces</LinkButton>
+</div>
+
+That means production safety is not a single switch. It is the combined effect of:
+
+- Salesforce user context and data access
+- narrow capability contracts
+- trust layers before prompts or tools leave Salesforce
+- human approval and confirmation for side effects
+- durable execution and message records for auditability
 
 ## Core Security Layers
 
 <CardGrid>
-  <Card title="Salesforce security model" icon="seti:lock">
+  <Card title="Salesforce security model" icon="approve-check">
     User context, sharing, CRUD, and field-level access remain the first boundary for all framework
     behavior.
   </Card>
-  <Card title="Trust layers" icon="seti:shield">
+  <Card title="Trust layers" icon="approve-check-circle">
     Masking, prompt safety, tool gating, and approval controls reduce risk before an action is
     executed or a prompt leaves Salesforce.
   </Card>
-  <Card title="Operational auditability" icon="seti:graph-line">
+  <Card title="Operational auditability" icon="magnifier">
     Executions and execution steps are persisted so teams can review what happened after the fact.
   </Card>
   <Card title="Controlled side effects" icon="approve-check">
     Human-in-the-loop settings let teams keep sensitive changes under explicit review.
   </Card>
 </CardGrid>
+
+## The Security Model In Plain Language
+
+The framework assumes that enterprise AI risk comes from more than one place.
+
+Sometimes the risk is **data exposure**: too much record content is sent to a provider or shown to a
+user who should not see it.
+
+Sometimes the risk is **unsafe action execution**: the model chooses a tool that can update records,
+send email, or call an external API without enough constraint.
+
+Sometimes the risk is **operational opacity**: the system did something important, but nobody can
+reconstruct what happened later.
+
+The core runtime addresses those risks in layers rather than pretending one control solves all of
+them.
 
 ## Platform-Native Enforcement
 
@@ -54,12 +91,20 @@ SObjectAccessDecision decision = Security.stripInaccessible(
 Database.update(decision.getRecords(), false, AccessLevel.USER_MODE);
 ```
 
+The key idea is simple: the framework should not need privilege escalation to make normal agent
+behavior work. If an action or runtime path needs higher privilege, that should be an explicit
+architectural decision with monitoring and ownership, not an invisible default.
+
 ### Service-user routing
 
 <Aside type="caution" title="Use sparingly">
 Service-user routing should be used only when the workflow genuinely requires a separate execution
 user context. Keep the service user tightly permissioned and operationally monitored.
 </Aside>
+
+Service-user routing can be powerful, but it changes the trust model. When you use it, you are no
+longer saying "this user can do this through an agent." You are saying "this system path may run
+under a different identity for a controlled reason." That deserves explicit review.
 
 ## Trust Layers
 
@@ -99,6 +144,14 @@ The Tool Flow Graph limits which tools the model can currently see.
   </TabItem>
 </Tabs>
 
+These controls are strongest when they are treated as part of normal runtime design, not late-stage
+hardening. In practice:
+
+- masking reduces unnecessary exposure before provider calls
+- prompt safety provides an additional model-facing screening layer
+- tool flow gating narrows what the model can do at each moment
+- HITL protects high-impact actions from fully autonomous execution
+
 ## Human-in-the-Loop Modes
 
 | Mode | What it does | Best fit |
@@ -113,6 +166,52 @@ The Tool Flow Graph limits which tools the model can currently see.
 combined with asynchronous tool execution.
 </Aside>
 
+## Designing Safe Capabilities
+
+Many AI security problems are really capability-design problems.
+
+Safer capability design usually means:
+
+- one clear business purpose per capability
+- narrow JSON schemas with required fields and enums where possible
+- backend configuration owned by admins, not invented by the model at runtime
+- separate read and write behaviors instead of combining them in one vague tool
+- approval or confirmation in front of record mutation, email sends, and external side effects
+
+If a capability is described as "update records" or "call external service," the security problem is
+already upstream of the LLM.
+
+## What Security Depends On Operationally
+
+The framework can provide strong control points, but production safety still depends on how teams
+use them:
+
+- capabilities must stay narrow enough that review decisions are meaningful
+- approvers must know what they are expected to approve or reject
+- service users must be permissioned narrowly and monitored
+- execution data must be reviewed when repeated failures or risky patterns appear
+
+## Runtime Constraints That Also Protect You
+
+Some of the framework's operational rules are security-relevant even when they do not look like
+classic security features.
+
+### Callout safety
+
+Salesforce transaction rules around DML and callouts shape the runtime. Those constraints reduce the
+chance of unpredictable mixed-state behavior and are one reason asynchronous execution is so common.
+
+### Stale-turn protection
+
+The framework uses turn identifiers aggressively so older async completions do not overwrite newer
+execution state. That matters for correctness, but it also matters for trust: the system should not
+silently apply stale tool outcomes after the conversation has moved on.
+
+### Deferred DML boundaries
+
+`TransactionContext` tracks when the runtime can safely continue in the same transaction and when it
+should stop or pivot. That protects both reliability and the integrity of the execution trail.
+
 ## What the Runtime Records
 
 Captured audit data can include:
@@ -125,6 +224,25 @@ Captured audit data can include:
 - tool rationale when enabled
 
 This makes the framework easier to operate in production because the execution path is inspectable.
+Security and compliance teams usually care less about the existence of AI and more about whether a
+specific decision or action can be reconstructed later. These records are what make that possible.
+
+## What To Inspect During A Security Review
+
+If you are reviewing an agent before rollout, inspect these first:
+
+- `AIAgentDefinition__c` for prompts, provider binding, masking, safety, and runtime settings
+- `AgentCapability__c` for capability descriptions, schemas, exposure, async behavior, and HITL mode
+- `LLMConfiguration__c` for provider adapter choice and credential binding
+- `ExecutionStep__c` for what actually happened during representative runs
+- `InteractionMessage__c` and `InteractionSession__c` when the workflow spans channel-based communication
+
+The question is not just "does the agent answer correctly?" It is also:
+
+- what data can it see?
+- what actions can it take?
+- what identity does it run under?
+- what evidence exists after it runs?
 
 ## Production Hardening Checklist
 
@@ -151,3 +269,30 @@ This makes the framework easier to operate in production because the execution p
 
    Monitor failure rates, token spikes, repeated approval rejections, and unusual routing behavior.
 </Steps>
+
+## Final Takeaway
+
+The security story of this framework is strongest when you think of it as a governed runtime, not a
+chatbot with extra rules attached later.
+
+The real control model is:
+
+- Salesforce permissions decide what the runtime is allowed to access
+- capability design decides what the model is allowed to attempt
+- trust layers reduce exposure and narrow action choice
+- HITL protects high-impact operations
+- durable records make the resulting behavior auditable
+
+## Continue
+
+<CardGrid>
+  <LinkCard title="Standard Actions" href="../actions/">
+    Review which packaged tools exist and how to configure them safely under this security model.
+  </LinkCard>
+  <LinkCard title="Configuration" href="../../guides/configuration/">
+    See where masking, prompt safety, approval, and routing decisions are configured in practice.
+  </LinkCard>
+  <LinkCard title="Developer Guide" href="../../guides/developer-guide/">
+    Learn how to extend the framework without bypassing user-mode, trust, or callout-safety rules.
+  </LinkCard>
+</CardGrid>

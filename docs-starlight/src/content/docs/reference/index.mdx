@@ -3,24 +3,74 @@ title: Reference
 description: Core runtime concepts, action contracts, security controls, and API surfaces.
 ---
 
-import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { Aside, Badge, CardGrid, LinkButton, LinkCard, Steps } from '@astrojs/starlight/components';
 
 # Reference
 
+<p class="section-lead">
+Use the reference section when you need to understand the current public model of the core runtime.
+</p>
+
+This section is where the docs answer questions like:
+
+- what do strategy, channel, execution, session, and message actually mean?
+- how does a request move through the runtime?
+- what packaged actions exist in core?
+- how do security, approvals, and trust layers work?
+- which REST surfaces exist and when should each one be used?
+
+<div class="badge-row">
+  <Badge text="Concepts" variant="success" />
+  <Badge text="Contracts" variant="note" />
+  <Badge text="Control Surfaces" variant="tip" />
+</div>
+
+## Start In This Order
+
+If you are reading from scratch, use this progression:
+
+<Steps>
+1. Read `Runtime Model` to learn the vocabulary and record boundaries.
+2. Read `Architecture` to understand how requests are routed, executed, and recorded.
+3. Read `Standard Actions`, `Security`, and `API Reference` when you need specific operational detail.
+</Steps>
+
+<Aside type="note" title="Public scope">
+The reference pages are intentionally core-focused. They describe the current public-safe runtime in
+`force-app`, not internal addon implementation details.
+</Aside>
+
+<div class="button-row">
+  <LinkButton href="runtime-model/" icon="right-arrow">Read Runtime Model</LinkButton>
+  <LinkButton href="architecture/" variant="secondary">Read Architecture</LinkButton>
+  <LinkButton href="security/" variant="minimal">Review Security Model</LinkButton>
+</div>
+
+## Reference Map
+
 <CardGrid>
   <LinkCard title="Runtime Model" href="runtime-model/">
-    Strategy, channel, execution, and session concepts for the current core framework.
+    Start here for the core vocabulary: strategies, channels, executions, sessions, messages, and
+    trust layers.
   </LinkCard>
   <LinkCard title="Architecture" href="architecture/">
-    Service-level view of the execution path, orchestration flow, and inbound pipeline.
+    Read this when you want the human-oriented system walkthrough: how requests arrive, how the LLM
+    and tool loop works, and how delivery is governed.
   </LinkCard>
   <LinkCard title="Standard Actions" href="actions/">
-    Core packaged actions and the capability contract admins configure around them.
+    Review the packaged capability types in core and learn how admins should configure them safely.
   </LinkCard>
   <LinkCard title="Security" href="security/">
-    Governance controls, trust layers, user-mode enforcement, and HITL guidance.
+    Understand how user-mode data access, masking, prompt safety, HITL, and auditability work
+    together in production.
   </LinkCard>
   <LinkCard title="API Reference" href="api-reference/">
-    REST endpoints, request expectations, and OpenAPI assets.
+    Learn the difference between the execution and ingress REST surfaces and when each should be
+    used.
   </LinkCard>
 </CardGrid>
+
+## When To Leave Reference
+
+If you are trying to deploy, configure, or extend the framework rather than look something up, the
+`Guides` section will usually get you to a working outcome faster.

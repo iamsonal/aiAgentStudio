@@ -1,13 +1,48 @@
 ---
 title: API Reference
-description: REST entrypoints and request expectations for the core framework.
+description: REST surfaces, payload expectations, and integration guidance for the core framework.
 ---
 
-import { Aside, LinkCard } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # API Reference
 
-The core framework exposes REST surfaces for agent execution and normalized inbound traffic.
+The core framework exposes two public REST surfaces:
+
+- an **agent execution** surface for callers that already know which agent should handle the work
+- a **normalized ingress** surface for callers that behave more like channels or middleware and need
+  routing, session resolution, and inbound normalization before agent execution begins
+
+<div class="badge-row">
+  <Badge text="REST" variant="success" />
+  <Badge text="Core Surface" variant="note" />
+  <Badge text="Integration Guide" variant="tip" />
+</div>
+
+## Start Here
+
+<CardGrid>
+  <Card title="`/ai/agent`" icon="rocket">
+    Use this when your caller already knows the target agent and wants to start, continue, approve,
+    or resume agent work directly.
+  </Card>
+  <Card title="`/ai/ingress`" icon="random">
+    Use this when inbound traffic first needs to be normalized, routed, associated with a session,
+    and translated into the framework's runtime model.
+  </Card>
+</CardGrid>
+
+## Mental Model
+
+The easiest way to choose the right API is to ask one question:
+
+does the caller already know it is making an **agent execution request**, or is it first delivering
+an **inbound interaction** that the framework still needs to interpret?
+
+If the answer is "we already know the agent and just want it to run," use `/ai/agent`.
+
+If the answer is "this payload came from a channel, middleware layer, or transport integration and
+the framework still needs to normalize and route it," use `/ai/ingress`.
 
 ## Agent REST Surface
 
@@ -17,7 +52,14 @@ Base path:
 /services/apexrest/ai/agent
 ```
 
-Common endpoints:
+This surface is centered on agent lifecycle operations. It is the right fit for:
+
+- custom UI that directly starts agent work
+- server-side integrations that already resolved the target agent
+- approval or resume flows that act on known executions
+- direct automation patterns where the caller owns the top-level contract
+
+### Common endpoints
 
 - `POST /process`
 - `POST /hitl/execute`
@@ -26,14 +68,58 @@ Common endpoints:
 
 ### `/process`
 
-Use this endpoint to start a new execution or continue an existing one in the agent REST flow.
+Use this endpoint to start a new execution or continue an existing one when the caller already knows
+which agent should handle the request.
 
-Important request notes:
+Typical uses:
+
+- start a chat-style turn from a custom UI
+- trigger a direct runtime from another application
+- continue an execution with new user input
+- preserve continuity by passing an existing session identifier
+
+### Request expectations
 
 - `originalUserId`, `agentDefinitionId`, and `turnIdentifier` are required
 - `executionId` is optional when continuing an existing execution
 - `interactionSessionId` is optional when you want durable session continuity across executions
 - `userMessage` may be omitted for non-interactive or non-chat scenarios
+
+In practice, think of these fields as serving four roles:
+
+- **who** is making the request: `originalUserId`
+- **which agent** should own the work: `agentDefinitionId`
+- **which turn** this belongs to: `turnIdentifier`
+- **what the user or caller wants**: `userMessage` and any continuation identifiers
+
+Example request body:
+
+```json
+{
+  "originalUserId": "005xxxxxxxxxxxx",
+  "agentDefinitionId": "a00xxxxxxxxxxxx",
+  "turnIdentifier": "turn-001",
+  "userMessage": "Look up the contact with email john.smith@example.com"
+}
+```
+
+Use the agent REST surface when the caller already knows which agent should handle the work and does
+not need inbound channel normalization first.
+
+### Choosing good inputs
+
+Good agent REST clients usually:
+
+- generate a fresh `turnIdentifier` for each new turn or request
+- pass `interactionSessionId` when continuity matters across turns
+- keep `userMessage` explicit rather than vague
+- treat execution identifiers as runtime handles, not long-term business identifiers
+
+### Approval and resume operations
+
+The remaining `/ai/agent` endpoints exist because execution is not always one-shot. In governed
+workflows, the runtime may pause for confirmation, approval, or later continuation. Those endpoints
+let a caller participate in that lifecycle without inventing a separate approval API model.
 
 ## Normalized Ingress Surface
 
@@ -46,11 +132,32 @@ Base path:
 This REST surface is intended for middleware or channel integrations that already speak the
 framework's normalized inbound contract.
 
+This is the better fit when the inbound request is not yet a clean "run this agent now" call. It is
+especially useful when:
+
+- a transport-specific integration already normalized payloads outside Salesforce
+- channel traffic must be routed based on endpoint or route metadata
+- the system needs to resolve or create an `InteractionSession__c`
+- inbound message persistence is part of the required flow
+
 <Aside type="note" title="Why there are two surfaces">
 The `/ai/agent` endpoints are centered on agent execution. The `/ai/ingress` surface exists for
 channel-style ingress flows that need normalization, routing, and session resolution before the
 agent execution begins.
 </Aside>
+
+### What ingress buys you
+
+Using `/ai/ingress` keeps transport-facing concerns outside the core execution contract. That means
+the framework can:
+
+- normalize the inbound envelope
+- resolve the correct route and target behavior
+- manage continuity through session records
+- persist transport-level message history before or alongside execution start
+
+That separation is one of the reasons the runtime scales better than systems that try to force every
+integration directly into one generic chat endpoint.
 
 ## Authentication
 
@@ -61,12 +168,43 @@ Authorization: Bearer YOUR_ACCESS_TOKEN
 Content-Type: application/json
 ```
 
-## OpenAPI Assets
+Use the same authentication approach you would use for other Salesforce-protected REST resources.
+The framework does not introduce a separate auth model for these core endpoints.
 
-<LinkCard title="openapi.yml" href="/openapi.yml">
-  YAML specification for generated clients and tooling.
-</LinkCard>
+## Choosing Between `/ai/agent` and `/ai/ingress`
 
-<LinkCard title="openapi.json" href="/openapi.json">
-  JSON specification for machine-consumable integrations.
-</LinkCard>
+- use `/ai/agent` when your caller is starting or resuming agent work directly
+ - use `/ai/ingress` when the inbound source behaves like a channel and you need normalization,
+   routing, and session resolution first
+
+## Integration Guidance
+
+<Tabs>
+  <TabItem label="Custom UI">
+
+Use `/ai/agent` when your UI already knows which agent is active. Pass the user id, target agent,
+turn identifier, and message payload directly.
+
+  </TabItem>
+  <TabItem label="Middleware">
+
+Use `/ai/ingress` when middleware is translating provider or channel traffic into the framework's
+normalized inbound shape before routing and execution begin.
+
+  </TabItem>
+  <TabItem label="Automation">
+
+Use `/ai/agent` for direct automation scenarios when a Flow, service, or integration wants a bounded
+runtime invocation instead of a transport-oriented session flow.
+
+  </TabItem>
+</Tabs>
+
+## Practical Advice
+
+<Steps>
+1. Choose the API based on whether you are delivering an execution request or an inbound interaction.
+2. Keep caller contracts stable and let the framework manage execution ids, sessions, and trace state.
+3. Preserve continuity explicitly by passing session or continuation identifiers when required.
+4. Inspect `AgentExecution__c`, `InteractionSession__c`, `InteractionMessage__c`, and `ExecutionStep__c` together when debugging API-driven behavior.
+</Steps>
