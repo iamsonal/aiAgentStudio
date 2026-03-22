@@ -3,12 +3,25 @@ title: Runtime Model
 description: Core runtime concepts for strategies, channels, sessions, and executions.
 ---
 
-import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, LinkButton, LinkCard, Steps } from '@astrojs/starlight/components';
 
 # Runtime Model
 
+<p class="section-lead">
 This page explains the current core runtime model in `force-app`. Use it as the conceptual map for
 the rest of the docs before diving into service-level architecture.
+</p>
+
+<div class="badge-row">
+  <Badge text="Core Vocabulary" variant="success" />
+  <Badge text="Concept Model" variant="note" />
+  <Badge text="Read Early" variant="tip" />
+</div>
+
+<div class="button-row">
+  <LinkButton href="../architecture/" variant="secondary">Read Architecture Next</LinkButton>
+  <LinkButton href="../../guides/configuration/" variant="minimal">Map Concepts To Config</LinkButton>
+</div>
 
 <Aside type="note" title="Public scope">
 This page stays focused on the core runtime model. Addon packages can extend the framework, but
@@ -22,6 +35,9 @@ AI Agent Studio separates **how work is executed** from **where the interaction 
 - Runtime strategy answers: is this a conversational or direct execution?
 - Interaction channel answers: is this work happening through chat, email, API, or another transport?
 - Session and message records preserve continuity independently from the runtime strategy.
+
+That separation is one of the most important ideas in the framework. It prevents the runtime from
+turning into a pile of special-case agent variants for every channel and workflow combination.
 
 ## Runtime Strategy vs Interaction Channel
 
@@ -40,23 +56,36 @@ runtime, but they are not the same thing.
 ## Execution Units
 
 <CardGrid>
-  <Card title="Agent Definition" icon="seti:settings">
+  <Card title="Agent Definition" icon="information">
     `AIAgentDefinition__c` stores the agent's prompts, provider binding, runtime strategy, memory,
     trust controls, and execution preferences.
   </Card>
-  <Card title="Capability" icon="seti:tools">
+  <Card title="Capability" icon="puzzle">
     `AgentCapability__c` defines what the agent can do, including implementation type, JSON schema,
     HITL mode, and exposure level.
   </Card>
-  <Card title="Execution" icon="seti:graph-line">
+  <Card title="Execution" icon="rocket">
     `AgentExecution__c` is the durable work unit. It captures lifecycle state, resolved strategy,
     interaction channel, and turn coordination data.
   </Card>
-  <Card title="Execution Steps" icon="seti:list-unordered">
+  <Card title="Execution Steps" icon="list-format">
     `ExecutionStep__c` stores the execution trace across user turns, assistant responses, tool
     calls, tool results, and failures.
   </Card>
 </CardGrid>
+
+## Why These Record Boundaries Matter
+
+These records may sound similar at first, but they answer different operational questions:
+
+- `AIAgentDefinition__c`: what behavior is this agent configured to have?
+- `AgentExecution__c`: what unit of work is running or has already run?
+- `InteractionSession__c`: what longer-lived conversation or thread does this belong to?
+- `InteractionMessage__c`: what actually came in or went out over the transport?
+- `ExecutionStep__c`: what did the runtime do internally while handling the work?
+
+Once you keep those layers distinct, debugging becomes much easier because you know which record
+type should contain which kind of truth.
 
 ## Main Runtime Flow
 
@@ -111,14 +140,14 @@ That model gives the framework a few important properties:
 ## Trust Layers in the Runtime
 
 <CardGrid>
-  <Card title="PII Masking" icon="seti:shield">
+  <Card title="PII Masking" icon="approve-check-circle">
     Sensitive values can be masked before provider calls so prompts and tool payloads are safer to
     send outside Salesforce.
   </Card>
-  <Card title="Prompt Safety" icon="seti:warning">
+  <Card title="Prompt Safety" icon="warning">
     Provider adapters can run native safety checks before or during model interaction.
   </Card>
-  <Card title="Tool Flow Graph" icon="seti:git-branch">
+  <Card title="Tool Flow Graph" icon="random">
     Tool eligibility can be constrained at runtime so only currently valid tools are exposed to the
     model.
   </Card>
@@ -126,6 +155,14 @@ That model gives the framework a few important properties:
     Capabilities can require confirmation or approval before executing sensitive actions.
   </Card>
 </CardGrid>
+
+## Common Modeling Mistakes
+
+- treating runtime strategy and interaction channel as the same setting
+- assuming every execution should have conversational continuity
+- reading only `AgentExecution__c` and skipping `ExecutionStep__c` when diagnosing behavior
+- using one agent definition for unrelated jobs that should be separate runtimes
+- thinking of sessions as just chat UX state rather than durable continuity records
 
 ## Extension Points
 
@@ -144,3 +181,17 @@ The core framework is intentionally extensible at clear seams:
 2. Continue to the Architecture page for the service-level execution path.
 3. Use the Configuration guide to map those concepts to admin settings.
 </Steps>
+
+## Continue
+
+<CardGrid>
+  <LinkCard title="Architecture" href="../architecture/">
+    Continue into the human-oriented system walkthrough once the runtime vocabulary is clear.
+  </LinkCard>
+  <LinkCard title="Configuration" href="../../guides/configuration/">
+    See how strategy, channels, capabilities, and controls map into metadata and settings.
+  </LinkCard>
+  <LinkCard title="Security" href="../security/">
+    Learn how trust layers, approvals, and auditability fit into the runtime model.
+  </LinkCard>
+</CardGrid>

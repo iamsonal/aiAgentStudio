@@ -3,17 +3,46 @@ title: Getting Started
 description: Deploy the core runtime, connect an LLM provider, and create your first agent.
 ---
 
-import { Aside, Card, CardGrid, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, LinkButton, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # Getting Started
 
-This guide gets the core framework running in a Salesforce org and walks through the shortest safe
-path to a first agent.
+This guide is the fastest safe path to a first working agent in the core runtime.
+
+The goal is not to build your final production agent on the first try. The goal is to prove that the
+core path works:
+
+- the metadata deploys
+- provider credentials work
+- the agent can call a model
+- the model can call at least one capability
+- execution and trace records are created in the org
+
+<div class="badge-row">
+  <Badge text="Best First Read" variant="success" />
+  <Badge text="Read-Only First" variant="tip" />
+  <Badge text="Core Only" variant="caution" />
+</div>
+
+<div class="button-row">
+  <LinkButton href="../../reference/runtime-model/" variant="secondary">Read Runtime Model</LinkButton>
+  <LinkButton href="../configuration/" variant="minimal">Jump to Configuration</LinkButton>
+</div>
 
 <Aside type="tip" title="Recommended first goal">
 Get a simple conversational agent running with one read-only capability first. Add write actions,
 approvals, and external integrations only after the core runtime path is working.
 </Aside>
+
+## What You Are Building
+
+By the end of this guide, you should have:
+
+- one active `LLMConfiguration__c`
+- one active `AIAgentDefinition__c`
+- one or two narrow capabilities
+- one successful test path through chat or REST
+- visible `AgentExecution__c` and `ExecutionStep__c` records proving the runtime is working
 
 ## Setup Flow
 
@@ -26,19 +55,43 @@ approvals, and external integrations only after the core runtime path is working
 6. Test through chat or API.
 </Steps>
 
+## What Success Looks Like
+
+By the end of this guide, you should be able to:
+
+- start a new execution for a real agent
+- see `AgentExecution__c` and `ExecutionStep__c` records being created
+- confirm the model can call at least one capability correctly
+- understand whether the issue is in deployment, credentials, configuration, or runtime behavior if something fails
+
 ## Prerequisites
 
 <CardGrid>
-  <Card title="Salesforce org" icon="seti:salesforce">
+  <Card title="Salesforce org" icon="star">
     Use a sandbox or scratch org with System Administrator access for the initial setup.
   </Card>
-  <Card title="Provider access" icon="seti:key">
+  <Card title="Provider access" icon="approve-check">
     You need an API key or equivalent access for OpenAI or another OpenAI-compatible provider.
   </Card>
-  <Card title="CLI tooling" icon="seti:shell">
+  <Card title="CLI tooling" icon="rocket">
     Use Salesforce CLI for source deployments. CumulusCI is optional but useful for scratch org flows.
   </Card>
 </CardGrid>
+
+## Before You Start
+
+The biggest mistake teams make is trying to validate too many things at once.
+
+For your first run, avoid combining:
+
+- multiple write-capable actions
+- external callouts
+- approval chains
+- custom Apex extensions
+- complex prompt logic
+
+You want the first result to answer one question clearly: can this org run the core framework end to
+end?
 
 ## Step 1: Deploy the Core Runtime
 
@@ -74,6 +127,9 @@ cci flow run dev_org --org dev
   </TabItem>
 </Tabs>
 
+If you are debugging deployment issues, solve those before touching prompts or capabilities. A clean
+metadata deployment is the foundation for everything else.
+
 ## Step 2: Configure Provider Credentials
 
 <Aside type="caution">
@@ -100,6 +156,9 @@ For another OpenAI-compatible provider:
 2. Configure the provider-specific authentication method.
 3. Point `LLMConfiguration__c.ProviderAdapterClass__c` to `OpenAIProviderAdapter`.
 
+If model calls fail later, credentials are one of the first places to check. Many “agent” failures
+are really auth or endpoint configuration failures.
+
 ## Step 3: Create an LLM Configuration
 
 Create an `LLMConfiguration__c` record for the provider and model you want to use.
@@ -112,6 +171,9 @@ Create an `LLMConfiguration__c` record for the provider and model you want to us
 | `DefaultModelIdentifier__c` | `gpt-4o-mini` | Model name to send on provider calls |
 | `DefaultTemperature__c` | `0.3` | Lower values are better for predictable tool usage |
 | `IsActive__c` | `true` | Enable for agent use |
+
+For first rollout, prefer a lower temperature. It usually makes tool selection and prompt behavior
+more stable while you are still validating the runtime.
 
 ## Step 4: Create an Agent Definition
 
@@ -141,6 +203,24 @@ Instructions prompt
 - Confirm before any record mutation
 - Prefer read-only actions until the user clearly asks for a change
 ```
+
+### Why start narrow
+
+Most first deployments fail because the first agent is asked to do too much at once. A narrow first
+agent is easier to validate because:
+
+- the prompts are simpler
+- the capability set is smaller
+- tool selection is easier to interpret
+- failures are easier to trace to one configuration choice
+
+Good first agents usually do one of these:
+
+- look up a record by a clear identifier
+- summarize a small set of Salesforce data
+- answer questions over a tightly scoped business domain
+
+Poor first agents usually promise to “help with anything.”
 
 ## Step 5: Add Initial Capabilities
 
@@ -228,6 +308,9 @@ Parameters schema:
   </TabItem>
 </Tabs>
 
+The read-only path should be your first milestone. Once the runtime can retrieve data correctly, you
+have a stable base for later actions, approvals, and broader prompts.
+
 ## Step 6: Test the Agent
 
 You can test the framework through the chat UI or the REST surface.
@@ -254,6 +337,27 @@ Use a payload that includes:
 - `turnIdentifier`
 - `userMessage`
 
+### Suggested first test prompts
+
+If you start with a read-only lookup capability, use prompts that are easy to validate:
+
+- "Look up the contact with email john.smith@example.com"
+- "Show me the current details for case 00001234"
+- "Find the opportunity with id 006..."
+
+Avoid testing with broad prompts like "help me with sales" until the basic runtime path is proven.
+
+## What To Inspect After A Test Run
+
+When a test completes, inspect these records in Salesforce:
+
+- `AgentExecution__c` to confirm lifecycle state and resolved runtime context
+- `ExecutionStep__c` to see whether the model responded directly or invoked a tool
+- `InteractionSession__c` if you are testing a session-aware path
+- `InteractionMessage__c` if a transport-level interaction is involved
+
+Those records tell you much more than the final UI output alone.
+
 ## Step 7: Validate the Runtime
 
 Before adding more capabilities, confirm these outcomes:
@@ -262,6 +366,29 @@ Before adding more capabilities, confirm these outcomes:
 - `ExecutionStep__c` rows are written
 - the agent can call the read-only capability correctly
 - any write action pauses for confirmation or approval when configured
+
+If all four are true, you have a real working base, not just a demo that happened to answer once.
+
+## Common First-Run Mistakes
+
+- provider credentials are set up, but the `LLMConfiguration__c` record points to the wrong Named Credential
+- the agent is active, but no capability is visible to the model
+- the capability description is too vague, so the model never selects it
+- the first agent mixes retrieval, mutation, and external callouts before the base runtime path is validated
+- the page or API caller points to the wrong agent developer name
+
+## What To Do Next
+
+After your first agent works, your next goal should not be “add everything.” It should be “make one
+behavior trustworthy.”
+
+That usually means:
+
+- tightening prompts
+- improving capability descriptions and schemas
+- turning on the right trust controls
+- choosing whether the pattern should stay conversational or become direct
+- adding one carefully governed write action only after retrieval behavior is stable
 
 ## Next Steps
 

@@ -3,13 +3,46 @@ title: Standard Actions
 description: Core packaged action contracts and configuration patterns.
 ---
 
-import { Aside, Card, CardGrid, TabItem, Tabs } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, LinkButton, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # Standard Actions
 
-Standard actions are the packaged tool implementations shipped in the core framework. Admins expose
-them to the model by creating `AgentCapability__c` records with descriptions, backend config, and
-parameter schemas.
+<p class="section-lead">
+Standard actions are the packaged tool implementations that ship with the core framework.
+</p>
+
+They matter because they are the fastest way to give an agent useful behavior without writing Apex.
+In most orgs, the first good agent should use packaged actions before anyone reaches for custom
+extensions.
+
+These actions are not just utility methods. They are part of the runtime contract between:
+
+- the admin who configures the capability
+- the model that decides when to use it
+- the framework that enforces security, approval, and execution behavior
+
+<div class="badge-row">
+  <Badge text="Core Packaged" variant="success" />
+  <Badge text="Admin Configured" variant="note" />
+  <Badge text="Governed Tooling" variant="tip" />
+</div>
+
+<div class="button-row">
+  <LinkButton href="../../guides/configuration/" variant="secondary">See Configuration Guidance</LinkButton>
+  <LinkButton href="../../guides/developer-guide/" variant="minimal">Build Custom Extensions</LinkButton>
+</div>
+
+## Start With Standard Actions First
+
+Before building custom Apex, ask whether the behavior can already be expressed with:
+
+- `GetRecordDetails` for retrieval
+- `CreateRecord` or `UpdateRecord` for controlled Salesforce changes
+- `PostChatter` or `SendEmail` for governed outbound communication
+- `HttpCallout` for tightly bounded external REST interaction
+
+That order matters because packaged actions already fit the runtime's assumptions around tool
+contracts, user-mode behavior, and approval controls.
 
 ## Capability Contract
 
@@ -20,25 +53,29 @@ Every capability built on a standard action still depends on the same core field
 - `BackendConfiguration__c` holds admin-owned operating settings
 - `HITLMode__c` and `ExposureLevel__c` control review and visibility
 
+The action implementation may be packaged, but the behavior the model sees is still determined by
+how you configure those fields. In practice, capability quality often matters more than the raw
+action type.
+
 ## Core Packaged Standard Actions
 
 <CardGrid>
-  <Card title="GetRecordDetails" icon="seti:search">
+  <Card title="GetRecordDetails" icon="magnifier">
     Retrieves a record by ID or another configured identifier field and returns a curated field set.
   </Card>
-  <Card title="CreateRecord" icon="seti:plus">
+  <Card title="CreateRecord" icon="approve-check">
     Creates a Salesforce record with field validation, FLS enforcement, and user-mode DML.
   </Card>
-  <Card title="UpdateRecord" icon="seti:gear">
+  <Card title="UpdateRecord" icon="random">
     Updates a Salesforce record with object and field-level enforcement plus type coercion.
   </Card>
-  <Card title="PostChatter" icon="seti:comment">
+  <Card title="PostChatter" icon="comment">
     Posts a message to a Chatter feed with feed-type targeting, mentions, and optional topics.
   </Card>
-  <Card title="SendEmail" icon="seti:mail">
+  <Card title="SendEmail" icon="email">
     Sends outbound email in direct-content or template mode using Salesforce email facilities.
   </Card>
-  <Card title="HttpCallout" icon="seti:cloud">
+  <Card title="HttpCallout" icon="external">
     Makes a bounded REST callout through a Salesforce Named Credential.
   </Card>
 </CardGrid>
@@ -47,6 +84,22 @@ Every capability built on a standard action still depends on the same core field
 `Flow` and `Agent` are valid capability implementation types, but they are not packaged standard
 action types in the same sense as the core actions listed here.
 </Aside>
+
+## What These Actions Are Good For
+
+The packaged actions work best when you want:
+
+- predictable, narrow tool behavior
+- low-code configuration rather than custom Apex
+- fast iteration on agent capability design
+- a clearer path to approval and operational review
+
+They work less well when you need:
+
+- domain-specific business logic
+- multi-step orchestration inside the tool itself
+- provider-specific transport handling
+- highly custom result objects or decision rules
 
 ## Action Reference
 
@@ -58,6 +111,32 @@ action types in the same sense as the core actions listed here.
 | `PostChatter` | feed type and target ID | `messageText` and optional topics |
 | `SendEmail` | variant, sender defaults, template defaults | recipients plus direct-content or template arguments |
 | `HttpCallout` | named credential, endpoint path, method, headers | path variables, query params, optional body |
+
+## When To Use Which Action
+
+| If you need to... | Usually start with... |
+| :-- | :-- |
+| inspect a record or a curated field set | `GetRecordDetails` |
+| create a new Salesforce record | `CreateRecord` |
+| change an existing Salesforce record | `UpdateRecord` |
+| post collaboration output into Salesforce | `PostChatter` |
+| draft or send an email outcome | `SendEmail` |
+| call a tightly bounded external REST service | `HttpCallout` |
+
+If two actions both feel plausible, usually prefer the one with the narrower business purpose. The
+framework behaves better when tool choice is obvious.
+
+## Design Principles For Standard-Action Capabilities
+
+Good standard-action capabilities usually follow five rules:
+
+<Steps>
+1. Keep one clear business purpose per capability.
+2. Make the description explicit about when and when not to use the tool.
+3. Keep operational values in `BackendConfiguration__c`, not model-generated input.
+4. Use narrow JSON schema to constrain the model toward valid calls.
+5. Add confirmation or approval before side effects when business risk justifies it.
+</Steps>
 
 ## Configuration Patterns
 
@@ -172,9 +251,57 @@ action types in the same sense as the core actions listed here.
   </TabItem>
 </Tabs>
 
-## Design Guidance
+## How To Think About Each Action Type
 
-### Descriptions matter more than most teams expect
+### `GetRecordDetails`
+
+Use this for retrieval, lookup, and context grounding.
+
+- best first action for most new agents
+- strongest when identifiers are clear and field scope is curated
+- avoid returning huge field sets just because they are available
+
+### `CreateRecord`
+
+Use this when the agent should initiate a new Salesforce record.
+
+- keep object scope explicit
+- prefer default values in backend config
+- put review in front of business-impacting creates
+
+### `UpdateRecord`
+
+Use this when the agent should change an existing record, not when it should both discover and
+change data in the same vague tool.
+
+- require explicit record identity
+- keep updates constrained to meaningful fields
+- treat this as a higher-trust action than retrieval
+
+### `PostChatter`
+
+Use this when the desired outcome is collaboration inside Salesforce rather than an external reply.
+
+- useful for notes, summaries, or internal handoff
+- often safer than email for internal coordination patterns
+
+### `SendEmail`
+
+Use this when the runtime should produce a real outbound email outcome.
+
+- best when sending rules are operationally clear
+- often deserves approval in customer-facing or sensitive workflows
+- distinguish draft-like behavior from direct send behavior in your configuration
+
+### `HttpCallout`
+
+Use this for bounded external REST interaction, not as a catch-all integration escape hatch.
+
+- keep endpoint shape stable and admin-owned
+- let the model fill runtime values, not invent the transport contract
+- add approval when financial, contractual, or customer-facing side effects exist
+
+## Description And Schema Guidance
 
 The capability description is one of the strongest signals the model sees when it decides whether to
 call a tool.
@@ -186,17 +313,29 @@ Good descriptions usually include:
 - what identifier or input the user should provide
 - examples of correct usage
 
-### Start narrow
+The schema is the second major control surface. Strong schemas:
 
-- prefer one business purpose per capability
-- keep field lists intentionally small
-- use enums and tight schemas where possible
-- add write actions only after retrieval behavior is stable
+- use required fields where the action genuinely cannot proceed without them
+- use enums for constrained choices
+- name inputs in a way that matches the business meaning
+- avoid optional free-form blobs unless the action truly needs them
 
-### Add review for side effects
+## Approval And Trust Guidance
 
 For `CreateRecord`, `UpdateRecord`, `SendEmail`, and `HttpCallout`, decide up front whether
 confirmation or approval is required in your workflow.
+
+If a capability can change records, send customer-visible content, or call an external API, the
+question is not just "can the model use it?" It is also "under what review conditions should it be
+allowed to do so?"
+
+## Keep Backend Configuration Admin-Owned
+
+The model should usually supply runtime values such as a record id, search term, or body content.
+Operational settings such as object type, endpoint path, timeout, default field values, or sender
+identity should stay in `BackendConfiguration__c` under admin control.
+
+That separation is one of the most important reasons standard actions are governable in production.
 
 ## Common Mistakes
 
@@ -205,3 +344,26 @@ confirmation or approval is required in your workflow.
 - treating backend config as model-controlled input
 - allowing external callouts without clear approval policy
 - assuming `Flow` is a packaged standard action type
+
+## Final Takeaway
+
+Standard actions are the right starting point when you want safe, understandable, and configurable
+tooling inside the core runtime.
+
+The best way to use them is not to expose all of them at once. It is to compose a small set of
+clear, narrow capabilities that the model can choose among confidently and that your team can
+operate with trust.
+
+## Continue
+
+<CardGrid>
+  <LinkCard title="Developer Guide" href="../../guides/developer-guide/">
+    Build custom extensions only after you know the packaged actions cannot meet the need.
+  </LinkCard>
+  <LinkCard title="Security" href="../security/">
+    Review how approval, trust layers, and auditability apply to higher-risk action types.
+  </LinkCard>
+  <LinkCard title="Use Cases" href="../../guides/use-cases/">
+    See how these packaged actions fit into support, sales, automation, and external workflows.
+  </LinkCard>
+</CardGrid>

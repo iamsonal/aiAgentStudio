@@ -3,26 +3,93 @@ title: Guides
 description: Guided paths for adopting, configuring, extending, and operating the core framework.
 ---
 
-import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { Aside, Badge, CardGrid, LinkButton, LinkCard, Steps } from '@astrojs/starlight/components';
 
 # Guides
 
-Use these guides to move from first deployment to production hardening and framework extension.
+<p class="section-lead">
+Use the guides section when you want help making progress, not just to look up definitions.
+</p>
+
+These pages are written as **paths** through the framework:
+
+- how to get the runtime working the first time
+- how to make good configuration decisions
+- how to extend the system safely
+- how to apply the framework to real Salesforce workflows
+- how to debug and recover when something behaves unexpectedly
+
+<div class="badge-row">
+  <Badge text="Onboarding" variant="success" />
+  <Badge text="Implementation" variant="note" />
+  <Badge text="Operations" variant="tip" />
+</div>
+
+## How To Use This Section
+
+Most teams should not read the guides in random order.
+
+The shortest productive path is:
+
+<Steps>
+1. Read `Getting Started` to make the core runtime work once.
+2. Read `Configuration` to understand what behavior is controlled by metadata and settings.
+3. Read `Use Cases` to choose a realistic first pattern instead of building a vague all-purpose agent.
+4. Read `Developer Guide` only when configuration is no longer enough.
+5. Use `Troubleshooting` when runtime behavior, permissions, or tool choice does not match expectations.
+</Steps>
+
+<Aside type="tip" title="Best first sequence">
+If you are new to AI Agent Studio, start with `Getting Started`, then `Configuration`, then `Use Cases`.
+</Aside>
+
+<div class="button-row">
+  <LinkButton href="getting-started/" icon="right-arrow">Start with Getting Started</LinkButton>
+  <LinkButton href="configuration/" variant="secondary">Understand Configuration</LinkButton>
+  <LinkButton href="use-cases/" variant="minimal">See Real Patterns</LinkButton>
+</div>
+
+## Reader Paths
 
 <CardGrid>
   <LinkCard title="Getting Started" href="getting-started/">
-    Deploy the core runtime, connect a provider, create an agent, and validate a first execution.
+    Best for first-time adopters. Deploy the core runtime, connect a provider, create an agent, and
+    validate a first execution end to end.
   </LinkCard>
   <LinkCard title="Configuration" href="configuration/">
-    Learn how agent, capability, trust, and runtime settings fit together in the current core model.
+    Best for admins and architects. Learn how agent, capability, trust, and runtime settings shape
+    behavior in the current core model.
   </LinkCard>
   <LinkCard title="Developer Guide" href="developer-guide/">
-    Extend the platform with custom actions, context providers, provider adapters, and tests.
+    Best for engineers extending the framework. Add custom actions, context providers, provider
+    adapters, and tests without breaking the runtime model.
   </LinkCard>
   <LinkCard title="Use Cases" href="use-cases/">
-    Review practical patterns for support, sales, and workflow-driven agent experiences.
+    Best for solution design. Review practical patterns for support, sales, direct automation, and
+    external-service workflows.
   </LinkCard>
   <LinkCard title="Troubleshooting" href="troubleshooting/">
-    Diagnose common configuration, permission, runtime, and tool-selection issues.
+    Best for debugging. Diagnose common configuration, permission, runtime, continuity, and
+    tool-selection issues.
   </LinkCard>
 </CardGrid>
+
+## What The Guides Assume
+
+The guides assume you want to work with the **core** runtime in `force-app`, not internal addon-only
+authoring surfaces.
+
+They also assume you care about production behavior, not just demos. That means the guidance leans
+toward:
+
+- narrower first use cases
+- explicit approval and trust controls
+- predictable tool contracts
+- observability through execution, step, session, and message records
+
+## What This Section Is Not
+
+The guides section is not a full API contract reference and not a class-by-class code walkthrough.
+
+When you need vocabulary, public contracts, or deeper conceptual grounding, move into the
+`Reference` section next.

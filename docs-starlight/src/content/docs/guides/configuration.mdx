@@ -3,38 +3,99 @@ title: Configuration
 description: Configure agents, capabilities, trust layers, and runtime behavior in the core framework.
 ---
 
-import { Aside, Card, CardGrid, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, LinkButton, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # Configuration
 
-This guide maps the current core runtime model to the admin settings you configure in Salesforce.
+Configuration is where the framework stops being abstract and starts becoming a real operating model
+inside your Salesforce org.
+
+This page is not just a field inventory. It is a guide to making good decisions about:
+
+- what kind of work an agent should do
+- what tools it should be allowed to use
+- how much continuity and autonomy it should have
+- what trust and approval controls should wrap that behavior
 
 <Aside type="note" title="Public docs boundary">
 This page focuses on core configuration in `force-app`. Addon-only authoring surfaces and internal
 extensions are intentionally not documented here.
 </Aside>
 
+<div class="badge-row">
+  <Badge text="Admin Guide" variant="success" />
+  <Badge text="Architecture To Metadata" variant="note" />
+  <Badge text="Production Behavior" variant="tip" />
+</div>
+
+<div class="button-row">
+  <LinkButton href="../../reference/runtime-model/" variant="secondary">Review Runtime Model</LinkButton>
+  <LinkButton href="../use-cases/" variant="minimal">See Pattern Examples</LinkButton>
+</div>
+
+## Start With Decisions, Not Fields
+
+The most useful way to approach configuration is to answer four questions in order:
+
+<Steps>
+1. What kind of runtime is this: conversational or direct?
+2. What tools should the agent be allowed to see and use?
+3. How much continuity, iteration, and autonomy should it have?
+4. What controls should protect provider calls and side effects?
+</Steps>
+
+When teams skip these questions and jump straight into record editing, they often end up with agents
+that are technically valid but operationally hard to trust.
+
 ## Configuration Layers
 
 <CardGrid>
-  <Card title="Agent definition" icon="seti:settings">
+  <Card title="Agent definition" icon="information">
     Sets prompts, provider binding, runtime strategy, memory behavior, trust controls, and
     execution preferences.
   </Card>
-  <Card title="Capabilities" icon="seti:tools">
+  <Card title="Capabilities" icon="puzzle">
     Define the tools exposed to the model, including implementation type, schema, and human-review
     settings.
   </Card>
-  <Card title="Provider config" icon="seti:cloud">
+  <Card title="Provider config" icon="rocket">
     Controls how the framework talks to the LLM provider, including credentials, adapter class, and
     model defaults.
   </Card>
-  <Card title="Channel metadata" icon="seti:mail">
+  <Card title="Channel metadata" icon="email">
     Routes inbound channel traffic and delivery policy independently from the runtime strategy.
   </Card>
 </CardGrid>
 
+## A Simple Mental Model
+
+You can think of core configuration as four layers:
+
+- `AIAgentDefinition__c` says what the agent is and how it should behave.
+- `LLMConfiguration__c` says how the framework should talk to a provider.
+- `AgentCapability__c` says what the model is allowed to do.
+- routing and channel metadata say how inbound traffic should reach the agent.
+
+That separation matters because changing one layer should not require rethinking the whole system.
+
+## Choose The Runtime Shape First
+
+Before editing prompts or capabilities, decide what shape of work you are configuring.
+
+| If the agent should... | Start with... |
+| :-- | :-- |
+| support an ongoing conversation or thread | `RuntimeStrategy__c = Conversational` |
+| complete a bounded task with a clear input and output | `RuntimeStrategy__c = Direct` |
+| preserve continuity across user turns | conversational strategy plus session-aware surfaces |
+| behave more like automation than conversation | direct strategy plus narrow capability contracts |
+
+This decision affects almost everything that follows: prompts, memory, tool choice, testing
+approach, and approval design.
+
 ## Agent Definition
+
+The agent definition is the highest-level behavior record. It is where you decide what the agent is,
+how it reasons, how much continuity it carries, and what safety controls apply before tools even run.
 
 ### Core fields
 
@@ -55,6 +116,10 @@ extensions are intentionally not documented here.
 | `EnableToolReasoning__c` | Whether tool-choice rationale is captured |
 | `AuditLevel__c` | Logging depth for execution traces |
 
+Prompt configuration should define **role** and **behavior**, not hide business routing or access
+rules that belong elsewhere. If a prompt is carrying core security or routing logic, the metadata
+model is probably underused.
+
 ### Memory and execution fields
 
 | Field | Purpose | Typical starting point |
@@ -63,6 +128,15 @@ extensions are intentionally not documented here.
 | `HistoryTurnLimit__c` | Number of turns carried forward | `8` to `10` |
 | `AsyncDispatchType__c` | Queueable vs high-throughput dispatch choice | `Low` for debugging, `High` for scale |
 | `MaxProcessingCycles__c` | Limits LLM-tool iteration depth | Keep conservative for early rollout |
+
+For first production rollout, conservative settings are usually better:
+
+- shorter history windows
+- fewer processing cycles
+- smaller capability sets
+- lower temperature
+
+You can always expand autonomy later after the runtime is trustworthy.
 
 ### Trust and control fields
 
@@ -73,6 +147,9 @@ extensions are intentionally not documented here.
 | `EnableToolFlowGraph__c` | Turns on runtime tool gating |
 | `ToolFlowGraph__c` | JSON graph describing entry tools and allowed transitions |
 
+These settings should be chosen based on workflow risk, not turned on blindly. A narrow direct
+automation path and a sensitive conversational support assistant do not need the same control mix.
+
 ### Service-user routing
 
 Use service-user routing only when the workflow genuinely needs a different execution user context.
@@ -81,6 +158,9 @@ Use service-user routing only when the workflow genuinely needs a different exec
 | :-- | :-- |
 | `RequiresServiceUserContext__c` | Routes through the service-user path |
 | `ServiceUserNamedCredential__c` | Named Credential used for loopback service-user calls |
+
+Use this mode only when there is a clear need for a distinct execution user context. It should be a
+deliberate architectural choice, not a default workaround for missing permissions.
 
 ## LLM Configuration
 
@@ -99,9 +179,24 @@ For early production rollout, start with a lower default temperature. It usually
 consistent action selection and less prompt drift.
 </Aside>
 
+Provider configuration should answer transport-level questions, not business ones. It is about model
+access, endpoint behavior, and defaults, not about what the agent should be allowed to do.
+
 ## Capabilities
 
 Capabilities are the tool contracts the model sees. Keep them narrow, explicit, and observable.
+
+In practice, capabilities are one of the most important configuration surfaces in the entire
+framework. Many agent quality, security, and trust problems come down to capability design.
+
+### Capability design principles
+
+- one clear business purpose per capability
+- descriptions that explain when to use and when not to use the tool
+- schemas that constrain the model toward valid inputs
+- backend configuration that keeps sensitive or operational values under admin control
+
+Good capabilities feel like well-designed APIs. Poor capabilities feel like vague internal shortcuts.
 
 ### Capability fields
 
@@ -115,6 +210,14 @@ Capabilities are the tool contracts the model sees. Keep them narrow, explicit, 
 | `ExposureLevel__c` | Whether the tool is visible to the model |
 | `RunAsynchronously__c` | Moves tool execution into a separate transaction when appropriate |
 
+Three fields matter especially early:
+
+- `Description__c`, because it strongly shapes tool choice
+- `Parameters__c`, because it constrains what the model can pass
+- `BackendConfiguration__c`, because it keeps operational values under admin control
+
+If those three are weak, the rest of the configuration will rarely rescue the outcome.
+
 ### Human review fields
 
 | Field | Purpose | Notes |
@@ -126,6 +229,9 @@ Capabilities are the tool contracts the model sees. Keep them narrow, explicit, 
 `ConfirmationThenApproval` is only valid for interactive conversational agents and should not be
 combined with asynchronous tool execution.
 </Aside>
+
+Use approval modes to express business risk, not to patch unclear tool design. If a capability is so
+broad that every use feels risky, it usually needs to be split into smaller capabilities first.
 
 ## Channel and Routing Metadata
 
@@ -139,6 +245,16 @@ logic inside prompts.
 | `InteractionChannelType__mdt` | Describes available channel types and adapter classes |
 
 This is where channel routing lives. It is distinct from `RuntimeStrategy__c`.
+
+That distinction matters. A conversational agent can still behave differently across chat, email,
+and other channels because the interaction channel shapes payload normalization, session behavior,
+and delivery policy even when the runtime strategy is the same.
+
+In other words:
+
+- strategy says how the work behaves
+- channel says how the interaction arrives and how replies should be handled
+- route metadata says which agent should own the work
 
 ## Recommended Starting Profiles
 
@@ -167,6 +283,9 @@ This is where channel routing lives. It is distinct from `RuntimeStrategy__c`.
   </TabItem>
 </Tabs>
 
+These are starting points, not permanent answers. The right profile depends on the workflow,
+regulatory risk, user expectations, and how much runtime autonomy the team is prepared to operate.
+
 ## Configuration Review Checklist
 
 <Steps>
@@ -176,3 +295,23 @@ This is where channel routing lives. It is distinct from `RuntimeStrategy__c`.
 4. Validate Named Credentials and provider adapter settings before debugging prompts.
 5. Test with realistic users to confirm sharing, CRUD, FLS, and route behavior.
 </Steps>
+
+## Common Configuration Anti-Patterns
+
+- using one agent as a catch-all for unrelated workflows
+- exposing too many write capabilities before read-only behavior is stable
+- keeping tool descriptions vague because “the model is smart enough”
+- using service-user routing as the first answer to permission problems
+- enabling trust controls without defining the operational ownership for approval, rejection, and fallback behavior
+
+## Final Advice
+
+Good configuration is not about setting every field. It is about making the runtime legible,
+bounded, and governable.
+
+If you are unsure what to configure next, do not ask "what else can this agent do?" Ask:
+
+- is the current behavior trustworthy?
+- are the tool contracts narrow enough?
+- are the permissions and approval rules clear?
+- can we explain why the agent behaved the way it did?

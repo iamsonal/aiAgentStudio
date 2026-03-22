@@ -3,17 +3,55 @@ title: Troubleshooting
 description: Diagnose common setup, routing, tool, and runtime issues.
 ---
 
-import { Aside, Card, CardGrid, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import { Aside, Badge, Card, CardGrid, LinkButton, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 # Troubleshooting
 
-When the framework behaves unexpectedly, work from the outside in: credentials, permissions,
-configuration, then model behavior.
+<p class="section-lead">
+When the framework behaves unexpectedly, the fastest path is usually not “inspect the prompt more.”
+It is to debug in the same order the runtime itself works.
+</p>
+
+Most issues fall into one of these buckets:
+
+- setup and credentials
+- permissions and data access
+- configuration quality
+- tool selection or tool execution
+- delivery, session, or continuity behavior
+- custom extension mistakes
 
 <Aside type="tip" title="Fastest debugging loop">
 Verify Named Credentials and object access first. Many “AI issues” are actually credential,
 sharing, or schema problems.
 </Aside>
+
+<div class="badge-row">
+  <Badge text="Operational Playbook" variant="success" />
+  <Badge text="Outside In" variant="note" />
+  <Badge text="Runtime First" variant="tip" />
+</div>
+
+<div class="button-row">
+  <LinkButton href="../configuration/" variant="secondary">Review Configuration</LinkButton>
+  <LinkButton href="../../reference/architecture/" variant="minimal">Review Runtime Flow</LinkButton>
+</div>
+
+## Recommended Triage Order
+
+When a request fails or behaves strangely, ask these questions in order:
+
+<Steps>
+1. Did the request reach the expected entrypoint?
+2. Did it resolve to the expected agent?
+3. Did the runtime call the provider successfully?
+4. Did the model choose the expected capability?
+5. Did the tool execute successfully and under the correct permissions?
+6. Did delivery or session continuity fail after execution succeeded?
+</Steps>
+
+This order matters because it avoids blaming the model for failures that happened before the model
+ever had a chance to behave.
 
 ## Agent Does Not Respond
 
@@ -26,6 +64,9 @@ Check these first:
 4. Reproduce with debug logs enabled.
 </Steps>
 
+If nothing reaches the provider, the issue is almost never prompt quality. It is usually deployment,
+credentials, activation state, or entrypoint configuration.
+
 ## Permission or Access Failures
 
 Symptoms usually include missing fields, empty results, or explicit permission-denied errors.
@@ -36,6 +77,9 @@ Check:
 - field-level security on queried or updated fields
 - sharing access for the target records
 - whether custom code is using user-mode query and DML patterns
+
+These failures often look like “the AI gave a weak answer,” when the real problem is that the
+runtime could not legally see or change the data it needed.
 
 ## Unexpected Tool Selection
 
@@ -68,6 +112,9 @@ Validate that:
   </TabItem>
 </Tabs>
 
+If the wrong tool is selected repeatedly, inspect the capability design before rewriting prompts.
+Most tool-choice issues are caused by overlap, vague descriptions, or loose schemas.
+
 ## Write Actions Behave Unsafely
 
 If updates, emails, or external callouts happen without the expected review:
@@ -79,16 +126,20 @@ If updates, emails, or external callouts happen without the expected review:
 4. For `ConfirmationThenApproval`, verify the capability is not asynchronous and the agent is conversational.
 </Steps>
 
+This is why `ExecutionStep__c` matters so much. It tells you whether the runtime skipped the control,
+whether the wrong capability fired, or whether the configuration never actually expressed the control
+you thought it did.
+
 ## Slow or Failing Executions
 
 <CardGrid>
-  <Card title="Too much context" icon="seti:history">
+  <Card title="Too much context" icon="comment-alt">
     Reduce `HistoryTurnLimit__c`, review context provider size, and keep prompts tighter.
   </Card>
-  <Card title="Too many capabilities" icon="seti:tools">
+  <Card title="Too many capabilities" icon="puzzle">
     Narrow the tool set. Broad tool menus make model selection slower and less predictable.
   </Card>
-  <Card title="Illegal callout path" icon="seti:cloud">
+  <Card title="Illegal callout path" icon="external">
     Custom code that performs DML before callout can break runtime assumptions. Review custom
     actions and service-user routing.
   </Card>
@@ -97,6 +148,10 @@ If updates, emails, or external callouts happen without the expected review:
   </Card>
 </CardGrid>
 
+Slow behavior is often cumulative rather than singular. A runtime may become sluggish because it is
+carrying too much history, exposing too many tools, and doing too much in one transaction at the
+same time.
+
 ## Session or Continuity Problems
 
 If the agent appears to forget prior turns:
@@ -104,6 +159,12 @@ If the agent appears to forget prior turns:
 - verify `MemoryStrategy__c` and `HistoryTurnLimit__c`
 - confirm `InteractionSession__c` is being reused where expected
 - inspect `ExecutionStep__c` rows to confirm user and assistant steps are being written
+
+If continuity is broken only on one entry surface, the problem is often in route resolution,
+message persistence, or caller-supplied session context rather than in the LLM prompt itself.
+
+That distinction matters. A bad answer and a broken session are not the same failure, even if the
+user experiences both as “the agent forgot.”
 
 ## Useful Records to Inspect
 
@@ -115,6 +176,37 @@ If the agent appears to forget prior turns:
 | `InteractionMessage__c` | Transport-level message history |
 | `AgentCapability__c` | Tool description, schema, HITL mode, and exposure |
 
+## Most Common Root Causes
+
+- invalid or inactive provider credentials
+- the wrong agent record is being invoked
+- capability descriptions overlap too much
+- schemas are too loose to guide tool input reliably
+- the runtime user lacks CRUD, FLS, or sharing access
+- custom code violates user-mode or callout-safety expectations
+- session identifiers are missing, wrong, or not being reused correctly
+
+## Questions That Usually Isolate The Problem
+
+- Did the agent fail before the provider call, or after the provider returned?
+- Was the wrong tool selected, or did the right tool fail?
+- Is the issue reproducible for one user only, or for all users?
+- Does the problem happen on one channel only, or across chat and API alike?
+- Are execution steps missing, or present but showing an unexpected decision path?
+
+## A Practical Debugging Sequence
+
+If you need a repeatable workflow, use this:
+
+<Steps>
+1. Reproduce the issue with the smallest realistic test case.
+2. Inspect `AgentExecution__c` to confirm the request reached the expected runtime path.
+3. Inspect `ExecutionStep__c` to see whether the model replied directly, called a tool, or failed mid-turn.
+4. Inspect capability configuration and permissions if the tool path looks wrong.
+5. Inspect session and message records if the issue involves continuity or channel behavior.
+6. Only after that, adjust prompts or model settings if the runtime path itself was correct.
+</Steps>
+
 ## Before Opening an Issue
 
 Gather:
@@ -124,3 +216,20 @@ Gather:
 - relevant `AgentExecution__c` and `ExecutionStep__c` records
 - any custom action or context provider code involved
 - debug log excerpts that show the failure path
+
+The more you can describe the failure as a runtime path rather than a vague symptom, the faster it
+can be diagnosed.
+
+## Continue
+
+<CardGrid>
+  <LinkCard title="Configuration" href="../configuration/">
+    Revisit metadata and trust settings if the failure points to capability, routing, or approval design.
+  </LinkCard>
+  <LinkCard title="Architecture" href="../../reference/architecture/">
+    Use the architecture walkthrough to understand where the failure likely occurred in the runtime.
+  </LinkCard>
+  <LinkCard title="API Reference" href="../../reference/api-reference/">
+    Check the execution and ingress surfaces when the issue is tied to caller contracts or integration flow.
+  </LinkCard>
+</CardGrid>

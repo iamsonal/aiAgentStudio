@@ -71,15 +71,16 @@
 :global(.hero-grid) {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.85rem;
-  margin-top: 1.35rem;
+  gap: 1.25rem;
+  margin-top: 1.75rem;
 }
 
 :global(.stat-tile) {
   border: 1px solid rgba(196, 215, 245, 0.12);
   border-radius: 1rem;
-  padding: 1rem;
+  padding: 1.25rem;
   background: rgba(255, 255, 255, 0.03);
+  line-height: 1.55;
 }
 
 :global(.stat-tile strong) {
@@ -92,6 +93,21 @@
 :global(.section-lead) {
   max-width: 46rem;
   color: #c7d2e3;
+  margin-bottom: 1.1rem;
+}
+
+:global(.badge-row) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.85rem 0 1.35rem;
+}
+
+:global(.button-row) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0 1.75rem;
 }
 
 :global(.starlight-aside) {
@@ -107,16 +123,22 @@
 
 :global(.card),
 :global(.sl-link-card) {
+  height: 100%;
   border-radius: 1rem;
   border-color: rgba(196, 215, 245, 0.12);
   background: rgba(255, 255, 255, 0.03);
   box-shadow: none;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    transform 180ms ease;
 }
 
 :global(.card:hover),
 :global(.sl-link-card:hover) {
   border-color: rgba(196, 215, 245, 0.24);
   background: rgba(255, 255, 255, 0.045);
+  transform: translateY(-1px);
 }
 
 :global(.mermaid) {
@@ -146,5 +168,10 @@
 
   :global(.hero-grid) {
     grid-template-columns: 1fr;
+  }
+
+  :global(.button-row) {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
