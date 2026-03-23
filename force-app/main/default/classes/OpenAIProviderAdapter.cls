@@ -70,9 +70,7 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
             return modelCatalogRecord.MaxTokensParameterName__c.trim();
         }
         throw new AIAgentException.ProviderException(
-            'Max Tokens Parameter Name must be configured in LLMModelCatalog__mdt for model "' +
-            String.valueOf(modelIdentifier) +
-            '".'
+            'Max Tokens Parameter Name must be configured in LLMModelCatalog__mdt for model "' + String.valueOf(modelIdentifier) + '".'
         );
     }
 
