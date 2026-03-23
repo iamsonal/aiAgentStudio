@@ -85,7 +85,7 @@ Typical uses:
 - `interactionSessionId` is optional when you want durable session continuity across executions
 - `userMessage` may be omitted for non-interactive or non-chat scenarios
 
-In practice, think of these fields as serving four roles:
+If you do not want to memorize field names, think of the request in four parts:
 
 - **who** is making the request: `originalUserId`
 - **which agent** should own the work: `agentDefinitionId`
@@ -174,8 +174,8 @@ The framework does not introduce a separate auth model for these core endpoints.
 ## Choosing Between `/ai/agent` and `/ai/ingress`
 
 - use `/ai/agent` when your caller is starting or resuming agent work directly
- - use `/ai/ingress` when the inbound source behaves like a channel and you need normalization,
-   routing, and session resolution first
+- use `/ai/ingress` when the inbound source behaves like a channel and you need normalization,
+  routing, and session resolution first
 
 ## Integration Guidance
 
@@ -204,7 +204,7 @@ runtime invocation instead of a transport-oriented session flow.
 
 <Steps>
 1. Choose the API based on whether you are delivering an execution request or an inbound interaction.
-2. Keep caller contracts stable and let the framework manage execution ids, sessions, and trace state.
-3. Preserve continuity explicitly by passing session or continuation identifiers when required.
-4. Inspect `AgentExecution__c`, `InteractionSession__c`, `InteractionMessage__c`, and `ExecutionStep__c` together when debugging API-driven behavior.
+2. Keep caller contracts stable and let the framework manage runtime state.
+3. Preserve continuity explicitly when the caller cares about an ongoing conversation or thread.
+4. When debugging, look at the execution, session, message history, and step trace together rather than in isolation.
 </Steps>

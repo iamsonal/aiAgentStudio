@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PublicWebhookKey__c</fullName>
+    <description>Stable public path key used to resolve this endpoint from external webhook URLs without exposing the metadata developer name.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enter the stable public key appended to /services/apexrest/ai/external-messaging/. Keep it URL-safe and unique across channel endpoints.</inlineHelpText>
+    <label>Public Webhook Key</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

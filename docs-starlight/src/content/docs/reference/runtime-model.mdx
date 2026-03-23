@@ -43,10 +43,10 @@ turning into a pile of special-case agent variants for every channel and workflo
 
 | Concern | What it controls | Core examples |
 | :-- | :-- | :-- |
-| `RuntimeStrategy__c` on `AIAgentDefinition__c` | Execution behavior and orchestration style | `Conversational`, `Direct` |
-| `InteractionChannel__c` on `AgentExecution__c` | The delivery or transport surface for a work unit | `Chat`, `Email`, `Direct`, provider-backed channels |
-| `InteractionSession__c` | Durable continuity across messages and executions | Preserves thread or conversation context |
-| `InteractionMessage__c` | Transport-level message records | Inbound and outbound channel messages |
+| runtime strategy | how the work behaves | conversational, direct |
+| interaction channel | where the work shows up | chat, email, API, provider-backed messaging |
+| session | continuity over time | conversation or thread context |
+| message | transport history | inbound and outbound channel events |
 
 <Aside type="tip" title="What to remember">
 Do not infer the interaction channel from the runtime strategy. Strategy and channel are related at
@@ -57,20 +57,18 @@ runtime, but they are not the same thing.
 
 <CardGrid>
   <Card title="Agent Definition" icon="information">
-    `AIAgentDefinition__c` stores the agent's prompts, provider binding, runtime strategy, memory,
-    trust controls, and execution preferences.
+    The agent definition stores the agent's identity, instructions, model settings, memory choices,
+    and trust controls.
   </Card>
   <Card title="Capability" icon="puzzle">
-    `AgentCapability__c` defines what the agent can do, including implementation type, JSON schema,
-    HITL mode, and exposure level.
+    A capability defines what the agent is allowed to do and under what rules.
   </Card>
   <Card title="Execution" icon="rocket">
-    `AgentExecution__c` is the durable work unit. It captures lifecycle state, resolved strategy,
-    interaction channel, and turn coordination data.
+    An execution is one durable unit of runtime work, including status, channel, and turn state.
   </Card>
   <Card title="Execution Steps" icon="list-format">
-    `ExecutionStep__c` stores the execution trace across user turns, assistant responses, tool
-    calls, tool results, and failures.
+    Execution steps form the detailed trace of user input, model output, tool calls, results, and
+    failures.
   </Card>
 </CardGrid>
 
@@ -78,11 +76,11 @@ runtime, but they are not the same thing.
 
 These records may sound similar at first, but they answer different operational questions:
 
-- `AIAgentDefinition__c`: what behavior is this agent configured to have?
-- `AgentExecution__c`: what unit of work is running or has already run?
-- `InteractionSession__c`: what longer-lived conversation or thread does this belong to?
-- `InteractionMessage__c`: what actually came in or went out over the transport?
-- `ExecutionStep__c`: what did the runtime do internally while handling the work?
+- what behavior is this agent configured to have?
+- what unit of work is running or has already run?
+- what longer-lived conversation or thread does this belong to?
+- what actually came in or went out over the transport?
+- what did the runtime do internally while handling the work?
 
 Once you keep those layers distinct, debugging becomes much easier because you know which record
 type should contain which kind of truth.
@@ -113,7 +111,7 @@ flowchart TD
 
 ## Inbound and Session Continuity
 
-For channel-driven traffic, the framework uses a shared inbound pipeline:
+For channel-driven traffic, the framework uses one shared inbound path:
 
 ```mermaid
 flowchart TD
@@ -166,13 +164,13 @@ That model gives the framework a few important properties:
 
 ## Extension Points
 
-The core framework is intentionally extensible at clear seams:
+The core framework is intentionally extensible at a few clear seams:
 
-- `IAgentAction` and `BaseAgentAction` for new tool implementations
-- `IAgentContextProvider` for dynamic business context
-- `ILLMProviderAdapter` and `BaseProviderAdapter` for new model providers
-- `IMemoryManager` for alternative memory strategies
-- strategy and channel registries for runtime evolution
+- new tools
+- new context providers
+- new model providers
+- new memory strategies
+- future runtime and channel evolution
 
 ## Recommended Reading Order
 

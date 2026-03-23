@@ -71,10 +71,10 @@ that are technically valid but operationally hard to trust.
 
 You can think of core configuration as four layers:
 
-- `AIAgentDefinition__c` says what the agent is and how it should behave.
-- `LLMConfiguration__c` says how the framework should talk to a provider.
-- `AgentCapability__c` says what the model is allowed to do.
-- routing and channel metadata say how inbound traffic should reach the agent.
+- the agent definition says what the agent is and how it should behave
+- provider configuration says how the framework talks to the model
+- capabilities say what the model is allowed to do
+- routing and channel settings say how inbound traffic reaches the agent
 
 That separation matters because changing one layer should not require rethinking the whole system.
 
@@ -97,7 +97,7 @@ approach, and approval design.
 The agent definition is the highest-level behavior record. It is where you decide what the agent is,
 how it reasons, how much continuity it carries, and what safety controls apply before tools even run.
 
-### Core fields
+### The settings that matter most
 
 | Field | Purpose | Notes |
 | :-- | :-- | :-- |
@@ -105,6 +105,15 @@ how it reasons, how much continuity it carries, and what safety controls apply b
 | `RuntimeStrategy__c` | Execution style | Core values are `Conversational` and `Direct` |
 | `LLMConfiguration__c` | Provider binding | Points to the provider configuration record |
 | `IsActive__c` | Activation state | Disable quickly when troubleshooting or rolling back |
+
+The rest of the agent definition mostly falls into three buckets:
+
+- prompt and behavior settings
+- memory and execution settings
+- trust and control settings
+
+You do not need to obsess over every field on day one. What matters most is whether the agent has a
+clear job, a sensible runtime shape, and a small enough amount of autonomy to be trustworthy.
 
 ### Prompt and behavior fields
 
@@ -164,7 +173,14 @@ deliberate architectural choice, not a default workaround for missing permission
 
 ## LLM Configuration
 
-`LLMConfiguration__c` records define how the framework talks to a model provider.
+Provider configuration is the connection layer between Salesforce and the model.
+
+It answers questions like:
+
+- which provider are we calling?
+- which model should we use by default?
+- how is authentication handled?
+- what baseline settings should agent requests inherit?
 
 | Field | Purpose |
 | :-- | :-- |
@@ -186,8 +202,7 @@ access, endpoint behavior, and defaults, not about what the agent should be allo
 
 Capabilities are the tool contracts the model sees. Keep them narrow, explicit, and observable.
 
-In practice, capabilities are one of the most important configuration surfaces in the entire
-framework. Many agent quality, security, and trust problems come down to capability design.
+In practice, this is where many agent quality and trust problems are created or avoided.
 
 ### Capability design principles
 
@@ -210,7 +225,7 @@ Good capabilities feel like well-designed APIs. Poor capabilities feel like vagu
 | `ExposureLevel__c` | Whether the tool is visible to the model |
 | `RunAsynchronously__c` | Moves tool execution into a separate transaction when appropriate |
 
-Three fields matter especially early:
+Three fields matter especially at the start:
 
 - `Description__c`, because it strongly shapes tool choice
 - `Parameters__c`, because it constrains what the model can pass
@@ -235,8 +250,8 @@ broad that every use feels risky, it usually needs to be split into smaller capa
 
 ## Channel and Routing Metadata
 
-For channel-driven interaction, the framework uses metadata and registries instead of burying route
-logic inside prompts.
+For channel-driven interaction, the framework uses configuration instead of burying routing logic
+inside prompts or code.
 
 | Metadata or object | Role |
 | :-- | :-- |
@@ -244,7 +259,7 @@ logic inside prompts.
 | `ChannelEndpoint__mdt` | Defines endpoint and provider settings for channel ingress and delivery |
 | `InteractionChannelType__mdt` | Describes available channel types and adapter classes |
 
-This is where channel routing lives. It is distinct from `RuntimeStrategy__c`.
+This is where channel routing lives. It is separate from runtime strategy.
 
 That distinction matters. A conversational agent can still behave differently across chat, email,
 and other channels because the interaction channel shapes payload normalization, session behavior,
