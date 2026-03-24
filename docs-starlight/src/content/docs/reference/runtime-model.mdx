@@ -168,11 +168,11 @@ That model gives the framework a few important properties:
 
 The core framework is intentionally extensible at a few clear seams:
 
-- new tools
-- new context providers
-- new model providers
-- new memory strategies
-- future runtime and channel evolution
+- `IAgentAction` and `BaseAgentAction` for new tool implementations
+- `IAgentContextProvider` for dynamic business context
+- `ILLMProviderAdapter` and `BaseProviderAdapter` for new model providers
+- `IMemoryManager` for alternative memory strategies
+- strategy and channel registries for runtime evolution
 
 ## Recommended Reading Order
 

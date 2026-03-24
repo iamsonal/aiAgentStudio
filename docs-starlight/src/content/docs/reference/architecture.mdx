@@ -128,7 +128,14 @@ Every request starts somewhere:
 The first job of the system is to normalize the request and figure out enough context to make the
 correct runtime decision.
 
-For channel-based traffic, the framework first answers a handful of practical questions:
+For channel-based traffic, the framework uses services such as:
+
+- `InboundInteractionPipelineService`
+- `InteractionSessionService`
+- `InteractionMessageService`
+- `ChannelRoutingService`
+
+Those services help answer the early questions that matter:
 
 - what channel is this?
 - which endpoint and route apply?
@@ -136,10 +143,14 @@ For channel-based traffic, the framework first answers a handful of practical qu
 - does it continue an existing session or begin a new one?
 - how should the resulting execution be delivered?
 
-Once that context is clear, the main runtime starts. At that point the framework stops thinking
-about "what came in" and starts thinking about "what kind of work should own this request."
+Once that context is resolved, `AgentExecutionService.startExecution()` becomes the main execution
+boundary. It loads configuration, decides whether the request belongs to a normal runtime or another
+composition path, resolves strategy and channel behavior, and delegates to the correct
+implementation.
 
-That handoff is one of the most important design boundaries in the system.
+That handoff is a good place to orient yourself when you are new to the codebase. It is where the
+framework stops thinking about "what came in" and starts thinking about "what runtime should own
+this work."
 
 ## The Two Main Runtime Styles
 
