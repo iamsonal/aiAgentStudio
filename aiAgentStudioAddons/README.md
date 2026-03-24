@@ -1,3 +1,3 @@
-# AI Agent Studio Addons
+# Conductor Addons
 
-Private extensions and customizations for AI Agent Studio.
+Private extensions and customizations for Conductor.

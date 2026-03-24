@@ -128,6 +128,9 @@ public inherited sharing class IngressProcessingService {
     }
 
     private String determineProcessingMode(NormalizedIngressModels.Request request) {
+        if (request != null && NormalizedIngressModels.EVENT_TYPE_DELIVERY_STATUS == request.eventType) {
+            return NormalizedIngressModels.MODE_DIRECT;
+        }
         if (String.isNotBlank(request.processingMode)) {
             return request.processingMode;
         }

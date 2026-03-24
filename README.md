@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs-starlight/public/logo.png" alt="AI Agent Studio Logo" width="150">
+  <img src="docs-starlight/public/logo.png" alt="Conductor Logo" width="150">
 </p>
 
-<h1 align="center">Salesforce AI Agent Framework</h1>
+<h1 align="center">Conductor</h1>
 
 <p align="center">
   <strong>Enterprise-Grade AI Platform for Salesforce</strong>
@@ -45,7 +45,7 @@ See the framework handle governed AI workflows with intelligent filtering, human
 
 ## 💖 Support This Project
 
-AI Agent Studio is **free and open-source**. If you find it useful, consider supporting ongoing development.
+Conductor is **free and open-source**. If you find it useful, consider supporting ongoing development.
 
 ☕ **[GitHub Sponsors](https://github.com/sponsors/iamsonal)** | **[Buy Me a Coffee](https://buymeacoffee.com/iamsonal)**
 

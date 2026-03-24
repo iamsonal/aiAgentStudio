@@ -32,7 +32,7 @@ public class ActionJSONPlaceholder extends BaseAgentAction {
                 // Default test data
                 Map<String, Object> defaultData = new Map<String, Object>{
                     'title' => 'Test from Salesforce Agent',
-                    'body' => 'This is a test callout from AI Agent Studio',
+                    'body' => 'This is a test callout from Conductor',
                     'userId' => 1
                 };
                 req.setBody(JSON.serialize(defaultData));

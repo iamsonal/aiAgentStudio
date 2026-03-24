@@ -60,7 +60,7 @@
         <name>backgroundComponents</name>
         <type>Background</type>
     </flexiPageRegions>
-    <masterLabel>AI Agent Studio UtilityBar</masterLabel>
+    <masterLabel>Conductor UtilityBar</masterLabel>
     <template>
         <name>one:utilityBarTemplateDesktop</name>
         <properties>
