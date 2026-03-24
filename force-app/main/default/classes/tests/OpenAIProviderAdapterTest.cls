@@ -73,9 +73,7 @@ private class OpenAIProviderAdapterTest {
         llm.DefaultTemperature__c = 0.10;
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().build();
 
-        List<Map<String, Object>> messages = new List<Map<String, Object>>{
-            new Map<String, Object>{ 'role' => 'user', 'content' => 'Hello' }
-        };
+        List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'Hello' } };
 
         Test.setMock(HttpCalloutMock.class, new CapturingMock(200, '{"choices":[{"message":{"role":"assistant","content":"ok"}}]}'));
 
@@ -95,9 +93,7 @@ private class OpenAIProviderAdapterTest {
         llm.MaxResponseTokens__c = 256;
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().build();
 
-        List<Map<String, Object>> messages = new List<Map<String, Object>>{
-            new Map<String, Object>{ 'role' => 'user', 'content' => 'Hello' }
-        };
+        List<Map<String, Object>> messages = new List<Map<String, Object>>{ new Map<String, Object>{ 'role' => 'user', 'content' => 'Hello' } };
 
         Test.setMock(HttpCalloutMock.class, new CapturingMock(200, '{"choices":[{"message":{"role":"assistant","content":"ok"}}]}'));
 

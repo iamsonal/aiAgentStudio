@@ -58,9 +58,11 @@ public inherited sharing class InteractionChannelRegistryService {
     }
 
     public static String resolveChannel(AIAgentDefinition__c agentDefinition, Id executionId, String explicitInteractionChannel) {
-        return String.isNotBlank(explicitInteractionChannel)
-            ? explicitInteractionChannel
-            : RuntimeRegistryService.getInteractionChannel(agentDefinition, executionId);
+        return normalizeChannelKey(
+            String.isNotBlank(explicitInteractionChannel)
+                ? explicitInteractionChannel
+                : RuntimeRegistryService.getInteractionChannel(agentDefinition, executionId)
+        );
     }
 
     public static String resolveDefaultChannelForStrategy(String strategyKey) {
@@ -77,13 +79,19 @@ public inherited sharing class InteractionChannelRegistryService {
         }
 
         List<InteractionChannelType__mdt> channelTypes = queryActiveChannelTypes();
+        String defaultChannel = null;
         for (InteractionChannelType__mdt channelType : channelTypes) {
             Object rawValue = channelType.get(fieldName);
             if (rawValue instanceof Boolean && (Boolean) rawValue == true) {
-                return channelType.ChannelKey__c;
+                if (String.isNotBlank(defaultChannel)) {
+                    throw new AIAgentException.OrchestrationException(
+                        'Multiple active InteractionChannelType__mdt records are marked as the default for strategy "' + strategyKey + '".'
+                    );
+                }
+                defaultChannel = channelType.ChannelKey__c;
             }
         }
-        return null;
+        return defaultChannel;
     }
 
     public static ChannelDescriptor resolveDescriptor(String interactionChannel) {
@@ -144,24 +152,33 @@ public inherited sharing class InteractionChannelRegistryService {
     }
 
     private static InteractionChannelType__mdt queryChannelType(String interactionChannel) {
+        String normalizedChannel = normalizeChannelKey(interactionChannel);
         if (Test.isRunningTest() && testChannelTypesByKey != null) {
-            return testChannelTypesByKey.get(interactionChannel != null ? interactionChannel.toLowerCase() : null);
+            return testChannelTypesByKey.get(normalizedChannel != null ? normalizedChannel.toLowerCase() : null);
         }
-        List<InteractionChannelType__mdt> records = [
-            SELECT ChannelKey__c, InteractionAdapterClass__c, ConversationalRuntimeClass__c, ParticipantResolverClass__c, IsActive__c
-            FROM InteractionChannelType__mdt
-            WHERE ChannelKey__c = :interactionChannel AND IsActive__c = TRUE
-            LIMIT 1
-        ];
-        return records.isEmpty() ? null : records[0];
+        InteractionChannelType__mdt matchedRecord = null;
+        for (InteractionChannelType__mdt record : queryActiveChannelTypes()) {
+            if (normalizeChannelKey(record.ChannelKey__c) != normalizedChannel) {
+                continue;
+            }
+            if (matchedRecord != null) {
+                throw new AIAgentException.OrchestrationException(
+                    'Multiple active InteractionChannelType__mdt records resolve to channel "' + normalizedChannel + '".'
+                );
+            }
+            matchedRecord = record;
+        }
+        return matchedRecord;
     }
 
     private static List<InteractionChannelType__mdt> queryActiveChannelTypes() {
         if (Test.isRunningTest() && testChannelTypesByKey != null) {
-            return new List<InteractionChannelType__mdt>(testChannelTypesByKey.values());
+            List<InteractionChannelType__mdt> records = new List<InteractionChannelType__mdt>(testChannelTypesByKey.values());
+            return sortChannelTypes(records);
         }
         return [
             SELECT
+                DeveloperName,
                 ChannelKey__c,
                 InteractionAdapterClass__c,
                 ConversationalRuntimeClass__c,
@@ -171,6 +188,55 @@ public inherited sharing class InteractionChannelRegistryService {
                 IsActive__c
             FROM InteractionChannelType__mdt
             WHERE IsActive__c = TRUE
+            ORDER BY ChannelKey__c ASC, DeveloperName ASC
         ];
+    }
+
+    private static String normalizeChannelKey(String interactionChannel) {
+        return String.isBlank(interactionChannel) ? null : interactionChannel.trim().toLowerCase();
+    }
+
+    private static List<InteractionChannelType__mdt> sortChannelTypes(List<InteractionChannelType__mdt> channelTypes) {
+        List<ChannelTypeSortWrapper> wrappers = new List<ChannelTypeSortWrapper>();
+        for (InteractionChannelType__mdt channelType : channelTypes) {
+            wrappers.add(new ChannelTypeSortWrapper(channelType));
+        }
+        wrappers.sort();
+
+        List<InteractionChannelType__mdt> sortedChannelTypes = new List<InteractionChannelType__mdt>();
+        for (ChannelTypeSortWrapper wrapper : wrappers) {
+            sortedChannelTypes.add(wrapper.channelType);
+        }
+        return sortedChannelTypes;
+    }
+
+    private class ChannelTypeSortWrapper implements Comparable {
+        private InteractionChannelType__mdt channelType;
+
+        private ChannelTypeSortWrapper(InteractionChannelType__mdt channelType) {
+            this.channelType = channelType;
+        }
+
+        public Integer compareTo(Object otherObj) {
+            ChannelTypeSortWrapper other = (ChannelTypeSortWrapper) otherObj;
+            String thisKey = channelType != null && String.isNotBlank(channelType.ChannelKey__c) ? channelType.ChannelKey__c.toLowerCase() : '';
+            String otherKey = other != null &&
+                other.channelType != null &&
+                String.isNotBlank(other.channelType.ChannelKey__c)
+                ? other.channelType.ChannelKey__c.toLowerCase()
+                : '';
+            Integer keyComparison = thisKey.compareTo(otherKey);
+            if (keyComparison != 0) {
+                return keyComparison;
+            }
+
+            String thisName = channelType != null && String.isNotBlank(channelType.DeveloperName) ? channelType.DeveloperName.toLowerCase() : '';
+            String otherName = other != null &&
+                other.channelType != null &&
+                String.isNotBlank(other.channelType.DeveloperName)
+                ? other.channelType.DeveloperName.toLowerCase()
+                : '';
+            return thisName.compareTo(otherName);
+        }
     }
 }

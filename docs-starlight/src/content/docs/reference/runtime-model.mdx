@@ -113,7 +113,7 @@ flowchart TD
 
 ## Inbound and Session Continuity
 
-For channel-driven traffic, the framework uses a shared inbound pipeline:
+For channel-driven traffic, the framework uses one shared inbound path:
 
 ```mermaid
 flowchart TD
@@ -166,7 +166,7 @@ That model gives the framework a few important properties:
 
 ## Extension Points
 
-The core framework is intentionally extensible at clear seams:
+The core framework is intentionally extensible at a few clear seams:
 
 - `IAgentAction` and `BaseAgentAction` for new tool implementations
 - `IAgentContextProvider` for dynamic business context

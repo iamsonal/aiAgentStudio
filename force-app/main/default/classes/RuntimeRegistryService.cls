@@ -17,6 +17,7 @@ public inherited sharing class RuntimeRegistryService {
     public static final String CHANNEL_DIRECT = 'Direct';
     public static final String CHANNEL_WHATSAPP = 'WhatsApp';
     public static final String CHANNEL_SLACK = 'Slack';
+    public static final String CHANNEL_TEAMS = 'Teams';
 
     public static String getExecutionStrategyKey(AIAgentDefinition__c agentDefinition) {
         if (agentDefinition == null) {

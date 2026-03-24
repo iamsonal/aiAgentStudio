@@ -116,7 +116,10 @@ public inherited sharing class CapabilityExecutionService {
             if ('Standard'.equalsIgnoreCase(implType)) {
                 ActionHandlerRegistry__mdt handlerMdt = actionHandlerRegistryCache.get(stdActionType.toLowerCase());
                 if (handlerMdt == null) {
-                    System.debug(LoggingLevel.ERROR, '[CapabilityExecutionService] No ActionHandlerRegistry__mdt entry found for key: "' + stdActionType + '".');
+                    System.debug(
+                        LoggingLevel.ERROR,
+                        '[CapabilityExecutionService] No ActionHandlerRegistry__mdt entry found for key: "' + stdActionType + '".'
+                    );
                     throw new CapabilityExecutionException('No active action handler registry entry is registered for key: "' + stdActionType + '".');
                 }
                 return instantiateAndCheckInterface(Type.forName(handlerMdt.HandlerClassName__c), handlerMdt.HandlerClassName__c);

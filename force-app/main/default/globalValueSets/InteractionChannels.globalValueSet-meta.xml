@@ -25,6 +25,11 @@
         <default>false</default>
         <label>Slack</label>
     </customValue>
+    <customValue>
+        <fullName>Teams</fullName>
+        <default>false</default>
+        <label>Teams</label>
+    </customValue>
     <masterLabel>Interaction Channels</masterLabel>
     <sorted>false</sorted>
 </GlobalValueSet>

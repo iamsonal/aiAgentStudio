@@ -55,6 +55,7 @@ public inherited sharing class ChannelRoutingService {
 
     public Map<String, ResolvedRoute> resolveInboundRoutes(String channel, Set<String> entryObjectTypes, Set<String> endpointIdentifiers) {
         Map<String, ResolvedRoute> routesByKey = new Map<String, ResolvedRoute>();
+        Map<String, String> routeNamesByKey = new Map<String, String>();
         if (String.isBlank(channel)) {
             return routesByKey;
         }
@@ -103,19 +104,44 @@ public inherited sharing class ChannelRoutingService {
         List<AgentChannelRoute__mdt> routes = queryActiveRoutes();
 
         for (AgentChannelRoute__mdt route : routes) {
-            validateRouteEndpointReference(route, allEndpointsByDeveloperName);
             if (!matchesEntryObjectType(normalizedEntryObjectTypes, route.EntryObjectType__c)) {
+                continue;
+            }
+            if (String.isBlank(route.ChannelEndpoint__c)) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    LOG_PREFIX + 'Skipping invalid active route "' + String.valueOf(route.DeveloperName) + '" because ChannelEndpoint__c was blank.'
+                );
                 continue;
             }
 
             ChannelEndpoint__mdt endpoint = endpointsByDeveloperName.get(route.ChannelEndpoint__c);
             if (endpoint == null) {
+                if (!allEndpointsByDeveloperName.containsKey(route.ChannelEndpoint__c)) {
+                    System.debug(
+                        LoggingLevel.WARN,
+                        LOG_PREFIX +
+                            'Skipping invalid active route "' +
+                            String.valueOf(route.DeveloperName) +
+                            '" because endpoint "' +
+                            route.ChannelEndpoint__c +
+                            '" was missing or inactive.'
+                    );
+                }
                 continue;
             }
 
             String key = buildRouteKey(route.EntryObjectType__c, endpoint.EndpointIdentifier__c);
             if (routesByKey.containsKey(key)) {
-                continue;
+                throw new AIAgentException.OrchestrationException(
+                    'Duplicate active AgentChannelRoute__mdt configuration. Routes "' +
+                        routeNamesByKey.get(key) +
+                        '" and "' +
+                        String.valueOf(route.DeveloperName) +
+                        '" resolve to the same inbound key "' +
+                        key +
+                        '".'
+                );
             }
 
             ResolvedRoute resolved = new ResolvedRoute();
@@ -134,6 +160,7 @@ public inherited sharing class ChannelRoutingService {
             resolved.terminalFieldValues = route.TerminalFieldValues__c;
             resolved.priority = route.Priority__c;
             routesByKey.put(key, resolved);
+            routeNamesByKey.put(key, route.DeveloperName);
         }
 
         validateResolvedRoutes(routesByKey.values());
@@ -170,28 +197,6 @@ public inherited sharing class ChannelRoutingService {
         String normalizedObject = String.isNotBlank(entryObjectType) ? entryObjectType.trim() : '*';
         String normalizedEndpoint = String.isNotBlank(endpointIdentifier) ? endpointIdentifier.trim().toLowerCase() : '*';
         return normalizedObject + '|' + normalizedEndpoint;
-    }
-
-    private void validateRouteEndpointReference(AgentChannelRoute__mdt route, Map<String, ChannelEndpoint__mdt> allEndpointsByDeveloperName) {
-        if (route == null) {
-            return;
-        }
-        if (String.isBlank(route.ChannelEndpoint__c)) {
-            throw new AIAgentException.OrchestrationException(
-                'Invalid AgentChannelRoute__mdt configuration. Active route for object "' +
-                    String.valueOf(route.EntryObjectType__c) +
-                    '" is missing ChannelEndpoint__c.'
-            );
-        }
-        if (!allEndpointsByDeveloperName.containsKey(route.ChannelEndpoint__c)) {
-            throw new AIAgentException.OrchestrationException(
-                'Invalid AgentChannelRoute__mdt configuration. Active route "' +
-                    String.valueOf(route.DeveloperName) +
-                    '" references missing or inactive ChannelEndpoint__mdt "' +
-                    route.ChannelEndpoint__c +
-                    '".'
-            );
-        }
     }
 
     private void validateResolvedRoutes(List<ResolvedRoute> routes) {
@@ -256,7 +261,7 @@ public inherited sharing class ChannelRoutingService {
                     activeRoutes.add(route);
                 }
             }
-            return activeRoutes;
+            return sortRoutesLikeProduction(activeRoutes);
         }
         return [
             SELECT
@@ -275,5 +280,43 @@ public inherited sharing class ChannelRoutingService {
             WHERE IsActive__c = TRUE
             ORDER BY Priority__c DESC, DeveloperName ASC
         ];
+    }
+
+    private List<AgentChannelRoute__mdt> sortRoutesLikeProduction(List<AgentChannelRoute__mdt> routes) {
+        List<RouteSortWrapper> wrappers = new List<RouteSortWrapper>();
+        for (AgentChannelRoute__mdt route : routes) {
+            wrappers.add(new RouteSortWrapper(route));
+        }
+        wrappers.sort();
+
+        List<AgentChannelRoute__mdt> sortedRoutes = new List<AgentChannelRoute__mdt>();
+        for (RouteSortWrapper wrapper : wrappers) {
+            sortedRoutes.add(wrapper.route);
+        }
+        return sortedRoutes;
+    }
+
+    private class RouteSortWrapper implements Comparable {
+        private AgentChannelRoute__mdt route;
+
+        private RouteSortWrapper(AgentChannelRoute__mdt route) {
+            this.route = route;
+        }
+
+        public Integer compareTo(Object otherObj) {
+            RouteSortWrapper other = (RouteSortWrapper) otherObj;
+            Decimal thisPriority = route != null && route.Priority__c != null ? route.Priority__c : 0;
+            Decimal otherPriority = other != null && other.route != null && other.route.Priority__c != null ? other.route.Priority__c : 0;
+            if (thisPriority > otherPriority) {
+                return -1;
+            }
+            if (thisPriority < otherPriority) {
+                return 1;
+            }
+
+            String thisName = route != null && String.isNotBlank(route.DeveloperName) ? route.DeveloperName : '';
+            String otherName = other != null && other.route != null && String.isNotBlank(other.route.DeveloperName) ? other.route.DeveloperName : '';
+            return thisName.compareTo(otherName);
+        }
     }
 }

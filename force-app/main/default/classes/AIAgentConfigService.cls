@@ -466,11 +466,7 @@ public inherited sharing class AIAgentConfigService {
         if (!llmConfigNameCache.containsKey(cacheKey)) {
             System.debug(LoggingLevel.DEBUG, '[AIAgentConfigService] Loading LLM Configuration by name from database: ' + developerName);
 
-            String queryString = buildQuery(
-                'LLMConfiguration__c',
-                LLM_CONFIGURATION_FIELDS,
-                'DeveloperName__c = :developerName AND IsActive__c = TRUE'
-            );
+            String queryString = buildQuery('LLMConfiguration__c', LLM_CONFIGURATION_FIELDS, 'DeveloperName__c = :developerName AND IsActive__c = TRUE');
             List<LLMConfiguration__c> results = Database.query(queryString);
 
             if (results.isEmpty()) {
@@ -479,8 +475,8 @@ public inherited sharing class AIAgentConfigService {
             if (results.size() > 1) {
                 throw new ConfigurationException(
                     'CRITICAL CONFIG ERROR: Multiple active LLM Configurations found for Developer Name: "' +
-                    developerName +
-                    '". Ensure developer names are unique.'
+                        developerName +
+                        '". Ensure developer names are unique.'
                 );
             }
             cacheLLMConfiguration(results[0]);

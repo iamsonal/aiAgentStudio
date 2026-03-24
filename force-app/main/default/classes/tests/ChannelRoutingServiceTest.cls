@@ -73,6 +73,101 @@ private class ChannelRoutingServiceTest {
         System.assertEquals('DirectSupport_Api', route.endpointDeveloperName);
     }
 
+    @IsTest
+    static void testResolveInboundRoute_IgnoresUnrelatedBrokenRouteReference() {
+        ChannelEndpoint__mdt validEndpoint = new ChannelEndpoint__mdt();
+        validEndpoint.DeveloperName = 'CaseSupport_Chat';
+        validEndpoint.Channel__c = RuntimeRegistryService.CHANNEL_CHAT;
+        validEndpoint.Provider__c = 'Salesforce Chat';
+        validEndpoint.EndpointIdentifier__c = CASE_CHAT_ENDPOINT;
+        validEndpoint.IsActive__c = true;
+        validEndpoint.SupportsAutonomousReply__c = true;
+
+        AgentChannelRoute__mdt validRoute = new AgentChannelRoute__mdt();
+        validRoute.DeveloperName = 'CaseSupport_Chat_Route';
+        validRoute.AgentDeveloperName__c = 'Case_Support_Chat_Agent';
+        validRoute.ChannelEndpoint__c = 'CaseSupport_Chat';
+        validRoute.EntryObjectType__c = 'Case';
+        validRoute.Priority__c = 10;
+        validRoute.DefaultDeliveryMode__c = 'Auto Reply';
+        validRoute.InactivityTtlHours__c = 24;
+        validRoute.IsActive__c = true;
+
+        AgentChannelRoute__mdt brokenUnrelatedRoute = new AgentChannelRoute__mdt();
+        brokenUnrelatedRoute.DeveloperName = 'Broken_Email_Route';
+        brokenUnrelatedRoute.AgentDeveloperName__c = 'Case_Support_Chat_Agent';
+        brokenUnrelatedRoute.ChannelEndpoint__c = 'Missing_Email_Endpoint';
+        brokenUnrelatedRoute.EntryObjectType__c = 'EmailMessage';
+        brokenUnrelatedRoute.Priority__c = 100;
+        brokenUnrelatedRoute.DefaultDeliveryMode__c = 'Auto Reply';
+        brokenUnrelatedRoute.InactivityTtlHours__c = 24;
+        brokenUnrelatedRoute.IsActive__c = true;
+
+        ChannelRoutingService.setTestRoutingData(
+            new List<ChannelEndpoint__mdt>{ validEndpoint },
+            new List<AgentChannelRoute__mdt>{ brokenUnrelatedRoute, validRoute }
+        );
+        try {
+            ChannelRoutingService.ResolvedRoute route = new ChannelRoutingService()
+                .resolveInboundRoute(RuntimeRegistryService.CHANNEL_CHAT, 'Case', CASE_CHAT_ENDPOINT);
+
+            System.assertNotEquals(null, route, 'Valid routing should still resolve when an unrelated route is broken.');
+            System.assertEquals('Case_Support_Chat_Agent', route.agentDeveloperName);
+        } finally {
+            ChannelRoutingService.clearTestRoutingData();
+        }
+    }
+
+    @IsTest
+    static void testResolveInboundRoute_ThrowsForDuplicateEffectiveRouteKeys() {
+        ChannelEndpoint__mdt endpoint = new ChannelEndpoint__mdt();
+        endpoint.DeveloperName = 'CaseSupport_Chat';
+        endpoint.Channel__c = RuntimeRegistryService.CHANNEL_CHAT;
+        endpoint.Provider__c = 'Salesforce Chat';
+        endpoint.EndpointIdentifier__c = CASE_CHAT_ENDPOINT;
+        endpoint.IsActive__c = true;
+        endpoint.SupportsAutonomousReply__c = true;
+
+        AgentChannelRoute__mdt higherPriorityRoute = new AgentChannelRoute__mdt();
+        higherPriorityRoute.DeveloperName = 'CaseSupport_Chat_Route_A';
+        higherPriorityRoute.AgentDeveloperName__c = 'Case_Support_Chat_Agent';
+        higherPriorityRoute.ChannelEndpoint__c = endpoint.DeveloperName;
+        higherPriorityRoute.EntryObjectType__c = 'Case';
+        higherPriorityRoute.Priority__c = 20;
+        higherPriorityRoute.DefaultDeliveryMode__c = 'Auto Reply';
+        higherPriorityRoute.InactivityTtlHours__c = 24;
+        higherPriorityRoute.IsActive__c = true;
+
+        AgentChannelRoute__mdt duplicateRoute = new AgentChannelRoute__mdt();
+        duplicateRoute.DeveloperName = 'CaseSupport_Chat_Route_B';
+        duplicateRoute.AgentDeveloperName__c = 'Case_Support_Chat_Agent';
+        duplicateRoute.ChannelEndpoint__c = endpoint.DeveloperName;
+        duplicateRoute.EntryObjectType__c = 'Case';
+        duplicateRoute.Priority__c = 10;
+        duplicateRoute.DefaultDeliveryMode__c = 'Auto Reply';
+        duplicateRoute.InactivityTtlHours__c = 24;
+        duplicateRoute.IsActive__c = true;
+
+        ChannelRoutingService.setTestRoutingData(
+            new List<ChannelEndpoint__mdt>{ endpoint },
+            new List<AgentChannelRoute__mdt>{ duplicateRoute, higherPriorityRoute }
+        );
+        try {
+            Boolean threw = false;
+            try {
+                new ChannelRoutingService().resolveInboundRoute(RuntimeRegistryService.CHANNEL_CHAT, 'Case', CASE_CHAT_ENDPOINT);
+            } catch (AIAgentException.OrchestrationException e) {
+                threw = true;
+                System.assert(e.getMessage().contains('Duplicate active AgentChannelRoute__mdt configuration'));
+                System.assert(e.getMessage().contains('CaseSupport_Chat_Route_A'));
+                System.assert(e.getMessage().contains('CaseSupport_Chat_Route_B'));
+            }
+            System.assertEquals(true, threw, 'Duplicate effective route keys should fail fast.');
+        } finally {
+            ChannelRoutingService.clearTestRoutingData();
+        }
+    }
+
     private static void configureRoutingFixture(
         String channel,
         String endpointDeveloperName,
