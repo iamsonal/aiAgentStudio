@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Channel__c</fullName>
-    <description>Interaction channel represented by this endpoint record, such as Email, Chat, WhatsApp, Slack, or Direct.</description>
+    <description>Interaction channel represented by this endpoint record, such as Email, Chat, WhatsApp, Slack, Teams, or Direct.</description>
     <fieldManageability>DeveloperControlled</fieldManageability>
     <inlineHelpText>Select which runtime channel this endpoint belongs to. Route resolution only considers endpoints for the matching channel.</inlineHelpText>
     <label>Channel</label>
@@ -36,6 +36,11 @@
                 <fullName>Slack</fullName>
                 <default>false</default>
                 <label>Slack</label>
+            </value>
+            <value>
+                <fullName>Teams</fullName>
+                <default>false</default>
+                <label>Teams</label>
             </value>
         </valueSetDefinition>
     </valueSet>

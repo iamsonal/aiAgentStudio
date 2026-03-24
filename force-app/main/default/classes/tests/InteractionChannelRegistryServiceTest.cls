@@ -91,7 +91,13 @@ private class InteractionChannelRegistryServiceTest {
             ConversationalRuntimeClass__c = 'ChatConversationalRuntimeService',
             IsActive__c = true
         );
-        InteractionChannelRegistryService.setTestChannelTypes(new List<InteractionChannelType__mdt>{ chat, direct, email, whatsApp, slack });
+        InteractionChannelType__mdt teams = new InteractionChannelType__mdt(
+            ChannelKey__c = RuntimeRegistryService.CHANNEL_TEAMS,
+            InteractionAdapterClass__c = TEST_ADAPTER_CLASS_NAME,
+            ConversationalRuntimeClass__c = 'ChatConversationalRuntimeService',
+            IsActive__c = true
+        );
+        InteractionChannelRegistryService.setTestChannelTypes(new List<InteractionChannelType__mdt>{ chat, direct, email, whatsApp, slack, teams });
     }
 
     @IsTest
@@ -148,6 +154,18 @@ private class InteractionChannelRegistryServiceTest {
     }
 
     @IsTest
+    static void testResolveAdapter_NormalizesChannelKeyCase() {
+        configureCoreChannelTypes();
+        try {
+            InteractionRuntimeModels.IInteractionChannel chatAdapter = InteractionChannelRegistryService.resolveAdapter(null, null, ' chat ');
+
+            System.assert(chatAdapter instanceof ChatChannelAdapter, 'Channel resolution should normalize casing and whitespace.');
+        } finally {
+            InteractionChannelRegistryService.clearTestChannelTypes();
+        }
+    }
+
+    @IsTest
     static void testResolveAdapter_ResolvesConfiguredPluggableChannelAdapters() {
         configurePluggableChannelTypes();
         InteractionChannelRegistryService.setTestAdapter(TEST_ADAPTER_CLASS_NAME, new TestInteractionChannel());
@@ -168,10 +186,16 @@ private class InteractionChannelRegistryServiceTest {
                 null,
                 RuntimeRegistryService.CHANNEL_SLACK
             );
+            InteractionRuntimeModels.IInteractionChannel teamsAdapter = InteractionChannelRegistryService.resolveAdapter(
+                null,
+                null,
+                RuntimeRegistryService.CHANNEL_TEAMS
+            );
 
             System.assert(emailAdapter instanceof TestInteractionChannel, 'Email channel should resolve to the configured core test adapter');
             System.assert(whatsAppAdapter instanceof TestInteractionChannel, 'WhatsApp channel should resolve to the configured core test adapter');
             System.assert(slackAdapter instanceof TestInteractionChannel, 'Slack channel should resolve to the configured core test adapter');
+            System.assert(teamsAdapter instanceof TestInteractionChannel, 'Teams channel should resolve to the configured core test adapter');
         } finally {
             InteractionChannelRegistryService.clearTestAdapters();
             InteractionChannelRegistryService.clearTestChannelTypes();
@@ -187,9 +211,45 @@ private class InteractionChannelRegistryServiceTest {
         IAgentRuntime emailRuntime = InteractionChannelRegistryService.resolveIterativeRuntime(agent, RuntimeRegistryService.CHANNEL_EMAIL);
         IAgentRuntime whatsAppRuntime = InteractionChannelRegistryService.resolveIterativeRuntime(agent, RuntimeRegistryService.CHANNEL_WHATSAPP);
         IAgentRuntime slackRuntime = InteractionChannelRegistryService.resolveIterativeRuntime(agent, RuntimeRegistryService.CHANNEL_SLACK);
+        IAgentRuntime teamsRuntime = InteractionChannelRegistryService.resolveIterativeRuntime(agent, RuntimeRegistryService.CHANNEL_TEAMS);
 
         System.assert(emailRuntime instanceof ChatConversationalRuntimeService, 'Email should resolve using the configured conversational runtime');
         System.assert(whatsAppRuntime instanceof ChatConversationalRuntimeService, 'WhatsApp should reuse the shared conversational runtime');
         System.assert(slackRuntime instanceof ChatConversationalRuntimeService, 'Slack should reuse the shared conversational runtime');
+        System.assert(teamsRuntime instanceof ChatConversationalRuntimeService, 'Teams should reuse the shared conversational runtime');
+    }
+
+    @IsTest
+    static void testResolveDefaultChannelForStrategy_ThrowsWhenMultipleDefaultsConfigured() {
+        InteractionChannelType__mdt first = new InteractionChannelType__mdt(
+            ChannelKey__c = RuntimeRegistryService.CHANNEL_CHAT,
+            InteractionAdapterClass__c = 'ChatChannelAdapter',
+            ConversationalRuntimeClass__c = 'ChatConversationalRuntimeService',
+            DefaultForConversational__c = true,
+            IsActive__c = true
+        );
+        InteractionChannelType__mdt second = new InteractionChannelType__mdt(
+            ChannelKey__c = RuntimeRegistryService.CHANNEL_EMAIL,
+            InteractionAdapterClass__c = TEST_ADAPTER_CLASS_NAME,
+            ConversationalRuntimeClass__c = 'ChatConversationalRuntimeService',
+            DefaultForConversational__c = true,
+            IsActive__c = true
+        );
+        InteractionChannelRegistryService.setTestChannelTypes(new List<InteractionChannelType__mdt>{ first, second });
+
+        try {
+            Boolean threw = false;
+            try {
+                InteractionChannelRegistryService.resolveDefaultChannelForStrategy(
+                    String.valueOf(InteractionRuntimeModels.ExecutionStrategyType.Conversational)
+                );
+            } catch (AIAgentException.OrchestrationException e) {
+                threw = true;
+                System.assert(e.getMessage().contains('Multiple active InteractionChannelType__mdt records are marked as the default'));
+            }
+            System.assertEquals(true, threw, 'Multiple defaults should fail fast.');
+        } finally {
+            InteractionChannelRegistryService.clearTestChannelTypes();
+        }
     }
 }

@@ -112,8 +112,8 @@ the same conceptual box.
 
 This separation is one of the strongest parts of the design. If runtime strategy and interaction
 channel were fused together, the framework would quickly collapse into brittle variants like
-“ChatAgent,” “EmailAgent,” and “WhatsAppAgent.” Instead, runtime style and transport behavior stay
-orthogonal.
+“ChatAgent,” “EmailAgent,” “WhatsAppAgent,” or “TeamsAgent.” Instead, runtime style and transport
+behavior stay orthogonal.
 
 ## What Happens When A Request Arrives
 
@@ -205,8 +205,8 @@ harder to extend, audit, and debug.
 
 ## How External Messaging Fits
 
-Provider-backed channels such as WhatsApp and Slack are a good example of how the framework handles
-transport-specific concerns without polluting the generic agent API.
+Provider-backed channels such as WhatsApp, Slack, and Teams are a good example of how the framework
+handles transport-specific concerns without polluting the generic agent API.
 
 Webhook verification, signature checks, and payload parsing happen outside the generic agent runtime
 boundary. The provider transport is resolved through endpoint metadata, and the normalized inbound
