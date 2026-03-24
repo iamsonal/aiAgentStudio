@@ -1,4 +1,4 @@
-# AI Agent Studio Docs (Astro + Starlight)
+# Conductor Docs (Astro + Starlight)
 
 This is the new documentation site using Astro Starlight with an enterprise control-plane visual style.
 

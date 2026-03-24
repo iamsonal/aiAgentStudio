@@ -1,13 +1,13 @@
 {
   "packageDirectories": [
-    {
-      "versionName": "ver 0.1",
-      "versionNumber": "0.1.0.NEXT",
-      "path": "force-app",
-      "default": true,
-      "package": "aiAgentStudio",
-      "versionDescription": "AI Agent Studio core framework"
-    }
+      {
+          "versionName": "ver 0.1",
+          "versionNumber": "0.1.0.NEXT",
+          "path": "force-app",
+          "default": true,
+          "package": "aiAgentStudio",
+          "versionDescription": "Conductor core framework"
+      }
   ],
   "name": "aiAgentStudio",
   "namespace": "",

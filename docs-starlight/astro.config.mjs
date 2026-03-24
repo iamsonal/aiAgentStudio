@@ -14,12 +14,12 @@ export default defineConfig({
       enableLog: false
     }),
     starlight({
-      title: 'AI Agent Studio',
+      title: 'Conductor',
       description:
         'Governed AI agent orchestration for Salesforce with runtime control, security, and extensibility built in.',
       logo: {
         src: './public/logo.png',
-        alt: 'AI Agent Studio'
+        alt: 'Conductor'
       },
       social: {
         github: 'https://github.com/iamsonal/aiAgentStudio'

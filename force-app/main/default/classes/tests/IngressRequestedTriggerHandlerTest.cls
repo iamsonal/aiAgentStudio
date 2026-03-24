@@ -225,7 +225,7 @@ private class IngressRequestedTriggerHandlerTest {
     }
 
     @IsTest
-    static void testAccept_StagedDeliveryStatus_UpdatesExistingTransportMessage() {
+    static void testAccept_DeliveryStatus_UpdatesExistingTransportMessageWithoutCreatingIngressEvent() {
         configureChatIngressFixture();
         new InteractionMessageService()
             .recordOutboundMessage(null, null, RuntimeRegistryService.CHANNEL_CHAT, CHAT_PROVIDER, 'chat.status.001', 'turn-1', '{"seed":true}', 'Sent');
@@ -249,7 +249,8 @@ private class IngressRequestedTriggerHandlerTest {
         Test.stopTest();
 
         System.assertEquals(true, result.accepted);
-        System.assertNotEquals(null, result.ingressEventId);
+        System.assertEquals(NormalizedIngressModels.MODE_DIRECT, result.processingMode);
+        System.assertEquals(null, result.ingressEventId);
 
         InteractionMessage__c message = [
             SELECT Status__c, ProviderStatus__c
@@ -260,14 +261,12 @@ private class IngressRequestedTriggerHandlerTest {
         System.assertEquals('Delivered', message.Status__c);
         System.assertEquals('delivered', message.ProviderStatus__c);
 
-        IngressEvent__c ingressEvent = [
-            SELECT ProcessingStatus__c, EventType__c
+        List<IngressEvent__c> ingressEvents = [
+            SELECT Id
             FROM IngressEvent__c
-            WHERE Id = :result.ingressEventId
-            LIMIT 1
+            WHERE ProviderMessageId__c = 'chat.status.001'
         ];
-        System.assertEquals('Processed', ingressEvent.ProcessingStatus__c);
-        System.assertEquals('DeliveryStatus', ingressEvent.EventType__c);
+        System.assertEquals(0, ingressEvents.size(), 'Delivery status callbacks should not create ingress events.');
     }
 
     @IsTest
