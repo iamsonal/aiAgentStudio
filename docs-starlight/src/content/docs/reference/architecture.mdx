@@ -43,11 +43,11 @@ That is what makes it a runtime rather than a thin wrapper around an LLM API.
 
 The framework works well because it separates concerns that simpler systems often blur together.
 
-- an agent definition says what the agent is supposed to do
-- an execution is one unit of runtime work
-- a session is the longer-lived conversation or thread
-- a message is what came in or went out through a channel
-- an execution step is the detailed trail of what the runtime did
+- An `AIAgentDefinition__c` record describes what an agent is.
+- An `AgentExecution__c` record represents a unit of work performed by that agent.
+- An `InteractionSession__c` record is the continuity anchor for a conversation or thread.
+- An `InteractionMessage__c` record is the transport-level inbound or outbound message.
+- An `ExecutionStep__c` record is the detailed audit trail of what happened during execution.
 
 Those are deliberately not interchangeable. A conversation is not the same thing as a runtime work
 item, and a transport message is not the same thing as an execution step. Once you keep those
@@ -161,29 +161,31 @@ This distinction matters because it changes what the runtime cares about.
 
 ## How The LLM And Tool Loop Works
 
-Eventually the runtime reaches the model interaction stage.
+Eventually the runtime reaches `LLMInteractionService`.
 
-That is where prompts, memory, context, tool definitions, masking, and safety controls come
-together into one request.
+That is where prompts, tool schemas, context, memory, masking, and safety behavior come together to
+form the model request.
 
-When a result comes back, the framework decides whether the model:
+When a result comes back, `OrchestrationService` interprets it. At that point the framework decides
+whether the model:
 
 - returned plain content
 - requested tools
 - needs follow-up work
 - should pause, retry, or complete
 
-If a tool needs to run, the framework hands off to the tool execution layer. A capability might map
-to:
+If a tool needs to run, `CapabilityExecutionService` becomes the tool-execution seam. A capability
+might map to:
 
 - a packaged standard action
 - a custom Apex implementation
 - a Flow
 - another agent capability
 
-If the result should be visible to a user, the framework then applies delivery policy. Depending on
-the channel and route, that may mean replying immediately, saving a draft, suppressing output, or
-passing the result through a review flow.
+If the result should be visible to a user, `ChannelDeliveryPolicyService` becomes the final
+governor. It asks the channel adapter how the response should be handled. Depending on the channel
+and route, that may mean replying immediately, saving a draft, suppressing output, or pushing the
+result through a review flow.
 
 This is also why the framework feels production-oriented. Delivery is treated as a governed runtime
 decision, not an afterthought that automatically follows every model response.
@@ -254,27 +256,44 @@ That is why queueables and platform events appear so often in the architecture. 
 completed inline and the transaction is still safe, part of the runtime may proceed synchronously.
 If not, the framework persists the required state and continues asynchronously.
 
-The runtime also keeps track of what is still safe to do in the current transaction:
+`TransactionContext` exists for the same reason. It helps the runtime remember what is still safe
+in the current transaction:
 
 - whether more LLM calls are allowed
 - whether deferred DML mode is active
 - whether DML or callouts have already happened
 - whether the current path should continue inline or pivot to async work
 
-## The Most Important Runtime Responsibilities
+## The Most Important Services In Human Terms
 
-If you ignore class names and focus on responsibilities, the framework is doing a small number of
-important jobs:
+| Service | Human description |
+| :-- | :-- |
+| `AgentExecutionService` | Main traffic controller and public entrypoint for runtime work |
+| `RuntimeRegistryService` | Resolves strategy, channel, and runtime traits |
+| `InteractionChannelRegistryService` | Lookup layer for channel behavior |
+| `LLMInteractionService` | Builds and sends the model request |
+| `OrchestrationService` | Interprets model output and decides what happens next |
+| `CapabilityExecutionService` | Runs tools and capability implementations |
+| `AgentStateService` | Manages execution lifecycle state |
+| `ExecutionStepService` | Records detailed execution history |
+| `InteractionSessionService` | Manages continuity across conversations or threads |
+| `InteractionMessageService` | Manages transport-level message history |
+| `ChannelDeliveryPolicyService` | Governs final response delivery |
 
-- decide what kind of runtime should own the request
-- keep continuity across sessions and messages
-- build and send the model request
-- run tools when the model asks for them
-- record what happened in durable execution history
-- decide how, when, or whether a response should be delivered
+You do not need to memorize every service at once. These are the ones that define the framework's
+shape.
 
-That is the shape of the system. The codebase has many classes, but they mostly exist to support
-those responsibilities.
+## Where To Start Reading The Code
+
+If you want to translate this architecture into source code, a productive reading order is:
+
+1. `AgentExecutionService`
+2. `RuntimeRegistryService`
+3. one conversational runtime and one direct runtime path
+4. `LLMInteractionService`
+5. `OrchestrationService`
+6. `CapabilityExecutionService`
+7. `AgentStateService`, `ExecutionStepService`, and the session/message services
 
 ## How To Debug A Request
 

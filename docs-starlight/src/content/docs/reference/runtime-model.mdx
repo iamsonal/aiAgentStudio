@@ -43,10 +43,10 @@ turning into a pile of special-case agent variants for every channel and workflo
 
 | Concern | What it controls | Core examples |
 | :-- | :-- | :-- |
-| runtime strategy | how the work behaves | conversational, direct |
-| interaction channel | where the work shows up | chat, email, API, provider-backed messaging |
-| session | continuity over time | conversation or thread context |
-| message | transport history | inbound and outbound channel events |
+| `RuntimeStrategy__c` on `AIAgentDefinition__c` | Execution behavior and orchestration style | `Conversational`, `Direct` |
+| `InteractionChannel__c` on `AgentExecution__c` | The delivery or transport surface for a work unit | `Chat`, `Email`, `Direct`, provider-backed channels |
+| `InteractionSession__c` | Durable continuity across messages and executions | Preserves thread or conversation context |
+| `InteractionMessage__c` | Transport-level message records | Inbound and outbound channel messages |
 
 <Aside type="tip" title="What to remember">
 Do not infer the interaction channel from the runtime strategy. Strategy and channel are related at
@@ -57,18 +57,20 @@ runtime, but they are not the same thing.
 
 <CardGrid>
   <Card title="Agent Definition" icon="information">
-    The agent definition stores the agent's identity, instructions, model settings, memory choices,
-    and trust controls.
+    `AIAgentDefinition__c` stores the agent's prompts, provider binding, runtime strategy, memory,
+    trust controls, and execution preferences.
   </Card>
   <Card title="Capability" icon="puzzle">
-    A capability defines what the agent is allowed to do and under what rules.
+    `AgentCapability__c` defines what the agent can do, including implementation type, JSON schema,
+    HITL mode, and exposure level.
   </Card>
   <Card title="Execution" icon="rocket">
-    An execution is one durable unit of runtime work, including status, channel, and turn state.
+    `AgentExecution__c` is the durable work unit. It captures lifecycle state, resolved strategy,
+    interaction channel, and turn coordination data.
   </Card>
   <Card title="Execution Steps" icon="list-format">
-    Execution steps form the detailed trace of user input, model output, tool calls, results, and
-    failures.
+    `ExecutionStep__c` stores the execution trace across user turns, assistant responses, tool
+    calls, tool results, and failures.
   </Card>
 </CardGrid>
 
@@ -76,11 +78,11 @@ runtime, but they are not the same thing.
 
 These records may sound similar at first, but they answer different operational questions:
 
-- what behavior is this agent configured to have?
-- what unit of work is running or has already run?
-- what longer-lived conversation or thread does this belong to?
-- what actually came in or went out over the transport?
-- what did the runtime do internally while handling the work?
+- `AIAgentDefinition__c`: what behavior is this agent configured to have?
+- `AgentExecution__c`: what unit of work is running or has already run?
+- `InteractionSession__c`: what longer-lived conversation or thread does this belong to?
+- `InteractionMessage__c`: what actually came in or went out over the transport?
+- `ExecutionStep__c`: what did the runtime do internally while handling the work?
 
 Once you keep those layers distinct, debugging becomes much easier because you know which record
 type should contain which kind of truth.
