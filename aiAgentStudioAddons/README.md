@@ -1,3 +1,3 @@
-# Conductor Addons
+# Loom Addons
 
-Private extensions and customizations for Conductor.
+Private extensions and customizations for Loom.

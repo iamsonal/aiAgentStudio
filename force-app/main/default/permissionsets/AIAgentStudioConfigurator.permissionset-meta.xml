@@ -733,7 +733,7 @@
         <readable>true</readable>
     </fieldPermissions>
     <hasActivationRequired>false</hasActivationRequired>
-    <label>Conductor Configurator</label>
+    <label>Loom Configurator</label>
     <license>Salesforce</license>
     <objectPermissions>
         <allowCreate>true</allowCreate>

@@ -33,14 +33,14 @@
         <logoVersion>1</logoVersion>
         <shouldOverrideOrgTheme>false</shouldOverrideOrgTheme>
     </brand>
-    <description>Your central workspace for designing, configuring, and managing governed AI runtimes built on the custom AI Agent Framework.</description>
+    <description>Your central workspace for designing, configuring, and managing conversational AI agents built on the custom AI Agent Framework.</description>
     <formFactors>Small</formFactors>
     <formFactors>Large</formFactors>
     <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
     <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
     <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
     <isOmniPinnedViewEnabled>false</isOmniPinnedViewEnabled>
-    <label>Conductor</label>
+    <label>Loom</label>
     <navType>Standard</navType>
     <tabs>LLMConfiguration__c</tabs>
     <tabs>AIAgentDefinition__c</tabs>
