@@ -1,5 +1,5 @@
 /**
- * @description Comprehensive test data factory for Conductor showcasing the strategy-plus-channel runtime.
+ * @description Comprehensive test data factory for Loom showcasing the strategy-plus-channel runtime.
  *              Creates realistic business scenarios using standard Salesforce objects.
  *
  * **Runtime Examples Created:**
@@ -30,7 +30,7 @@ public with sharing class AgentTestDataFactory {
      */
     public static Map<String, Id> createComprehensiveShowcase() {
         System.debug('========================================');
-        System.debug('CONDUCTOR - COMPREHENSIVE SHOWCASE');
+        System.debug('LOOM - COMPREHENSIVE SHOWCASE');
         System.debug('========================================');
 
         // 0. Create Service User asynchronously (setup object - handled via @future to avoid mixed DML)
@@ -201,11 +201,11 @@ public with sharing class AgentTestDataFactory {
 
         insert serviceUser;
 
-        // Assign "Conductor Service User" permission set if it exists
+        // Assign "Loom Service User" permission set if it exists
         List<PermissionSet> permSets = [
             SELECT Id, Label
             FROM PermissionSet
-            WHERE Label = 'Conductor Service User'
+            WHERE Label = 'Loom Service User'
             LIMIT 1
         ];
 
@@ -216,7 +216,7 @@ public with sharing class AgentTestDataFactory {
         } else {
             System.debug(
                 LoggingLevel.WARN,
-                '[Service User] ⚠ Service User created but permission set "Conductor Service User" not found. Assign it manually: ' +
+                '[Service User] ⚠ Service User created but permission set "Loom Service User" not found. Assign it manually: ' +
                 serviceUser.Username
             );
         }

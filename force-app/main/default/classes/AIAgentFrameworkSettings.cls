@@ -186,7 +186,7 @@ public inherited sharing class AIAgentFrameworkSettings {
     /**
      * Gets whether Decision Step Logging is enabled at the org level.
      * When enabled, agent decision steps are logged for visualization in the
-     * storyboard UI. This feature requires the Conductor Addons package
+     * storyboard UI. This feature requires the Loom Addons package
      * to be deployed. When disabled or when addons is not deployed, logging
      * is skipped (no-op).
      *
