@@ -1,40 +1,62 @@
 ---
 title: Loom
 description: A governed AI runtime for Salesforce that separates strategy, channels, trust, and extensibility into one operable system.
-template: splash
-hero:
-  tagline: Governed AI Runtime for Salesforce
-  actions:
-    - text: Start Building
-      link: getting-started/
-      icon: right-arrow
-      variant: primary
-    - text: Explore the Architecture
-      link: reference/architecture/
-      variant: secondary
-    - text: GitHub Repository
-      link: https://github.com/iamsonal/aiAgentStudio
-      variant: minimal
 ---
 
 import { Aside, Badge, Card, CardGrid, LinkCard, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
-<div class="hero-shell">
-  <div class="hero-kicker">Built for real Salesforce runtime constraints</div>
-  <p class="hero-copy">
-    Loom is a Salesforce-native runtime for AI agents. It accepts requests from multiple
-    entry surfaces, chooses the right runtime style, manages tools and continuity, applies trust
-    layers, and records what happened in durable system records your team can actually operate.
-  </p>
-
-  <div class="hero-grid">
-    <div class="stat-tile"><strong>Multiple runtime styles</strong><br />Use conversational runtimes for ongoing interactions and direct runtimes for bounded work such as classification, enrichment, and controlled automation.</div>
-    <div class="stat-tile"><strong>Channel-aware execution</strong><br />Keep runtime strategy separate from interaction channel so the same framework can work across chat, email, API, and provider-backed messaging surfaces.</div>
-    <div class="stat-tile"><strong>Governed by design</strong><br />Combine user-mode security, approval controls, PII masking, prompt safety, and runtime tool gating in one architecture rather than scattering them across custom code.</div>
+<section class="loom-hero">
+  <div class="loom-visual" aria-hidden="true">
+    <div class="loom-visual__core">
+      <span class="loom-visual__eyebrow">Runtime Core</span>
+      <strong>Loom</strong>
+      <p>Routing, trust, continuity, tool orchestration, and durable runtime records.</p>
+    </div>
+    <div class="loom-visual__orbit loom-visual__orbit--prompt">
+      <div class="loom-visual__node">Prompts</div>
+    </div>
+    <div class="loom-visual__orbit loom-visual__orbit--tools">
+      <div class="loom-visual__node">Tools</div>
+    </div>
+    <div class="loom-visual__orbit loom-visual__orbit--memory">
+      <div class="loom-visual__node">Memory</div>
+    </div>
+    <div class="loom-visual__orbit loom-visual__orbit--channels">
+      <div class="loom-visual__node">Channels</div>
+    </div>
+    <div class="loom-visual__orbit loom-visual__orbit--governance">
+      <div class="loom-visual__node">Governance</div>
+    </div>
+    <div class="loom-visual__orbit loom-visual__orbit--audit">
+      <div class="loom-visual__node">Audit Trail</div>
+    </div>
+    <div class="loom-visual__mesh loom-visual__mesh--one"></div>
+    <div class="loom-visual__mesh loom-visual__mesh--two"></div>
   </div>
-</div>
 
-<div class="badge-row">
+  <div class="loom-hero__copy">
+    <div class="hero-kicker">Built for real Salesforce runtime constraints</div>
+    <h1 class="loom-hero__title">One runtime that holds the whole AI system together.</h1>
+    <div class="loom-hero__lead">
+      Loom is a Salesforce-native runtime for AI agents. It brings together prompts, tools,
+      context, channels, memory, and governance so the system behaves like a real product
+      runtime, not just a model call with extra code around it.
+    </div>
+
+    <div class="button-row">
+      <a class="loom-button loom-button--primary" href="getting-started/">Start Building</a>
+      <a class="loom-button loom-button--secondary" href="https://github.com/iamsonal/aiAgentStudio">View the GitHub repository</a>
+    </div>
+
+    <div class="loom-hero__subactions">
+      <span>Salesforce-native</span>
+      <span>Governed by design</span>
+      <span>Built for production</span>
+    </div>
+  </div>
+</section>
+
+<div class="badge-row badge-row--hero">
   <Badge text="Core Runtime" variant="success" />
   <Badge text="Salesforce Native" variant="note" />
   <Badge text="Governed by Design" variant="tip" />
@@ -49,9 +71,12 @@ here.
 
 ## Why "Loom"
 
-The name is deliberate. This runtime is built to weave together prompts, tools, context, channels,
-memory, and governance into one operational system. The value is not just the model call itself. It
-is the fabric around it that makes the system usable in production.
+The name is deliberate. A loom turns separate threads into one structured fabric. That is exactly the
+job this runtime is doing inside Salesforce. It brings together prompts, tools, context, channels,
+memory, and governance so they work as one system instead of a pile of disconnected features.
+
+The point is not to glorify the model call. The point is to make the full runtime hold together in
+production.
 
 ## Why This Exists
 

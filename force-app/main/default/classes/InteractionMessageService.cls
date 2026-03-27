@@ -18,6 +18,13 @@ public inherited sharing class InteractionMessageService {
         public Id executionId { get; set; }
     }
 
+    public class InboundClaimResult {
+        public Boolean claimed { get; set; }
+        public Id messageId { get; set; }
+        public Id sessionId { get; set; }
+        public Id executionId { get; set; }
+    }
+
     public String buildInboundDedupKey(String channel, String provider, String endpointIdentifier, String inboundMessageKey, String fallbackFingerprint) {
         String raw =
             channel +
@@ -56,6 +63,33 @@ public inherited sharing class InteractionMessageService {
         return ref;
     }
 
+    public InboundClaimResult claimInboundProcessing(
+        String channel,
+        String provider,
+        String providerMessageId,
+        String dedupKey,
+        String turnIdentifier,
+        String payloadJson
+    ) {
+        InboundClaimResult result = new InboundClaimResult();
+        try {
+            result.messageId = recordInboundProcessing(null, null, channel, provider, providerMessageId, dedupKey, turnIdentifier, payloadJson);
+            result.claimed = true;
+            return result;
+        } catch (DmlException e) {
+            if (e.getDmlType(0) != StatusCode.DUPLICATE_VALUE) {
+                throw e;
+            }
+        }
+
+        InboundMessageRef existingInbound = getInboundMessageRefByDedupKey(dedupKey);
+        result.claimed = false;
+        result.messageId = existingInbound != null ? existingInbound.messageId : null;
+        result.sessionId = existingInbound != null ? existingInbound.sessionId : null;
+        result.executionId = existingInbound != null ? existingInbound.executionId : null;
+        return result;
+    }
+
     public Id recordInboundProcessing(
         Id sessionId,
         Id executionId,
@@ -81,6 +115,20 @@ public inherited sharing class InteractionMessageService {
         );
         insert inboundMessage;
         return inboundMessage.Id;
+    }
+
+    public void attachInboundProcessing(Id messageId, Id sessionId, Id executionId, String payloadJson) {
+        if (messageId == null) {
+            return;
+        }
+
+        InteractionMessage__c inboundMessage = new InteractionMessage__c(Id = messageId);
+        inboundMessage.InteractionSession__c = sessionId;
+        inboundMessage.Execution__c = executionId;
+        if (payloadJson != null) {
+            inboundMessage.PayloadSnapshotJson__c = payloadJson;
+        }
+        update inboundMessage;
     }
 
     public Id recordOutboundMessage(

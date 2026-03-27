@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProviderAudience__c</fullName>
+    <description>Optional provider-specific audience value used for inbound authentication, such as the Microsoft Teams Bot App ID expected in webhook bearer tokens.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Populate when the provider validates inbound bearer tokens against a specific audience value. For Microsoft Teams, use the Bot App ID.</inlineHelpText>
+    <label>Provider Audience</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

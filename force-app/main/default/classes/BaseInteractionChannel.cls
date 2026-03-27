@@ -49,4 +49,14 @@ public abstract inherited sharing class BaseInteractionChannel implements Intera
 
     public virtual void suppressReply(OrchestrationContext context, String logPrefix) {
     }
+
+    protected String resolveExecutionCompletionMode(AIAgentDefinition__c agentDefinition, AgentExecution__c execution) {
+        return new ChannelRoutingService().resolveEffectiveCompletionMode(agentDefinition, execution);
+    }
+
+    protected Map<String, Object> deserializeTriggerPayload(String triggerPayloadJson) {
+        return String.isNotBlank(triggerPayloadJson)
+            ? (Map<String, Object>) JSON.deserializeUntyped(triggerPayloadJson)
+            : new Map<String, Object>();
+    }
 }

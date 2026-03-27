@@ -193,6 +193,15 @@ public inherited sharing class ChannelRoutingService {
         return mode;
     }
 
+    public String resolveEffectiveCompletionMode(AIAgentDefinition__c agentDefinition, AgentExecution__c execution) {
+        if (execution != null && String.isNotBlank(execution.CompletionMode__c)) {
+            return execution.CompletionMode__c;
+        }
+        return String.isNotBlank(agentDefinition != null ? agentDefinition.DefaultCompletionMode__c : null)
+            ? agentDefinition.DefaultCompletionMode__c
+            : 'Auto Reply';
+    }
+
     public static String buildRouteKey(String entryObjectType, String endpointIdentifier) {
         String normalizedObject = String.isNotBlank(entryObjectType) ? entryObjectType.trim() : '*';
         String normalizedEndpoint = String.isNotBlank(endpointIdentifier) ? endpointIdentifier.trim().toLowerCase() : '*';
