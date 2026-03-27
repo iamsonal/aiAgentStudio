@@ -26,4 +26,8 @@
         <field>IsActive__c</field>
         <value xsi:type="xsd:boolean">true</value>
     </values>
+    <values>
+        <field>InternalOnly__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
 </CustomMetadata>

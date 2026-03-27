@@ -356,7 +356,6 @@ private class IngressRequestedTriggerHandlerTest {
         ChannelEndpoint__mdt endpoint = new ChannelEndpoint__mdt();
         endpoint.DeveloperName = CHAT_ENDPOINT_DEV;
         endpoint.Channel__c = RuntimeRegistryService.CHANNEL_CHAT;
-        endpoint.Provider__c = CHAT_PROVIDER;
         endpoint.EndpointIdentifier__c = CHAT_ENDPOINT_IDENTIFIER;
         endpoint.IsActive__c = true;
         endpoint.SupportsAutonomousReply__c = true;
