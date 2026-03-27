@@ -17,6 +17,7 @@ export default defineConfig({
       title: 'Loom',
       description:
         'Governed AI agent orchestration for Salesforce with runtime control, security, and extensibility built in.',
+      favicon: '/favicon.png',
       logo: {
         src: './public/logo.png',
         alt: 'Loom'

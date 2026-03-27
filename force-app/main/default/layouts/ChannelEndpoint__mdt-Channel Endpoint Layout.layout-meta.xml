@@ -52,6 +52,10 @@
                 <behavior>Edit</behavior>
                 <field>NamedCredential__c</field>
             </layoutItems>
+            <layoutItems>
+                <behavior>Edit</behavior>
+                <field>ProviderAudience__c</field>
+            </layoutItems>
         </layoutColumns>
         <style>TwoColumnsTopToBottom</style>
     </layoutSections>

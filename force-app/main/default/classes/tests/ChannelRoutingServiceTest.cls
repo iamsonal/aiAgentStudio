@@ -168,6 +168,28 @@ private class ChannelRoutingServiceTest {
         }
     }
 
+    @IsTest
+    static void testResolveCompletionMode_CoercesAutoReplyWhenEndpointDisablesAutonomousReply() {
+        AIAgentDefinition__c agentDefinition = new AIAgentDefinition__c(DefaultCompletionMode__c = 'Auto Reply');
+        ChannelRoutingService.ResolvedRoute route = new ChannelRoutingService.ResolvedRoute();
+        route.defaultDeliveryMode = 'Auto Reply';
+        route.supportsAutonomousReply = false;
+
+        String resolvedMode = new ChannelRoutingService().resolveCompletionMode(agentDefinition, route);
+
+        System.assertEquals('Review Before Send', resolvedMode);
+    }
+
+    @IsTest
+    static void testResolveEffectiveCompletionMode_PrefersExecutionValue() {
+        AIAgentDefinition__c agentDefinition = new AIAgentDefinition__c(DefaultCompletionMode__c = 'Auto Reply');
+        AgentExecution__c execution = new AgentExecution__c(CompletionMode__c = 'Route Only');
+
+        String resolvedMode = new ChannelRoutingService().resolveEffectiveCompletionMode(agentDefinition, execution);
+
+        System.assertEquals('Route Only', resolvedMode);
+    }
+
     private static void configureRoutingFixture(
         String channel,
         String endpointDeveloperName,

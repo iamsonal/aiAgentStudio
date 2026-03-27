@@ -221,16 +221,25 @@ public inherited sharing class IngressProcessingService {
         result.inboundDedupKey = resolvedInbound.inboundDedupKey;
 
         InteractionMessageService messageService = new InteractionMessageService();
-        InteractionMessageService.InboundMessageRef existingInbound = messageService.getInboundMessageRefByDedupKey(resolvedInbound.inboundDedupKey);
-        if (existingInbound != null) {
+        String inboundTurnIdentifier = buildTurnIdentifier(request.providerMessageId);
+        InteractionMessageService.InboundClaimResult inboundClaim = messageService.claimInboundProcessing(
+            request.channel,
+            request.provider,
+            request.providerMessageId,
+            resolvedInbound.inboundDedupKey,
+            inboundTurnIdentifier,
+            request.normalizedPayloadJson
+        );
+        if (inboundClaim.claimed != true) {
             result.success = true;
             result.duplicateSuppressed = true;
             result.processingStatus = IngressEventService.STATUS_DUPLICATE;
-            result.interactionMessageId = existingInbound.messageId;
-            result.interactionSessionId = existingInbound.sessionId;
-            result.executionId = existingInbound.executionId;
+            result.interactionMessageId = inboundClaim.messageId;
+            result.interactionSessionId = inboundClaim.sessionId;
+            result.executionId = inboundClaim.executionId;
             return result;
         }
+        result.interactionMessageId = inboundClaim.messageId;
 
         pipelineService.resolveSession(null, channelAdapter, resolvedInbound, logPrefix);
         result.interactionSessionId = resolvedInbound.sessionContext != null ? resolvedInbound.sessionContext.sessionId : null;
@@ -239,18 +248,10 @@ public inherited sharing class IngressProcessingService {
             triggerMetadata.put('interactionSessionId', result.interactionSessionId);
         }
         addFrameworkRelatedRecordIds(triggerMetadata, resolvedInbound.frameworkRelatedRecordIds);
+        String serializedTriggerMetadata = JSON.serialize(triggerMetadata);
+        messageService.attachInboundProcessing(result.interactionMessageId, result.interactionSessionId, null, serializedTriggerMetadata);
 
         if (resolvedInbound.route == null) {
-            Id interactionMessageId = messageService.recordInboundProcessing(
-                result.interactionSessionId,
-                null,
-                request.channel,
-                request.provider,
-                request.providerMessageId,
-                resolvedInbound.inboundDedupKey,
-                buildTurnIdentifier(request.providerMessageId),
-                JSON.serialize(triggerMetadata)
-            );
             messageService.updateInboundStatus(
                 resolvedInbound.inboundDedupKey,
                 'Failed',
@@ -260,7 +261,6 @@ public inherited sharing class IngressProcessingService {
             );
             result.success = false;
             result.processingStatus = IngressEventService.STATUS_FAILED;
-            result.interactionMessageId = interactionMessageId;
             result.errorCode = AIAgentConstants.ERR_CODE_CONFIG_ERROR;
             result.errorMessage = 'No active inbound route matched this endpoint.';
             return result;
@@ -273,49 +273,30 @@ public inherited sharing class IngressProcessingService {
         payload.triggerSource = String.isNotBlank(request.triggerSource) ? request.triggerSource : 'API';
         payload.userMessage = request.messageContent;
         payload.sourceRecordId = resolvedInbound.sessionContext != null ? resolvedInbound.sessionContext.sourceRecordId : sourceRecordId;
-        payload.turnIdentifier = buildTurnIdentifier(request.providerMessageId);
+        payload.turnIdentifier = inboundTurnIdentifier;
         payload.existingExecutionId = new InteractionSessionPolicyService()
             .resolveReusableExecutionId(resolvedInbound.sessionContext, payload.sourceRecordId, resolvedInbound.route, logPrefix);
         payload.interactionChannel = request.channel;
         payload.conversationKey = resolvedInbound.envelope != null ? resolvedInbound.envelope.conversationKey : request.conversationKey;
         payload.interactionSessionId = result.interactionSessionId;
-        payload.triggerPayload = JSON.serialize(triggerMetadata);
+        payload.triggerPayload = serializedTriggerMetadata;
 
         String deliveryMode = new ChannelRoutingService().resolveCompletionMode(agentDefinition, resolvedInbound.route);
         AgentExecutionService.ExecutionResult executionResult = AgentExecutionService.startExecution(agentDefinition.DeveloperName__c, payload);
         if (executionResult.success != true || executionResult.executionId == null) {
+            messageService.updateInboundStatus(
+                resolvedInbound.inboundDedupKey,
+                'Failed',
+                null,
+                AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+                'Failed to start inbound execution.'
+            );
             throw new AIAgentException.OrchestrationException('Failed to start inbound execution: ' + executionResult.errorMessage);
         }
 
         update new AgentExecution__c(Id = executionResult.executionId, CompletionMode__c = deliveryMode);
         result.executionId = executionResult.executionId;
-
-        try {
-            result.interactionMessageId = messageService.recordInboundProcessing(
-                result.interactionSessionId,
-                result.executionId,
-                request.channel,
-                request.provider,
-                request.providerMessageId,
-                resolvedInbound.inboundDedupKey,
-                payload.turnIdentifier,
-                JSON.serialize(triggerMetadata)
-            );
-        } catch (DmlException e) {
-            if (e.getDmlType(0) == StatusCode.DUPLICATE_VALUE) {
-                InteractionMessageService.InboundMessageRef duplicateAfterInsert = messageService.getInboundMessageRefByDedupKey(
-                    resolvedInbound.inboundDedupKey
-                );
-                result.success = true;
-                result.duplicateSuppressed = true;
-                result.processingStatus = IngressEventService.STATUS_DUPLICATE;
-                result.interactionMessageId = duplicateAfterInsert != null ? duplicateAfterInsert.messageId : null;
-                result.interactionSessionId = duplicateAfterInsert != null ? duplicateAfterInsert.sessionId : result.interactionSessionId;
-                result.executionId = duplicateAfterInsert != null ? duplicateAfterInsert.executionId : result.executionId;
-                return result;
-            }
-            throw e;
-        }
+        messageService.attachInboundProcessing(result.interactionMessageId, result.interactionSessionId, result.executionId, serializedTriggerMetadata);
 
         result.success = true;
         result.processingStatus = IngressEventService.STATUS_PROCESSED;
