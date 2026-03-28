@@ -15,6 +15,7 @@ public inherited sharing class RuntimeRegistryService {
     public static final String CHANNEL_EMAIL = 'Email';
     public static final String CHANNEL_CHAT = 'Chat';
     public static final String CHANNEL_DIRECT = 'Direct';
+    public static final String CHANNEL_SMS = 'SMS';
     public static final String CHANNEL_WHATSAPP = 'WhatsApp';
     public static final String CHANNEL_SLACK = 'Slack';
     public static final String CHANNEL_TEAMS = 'Teams';

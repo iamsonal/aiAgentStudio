@@ -16,6 +16,11 @@
         <label>Direct</label>
     </customValue>
     <customValue>
+        <fullName>SMS</fullName>
+        <default>false</default>
+        <label>SMS</label>
+    </customValue>
+    <customValue>
         <fullName>WhatsApp</fullName>
         <default>false</default>
         <label>WhatsApp</label>
