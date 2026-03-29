@@ -211,9 +211,8 @@ public class TestFactory {
         private LLMConfiguration__c record = new LLMConfiguration__c(
             Name = 'Test LLM ' + generateRandomString(6),
             DeveloperName__c = 'Test_LLM_' + generateRandomString(6),
-            ProviderAdapterClass__c = 'OpenAIProviderAdapter',
             NamedCredential__c = 'OpenAI_API_Test',
-            DefaultModelIdentifier__c = 'gpt-4o-mini',
+            ModelCatalogDeveloperName__c = 'GPT_4o_mini',
             IsActive__c = true,
             DefaultTemperature__c = 0.7
         );
@@ -223,13 +222,14 @@ public class TestFactory {
             return this;
         }
 
-        public LLMConfigurationBuilder withProvider(String providerClass) {
-            record.ProviderAdapterClass__c = providerClass;
-            return this;
-        }
-
         public LLMConfigurationBuilder withModel(String model) {
-            record.DefaultModelIdentifier__c = model;
+            if ('gpt-5-mini'.equalsIgnoreCase(model)) {
+                record.ModelCatalogDeveloperName__c = 'GPT_5_mini';
+            } else if ('gpt-5-nano'.equalsIgnoreCase(model)) {
+                record.ModelCatalogDeveloperName__c = 'GPT_5_nano';
+            } else {
+                record.ModelCatalogDeveloperName__c = 'GPT_4o_mini';
+            }
             return this;
         }
 

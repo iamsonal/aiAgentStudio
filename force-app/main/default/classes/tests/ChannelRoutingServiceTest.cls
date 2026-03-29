@@ -16,7 +16,6 @@ private class ChannelRoutingServiceTest {
         configureRoutingFixture(
             RuntimeRegistryService.CHANNEL_CHAT,
             'CaseSupport_Chat',
-            'Salesforce Chat',
             CASE_CHAT_ENDPOINT,
             null,
             'Case_Support_Chat_Agent',
@@ -37,7 +36,6 @@ private class ChannelRoutingServiceTest {
         configureRoutingFixture(
             RuntimeRegistryService.CHANNEL_DIRECT,
             'MissingAgent_Direct',
-            'CoreDirectProvider',
             MISSING_AGENT_ENDPOINT,
             'direct-route-missing',
             'Missing_Direct_Agent',
@@ -57,7 +55,6 @@ private class ChannelRoutingServiceTest {
         configureRoutingFixture(
             RuntimeRegistryService.CHANNEL_DIRECT,
             'DirectSupport_Api',
-            'CoreDirectProvider',
             DIRECT_ENDPOINT,
             'direct-route-001',
             'Direct_Support_Agent',
@@ -78,7 +75,6 @@ private class ChannelRoutingServiceTest {
         ChannelEndpoint__mdt validEndpoint = new ChannelEndpoint__mdt();
         validEndpoint.DeveloperName = 'CaseSupport_Chat';
         validEndpoint.Channel__c = RuntimeRegistryService.CHANNEL_CHAT;
-        validEndpoint.Provider__c = 'Salesforce Chat';
         validEndpoint.EndpointIdentifier__c = CASE_CHAT_ENDPOINT;
         validEndpoint.IsActive__c = true;
         validEndpoint.SupportsAutonomousReply__c = true;
@@ -123,7 +119,6 @@ private class ChannelRoutingServiceTest {
         ChannelEndpoint__mdt endpoint = new ChannelEndpoint__mdt();
         endpoint.DeveloperName = 'CaseSupport_Chat';
         endpoint.Channel__c = RuntimeRegistryService.CHANNEL_CHAT;
-        endpoint.Provider__c = 'Salesforce Chat';
         endpoint.EndpointIdentifier__c = CASE_CHAT_ENDPOINT;
         endpoint.IsActive__c = true;
         endpoint.SupportsAutonomousReply__c = true;
@@ -193,7 +188,6 @@ private class ChannelRoutingServiceTest {
     private static void configureRoutingFixture(
         String channel,
         String endpointDeveloperName,
-        String provider,
         String endpointIdentifier,
         String routeKey,
         String agentDeveloperName,
@@ -202,7 +196,6 @@ private class ChannelRoutingServiceTest {
         ChannelEndpoint__mdt endpoint = new ChannelEndpoint__mdt();
         endpoint.DeveloperName = endpointDeveloperName;
         endpoint.Channel__c = channel;
-        endpoint.Provider__c = provider;
         endpoint.EndpointIdentifier__c = endpointIdentifier;
         endpoint.RouteKey__c = routeKey;
         endpoint.IsActive__c = true;

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>RouteKey__c</fullName>
-    <description>Optional stable key representing the reply route for this endpoint. Used to preserve same-route delivery invariants across a session.</description>
+    <description>Optional stable key representing the reply route for this endpoint. Used to preserve same-route delivery invariants across a session, such as a Twilio Messaging Service SID or provider conversation ID.</description>
     <fieldManageability>DeveloperControlled</fieldManageability>
-    <inlineHelpText>Use a stable key when replies must return through the same route or connector, even if the raw endpoint identifier can vary.</inlineHelpText>
+    <inlineHelpText>Use a stable key when replies must return through the same route or connector, even if the raw endpoint identifier can vary. For Twilio SMS, this can be a Messaging Service SID.</inlineHelpText>
     <label>Route Key</label>
     <length>255</length>
     <required>false</required>

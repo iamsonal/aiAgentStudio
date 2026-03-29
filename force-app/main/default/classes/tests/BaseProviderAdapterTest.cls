@@ -93,7 +93,6 @@ private class BaseProviderAdapterTest {
     static void testSendMessage_MissingNamedCredential_ThrowsException() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM').build();
         llm.NamedCredential__c = '';
-        llm.DefaultModelIdentifier__c = 'test-model';
 
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent').withType('Conversational').withLLM(llm.Id).build();
 
@@ -117,7 +116,7 @@ private class BaseProviderAdapterTest {
     static void testSendMessage_MissingModelIdentifier_ThrowsException() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Test LLM 2').build();
         llm.NamedCredential__c = 'TestCredential';
-        llm.DefaultModelIdentifier__c = '';
+        llm.ModelCatalogDeveloperName__c = '';
 
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Test_Agent_2').withType('Conversational').withLLM(llm.Id).build();
 
@@ -130,7 +129,7 @@ private class BaseProviderAdapterTest {
             adapter.sendMessage(messages, null, llm, agent);
         } catch (AIAgentException.ProviderException e) {
             exceptionThrown = true;
-            System.assert(e.getMessage().contains('DefaultModelIdentifier is required'), 'Should indicate model identifier is required');
+            System.assert(e.getMessage().contains('active catalog model is required'), 'Should indicate catalog model is required');
         }
         Test.stopTest();
 

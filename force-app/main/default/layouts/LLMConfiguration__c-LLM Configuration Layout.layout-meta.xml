@@ -12,15 +12,11 @@
             </layoutItems>
             <layoutItems>
                 <behavior>Required</behavior>
-                <field>ProviderAdapterClass__c</field>
+                <field>ModelCatalogDeveloperName__c</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Required</behavior>
                 <field>NamedCredential__c</field>
-            </layoutItems>
-            <layoutItems>
-                <behavior>Required</behavior>
-                <field>DefaultModelIdentifier__c</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
@@ -49,10 +45,6 @@
         <editHeading>true</editHeading>
         <label>Provider Overrides</label>
         <layoutColumns>
-            <layoutItems>
-                <behavior>Edit</behavior>
-                <field>ApiVersion__c</field>
-            </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
                 <field>MaxResponseTokens__c</field>

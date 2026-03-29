@@ -27,6 +27,14 @@
         <value xsi:type="xsd:string">max_completion_tokens</value>
     </values>
     <values>
+        <field>ProviderAdapterClass__c</field>
+        <value xsi:type="xsd:string">OpenAIProviderAdapter</value>
+    </values>
+    <values>
+        <field>SupportsVision__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
         <field>Description__c</field>
         <value xsi:type="xsd:string">GPT-5 mini - A faster, cheaper version of GPT-5 for well-defined tasks. Optimized for speed and efficiency.</value>
     </values>

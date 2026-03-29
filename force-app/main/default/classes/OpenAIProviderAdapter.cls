@@ -34,14 +34,16 @@ public inherited sharing class OpenAIProviderAdapter extends BaseProviderAdapter
         req.setEndpoint(endpoint);
         req.setMethod('POST');
         req.setHeader('Content-Type', 'application/json; charset=utf-8');
+        LLMModelCatalog__mdt catalogRecord = AIAgentConfigService.getLLMModelCatalogRecordForConfiguration(llmConfig);
+        String modelIdentifier = catalogRecord == null ? null : catalogRecord.ModelIdentifier__c;
 
-        Map<String, Object> body = new Map<String, Object>{ 'model' => llmConfig.DefaultModelIdentifier__c, 'messages' => openAIMessages };
+        Map<String, Object> body = new Map<String, Object>{ 'model' => modelIdentifier, 'messages' => openAIMessages };
 
         if (llmConfig.DefaultTemperature__c != null) {
             body.put('temperature', llmConfig.DefaultTemperature__c);
         }
         if (llmConfig.MaxResponseTokens__c != null) {
-            String tokenParamName = resolveMaxTokensParameterName(llmConfig.DefaultModelIdentifier__c);
+            String tokenParamName = resolveMaxTokensParameterName(modelIdentifier);
             body.put(tokenParamName, llmConfig.MaxResponseTokens__c.intValue());
         }
 

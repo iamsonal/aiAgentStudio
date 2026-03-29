@@ -10,7 +10,7 @@
 
 Build intelligent AI agents powered by Large Language Models that seamlessly integrate with your Salesforce environment. Designed for security, scalability, and ease of use.
 
-`Loom` fits the product because the framework weaves together prompts, tools, context, channels, memory, and governance into one operable runtime. The goal is not a single isolated model call, but a system where many moving parts work together as one durable fabric.
+`Loom` is named for what the framework actually does. A loom does not create value from a single thread. It turns many separate threads into something structured, durable, and useful. This framework does the same with prompts, tools, context, channels, memory, and governance. The result is not just an LLM call. It is an operational runtime that can hold together in production.
 
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
 [![Salesforce](https://img.shields.io/badge/Salesforce-API%20v63.0-blue.svg)](https://developer.salesforce.com/)
@@ -121,7 +121,7 @@ flowchart LR
     D --> H[✅ Response]
 ```
 
-1. **User sends a message** through chat, email, WhatsApp/webhook, middleware-backed normalized ingress, or API
+1. **User sends a message** through chat, email, SMS/WhatsApp/webhook, middleware-backed normalized ingress, or API
 2. **Context is gathered** from the current record, user profile, and related data
 3. **LLM analyzes** the request with full conversation history
 4. **Tools execute** Salesforce operations (query, create, update, post)
@@ -137,7 +137,7 @@ All operations run asynchronously using Platform Events or Queueables, ensuring 
 
 | Feature | Description |
 |:--------|:------------|
-| **Multiple Runtime Patterns** | Conversational and Direct agent runtimes plus a dedicated Pipeline composition subsystem across chat, email, WhatsApp, API, and sub-agent workflows |
+| **Multiple Runtime Patterns** | Conversational and Direct agent runtimes plus a dedicated Pipeline composition subsystem across chat, email, SMS, WhatsApp, API, and sub-agent workflows |
 | **Metadata-Driven Capabilities** | Define tools, prompts, trust controls, and workflow behavior through Salesforce configuration |
 | **Smart Memory** | Buffer window and summary-based conversation history |
 | **Built-in Security** | Automatic CRUD, FLS, and sharing rule enforcement |
@@ -258,8 +258,8 @@ Once your API key is configured:
 **Framework Capabilities:**
 - Conversational strategy for multi-turn chat, email, and external messaging experiences
 - Direct strategy for targeted automation and decision support
-- Channel-aware routing for chat, email, WhatsApp, API, and future transports
-- Provider-backed webhook/channel seams for external messaging transports such as WhatsApp
+- Channel-aware routing for chat, email, SMS, WhatsApp, API, and future transports
+- Provider-backed webhook/channel seams for external messaging transports such as SMS and WhatsApp
 - Sequential pipelines and sub-agent workflows for multi-step orchestration
 - Tool execution across data operations, flows, and custom business logic
 - Human-in-the-loop approvals, observability, and trust controls

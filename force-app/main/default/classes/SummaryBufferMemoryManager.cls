@@ -17,7 +17,8 @@ public with sharing class SummaryBufferMemoryManager implements IMemoryManager {
         // Use ExecutionStep__c retrieval via ExecutionStepService with summarization support
         ExecutionStepService executionStepService = new ExecutionStepService();
         List<ExecutionStep__c> unsummarizedSteps = executionStepService.getUnsummarizedSteps(executionId, false);
-        Boolean supportsVision = llmConfig != null && llmConfig.SupportsVision__c == true;
+        LLMModelCatalog__mdt catalogRecord = AIAgentConfigService.getLLMModelCatalogRecordForConfiguration(llmConfig);
+        Boolean supportsVision = catalogRecord != null && catalogRecord.SupportsVision__c == true;
         return LLMFormattingService.formatStepsForApi(unsummarizedSteps, agentConfig, debugPrefix, supportsVision);
     }
 

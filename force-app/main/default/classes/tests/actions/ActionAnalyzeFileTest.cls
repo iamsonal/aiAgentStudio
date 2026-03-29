@@ -535,7 +535,7 @@ private class ActionAnalyzeFileTest {
         String resultStr = (String) result;
         System.assert(!resultStr.contains('"multimodal"'), 'Result should not contain the binary blob');
         System.assert(resultStr.contains('_note'), 'Result should contain advisory note about vision capability');
-        System.assert(resultStr.contains('SupportsVision__c'), 'Note should guide admin to enable vision');
+        System.assert(resultStr.contains('Supports Vision'), 'Note should guide admin to choose a vision-capable model');
     }
 
     @IsTest

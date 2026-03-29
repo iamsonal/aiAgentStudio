@@ -27,6 +27,14 @@
         <value xsi:type="xsd:string">max_completion_tokens</value>
     </values>
     <values>
+        <field>ProviderAdapterClass__c</field>
+        <value xsi:type="xsd:string">OpenAIProviderAdapter</value>
+    </values>
+    <values>
+        <field>SupportsVision__c</field>
+        <value xsi:type="xsd:boolean">false</value>
+    </values>
+    <values>
         <field>Description__c</field>
         <value xsi:type="xsd:string">GPT-5 nano - The fastest, cheapest version of GPT-5. Great for summarization and classification tasks. Best cost/performance for simple operations.</value>
     </values>

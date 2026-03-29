@@ -143,7 +143,7 @@
     <allowInChatterGroups>false</allowInChatterGroups>
     <compactLayoutAssignment>SYSTEM</compactLayoutAssignment>
     <deploymentStatus>Deployed</deploymentStatus>
-    <description>Defines the provider connection, model settings, and adapter used for a model configuration.</description>
+    <description>Defines the runtime credential, catalog-model reference, and execution defaults used for an LLM configuration.</description>
     <enableActivities>false</enableActivities>
     <enableBulkApi>true</enableBulkApi>
     <enableFeeds>false</enableFeeds>
@@ -162,8 +162,7 @@
     <pluralLabel>LLM Configurations</pluralLabel>
     <searchLayouts>
         <searchResultsAdditionalFields>DeveloperName__c</searchResultsAdditionalFields>
-        <searchResultsAdditionalFields>ProviderAdapterClass__c</searchResultsAdditionalFields>
-        <searchResultsAdditionalFields>DefaultModelIdentifier__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>ModelCatalogDeveloperName__c</searchResultsAdditionalFields>
         <searchResultsAdditionalFields>NamedCredential__c</searchResultsAdditionalFields>
         <searchResultsAdditionalFields>IsActive__c</searchResultsAdditionalFields>
     </searchLayouts>
