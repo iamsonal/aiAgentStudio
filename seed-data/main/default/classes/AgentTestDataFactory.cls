@@ -806,9 +806,8 @@ public with sharing class AgentTestDataFactory {
         LLMConfiguration__c gpt4oMiniConfig = new LLMConfiguration__c(
             Name = 'OpenAI GPT-4o Mini',
             DeveloperName__c = 'OpenAI_GPT4o_Mini',
-            ProviderAdapterClass__c = 'OpenAIProviderAdapter',
             NamedCredential__c = 'OpenAI_API',
-            DefaultModelIdentifier__c = 'gpt-4o-mini',
+            ModelCatalogDeveloperName__c = 'GPT_4o_mini',
             DefaultTemperature__c = 0.1,
             MaxResponseTokens__c = 2048,
             IsActive__c = true
@@ -819,9 +818,8 @@ public with sharing class AgentTestDataFactory {
         LLMConfiguration__c gpt5MiniConfig = new LLMConfiguration__c(
             Name = 'OpenAI GPT-5 Mini',
             DeveloperName__c = 'OpenAI_GPT5_Mini',
-            ProviderAdapterClass__c = 'OpenAIProviderAdapter',
             NamedCredential__c = 'OpenAI_API',
-            DefaultModelIdentifier__c = 'gpt-5-mini',
+            ModelCatalogDeveloperName__c = 'GPT_5_mini',
             DefaultTemperature__c = 1,
             MaxResponseTokens__c = 2048,
             IsActive__c = true
@@ -832,9 +830,8 @@ public with sharing class AgentTestDataFactory {
         LLMConfiguration__c gpt5NanoConfig = new LLMConfiguration__c(
             Name = 'OpenAI GPT-5 Nano',
             DeveloperName__c = 'OpenAI_GPT5_Nano',
-            ProviderAdapterClass__c = 'OpenAIProviderAdapter',
             NamedCredential__c = 'OpenAI_API',
-            DefaultModelIdentifier__c = 'gpt-5-nano',
+            ModelCatalogDeveloperName__c = 'GPT_5_nano',
             DefaultTemperature__c = 0.1,
             MaxResponseTokens__c = 2048,
             IsActive__c = true

@@ -57,7 +57,7 @@ private class OpenAIProviderAdapterTest {
         System.assert(req.getEndpoint().contains('/v1/chat/completions'), 'Endpoint should target chat completions');
 
         Map<String, Object> body = (Map<String, Object>) JSON.deserializeUntyped(req.getBody());
-        System.assertEquals(llm.DefaultModelIdentifier__c, body.get('model'), 'Model should come from config');
+        System.assertEquals('gpt-4o-mini', body.get('model'), 'Model should come from the selected catalog metadata');
         System.assertEquals('auto', body.get('tool_choice'), 'Tool choice should be auto when tools provided');
         System.assertEquals(false, body.get('parallel_tool_calls'), 'Parallel tool calls must be false with a single tool');
 
@@ -187,7 +187,7 @@ private class OpenAIProviderAdapterTest {
         System.assertEquals(10, result.promptTokens, 'Should parse prompt tokens');
         System.assertEquals(20, result.completionTokens, 'Should parse completion tokens');
         System.assertEquals(30, result.totalTokens, 'Should parse total tokens');
-        System.assertEquals(llm.DefaultModelIdentifier__c, result.modelIdentifier, 'Should set model identifier');
+        System.assertEquals('gpt-4o-mini', result.modelIdentifier, 'Should set model identifier from catalog metadata');
         System.assertNotEquals(null, result.rawAssistantMessageWithActionsJson, 'Raw assistant message should be captured');
     }
 

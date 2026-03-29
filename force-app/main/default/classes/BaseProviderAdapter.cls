@@ -65,11 +65,13 @@ public abstract inherited sharing class BaseProviderAdapter implements ILLMProvi
 
         try {
             HttpCalloutService.CalloutResult result = executeHttpRequest(request, calloutConfig, logPrefix);
+            LLMModelCatalog__mdt catalogRecord = AIAgentConfigService.getLLMModelCatalogRecordForConfiguration(llmConfig);
+            String modelIdentifier = catalogRecord == null ? null : catalogRecord.ModelIdentifier__c;
 
             System.debug(LoggingLevel.INFO, logPrefix + 'API call succeeded, duration: ' + result.durationMs + ' ms.');
             System.debug(LoggingLevel.DEBUG, logPrefix + 'Response body: ' + result.response.getBody());
 
-            return parseProviderResponse(result.response.getBody(), llmConfig.DefaultModelIdentifier__c, result.durationMs);
+            return parseProviderResponse(result.response.getBody(), modelIdentifier, result.durationMs);
         } catch (AIAgentException.ProviderException providerEx) {
             throw providerEx;
         } catch (Exception e) {
@@ -158,9 +160,10 @@ public abstract inherited sharing class BaseProviderAdapter implements ILLMProvi
             throw new AIAgentException.ProviderException('NamedCredential is required in LLM configuration');
         }
 
-        if (String.isBlank(llmConfig.DefaultModelIdentifier__c)) {
-            System.debug(LoggingLevel.ERROR, logPrefix + 'DefaultModelIdentifier is missing from LLM configuration');
-            throw new AIAgentException.ProviderException('DefaultModelIdentifier is required in LLM configuration');
+        LLMModelCatalog__mdt catalogRecord = AIAgentConfigService.getLLMModelCatalogRecordForConfiguration(llmConfig);
+        if (catalogRecord == null || String.isBlank(catalogRecord.ModelIdentifier__c)) {
+            System.debug(LoggingLevel.ERROR, logPrefix + 'Catalog model is missing or invalid for LLM configuration');
+            throw new AIAgentException.ProviderException('An active catalog model is required in LLM configuration');
         }
     }
 

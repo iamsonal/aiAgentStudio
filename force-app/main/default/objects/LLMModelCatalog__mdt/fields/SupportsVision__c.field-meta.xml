@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SupportsVision__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Indicates whether this catalog model can accept image or other multimodal vision-style inputs.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Enable this for models that support image or multimodal inputs.</inlineHelpText>
+    <label>Supports Vision</label>
+    <type>Checkbox</type>
+</CustomField>

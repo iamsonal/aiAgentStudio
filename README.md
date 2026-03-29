@@ -121,7 +121,7 @@ flowchart LR
     D --> H[✅ Response]
 ```
 
-1. **User sends a message** through chat, email, WhatsApp/webhook, middleware-backed normalized ingress, or API
+1. **User sends a message** through chat, email, SMS/WhatsApp/webhook, middleware-backed normalized ingress, or API
 2. **Context is gathered** from the current record, user profile, and related data
 3. **LLM analyzes** the request with full conversation history
 4. **Tools execute** Salesforce operations (query, create, update, post)
@@ -137,7 +137,7 @@ All operations run asynchronously using Platform Events or Queueables, ensuring 
 
 | Feature | Description |
 |:--------|:------------|
-| **Multiple Runtime Patterns** | Conversational and Direct agent runtimes plus a dedicated Pipeline composition subsystem across chat, email, WhatsApp, API, and sub-agent workflows |
+| **Multiple Runtime Patterns** | Conversational and Direct agent runtimes plus a dedicated Pipeline composition subsystem across chat, email, SMS, WhatsApp, API, and sub-agent workflows |
 | **Metadata-Driven Capabilities** | Define tools, prompts, trust controls, and workflow behavior through Salesforce configuration |
 | **Smart Memory** | Buffer window and summary-based conversation history |
 | **Built-in Security** | Automatic CRUD, FLS, and sharing rule enforcement |
@@ -258,8 +258,8 @@ Once your API key is configured:
 **Framework Capabilities:**
 - Conversational strategy for multi-turn chat, email, and external messaging experiences
 - Direct strategy for targeted automation and decision support
-- Channel-aware routing for chat, email, WhatsApp, API, and future transports
-- Provider-backed webhook/channel seams for external messaging transports such as WhatsApp
+- Channel-aware routing for chat, email, SMS, WhatsApp, API, and future transports
+- Provider-backed webhook/channel seams for external messaging transports such as SMS and WhatsApp
 - Sequential pipelines and sub-agent workflows for multi-step orchestration
 - Tool execution across data operations, flows, and custom business logic
 - Human-in-the-loop approvals, observability, and trust controls
