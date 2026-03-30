@@ -161,6 +161,37 @@ private class HITLGatewayServiceTest {
     }
 
     @IsTest
+    static void testResolveApproval_OutboundDraftReviewUsesReviewedPayload() {
+        AgentExecution__c exec = [SELECT Id FROM AgentExecution__c LIMIT 1];
+
+        PendingHITLAction__c reviewAction = new PendingHITLAction__c(
+            ArtifactType__c = HITLGatewayService.ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW,
+            AgentExecution__c = exec.Id,
+            HITLType__c = HITLGatewayService.HITL_MODE_APPROVAL,
+            Status__c = HITLGatewayService.STATUS_PENDING,
+            TurnIdentifier__c = 'turn-hitl-review-001',
+            TurnCount__c = 1,
+            ToolCallId__c = 'review-call-001',
+            ToolName__c = 'Review Before Send',
+            ReviewedPayloadJson__c = '{"replyText":"Reviewed body"}',
+            ConfirmationPrompt__c = 'Review the draft',
+            RequestedAt__c = Datetime.now(),
+            RequestingUser__c = UserInfo.getUserId()
+        );
+        insert reviewAction;
+
+        HITLGatewayService.HITLResolutionResult approved = HITLGatewayService.resolveApproval(
+            reviewAction.Id,
+            true,
+            UserInfo.getUserId(),
+            'Send it'
+        );
+
+        System.assertEquals(true, approved.success, 'Review artifact approval should resolve successfully');
+        System.assertEquals('{"replyText":"Reviewed body"}', approved.toolArguments, 'Reviewed payload should be returned for outbound draft reviews');
+    }
+
+    @IsTest
     static void testPendingActionsAndNotificationPreference() {
         AgentExecution__c exec = [SELECT Id FROM AgentExecution__c LIMIT 1];
         AgentCapability__c cap = [SELECT Id, CapabilityName__c FROM AgentCapability__c WHERE CapabilityName__c = 'hitl_approval' LIMIT 1];

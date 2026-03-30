@@ -30,6 +30,9 @@ public with sharing class HITLGatewayService {
     public static final String STATUS_REJECTED = 'Rejected';
     public static final String STATUS_EXPIRED = 'Expired';
 
+    public static final String ARTIFACT_TYPE_TOOL_APPROVAL = 'Tool Approval';
+    public static final String ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW = 'Outbound Draft Review';
+
     // Notification preference constants
     public static final String NOTIFICATION_PREF_ALWAYS_NOTIFY = 'Always Notify';
     public static final String NOTIFICATION_PREF_REJECTION_ONLY = 'Notify on Rejection Only';
@@ -137,6 +140,16 @@ public with sharing class HITLGatewayService {
         }
     }
 
+    public class ReviewArtifactResult {
+        public Boolean success { get; set; }
+        public Id pendingActionId { get; set; }
+        public String errorMessage { get; set; }
+
+        public ReviewArtifactResult() {
+            this.success = false;
+        }
+    }
+
     public static HITLResult createSuccessResult(Id actionId, String prompt, String hitlType, DateTime expires) {
         HITLResult result = new HITLResult();
         result.success = true;
@@ -151,6 +164,129 @@ public with sharing class HITLGatewayService {
         HITLResult result = new HITLResult();
         result.success = false;
         result.errorMessage = error;
+        return result;
+    }
+
+    public static ReviewArtifactResult createDraftReviewArtifact(
+        AIAgentDefinition__c agentDefinition,
+        InteractionRuntimeModels.IInteractionChannel adapter,
+        OrchestrationContext context,
+        String contentResponse,
+        String logPrefix
+    ) {
+        String debugPrefix = String.isNotBlank(logPrefix) ? logPrefix + '[HITLGateway] ' : '[HITLGateway] ';
+        ReviewArtifactResult result = new ReviewArtifactResult();
+
+        if (adapter == null) {
+            result.errorMessage = 'Channel adapter is required to create a review artifact.';
+            return result;
+        }
+
+        InteractionRuntimeModels.ReviewPayload reviewPayload = adapter.buildReviewPayload(agentDefinition, context, contentResponse, debugPrefix);
+        if (reviewPayload == null || String.isBlank(reviewPayload.payloadJson)) {
+            result.errorMessage = 'Channel adapter did not return a review payload.';
+            return result;
+        }
+
+        List<AgentExecution__c> executions = [
+            SELECT Id, User__c, SourceRecordId__c, InteractionChannel__c
+            FROM AgentExecution__c
+            WHERE Id = :context.executionId
+            LIMIT 1
+        ];
+        if (executions.isEmpty()) {
+            result.errorMessage = 'Execution not found for review artifact creation: ' + context.executionId;
+            return result;
+        }
+
+        AgentExecution__c execution = executions[0];
+        String interactionChannel = String.isNotBlank(reviewPayload.interactionChannel)
+            ? reviewPayload.interactionChannel
+            : execution.InteractionChannel__c;
+        if (String.isBlank(interactionChannel)) {
+            interactionChannel = RuntimeRegistryService.getInteractionChannel(agentDefinition, context.executionId);
+        }
+
+        PendingHITLAction__c pendingAction = new PendingHITLAction__c(
+            ArtifactType__c = ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW,
+            AgentExecution__c = context.executionId,
+            HITLType__c = HITL_MODE_APPROVAL,
+            Status__c = STATUS_PENDING,
+            TurnIdentifier__c = context.turnIdentifier,
+            TurnCount__c = context.currentTurnCount,
+            ToolCallId__c = 'review-' + String.valueOf(context.turnIdentifier),
+            ToolName__c = 'Review Before Send',
+            ConfirmationPrompt__c = reviewPayload.summaryText,
+            RequestingUser__c = context.originalUserId != null ? context.originalUserId : execution.User__c,
+            RequestedAt__c = Datetime.now(),
+            SourceRecordId__c = execution.SourceRecordId__c != null ? String.valueOf(execution.SourceRecordId__c) : null,
+            InteractionChannel__c = interactionChannel,
+            GeneratedPayloadJson__c = reviewPayload.payloadJson,
+            ReviewedPayloadJson__c = reviewPayload.payloadJson
+        );
+
+        insert pendingAction;
+        result.pendingActionId = pendingAction.Id;
+
+        if (String.isNotBlank(reviewPayload.inboundDedupKey)) {
+            new InteractionMessageService().updateInboundStatus(
+                reviewPayload.inboundDedupKey,
+                'Drafted',
+                null,
+                null,
+                null,
+                pendingAction.Id
+            );
+        }
+
+        try {
+            Approval.ProcessSubmitRequest approvalRequest = new Approval.ProcessSubmitRequest();
+            approvalRequest.setObjectId(pendingAction.Id);
+            approvalRequest.setComments(
+                'AI agent response requires review before send. Channel: ' +
+                    interactionChannel +
+                    '. Summary: ' +
+                    (String.isNotBlank(reviewPayload.summaryText) ? reviewPayload.summaryText.abbreviate(1000) : 'No summary provided.')
+            );
+
+            Approval.ProcessResult approvalResult = Approval.process(approvalRequest);
+            if (!approvalResult.isSuccess()) {
+                String errors = '';
+                for (Database.Error err : approvalResult.getErrors()) {
+                    errors += err.getMessage() + '; ';
+                }
+                if (String.isNotBlank(reviewPayload.inboundDedupKey)) {
+                    new InteractionMessageService().updateInboundStatus(
+                        reviewPayload.inboundDedupKey,
+                        'Failed',
+                        null,
+                        AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+                        errors
+                    );
+                }
+                Database.delete(pendingAction, false);
+                result.errorMessage = 'Failed to submit review artifact for approval: ' + errors;
+                return result;
+            }
+
+            pendingAction.ApprovalProcessInstanceId__c = approvalResult.getInstanceId();
+            Database.update(pendingAction, false);
+        } catch (Exception e) {
+            if (String.isNotBlank(reviewPayload.inboundDedupKey)) {
+                new InteractionMessageService().updateInboundStatus(
+                    reviewPayload.inboundDedupKey,
+                    'Failed',
+                    null,
+                    AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+                    e.getMessage()
+                );
+            }
+            Database.delete(pendingAction, false);
+            result.errorMessage = 'Failed to create review artifact approval: ' + e.getMessage();
+            return result;
+        }
+
+        result.success = true;
         return result;
     }
 
@@ -340,6 +476,7 @@ public with sharing class HITLGatewayService {
         String approvalPrompt = generateApprovalPrompt(context);
 
         PendingHITLAction__c pendingAction = new PendingHITLAction__c(
+            ArtifactType__c = ARTIFACT_TYPE_TOOL_APPROVAL,
             AgentExecution__c = context.executionId,
             AIAgentCapability__c = context.capability.Id,
             HITLType__c = HITL_MODE_CONFIRMATION_THEN_APPROVAL,
@@ -352,7 +489,8 @@ public with sharing class HITLGatewayService {
             ConfirmationPrompt__c = approvalPrompt,
             RequestedAt__c = DateTime.now(),
             RequestingUser__c = context.requestingUserId,
-            SourceRecordId__c = context.sourceRecordId != null ? String.valueOf(context.sourceRecordId) : null
+            SourceRecordId__c = context.sourceRecordId != null ? String.valueOf(context.sourceRecordId) : null,
+            InteractionChannel__c = RuntimeRegistryService.getInteractionChannel(context.agentDefinition, context.executionId)
         );
 
         insert pendingAction;
@@ -437,6 +575,7 @@ public with sharing class HITLGatewayService {
         String approvalPrompt = generateApprovalPrompt(context);
 
         PendingHITLAction__c pendingAction = new PendingHITLAction__c(
+            ArtifactType__c = ARTIFACT_TYPE_TOOL_APPROVAL,
             AgentExecution__c = context.executionId,
             AIAgentCapability__c = context.capability.Id,
             HITLType__c = HITL_MODE_APPROVAL,
@@ -449,7 +588,8 @@ public with sharing class HITLGatewayService {
             ConfirmationPrompt__c = approvalPrompt,
             RequestedAt__c = DateTime.now(),
             RequestingUser__c = context.requestingUserId,
-            SourceRecordId__c = context.sourceRecordId != null ? String.valueOf(context.sourceRecordId) : null
+            SourceRecordId__c = context.sourceRecordId != null ? String.valueOf(context.sourceRecordId) : null,
+            InteractionChannel__c = RuntimeRegistryService.getInteractionChannel(context.agentDefinition, context.executionId)
         );
 
         insert pendingAction;
@@ -541,7 +681,10 @@ public with sharing class HITLGatewayService {
                     HITLType__c,
                     ToolCallId__c,
                     ToolName__c,
+                    ArtifactType__c,
+                    InteractionChannel__c,
                     ToolArgumentsJSON__c,
+                    ReviewedPayloadJson__c,
                     AIAgentCapability__c,
                     AgentExecution__c,
                     TurnIdentifier__c,
@@ -579,7 +722,9 @@ public with sharing class HITLGatewayService {
             result.success = true;
             result.status = action.Status__c;
             result.shouldProceed = approved;
-            result.toolArguments = action.ToolArgumentsJSON__c;
+            result.toolArguments = action.ArtifactType__c == ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW
+                ? action.ReviewedPayloadJson__c
+                : action.ToolArgumentsJSON__c;
 
             if (approved) {
                 result.llmMessage = 'Action "' + action.ToolName__c + '" has been approved. Proceeding with execution.';
@@ -613,8 +758,12 @@ public with sharing class HITLGatewayService {
                 HITLType__c,
                 ToolCallId__c,
                 ToolName__c,
+                ArtifactType__c,
+                InteractionChannel__c,
                 ToolArgumentsJSON__c,
                 ConfirmationPrompt__c,
+                GeneratedPayloadJson__c,
+                ReviewedPayloadJson__c,
                 AIAgentCapability__c,
                 AIAgentCapability__r.CapabilityName__c,
                 AIAgentCapability__r.HITLNotificationPreference__c,
@@ -645,8 +794,12 @@ public with sharing class HITLGatewayService {
                 HITLType__c,
                 ToolCallId__c,
                 ToolName__c,
+                ArtifactType__c,
+                InteractionChannel__c,
                 ToolArgumentsJSON__c,
                 ConfirmationPrompt__c,
+                GeneratedPayloadJson__c,
+                ReviewedPayloadJson__c,
                 AIAgentCapability__c,
                 AIAgentCapability__r.CapabilityName__c,
                 AgentExecution__c,

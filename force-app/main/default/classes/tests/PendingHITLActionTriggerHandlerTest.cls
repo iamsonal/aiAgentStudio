@@ -180,6 +180,64 @@ private class PendingHITLActionTriggerHandlerTest {
     }
 
     @IsTest
+    static void testRejected_OutboundDraftReview_SuppressesInteractionMessage() {
+        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE DeveloperName__c LIKE 'HITL_Trigger_Agent%' LIMIT 1];
+        Case testCase = TestFactory.newCase().withSubject('HITL Review Artifact Rejected').save();
+
+        AgentExecution__c exec = TestFactory.newExecution()
+            .withAgent(agent.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Direct')
+            .withStatus('Completed')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .withSourceRecord(testCase.Id)
+            .withTurnIdentifier('turn-hitl-review-rejected-001')
+            .save();
+        exec.InteractionChannel__c = RuntimeRegistryService.CHANNEL_EMAIL;
+        update exec;
+
+        String dedupKey = 'dedup-review-rejected-001';
+        new InteractionMessageService().recordInboundProcessing(
+            null,
+            exec.Id,
+            RuntimeRegistryService.CHANNEL_EMAIL,
+            'Salesforce Email',
+            null,
+            dedupKey,
+            'turn-hitl-review-rejected-001',
+            '{}'
+        );
+
+        PendingHITLAction__c action = new PendingHITLAction__c(
+            ArtifactType__c = HITLGatewayService.ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW,
+            AgentExecution__c = exec.Id,
+            HITLType__c = HITLGatewayService.HITL_MODE_APPROVAL,
+            Status__c = HITLGatewayService.STATUS_PENDING,
+            TurnIdentifier__c = 'turn-hitl-review-rejected-001',
+            TurnCount__c = 1,
+            ToolCallId__c = 'review-hitl-rejected-001',
+            ToolName__c = 'Review Before Send',
+            InteractionChannel__c = RuntimeRegistryService.CHANNEL_EMAIL,
+            ReviewedPayloadJson__c = '{"inboundDedupKey":"' + dedupKey + '","replyText":"Draft reply"}',
+            RequestedAt__c = Datetime.now(),
+            RequestingUser__c = UserInfo.getUserId()
+        );
+        insert action;
+
+        action.Status__c = HITLGatewayService.STATUS_REJECTED;
+        update action;
+
+        InteractionMessage__c updatedMessage = [
+            SELECT Status__c, ErrorMessage__c
+            FROM InteractionMessage__c
+            WHERE InboundDedupKey__c = :dedupKey
+            LIMIT 1
+        ];
+        System.assertEquals('Suppressed', updatedMessage.Status__c, 'Rejected review artifacts should suppress delivery');
+        System.assert(updatedMessage.ErrorMessage__c.contains('Rejected'), 'Suppression reason should be captured for auditability');
+    }
+
+    @IsTest
     static void testNoStatusChange_SkipsProcessing() {
         AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c WHERE DeveloperName__c LIKE 'HITL_Trigger_Agent%' LIMIT 1];
         AgentCapability__c capability = TestFactory.newCapability()

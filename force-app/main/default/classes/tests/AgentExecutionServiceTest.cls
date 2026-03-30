@@ -8,8 +8,7 @@ private class AgentExecutionServiceTest {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('ExecSvc LLM').save();
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('ExecSvc_Agent').withType('Direct').withLLM(llm.Id).save();
 
-        agent.RequiresServiceUserContext__c = true;
-        agent.ServiceUserNamedCredential__c = 'ServiceUser_NC';
+        agent.ExecutionIdentityProfileDeveloperName__c = 'FrameworkServiceUser';
         update agent;
 
         TestFactory.newAccount().withName('ExecSvc Account 1').save();
@@ -42,7 +41,7 @@ private class AgentExecutionServiceTest {
         System.assertNotEquals(null, result.executionId, 'Stub execution ID should be returned');
 
         AgentExecution__c stub = [
-            SELECT Id, ExecutionStatus__c, TriggerPayload__c, SourceRecordId__c, AIAgentDefinition__c
+            SELECT Id, ExecutionStatus__c, TriggerPayload__c, SourceRecordId__c, AIAgentDefinition__c, ExecutionIdentityProfileDeveloperName__c, ExecutionIdentityNamedCredential__c
             FROM AgentExecution__c
             WHERE Id = :result.executionId
             LIMIT 1
@@ -51,6 +50,8 @@ private class AgentExecutionServiceTest {
         System.assertEquals('Stub execution for service user routing', stub.TriggerPayload__c, 'Stub payload should match');
         System.assertEquals(source.Id, stub.SourceRecordId__c, 'Stub should track source record');
         System.assertEquals(agent.Id, stub.AIAgentDefinition__c, 'Stub should link to agent definition');
+        System.assertEquals('FrameworkServiceUser', stub.ExecutionIdentityProfileDeveloperName__c, 'Stub should snapshot the execution identity profile');
+        System.assertEquals('AgentStudio_ServiceUser', stub.ExecutionIdentityNamedCredential__c, 'Stub should snapshot the execution identity Named Credential');
     }
 
     @IsTest
@@ -208,14 +209,14 @@ private class AgentExecutionServiceTest {
     @IsTest
     static void testStartExecution_NonExistentSourceRecordId_ThrowsValidationError() {
         AIAgentDefinition__c agent = [
-            SELECT Id, DeveloperName__c, RequiresServiceUserContext__c
+            SELECT Id, DeveloperName__c, ExecutionIdentityProfileDeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'ExecSvc_Agent%'
             LIMIT 1
         ];
 
-        // Temporarily disable service user context to trigger immediate validation
-        agent.RequiresServiceUserContext__c = false;
+        // Temporarily disable privileged routing to trigger immediate validation
+        agent.ExecutionIdentityProfileDeveloperName__c = null;
         update agent;
 
         Id fakeAccountId = TestFactory.generateMockId(Schema.Account.SObjectType);
@@ -236,12 +237,12 @@ private class AgentExecutionServiceTest {
     @IsTest
     static void testStartExecution_MixedExistingAndNonExistentRecords_ThrowsWithMissingOnly() {
         AIAgentDefinition__c agent = [
-            SELECT Id, DeveloperName__c, RequiresServiceUserContext__c
+            SELECT Id, DeveloperName__c, ExecutionIdentityProfileDeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'ExecSvc_Agent%'
             LIMIT 1
         ];
-        agent.RequiresServiceUserContext__c = false;
+        agent.ExecutionIdentityProfileDeveloperName__c = null;
         update agent;
 
         Account realAccount = [SELECT Id FROM Account WHERE Name = 'ExecSvc Account 1' LIMIT 1];
@@ -302,12 +303,12 @@ private class AgentExecutionServiceTest {
     @IsTest
     static void testStartExecution_NullIdsInSourceRecordIds_Throws() {
         AIAgentDefinition__c agent = [
-            SELECT Id, DeveloperName__c, RequiresServiceUserContext__c
+            SELECT Id, DeveloperName__c, ExecutionIdentityProfileDeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'ExecSvc_Agent%'
             LIMIT 1
         ];
-        agent.RequiresServiceUserContext__c = false;
+        agent.ExecutionIdentityProfileDeveloperName__c = null;
         update agent;
 
         Account realAccount = [SELECT Id FROM Account WHERE Name = 'ExecSvc Account 1' LIMIT 1];
@@ -330,12 +331,12 @@ private class AgentExecutionServiceTest {
     @IsTest
     static void testStartExecution_PayloadWithAllOptionalFields_Succeeds() {
         AIAgentDefinition__c agent = [
-            SELECT Id, DeveloperName__c, RequiresServiceUserContext__c, RuntimeStrategy__c
+            SELECT Id, DeveloperName__c, ExecutionIdentityProfileDeveloperName__c, RuntimeStrategy__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'ExecSvc_Agent%'
             LIMIT 1
         ];
-        agent.RequiresServiceUserContext__c = false;
+        agent.ExecutionIdentityProfileDeveloperName__c = null;
         agent.RuntimeStrategy__c = 'Conversational';
         update agent;
 
@@ -392,12 +393,12 @@ private class AgentExecutionServiceTest {
     @IsTest
     static void testStartExecution_MissingServiceUserNamedCredential_Throws() {
         AIAgentDefinition__c agent = [
-            SELECT Id, DeveloperName__c, RequiresServiceUserContext__c
+            SELECT Id, DeveloperName__c, ExecutionIdentityProfileDeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'ExecSvc_Agent%'
             LIMIT 1
         ];
-        agent.ServiceUserNamedCredential__c = '';
+        agent.ExecutionIdentityProfileDeveloperName__c = 'MissingProfile';
         update agent;
 
         Account source = [SELECT Id FROM Account WHERE Name = 'ExecSvc Account 1' LIMIT 1];
@@ -409,9 +410,9 @@ private class AgentExecutionServiceTest {
         Test.startTest();
         try {
             AgentExecutionService.startExecution(agent.DeveloperName__c, payload);
-            System.assert(false, 'Should throw when ServiceUserNamedCredential is blank');
+            System.assert(false, 'Should throw when the execution identity profile is invalid');
         } catch (AIAgentException.OrchestrationException e) {
-            System.assert(e.getMessage().contains('ServiceUserNamedCredential__c is not configured'), 'Should indicate missing Named Credential');
+            System.assert(e.getMessage().contains('Execution identity profile not found or inactive'), 'Should indicate invalid execution identity profile');
         }
         Test.stopTest();
     }
@@ -432,7 +433,7 @@ private class AgentExecutionServiceTest {
     @IsTest
     static void testStartExecutionFromFlow_ExceptionInExecution_ReturnsErrorResults() {
         AIAgentDefinition__c agent = [
-            SELECT Id, DeveloperName__c, RequiresServiceUserContext__c
+            SELECT Id, DeveloperName__c, ExecutionIdentityProfileDeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'ExecSvc_Agent%'
             LIMIT 1
@@ -477,12 +478,12 @@ private class AgentExecutionServiceTest {
     static void testStartExecutionFromFlow_MixedAgents_PreservesInputOrder() {
         // Two agents — one from setup, one created inline
         AIAgentDefinition__c agentA = [
-            SELECT Id, DeveloperName__c, RequiresServiceUserContext__c
+            SELECT Id, DeveloperName__c, ExecutionIdentityProfileDeveloperName__c
             FROM AIAgentDefinition__c
             WHERE DeveloperName__c LIKE 'ExecSvc_Agent%'
             LIMIT 1
         ];
-        agentA.RequiresServiceUserContext__c = false;
+        agentA.ExecutionIdentityProfileDeveloperName__c = null;
         update agentA;
 
         LLMConfiguration__c llm = [SELECT Id FROM LLMConfiguration__c LIMIT 1];

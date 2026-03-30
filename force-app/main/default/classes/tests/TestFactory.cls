@@ -315,6 +315,11 @@ public class TestFactory {
             return this;
         }
 
+        public AgentDefinitionBuilder withExecutionIdentityProfile(String profileDeveloperName) {
+            record.ExecutionIdentityProfileDeveloperName__c = profileDeveloperName;
+            return this;
+        }
+
         public AgentDefinitionBuilder inactive() {
             record.IsActive__c = false;
             return this;
@@ -546,6 +551,12 @@ public class TestFactory {
 
         public ExecutionBuilder withPriority(Integer priority) {
             record.Priority__c = priority;
+            return this;
+        }
+
+        public ExecutionBuilder withExecutionIdentity(String profileDeveloperName, String namedCredentialDeveloperName) {
+            record.ExecutionIdentityProfileDeveloperName__c = profileDeveloperName;
+            record.ExecutionIdentityNamedCredential__c = namedCredentialDeveloperName;
             return this;
         }
 

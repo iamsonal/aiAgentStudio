@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ExecutionIdentityProfileDeveloperName__c</fullName>
+    <description>Snapshotted execution identity profile developer name resolved when this execution was started.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Immutable snapshot of the execution identity profile selected at execution start.</inlineHelpText>
+    <label>Execution Identity Profile Key</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

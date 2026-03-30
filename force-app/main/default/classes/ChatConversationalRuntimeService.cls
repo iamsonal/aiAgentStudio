@@ -120,7 +120,9 @@ public inherited sharing class ChatConversationalRuntimeService implements IAgen
                     payload.userId,
                     payload.serviceUserId,
                     null, // parentExecutionId
-                    payload.turnIdentifier // pre-set so async updateStatus(Processing) passes the stale check
+                    payload.turnIdentifier, // pre-set so async updateStatus(Processing) passes the stale check
+                    payload.executionIdentityProfileDeveloperName,
+                    payload.executionIdentityNamedCredential
                 );
                 update new AgentExecution__c(
                     Id = executionId,
@@ -229,7 +231,7 @@ public inherited sharing class ChatConversationalRuntimeService implements IAgen
      * and the agent does not require service user context routing.
      */
     private Boolean shouldExecuteSynchronously(AgentExecutionService.ExecutionPayload payload, String logPrefix) {
-        if (agentDefinition.RequiresServiceUserContext__c == true) {
+        if (String.isNotBlank(agentDefinition.ExecutionIdentityProfileDeveloperName__c)) {
             System.debug(LoggingLevel.INFO, logPrefix + 'Service user context required - skipping synchronous execution');
             return false;
         }

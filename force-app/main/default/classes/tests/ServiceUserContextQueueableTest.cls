@@ -25,7 +25,7 @@ private class ServiceUserContextQueueableTest {
     static void testExecute_MissingNamedCredential_FailsStubExecution() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withType('Conversational').withLLM(llm.Id).build();
-        agent.ServiceUserNamedCredential__c = null;
+        agent.ExecutionIdentityProfileDeveloperName__c = 'FrameworkServiceUser';
         insert agent;
 
         AgentExecution__c execution = new AgentExecution__c(
@@ -43,6 +43,7 @@ private class ServiceUserContextQueueableTest {
         payload.turnIdentifier = 'turn-svc-001';
         payload.userMessage = 'hello';
         payload.triggerSource = 'Apex';
+        payload.executionIdentityProfileDeveloperName = 'FrameworkServiceUser';
 
         ServiceUserContextQueueable queueable = new ServiceUserContextQueueable(execution.Id, agent.Id, payload);
 
@@ -59,8 +60,8 @@ private class ServiceUserContextQueueableTest {
         System.assertEquals('Failed', updated.ExecutionStatus__c, 'Execution should be marked Failed');
         System.assertEquals(AIAgentConstants.STATUS_FAILED, updated.ProcessingStatus__c, 'Processing status should be Failed');
         System.assert(
-            updated.ErrorMessage__c != null && updated.ErrorMessage__c.contains('ServiceUserNamedCredential__c'),
-            'Error message should mention missing Named Credential'
+            updated.ErrorMessage__c != null && updated.ErrorMessage__c.contains('Execution identity snapshot is missing a Named Credential'),
+            'Error message should mention missing execution identity snapshot'
         );
     }
 
@@ -68,7 +69,7 @@ private class ServiceUserContextQueueableTest {
     static void testExecute_SuccessfulResponse_DoesNotFailExecution() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withType('Conversational').withLLM(llm.Id).build();
-        agent.ServiceUserNamedCredential__c = 'Test_NC';
+        agent.ExecutionIdentityProfileDeveloperName__c = 'FrameworkServiceUser';
         insert agent;
 
         AgentExecution__c execution = TestFactory.newExecution()
@@ -85,6 +86,8 @@ private class ServiceUserContextQueueableTest {
         payload.turnIdentifier = 'turn-svc-002';
         payload.userMessage = 'hello';
         payload.triggerSource = 'Apex';
+        payload.executionIdentityProfileDeveloperName = 'FrameworkServiceUser';
+        payload.executionIdentityNamedCredential = 'AgentStudio_ServiceUser';
 
         ServiceUserContextQueueable queueable = new ServiceUserContextQueueable(execution.Id, agent.Id, payload);
 
@@ -107,7 +110,7 @@ private class ServiceUserContextQueueableTest {
     static void testExecute_HttpError_FailsStubExecution() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withType('Conversational').withLLM(llm.Id).build();
-        agent.ServiceUserNamedCredential__c = 'Test_NC';
+        agent.ExecutionIdentityProfileDeveloperName__c = 'FrameworkServiceUser';
         insert agent;
 
         AgentExecution__c execution = TestFactory.newExecution()
@@ -124,6 +127,8 @@ private class ServiceUserContextQueueableTest {
         payload.turnIdentifier = 'turn-svc-003';
         payload.userMessage = 'hello';
         payload.triggerSource = 'Apex';
+        payload.executionIdentityProfileDeveloperName = 'FrameworkServiceUser';
+        payload.executionIdentityNamedCredential = 'AgentStudio_ServiceUser';
 
         ServiceUserContextQueueable queueable = new ServiceUserContextQueueable(execution.Id, agent.Id, payload);
 

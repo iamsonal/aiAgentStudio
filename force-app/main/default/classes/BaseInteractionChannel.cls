@@ -39,11 +39,28 @@ public abstract inherited sharing class BaseInteractionChannel implements Intera
         return new InteractionRuntimeModels.DeliveryDecision(InteractionRuntimeModels.DeliveryAction.None, null, null);
     }
 
+    public virtual InteractionRuntimeModels.ReviewPayload buildReviewPayload(
+        AIAgentDefinition__c agentDefinition,
+        OrchestrationContext context,
+        String contentResponse,
+        String logPrefix
+    ) {
+        return null;
+    }
+
+    public virtual Boolean deliverReviewedPayload(String reviewedPayloadJson, OrchestrationContext context, String logPrefix) {
+        return false;
+    }
+
     public virtual Boolean sendReply(String contentResponse, OrchestrationContext context, String logPrefix) {
         return true;
     }
 
-    public virtual Id saveDraft(String contentResponse, OrchestrationContext context, String logPrefix) {
+    /**
+     * @description Compatibility hook retained while channel adapters move fully to
+     * HITLGatewayService-owned review artifact creation.
+     */
+    public virtual Id createReviewArtifact(String contentResponse, OrchestrationContext context, String logPrefix) {
         return null;
     }
 

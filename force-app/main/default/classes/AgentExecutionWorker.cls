@@ -87,8 +87,7 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                 execution = claimPreAssignedExecution(payload.existingExecutionId, logPrefix);
                 if (execution == null) {
                     System.debug(LoggingLevel.WARN, logPrefix + 'Pre-assigned execution not found or already claimed: ' + payload.existingExecutionId);
-                    // Try DLQ pull instead
-                    execution = claimNextPendingExecution(logPrefix);
+                    return;
                 }
             } else {
                 // POOL SELECTION MODE: Self-pull from DLQ
@@ -113,6 +112,7 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
 
                 AgentExecutionService.ExecutionPayload followUpPayload = new AgentExecutionService.ExecutionPayload();
                 followUpPayload.userId = execution.User__c;
+                followUpPayload.serviceUserId = execution.ServiceUser__c;
                 followUpPayload.sourceRecordId = execution.SourceRecordId__c;
                 followUpPayload.turnIdentifier = execution.CurrentTurnIdentifier__c;
                 followUpPayload.triggerSource = payload.triggerSource != null ? payload.triggerSource : 'DLQ';
@@ -121,6 +121,8 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                 followUpPayload.claimToken = payload.claimToken;
                 followUpPayload.interactionChannel = payload.interactionChannel;
                 followUpPayload.conversationKey = payload.conversationKey;
+                followUpPayload.executionIdentityProfileDeveloperName = execution.ExecutionIdentityProfileDeveloperName__c;
+                followUpPayload.executionIdentityNamedCredential = execution.ExecutionIdentityNamedCredential__c;
 
                 System.enqueueJob(new AgentExecutionWorker(agentName, followUpPayload));
                 return;
@@ -159,12 +161,15 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                         SourceRecordId__c,
                         InteractionChannel__c,
                         User__c,
+                        ServiceUser__c,
                         CurrentTurnIdentifier__c,
                         AIAgentDefinition__c,
                         ExecutionStatus__c,
                         Priority__c,
                         RetryCount__c,
-                        WorkerClaimToken__c
+                        WorkerClaimToken__c,
+                        ExecutionIdentityProfileDeveloperName__c,
+                        ExecutionIdentityNamedCredential__c
                     FROM AgentExecution__c
                     WHERE Id = :executionId AND ExecutionStatus__c IN ('Pending', 'Processing')
                     LIMIT 1
@@ -223,11 +228,14 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                         SourceRecordId__c,
                         InteractionChannel__c,
                         User__c,
+                        ServiceUser__c,
                         CurrentTurnIdentifier__c,
                         AIAgentDefinition__c,
                         ExecutionStatus__c,
                         Priority__c,
-                        RetryCount__c
+                        RetryCount__c,
+                        ExecutionIdentityProfileDeveloperName__c,
+                        ExecutionIdentityNamedCredential__c
                     FROM AgentExecution__c
                     WHERE Id = :executionId AND ExecutionStatus__c = 'Pending'
                     FOR UPDATE
@@ -258,11 +266,14 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                     SourceRecordId__c,
                     InteractionChannel__c,
                     User__c,
+                    ServiceUser__c,
                     CurrentTurnIdentifier__c,
                     AIAgentDefinition__c,
                     ExecutionStatus__c,
                     Priority__c,
-                    RetryCount__c
+                    RetryCount__c,
+                    ExecutionIdentityProfileDeveloperName__c,
+                    ExecutionIdentityNamedCredential__c
                 FROM AgentExecution__c
                 WHERE Id = :executionId AND ExecutionStatus__c IN ('Pending', 'Processing')
                 FOR UPDATE
@@ -346,12 +357,15 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
             // Build payload for orchestration
             AgentExecutionService.ExecutionPayload execPayload = new AgentExecutionService.ExecutionPayload();
             execPayload.userId = execution.User__c;
+            execPayload.serviceUserId = execution.ServiceUser__c;
             execPayload.sourceRecordId = execution.SourceRecordId__c;
             execPayload.turnIdentifier = execution.CurrentTurnIdentifier__c;
             execPayload.triggerSource = payload.triggerSource != null ? payload.triggerSource : 'DLQ';
             execPayload.existingExecutionId = execution.Id;
             execPayload.userMessage = payload.userMessage;
             execPayload.interactionChannel = execution.InteractionChannel__c;
+            execPayload.executionIdentityProfileDeveloperName = execution.ExecutionIdentityProfileDeveloperName__c;
+            execPayload.executionIdentityNamedCredential = execution.ExecutionIdentityNamedCredential__c;
 
             IExecutionStrategy strategy = ExecutionStrategyRegistryService.resolveStrategy(this.cachedAgentDef, execution.InteractionChannel__c);
             strategy.startExecution(agentName, execPayload, this.cachedAgentDef);
@@ -396,12 +410,15 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
 
                 AgentExecutionService.ExecutionPayload chainPayload = new AgentExecutionService.ExecutionPayload();
                 chainPayload.userId = nextExecution.User__c;
+                chainPayload.serviceUserId = nextExecution.ServiceUser__c;
                 chainPayload.sourceRecordId = nextExecution.SourceRecordId__c;
                 chainPayload.turnIdentifier = nextExecution.CurrentTurnIdentifier__c;
                 chainPayload.triggerSource = 'DLQ';
                 chainPayload.existingExecutionId = nextExecution.Id;
                 chainPayload.claimToken = nextExecution.WorkerClaimToken__c;
                 chainPayload.interactionChannel = nextExecution.InteractionChannel__c;
+                chainPayload.executionIdentityProfileDeveloperName = nextExecution.ExecutionIdentityProfileDeveloperName__c;
+                chainPayload.executionIdentityNamedCredential = nextExecution.ExecutionIdentityNamedCredential__c;
 
                 try {
                     Id jobId = System.enqueueJob(new AgentExecutionWorker(agentName, chainPayload));
@@ -460,6 +477,8 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
             chainPayload.userId = UserInfo.getUserId();
             chainPayload.triggerSource = 'DLQ';
             chainPayload.interactionChannel = payload.interactionChannel;
+                chainPayload.executionIdentityProfileDeveloperName = payload.executionIdentityProfileDeveloperName;
+                chainPayload.executionIdentityNamedCredential = payload.executionIdentityNamedCredential;
             // Note: existingExecutionId NOT set - worker will self-pull
 
             Id jobId = System.enqueueJob(new AgentExecutionWorker(agentName, chainPayload));
@@ -565,11 +584,14 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
                         SourceRecordId__c,
                         InteractionChannel__c,
                         User__c,
+                        ServiceUser__c,
                         CurrentTurnIdentifier__c,
                         AIAgentDefinition__c,
                         ExecutionStatus__c,
                         Priority__c,
-                        RetryCount__c
+                        RetryCount__c,
+                        ExecutionIdentityProfileDeveloperName__c,
+                        ExecutionIdentityNamedCredential__c
                     FROM AgentExecution__c
                     WHERE Id = :candidate.Id AND ExecutionStatus__c = 'Pending' AND (NextRetryAt__c = NULL OR NextRetryAt__c <= :now)
                     LIMIT 1

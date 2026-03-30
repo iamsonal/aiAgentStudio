@@ -408,6 +408,17 @@ public inherited sharing class LLMFormattingService {
                 argsMap.remove(TOOL_RATIONALE_PARAM_NAME);
                 modified = true;
                 System.debug(LoggingLevel.DEBUG, (debugPrefix ?? '[LLMFormattingService] ') + 'Extracted and stripped _rationale from tool arguments.');
+            } else if (argsMap.containsKey('rationale')) {
+                Object rationaleValue = argsMap.get('rationale');
+                if (rationaleValue != null) {
+                    result.put('rationale', String.valueOf(rationaleValue));
+                }
+                argsMap.remove('rationale');
+                modified = true;
+                System.debug(
+                    LoggingLevel.DEBUG,
+                    (debugPrefix ?? '[LLMFormattingService] ') + 'Extracted and stripped legacy rationale alias from tool arguments.'
+                );
             }
 
             // Strip _confidence (already extracted elsewhere via extractConfidenceScore)

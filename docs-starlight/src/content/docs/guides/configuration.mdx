@@ -157,17 +157,20 @@ You can always expand autonomy later after the runtime is trustworthy.
 These settings should be chosen based on workflow risk, not turned on blindly. A narrow direct
 automation path and a sensitive conversational support assistant do not need the same control mix.
 
-### Service-user routing
+### Execution identity
 
-Use service-user routing only when the workflow genuinely needs a different execution user context.
+Use an execution identity profile only when the workflow genuinely needs a different execution user
+context.
 
 | Field | Purpose |
 | :-- | :-- |
-| `RequiresServiceUserContext__c` | Routes through the service-user path |
-| `ServiceUserNamedCredential__c` | Named Credential used for loopback service-user calls |
+| `ExecutionIdentityProfileDeveloperName__c` | Selects the execution identity profile the agent should use for privileged re-entry |
+| `AgentExecution__c.ExecutionIdentityProfileDeveloperName__c` | Snapshots the resolved profile onto each execution for deterministic replay |
+| `AgentExecution__c.ExecutionIdentityNamedCredential__c` | Snapshots the resolved Named Credential used for loopback calls |
 
-Use this mode only when there is a clear need for a distinct execution user context. It should be a
-deliberate architectural choice, not a default workaround for missing permissions.
+The framework resolves the agent's execution identity profile once when the execution starts and
+persists the result on `AgentExecution__c`. HITL approval, review-send, resume, and retry paths use
+that execution snapshot instead of re-reading live agent configuration.
 
 ## LLM Configuration
 

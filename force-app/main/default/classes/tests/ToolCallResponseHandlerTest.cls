@@ -418,6 +418,43 @@ private class ToolCallResponseHandlerTest {
     }
 
     @IsTest
+    static void testHandle_ToleratesLegacyRationaleAlias() {
+        TestFactory.AgentSetup setup = getSetup();
+
+        AgentCapability__c createAccountCap = TestFactory.newCapability().withAgent(setup.agentDefinition.Id).forCreateRecord('Account').build();
+        createAccountCap.CapabilityName__c = 'create_account_alias_' + String.valueOf(Datetime.now().getTime());
+        insert createAccountCap;
+
+        String argsJson = '{"recordData":{"Name":"Alias Rationale Account"},"rationale":"Customer requested account creation"}';
+
+        List<Map<String, String>> actions = new List<Map<String, String>>{
+            TestFactory.createToolCallAction(createAccountCap.CapabilityName__c, argsJson, 'call-rationale-alias-001')
+        };
+        LLMInteractionService.LLMInteractionResult llmResult = TestFactory.createLlmToolCallResult('Alias rationale', actions);
+
+        OrchestrationContext context = TestFactory.newOrchestrationContext()
+            .withSetup(setup)
+            .withLlmResult(llmResult)
+            .withTurn('turn-rationale-alias-001', 1)
+            .build();
+
+        ToolCallResponseHandler handler = new ToolCallResponseHandler();
+        String outcome = handler.handle(context);
+
+        System.assertNotEquals(OrchestrationService.OUTCOME_FAILED, outcome, 'Legacy rationale alias should not cause tool-call parsing failure');
+
+        ExecutionStep__c toolCallStep = [
+            SELECT ToolArguments__c, ToolRationale__c
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :setup.agentExecution.Id AND StepType__c = 'ToolCall' AND ToolCallId__c = 'call-rationale-alias-001'
+            LIMIT 1
+        ];
+
+        System.assert(!toolCallStep.ToolArguments__c.contains('rationale'), 'Legacy rationale alias should be stripped from tool arguments');
+        System.assertEquals('Customer requested account creation', toolCallStep.ToolRationale__c, 'Legacy rationale alias should be stored as tool rationale');
+    }
+
+    @IsTest
     static void testHandle_ApprovalRequired_ToolCreatesPendingActionOrFails() {
         TestFactory.AgentSetup setup = getSetup();
 

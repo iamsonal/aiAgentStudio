@@ -48,8 +48,13 @@ global inherited sharing class AgentExecutionService {
                 throw configEx;
             }
 
-            // Service user context routing
-            if (agentDef.RequiresServiceUserContext__c && payload.isInServiceUserContext != true) {
+            AIAgentConfigService.ResolvedExecutionIdentity executionIdentity = ensurePayloadExecutionIdentity(
+                agentDef,
+                payload
+            );
+
+            // Privileged execution identity routing
+            if (executionIdentity.requiresPrivilegedContext && payload.isInServiceUserContext != true) {
                 // Check if DML has already occurred in this transaction
                 // If so, we cannot make HTTP callout - must defer to Queueable
                 if (hasPriorDML()) {
@@ -87,6 +92,35 @@ global inherited sharing class AgentExecutionService {
      */
     private static Boolean hasPriorDML() {
         return Limits.getDMLStatements() > 0 || Limits.getDMLRows() > 0 || Limits.getEmailInvocations() > 0;
+    }
+
+    private static AIAgentConfigService.ResolvedExecutionIdentity ensurePayloadExecutionIdentity(
+        AIAgentDefinition__c agentDefinition,
+        ExecutionPayload payload
+    ) {
+        if (payload != null &&
+            (String.isNotBlank(payload.executionIdentityProfileDeveloperName) ||
+            String.isNotBlank(payload.executionIdentityNamedCredential))
+        ) {
+            return AIAgentConfigService.resolveExecutionIdentityForExecution(
+                new AgentExecution__c(
+                    ExecutionIdentityProfileDeveloperName__c = payload.executionIdentityProfileDeveloperName,
+                    ExecutionIdentityNamedCredential__c = payload.executionIdentityNamedCredential
+                )
+            );
+        }
+
+        if (payload != null && payload.existingExecutionId != null) {
+            AIAgentConfigService.ResolvedExecutionIdentity persisted = AIAgentConfigService.resolveExecutionIdentityForExecution(payload.existingExecutionId);
+            if (persisted.requiresPrivilegedContext) {
+                persisted.applyToPayload(payload);
+                return persisted;
+            }
+        }
+
+        AIAgentConfigService.ResolvedExecutionIdentity resolved = AIAgentConfigService.resolveExecutionIdentityForAgent(agentDefinition);
+        resolved.applyToPayload(payload);
+        return resolved;
     }
 
     /**
@@ -128,7 +162,11 @@ global inherited sharing class AgentExecutionService {
                     'Stub execution for service user routing', // triggerPayload
                     payload.sourceRecordId, // sourceRecordId
                     payload.userId, // userId
-                    null // serviceUserId (will be set in service user context)
+                    null, // serviceUserId (will be set in service user context)
+                    null,
+                    null,
+                    payload.executionIdentityProfileDeveloperName,
+                    payload.executionIdentityNamedCredential
                 );
                 System.debug(LoggingLevel.INFO, logPrefix + 'Created stub execution for tracking: ' + stubExecutionId);
             } catch (Exception e) {
@@ -282,18 +320,16 @@ global inherited sharing class AgentExecutionService {
     private static HttpRequest buildLoopbackHttpRequest(AIAgentDefinition__c agentDef, ExecutionPayload payload) {
         HttpRequest httpReq = new HttpRequest();
 
-        // Get Named Credential from agent definition (required)
-        if (String.isBlank(agentDef.ServiceUserNamedCredential__c)) {
+        if (String.isBlank(payload.executionIdentityNamedCredential)) {
             throw new AIAgentException.OrchestrationException(
-                'ServiceUserNamedCredential__c is not configured on AIAgentDefinition__c: ' +
+                'Execution identity is not configured for agent: ' +
                     agentDef.DeveloperName__c +
                     '. ' +
-                    'This field is REQUIRED when RequiresServiceUserContext__c is enabled. ' +
-                    'Please configure a Named Credential for this agent.'
+                    'Set ExecutionIdentityProfileDeveloperName__c to an active execution identity profile with a Named Credential.'
             );
         }
 
-        httpReq.setEndpoint('callout:' + agentDef.ServiceUserNamedCredential__c + '/services/apexrest/ai/agent/process/');
+        httpReq.setEndpoint('callout:' + payload.executionIdentityNamedCredential + '/services/apexrest/ai/agent/process/');
         httpReq.setMethod('POST');
         httpReq.setHeader('Content-Type', 'application/json');
 
@@ -313,7 +349,9 @@ global inherited sharing class AgentExecutionService {
             'conversationKey' => payload.conversationKey,
             'interactionChannel' => payload.interactionChannel,
             'batchId' => payload.batchId,
-            'priority' => payload.priority
+            'priority' => payload.priority,
+            'executionIdentityProfileDeveloperName' => payload.executionIdentityProfileDeveloperName,
+            'executionIdentityNamedCredential' => payload.executionIdentityNamedCredential
         };
 
         // Convert sourceRecordIds to string list
@@ -413,6 +451,10 @@ global inherited sharing class AgentExecutionService {
         public String conversationKey { get; set; }
         @AuraEnabled
         public String interactionChannel { get; set; }
+        @AuraEnabled
+        public String executionIdentityProfileDeveloperName { get; set; }
+        @AuraEnabled
+        public String executionIdentityNamedCredential { get; set; }
 
         public ExecutionPayload() {
         }
@@ -596,6 +638,8 @@ global inherited sharing class AgentExecutionService {
         public Boolean isInServiceUserContext { get; set; }
         public String batchId { get; set; }
         public Integer priority { get; set; }
+        public String executionIdentityProfileDeveloperName { get; set; }
+        public String executionIdentityNamedCredential { get; set; }
 
         public ExecutionRequest(String agentDeveloperName, ExecutionPayload payload, AIAgentDefinition__c agentDefinition) {
             this.agentDeveloperName = agentDeveloperName;
@@ -621,6 +665,8 @@ global inherited sharing class AgentExecutionService {
             this.isInServiceUserContext = payload != null ? payload.isInServiceUserContext : null;
             this.batchId = payload != null ? payload.batchId : null;
             this.priority = payload != null ? payload.priority : null;
+            this.executionIdentityProfileDeveloperName = payload != null ? payload.executionIdentityProfileDeveloperName : null;
+            this.executionIdentityNamedCredential = payload != null ? payload.executionIdentityNamedCredential : null;
         }
     }
 

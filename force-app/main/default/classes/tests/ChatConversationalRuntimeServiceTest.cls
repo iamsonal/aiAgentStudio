@@ -22,7 +22,7 @@ private class ChatConversationalRuntimeServiceTest {
     @IsTest
     static void testStart_NewExecutionLowDispatch_CreatesPendingExecution() {
         AIAgentDefinition__c agent = [
-            SELECT Id, DeveloperName__c, LLMConfiguration__c, AsyncDispatchType__c, RequiresServiceUserContext__c
+            SELECT Id, DeveloperName__c, LLMConfiguration__c, AsyncDispatchType__c, ExecutionIdentityProfileDeveloperName__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];
@@ -58,7 +58,7 @@ private class ChatConversationalRuntimeServiceTest {
     @IsTest
     static void testStart_ExistingExecutionSync_CompletesAndCreatesSteps() {
         AIAgentDefinition__c agent = [
-            SELECT Id, DeveloperName__c, LLMConfiguration__c, RequiresServiceUserContext__c
+            SELECT Id, DeveloperName__c, LLMConfiguration__c, ExecutionIdentityProfileDeveloperName__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];
@@ -120,7 +120,7 @@ private class ChatConversationalRuntimeServiceTest {
     @IsTest
     static void testStart_ExistingExecutionSync_StaleTurnFinalizesStatus() {
         AIAgentDefinition__c agent = [
-            SELECT Id, DeveloperName__c, LLMConfiguration__c, RequiresServiceUserContext__c
+            SELECT Id, DeveloperName__c, LLMConfiguration__c, ExecutionIdentityProfileDeveloperName__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];
@@ -165,7 +165,7 @@ private class ChatConversationalRuntimeServiceTest {
     @IsTest
     static void testStart_MissingUserMessage_ThrowsOrchestrationException() {
         AIAgentDefinition__c agent = [
-            SELECT Id, DeveloperName__c, LLMConfiguration__c, RequiresServiceUserContext__c
+            SELECT Id, DeveloperName__c, LLMConfiguration__c, ExecutionIdentityProfileDeveloperName__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];
@@ -190,7 +190,7 @@ private class ChatConversationalRuntimeServiceTest {
     @IsTest
     static void testStart_MissingTurnIdentifier_ThrowsOrchestrationException() {
         AIAgentDefinition__c agent = [
-            SELECT Id, DeveloperName__c, LLMConfiguration__c, RequiresServiceUserContext__c
+            SELECT Id, DeveloperName__c, LLMConfiguration__c, ExecutionIdentityProfileDeveloperName__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];
@@ -215,7 +215,7 @@ private class ChatConversationalRuntimeServiceTest {
     @IsTest
     static void testStart_ExistingExecutionAsyncDispatch_UpdatesStatus() {
         AIAgentDefinition__c agent = [
-            SELECT Id, DeveloperName__c, LLMConfiguration__c, AsyncDispatchType__c, RequiresServiceUserContext__c
+            SELECT Id, DeveloperName__c, LLMConfiguration__c, AsyncDispatchType__c, ExecutionIdentityProfileDeveloperName__c
             FROM AIAgentDefinition__c
             LIMIT 1
         ];

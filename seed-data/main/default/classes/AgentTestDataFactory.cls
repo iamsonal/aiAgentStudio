@@ -871,7 +871,6 @@ public with sharing class AgentTestDataFactory {
             HistoryTurnLimit__c = 10,
             AuditLevel__c = 'Full',
             EnableParallelToolCalling__c = true,
-            RequiresServiceUserContext__c = false,
             PromptSafetyPreset__c = 'Standard',
             WelcomeMessageTemplate__c = 'Hello {User.FirstName}! I\'m your Customer Support Copilot. I can help you with cases, orders, and knowledge base searches. How can I assist you today?',
             IdentityPrompt__c = 'You are an expert customer support assistant for a B2B cloud software company. You help support agents resolve customer issues efficiently by searching knowledge, retrieving records, and creating cases.',
