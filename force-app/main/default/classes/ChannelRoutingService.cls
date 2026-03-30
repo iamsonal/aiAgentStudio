@@ -151,7 +151,7 @@ public inherited sharing class ChannelRoutingService {
             resolved.endpointDeveloperName = route.ChannelEndpoint__c;
             resolved.endpointIdentifier = endpoint.EndpointIdentifier__c;
             resolved.routeKey = endpoint.RouteKey__c;
-            resolved.provider = endpoint.Provider__c;
+            resolved.provider = deriveProviderKey(endpoint);
             resolved.supportsAutonomousReply = endpoint.SupportsAutonomousReply__c;
             resolved.defaultDeliveryMode = route.DefaultDeliveryMode__c;
             resolved.inactivityTtlHours = route.InactivityTtlHours__c;
@@ -256,10 +256,41 @@ public inherited sharing class ChannelRoutingService {
             return endpoints;
         }
         return [
-            SELECT DeveloperName, Channel__c, Provider__c, EndpointIdentifier__c, IsActive__c, RouteKey__c, SupportsAutonomousReply__c
+            SELECT DeveloperName, Channel__c, ProviderAdapterClass__c, EndpointIdentifier__c, IsActive__c, RouteKey__c, SupportsAutonomousReply__c
             FROM ChannelEndpoint__mdt
             WHERE IsActive__c = TRUE
         ];
+    }
+
+    private String deriveProviderKey(ChannelEndpoint__mdt endpoint) {
+        if (endpoint == null) {
+            return null;
+        }
+        if (String.isBlank(endpoint.ProviderAdapterClass__c)) {
+            return null;
+        }
+
+        Type providerType = Type.forName(endpoint.ProviderAdapterClass__c);
+        if (providerType == null) {
+            throw new AIAgentException.OrchestrationException(
+                'External messaging provider class not found: ' + endpoint.ProviderAdapterClass__c + ' for endpoint ' + endpoint.DeveloperName
+            );
+        }
+
+        Object instanceObj = providerType.newInstance();
+        if (!(instanceObj instanceof IExternalMessagingProvider)) {
+            throw new AIAgentException.OrchestrationException(
+                'External messaging provider must implement IExternalMessagingProvider: ' + endpoint.ProviderAdapterClass__c
+            );
+        }
+
+        String providerKey = ((IExternalMessagingProvider) instanceObj).getProviderKey();
+        if (String.isBlank(providerKey)) {
+            throw new AIAgentException.OrchestrationException(
+                'External messaging provider "' + endpoint.ProviderAdapterClass__c + '" returned a blank provider key for endpoint ' + endpoint.DeveloperName + '.'
+            );
+        }
+        return providerKey;
     }
 
     private List<AgentChannelRoute__mdt> queryActiveRoutes() {

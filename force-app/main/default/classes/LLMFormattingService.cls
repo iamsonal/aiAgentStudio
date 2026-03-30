@@ -850,7 +850,7 @@ public inherited sharing class LLMFormattingService {
             Map<String, Object> textOnlyData = new Map<String, Object>(cleanData);
             textOnlyData.put(
                 '_note',
-                'Binary content was retrieved but this model does not support vision. Enable SupportsVision__c on the LLM Configuration to analyse this file.'
+                'Binary content was retrieved but this selected catalog model does not support vision. Choose a model with Supports Vision enabled to analyse this file.'
             );
             return JSON.serialize(new Map<String, Object>{ 'success' => true, 'data' => textOnlyData });
         } catch (Exception e) {

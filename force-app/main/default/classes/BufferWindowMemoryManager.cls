@@ -59,7 +59,8 @@ public with sharing class BufferWindowMemoryManager implements IMemoryManager {
     private List<Map<String, Object>> getUnlimitedHistory(Id executionId, AIAgentDefinition__c agentConfig, LLMConfiguration__c llmConfig, String debugPrefix) {
         ExecutionStepService executionStepService = new ExecutionStepService();
         List<ExecutionStep__c> allSteps = executionStepService.getHistory(executionId, null, 'ASC', null, false);
-        Boolean supportsVision = llmConfig != null && llmConfig.SupportsVision__c == true;
+        LLMModelCatalog__mdt catalogRecord = AIAgentConfigService.getLLMModelCatalogRecordForConfiguration(llmConfig);
+        Boolean supportsVision = catalogRecord != null && catalogRecord.SupportsVision__c == true;
         return LLMFormattingService.formatStepsForApi(allSteps, agentConfig, debugPrefix, supportsVision);
     }
 
@@ -81,7 +82,8 @@ public with sharing class BufferWindowMemoryManager implements IMemoryManager {
     ) {
         ExecutionStepService executionStepService = new ExecutionStepService();
         List<ExecutionStep__c> limitedSteps = executionStepService.getHistoryWithCompleteTurns(executionId, turnLimit, 'DESC', false);
-        Boolean supportsVision = llmConfig != null && llmConfig.SupportsVision__c == true;
+        LLMModelCatalog__mdt catalogRecord = AIAgentConfigService.getLLMModelCatalogRecordForConfiguration(llmConfig);
+        Boolean supportsVision = catalogRecord != null && catalogRecord.SupportsVision__c == true;
         return LLMFormattingService.formatStepsForApi(limitedSteps, agentConfig, debugPrefix, supportsVision);
     }
 }

@@ -589,12 +589,12 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>LLMConfiguration__c.ApiVersion__c</field>
+        <field>LLMConfiguration__c.DefaultTemperature__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>LLMConfiguration__c.DefaultTemperature__c</field>
+        <field>LLMConfiguration__c.ModelCatalogDeveloperName__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>

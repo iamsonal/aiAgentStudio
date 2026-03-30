@@ -480,9 +480,12 @@ public inherited sharing class LLMInteractionService {
         if (llmConfig == null) {
             throw new LLMInteractionException('LLM Configuration cannot be null for getting adapter.');
         }
-        String adapterClassName = llmConfig.ProviderAdapterClass__c;
+        LLMModelCatalog__mdt catalogRecord = AIAgentConfigService.getLLMModelCatalogRecordForConfiguration(llmConfig);
+        String adapterClassName = catalogRecord == null ? null : catalogRecord.ProviderAdapterClass__c;
         if (String.isBlank(adapterClassName)) {
-            throw new LLMInteractionException('ProviderAdapterClass__c is not defined for LLM Configuration: ' + llmConfig.DeveloperName__c);
+            throw new LLMInteractionException(
+                'ProviderAdapterClass__c is not defined for the selected catalog model on LLM Configuration: ' + llmConfig.DeveloperName__c
+            );
         }
 
         if (adapterInstanceCache.containsKey(adapterClassName)) {

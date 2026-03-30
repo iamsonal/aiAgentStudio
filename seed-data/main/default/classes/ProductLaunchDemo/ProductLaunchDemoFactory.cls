@@ -280,9 +280,8 @@ public with sharing class ProductLaunchDemoFactory {
             Name = 'OpenAI GPT-4 (Product Launch)',
             DeveloperName__c = 'OpenAI_GPT4_ProductLaunch',
             IsActive__c = true,
-            ProviderAdapterClass__c = 'OpenAIProviderAdapter',
             NamedCredential__c = 'OpenAI_API',
-            DefaultModelIdentifier__c = 'gpt-4o-mini',
+            ModelCatalogDeveloperName__c = 'GPT_4o_mini',
             DefaultTemperature__c = 0.3 // Balanced creativity for content generation
         );
         insert config;

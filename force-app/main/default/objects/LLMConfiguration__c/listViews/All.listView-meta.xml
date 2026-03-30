@@ -3,8 +3,7 @@
     <fullName>All</fullName>
     <columns>NAME</columns>
     <columns>DeveloperName__c</columns>
-    <columns>ProviderAdapterClass__c</columns>
-    <columns>DefaultModelIdentifier__c</columns>
+    <columns>ModelCatalogDeveloperName__c</columns>
     <columns>NamedCredential__c</columns>
     <columns>IsActive__c</columns>
     <filterScope>Everything</filterScope>

@@ -21,7 +21,8 @@ public inherited sharing class AIAgentConfigService {
     private static Map<String, AgentCapability__c> agentCapabilityNameCache = new Map<String, AgentCapability__c>();
 
     // LLM Model Catalog cache
-    private static Map<String, LLMModelCatalog__mdt> modelCatalogCache;
+    private static Map<String, LLMModelCatalog__mdt> modelCatalogByIdentifierCache;
+    private static Map<String, LLMModelCatalog__mdt> modelCatalogByDeveloperNameCache;
     private static Boolean isModelCatalogCacheInitialized = false;
 
     private static final List<String> AGENT_DEFINITION_FIELDS = new List<String>{
@@ -74,15 +75,12 @@ public inherited sharing class AIAgentConfigService {
         'Id',
         'Name',
         'DeveloperName__c',
-        'ProviderAdapterClass__c',
         'NamedCredential__c',
-        'DefaultModelIdentifier__c',
+        'ModelCatalogDeveloperName__c',
         'DefaultTemperature__c',
-        'ApiVersion__c',
         'MaxResponseTokens__c',
         'TimeoutMs__c',
-        'IsActive__c',
-        'SupportsVision__c'
+        'IsActive__c'
     };
 
     private static final List<String> AGENT_CAPABILITY_FIELDS = new List<String>{
@@ -603,8 +601,8 @@ public inherited sharing class AIAgentConfigService {
         // Normalize model identifier to lowercase for matching
         String normalizedModel = modelIdentifier.toLowerCase();
 
-        if (modelCatalogCache.containsKey(normalizedModel)) {
-            LLMModelCatalog__mdt modelCatalogRecord = modelCatalogCache.get(normalizedModel);
+        if (modelCatalogByIdentifierCache.containsKey(normalizedModel)) {
+            LLMModelCatalog__mdt modelCatalogRecord = modelCatalogByIdentifierCache.get(normalizedModel);
             Decimal promptCost = (Decimal.valueOf(promptTokens) / 1000000.0) * modelCatalogRecord.PromptPricePer1MTokens__c;
             Decimal completionCost = (Decimal.valueOf(completionTokens) / 1000000.0) * modelCatalogRecord.CompletionPricePer1MTokens__c;
             return promptCost + completionCost;
@@ -627,7 +625,23 @@ public inherited sharing class AIAgentConfigService {
         }
 
         ensureModelCatalogCacheInitialized();
-        return modelCatalogCache.get(modelIdentifier.toLowerCase());
+        return modelCatalogByIdentifierCache.get(modelIdentifier.toLowerCase());
+    }
+
+    public static LLMModelCatalog__mdt getLLMModelCatalogRecordByDeveloperName(String developerName) {
+        if (String.isBlank(developerName)) {
+            return null;
+        }
+
+        ensureModelCatalogCacheInitialized();
+        return modelCatalogByDeveloperNameCache.get(developerName.toLowerCase());
+    }
+
+    public static LLMModelCatalog__mdt getLLMModelCatalogRecordForConfiguration(LLMConfiguration__c llmConfig) {
+        if (llmConfig == null) {
+            return null;
+        }
+        return getLLMModelCatalogRecordByDeveloperName(llmConfig.ModelCatalogDeveloperName__c);
     }
 
     /**
@@ -641,11 +655,12 @@ public inherited sharing class AIAgentConfigService {
             return;
         }
 
-        modelCatalogCache = new Map<String, LLMModelCatalog__mdt>();
+        modelCatalogByIdentifierCache = new Map<String, LLMModelCatalog__mdt>();
+        modelCatalogByDeveloperNameCache = new Map<String, LLMModelCatalog__mdt>();
 
         try {
             List<LLMModelCatalog__mdt> modelCatalogRecords = [
-                SELECT ModelIdentifier__c, PromptPricePer1MTokens__c, CompletionPricePer1MTokens__c, MaxTokensParameterName__c
+                SELECT DeveloperName, ModelIdentifier__c, PromptPricePer1MTokens__c, CompletionPricePer1MTokens__c, MaxTokensParameterName__c, ProviderAdapterClass__c, SupportsVision__c
                 FROM LLMModelCatalog__mdt
                 WHERE IsActive__c = TRUE
             ];
@@ -656,12 +671,18 @@ public inherited sharing class AIAgentConfigService {
 
             for (LLMModelCatalog__mdt modelCatalogRecord : modelCatalogRecords) {
                 if (String.isNotBlank(modelCatalogRecord.ModelIdentifier__c)) {
-                    modelCatalogCache.put(modelCatalogRecord.ModelIdentifier__c.toLowerCase(), modelCatalogRecord);
+                    modelCatalogByIdentifierCache.put(modelCatalogRecord.ModelIdentifier__c.toLowerCase(), modelCatalogRecord);
+                }
+                if (String.isNotBlank(modelCatalogRecord.DeveloperName)) {
+                    modelCatalogByDeveloperNameCache.put(modelCatalogRecord.DeveloperName.toLowerCase(), modelCatalogRecord);
                 }
             }
 
             isModelCatalogCacheInitialized = true;
-            System.debug(LoggingLevel.DEBUG, '[AIAgentConfigService] Initialized LLM model catalog cache with ' + modelCatalogCache.size() + ' models');
+            System.debug(
+                LoggingLevel.DEBUG,
+                '[AIAgentConfigService] Initialized LLM model catalog cache with ' + modelCatalogByIdentifierCache.size() + ' models'
+            );
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, '[AIAgentConfigService] Failed to initialize LLM model catalog cache: ' + e.getMessage());
             // Do NOT set isModelCatalogCacheInitialized = true on failure to allow retry
@@ -678,6 +699,6 @@ public inherited sharing class AIAgentConfigService {
     @TestVisible
     private static Integer getLLMModelCatalogCacheSize() {
         ensureModelCatalogCacheInitialized();
-        return modelCatalogCache.size();
+        return modelCatalogByIdentifierCache.size();
     }
 }
