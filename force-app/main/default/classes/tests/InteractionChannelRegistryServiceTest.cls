@@ -28,11 +28,24 @@ private class InteractionChannelRegistryServiceTest {
             return new InteractionRuntimeModels.DeliveryDecision(InteractionRuntimeModels.DeliveryAction.None, null, null);
         }
 
+        public InteractionRuntimeModels.ReviewPayload buildReviewPayload(
+            AIAgentDefinition__c agentDefinition,
+            OrchestrationContext context,
+            String contentResponse,
+            String logPrefix
+        ) {
+            return null;
+        }
+
+        public Boolean deliverReviewedPayload(String reviewedPayloadJson, OrchestrationContext context, String logPrefix) {
+            return true;
+        }
+
         public Boolean sendReply(String contentResponse, OrchestrationContext context, String logPrefix) {
             return true;
         }
 
-        public Id saveDraft(String contentResponse, OrchestrationContext context, String logPrefix) {
+        public Id createReviewArtifact(String contentResponse, OrchestrationContext context, String logPrefix) {
             return null;
         }
 

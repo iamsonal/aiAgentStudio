@@ -141,6 +141,7 @@ public with sharing class ConversationalChatController {
             // Note: For session creation, we just create the execution record but don't initiate processing yet
             // Processing will begin when the first user message is sent
             AgentStateService agentStateService = new AgentStateService();
+            AIAgentConfigService.ResolvedExecutionIdentity executionIdentity = AIAgentConfigService.resolveExecutionIdentityForAgent(agentDef);
             String executionLabel = 'Chat - ' + Datetime.now().format('MM/dd HH:mm:ss');
 
             Id newExecutionId = agentStateService.createExecution(
@@ -150,7 +151,11 @@ public with sharing class ConversationalChatController {
                 executionLabel,
                 recordId,
                 userId,
-                null
+                null,
+                null,
+                null,
+                executionIdentity.profileDeveloperName,
+                executionIdentity.namedCredentialDeveloperName
             );
 
             InteractionRuntimeModels.IInteractionChannel chatChannel = new ChatChannelAdapter();

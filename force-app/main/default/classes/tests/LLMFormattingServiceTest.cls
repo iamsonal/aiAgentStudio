@@ -137,6 +137,18 @@ private class LLMFormattingServiceTest {
     }
 
     @IsTest
+    static void testExtractRationale_WithLegacyRationaleAlias_ExtractsAndStrips() {
+        String args = '{"recordData":{"Name":"Acme"},"rationale":"User asked to create an account"}';
+
+        Map<String, String> result = LLMFormattingService.extractAndStripRationale(args, '[test] ');
+
+        System.assertEquals('User asked to create an account', result.get('rationale'));
+        Map<String, Object> cleaned = (Map<String, Object>) JSON.deserializeUntyped(result.get('cleanedArguments'));
+        System.assert(!cleaned.containsKey('rationale'), 'Legacy rationale alias should be stripped from cleaned arguments');
+        System.assert(cleaned.containsKey('recordData'), 'Other arguments should remain');
+    }
+
+    @IsTest
     static void testExtractRationale_WithConfidence_Strips() {
         String args = '{"field":"value","_confidence":85}';
 

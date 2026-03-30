@@ -107,13 +107,34 @@ public inherited sharing class InteractionRuntimeModels {
         }
     }
 
+    public class ReviewPayload {
+        public String interactionChannel { get; set; }
+        public String routeKey { get; set; }
+        public String inboundDedupKey { get; set; }
+        public String summaryText { get; set; }
+        public String payloadJson { get; set; }
+
+        public ReviewPayload() {
+        }
+
+        public ReviewPayload(String interactionChannel, String routeKey, String inboundDedupKey, String summaryText, String payloadJson) {
+            this.interactionChannel = interactionChannel;
+            this.routeKey = routeKey;
+            this.inboundDedupKey = inboundDedupKey;
+            this.summaryText = summaryText;
+            this.payloadJson = payloadJson;
+        }
+    }
+
     public interface IInteractionChannel {
         InteractionEnvelope normalizeInbound(String payloadJson, Id sourceRecordId, String userMessage);
         InteractionSessionContext resolveOrCreateSession(AIAgentDefinition__c agentDefinition, InteractionEnvelope envelope, String logPrefix);
         String buildPromptAdditions(Id executionId, OrchestrationContext context);
         DeliveryDecision determineDeliveryAction(AIAgentDefinition__c agentDefinition, OrchestrationContext context, String contentResponse, String logPrefix);
+        ReviewPayload buildReviewPayload(AIAgentDefinition__c agentDefinition, OrchestrationContext context, String contentResponse, String logPrefix);
+        Boolean deliverReviewedPayload(String reviewedPayloadJson, OrchestrationContext context, String logPrefix);
         Boolean sendReply(String contentResponse, OrchestrationContext context, String logPrefix);
-        Id saveDraft(String contentResponse, OrchestrationContext context, String logPrefix);
+        Id createReviewArtifact(String contentResponse, OrchestrationContext context, String logPrefix);
         void suppressReply(OrchestrationContext context, String logPrefix);
     }
 }

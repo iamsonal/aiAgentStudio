@@ -24,6 +24,8 @@ global with sharing class AIAgentRestService {
 
         if (String.isNotBlank(requestUri) && requestUri.endsWith('/hitl/execute')) {
             return executeApprovedHITLTool(req, res, requestId, logPrefix);
+        } else if (String.isNotBlank(requestUri) && requestUri.endsWith('/hitl/review-send')) {
+            return executeApprovedReviewedReply(req, res, requestId, logPrefix);
         } else if (String.isNotBlank(requestUri) && requestUri.endsWith('/hitl/followup')) {
             return executeFollowUpLLMCall(req, res, requestId, logPrefix);
         } else if (String.isNotBlank(requestUri) && requestUri.endsWith('/resume')) {
@@ -172,6 +174,8 @@ global with sharing class AIAgentRestService {
             payload.interactionChannel = requestData.interactionChannel;
             payload.conversationKey = requestData.conversationKey;
             payload.interactionSessionId = interactionSessionId;
+            payload.executionIdentityProfileDeveloperName = requestData.executionIdentityProfileDeveloperName;
+            payload.executionIdentityNamedCredential = requestData.executionIdentityNamedCredential;
 
             // Handle sourceRecordIds array
             if (requestData.sourceRecordIds != null && !requestData.sourceRecordIds.isEmpty()) {
@@ -372,6 +376,82 @@ global with sharing class AIAgentRestService {
         }
     }
 
+    private static AIAgentResponse executeApprovedReviewedReply(RestRequest req, RestResponse res, String requestId, String logPrefix) {
+        System.debug(LoggingLevel.INFO, logPrefix + 'Processing reviewed reply delivery request');
+        ReviewedReplyRequest reviewRequest = null;
+
+        try {
+            if (req.requestBody == null || req.requestBody.size() == 0) {
+                throw new AIAgentRestException('Request body is required');
+            }
+
+            reviewRequest = (ReviewedReplyRequest) JSON.deserialize(req.requestBody.toString(), ReviewedReplyRequest.class);
+            if (String.isBlank(reviewRequest.pendingActionId)) {
+                throw new AIAgentRestException('pendingActionId is required');
+            }
+            if (String.isBlank(reviewRequest.executionId)) {
+                throw new AIAgentRestException('executionId is required');
+            }
+
+            PendingHITLAction__c pendingAction = HITLGatewayService.getPendingAction(Id.valueOf(reviewRequest.pendingActionId));
+            if (pendingAction == null) {
+                throw new AIAgentRestException('Pending review artifact not found: ' + reviewRequest.pendingActionId);
+            }
+            if (pendingAction.ArtifactType__c != HITLGatewayService.ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW) {
+                throw new AIAgentRestException('Pending action is not an outbound draft review artifact: ' + reviewRequest.pendingActionId);
+            }
+
+            AgentExecution__c execution = [
+                SELECT Id, User__c, ServiceUser__c, AIAgentDefinition__c, SourceRecordId__c, InteractionChannel__c
+                FROM AgentExecution__c
+                WHERE Id = :reviewRequest.executionId
+                LIMIT 1
+            ];
+            AIAgentDefinition__c agentDefinition = AIAgentConfigService.getAgentDefinition(execution.AIAgentDefinition__c);
+            if (agentDefinition == null) {
+                throw new AIAgentRestException('Agent definition not found for execution: ' + reviewRequest.executionId);
+            }
+
+            InteractionRuntimeModels.IInteractionChannel adapter = RuntimeRegistryService.getChannelAdapter(agentDefinition, execution.Id);
+            OrchestrationContext reviewContext = new OrchestrationContext(
+                null,
+                execution.Id,
+                execution.User__c,
+                UserInfo.getUserId(),
+                execution.AIAgentDefinition__c,
+                String.isNotBlank(reviewRequest.turnIdentifier) ? reviewRequest.turnIdentifier : pendingAction.TurnIdentifier__c,
+                reviewRequest.turnCount != null
+                    ? Integer.valueOf(reviewRequest.turnCount)
+                    : (pendingAction.TurnCount__c != null ? pendingAction.TurnCount__c.intValue() : 1),
+                null,
+                new AgentStateService(),
+                new CapabilityExecutionService(),
+                new AgentJobEnqueuer(),
+                new ContextManagerService(),
+                execution.SourceRecordId__c,
+                new IDecisionStepLogger.NoOp()
+            );
+
+            Boolean delivered = adapter.deliverReviewedPayload(pendingAction.ReviewedPayloadJson__c, reviewContext, logPrefix);
+            if (!delivered) {
+                throw new AIAgentRestException('Channel adapter could not deliver the reviewed payload.');
+            }
+
+            res.statusCode = 200;
+            return new AIAgentResponse(true, 'REVIEWED_REPLY_SENT', null, requestId);
+        } catch (AIAgentRestException e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage());
+            logReviewedReplyError(reviewRequest, e.getMessage(), 'VALIDATION_ERROR');
+            res.statusCode = 400;
+            return new AIAgentResponse(false, null, e.getMessage(), requestId);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, logPrefix + e.getMessage() + '\n' + e.getStackTraceString());
+            logReviewedReplyError(reviewRequest, e.getMessage() + '\n' + e.getStackTraceString(), 'UNEXPECTED_ERROR');
+            res.statusCode = 500;
+            return new AIAgentResponse(false, null, 'Internal server error: ' + e.getMessage(), requestId);
+        }
+    }
+
     private static void logResumeError(HITLToolRequest toolRequest, String errorMessage, String errorCode) {
         if (toolRequest == null || String.isBlank(toolRequest.executionId) || String.isBlank(toolRequest.turnIdentifier)) {
             return;
@@ -383,6 +463,20 @@ global with sharing class AIAgentRestService {
             decisionLogger.commitSteps();
         } catch (Exception e) {
             System.debug(LoggingLevel.WARN, '[AIAgentRestService] Failed to log resume error to decision steps: ' + e.getMessage());
+        }
+    }
+
+    private static void logReviewedReplyError(ReviewedReplyRequest reviewRequest, String errorMessage, String errorCode) {
+        if (reviewRequest == null || String.isBlank(reviewRequest.executionId) || String.isBlank(reviewRequest.turnIdentifier)) {
+            return;
+        }
+
+        try {
+            IDecisionStepLogger.ILogger decisionLogger = IDecisionStepLogger.create(Id.valueOf(reviewRequest.executionId), reviewRequest.turnIdentifier);
+            decisionLogger.log(IDecisionStepLogger.EventType.ERROR, new List<Object>{ reviewRequest, errorCode, errorMessage });
+            decisionLogger.commitSteps();
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, '[AIAgentRestService] Failed to log reviewed reply error to decision steps: ' + e.getMessage());
         }
     }
 
@@ -687,6 +781,8 @@ global with sharing class AIAgentRestService {
         public String interactionChannel { get; set; }
         public String batchId { get; set; }
         public Integer priority { get; set; }
+        public String executionIdentityProfileDeveloperName { get; set; }
+        public String executionIdentityNamedCredential { get; set; }
     }
 
     global class AIAgentResponse {
@@ -724,6 +820,13 @@ global with sharing class AIAgentRestService {
         public String turnIdentifier { get; set; }
         public Decimal turnCount { get; set; }
         public String sourceRecordId { get; set; }
+    }
+
+    public class ReviewedReplyRequest {
+        public String pendingActionId { get; set; }
+        public String executionId { get; set; }
+        public String turnIdentifier { get; set; }
+        public Decimal turnCount { get; set; }
     }
 
     public class ResumeRequest {

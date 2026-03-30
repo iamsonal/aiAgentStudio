@@ -40,6 +40,8 @@ private class HITLGatewayServiceTest {
 
     @IsTest
     static void testEvaluate_ApprovalRequiresIntervention() {
+        configureDefaultHitlExecutionIdentity('DefaultHitlProfile', 'AgentStudio_ServiceUser_Default');
+
         AIAgentDefinition__c agent = [
             SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
@@ -158,6 +160,32 @@ private class HITLGatewayServiceTest {
         System.assertEquals(false, rejected.shouldProceed, 'Rejected action should not proceed');
         System.assertEquals(HITLGatewayService.STATUS_REJECTED, rejected.status, 'Status should be Rejected');
         System.assert(rejected.llmMessage.contains('Reason: No'), 'Rejection message should include reason');
+    }
+
+    @IsTest
+    static void testResolveApproval_OutboundDraftReviewUsesReviewedPayload() {
+        AgentExecution__c exec = [SELECT Id FROM AgentExecution__c LIMIT 1];
+
+        PendingHITLAction__c reviewAction = new PendingHITLAction__c(
+            ArtifactType__c = HITLGatewayService.ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW,
+            AgentExecution__c = exec.Id,
+            HITLType__c = HITLGatewayService.HITL_MODE_APPROVAL,
+            Status__c = HITLGatewayService.STATUS_PENDING,
+            TurnIdentifier__c = 'turn-hitl-review-001',
+            TurnCount__c = 1,
+            ToolCallId__c = 'review-call-001',
+            ToolName__c = 'Review Before Send',
+            ReviewedPayloadJson__c = '{"replyText":"Reviewed body"}',
+            ConfirmationPrompt__c = 'Review the draft',
+            RequestedAt__c = Datetime.now(),
+            RequestingUser__c = UserInfo.getUserId()
+        );
+        insert reviewAction;
+
+        HITLGatewayService.HITLResolutionResult approved = HITLGatewayService.resolveApproval(reviewAction.Id, true, UserInfo.getUserId(), 'Send it');
+
+        System.assertEquals(true, approved.success, 'Review artifact approval should resolve successfully');
+        System.assertEquals('{"replyText":"Reviewed body"}', approved.toolArguments, 'Reviewed payload should be returned for outbound draft reviews');
     }
 
     @IsTest
@@ -350,6 +378,8 @@ private class HITLGatewayServiceTest {
 
     @IsTest
     static void testEvaluate_ApprovalAsync_RequiresIntervention() {
+        configureDefaultHitlExecutionIdentity('DefaultHitlProfile', 'AgentStudio_ServiceUser_Default');
+
         AIAgentDefinition__c agent = [
             SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
@@ -380,6 +410,8 @@ private class HITLGatewayServiceTest {
 
     @IsTest
     static void testInitiateHITL_Approval_Mode() {
+        configureDefaultHitlExecutionIdentity('DefaultHitlProfile', 'AgentStudio_ServiceUser_Default');
+
         AIAgentDefinition__c agent = [
             SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
@@ -437,6 +469,8 @@ private class HITLGatewayServiceTest {
 
     @IsTest
     static void testInitiateHITL_ConfirmationThenApproval_Mode() {
+        configureDefaultHitlExecutionIdentity('DefaultHitlProfile', 'AgentStudio_ServiceUser_Default');
+
         AIAgentDefinition__c agent = [
             SELECT Id, RuntimeStrategy__c, DeveloperName__c
             FROM AIAgentDefinition__c
@@ -614,5 +648,190 @@ private class HITLGatewayServiceTest {
         System.assertEquals(false, decision.isValidConfiguration, 'Unknown HITL mode should be invalid');
         System.assert(decision.configurationError.contains('Unknown HITLMode'), 'Error should mention unknown mode');
         System.assertEquals(false, decision.requiresIntervention, 'Invalid config should not require intervention');
+    }
+
+    @IsTest
+    static void testEvaluate_ApprovalWithoutExecutionIdentityOrDefault_IsInvalid() {
+        AIAgentDefinition__c agent = [
+            SELECT Id, DeveloperName__c, RuntimeStrategy__c
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
+            LIMIT 1
+        ];
+        AgentCapability__c cap = [
+            SELECT Id, CapabilityName__c, HITLMode__c
+            FROM AgentCapability__c
+            WHERE CapabilityName__c = 'hitl_approval'
+            LIMIT 1
+        ];
+
+        HITLGatewayService.HITLContext ctx = new HITLGatewayService.HITLContext();
+        ctx.capability = cap;
+        ctx.agentDefinition = agent;
+        ctx.executionId = [SELECT Id FROM AgentExecution__c LIMIT 1].Id;
+        ctx.turnIdentifier = 'turn-hitl-missing-identity';
+        ctx.toolCallId = 'call-missing-identity-001';
+
+        HITLGatewayService.HITLDecision decision = HITLGatewayService.evaluate(ctx);
+
+        System.assertEquals(false, decision.isValidConfiguration, 'Approval HITL should fail early without an execution identity or framework default');
+        System.assert(
+            decision.configurationError.contains('DefaultHITLExecIdentityProfile__c'),
+            'Validation error should reference the HITL framework setting field'
+        );
+    }
+
+    @IsTest
+    static void testInitiateHITL_Approval_UsesFrameworkDefaultWhenExecutionBlank() {
+        configureDefaultHitlExecutionIdentity('DefaultHitlProfile', 'AgentStudio_ServiceUser_Default');
+
+        AIAgentDefinition__c agent = [
+            SELECT Id, DeveloperName__c, RuntimeStrategy__c
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
+            LIMIT 1
+        ];
+        AgentCapability__c cap = [
+            SELECT Id, CapabilityName__c, HITLMode__c
+            FROM AgentCapability__c
+            WHERE CapabilityName__c = 'hitl_approval'
+            LIMIT 1
+        ];
+        AgentExecution__c exec = [
+            SELECT Id, ExecutionIdentityProfileDeveloperName__c, ExecutionIdentityNamedCredential__c
+            FROM AgentExecution__c
+            LIMIT 1
+        ];
+
+        HITLGatewayService.HITLContext ctx = buildApprovalContext(agent, cap, exec.Id, 'turn-hitl-default-identity', 'call-hitl-default-identity-001');
+
+        HITLGatewayService.HITLDecision decision = HITLGatewayService.evaluate(ctx);
+        System.assertEquals(true, decision.isValidConfiguration, 'Framework default should make approval HITL valid');
+
+        HITLGatewayService.HITLResult result = HITLGatewayService.initiateHITL(ctx, decision);
+
+        AgentExecution__c updatedExec = [
+            SELECT ExecutionIdentityProfileDeveloperName__c, ExecutionIdentityNamedCredential__c
+            FROM AgentExecution__c
+            WHERE Id = :exec.Id
+            LIMIT 1
+        ];
+        System.assertEquals('DefaultHitlProfile', updatedExec.ExecutionIdentityProfileDeveloperName__c, 'Execution should snapshot the HITL fallback profile');
+        System.assertEquals(
+            'AgentStudio_ServiceUser_Default',
+            updatedExec.ExecutionIdentityNamedCredential__c,
+            'Execution should snapshot the HITL fallback Named Credential'
+        );
+
+        if (result.success) {
+            System.assertEquals(HITLGatewayService.HITL_MODE_APPROVAL, result.hitlType, 'HITL type should be Approval');
+            System.assertNotEquals(null, result.pendingActionId, 'Pending action should be created');
+        } else {
+            System.assert(
+                result.errorMessage != null &&
+                (result.errorMessage.contains('Failed to submit to approval process') || result.errorMessage.contains('Exception submitting approval')),
+                'Should fail with approval submission error when no approval process exists'
+            );
+        }
+    }
+
+    @IsTest
+    static void testInitiateHITL_Approval_PrefersExecutionSnapshotOverFrameworkDefault() {
+        configureDefaultHitlExecutionIdentity('DefaultHitlProfile', 'AgentStudio_ServiceUser_Default');
+
+        AIAgentDefinition__c agent = [
+            SELECT Id, DeveloperName__c, RuntimeStrategy__c
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
+            LIMIT 1
+        ];
+        AgentCapability__c cap = [
+            SELECT Id, CapabilityName__c, HITLMode__c
+            FROM AgentCapability__c
+            WHERE CapabilityName__c = 'hitl_approval'
+            LIMIT 1
+        ];
+        AgentExecution__c exec = [SELECT Id FROM AgentExecution__c LIMIT 1];
+        update new AgentExecution__c(
+            Id = exec.Id,
+            ExecutionIdentityProfileDeveloperName__c = 'ExecutionScopedProfile',
+            ExecutionIdentityNamedCredential__c = 'AgentStudio_ServiceUser_Execution'
+        );
+
+        HITLGatewayService.HITLContext ctx = buildApprovalContext(agent, cap, exec.Id, 'turn-hitl-existing-identity', 'call-hitl-existing-identity-001');
+
+        HITLGatewayService.HITLDecision decision = HITLGatewayService.evaluate(ctx);
+        System.assertEquals(true, decision.isValidConfiguration, 'Existing execution snapshot should make approval HITL valid');
+
+        HITLGatewayService.HITLResult result = HITLGatewayService.initiateHITL(ctx, decision);
+
+        AgentExecution__c updatedExec = [
+            SELECT ExecutionIdentityProfileDeveloperName__c, ExecutionIdentityNamedCredential__c
+            FROM AgentExecution__c
+            WHERE Id = :exec.Id
+            LIMIT 1
+        ];
+        System.assertEquals(
+            'ExecutionScopedProfile',
+            updatedExec.ExecutionIdentityProfileDeveloperName__c,
+            'Execution snapshot should win over the framework default'
+        );
+        System.assertEquals(
+            'AgentStudio_ServiceUser_Execution',
+            updatedExec.ExecutionIdentityNamedCredential__c,
+            'Execution Named Credential should remain unchanged'
+        );
+
+        if (result.success) {
+            System.assertEquals(HITLGatewayService.HITL_MODE_APPROVAL, result.hitlType, 'HITL type should be Approval');
+            System.assertNotEquals(null, result.pendingActionId, 'Pending action should be created');
+        } else {
+            System.assert(
+                result.errorMessage != null &&
+                (result.errorMessage.contains('Failed to submit to approval process') || result.errorMessage.contains('Exception submitting approval')),
+                'Should fail with approval submission error when no approval process exists'
+            );
+        }
+    }
+
+    private static HITLGatewayService.HITLContext buildApprovalContext(
+        AIAgentDefinition__c agent,
+        AgentCapability__c capability,
+        Id executionId,
+        String turnIdentifier,
+        String toolCallId
+    ) {
+        HITLGatewayService.HITLContext ctx = new HITLGatewayService.HITLContext();
+        ctx.capability = capability;
+        ctx.agentDefinition = agent;
+        ctx.executionId = executionId;
+        ctx.requestingUserId = UserInfo.getUserId();
+        ctx.turnIdentifier = turnIdentifier;
+        ctx.turnCount = 1;
+        ctx.toolCallId = toolCallId;
+        ctx.toolArguments = '{"recordData":{"Subject":"Test"}}';
+        ctx.isConditionalApproval = false;
+        return ctx;
+    }
+
+    private static void configureDefaultHitlExecutionIdentity(String profileDeveloperName, String namedCredentialDeveloperName) {
+        insert new AIAgentFrameworkSettings__c(DefaultHITLExecIdentityProfile__c = profileDeveloperName);
+        AIAgentFrameworkSettings.clearCache();
+        AIAgentConfigService.setTestExecutionIdentityProfiles(
+            new List<ExecutionIdentityProfile__mdt>{
+                new ExecutionIdentityProfile__mdt(
+                    DeveloperName = profileDeveloperName,
+                    MasterLabel = profileDeveloperName,
+                    IsActive__c = true,
+                    NamedCredentialDeveloperName__c = namedCredentialDeveloperName
+                ),
+                new ExecutionIdentityProfile__mdt(
+                    DeveloperName = 'ExecutionScopedProfile',
+                    MasterLabel = 'ExecutionScopedProfile',
+                    IsActive__c = true,
+                    NamedCredentialDeveloperName__c = 'AgentStudio_ServiceUser_Execution'
+                )
+            }
+        );
     }
 }

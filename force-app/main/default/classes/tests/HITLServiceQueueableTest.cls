@@ -1,6 +1,6 @@
 /**
  * @description Tests for HITLServiceQueueable covering all three operation modes
- * with ServiceUserNamedCredential__c configured and HTTP callouts mocked.
+ * with execution identity snapshots configured and HTTP callouts mocked.
  */
 @IsTest
 private class HITLServiceQueueableTest {
@@ -8,9 +8,7 @@ private class HITLServiceQueueableTest {
     static void setupData() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('HITLQueue LLM').save();
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('HITLQueue_Agent').withType('Direct').withLLM(llm.Id).save();
-
-        // Set ServiceUserNamedCredential__c so callout logic is reached
-        agent.ServiceUserNamedCredential__c = 'AgentStudio_ServiceUser';
+        agent.ExecutionIdentityProfileDeveloperName__c = 'FrameworkServiceUser';
         update agent;
 
         AgentCapability__c cap = TestFactory.newCapability()
@@ -26,6 +24,7 @@ private class HITLServiceQueueableTest {
             .withExecutionType('Direct')
             .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
             .withTurnIdentifier('turn-hitlq-001')
+            .withExecutionIdentity('FrameworkServiceUser', 'AgentStudio_ServiceUser')
             .save();
     }
 
@@ -230,10 +229,7 @@ private class HITLServiceQueueableTest {
 
     @IsTest
     static void testExecuteTool_MissingNamedCredential_DoesNotMutatePendingAction() {
-        // Remove ServiceUserNamedCredential to test error path
-        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
-        agent.ServiceUserNamedCredential__c = null;
-        update agent;
+        update new AgentExecution__c(Id = [SELECT Id FROM AgentExecution__c LIMIT 1].Id, ExecutionIdentityNamedCredential__c = null);
 
         AgentExecution__c exec = [SELECT Id FROM AgentExecution__c LIMIT 1];
         AgentCapability__c cap = [SELECT Id, CapabilityName__c, HITLNotificationPreference__c FROM AgentCapability__c LIMIT 1];
@@ -276,9 +272,7 @@ private class HITLServiceQueueableTest {
 
     @IsTest
     static void testFollowUp_MissingNamedCredential_PausesExecution() {
-        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
-        agent.ServiceUserNamedCredential__c = null;
-        update agent;
+        update new AgentExecution__c(Id = [SELECT Id FROM AgentExecution__c LIMIT 1].Id, ExecutionIdentityNamedCredential__c = null);
 
         AgentExecution__c exec = [SELECT Id, CurrentTurnIdentifier__c FROM AgentExecution__c LIMIT 1];
 
@@ -300,9 +294,7 @@ private class HITLServiceQueueableTest {
 
     @IsTest
     static void testResume_MissingNamedCredential_PausesExecution() {
-        AIAgentDefinition__c agent = [SELECT Id FROM AIAgentDefinition__c LIMIT 1];
-        agent.ServiceUserNamedCredential__c = null;
-        update agent;
+        update new AgentExecution__c(Id = [SELECT Id FROM AgentExecution__c LIMIT 1].Id, ExecutionIdentityNamedCredential__c = null);
 
         AgentExecution__c exec = [SELECT Id FROM AgentExecution__c LIMIT 1];
 

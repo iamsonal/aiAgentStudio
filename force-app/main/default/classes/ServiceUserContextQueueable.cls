@@ -12,7 +12,7 @@
  *
  * ── ARCHITECTURAL CONSTRAINT: WHY THIS USES A SELF-CALLOUT ──────────────────────────────────
  * Salesforce Apex has no native "run as <user>" API. To execute agent logic under the service
- * user identity (RequiresServiceUserContext__c = true on the agent definition), the only
+ * user identity, the only
  * supported mechanism is a callout to the org's own REST API using a Named Credential whose
  * authentication is bound to the service user account.
  *
@@ -22,7 +22,7 @@
  *
  * Pre-requisites:
  *   1. A External Client App with JWT Bearer flow or equivalent for the service user.
- *   2. ServiceUserNamedCredential__c populated on AIAgentDefinition__c.
+ *   2. A resolved execution identity snapshot carried on the execution payload.
  *   3. The /services/apexrest/ai/agent/process/ endpoint allowed in Remote Site Settings.
  *   4. This class declared `without sharing` — it only builds and fires the HTTP request;
  *      all privileged DML happens inside the REST handler running as the service user.
@@ -34,7 +34,7 @@
  *   - Adds latency (~200–500 ms loopback) on every such invocation.
  *   - A stub AgentExecution__c record may be created before the REST call succeeds; if the
  *     call fails, the stub must be marked Failed (see handleFailure).
- *   - Requires Named Credential maintenance per agent definition.
+ *   - Requires execution identity profile maintenance for agents that need privileged re-entry.
  *
  * If Salesforce ever provides a first-class "run-as" Apex API this pattern should be removed.
  * ────────────────────────────────────────────────────────────────────────────────────────────
@@ -88,24 +88,13 @@ public without sharing class ServiceUserContextQueueable implements Queueable, D
     private HttpRequest buildHttpRequest() {
         HttpRequest httpReq = new HttpRequest();
 
-        // Query agent definition for named credential (required field)
-        AIAgentDefinition__c agentDef = [
-            SELECT ServiceUserNamedCredential__c, DeveloperName__c
-            FROM AIAgentDefinition__c
-            WHERE Id = :agentDefinitionId
-            LIMIT 1
-        ];
-
-        if (String.isBlank(agentDef.ServiceUserNamedCredential__c)) {
+        if (String.isBlank(payload.executionIdentityNamedCredential)) {
             throw new AIAgentException.OrchestrationException(
-                'ServiceUserNamedCredential__c is not configured on AIAgentDefinition__c: ' +
-                    agentDef.DeveloperName__c +
-                    '. ' +
-                    'This field is REQUIRED when RequiresServiceUserContext__c is enabled.'
+                'Execution identity snapshot is missing a Named Credential for agent definition: ' + agentDefinitionId
             );
         }
 
-        httpReq.setEndpoint('callout:' + agentDef.ServiceUserNamedCredential__c + '/services/apexrest/ai/agent/process/');
+        httpReq.setEndpoint('callout:' + payload.executionIdentityNamedCredential + '/services/apexrest/ai/agent/process/');
         httpReq.setMethod('POST');
         httpReq.setHeader('Content-Type', 'application/json');
 
@@ -126,7 +115,9 @@ public without sharing class ServiceUserContextQueueable implements Queueable, D
             'conversationKey' => payload.conversationKey,
             'interactionChannel' => payload.interactionChannel,
             'batchId' => payload.batchId,
-            'priority' => payload.priority
+            'priority' => payload.priority,
+            'executionIdentityProfileDeveloperName' => payload.executionIdentityProfileDeveloperName,
+            'executionIdentityNamedCredential' => payload.executionIdentityNamedCredential
         };
 
         // Convert sourceRecordIds to string list

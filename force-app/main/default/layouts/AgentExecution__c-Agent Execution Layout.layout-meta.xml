@@ -50,6 +50,14 @@
             </layoutItems>
             <layoutItems>
                 <behavior>Readonly</behavior>
+                <field>ExecutionIdentityProfileDeveloperName__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>ExecutionIdentityNamedCredential__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
                 <field>ErrorMessage__c</field>
             </layoutItems>
         </layoutColumns>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ReviewArtifactId__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Framework review artifact associated with this inbound message when delivery is paused for human review.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Links a drafted interaction message to the framework-owned review artifact that must be approved before delivery.</inlineHelpText>
+    <label>Review Artifact</label>
+    <referenceTo>PendingHITLAction__c</referenceTo>
+    <relationshipLabel>Interaction Messages</relationshipLabel>
+    <relationshipName>InteractionMessages</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

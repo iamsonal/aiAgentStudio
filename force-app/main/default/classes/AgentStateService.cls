@@ -90,7 +90,7 @@ public inherited sharing class AgentStateService {
         Id userId,
         Id serviceUserId
     ) {
-        return createExecution(executionType, agentDefinitionId, triggerSource, triggerPayload, sourceRecordId, userId, serviceUserId, null, null);
+        return createExecution(executionType, agentDefinitionId, triggerSource, triggerPayload, sourceRecordId, userId, serviceUserId, null, null, null, null);
     }
 
     /**
@@ -119,6 +119,34 @@ public inherited sharing class AgentStateService {
         Id parentExecutionId,
         String turnIdentifier
     ) {
+        return createExecution(
+            executionType,
+            agentDefinitionId,
+            triggerSource,
+            triggerPayload,
+            sourceRecordId,
+            userId,
+            serviceUserId,
+            parentExecutionId,
+            turnIdentifier,
+            null,
+            null
+        );
+    }
+
+    public Id createExecution(
+        String executionType,
+        Id agentDefinitionId,
+        String triggerSource,
+        String triggerPayload,
+        Id sourceRecordId,
+        Id userId,
+        Id serviceUserId,
+        Id parentExecutionId,
+        String turnIdentifier,
+        String executionIdentityProfileDeveloperName,
+        String executionIdentityNamedCredential
+    ) {
         String logPrefix = LOG_PREFIX + '[createExecution] ';
 
         try {
@@ -140,7 +168,9 @@ public inherited sharing class AgentStateService {
                 ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
                 User__c = userId,
                 ServiceUser__c = serviceUserId,
-                ParentExecution__c = parentExecutionId
+                ParentExecution__c = parentExecutionId,
+                ExecutionIdentityProfileDeveloperName__c = executionIdentityProfileDeveloperName,
+                ExecutionIdentityNamedCredential__c = executionIdentityNamedCredential
             );
 
             insert execution;

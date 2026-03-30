@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DefaultHITLExecIdentityProfile__c</fullName>
+    <description>Default execution identity profile used only for approval-based HITL when an execution does not already have a snapshotted execution identity.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Optional org-wide fallback for approval-based HITL only. Enter the DeveloperName of an active ExecutionIdentityProfile__mdt record.</inlineHelpText>
+    <label>Default HITL Identity Profile</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

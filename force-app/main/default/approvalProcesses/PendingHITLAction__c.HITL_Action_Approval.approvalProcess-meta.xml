@@ -7,8 +7,11 @@
     </allowedSubmitters>
     <approvalPageFields>
         <field>Name</field>
+        <field>ArtifactType__c</field>
+        <field>InteractionChannel__c</field>
         <field>ToolName__c</field>
         <field>ConfirmationPrompt__c</field>
+        <field>ReviewedPayloadJson__c</field>
         <field>HITLType__c</field>
         <field>RequestingUser__c</field>
         <field>RequestedAt__c</field>
@@ -50,6 +53,6 @@
     <finalRejectionRecordLock>false</finalRejectionRecordLock>
     <label>HITL Action Approval</label>
     <processOrder>1</processOrder>
-    <recordEditability>AdminOnly</recordEditability>
+    <recordEditability>AdminOrCurrentApprover</recordEditability>
     <showApprovalHistory>true</showApprovalHistory>
 </ApprovalProcess>

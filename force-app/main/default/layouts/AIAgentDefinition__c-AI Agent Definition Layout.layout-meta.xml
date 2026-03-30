@@ -71,11 +71,7 @@
         <layoutColumns>
             <layoutItems>
                 <behavior>Edit</behavior>
-                <field>RequiresServiceUserContext__c</field>
-            </layoutItems>
-            <layoutItems>
-                <behavior>Edit</behavior>
-                <field>ServiceUserNamedCredential__c</field>
+                <field>ExecutionIdentityProfileDeveloperName__c</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>

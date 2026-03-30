@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InteractionChannel__c</fullName>
+    <description>Interaction channel associated with this review artifact or approval.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Uses the shared interaction channel value set so review artifacts stay aligned with runtime channel metadata.</inlineHelpText>
+    <label>Interaction Channel</label>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetName>InteractionChannels</valueSetName>
+    </valueSet>
+</CustomField>

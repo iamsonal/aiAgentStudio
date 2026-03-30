@@ -218,6 +218,16 @@ public inherited sharing class AIAgentFrameworkSettings {
     }
 
     /**
+     * Gets the org-wide default execution identity profile used only for approval-based HITL
+     * when the execution itself does not already have a snapshotted execution identity.
+     *
+     * @return The DeveloperName of the default HITL execution identity profile, or null when not configured.
+     */
+    public static String getDefaultHITLExecutionIdentityProfileDeveloperName() {
+        return getInstance().DefaultHITLExecIdentityProfile__c;
+    }
+
+    /**
      * Gets the org-wide LLM configuration override for Tool Flow Graph generation.
      * When blank, graph generation should fall back to the agent's linked runtime
      * LLM configuration.

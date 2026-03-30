@@ -37,9 +37,15 @@ public with sharing class DirectSyncRuntimeService {
     private LLMConfiguration__c llmConfig;
     private Map<String, AgentCapability__c> capabilityCache = new Map<String, AgentCapability__c>();
     private String triggerPayload;
+    private String executionIdentityProfileDeveloperName;
+    private String executionIdentityNamedCredential;
 
     public void setTriggerPayload(String value) {
         this.triggerPayload = value;
+    }
+    public void setExecutionIdentitySnapshot(String profileDeveloperName, String namedCredentialDeveloperName) {
+        this.executionIdentityProfileDeveloperName = profileDeveloperName;
+        this.executionIdentityNamedCredential = namedCredentialDeveloperName;
     }
 
     /**
@@ -343,7 +349,11 @@ public with sharing class DirectSyncRuntimeService {
                     execTriggerPayload,
                     recordId,
                     userId,
-                    null
+                    null,
+                    null,
+                    null,
+                    this.executionIdentityProfileDeveloperName,
+                    this.executionIdentityNamedCredential
                 );
 
                 System.debug(LoggingLevel.INFO, logPrefix + 'Created new execution record: ' + executionId);
@@ -436,7 +446,11 @@ public with sharing class DirectSyncRuntimeService {
                     execTriggerPayload,
                     recordId,
                     userId,
-                    null
+                    null,
+                    null,
+                    null,
+                    this.executionIdentityProfileDeveloperName,
+                    this.executionIdentityNamedCredential
                 );
 
                 System.debug(LoggingLevel.INFO, logPrefix + 'Created new execution record: ' + executionId);

@@ -24,6 +24,29 @@ public inherited sharing class AIAgentConfigService {
     private static Map<String, LLMModelCatalog__mdt> modelCatalogByIdentifierCache;
     private static Map<String, LLMModelCatalog__mdt> modelCatalogByDeveloperNameCache;
     private static Boolean isModelCatalogCacheInitialized = false;
+    private static Map<String, ExecutionIdentityProfile__mdt> executionIdentityProfilesByDeveloperNameCache;
+    private static Boolean isExecutionIdentityProfileCacheInitialized = false;
+
+    @TestVisible
+    private static Map<String, ExecutionIdentityProfile__mdt> testExecutionIdentityProfilesByDeveloperName;
+
+    public class ResolvedExecutionIdentity {
+        public String profileDeveloperName { get; set; }
+        public String namedCredentialDeveloperName { get; set; }
+        public Boolean requiresPrivilegedContext { get; set; }
+
+        public ResolvedExecutionIdentity() {
+            this.requiresPrivilegedContext = false;
+        }
+
+        public void applyToPayload(AgentExecutionService.ExecutionPayload payload) {
+            if (payload == null) {
+                return;
+            }
+            payload.executionIdentityProfileDeveloperName = this.profileDeveloperName;
+            payload.executionIdentityNamedCredential = this.namedCredentialDeveloperName;
+        }
+    }
 
     private static final List<String> AGENT_DEFINITION_FIELDS = new List<String>{
         'Id',
@@ -48,8 +71,7 @@ public inherited sharing class AIAgentConfigService {
         'PromptFooter__c',
         'EnableParallelToolCalling__c',
         'EnableToolReasoning__c',
-        'RequiresServiceUserContext__c',
-        'ServiceUserNamedCredential__c',
+        'ExecutionIdentityProfileDeveloperName__c',
         'EnableToolFlowGraph__c',
         'ToolFlowGraph__c',
         'AsyncDispatchType__c',
@@ -644,6 +666,66 @@ public inherited sharing class AIAgentConfigService {
         return getLLMModelCatalogRecordByDeveloperName(llmConfig.ModelCatalogDeveloperName__c);
     }
 
+    public static ResolvedExecutionIdentity resolveExecutionIdentityForAgent(AIAgentDefinition__c agentDefinition) {
+        if (agentDefinition == null || String.isBlank(agentDefinition.ExecutionIdentityProfileDeveloperName__c)) {
+            return new ResolvedExecutionIdentity();
+        }
+
+        return resolveExecutionIdentityForProfile(
+            agentDefinition.ExecutionIdentityProfileDeveloperName__c,
+            'agent definition ' + agentDefinition.DeveloperName__c
+        );
+    }
+
+    public static ResolvedExecutionIdentity resolveExecutionIdentityForProfile(String profileDeveloperName) {
+        return resolveExecutionIdentityForProfile(profileDeveloperName, 'execution identity profile');
+    }
+
+    public static ResolvedExecutionIdentity resolveExecutionIdentityForExecution(Id executionId) {
+        if (executionId == null) {
+            return new ResolvedExecutionIdentity();
+        }
+
+        List<AgentExecution__c> executions = [
+            SELECT ExecutionIdentityProfileDeveloperName__c, ExecutionIdentityNamedCredential__c
+            FROM AgentExecution__c
+            WHERE Id = :executionId
+            LIMIT 1
+        ];
+        if (executions.isEmpty()) {
+            throw new ConfigurationException('Execution not found while resolving execution identity: ' + executionId);
+        }
+
+        return resolveExecutionIdentityForExecution(executions[0]);
+    }
+
+    public static ResolvedExecutionIdentity resolveExecutionIdentityForExecution(AgentExecution__c execution) {
+        if (execution == null) {
+            return new ResolvedExecutionIdentity();
+        }
+
+        return validateExecutionIdentitySnapshot(
+            execution.ExecutionIdentityProfileDeveloperName__c,
+            execution.ExecutionIdentityNamedCredential__c,
+            'execution ' + execution.Id
+        );
+    }
+
+    @TestVisible
+    static void setTestExecutionIdentityProfiles(List<ExecutionIdentityProfile__mdt> profiles) {
+        if (profiles == null) {
+            testExecutionIdentityProfilesByDeveloperName = null;
+            return;
+        }
+
+        testExecutionIdentityProfilesByDeveloperName = new Map<String, ExecutionIdentityProfile__mdt>();
+        for (ExecutionIdentityProfile__mdt profile : profiles) {
+            if (profile != null && String.isNotBlank(profile.DeveloperName)) {
+                testExecutionIdentityProfilesByDeveloperName.put(profile.DeveloperName.toLowerCase(), profile);
+            }
+        }
+    }
+
     /**
      * Ensures the LLM model catalog cache is initialized with active model records.
      * Uses a static flag to prevent repeated queries within the same transaction.
@@ -660,7 +742,14 @@ public inherited sharing class AIAgentConfigService {
 
         try {
             List<LLMModelCatalog__mdt> modelCatalogRecords = [
-                SELECT DeveloperName, ModelIdentifier__c, PromptPricePer1MTokens__c, CompletionPricePer1MTokens__c, MaxTokensParameterName__c, ProviderAdapterClass__c, SupportsVision__c
+                SELECT
+                    DeveloperName,
+                    ModelIdentifier__c,
+                    PromptPricePer1MTokens__c,
+                    CompletionPricePer1MTokens__c,
+                    MaxTokensParameterName__c,
+                    ProviderAdapterClass__c,
+                    SupportsVision__c
                 FROM LLMModelCatalog__mdt
                 WHERE IsActive__c = TRUE
             ];
@@ -700,5 +789,77 @@ public inherited sharing class AIAgentConfigService {
     private static Integer getLLMModelCatalogCacheSize() {
         ensureModelCatalogCacheInitialized();
         return modelCatalogByIdentifierCache.size();
+    }
+
+    private static ExecutionIdentityProfile__mdt getExecutionIdentityProfileByDeveloperName(String developerName) {
+        if (String.isBlank(developerName)) {
+            return null;
+        }
+
+        if (testExecutionIdentityProfilesByDeveloperName != null) {
+            return testExecutionIdentityProfilesByDeveloperName.get(developerName.toLowerCase());
+        }
+
+        ensureExecutionIdentityProfileCacheInitialized();
+        return executionIdentityProfilesByDeveloperNameCache.get(developerName.toLowerCase());
+    }
+
+    private static ResolvedExecutionIdentity resolveExecutionIdentityForProfile(String profileDeveloperName, String sourceLabel) {
+        if (String.isBlank(profileDeveloperName)) {
+            return new ResolvedExecutionIdentity();
+        }
+
+        String trimmedProfileDeveloperName = profileDeveloperName.trim();
+        ExecutionIdentityProfile__mdt profile = getExecutionIdentityProfileByDeveloperName(trimmedProfileDeveloperName);
+        if (profile == null) {
+            throw new ConfigurationException('Execution identity profile not found or inactive: ' + trimmedProfileDeveloperName);
+        }
+        if (String.isBlank(profile.NamedCredentialDeveloperName__c)) {
+            throw new ConfigurationException('Execution identity profile "' + trimmedProfileDeveloperName + '" is missing NamedCredentialDeveloperName__c');
+        }
+
+        return validateExecutionIdentitySnapshot(trimmedProfileDeveloperName, profile.NamedCredentialDeveloperName__c, sourceLabel);
+    }
+
+    private static void ensureExecutionIdentityProfileCacheInitialized() {
+        if (isExecutionIdentityProfileCacheInitialized) {
+            return;
+        }
+
+        executionIdentityProfilesByDeveloperNameCache = new Map<String, ExecutionIdentityProfile__mdt>();
+        try {
+            for (ExecutionIdentityProfile__mdt profile : [
+                SELECT DeveloperName, NamedCredentialDeveloperName__c
+                FROM ExecutionIdentityProfile__mdt
+                WHERE IsActive__c = TRUE
+            ]) {
+                if (String.isNotBlank(profile.DeveloperName)) {
+                    executionIdentityProfilesByDeveloperNameCache.put(profile.DeveloperName.toLowerCase(), profile);
+                }
+            }
+            isExecutionIdentityProfileCacheInitialized = true;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, '[AIAgentConfigService] Failed to initialize execution identity profile cache: ' + e.getMessage());
+            throw new ConfigurationException('Execution identity profile cache initialization failed: ' + e.getMessage(), e);
+        }
+    }
+
+    private static ResolvedExecutionIdentity validateExecutionIdentitySnapshot(
+        String profileDeveloperName,
+        String namedCredentialDeveloperName,
+        String sourceLabel
+    ) {
+        if (String.isBlank(profileDeveloperName) && String.isBlank(namedCredentialDeveloperName)) {
+            return new ResolvedExecutionIdentity();
+        }
+        if (String.isBlank(profileDeveloperName) || String.isBlank(namedCredentialDeveloperName)) {
+            throw new ConfigurationException('Incomplete execution identity snapshot on ' + sourceLabel + '. Both profile and Named Credential are required.');
+        }
+
+        ResolvedExecutionIdentity resolved = new ResolvedExecutionIdentity();
+        resolved.profileDeveloperName = profileDeveloperName;
+        resolved.namedCredentialDeveloperName = namedCredentialDeveloperName;
+        resolved.requiresPrivilegedContext = true;
+        return resolved;
     }
 }
