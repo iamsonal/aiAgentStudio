@@ -456,6 +456,7 @@ private class ToolCallResponseHandlerTest {
 
     @IsTest
     static void testHandle_ApprovalRequired_ToolCreatesPendingActionOrFails() {
+        configureDefaultHitlExecutionIdentity();
         TestFactory.AgentSetup setup = getSetup();
 
         AgentCapability__c approvalCap = TestFactory.newCapability()
@@ -500,7 +501,10 @@ private class ToolCallResponseHandlerTest {
             ];
             System.assertEquals('Failed', execution.ExecutionStatus__c, 'Approval failure should fail execution');
             System.assert(
-                execution.ErrorMessage__c != null && execution.ErrorMessage__c.contains('Failed to initiate approval'),
+                execution.ErrorMessage__c != null &&
+                (execution.ErrorMessage__c.contains('Failed to initiate approval') ||
+                execution.ErrorMessage__c.contains('Failed to initiate HITL workflow') ||
+                execution.ErrorMessage__c.contains('submit to approval process')),
                 'Failure should report approval initiation error'
             );
         }
@@ -836,6 +840,21 @@ private class ToolCallResponseHandlerTest {
         setup.agentExecution = execution;
         setup.llmConfig = llm;
         return setup;
+    }
+
+    private static void configureDefaultHitlExecutionIdentity() {
+        insert new AIAgentFrameworkSettings__c(DefaultHITLExecIdentityProfile__c = 'FrameworkServiceUser');
+        AIAgentFrameworkSettings.clearCache();
+        AIAgentConfigService.setTestExecutionIdentityProfiles(
+            new List<ExecutionIdentityProfile__mdt>{
+                new ExecutionIdentityProfile__mdt(
+                    DeveloperName = 'FrameworkServiceUser',
+                    MasterLabel = 'FrameworkServiceUser',
+                    IsActive__c = true,
+                    NamedCredentialDeveloperName__c = 'AgentStudio_ServiceUser'
+                )
+            }
+        );
     }
 
     /**

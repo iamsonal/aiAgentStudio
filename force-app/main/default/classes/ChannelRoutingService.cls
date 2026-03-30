@@ -287,7 +287,11 @@ public inherited sharing class ChannelRoutingService {
         String providerKey = ((IExternalMessagingProvider) instanceObj).getProviderKey();
         if (String.isBlank(providerKey)) {
             throw new AIAgentException.OrchestrationException(
-                'External messaging provider "' + endpoint.ProviderAdapterClass__c + '" returned a blank provider key for endpoint ' + endpoint.DeveloperName + '.'
+                'External messaging provider "' +
+                    endpoint.ProviderAdapterClass__c +
+                    '" returned a blank provider key for endpoint ' +
+                    endpoint.DeveloperName +
+                    '.'
             );
         }
         return providerKey;

@@ -229,10 +229,7 @@ private class HITLServiceQueueableTest {
 
     @IsTest
     static void testExecuteTool_MissingNamedCredential_DoesNotMutatePendingAction() {
-        update new AgentExecution__c(
-            Id = [SELECT Id FROM AgentExecution__c LIMIT 1].Id,
-            ExecutionIdentityNamedCredential__c = null
-        );
+        update new AgentExecution__c(Id = [SELECT Id FROM AgentExecution__c LIMIT 1].Id, ExecutionIdentityNamedCredential__c = null);
 
         AgentExecution__c exec = [SELECT Id FROM AgentExecution__c LIMIT 1];
         AgentCapability__c cap = [SELECT Id, CapabilityName__c, HITLNotificationPreference__c FROM AgentCapability__c LIMIT 1];
@@ -275,10 +272,7 @@ private class HITLServiceQueueableTest {
 
     @IsTest
     static void testFollowUp_MissingNamedCredential_PausesExecution() {
-        update new AgentExecution__c(
-            Id = [SELECT Id FROM AgentExecution__c LIMIT 1].Id,
-            ExecutionIdentityNamedCredential__c = null
-        );
+        update new AgentExecution__c(Id = [SELECT Id FROM AgentExecution__c LIMIT 1].Id, ExecutionIdentityNamedCredential__c = null);
 
         AgentExecution__c exec = [SELECT Id, CurrentTurnIdentifier__c FROM AgentExecution__c LIMIT 1];
 
@@ -300,10 +294,7 @@ private class HITLServiceQueueableTest {
 
     @IsTest
     static void testResume_MissingNamedCredential_PausesExecution() {
-        update new AgentExecution__c(
-            Id = [SELECT Id FROM AgentExecution__c LIMIT 1].Id,
-            ExecutionIdentityNamedCredential__c = null
-        );
+        update new AgentExecution__c(Id = [SELECT Id FROM AgentExecution__c LIMIT 1].Id, ExecutionIdentityNamedCredential__c = null);
 
         AgentExecution__c exec = [SELECT Id FROM AgentExecution__c LIMIT 1];
 

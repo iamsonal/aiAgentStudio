@@ -48,10 +48,7 @@ global inherited sharing class AgentExecutionService {
                 throw configEx;
             }
 
-            AIAgentConfigService.ResolvedExecutionIdentity executionIdentity = ensurePayloadExecutionIdentity(
-                agentDef,
-                payload
-            );
+            AIAgentConfigService.ResolvedExecutionIdentity executionIdentity = ensurePayloadExecutionIdentity(agentDef, payload);
 
             // Privileged execution identity routing
             if (executionIdentity.requiresPrivilegedContext && payload.isInServiceUserContext != true) {
@@ -98,9 +95,8 @@ global inherited sharing class AgentExecutionService {
         AIAgentDefinition__c agentDefinition,
         ExecutionPayload payload
     ) {
-        if (payload != null &&
-            (String.isNotBlank(payload.executionIdentityProfileDeveloperName) ||
-            String.isNotBlank(payload.executionIdentityNamedCredential))
+        if (
+            payload != null && (String.isNotBlank(payload.executionIdentityProfileDeveloperName) || String.isNotBlank(payload.executionIdentityNamedCredential))
         ) {
             return AIAgentConfigService.resolveExecutionIdentityForExecution(
                 new AgentExecution__c(

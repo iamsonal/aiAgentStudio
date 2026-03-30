@@ -43,6 +43,10 @@ public with sharing class HITLGatewayService {
     public static final String NOTIFICATION_TYPE_ERROR = 'error';
 
     private static final String LOG_PREFIX = '[HITLGateway] ';
+    private static final String HITL_EXECUTION_IDENTITY_ERROR =
+        'Approval-based HITL requires an execution identity. ' +
+        'If the execution has ExecutionIdentityProfileDeveloperName__c, HITL uses that. ' +
+        'Otherwise configure AIAgentFrameworkSettings__c.DefaultHITLExecIdentityProfile__c.';
 
     public class HITLConfigurationException extends Exception {
     }
@@ -189,7 +193,7 @@ public with sharing class HITLGatewayService {
         }
 
         List<AgentExecution__c> executions = [
-            SELECT Id, User__c, SourceRecordId__c, InteractionChannel__c
+            SELECT Id, User__c, SourceRecordId__c, InteractionChannel__c, ExecutionIdentityProfileDeveloperName__c, ExecutionIdentityNamedCredential__c
             FROM AgentExecution__c
             WHERE Id = :context.executionId
             LIMIT 1
@@ -200,9 +204,14 @@ public with sharing class HITLGatewayService {
         }
 
         AgentExecution__c execution = executions[0];
-        String interactionChannel = String.isNotBlank(reviewPayload.interactionChannel)
-            ? reviewPayload.interactionChannel
-            : execution.InteractionChannel__c;
+        AIAgentConfigService.ResolvedExecutionIdentity hitlExecutionIdentity;
+        try {
+            hitlExecutionIdentity = ensureApprovalBasedHitlExecutionIdentity(execution, true, debugPrefix);
+        } catch (Exception e) {
+            result.errorMessage = e.getMessage();
+            return result;
+        }
+        String interactionChannel = String.isNotBlank(reviewPayload.interactionChannel) ? reviewPayload.interactionChannel : execution.InteractionChannel__c;
         if (String.isBlank(interactionChannel)) {
             interactionChannel = RuntimeRegistryService.getInteractionChannel(agentDefinition, context.executionId);
         }
@@ -229,14 +238,7 @@ public with sharing class HITLGatewayService {
         result.pendingActionId = pendingAction.Id;
 
         if (String.isNotBlank(reviewPayload.inboundDedupKey)) {
-            new InteractionMessageService().updateInboundStatus(
-                reviewPayload.inboundDedupKey,
-                'Drafted',
-                null,
-                null,
-                null,
-                pendingAction.Id
-            );
+            new InteractionMessageService().updateInboundStatus(reviewPayload.inboundDedupKey, 'Drafted', null, null, null, pendingAction.Id);
         }
 
         try {
@@ -256,13 +258,8 @@ public with sharing class HITLGatewayService {
                     errors += err.getMessage() + '; ';
                 }
                 if (String.isNotBlank(reviewPayload.inboundDedupKey)) {
-                    new InteractionMessageService().updateInboundStatus(
-                        reviewPayload.inboundDedupKey,
-                        'Failed',
-                        null,
-                        AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                        errors
-                    );
+                    new InteractionMessageService()
+                        .updateInboundStatus(reviewPayload.inboundDedupKey, 'Failed', null, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, errors);
                 }
                 Database.delete(pendingAction, false);
                 result.errorMessage = 'Failed to submit review artifact for approval: ' + errors;
@@ -273,13 +270,8 @@ public with sharing class HITLGatewayService {
             Database.update(pendingAction, false);
         } catch (Exception e) {
             if (String.isNotBlank(reviewPayload.inboundDedupKey)) {
-                new InteractionMessageService().updateInboundStatus(
-                    reviewPayload.inboundDedupKey,
-                    'Failed',
-                    null,
-                    AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
-                    e.getMessage()
-                );
+                new InteractionMessageService()
+                    .updateInboundStatus(reviewPayload.inboundDedupKey, 'Failed', null, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, e.getMessage());
             }
             Database.delete(pendingAction, false);
             result.errorMessage = 'Failed to create review artifact approval: ' + e.getMessage();
@@ -394,11 +386,24 @@ public with sharing class HITLGatewayService {
                 return createInvalidConfigDecision(errorMsg);
             }
 
+            try {
+                ensureApprovalBasedHitlExecutionIdentity(context.executionId, false, debugPrefix);
+            } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, debugPrefix + e.getMessage());
+                return createInvalidConfigDecision(e.getMessage());
+            }
+
             System.debug(LoggingLevel.INFO, debugPrefix + 'HITL ConfirmationThenApproval required for: ' + context.capability.CapabilityName__c);
             return createInterventionDecision(HITL_MODE_CONFIRMATION_THEN_APPROVAL);
         }
 
         if (hitlMode == HITL_MODE_APPROVAL) {
+            try {
+                ensureApprovalBasedHitlExecutionIdentity(context.executionId, false, debugPrefix);
+            } catch (Exception e) {
+                System.debug(LoggingLevel.ERROR, debugPrefix + e.getMessage());
+                return createInvalidConfigDecision(e.getMessage());
+            }
             System.debug(LoggingLevel.INFO, debugPrefix + 'HITL Approval required for: ' + context.capability.CapabilityName__c);
             return createInterventionDecision(HITL_MODE_APPROVAL);
         }
@@ -435,6 +440,12 @@ public with sharing class HITLGatewayService {
      */
     public static HITLDecision evaluateConditionalApproval(HITLContext context) {
         context.validate();
+        try {
+            ensureApprovalBasedHitlExecutionIdentity(context.executionId, false, context.logPrefix + '[evaluateConditionalApproval] ');
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, context.logPrefix + '[evaluateConditionalApproval] ' + e.getMessage());
+            return createInvalidConfigDecision(e.getMessage());
+        }
         System.debug(
             LoggingLevel.INFO,
             context.logPrefix +
@@ -474,6 +485,7 @@ public with sharing class HITLGatewayService {
         System.debug(LoggingLevel.INFO, debugPrefix + 'Initiating ConfirmationThenApproval HITL for tool: ' + context.capability.CapabilityName__c);
 
         String approvalPrompt = generateApprovalPrompt(context);
+        AIAgentConfigService.ResolvedExecutionIdentity hitlExecutionIdentity = ensureApprovalBasedHitlExecutionIdentity(context.executionId, true, debugPrefix);
 
         PendingHITLAction__c pendingAction = new PendingHITLAction__c(
             ArtifactType__c = ARTIFACT_TYPE_TOOL_APPROVAL,
@@ -573,6 +585,7 @@ public with sharing class HITLGatewayService {
         System.debug(LoggingLevel.INFO, debugPrefix + 'Initiating Approval HITL for tool: ' + context.capability.CapabilityName__c);
 
         String approvalPrompt = generateApprovalPrompt(context);
+        AIAgentConfigService.ResolvedExecutionIdentity hitlExecutionIdentity = ensureApprovalBasedHitlExecutionIdentity(context.executionId, true, debugPrefix);
 
         PendingHITLAction__c pendingAction = new PendingHITLAction__c(
             ArtifactType__c = ARTIFACT_TYPE_TOOL_APPROVAL,
@@ -722,9 +735,7 @@ public with sharing class HITLGatewayService {
             result.success = true;
             result.status = action.Status__c;
             result.shouldProceed = approved;
-            result.toolArguments = action.ArtifactType__c == ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW
-                ? action.ReviewedPayloadJson__c
-                : action.ToolArgumentsJSON__c;
+            result.toolArguments = action.ArtifactType__c == ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW ? action.ReviewedPayloadJson__c : action.ToolArgumentsJSON__c;
 
             if (approved) {
                 result.llmMessage = 'Action "' + action.ToolName__c + '" has been approved. Proceeding with execution.';
@@ -841,6 +852,56 @@ public with sharing class HITLGatewayService {
         return false;
     }
 
+    private static AIAgentConfigService.ResolvedExecutionIdentity ensureApprovalBasedHitlExecutionIdentity(
+        Id executionId,
+        Boolean persistToExecution,
+        String debugPrefix
+    ) {
+        AIAgentConfigService.ResolvedExecutionIdentity executionIdentity = AIAgentConfigService.resolveExecutionIdentityForExecution(executionId);
+        if (executionIdentity.requiresPrivilegedContext) {
+            return executionIdentity;
+        }
+
+        return ensureApprovalBasedHitlExecutionIdentity(executionId == null ? null : new AgentExecution__c(Id = executionId), persistToExecution, debugPrefix);
+    }
+
+    private static AIAgentConfigService.ResolvedExecutionIdentity ensureApprovalBasedHitlExecutionIdentity(
+        AgentExecution__c execution,
+        Boolean persistToExecution,
+        String debugPrefix
+    ) {
+        AIAgentConfigService.ResolvedExecutionIdentity executionIdentity = AIAgentConfigService.resolveExecutionIdentityForExecution(execution);
+        if (executionIdentity.requiresPrivilegedContext) {
+            return executionIdentity;
+        }
+
+        String defaultProfileDeveloperName = AIAgentFrameworkSettings.getDefaultHITLExecutionIdentityProfileDeveloperName();
+        if (String.isBlank(defaultProfileDeveloperName)) {
+            throw new HITLConfigurationException(HITL_EXECUTION_IDENTITY_ERROR);
+        }
+
+        AIAgentConfigService.ResolvedExecutionIdentity fallbackIdentity;
+        try {
+            fallbackIdentity = AIAgentConfigService.resolveExecutionIdentityForProfile(defaultProfileDeveloperName);
+        } catch (Exception e) {
+            throw new HITLConfigurationException('AIAgentFrameworkSettings__c.DefaultHITLExecIdentityProfile__c is invalid: ' + e.getMessage());
+        }
+        if (persistToExecution == true && execution != null && execution.Id != null) {
+            update new AgentExecution__c(
+                Id = execution.Id,
+                ExecutionIdentityProfileDeveloperName__c = fallbackIdentity.profileDeveloperName,
+                ExecutionIdentityNamedCredential__c = fallbackIdentity.namedCredentialDeveloperName
+            );
+            execution.ExecutionIdentityProfileDeveloperName__c = fallbackIdentity.profileDeveloperName;
+            execution.ExecutionIdentityNamedCredential__c = fallbackIdentity.namedCredentialDeveloperName;
+            System.debug(
+                LoggingLevel.INFO,
+                debugPrefix + 'Snapshotted default HITL execution identity onto execution: ' + fallbackIdentity.profileDeveloperName
+            );
+        }
+        return fallbackIdentity;
+    }
+
     private static String generateApprovalPrompt(HITLContext context) {
         String toolName = context.capability.CapabilityName__c;
 
@@ -871,7 +932,7 @@ public with sharing class HITLGatewayService {
         }
 
         // Why approval is needed
-        if (context.isConditionalApproval && String.isNotBlank(context.llmApprovalReason)) {
+        if (context.isConditionalApproval == true && String.isNotBlank(context.llmApprovalReason)) {
             prompt += context.llmApprovalReason + '\n\n';
         }
 

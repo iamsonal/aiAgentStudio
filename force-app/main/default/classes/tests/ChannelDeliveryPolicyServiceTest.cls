@@ -152,6 +152,7 @@ private class ChannelDeliveryPolicyServiceTest {
         resetTestInteractionChannelState();
         nextAction = 'Draft';
         nextRouteKey = 'review-route';
+        configureDefaultHitlExecutionIdentity();
 
         InteractionChannelType__mdt direct = new InteractionChannelType__mdt(
             ChannelKey__c = RuntimeRegistryService.CHANNEL_DIRECT,
@@ -193,7 +194,11 @@ private class ChannelDeliveryPolicyServiceTest {
                 pendingAction.ArtifactType__c,
                 'Draft mode should create an outbound draft review artifact'
             );
-            System.assertEquals(RuntimeRegistryService.CHANNEL_DIRECT, pendingAction.InteractionChannel__c, 'Review artifact should track the execution channel');
+            System.assertEquals(
+                RuntimeRegistryService.CHANNEL_DIRECT,
+                pendingAction.InteractionChannel__c,
+                'Review artifact should track the execution channel'
+            );
             System.assert(pendingAction.ReviewedPayloadJson__c.contains('"status":"ready"'), 'Reviewed payload JSON should be persisted');
         } finally {
             InteractionChannelRegistryService.clearTestAdapters();
@@ -262,6 +267,21 @@ private class ChannelDeliveryPolicyServiceTest {
             new ContextManagerService(),
             null,
             new IDecisionStepLogger.NoOp()
+        );
+    }
+
+    private static void configureDefaultHitlExecutionIdentity() {
+        insert new AIAgentFrameworkSettings__c(DefaultHITLExecIdentityProfile__c = 'FrameworkServiceUser');
+        AIAgentFrameworkSettings.clearCache();
+        AIAgentConfigService.setTestExecutionIdentityProfiles(
+            new List<ExecutionIdentityProfile__mdt>{
+                new ExecutionIdentityProfile__mdt(
+                    DeveloperName = 'FrameworkServiceUser',
+                    MasterLabel = 'FrameworkServiceUser',
+                    IsActive__c = true,
+                    NamedCredentialDeveloperName__c = 'AgentStudio_ServiceUser'
+                )
+            }
         );
     }
 }

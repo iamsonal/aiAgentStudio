@@ -197,16 +197,17 @@ private class PendingHITLActionTriggerHandlerTest {
         update exec;
 
         String dedupKey = 'dedup-review-rejected-001';
-        new InteractionMessageService().recordInboundProcessing(
-            null,
-            exec.Id,
-            RuntimeRegistryService.CHANNEL_EMAIL,
-            'Salesforce Email',
-            null,
-            dedupKey,
-            'turn-hitl-review-rejected-001',
-            '{}'
-        );
+        new InteractionMessageService()
+            .recordInboundProcessing(
+                null,
+                exec.Id,
+                RuntimeRegistryService.CHANNEL_EMAIL,
+                'Salesforce Email',
+                null,
+                dedupKey,
+                'turn-hitl-review-rejected-001',
+                '{}'
+            );
 
         PendingHITLAction__c action = new PendingHITLAction__c(
             ArtifactType__c = HITLGatewayService.ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW,

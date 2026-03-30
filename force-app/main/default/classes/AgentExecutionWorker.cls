@@ -477,8 +477,8 @@ public inherited sharing class AgentExecutionWorker implements Queueable, Databa
             chainPayload.userId = UserInfo.getUserId();
             chainPayload.triggerSource = 'DLQ';
             chainPayload.interactionChannel = payload.interactionChannel;
-                chainPayload.executionIdentityProfileDeveloperName = payload.executionIdentityProfileDeveloperName;
-                chainPayload.executionIdentityNamedCredential = payload.executionIdentityNamedCredential;
+            chainPayload.executionIdentityProfileDeveloperName = payload.executionIdentityProfileDeveloperName;
+            chainPayload.executionIdentityNamedCredential = payload.executionIdentityNamedCredential;
             // Note: existingExecutionId NOT set - worker will self-pull
 
             Id jobId = System.enqueueJob(new AgentExecutionWorker(agentName, chainPayload));

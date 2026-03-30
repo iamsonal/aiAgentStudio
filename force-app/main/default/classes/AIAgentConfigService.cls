@@ -671,22 +671,14 @@ public inherited sharing class AIAgentConfigService {
             return new ResolvedExecutionIdentity();
         }
 
-        String profileDeveloperName = agentDefinition.ExecutionIdentityProfileDeveloperName__c.trim();
-        ExecutionIdentityProfile__mdt profile = getExecutionIdentityProfileByDeveloperName(profileDeveloperName);
-        if (profile == null) {
-            throw new ConfigurationException('Execution identity profile not found or inactive: ' + profileDeveloperName);
-        }
-        if (String.isBlank(profile.NamedCredentialDeveloperName__c)) {
-            throw new ConfigurationException(
-                'Execution identity profile "' + profileDeveloperName + '" is missing NamedCredentialDeveloperName__c'
-            );
-        }
-
-        return validateExecutionIdentitySnapshot(
-            profileDeveloperName,
-            profile.NamedCredentialDeveloperName__c,
+        return resolveExecutionIdentityForProfile(
+            agentDefinition.ExecutionIdentityProfileDeveloperName__c,
             'agent definition ' + agentDefinition.DeveloperName__c
         );
+    }
+
+    public static ResolvedExecutionIdentity resolveExecutionIdentityForProfile(String profileDeveloperName) {
+        return resolveExecutionIdentityForProfile(profileDeveloperName, 'execution identity profile');
     }
 
     public static ResolvedExecutionIdentity resolveExecutionIdentityForExecution(Id executionId) {
@@ -750,7 +742,14 @@ public inherited sharing class AIAgentConfigService {
 
         try {
             List<LLMModelCatalog__mdt> modelCatalogRecords = [
-                SELECT DeveloperName, ModelIdentifier__c, PromptPricePer1MTokens__c, CompletionPricePer1MTokens__c, MaxTokensParameterName__c, ProviderAdapterClass__c, SupportsVision__c
+                SELECT
+                    DeveloperName,
+                    ModelIdentifier__c,
+                    PromptPricePer1MTokens__c,
+                    CompletionPricePer1MTokens__c,
+                    MaxTokensParameterName__c,
+                    ProviderAdapterClass__c,
+                    SupportsVision__c
                 FROM LLMModelCatalog__mdt
                 WHERE IsActive__c = TRUE
             ];
@@ -805,6 +804,23 @@ public inherited sharing class AIAgentConfigService {
         return executionIdentityProfilesByDeveloperNameCache.get(developerName.toLowerCase());
     }
 
+    private static ResolvedExecutionIdentity resolveExecutionIdentityForProfile(String profileDeveloperName, String sourceLabel) {
+        if (String.isBlank(profileDeveloperName)) {
+            return new ResolvedExecutionIdentity();
+        }
+
+        String trimmedProfileDeveloperName = profileDeveloperName.trim();
+        ExecutionIdentityProfile__mdt profile = getExecutionIdentityProfileByDeveloperName(trimmedProfileDeveloperName);
+        if (profile == null) {
+            throw new ConfigurationException('Execution identity profile not found or inactive: ' + trimmedProfileDeveloperName);
+        }
+        if (String.isBlank(profile.NamedCredentialDeveloperName__c)) {
+            throw new ConfigurationException('Execution identity profile "' + trimmedProfileDeveloperName + '" is missing NamedCredentialDeveloperName__c');
+        }
+
+        return validateExecutionIdentitySnapshot(trimmedProfileDeveloperName, profile.NamedCredentialDeveloperName__c, sourceLabel);
+    }
+
     private static void ensureExecutionIdentityProfileCacheInitialized() {
         if (isExecutionIdentityProfileCacheInitialized) {
             return;
@@ -837,9 +853,7 @@ public inherited sharing class AIAgentConfigService {
             return new ResolvedExecutionIdentity();
         }
         if (String.isBlank(profileDeveloperName) || String.isBlank(namedCredentialDeveloperName)) {
-            throw new ConfigurationException(
-                'Incomplete execution identity snapshot on ' + sourceLabel + '. Both profile and Named Credential are required.'
-            );
+            throw new ConfigurationException('Incomplete execution identity snapshot on ' + sourceLabel + '. Both profile and Named Credential are required.');
         }
 
         ResolvedExecutionIdentity resolved = new ResolvedExecutionIdentity();

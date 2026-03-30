@@ -90,19 +90,7 @@ public inherited sharing class AgentStateService {
         Id userId,
         Id serviceUserId
     ) {
-        return createExecution(
-            executionType,
-            agentDefinitionId,
-            triggerSource,
-            triggerPayload,
-            sourceRecordId,
-            userId,
-            serviceUserId,
-            null,
-            null,
-            null,
-            null
-        );
+        return createExecution(executionType, agentDefinitionId, triggerSource, triggerPayload, sourceRecordId, userId, serviceUserId, null, null, null, null);
     }
 
     /**

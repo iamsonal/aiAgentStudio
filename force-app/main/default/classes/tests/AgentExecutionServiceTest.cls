@@ -41,7 +41,14 @@ private class AgentExecutionServiceTest {
         System.assertNotEquals(null, result.executionId, 'Stub execution ID should be returned');
 
         AgentExecution__c stub = [
-            SELECT Id, ExecutionStatus__c, TriggerPayload__c, SourceRecordId__c, AIAgentDefinition__c, ExecutionIdentityProfileDeveloperName__c, ExecutionIdentityNamedCredential__c
+            SELECT
+                Id,
+                ExecutionStatus__c,
+                TriggerPayload__c,
+                SourceRecordId__c,
+                AIAgentDefinition__c,
+                ExecutionIdentityProfileDeveloperName__c,
+                ExecutionIdentityNamedCredential__c
             FROM AgentExecution__c
             WHERE Id = :result.executionId
             LIMIT 1
@@ -51,7 +58,11 @@ private class AgentExecutionServiceTest {
         System.assertEquals(source.Id, stub.SourceRecordId__c, 'Stub should track source record');
         System.assertEquals(agent.Id, stub.AIAgentDefinition__c, 'Stub should link to agent definition');
         System.assertEquals('FrameworkServiceUser', stub.ExecutionIdentityProfileDeveloperName__c, 'Stub should snapshot the execution identity profile');
-        System.assertEquals('AgentStudio_ServiceUser', stub.ExecutionIdentityNamedCredential__c, 'Stub should snapshot the execution identity Named Credential');
+        System.assertEquals(
+            'AgentStudio_ServiceUser',
+            stub.ExecutionIdentityNamedCredential__c,
+            'Stub should snapshot the execution identity Named Credential'
+        );
     }
 
     @IsTest

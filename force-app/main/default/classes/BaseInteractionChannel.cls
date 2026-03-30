@@ -72,8 +72,6 @@ public abstract inherited sharing class BaseInteractionChannel implements Intera
     }
 
     protected Map<String, Object> deserializeTriggerPayload(String triggerPayloadJson) {
-        return String.isNotBlank(triggerPayloadJson)
-            ? (Map<String, Object>) JSON.deserializeUntyped(triggerPayloadJson)
-            : new Map<String, Object>();
+        return String.isNotBlank(triggerPayloadJson) ? (Map<String, Object>) JSON.deserializeUntyped(triggerPayloadJson) : new Map<String, Object>();
     }
 }

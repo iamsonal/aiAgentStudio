@@ -114,9 +114,7 @@ private class AIAgentConfigServiceTest {
 
     @IsTest
     static void testResolveExecutionIdentityForAgent_ProfileConfigured_ReturnsNamedCredential() {
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition()
-            .withExecutionIdentityProfile('FrameworkServiceUser')
-            .build();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withExecutionIdentityProfile('FrameworkServiceUser').build();
 
         AIAgentConfigService.ResolvedExecutionIdentity resolved = AIAgentConfigService.resolveExecutionIdentityForAgent(agent);
 
@@ -128,10 +126,7 @@ private class AIAgentConfigServiceTest {
     @IsTest
     static void testResolveExecutionIdentityForExecution_UsesSnapshotValues() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition()
-            .withLLM(llm.Id)
-            .withExecutionIdentityProfile('FrameworkServiceUser')
-            .save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withLLM(llm.Id).withExecutionIdentityProfile('FrameworkServiceUser').save();
 
         AgentExecution__c execution = TestFactory.newExecution()
             .withAgent(agent.Id)
@@ -139,10 +134,7 @@ private class AIAgentConfigServiceTest {
             .withExecutionIdentity('FrameworkServiceUser', 'AgentStudio_ServiceUser')
             .save();
 
-        update new AIAgentDefinition__c(
-            Id = agent.Id,
-            ExecutionIdentityProfileDeveloperName__c = null
-        );
+        update new AIAgentDefinition__c(Id = agent.Id, ExecutionIdentityProfileDeveloperName__c = null);
 
         AIAgentConfigService.ResolvedExecutionIdentity resolved = AIAgentConfigService.resolveExecutionIdentityForExecution(execution.Id);
 
