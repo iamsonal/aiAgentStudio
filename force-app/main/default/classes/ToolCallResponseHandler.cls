@@ -538,6 +538,12 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                 if (rationaleValue != null) {
                     result.rationale = String.valueOf(rationaleValue);
                 }
+            } else if (args.containsKey('rationale')) {
+                Object rationaleValue = args.get('rationale');
+                if (rationaleValue != null) {
+                    result.rationale = String.valueOf(rationaleValue);
+                }
+                System.debug(LoggingLevel.WARN, logPrefix + 'Tool arguments used legacy "rationale" key. Treating it as alias for "_rationale".');
             }
 
             if (args.containsKey('_confidence')) {
@@ -590,6 +596,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
             args.remove('_requiresApproval');
             args.remove('_approvalReason');
             args.remove('_rationale');
+            args.remove('rationale');
             args.remove('_confidence');
             args.remove('_nextStepSuggestion');
 
@@ -1354,6 +1361,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
 
         if (strategyOutcome != null) {
             // Strategy-specific runtime handled it
+            decisionLogger.commitSteps();
             return strategyOutcome;
         }
 
@@ -1367,6 +1375,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
             'Awaiting human approval'
         );
 
+        decisionLogger.commitSteps();
         return OrchestrationService.OUTCOME_QUEUED_ACTION;
     }
 
@@ -1760,6 +1769,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                 );
 
                 AgentStateService agentStateSvc = new AgentStateService();
+                AIAgentConfigService.ResolvedExecutionIdentity childExecutionIdentity = AIAgentConfigService.resolveExecutionIdentityForAgent(childAgentDef);
                 Id childExecutionId = agentStateSvc.createExecution(
                     childAgentDef.RuntimeStrategy__c,
                     childAgentDef.Id,
@@ -1769,7 +1779,9 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                     context.originalUserId,
                     null,
                     context.executionId,
-                    childTurn
+                    childTurn,
+                    childExecutionIdentity.profileDeveloperName,
+                    childExecutionIdentity.namedCredentialDeveloperName
                 );
 
                 // Build payload for the child agent worker
@@ -1780,6 +1792,8 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                 childPayload.triggerSource = 'AgentCapability';
                 childPayload.existingExecutionId = childExecutionId;
                 childPayload.userMessage = toolRequest.toolArguments;
+                childPayload.executionIdentityProfileDeveloperName = childExecutionIdentity.profileDeveloperName;
+                childPayload.executionIdentityNamedCredential = childExecutionIdentity.namedCredentialDeveloperName;
 
                 System.enqueueJob(new AgentExecutionWorker(childAgentName, childPayload));
 

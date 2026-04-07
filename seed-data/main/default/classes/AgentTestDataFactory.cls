@@ -1,5 +1,5 @@
 /**
- * @description Comprehensive test data factory for Loom showcasing the strategy-plus-channel runtime.
+ * @description Comprehensive test data factory for Friday showcasing the strategy-plus-channel runtime.
  *              Creates realistic business scenarios using standard Salesforce objects.
  *
  * **Runtime Examples Created:**
@@ -30,7 +30,7 @@ public with sharing class AgentTestDataFactory {
      */
     public static Map<String, Id> createComprehensiveShowcase() {
         System.debug('========================================');
-        System.debug('LOOM - COMPREHENSIVE SHOWCASE');
+        System.debug('FRIDAY - COMPREHENSIVE SHOWCASE');
         System.debug('========================================');
 
         // 0. Create Service User asynchronously (setup object - handled via @future to avoid mixed DML)
@@ -201,11 +201,11 @@ public with sharing class AgentTestDataFactory {
 
         insert serviceUser;
 
-        // Assign "Loom Service User" permission set if it exists
+        // Assign "Friday Service User" permission set if it exists
         List<PermissionSet> permSets = [
             SELECT Id, Label
             FROM PermissionSet
-            WHERE Label = 'Loom Service User'
+            WHERE Label = 'Friday Service User'
             LIMIT 1
         ];
 
@@ -216,7 +216,7 @@ public with sharing class AgentTestDataFactory {
         } else {
             System.debug(
                 LoggingLevel.WARN,
-                '[Service User] ⚠ Service User created but permission set "Loom Service User" not found. Assign it manually: ' +
+                '[Service User] ⚠ Service User created but permission set "Friday Service User" not found. Assign it manually: ' +
                 serviceUser.Username
             );
         }
@@ -871,7 +871,6 @@ public with sharing class AgentTestDataFactory {
             HistoryTurnLimit__c = 10,
             AuditLevel__c = 'Full',
             EnableParallelToolCalling__c = true,
-            RequiresServiceUserContext__c = false,
             PromptSafetyPreset__c = 'Standard',
             WelcomeMessageTemplate__c = 'Hello {User.FirstName}! I\'m your Customer Support Copilot. I can help you with cases, orders, and knowledge base searches. How can I assist you today?',
             IdentityPrompt__c = 'You are an expert customer support assistant for a B2B cloud software company. You help support agents resolve customer issues efficiently by searching knowledge, retrieving records, and creating cases.',

@@ -282,6 +282,12 @@ public with sharing class PendingHITLActionTriggerHandler {
             System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to log approval decision step: ' + e.getMessage());
         }
 
+        if (isOutboundDraftReview(fullAction)) {
+            System.debug(LoggingLevel.INFO, logPrefix + 'Enqueueing reviewed reply delivery via REST API');
+            System.enqueueJob(new HITLServiceQueueable(fullAction.Id));
+            return;
+        }
+
         AgentCapability__c capability = AIAgentConfigService.getCapabilityById(fullAction.AIAgentCapability__c);
         if (capability == null) {
             throw new HITLGatewayService.HITLProcessingException('Capability not found: ' + fullAction.AIAgentCapability__c);
@@ -368,6 +374,11 @@ public with sharing class PendingHITLActionTriggerHandler {
             System.debug(LoggingLevel.WARN, logPrefix + 'Non-critical: Failed to log rejection decision step: ' + e.getMessage());
         }
 
+        if (isOutboundDraftReview(fullAction)) {
+            markReviewArtifactSuppressed(fullAction, 'Rejected', logPrefix);
+            return;
+        }
+
         String rejectionMessage = JSON.serialize(
             new Map<String, Object>{
                 'success' => false,
@@ -415,6 +426,11 @@ public with sharing class PendingHITLActionTriggerHandler {
         PendingHITLAction__c fullAction = HITLGatewayService.getPendingAction(action.Id);
         if (fullAction == null)
             return;
+
+        if (isOutboundDraftReview(fullAction)) {
+            markReviewArtifactSuppressed(fullAction, 'Expired', logPrefix);
+            return;
+        }
 
         String expirationMessage = JSON.serialize(
             new Map<String, Object>{
@@ -488,6 +504,23 @@ public with sharing class PendingHITLActionTriggerHandler {
             } catch (Exception e) {
                 System.debug(LoggingLevel.ERROR, LOG_PREFIX + 'Failed to send error notification: ' + e.getMessage());
             }
+        }
+    }
+
+    private static Boolean isOutboundDraftReview(PendingHITLAction__c action) {
+        return action != null && action.ArtifactType__c == HITLGatewayService.ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW;
+    }
+
+    private static void markReviewArtifactSuppressed(PendingHITLAction__c action, String resolution, String logPrefix) {
+        if (action == null || String.isBlank(action.ReviewedPayloadJson__c)) {
+            return;
+        }
+        try {
+            Map<String, Object> reviewedPayload = (Map<String, Object>) JSON.deserializeUntyped(action.ReviewedPayloadJson__c);
+            String dedupKey = (String) reviewedPayload.get('inboundDedupKey');
+            new InteractionMessageService().updateInboundStatus(dedupKey, 'Suppressed', null, null, resolution + ' before send');
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to mark review artifact as suppressed: ' + e.getMessage());
         }
     }
 

@@ -13,14 +13,7 @@ private class ChannelRoutingServiceTest {
 
     @IsTest
     static void testResolveInboundRoute_ResolvesCaseSpecificChatRoute() {
-        configureRoutingFixture(
-            RuntimeRegistryService.CHANNEL_CHAT,
-            'CaseSupport_Chat',
-            CASE_CHAT_ENDPOINT,
-            null,
-            'Case_Support_Chat_Agent',
-            'Case'
-        );
+        configureRoutingFixture(RuntimeRegistryService.CHANNEL_CHAT, 'CaseSupport_Chat', CASE_CHAT_ENDPOINT, null, 'Case_Support_Chat_Agent', 'Case');
 
         ChannelRoutingService.ResolvedRoute route = new ChannelRoutingService()
             .resolveInboundRoute(RuntimeRegistryService.CHANNEL_CHAT, 'Case', CASE_CHAT_ENDPOINT);
@@ -52,14 +45,7 @@ private class ChannelRoutingServiceTest {
 
     @IsTest
     static void testResolveInboundRoute_ResolvesRecordlessDirectRouteWithRouteKey() {
-        configureRoutingFixture(
-            RuntimeRegistryService.CHANNEL_DIRECT,
-            'DirectSupport_Api',
-            DIRECT_ENDPOINT,
-            'direct-route-001',
-            'Direct_Support_Agent',
-            '*'
-        );
+        configureRoutingFixture(RuntimeRegistryService.CHANNEL_DIRECT, 'DirectSupport_Api', DIRECT_ENDPOINT, 'direct-route-001', 'Direct_Support_Agent', '*');
 
         ChannelRoutingService.ResolvedRoute route = new ChannelRoutingService()
             .resolveInboundRoute(RuntimeRegistryService.CHANNEL_DIRECT, null, DIRECT_ENDPOINT);

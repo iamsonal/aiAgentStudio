@@ -295,10 +295,13 @@ public without sharing class AgentExecutionTriggerHandler {
 
                 AgentExecutionService.ExecutionPayload chainPayload = new AgentExecutionService.ExecutionPayload();
                 chainPayload.userId = nextExecution.User__c;
+                chainPayload.serviceUserId = nextExecution.ServiceUser__c;
                 chainPayload.sourceRecordId = nextExecution.SourceRecordId__c;
                 chainPayload.turnIdentifier = nextExecution.CurrentTurnIdentifier__c;
                 chainPayload.triggerSource = 'DLQ';
                 chainPayload.existingExecutionId = nextExecution.Id;
+                chainPayload.executionIdentityProfileDeveloperName = nextExecution.ExecutionIdentityProfileDeveloperName__c;
+                chainPayload.executionIdentityNamedCredential = nextExecution.ExecutionIdentityNamedCredential__c;
 
                 try {
                     System.enqueueJob(new AgentExecutionWorker(agentName, chainPayload));
@@ -379,7 +382,15 @@ public without sharing class AgentExecutionTriggerHandler {
             }
 
             List<AgentExecution__c> candidates = [
-                SELECT Id, SourceRecordId__c, User__c, CurrentTurnIdentifier__c, Priority__c
+                SELECT
+                    Id,
+                    SourceRecordId__c,
+                    User__c,
+                    ServiceUser__c,
+                    CurrentTurnIdentifier__c,
+                    Priority__c,
+                    ExecutionIdentityProfileDeveloperName__c,
+                    ExecutionIdentityNamedCredential__c
                 FROM AgentExecution__c
                 WHERE BatchId__c = :batchId AND ExecutionStatus__c = 'Pending' AND (NextRetryAt__c = NULL OR NextRetryAt__c <= :now)
                 ORDER BY Priority__c DESC, CreatedDate ASC
@@ -394,7 +405,15 @@ public without sharing class AgentExecutionTriggerHandler {
             AgentExecution__c execution;
             for (AgentExecution__c candidate : candidates) {
                 List<AgentExecution__c> locked = [
-                    SELECT Id, SourceRecordId__c, User__c, CurrentTurnIdentifier__c, Priority__c
+                    SELECT
+                        Id,
+                        SourceRecordId__c,
+                        User__c,
+                        ServiceUser__c,
+                        CurrentTurnIdentifier__c,
+                        Priority__c,
+                        ExecutionIdentityProfileDeveloperName__c,
+                        ExecutionIdentityNamedCredential__c
                     FROM AgentExecution__c
                     WHERE Id = :candidate.Id AND ExecutionStatus__c = 'Pending' AND (NextRetryAt__c = NULL OR NextRetryAt__c <= :now)
                     FOR UPDATE

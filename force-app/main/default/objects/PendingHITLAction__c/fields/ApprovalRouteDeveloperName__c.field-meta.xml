@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ApprovalRouteDeveloperName__c</fullName>
+    <description>Resolved HITL approval route developer name snapped onto the pending action when it is created.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Shows which HITLApprovalRoute__mdt record determined approval behavior for this action.</inlineHelpText>
+    <label>Approval Route Developer Name</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

@@ -191,6 +191,7 @@ public with sharing class AgentExecutionDispatcher {
                     ProcessingStatus__c = AIAgentConstants.STATUS_IDLE,
                     AIAgentDefinition__c = agentDef.Id,
                     User__c = payload.userId,
+                    ServiceUser__c = payload.serviceUserId,
                     ExecutionType__c = agentDef.RuntimeStrategy__c,
                     InteractionChannel__c = interactionChannel,
                     TriggerSource__c = payload.triggerSource != null ? payload.triggerSource : 'Apex',
@@ -202,7 +203,9 @@ public with sharing class AgentExecutionDispatcher {
                     BatchId__c = batchId,
                     Priority__c = priority,
                     RetryCount__c = 0,
-                    MaxRetries__c = 3
+                    MaxRetries__c = 3,
+                    ExecutionIdentityProfileDeveloperName__c = payload.executionIdentityProfileDeveloperName,
+                    ExecutionIdentityNamedCredential__c = payload.executionIdentityNamedCredential
                 )
             );
         }
@@ -227,7 +230,7 @@ public with sharing class AgentExecutionDispatcher {
     ) {
         AgentExecutionService.ExecutionPayload workerPayload = new AgentExecutionService.ExecutionPayload();
         workerPayload.userId = originalPayload.userId;
-        workerPayload.serviceUserId = originalPayload.serviceUserId;
+        workerPayload.serviceUserId = execution.ServiceUser__c != null ? execution.ServiceUser__c : originalPayload.serviceUserId;
         workerPayload.triggerSource = originalPayload.triggerSource;
         workerPayload.userMessage = originalPayload.userMessage;
         workerPayload.isInServiceUserContext = originalPayload.isInServiceUserContext;
@@ -236,6 +239,8 @@ public with sharing class AgentExecutionDispatcher {
         workerPayload.turnIdentifier = execution.CurrentTurnIdentifier__c;
         workerPayload.claimToken = execution.WorkerClaimToken__c;
         workerPayload.interactionChannel = execution.InteractionChannel__c;
+        workerPayload.executionIdentityProfileDeveloperName = execution.ExecutionIdentityProfileDeveloperName__c;
+        workerPayload.executionIdentityNamedCredential = execution.ExecutionIdentityNamedCredential__c;
         return workerPayload;
     }
 
@@ -314,11 +319,17 @@ public with sharing class AgentExecutionDispatcher {
             SELECT
                 Id,
                 AIAgentDefinition__c,
+                User__c,
+                ServiceUser__c,
                 AIAgentDefinition__r.DeveloperName__c,
                 AIAgentDefinition__r.RuntimeStrategy__c,
                 Priority__c,
                 CreatedDate,
-                LastActivityTime__c
+                LastActivityTime__c,
+                CurrentTurnIdentifier__c,
+                InteractionChannel__c,
+                ExecutionIdentityProfileDeveloperName__c,
+                ExecutionIdentityNamedCredential__c
             FROM AgentExecution__c
             WHERE BatchId__c = :batchId AND ExecutionStatus__c IN ('Pending', 'Failed')
             ORDER BY Priority__c DESC, CreatedDate ASC
@@ -362,6 +373,7 @@ public with sharing class AgentExecutionDispatcher {
                 exec.ProcessingStatus__c = AIAgentConstants.STATUS_IDLE;
                 exec.ProcessingStartedAt__c = null;
                 exec.ErrorMessage__c = null;
+                exec.WorkerClaimToken__c = null;
             }
         }
 
@@ -372,6 +384,7 @@ public with sharing class AgentExecutionDispatcher {
                 exec.ProcessingStatus__c = AIAgentConstants.STATUS_IDLE;
                 exec.ProcessingStartedAt__c = null;
                 exec.ErrorMessage__c = null;
+                exec.WorkerClaimToken__c = null;
             }
         }
 
@@ -386,8 +399,13 @@ public with sharing class AgentExecutionDispatcher {
             for (Integer i = 0; i < workerCount; i++) {
                 AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
                 payload.existingExecutionId = agentExecutions[i].Id;
-                payload.userId = UserInfo.getUserId();
+                payload.userId = agentExecutions[i].User__c;
+                payload.serviceUserId = agentExecutions[i].ServiceUser__c;
                 payload.triggerSource = 'Retry';
+                payload.turnIdentifier = agentExecutions[i].CurrentTurnIdentifier__c;
+                payload.interactionChannel = agentExecutions[i].InteractionChannel__c;
+                payload.executionIdentityProfileDeveloperName = agentExecutions[i].ExecutionIdentityProfileDeveloperName__c;
+                payload.executionIdentityNamedCredential = agentExecutions[i].ExecutionIdentityNamedCredential__c;
 
                 System.enqueueJob(new AgentExecutionWorker(agentName, payload));
                 totalWorkersEnqueued++;

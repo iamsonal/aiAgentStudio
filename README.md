@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs-starlight/public/logo.png" alt="Loom Logo" width="150">
+  <img src="docs-starlight/public/logo.png" alt="Friday Logo" width="150">
 </p>
 
-<h1 align="center">Loom</h1>
+<h1 align="center">Friday</h1>
 
 <p align="center">
   <strong>Enterprise-Grade AI Platform for Salesforce</strong>
@@ -10,7 +10,7 @@
 
 Build intelligent AI agents powered by Large Language Models that seamlessly integrate with your Salesforce environment. Designed for security, scalability, and ease of use.
 
-`Loom` is named for what the framework actually does. A loom does not create value from a single thread. It turns many separate threads into something structured, durable, and useful. This framework does the same with prompts, tools, context, channels, memory, and governance. The result is not just an LLM call. It is an operational runtime that can hold together in production.
+Why Friday? Because “Unsupervised Multi-Channel Governance Runtime With Approval Routing” did not look great on the app header.
 
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
 [![Salesforce](https://img.shields.io/badge/Salesforce-API%20v63.0-blue.svg)](https://developer.salesforce.com/)
@@ -47,7 +47,7 @@ See the framework handle governed AI workflows with intelligent filtering, human
 
 ## 💖 Support This Project
 
-Loom is **free and open-source**. If you find it useful, consider supporting ongoing development.
+Friday is **free and open-source**. If you find it useful, consider supporting ongoing development.
 
 ☕ **[GitHub Sponsors](https://github.com/sponsors/iamsonal)** | **[Buy Me a Coffee](https://buymeacoffee.com/iamsonal)**
 

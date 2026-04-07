@@ -7,11 +7,15 @@ private class ChannelDeliveryPolicyServiceTest {
     private static String nextAction = 'None';
     private static String nextRouteKey;
     private static Boolean nextSendResult = true;
+    private static String nextReviewPayloadJson;
+    private static String nextReviewPayloadSummary;
 
     private static void resetTestInteractionChannelState() {
         nextAction = 'None';
         nextRouteKey = null;
         nextSendResult = true;
+        nextReviewPayloadJson = '{"status":"ready"}';
+        nextReviewPayloadSummary = 'Review the drafted response.';
     }
 
     private class TestInteractionChannel implements InteractionRuntimeModels.IInteractionChannel {
@@ -50,11 +54,30 @@ private class ChannelDeliveryPolicyServiceTest {
             return new InteractionRuntimeModels.DeliveryDecision(resolvedAction, nextRouteKey, null);
         }
 
+        public InteractionRuntimeModels.ReviewPayload buildReviewPayload(
+            AIAgentDefinition__c agentDefinition,
+            OrchestrationContext context,
+            String contentResponse,
+            String logPrefix
+        ) {
+            return new InteractionRuntimeModels.ReviewPayload(
+                RuntimeRegistryService.CHANNEL_DIRECT,
+                nextRouteKey,
+                'dedup-review',
+                nextReviewPayloadSummary,
+                nextReviewPayloadJson
+            );
+        }
+
+        public Boolean deliverReviewedPayload(String reviewedPayloadJson, OrchestrationContext context, String logPrefix) {
+            return true;
+        }
+
         public Boolean sendReply(String contentResponse, OrchestrationContext context, String logPrefix) {
             return nextSendResult;
         }
 
-        public Id saveDraft(String contentResponse, OrchestrationContext context, String logPrefix) {
+        public Id createReviewArtifact(String contentResponse, OrchestrationContext context, String logPrefix) {
             return null;
         }
 
@@ -124,6 +147,86 @@ private class ChannelDeliveryPolicyServiceTest {
         }
     }
 
+    @IsTest
+    static void testApplyContentDelivery_CreatesReviewArtifactForDraftMode() {
+        resetTestInteractionChannelState();
+        nextAction = 'Draft';
+        nextRouteKey = 'review-route';
+        configureDefaultHitlExecutionIdentity();
+
+        InteractionChannelType__mdt direct = new InteractionChannelType__mdt(
+            ChannelKey__c = RuntimeRegistryService.CHANNEL_DIRECT,
+            InteractionAdapterClass__c = TEST_ADAPTER_CLASS_NAME,
+            ConversationalRuntimeClass__c = 'ChatConversationalRuntimeService',
+            DefaultForDirect__c = true,
+            IsActive__c = true
+        );
+        InteractionChannelRegistryService.setTestChannelTypes(new List<InteractionChannelType__mdt>{ direct });
+        InteractionChannelRegistryService.setTestAdapter(TEST_ADAPTER_CLASS_NAME, new TestInteractionChannel());
+
+        try {
+            AIAgentDefinition__c agent = createDirectAgent('DeliveryPolicyDraftReview');
+            InteractionSession__c session = new InteractionSession__c(
+                Channel__c = RuntimeRegistryService.CHANNEL_DIRECT,
+                ConversationKey__c = 'delivery-policy-thread-review',
+                ParticipantExternalKey__c = 'participant-review',
+                ReplyRouteKey__c = 'review-route',
+                SessionStatus__c = 'Active'
+            );
+            insert session;
+
+            String turnIdentifier = 'turn-delivery-draft-001';
+            AgentExecution__c execution = createDirectExecution(agent.Id, session.Id, turnIdentifier);
+
+            ChannelDeliveryPolicyService.DeliveryResult result = new ChannelDeliveryPolicyService()
+                .applyContentDelivery(buildContext(execution.Id, agent.Id, turnIdentifier), 'Reply body for review', '[test] ');
+
+            PendingHITLAction__c pendingAction = [
+                SELECT
+                    ArtifactType__c,
+                    InteractionChannel__c,
+                    ReviewedPayloadJson__c,
+                    ApprovalCategory__c,
+                    ApprovalProcessDeveloperName__c,
+                    ApprovalRouteDeveloperName__c
+                FROM PendingHITLAction__c
+                WHERE AgentExecution__c = :execution.Id
+                LIMIT 1
+            ];
+
+            System.assertEquals(true, result.isSuccess, 'Draft mode should create a framework review artifact');
+            System.assertEquals(
+                HITLGatewayService.ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW,
+                pendingAction.ArtifactType__c,
+                'Draft mode should create an outbound draft review artifact'
+            );
+            System.assertEquals(
+                RuntimeRegistryService.CHANNEL_DIRECT,
+                pendingAction.InteractionChannel__c,
+                'Review artifact should track the execution channel'
+            );
+            System.assert(pendingAction.ReviewedPayloadJson__c.contains('"status":"ready"'), 'Reviewed payload JSON should be persisted');
+            System.assertEquals(
+                HITLGatewayService.APPROVAL_CATEGORY_OUTBOUND_DRAFT_REVIEW,
+                pendingAction.ApprovalCategory__c,
+                'Draft mode should snapshot the outbound draft review category'
+            );
+            System.assertEquals(
+                'Outbound_Draft_Review',
+                pendingAction.ApprovalProcessDeveloperName__c,
+                'Draft mode should snapshot the explicit draft-review process'
+            );
+            System.assertEquals(
+                'DefaultOutboundDraftReview',
+                pendingAction.ApprovalRouteDeveloperName__c,
+                'Draft mode should snapshot the resolved route'
+            );
+        } finally {
+            InteractionChannelRegistryService.clearTestAdapters();
+            InteractionChannelRegistryService.clearTestChannelTypes();
+        }
+    }
+
     private static void configureDirectChannelFixture(String routeKey) {
         resetTestInteractionChannelState();
         nextAction = 'Send';
@@ -185,6 +288,47 @@ private class ChannelDeliveryPolicyServiceTest {
             new ContextManagerService(),
             null,
             new IDecisionStepLogger.NoOp()
+        );
+    }
+
+    private static void configureDefaultHitlExecutionIdentity() {
+        insert new AIAgentFrameworkSettings__c(DefaultHITLExecIdentityProfile__c = 'FrameworkServiceUser');
+        AIAgentFrameworkSettings.clearCache();
+        AIAgentConfigService.setTestExecutionIdentityProfiles(
+            new List<ExecutionIdentityProfile__mdt>{
+                new ExecutionIdentityProfile__mdt(
+                    DeveloperName = 'FrameworkServiceUser',
+                    MasterLabel = 'FrameworkServiceUser',
+                    IsActive__c = true,
+                    NamedCredentialDeveloperName__c = 'AgentStudio_ServiceUser'
+                )
+            }
+        );
+        HITLApprovalRouteResolver.setTestRoutes(
+            new List<HITLApprovalRoute__mdt>{
+                new HITLApprovalRoute__mdt(
+                    DeveloperName = 'DefaultOutboundDraftReview',
+                    MasterLabel = 'Default Outbound Draft Review',
+                    ArtifactType__c = HITLGatewayService.ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW,
+                    ApprovalCategory__c = HITLGatewayService.APPROVAL_CATEGORY_OUTBOUND_DRAFT_REVIEW,
+                    ApprovalProcessDeveloperName__c = 'Outbound_Draft_Review',
+                    ApproverRoutingType__c = 'Queue',
+                    ApproverRoutingKey__c = 'Outbound_Draft_Review_Queue',
+                    Priority__c = 100,
+                    IsActive__c = true
+                ),
+                new HITLApprovalRoute__mdt(
+                    DeveloperName = 'DefaultToolApproval',
+                    MasterLabel = 'Default Tool Approval',
+                    ArtifactType__c = HITLGatewayService.ARTIFACT_TYPE_TOOL_APPROVAL,
+                    ApprovalCategory__c = HITLGatewayService.APPROVAL_CATEGORY_TOOL_APPROVAL,
+                    ApprovalProcessDeveloperName__c = 'Tool_Approval',
+                    ApproverRoutingType__c = 'Queue',
+                    ApproverRoutingKey__c = 'Tool_Approval_Queue',
+                    Priority__c = 100,
+                    IsActive__c = true
+                )
+            }
         );
     }
 }

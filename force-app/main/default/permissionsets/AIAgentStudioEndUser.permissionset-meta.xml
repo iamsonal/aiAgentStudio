@@ -10,7 +10,7 @@
         <externalCredentialPrincipal>OpenAIEC-OpenAI</externalCredentialPrincipal>
     </externalCredentialPrincipalAccesses>
     <hasActivationRequired>false</hasActivationRequired>
-    <label>Loom End User</label>
+    <label>Friday End User</label>
     <objectPermissions>
         <allowCreate>false</allowCreate>
         <allowDelete>false</allowDelete>

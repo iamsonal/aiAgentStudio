@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ApproverRoutingType__c</fullName>
+    <description>Resolved approver routing type snapped onto the pending HITL action.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Shows the routing model used when this approval was created, such as Queue or User.</inlineHelpText>
+    <label>Approver Routing Type</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

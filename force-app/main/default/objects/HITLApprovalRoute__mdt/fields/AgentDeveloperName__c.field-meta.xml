@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AgentDeveloperName__c</fullName>
+    <description>Optional agent developer name matcher for this route. Leave blank to match any agent.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Use the agent definition DeveloperName__c when a route should only apply to one agent.</inlineHelpText>
+    <label>Agent Developer Name</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

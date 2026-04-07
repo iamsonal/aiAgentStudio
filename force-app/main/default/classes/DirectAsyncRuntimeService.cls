@@ -42,9 +42,15 @@ public with sharing class DirectAsyncRuntimeService {
     private AIAgentDefinition__c agentDefinition;
     private LLMConfiguration__c llmConfig;
     private String triggerPayload;
+    private String executionIdentityProfileDeveloperName;
+    private String executionIdentityNamedCredential;
 
     public void setTriggerPayload(String value) {
         this.triggerPayload = value;
+    }
+    public void setExecutionIdentitySnapshot(String profileDeveloperName, String namedCredentialDeveloperName) {
+        this.executionIdentityProfileDeveloperName = profileDeveloperName;
+        this.executionIdentityNamedCredential = namedCredentialDeveloperName;
     }
     private Map<String, AgentCapability__c> capabilityCache = new Map<String, AgentCapability__c>();
     private Map<Id, String> userNameCache = new Map<Id, String>();
@@ -765,7 +771,11 @@ public with sharing class DirectAsyncRuntimeService {
                             executionLabel, // TriggerPayload - descriptive info
                             recordId,
                             userId,
-                            null
+                            null,
+                            null,
+                            null,
+                            this.executionIdentityProfileDeveloperName,
+                            this.executionIdentityNamedCredential
                         );
                         System.debug(LoggingLevel.WARN, logPrefix + 'Fail-fast triggered - created new execution: ' + failedExecutionId);
                     }
@@ -989,7 +999,11 @@ public with sharing class DirectAsyncRuntimeService {
                 execTriggerPayload,
                 recordId,
                 userId,
-                null
+                null,
+                null,
+                null,
+                this.executionIdentityProfileDeveloperName,
+                this.executionIdentityNamedCredential
             );
             System.debug(LoggingLevel.INFO, logPrefix + 'Created execution record: ' + executionId);
 

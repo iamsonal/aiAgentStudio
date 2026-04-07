@@ -17,6 +17,7 @@ private class AIAgentFrameworkSettingsTest {
         System.assertEquals(5, instance.BulkFailureThreshold__c, 'Default failure threshold should be 5');
         System.assertEquals(true, instance.EnableDecisionStepLogging__c, 'Decision step logging should be enabled by default');
         System.assertEquals(false, instance.ExtendQueueableChainLimit__c, 'Extend chain limit should be false by default');
+        System.assertEquals(null, instance.DefaultHITLExecIdentityProfile__c, 'Default HITL execution identity profile should default to blank');
         System.assertEquals(null, instance.ToolFlowGenLLMConfig__c, 'Tool Flow generation LLM override should default to blank');
     }
 
@@ -204,6 +205,17 @@ private class AIAgentFrameworkSettingsTest {
             llm.DeveloperName__c,
             AIAgentFrameworkSettings.getToolFlowGenerationLlmConfigurationDeveloperName(),
             'Tool Flow generation LLM override should return the configured LLM configuration'
+        );
+    }
+
+    @IsTest
+    static void testGetDefaultHITLExecutionIdentityProfileDeveloperName_ReturnsConfiguredValue() {
+        insert new AIAgentFrameworkSettings__c(DefaultHITLExecIdentityProfile__c = 'FrameworkServiceUser');
+
+        System.assertEquals(
+            'FrameworkServiceUser',
+            AIAgentFrameworkSettings.getDefaultHITLExecutionIdentityProfileDeveloperName(),
+            'Default HITL execution identity profile should return the configured value'
         );
     }
 }

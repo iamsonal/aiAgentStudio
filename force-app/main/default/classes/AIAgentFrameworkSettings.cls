@@ -186,7 +186,7 @@ public inherited sharing class AIAgentFrameworkSettings {
     /**
      * Gets whether Decision Step Logging is enabled at the org level.
      * When enabled, agent decision steps are logged for visualization in the
-     * storyboard UI. This feature requires the Loom Addons package
+     * storyboard UI. This feature requires the Friday Addons package
      * to be deployed. When disabled or when addons is not deployed, logging
      * is skipped (no-op).
      *
@@ -215,6 +215,16 @@ public inherited sharing class AIAgentFrameworkSettings {
             return Integer.valueOf(instance.MaxLLMCallsPerTransaction__c);
         }
         return FINAL_DEFAULT_MaxLLMCallsPerTransaction;
+    }
+
+    /**
+     * Gets the org-wide default execution identity profile used only for approval-based HITL
+     * when the execution itself does not already have a snapshotted execution identity.
+     *
+     * @return The DeveloperName of the default HITL execution identity profile, or null when not configured.
+     */
+    public static String getDefaultHITLExecutionIdentityProfileDeveloperName() {
+        return getInstance().DefaultHITLExecIdentityProfile__c;
     }
 
     /**

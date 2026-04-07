@@ -62,7 +62,29 @@ public inherited sharing class ChannelDeliveryPolicyService {
         }
 
         if (decision.action == InteractionRuntimeModels.DeliveryAction.Draft) {
-            adapter.saveDraft(contentResponse, context, logPrefix);
+            HITLGatewayService.ReviewArtifactResult reviewResult = HITLGatewayService.createDraftReviewArtifact(
+                agentDefinition,
+                adapter,
+                context,
+                contentResponse,
+                logPrefix
+            );
+            if (!reviewResult.success) {
+                context.agentStateSvc.failTurn(
+                    context.executionId,
+                    context.turnIdentifier,
+                    'Channel review artifact creation failed: ' + reviewResult.errorMessage,
+                    AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+                    logPrefix
+                );
+                return failureResult('Channel review artifact creation failed');
+            }
+            if (context.decisionLogger != null) {
+                context.decisionLogger.log(
+                    IDecisionStepLogger.EventType.APPROVAL_REQUESTED,
+                    new List<Object>{ 'Review Before Send', reviewResult }
+                );
+            }
             return successResult();
         }
 

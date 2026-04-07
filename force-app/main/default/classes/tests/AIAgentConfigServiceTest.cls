@@ -21,6 +21,19 @@ private class AIAgentConfigServiceTest {
         insert disabled;
     }
 
+    private static void configureTestExecutionIdentityProfiles() {
+        AIAgentConfigService.setTestExecutionIdentityProfiles(
+            new List<ExecutionIdentityProfile__mdt>{
+                new ExecutionIdentityProfile__mdt(
+                    DeveloperName = 'FrameworkServiceUser',
+                    MasterLabel = 'FrameworkServiceUser',
+                    IsActive__c = true,
+                    NamedCredentialDeveloperName__c = 'AgentStudio_ServiceUser'
+                )
+            }
+        );
+    }
+
     @IsTest
     static void testGetAgentDefinition_ByIdAndDeveloperName() {
         AIAgentDefinition__c agent = [SELECT Id, DeveloperName__c FROM AIAgentDefinition__c WHERE DeveloperName__c LIKE 'CfgSvc_Agent%' LIMIT 1];
@@ -99,5 +112,49 @@ private class AIAgentConfigServiceTest {
             threw = true;
         }
         System.assertEquals(true, threw, 'Unknown capability should throw ConfigurationException');
+    }
+
+    @IsTest
+    static void testResolveExecutionIdentityForAgent_BlankProfile_ReturnsCurrentUserContext() {
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().build();
+
+        AIAgentConfigService.ResolvedExecutionIdentity resolved = AIAgentConfigService.resolveExecutionIdentityForAgent(agent);
+
+        System.assertEquals(false, resolved.requiresPrivilegedContext, 'Blank profile should stay in current user context');
+        System.assertEquals(null, resolved.profileDeveloperName, 'Blank profile should not resolve a profile key');
+        System.assertEquals(null, resolved.namedCredentialDeveloperName, 'Blank profile should not resolve a Named Credential');
+    }
+
+    @IsTest
+    static void testResolveExecutionIdentityForAgent_ProfileConfigured_ReturnsNamedCredential() {
+        configureTestExecutionIdentityProfiles();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withExecutionIdentityProfile('FrameworkServiceUser').build();
+
+        AIAgentConfigService.ResolvedExecutionIdentity resolved = AIAgentConfigService.resolveExecutionIdentityForAgent(agent);
+
+        System.assertEquals(true, resolved.requiresPrivilegedContext, 'Configured profile should require privileged context');
+        System.assertEquals('FrameworkServiceUser', resolved.profileDeveloperName, 'Resolved profile key should match the agent');
+        System.assertEquals('AgentStudio_ServiceUser', resolved.namedCredentialDeveloperName, 'Resolver should return the metadata Named Credential');
+    }
+
+    @IsTest
+    static void testResolveExecutionIdentityForExecution_UsesSnapshotValues() {
+        configureTestExecutionIdentityProfiles();
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withLLM(llm.Id).withExecutionIdentityProfile('FrameworkServiceUser').save();
+
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(agent.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionIdentity('FrameworkServiceUser', 'AgentStudio_ServiceUser')
+            .save();
+
+        update new AIAgentDefinition__c(Id = agent.Id, ExecutionIdentityProfileDeveloperName__c = null);
+
+        AIAgentConfigService.ResolvedExecutionIdentity resolved = AIAgentConfigService.resolveExecutionIdentityForExecution(execution.Id);
+
+        System.assertEquals(true, resolved.requiresPrivilegedContext, 'Existing execution should keep its snapshotted privileged identity');
+        System.assertEquals('FrameworkServiceUser', resolved.profileDeveloperName, 'Execution snapshot should remain authoritative');
+        System.assertEquals('AgentStudio_ServiceUser', resolved.namedCredentialDeveloperName, 'Execution snapshot should include the Named Credential');
     }
 }

@@ -48,6 +48,8 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
     private AIAgentDefinition__c agentDefinition;
     private LLMConfiguration__c llmConfig;
     private String triggerPayload;
+    private String executionIdentityProfileDeveloperName;
+    private String executionIdentityNamedCredential;
 
     /**
      * @description No-argument constructor for registry-driven instantiation.
@@ -174,6 +176,8 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
         validatePayload(payload);
 
         this.triggerPayload = payload.triggerPayload;
+        this.executionIdentityProfileDeveloperName = payload.executionIdentityProfileDeveloperName;
+        this.executionIdentityNamedCredential = payload.executionIdentityNamedCredential;
 
         AgentExecutionService.ExecutionResult multiRecordResult = tryDispatchMultiRecord(logPrefix, agentName, payload);
         if (multiRecordResult != null) {
@@ -340,6 +344,7 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
                     System.debug(LoggingLevel.INFO, logPrefix + 'Delegating to DirectAsyncRuntimeService (1 async tool)');
                     DirectAsyncRuntimeService asyncOrchestrator = new DirectAsyncRuntimeService(agentDefinition, llmConfig);
                     asyncOrchestrator.setTriggerPayload(this.triggerPayload);
+                    asyncOrchestrator.setExecutionIdentitySnapshot(this.executionIdentityProfileDeveloperName, this.executionIdentityNamedCredential);
                     return asyncOrchestrator.execute(input, recordId, userId, turnIdentifier, capabilities, existingExecutionId);
                 } else {
                     // Synchronous tool or no tools: Use DirectSyncRuntimeService (Tool-Terminating Strategy)
@@ -351,6 +356,7 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
                     );
                     DirectSyncRuntimeService syncOrchestrator = new DirectSyncRuntimeService(agentDefinition, llmConfig);
                     syncOrchestrator.setTriggerPayload(this.triggerPayload);
+                    syncOrchestrator.setExecutionIdentitySnapshot(this.executionIdentityProfileDeveloperName, this.executionIdentityNamedCredential);
                     return syncOrchestrator.execute(input, recordId, userId, turnIdentifier, capabilities, existingExecutionId);
                 }
             } else {
@@ -358,6 +364,7 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
                 System.debug(LoggingLevel.INFO, logPrefix + 'Delegating to DirectAsyncRuntimeService (2+ tools)');
                 DirectAsyncRuntimeService asyncOrchestrator = new DirectAsyncRuntimeService(agentDefinition, llmConfig);
                 asyncOrchestrator.setTriggerPayload(this.triggerPayload);
+                asyncOrchestrator.setExecutionIdentitySnapshot(this.executionIdentityProfileDeveloperName, this.executionIdentityNamedCredential);
                 return asyncOrchestrator.execute(input, recordId, userId, turnIdentifier, capabilities, existingExecutionId);
             }
         } catch (Exception e) {
@@ -400,7 +407,11 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
                 'Deferred Function (DML in transaction): ' + executionLabel,
                 recordId,
                 userId,
-                null // serviceUserId
+                null, // serviceUserId
+                null,
+                null,
+                this.executionIdentityProfileDeveloperName,
+                this.executionIdentityNamedCredential
             );
 
             // Set tool-terminating mode flag if ≤1 capabilities
@@ -433,6 +444,8 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
             workerPayload.triggerSource = 'API';
             workerPayload.triggerPayload = this.triggerPayload;
             workerPayload.existingExecutionId = executionId; // Key: pass the execution ID so worker reuses it
+            workerPayload.executionIdentityProfileDeveloperName = this.executionIdentityProfileDeveloperName;
+            workerPayload.executionIdentityNamedCredential = this.executionIdentityNamedCredential;
 
             // 3. Enqueue AgentExecutionWorker - it implements Database.AllowsCallouts
             // so it can make LLM callouts in a fresh transaction

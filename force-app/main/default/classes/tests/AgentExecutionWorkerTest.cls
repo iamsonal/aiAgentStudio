@@ -164,6 +164,16 @@ private class AgentExecutionWorkerTest {
             .withTurnIdentifier('turn-worker-current-001')
             .save();
 
+        AgentExecution__c fallbackCandidate = TestFactory.newExecution()
+            .withAgent(childAgent.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Direct')
+            .withStatus('Pending')
+            .withProcessingStatus(AIAgentConstants.STATUS_IDLE)
+            .withSourceRecord(testCase.Id)
+            .withTurnIdentifier('turn-worker-fallback-001')
+            .save();
+
         execution.ProcessingStartedAt__c = Datetime.now().addMinutes(-5);
         execution.LastActivityTime__c = Datetime.now().addMinutes(-5);
         execution.WorkerClaimToken__c = 'claim-stale-turn-001';
@@ -190,6 +200,14 @@ private class AgentExecutionWorkerTest {
         ];
         System.assertEquals('Processing', updated.ExecutionStatus__c, 'Stale worker should not take ownership of the execution');
         System.assertEquals('turn-worker-current-001', updated.CurrentTurnIdentifier__c, 'Stale worker should not mutate the current turn');
+
+        AgentExecution__c fallbackAfter = [
+            SELECT ExecutionStatus__c, ProcessingStartedAt__c
+            FROM AgentExecution__c
+            WHERE Id = :fallbackCandidate.Id
+        ];
+        System.assertEquals('Pending', fallbackAfter.ExecutionStatus__c, 'A rejected pre-assigned worker must not fall through to another execution');
+        System.assertEquals(null, fallbackAfter.ProcessingStartedAt__c, 'Fallback candidate should remain untouched');
     }
 
     // --- Function Agent-specific tests (use dedicated setup per method) ---

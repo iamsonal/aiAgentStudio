@@ -1246,6 +1246,10 @@ global inherited sharing class SequentialPipelineOrchestrator {
         }
 
         AgentStateService execSvc = new AgentStateService();
+        AIAgentConfigService.ResolvedExecutionIdentity executionIdentity = new AIAgentConfigService.ResolvedExecutionIdentity();
+        if (step.agentDefinitionId != null) {
+            executionIdentity = AIAgentConfigService.resolveExecutionIdentityForAgent(AIAgentConfigService.getAgentDefinition(step.agentDefinitionId));
+        }
         return execSvc.createExecution(
             step.strategyKey,
             step.agentDefinitionId,
@@ -1255,7 +1259,9 @@ global inherited sharing class SequentialPipelineOrchestrator {
             payload.userId,
             null,
             parentExecutionId,
-            stepScopedTurn
+            stepScopedTurn,
+            executionIdentity.profileDeveloperName,
+            executionIdentity.namedCredentialDeveloperName
         );
     }
 

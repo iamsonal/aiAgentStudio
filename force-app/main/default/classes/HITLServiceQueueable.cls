@@ -14,11 +14,11 @@
  * Salesforce Apex has no native "run as <user>" API. The only way to execute code under a
  * different user identity within the same org is to make an HTTP callout back to the org's
  * own REST API using a Named Credential whose authentication is tied to the target user
- * (ServiceUserNamedCredential__c on AIAgentDefinition__c).
+ * and snapshotted on the originating AgentExecution__c record.
  *
  * Pre-requisites that must be in place for this pattern to work:
  *   1. A External Client App with "Run as" or JWT Bearer flow credentials for the service user.
- *   2. A Named Credential (per agent definition) authenticated as the service user.
+ *   2. An execution identity profile that resolves to a Named Credential authenticated as the service user.
  *   3. The target REST endpoints (ai/agent/hitl/execute, hitl/followup, ai/agent/resume)
  *      configured in Remote Site Settings / CORS policy for the org's My Domain URL.
  *   4. This class declared `without sharing` — it runs in the approver's Queueable context
@@ -29,7 +29,7 @@
  *   + Reuses existing REST handlers — no duplicate logic.
  *   - Consumes one HTTP callout limit (500/tx) per HITL operation.
  *   - Adds ~200–500 ms of network latency for the loopback call.
- *   - Requires Named Credential setup per agent, increasing operational overhead.
+ *   - Requires execution identity setup for agents that need privileged re-entry.
  *   - If the Named Credential expires or the External Client app is revoked, HITL silently fails.
  *
  * If Salesforce ever provides a first-class "run-as" Apex API this pattern should be removed.
@@ -45,6 +45,7 @@ public without sharing class HITLServiceQueueable implements Queueable, Database
 
     public enum OperationType {
         EXECUTE_TOOL,
+        REVIEW_SEND,
         FOLLOWUP_ONLY,
         RESUME
     }
@@ -74,6 +75,15 @@ public without sharing class HITLServiceQueueable implements Queueable, Database
         this.operationType = HITLServiceQueueable.OperationType.EXECUTE_TOOL;
         this.pendingActionId = pendingActionId;
         this.needsFollowUp = needsFollowUp != null ? needsFollowUp : true;
+    }
+
+    /**
+     * Constructor for REVIEW_SEND mode - delivers an approved reviewed payload via REST API
+     * @param pendingActionId The ID of the pending review artifact to deliver
+     */
+    public HITLServiceQueueable(Id pendingActionId) {
+        this.operationType = HITLServiceQueueable.OperationType.REVIEW_SEND;
+        this.pendingActionId = pendingActionId;
     }
 
     /**
@@ -111,6 +121,8 @@ public without sharing class HITLServiceQueueable implements Queueable, Database
 
         if (operationType == HITLServiceQueueable.OperationType.EXECUTE_TOOL) {
             executeToolViaRestApi(logPrefix);
+        } else if (operationType == HITLServiceQueueable.OperationType.REVIEW_SEND) {
+            executeReviewSendViaRestApi(logPrefix);
         } else if (operationType == HITLServiceQueueable.OperationType.FOLLOWUP_ONLY) {
             executeFollowUpViaRestApi(logPrefix);
         } else if (operationType == HITLServiceQueueable.OperationType.RESUME) {
@@ -142,7 +154,7 @@ public without sharing class HITLServiceQueueable implements Queueable, Database
     }
 
     private HttpRequest buildToolExecutionRequest(PendingHITLAction__c action, String logPrefix) {
-        String namedCredential = getServiceUserNamedCredential(action.AgentExecution__c, logPrefix);
+        String namedCredential = getExecutionIdentityNamedCredential(action.AgentExecution__c, logPrefix);
         String endpoint = 'callout:' + namedCredential + '/services/apexrest/ai/agent/hitl/execute';
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Using Named Credential for HITL execution: ' + namedCredential);
@@ -199,6 +211,67 @@ public without sharing class HITLServiceQueueable implements Queueable, Database
         }
     }
 
+    private void executeReviewSendViaRestApi(String logPrefix) {
+        System.debug(LoggingLevel.INFO, logPrefix + 'Starting reviewed reply delivery via REST API for action: ' + pendingActionId);
+
+        try {
+            PendingHITLAction__c action = HITLGatewayService.getPendingAction(pendingActionId);
+            if (action == null) {
+                throw new HITLGatewayService.HITLProcessingException('Pending action not found: ' + pendingActionId);
+            }
+
+            HttpRequest httpReq = buildReviewSendRequest(action, logPrefix);
+            executeHttpRequest(httpReq, logPrefix);
+            System.debug(LoggingLevel.INFO, logPrefix + 'Reviewed reply delivery completed successfully via REST API');
+        } catch (Exception e) {
+            handleReviewSendError(e, logPrefix);
+        }
+    }
+
+    private HttpRequest buildReviewSendRequest(PendingHITLAction__c action, String logPrefix) {
+        String namedCredential = getExecutionIdentityNamedCredential(action.AgentExecution__c, logPrefix);
+        String endpoint = 'callout:' + namedCredential + '/services/apexrest/ai/agent/hitl/review-send';
+
+        HttpRequest httpReq = new HttpRequest();
+        httpReq.setEndpoint(endpoint);
+        httpReq.setMethod('POST');
+        httpReq.setHeader('Content-Type', 'application/json');
+        httpReq.setTimeout(120000);
+        httpReq.setBody(
+            JSON.serialize(
+                new Map<String, Object>{
+                    'pendingActionId' => String.valueOf(action.Id),
+                    'executionId' => String.valueOf(action.AgentExecution__c),
+                    'turnIdentifier' => action.TurnIdentifier__c,
+                    'turnCount' => action.TurnCount__c
+                }
+            )
+        );
+        return httpReq;
+    }
+
+    private void handleReviewSendError(Exception e, String logPrefix) {
+        System.debug(LoggingLevel.ERROR, logPrefix + 'Error delivering reviewed reply via REST API: ' + e.getMessage() + '\n' + e.getStackTraceString());
+
+        try {
+            PendingHITLAction__c action = HITLGatewayService.getPendingAction(pendingActionId);
+            if (shouldLogReviewSendError(e) && action != null && action.AgentExecution__c != null && String.isNotBlank(action.TurnIdentifier__c)) {
+                logExecutionError(action.AgentExecution__c, action.TurnIdentifier__c, action.ToolName__c, e, logPrefix);
+            }
+        } catch (Exception logEx) {
+            System.debug(LoggingLevel.WARN, logPrefix + 'Failed to log reviewed reply delivery error: ' + logEx.getMessage());
+        }
+    }
+
+    private Boolean shouldLogReviewSendError(Exception e) {
+        if (!(e instanceof AIAgentException.NonRetriableHttpException)) {
+            return true;
+        }
+        String message = e.getMessage();
+        // 4xx/5xx responses from the internal REST endpoint are already logged there.
+        return String.isBlank(message) || !message.startsWith('HTTP error: status=');
+    }
+
     // ==================================================================================
     // FOLLOWUP_ONLY MODE
     // ==================================================================================
@@ -226,7 +299,7 @@ public without sharing class HITLServiceQueueable implements Queueable, Database
     }
 
     private HttpRequest buildFollowUpRequest(String logPrefix) {
-        String namedCredential = getServiceUserNamedCredential(this.executionId, logPrefix);
+        String namedCredential = getExecutionIdentityNamedCredential(this.executionId, logPrefix);
         String endpoint = 'callout:' + namedCredential + '/services/apexrest/ai/agent/hitl/followup';
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Using Named Credential for follow-up LLM: ' + namedCredential);
@@ -297,7 +370,7 @@ public without sharing class HITLServiceQueueable implements Queueable, Database
     }
 
     private HttpRequest buildResumeRequest(String logPrefix) {
-        String namedCredential = getServiceUserNamedCredential(this.executionId, logPrefix);
+        String namedCredential = getExecutionIdentityNamedCredential(this.executionId, logPrefix);
         String endpoint = 'callout:' + namedCredential + '/services/apexrest/ai/agent/resume';
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Using Named Credential for resume: ' + namedCredential);
@@ -328,26 +401,20 @@ public without sharing class HITLServiceQueueable implements Queueable, Database
         return HttpCalloutService.execute(httpReq, config);
     }
 
-    private String getServiceUserNamedCredential(Id execId, String logPrefix) {
+    private String getExecutionIdentityNamedCredential(Id execId, String logPrefix) {
         if (execId == null) {
-            throw new AIAgentException.OrchestrationException('Execution ID is required to resolve service user Named Credential');
+            throw new AIAgentException.OrchestrationException('Execution ID is required to resolve the execution identity Named Credential');
         }
 
-        List<AgentExecution__c> execs = [
-            SELECT AIAgentDefinition__r.ServiceUserNamedCredential__c
-            FROM AgentExecution__c
-            WHERE Id = :execId
-            LIMIT 1
-        ];
-        if (execs.isEmpty() || String.isBlank(execs[0].AIAgentDefinition__r.ServiceUserNamedCredential__c)) {
+        AIAgentConfigService.ResolvedExecutionIdentity executionIdentity = AIAgentConfigService.resolveExecutionIdentityForExecution(execId);
+        if (!executionIdentity.requiresPrivilegedContext || String.isBlank(executionIdentity.namedCredentialDeveloperName)) {
             throw new AIAgentException.OrchestrationException(
-                'ServiceUserNamedCredential__c is not configured on AIAgentDefinition__c for execution: ' + execId
+                'Execution identity snapshot is not configured for privileged continuation on execution: ' + execId
             );
         }
 
-        String namedCredential = execs[0].AIAgentDefinition__r.ServiceUserNamedCredential__c;
-        System.debug(LoggingLevel.INFO, logPrefix + 'Using service user Named Credential: ' + namedCredential);
-        return namedCredential;
+        System.debug(LoggingLevel.INFO, logPrefix + 'Using execution identity Named Credential: ' + executionIdentity.namedCredentialDeveloperName);
+        return executionIdentity.namedCredentialDeveloperName;
     }
 
     private static Boolean shouldSendNotification(PendingHITLAction__c action, String eventType) {

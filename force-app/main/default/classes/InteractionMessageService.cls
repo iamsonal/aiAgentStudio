@@ -187,6 +187,17 @@ public inherited sharing class InteractionMessageService {
     }
 
     public void updateInboundStatus(String dedupKey, String status, String outboundProviderMessageId, String errorCode, String errorMessage) {
+        updateInboundStatus(dedupKey, status, outboundProviderMessageId, errorCode, errorMessage, null);
+    }
+
+    public void updateInboundStatus(
+        String dedupKey,
+        String status,
+        String outboundProviderMessageId,
+        String errorCode,
+        String errorMessage,
+        Id reviewArtifactId
+    ) {
         if (String.isBlank(dedupKey)) {
             return;
         }
@@ -209,6 +220,9 @@ public inherited sharing class InteractionMessageService {
         }
         if (String.isNotBlank(errorMessage)) {
             messages[0].ErrorMessage__c = errorMessage;
+        }
+        if (reviewArtifactId != null) {
+            messages[0].ReviewArtifactId__c = reviewArtifactId;
         }
         update messages[0];
     }

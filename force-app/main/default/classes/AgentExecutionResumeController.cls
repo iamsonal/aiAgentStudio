@@ -40,7 +40,7 @@ public with sharing class AgentExecutionResumeController {
                     AIAgentDefinition__c,
                     AIAgentDefinition__r.DeveloperName__c,
                     AIAgentDefinition__r.RuntimeStrategy__c,
-                    AIAgentDefinition__r.RequiresServiceUserContext__c,
+                    ExecutionIdentityProfileDeveloperName__c,
                     PipelineDefinition__c
                 FROM AgentExecution__c
                 WHERE Id = :executionId
@@ -62,7 +62,7 @@ public with sharing class AgentExecutionResumeController {
             }
 
             // Check if agent requires service user context
-            Boolean requiresServiceUserContext = exec.AIAgentDefinition__r.RequiresServiceUserContext__c == true;
+            Boolean requiresServiceUserContext = String.isNotBlank(exec.ExecutionIdentityProfileDeveloperName__c);
 
             if (requiresServiceUserContext) {
                 // Route through REST API via queueable to execute in service user context
