@@ -32,6 +32,8 @@ public with sharing class HITLGatewayService {
 
     public static final String ARTIFACT_TYPE_TOOL_APPROVAL = 'Tool Approval';
     public static final String ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW = 'Outbound Draft Review';
+    public static final String APPROVAL_CATEGORY_TOOL_APPROVAL = 'Tool Approval';
+    public static final String APPROVAL_CATEGORY_OUTBOUND_DRAFT_REVIEW = 'Outbound Draft Review';
 
     // Notification preference constants
     public static final String NOTIFICATION_PREF_ALWAYS_NOTIFY = 'Always Notify';
@@ -148,8 +150,20 @@ public with sharing class HITLGatewayService {
         public Boolean success { get; set; }
         public Id pendingActionId { get; set; }
         public String errorMessage { get; set; }
+        public String confirmationPrompt { get; set; }
+        public String hitlType { get; set; }
 
         public ReviewArtifactResult() {
+            this.success = false;
+        }
+    }
+
+    private class ApprovalSubmissionResult {
+        public Boolean success { get; set; }
+        public String errorMessage { get; set; }
+        public Id processInstanceId { get; set; }
+
+        public ApprovalSubmissionResult() {
             this.success = false;
         }
     }
@@ -234,40 +248,47 @@ public with sharing class HITLGatewayService {
             ReviewedPayloadJson__c = reviewPayload.payloadJson
         );
 
+        try {
+            HITLApprovalRouteResolver.ResolvedRoute route = HITLApprovalRouteResolver.resolveForOutboundDraftReview(agentDefinition, interactionChannel);
+            applyApprovalRouteSnapshot(pendingAction, route);
+        } catch (Exception e) {
+            result.errorMessage = 'Failed to resolve review approval route: ' + e.getMessage();
+            return result;
+        }
+
         insert pendingAction;
         result.pendingActionId = pendingAction.Id;
+        result.confirmationPrompt = reviewPayload.summaryText;
+        result.hitlType = HITL_MODE_APPROVAL;
 
         if (String.isNotBlank(reviewPayload.inboundDedupKey)) {
             new InteractionMessageService().updateInboundStatus(reviewPayload.inboundDedupKey, 'Drafted', null, null, null, pendingAction.Id);
         }
 
         try {
-            Approval.ProcessSubmitRequest approvalRequest = new Approval.ProcessSubmitRequest();
-            approvalRequest.setObjectId(pendingAction.Id);
-            approvalRequest.setComments(
+            ApprovalSubmissionResult submissionResult = submitPendingActionForApproval(
+                pendingAction,
                 'AI agent response requires review before send. Channel: ' +
                     interactionChannel +
                     '. Summary: ' +
-                    (String.isNotBlank(reviewPayload.summaryText) ? reviewPayload.summaryText.abbreviate(1000) : 'No summary provided.')
+                    (String.isNotBlank(reviewPayload.summaryText) ? reviewPayload.summaryText.abbreviate(1000) : 'No summary provided.'),
+                debugPrefix
             );
-
-            Approval.ProcessResult approvalResult = Approval.process(approvalRequest);
-            if (!approvalResult.isSuccess()) {
-                String errors = '';
-                for (Database.Error err : approvalResult.getErrors()) {
-                    errors += err.getMessage() + '; ';
-                }
+            if (!submissionResult.success) {
                 if (String.isNotBlank(reviewPayload.inboundDedupKey)) {
                     new InteractionMessageService()
-                        .updateInboundStatus(reviewPayload.inboundDedupKey, 'Failed', null, AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR, errors);
+                        .updateInboundStatus(
+                            reviewPayload.inboundDedupKey,
+                            'Failed',
+                            null,
+                            AIAgentConstants.ERR_CODE_UNEXPECTED_ERROR,
+                            submissionResult.errorMessage
+                        );
                 }
                 Database.delete(pendingAction, false);
-                result.errorMessage = 'Failed to submit review artifact for approval: ' + errors;
+                result.errorMessage = 'Failed to submit review artifact for approval: ' + submissionResult.errorMessage;
                 return result;
             }
-
-            pendingAction.ApprovalProcessInstanceId__c = approvalResult.getInstanceId();
-            Database.update(pendingAction, false);
         } catch (Exception e) {
             if (String.isNotBlank(reviewPayload.inboundDedupKey)) {
                 new InteractionMessageService()
@@ -505,66 +526,46 @@ public with sharing class HITLGatewayService {
             InteractionChannel__c = RuntimeRegistryService.getInteractionChannel(context.agentDefinition, context.executionId)
         );
 
+        try {
+            HITLApprovalRouteResolver.ResolvedRoute route = HITLApprovalRouteResolver.resolveForToolApproval(
+                context,
+                pendingAction.InteractionChannel__c
+            );
+            applyApprovalRouteSnapshot(pendingAction, route);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, debugPrefix + 'Failed to resolve approval route: ' + e.getMessage());
+            return createFailureResult('Failed to resolve approval route: ' + e.getMessage());
+        }
+
         insert pendingAction;
         System.debug(LoggingLevel.INFO, debugPrefix + 'Created PendingHITLAction for ConfirmationThenApproval: ' + pendingAction.Id);
 
         try {
-            Approval.ProcessSubmitRequest approvalRequest = new Approval.ProcessSubmitRequest();
-            approvalRequest.setObjectId(pendingAction.Id);
-            approvalRequest.setComments(
+            ApprovalSubmissionResult submissionResult = submitPendingActionForApproval(
+                pendingAction,
                 'AI Agent action requires approval (user confirmed in chat). Tool: ' +
                     context.capability.CapabilityName__c +
                     '. Justification: ' +
-                    approvalPrompt
+                    approvalPrompt,
+                debugPrefix
             );
 
-            Approval.ProcessResult approvalResult = Approval.process(approvalRequest);
-
-            if (approvalResult.isSuccess()) {
-                pendingAction.ApprovalProcessInstanceId__c = approvalResult.getInstanceId();
-                Database.SaveResult saveResult = Database.update(pendingAction, false);
-
-                if (!saveResult.isSuccess()) {
-                    System.debug(
-                        LoggingLevel.WARN,
-                        debugPrefix +
-                            'Could not update ApprovalProcessInstanceId due to record lock (this is expected): ' +
-                            saveResult.getErrors()[0].getMessage()
-                    );
-                    System.debug(
-                        LoggingLevel.INFO,
-                        debugPrefix + 'Approval process submitted successfully despite update failure. Instance ID: ' + approvalResult.getInstanceId()
-                    );
-                } else {
-                    System.debug(LoggingLevel.INFO, debugPrefix + 'Submitted to approval process. Instance ID: ' + approvalResult.getInstanceId());
-                }
-
+            if (submissionResult.success) {
                 return createSuccessResult(pendingAction.Id, approvalPrompt, HITL_MODE_CONFIRMATION_THEN_APPROVAL, null);
-            } else {
-                // COVERAGE NOTE: This error path is untestable in unit tests because Approval.process()
-                // succeeds by default in test context even without a configured approval process.
-                // This is defensive error handling for production scenarios where approval process
-                // configuration is missing or invalid.
-                String errors = '';
-                for (Database.Error err : approvalResult.getErrors()) {
-                    errors += err.getMessage() + '; ';
-                }
-                System.debug(LoggingLevel.ERROR, debugPrefix + 'Approval submission failed: ' + errors);
-
-                Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
-                if (!deleteResult.isSuccess()) {
-                    System.debug(
-                        LoggingLevel.WARN,
-                        debugPrefix + 'Could not delete PendingHITLAction after approval failure: ' + deleteResult.getErrors()[0].getMessage()
-                    );
-                }
-
-                return createFailureResult('Failed to submit to approval process: ' + errors);
             }
+
+            System.debug(LoggingLevel.ERROR, debugPrefix + 'Approval submission failed: ' + submissionResult.errorMessage);
+
+            Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
+            if (!deleteResult.isSuccess()) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    debugPrefix + 'Could not delete PendingHITLAction after approval failure: ' + deleteResult.getErrors()[0].getMessage()
+                );
+            }
+
+            return createFailureResult('Failed to submit to approval process: ' + submissionResult.errorMessage);
         } catch (Exception e) {
-            // COVERAGE NOTE: This exception path is untestable in unit tests because Approval.process()
-            // rarely throws exceptions in test context. This is defensive error handling for production
-            // scenarios where unexpected approval process exceptions may occur.
             System.debug(LoggingLevel.ERROR, debugPrefix + 'Exception submitting approval: ' + e.getMessage());
             try {
                 Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
@@ -605,67 +606,44 @@ public with sharing class HITLGatewayService {
             InteractionChannel__c = RuntimeRegistryService.getInteractionChannel(context.agentDefinition, context.executionId)
         );
 
+        try {
+            HITLApprovalRouteResolver.ResolvedRoute route = HITLApprovalRouteResolver.resolveForToolApproval(
+                context,
+                pendingAction.InteractionChannel__c
+            );
+            applyApprovalRouteSnapshot(pendingAction, route);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, debugPrefix + 'Failed to resolve approval route: ' + e.getMessage());
+            return createFailureResult('Failed to resolve approval route: ' + e.getMessage());
+        }
+
         insert pendingAction;
         System.debug(LoggingLevel.INFO, debugPrefix + 'Created PendingHITLAction for approval: ' + pendingAction.Id);
 
         // Submit to Salesforce Approval Process
         try {
-            Approval.ProcessSubmitRequest approvalRequest = new Approval.ProcessSubmitRequest();
-            approvalRequest.setObjectId(pendingAction.Id);
-            approvalRequest.setComments(
-                'AI Agent action requires approval. Tool: ' + context.capability.CapabilityName__c + '. Justification: ' + approvalPrompt
+            ApprovalSubmissionResult submissionResult = submitPendingActionForApproval(
+                pendingAction,
+                'AI Agent action requires approval. Tool: ' + context.capability.CapabilityName__c + '. Justification: ' + approvalPrompt,
+                debugPrefix
             );
 
-            Approval.ProcessResult approvalResult = Approval.process(approvalRequest);
-
-            if (approvalResult.isSuccess()) {
-                // Update with approval process instance ID
-                // Use Database.update with allOrNone=false to handle record locking gracefully
-                pendingAction.ApprovalProcessInstanceId__c = approvalResult.getInstanceId();
-                Database.SaveResult saveResult = Database.update(pendingAction, false);
-
-                if (!saveResult.isSuccess()) {
-                    // Log the update failure but don't fail the entire approval process
-                    System.debug(
-                        LoggingLevel.WARN,
-                        debugPrefix +
-                            'Could not update ApprovalProcessInstanceId due to record lock (this is expected): ' +
-                            saveResult.getErrors()[0].getMessage()
-                    );
-                    System.debug(
-                        LoggingLevel.INFO,
-                        debugPrefix + 'Approval process submitted successfully despite update failure. Instance ID: ' + approvalResult.getInstanceId()
-                    );
-                } else {
-                    System.debug(LoggingLevel.INFO, debugPrefix + 'Submitted to approval process. Instance ID: ' + approvalResult.getInstanceId());
-                }
-
+            if (submissionResult.success) {
                 return createSuccessResult(pendingAction.Id, approvalPrompt, HITL_MODE_APPROVAL, null);
-            } else {
-                // COVERAGE NOTE: This error path is untestable in unit tests because Approval.process()
-                // succeeds by default in test context even without a configured approval process.
-                // This is defensive error handling for production scenarios where approval process
-                // configuration is missing or invalid.
-                String errors = '';
-                for (Database.Error err : approvalResult.getErrors()) {
-                    errors += err.getMessage() + '; ';
-                }
-                System.debug(LoggingLevel.ERROR, debugPrefix + 'Approval submission failed: ' + errors);
-
-                Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
-                if (!deleteResult.isSuccess()) {
-                    System.debug(
-                        LoggingLevel.WARN,
-                        debugPrefix + 'Could not delete PendingHITLAction after approval failure: ' + deleteResult.getErrors()[0].getMessage()
-                    );
-                }
-
-                return createFailureResult('Failed to submit to approval process: ' + errors);
             }
+
+            System.debug(LoggingLevel.ERROR, debugPrefix + 'Approval submission failed: ' + submissionResult.errorMessage);
+
+            Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
+            if (!deleteResult.isSuccess()) {
+                System.debug(
+                    LoggingLevel.WARN,
+                    debugPrefix + 'Could not delete PendingHITLAction after approval failure: ' + deleteResult.getErrors()[0].getMessage()
+                );
+            }
+
+            return createFailureResult('Failed to submit to approval process: ' + submissionResult.errorMessage);
         } catch (Exception e) {
-            // COVERAGE NOTE: This exception path is untestable in unit tests because Approval.process()
-            // rarely throws exceptions in test context. This is defensive error handling for production
-            // scenarios where unexpected approval process exceptions may occur.
             System.debug(LoggingLevel.ERROR, debugPrefix + 'Exception submitting approval: ' + e.getMessage());
             try {
                 Database.DeleteResult deleteResult = Database.delete(pendingAction, false);
@@ -761,72 +739,98 @@ public with sharing class HITLGatewayService {
     }
 
     public static PendingHITLAction__c getPendingAction(Id pendingActionId) {
-        List<PendingHITLAction__c> actions = [
-            SELECT
-                Id,
-                Name,
-                Status__c,
-                HITLType__c,
-                ToolCallId__c,
-                ToolName__c,
-                ArtifactType__c,
-                InteractionChannel__c,
-                ToolArgumentsJSON__c,
-                ConfirmationPrompt__c,
-                GeneratedPayloadJson__c,
-                ReviewedPayloadJson__c,
-                AIAgentCapability__c,
-                AIAgentCapability__r.CapabilityName__c,
-                AIAgentCapability__r.HITLNotificationPreference__c,
-                AgentExecution__c,
-                TurnIdentifier__c,
-                TurnCount__c,
-                ExpiresAt__c,
-                RequestedAt__c,
-                ResolvedAt__c,
-                ResolvedBy__c,
-                ResolutionComment__c,
-                RequestingUser__c,
-                SourceRecordId__c,
-                ApprovalProcessInstanceId__c
-            FROM PendingHITLAction__c
-            WHERE Id = :pendingActionId
-            LIMIT 1
-        ];
-        return actions.isEmpty() ? null : actions[0];
+        return new PendingActionAccess().getPendingAction(pendingActionId);
     }
 
     public static List<PendingHITLAction__c> getPendingActionsForExecution(Id executionId) {
-        return [
-            SELECT
-                Id,
-                Name,
-                Status__c,
-                HITLType__c,
-                ToolCallId__c,
-                ToolName__c,
-                ArtifactType__c,
-                InteractionChannel__c,
-                ToolArgumentsJSON__c,
-                ConfirmationPrompt__c,
-                GeneratedPayloadJson__c,
-                ReviewedPayloadJson__c,
-                AIAgentCapability__c,
-                AIAgentCapability__r.CapabilityName__c,
-                AgentExecution__c,
-                TurnIdentifier__c,
-                TurnCount__c,
-                ExpiresAt__c,
-                RequestedAt__c,
-                ResolvedAt__c,
-                ResolvedBy__c,
-                ResolutionComment__c,
-                RequestingUser__c,
-                SourceRecordId__c
-            FROM PendingHITLAction__c
-            WHERE AgentExecution__c = :executionId AND Status__c = :STATUS_PENDING
-            ORDER BY RequestedAt__c ASC
-        ];
+        return new PendingActionAccess().getPendingActionsForExecution(executionId);
+    }
+
+    private without sharing class PendingActionAccess {
+        private PendingHITLAction__c getPendingAction(Id pendingActionId) {
+            if (pendingActionId == null) {
+                return null;
+            }
+            List<PendingHITLAction__c> actions = [
+                SELECT
+                    Id,
+                    Name,
+                    Status__c,
+                    HITLType__c,
+                    ToolCallId__c,
+                    ToolName__c,
+                    ArtifactType__c,
+                    InteractionChannel__c,
+                    ToolArgumentsJSON__c,
+                    ConfirmationPrompt__c,
+                    GeneratedPayloadJson__c,
+                    ReviewedPayloadJson__c,
+                    AIAgentCapability__c,
+                    AIAgentCapability__r.CapabilityName__c,
+                    AIAgentCapability__r.HITLNotificationPreference__c,
+                    AgentExecution__c,
+                    TurnIdentifier__c,
+                    TurnCount__c,
+                    ExpiresAt__c,
+                    RequestedAt__c,
+                    ResolvedAt__c,
+                    ResolvedBy__c,
+                    ResolutionComment__c,
+                    RequestingUser__c,
+                    SourceRecordId__c,
+                    ApprovalProcessInstanceId__c,
+                    ApprovalRouteDeveloperName__c,
+                    ApprovalProcessDeveloperName__c,
+                    ApprovalCategory__c,
+                    ApproverRoutingType__c,
+                    ApproverRoutingKey__c
+                FROM PendingHITLAction__c
+                WHERE Id = :pendingActionId
+                LIMIT 1
+            ];
+            return actions.isEmpty() ? null : actions[0];
+        }
+
+        private List<PendingHITLAction__c> getPendingActionsForExecution(Id executionId) {
+            if (executionId == null) {
+                return new List<PendingHITLAction__c>();
+            }
+            return [
+                SELECT
+                    Id,
+                    Name,
+                    Status__c,
+                    HITLType__c,
+                    ToolCallId__c,
+                    ToolName__c,
+                    ArtifactType__c,
+                    InteractionChannel__c,
+                    ToolArgumentsJSON__c,
+                    ConfirmationPrompt__c,
+                    GeneratedPayloadJson__c,
+                    ReviewedPayloadJson__c,
+                    AIAgentCapability__c,
+                    AIAgentCapability__r.CapabilityName__c,
+                    AgentExecution__c,
+                    TurnIdentifier__c,
+                    TurnCount__c,
+                    ExpiresAt__c,
+                    RequestedAt__c,
+                    ResolvedAt__c,
+                    ResolvedBy__c,
+                    ResolutionComment__c,
+                    RequestingUser__c,
+                    SourceRecordId__c,
+                    ApprovalRouteDeveloperName__c,
+                    ApprovalProcessDeveloperName__c,
+                    ApprovalCategory__c,
+                    ApproverRoutingType__c,
+                    ApproverRoutingKey__c
+                FROM PendingHITLAction__c
+                WHERE AgentExecution__c = :executionId AND Status__c = :STATUS_PENDING
+                ORDER BY RequestedAt__c ASC
+            ];
+        }
     }
 
     public static Boolean hasPendingActions(Id executionId) {
@@ -850,6 +854,74 @@ public with sharing class HITLGatewayService {
         }
 
         return false;
+    }
+
+    private static void applyApprovalRouteSnapshot(
+        PendingHITLAction__c pendingAction,
+        HITLApprovalRouteResolver.ResolvedRoute route
+    ) {
+        if (pendingAction == null || route == null) {
+            return;
+        }
+
+        pendingAction.ApprovalRouteDeveloperName__c = route.routeDeveloperName;
+        pendingAction.ApprovalProcessDeveloperName__c = route.approvalProcessDeveloperName;
+        pendingAction.ApprovalCategory__c = route.approvalCategory;
+        pendingAction.ApproverRoutingType__c = route.approverRoutingType;
+        pendingAction.ApproverRoutingKey__c = route.approverRoutingKey;
+    }
+
+    private static ApprovalSubmissionResult submitPendingActionForApproval(
+        PendingHITLAction__c pendingAction,
+        String comments,
+        String debugPrefix
+    ) {
+        ApprovalSubmissionResult result = new ApprovalSubmissionResult();
+        if (pendingAction == null || pendingAction.Id == null) {
+            result.errorMessage = 'Pending action must be inserted before approval submission.';
+            return result;
+        }
+        if (String.isBlank(pendingAction.ApprovalProcessDeveloperName__c)) {
+            result.errorMessage = 'Pending action is missing ApprovalProcessDeveloperName__c.';
+            return result;
+        }
+
+        Approval.ProcessSubmitRequest approvalRequest = new Approval.ProcessSubmitRequest();
+        approvalRequest.setObjectId(pendingAction.Id);
+        approvalRequest.setProcessDefinitionNameOrId(pendingAction.ApprovalProcessDeveloperName__c);
+        approvalRequest.setComments(comments);
+
+        Approval.ProcessResult approvalResult = Approval.process(approvalRequest);
+        if (!approvalResult.isSuccess()) {
+            String errors = '';
+            for (Database.Error err : approvalResult.getErrors()) {
+                errors += err.getMessage() + '; ';
+            }
+            result.errorMessage = errors;
+            return result;
+        }
+
+        result.success = true;
+        result.processInstanceId = approvalResult.getInstanceId();
+        pendingAction.ApprovalProcessInstanceId__c = approvalResult.getInstanceId();
+        Database.SaveResult saveResult = Database.update(pendingAction, false);
+
+        if (!saveResult.isSuccess()) {
+            System.debug(
+                LoggingLevel.WARN,
+                debugPrefix +
+                    'Could not update ApprovalProcessInstanceId due to record lock (this is expected): ' +
+                    saveResult.getErrors()[0].getMessage()
+            );
+            System.debug(
+                LoggingLevel.INFO,
+                debugPrefix + 'Approval process submitted successfully despite update failure. Instance ID: ' + approvalResult.getInstanceId()
+            );
+        } else {
+            System.debug(LoggingLevel.INFO, debugPrefix + 'Submitted to approval process. Instance ID: ' + approvalResult.getInstanceId());
+        }
+
+        return result;
     }
 
     private static AIAgentConfigService.ResolvedExecutionIdentity ensureApprovalBasedHitlExecutionIdentity(

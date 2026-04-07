@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CapabilityDeveloperName__c</fullName>
+    <description>Optional capability developer-name matcher for this route. Leave blank to match any capability.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Use the capability's stable developer-facing key when a route should only apply to a specific tool or capability.</inlineHelpText>
+    <label>Capability Developer Name</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

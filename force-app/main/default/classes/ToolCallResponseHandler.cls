@@ -1361,6 +1361,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
 
         if (strategyOutcome != null) {
             // Strategy-specific runtime handled it
+            decisionLogger.commitSteps();
             return strategyOutcome;
         }
 
@@ -1374,6 +1375,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
             'Awaiting human approval'
         );
 
+        decisionLogger.commitSteps();
         return OrchestrationService.OUTCOME_QUEUED_ACTION;
     }
 

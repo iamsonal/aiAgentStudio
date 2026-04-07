@@ -255,12 +255,21 @@ public without sharing class HITLServiceQueueable implements Queueable, Database
 
         try {
             PendingHITLAction__c action = HITLGatewayService.getPendingAction(pendingActionId);
-            if (action != null && action.AgentExecution__c != null && String.isNotBlank(action.TurnIdentifier__c)) {
+            if (shouldLogReviewSendError(e) && action != null && action.AgentExecution__c != null && String.isNotBlank(action.TurnIdentifier__c)) {
                 logExecutionError(action.AgentExecution__c, action.TurnIdentifier__c, action.ToolName__c, e, logPrefix);
             }
         } catch (Exception logEx) {
             System.debug(LoggingLevel.WARN, logPrefix + 'Failed to log reviewed reply delivery error: ' + logEx.getMessage());
         }
+    }
+
+    private Boolean shouldLogReviewSendError(Exception e) {
+        if (!(e instanceof AIAgentException.NonRetriableHttpException)) {
+            return true;
+        }
+        String message = e.getMessage();
+        // 4xx/5xx responses from the internal REST endpoint are already logged there.
+        return String.isBlank(message) || !message.startsWith('HTTP error: status=');
     }
 
     // ==================================================================================

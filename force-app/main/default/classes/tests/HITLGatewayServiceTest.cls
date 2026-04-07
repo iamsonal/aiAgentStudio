@@ -445,13 +445,16 @@ private class HITLGatewayServiceTest {
             System.assertNotEquals(null, result.pendingActionId, 'Pending action should be created');
 
             PendingHITLAction__c pending = [
-                SELECT HITLType__c, ToolCallId__c
+                SELECT HITLType__c, ToolCallId__c, ApprovalCategory__c, ApprovalProcessDeveloperName__c, ApprovalRouteDeveloperName__c
                 FROM PendingHITLAction__c
                 WHERE Id = :result.pendingActionId
                 LIMIT 1
             ];
             System.assertEquals(HITLGatewayService.HITL_MODE_APPROVAL, pending.HITLType__c, 'Pending action should be Approval');
             System.assertEquals(ctx.toolCallId, pending.ToolCallId__c, 'Tool call id should match');
+            System.assertEquals(HITLGatewayService.APPROVAL_CATEGORY_TOOL_APPROVAL, pending.ApprovalCategory__c, 'Tool approvals should snapshot their approval category');
+            System.assertEquals('Tool_Approval', pending.ApprovalProcessDeveloperName__c, 'Tool approvals should snapshot the explicit process');
+            System.assertEquals('DefaultToolApproval', pending.ApprovalRouteDeveloperName__c, 'Tool approvals should snapshot the resolved route');
         } else {
             System.assert(
                 result.errorMessage != null &&
@@ -504,7 +507,7 @@ private class HITLGatewayServiceTest {
             System.assertNotEquals(null, result.pendingActionId, 'Pending action should be created');
 
             PendingHITLAction__c pending = [
-                SELECT HITLType__c, ToolCallId__c
+                SELECT HITLType__c, ToolCallId__c, ApprovalCategory__c, ApprovalProcessDeveloperName__c, ApprovalRouteDeveloperName__c
                 FROM PendingHITLAction__c
                 WHERE Id = :result.pendingActionId
                 LIMIT 1
@@ -515,6 +518,9 @@ private class HITLGatewayServiceTest {
                 'Pending action should be ConfirmationThenApproval'
             );
             System.assertEquals(ctx.toolCallId, pending.ToolCallId__c, 'Tool call id should match');
+            System.assertEquals(HITLGatewayService.APPROVAL_CATEGORY_TOOL_APPROVAL, pending.ApprovalCategory__c, 'ConfirmationThenApproval should reuse the tool approval category');
+            System.assertEquals('Tool_Approval', pending.ApprovalProcessDeveloperName__c, 'ConfirmationThenApproval should snapshot the explicit process');
+            System.assertEquals('DefaultToolApproval', pending.ApprovalRouteDeveloperName__c, 'ConfirmationThenApproval should snapshot the resolved route');
         } else {
             System.assert(
                 result.errorMessage != null &&
@@ -830,6 +836,32 @@ private class HITLGatewayServiceTest {
                     MasterLabel = 'ExecutionScopedProfile',
                     IsActive__c = true,
                     NamedCredentialDeveloperName__c = 'AgentStudio_ServiceUser_Execution'
+                )
+            }
+        );
+        HITLApprovalRouteResolver.setTestRoutes(
+            new List<HITLApprovalRoute__mdt>{
+                new HITLApprovalRoute__mdt(
+                    DeveloperName = 'DefaultToolApproval',
+                    MasterLabel = 'Default Tool Approval',
+                    ArtifactType__c = HITLGatewayService.ARTIFACT_TYPE_TOOL_APPROVAL,
+                    ApprovalCategory__c = HITLGatewayService.APPROVAL_CATEGORY_TOOL_APPROVAL,
+                    ApprovalProcessDeveloperName__c = 'Tool_Approval',
+                    ApproverRoutingType__c = 'Queue',
+                    ApproverRoutingKey__c = 'Tool_Approval_Queue',
+                    Priority__c = 100,
+                    IsActive__c = true
+                ),
+                new HITLApprovalRoute__mdt(
+                    DeveloperName = 'DefaultOutboundDraftReview',
+                    MasterLabel = 'Default Outbound Draft Review',
+                    ArtifactType__c = HITLGatewayService.ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW,
+                    ApprovalCategory__c = HITLGatewayService.APPROVAL_CATEGORY_OUTBOUND_DRAFT_REVIEW,
+                    ApprovalProcessDeveloperName__c = 'Outbound_Draft_Review',
+                    ApproverRoutingType__c = 'Queue',
+                    ApproverRoutingKey__c = 'Outbound_Draft_Review_Queue',
+                    Priority__c = 100,
+                    IsActive__c = true
                 )
             }
         );

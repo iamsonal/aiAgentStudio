@@ -40,7 +40,7 @@
     <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
     <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
     <isOmniPinnedViewEnabled>false</isOmniPinnedViewEnabled>
-    <label>Loom</label>
+    <label>Friday</label>
     <navType>Standard</navType>
     <tabs>LLMConfiguration__c</tabs>
     <tabs>AIAgentDefinition__c</tabs>

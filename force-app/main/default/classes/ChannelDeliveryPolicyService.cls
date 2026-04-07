@@ -79,6 +79,12 @@ public inherited sharing class ChannelDeliveryPolicyService {
                 );
                 return failureResult('Channel review artifact creation failed');
             }
+            if (context.decisionLogger != null) {
+                context.decisionLogger.log(
+                    IDecisionStepLogger.EventType.APPROVAL_REQUESTED,
+                    new List<Object>{ 'Review Before Send', reviewResult }
+                );
+            }
             return successResult();
         }
 

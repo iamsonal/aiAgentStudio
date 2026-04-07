@@ -21,6 +21,19 @@ private class AIAgentConfigServiceTest {
         insert disabled;
     }
 
+    private static void configureTestExecutionIdentityProfiles() {
+        AIAgentConfigService.setTestExecutionIdentityProfiles(
+            new List<ExecutionIdentityProfile__mdt>{
+                new ExecutionIdentityProfile__mdt(
+                    DeveloperName = 'FrameworkServiceUser',
+                    MasterLabel = 'FrameworkServiceUser',
+                    IsActive__c = true,
+                    NamedCredentialDeveloperName__c = 'AgentStudio_ServiceUser'
+                )
+            }
+        );
+    }
+
     @IsTest
     static void testGetAgentDefinition_ByIdAndDeveloperName() {
         AIAgentDefinition__c agent = [SELECT Id, DeveloperName__c FROM AIAgentDefinition__c WHERE DeveloperName__c LIKE 'CfgSvc_Agent%' LIMIT 1];
@@ -114,6 +127,7 @@ private class AIAgentConfigServiceTest {
 
     @IsTest
     static void testResolveExecutionIdentityForAgent_ProfileConfigured_ReturnsNamedCredential() {
+        configureTestExecutionIdentityProfiles();
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withExecutionIdentityProfile('FrameworkServiceUser').build();
 
         AIAgentConfigService.ResolvedExecutionIdentity resolved = AIAgentConfigService.resolveExecutionIdentityForAgent(agent);
@@ -125,6 +139,7 @@ private class AIAgentConfigServiceTest {
 
     @IsTest
     static void testResolveExecutionIdentityForExecution_UsesSnapshotValues() {
+        configureTestExecutionIdentityProfiles();
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withLLM(llm.Id).withExecutionIdentityProfile('FrameworkServiceUser').save();
 

@@ -182,7 +182,13 @@ private class ChannelDeliveryPolicyServiceTest {
                 .applyContentDelivery(buildContext(execution.Id, agent.Id, turnIdentifier), 'Reply body for review', '[test] ');
 
             PendingHITLAction__c pendingAction = [
-                SELECT ArtifactType__c, InteractionChannel__c, ReviewedPayloadJson__c
+                SELECT
+                    ArtifactType__c,
+                    InteractionChannel__c,
+                    ReviewedPayloadJson__c,
+                    ApprovalCategory__c,
+                    ApprovalProcessDeveloperName__c,
+                    ApprovalRouteDeveloperName__c
                 FROM PendingHITLAction__c
                 WHERE AgentExecution__c = :execution.Id
                 LIMIT 1
@@ -200,6 +206,21 @@ private class ChannelDeliveryPolicyServiceTest {
                 'Review artifact should track the execution channel'
             );
             System.assert(pendingAction.ReviewedPayloadJson__c.contains('"status":"ready"'), 'Reviewed payload JSON should be persisted');
+            System.assertEquals(
+                HITLGatewayService.APPROVAL_CATEGORY_OUTBOUND_DRAFT_REVIEW,
+                pendingAction.ApprovalCategory__c,
+                'Draft mode should snapshot the outbound draft review category'
+            );
+            System.assertEquals(
+                'Outbound_Draft_Review',
+                pendingAction.ApprovalProcessDeveloperName__c,
+                'Draft mode should snapshot the explicit draft-review process'
+            );
+            System.assertEquals(
+                'DefaultOutboundDraftReview',
+                pendingAction.ApprovalRouteDeveloperName__c,
+                'Draft mode should snapshot the resolved route'
+            );
         } finally {
             InteractionChannelRegistryService.clearTestAdapters();
             InteractionChannelRegistryService.clearTestChannelTypes();
@@ -280,6 +301,32 @@ private class ChannelDeliveryPolicyServiceTest {
                     MasterLabel = 'FrameworkServiceUser',
                     IsActive__c = true,
                     NamedCredentialDeveloperName__c = 'AgentStudio_ServiceUser'
+                )
+            }
+        );
+        HITLApprovalRouteResolver.setTestRoutes(
+            new List<HITLApprovalRoute__mdt>{
+                new HITLApprovalRoute__mdt(
+                    DeveloperName = 'DefaultOutboundDraftReview',
+                    MasterLabel = 'Default Outbound Draft Review',
+                    ArtifactType__c = HITLGatewayService.ARTIFACT_TYPE_OUTBOUND_DRAFT_REVIEW,
+                    ApprovalCategory__c = HITLGatewayService.APPROVAL_CATEGORY_OUTBOUND_DRAFT_REVIEW,
+                    ApprovalProcessDeveloperName__c = 'Outbound_Draft_Review',
+                    ApproverRoutingType__c = 'Queue',
+                    ApproverRoutingKey__c = 'Outbound_Draft_Review_Queue',
+                    Priority__c = 100,
+                    IsActive__c = true
+                ),
+                new HITLApprovalRoute__mdt(
+                    DeveloperName = 'DefaultToolApproval',
+                    MasterLabel = 'Default Tool Approval',
+                    ArtifactType__c = HITLGatewayService.ARTIFACT_TYPE_TOOL_APPROVAL,
+                    ApprovalCategory__c = HITLGatewayService.APPROVAL_CATEGORY_TOOL_APPROVAL,
+                    ApprovalProcessDeveloperName__c = 'Tool_Approval',
+                    ApproverRoutingType__c = 'Queue',
+                    ApproverRoutingKey__c = 'Tool_Approval_Queue',
+                    Priority__c = 100,
+                    IsActive__c = true
                 )
             }
         );

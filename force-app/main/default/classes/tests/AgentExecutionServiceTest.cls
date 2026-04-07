@@ -5,6 +5,7 @@
 private class AgentExecutionServiceTest {
     @TestSetup
     static void setupData() {
+        configureTestExecutionIdentityProfiles();
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('ExecSvc LLM').save();
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('ExecSvc_Agent').withType('Direct').withLLM(llm.Id).save();
 
@@ -15,8 +16,22 @@ private class AgentExecutionServiceTest {
         TestFactory.newAccount().withName('ExecSvc Account 2').save();
     }
 
+    private static void configureTestExecutionIdentityProfiles() {
+        AIAgentConfigService.setTestExecutionIdentityProfiles(
+            new List<ExecutionIdentityProfile__mdt>{
+                new ExecutionIdentityProfile__mdt(
+                    DeveloperName = 'FrameworkServiceUser',
+                    MasterLabel = 'FrameworkServiceUser',
+                    IsActive__c = true,
+                    NamedCredentialDeveloperName__c = 'AgentStudio_ServiceUser'
+                )
+            }
+        );
+    }
+
     @IsTest
     static void testStartExecution_ServiceUserWithPriorDML_SingleRecordCreatesStub() {
+        configureTestExecutionIdentityProfiles();
         AIAgentDefinition__c agent = [
             SELECT Id, DeveloperName__c
             FROM AIAgentDefinition__c
@@ -67,6 +82,7 @@ private class AgentExecutionServiceTest {
 
     @IsTest
     static void testStartExecution_ServiceUserWithPriorDML_MultiRecordNoStub() {
+        configureTestExecutionIdentityProfiles();
         AIAgentDefinition__c agent = [
             SELECT Id, DeveloperName__c
             FROM AIAgentDefinition__c
@@ -106,6 +122,7 @@ private class AgentExecutionServiceTest {
 
     @IsTest
     static void testStartExecution_ServiceUserNoPriorDML_RoutesThroughRestApi() {
+        configureTestExecutionIdentityProfiles();
         AIAgentDefinition__c agent = [
             SELECT Id, DeveloperName__c
             FROM AIAgentDefinition__c
@@ -145,6 +162,7 @@ private class AgentExecutionServiceTest {
 
     @IsTest
     static void testStartExecutionFromFlow_GroupsAndReturnsResults() {
+        configureTestExecutionIdentityProfiles();
         AIAgentDefinition__c agent = [
             SELECT Id, DeveloperName__c
             FROM AIAgentDefinition__c
@@ -180,6 +198,7 @@ private class AgentExecutionServiceTest {
 
     @IsTest
     static void testStartExecution_ServiceUserNoPriorDML_RestErrorThrows() {
+        configureTestExecutionIdentityProfiles();
         AIAgentDefinition__c agent = [
             SELECT Id, DeveloperName__c
             FROM AIAgentDefinition__c
@@ -374,6 +393,7 @@ private class AgentExecutionServiceTest {
 
     @IsTest
     static void testStartExecution_RestApiReturnsSuccessFalse_Throws() {
+        configureTestExecutionIdentityProfiles();
         AIAgentDefinition__c agent = [
             SELECT Id, DeveloperName__c
             FROM AIAgentDefinition__c

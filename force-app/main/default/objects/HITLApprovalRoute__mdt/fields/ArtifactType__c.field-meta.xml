@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ArtifactType__c</fullName>
+    <description>Optional artifact type matcher for this route. Leave blank to act as a wildcard.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Match routes for a specific HITL artifact type such as Tool Approval or Outbound Draft Review.</inlineHelpText>
+    <label>Artifact Type</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

@@ -6,7 +6,7 @@
       "path": "force-app",
       "default": true,
       "package": "aiAgentStudio",
-          "versionDescription": "Loom core framework"
+          "versionDescription": "Friday core framework"
     }
   ],
   "name": "aiAgentStudio",

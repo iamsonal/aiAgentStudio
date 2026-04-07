@@ -1,3 +1,3 @@
-# Loom Addons
+# Friday Addons
 
-Private extensions and customizations for Loom.
+Private extensions and customizations for Friday.
