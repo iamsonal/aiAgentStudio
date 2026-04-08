@@ -119,7 +119,8 @@ public inherited sharing class ContextResolverService {
     public ResolutionResult resolve(Id executionId, Id agentDefinitionId, Id userId, Id immediatePageRecordId, Integer currentTurn) {
         String logPrefix = '[CtxResolverSvc Exec:' + executionId + '] ';
         ResolutionResult result = new ResolutionResult();
-        String activeChannel = RuntimeRegistryService.getInteractionChannel(null, executionId);
+        AIAgentDefinition__c agentDefinition = loadAgentDefinition(agentDefinitionId);
+        String activeChannel = RuntimeRegistryService.getInteractionChannel(agentDefinition, executionId);
 
         List<AgentContextConfig__c> configs = queryApplicableConfigs(agentDefinitionId, logPrefix);
         if (configs.isEmpty()) {
@@ -168,6 +169,21 @@ public inherited sharing class ContextResolverService {
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Context resolution complete. Total records loaded: ' + result.recordsToLoad.size());
         return result;
+    }
+
+    private AIAgentDefinition__c loadAgentDefinition(Id agentDefinitionId) {
+        if (agentDefinitionId == null) {
+            return null;
+        }
+        try {
+            return AIAgentConfigService.getAgentDefinition(agentDefinitionId);
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.WARN,
+                '[ContextResolverService] Failed to load agent definition ' + agentDefinitionId + ' for channel resolution: ' + e.getMessage()
+            );
+            return null;
+        }
     }
 
     private Set<String> collectContextKeys(List<AgentContextConfig__c> configs) {

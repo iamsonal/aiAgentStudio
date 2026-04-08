@@ -99,6 +99,40 @@ private class HITLGatewayServiceTest {
     }
 
     @IsTest
+    static void testEvaluate_ConfirmationInvalidForNonInteractiveExecutionChannel() {
+        AIAgentDefinition__c agent = [
+            SELECT Id, RuntimeStrategy__c, DeveloperName__c
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
+            LIMIT 1
+        ];
+        AgentCapability__c cap = [
+            SELECT Id, CapabilityName__c, HITLMode__c, RunAsynchronously__c
+            FROM AgentCapability__c
+            WHERE CapabilityName__c = 'hitl_confirm'
+            LIMIT 1
+        ];
+        AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
+        update new AgentExecution__c(Id = execution.Id, InteractionChannel__c = RuntimeRegistryService.CHANNEL_EMAIL);
+
+        HITLGatewayService.HITLContext ctx = new HITLGatewayService.HITLContext();
+        ctx.capability = cap;
+        ctx.agentDefinition = agent;
+        ctx.executionId = execution.Id;
+        ctx.turnIdentifier = 'turn-hitl-email-confirm';
+        ctx.toolCallId = 'call-hitl-email-confirm';
+
+        HITLGatewayService.HITLDecision decision = HITLGatewayService.evaluate(ctx);
+
+        System.assertEquals(false, decision.requiresIntervention, 'Invalid config should not require intervention');
+        System.assertEquals(false, decision.isValidConfiguration, 'Confirmation on a non-interactive execution channel should be invalid');
+        System.assert(
+            String.isNotBlank(decision.configurationError) && decision.configurationError.contains('interactive chat agents'),
+            'Error should explain that confirmation requires an interactive chat runtime'
+        );
+    }
+
+    @IsTest
     static void testResolveApproval_ApprovedAndRejected() {
         AIAgentDefinition__c agent = [
             SELECT Id, DeveloperName__c

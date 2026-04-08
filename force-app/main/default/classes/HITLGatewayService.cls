@@ -344,10 +344,7 @@ public with sharing class HITLGatewayService {
         }
 
         if (hitlMode == HITL_MODE_CONFIRMATION) {
-            if (
-                RuntimeRegistryService.getTraits(context.agentDefinition, RuntimeRegistryService.getInteractionChannel(context.agentDefinition, null))
-                    .supportsConfirmationHitl != true
-            ) {
+            if (resolveRuntimeTraits(context).supportsConfirmationHitl != true) {
                 String errorMsg =
                     'Confirmation mode is only supported for interactive chat agents. ' +
                     'Capability "' +
@@ -378,10 +375,7 @@ public with sharing class HITLGatewayService {
         }
 
         if (hitlMode == HITL_MODE_CONFIRMATION_THEN_APPROVAL) {
-            if (
-                RuntimeRegistryService.getTraits(context.agentDefinition, RuntimeRegistryService.getInteractionChannel(context.agentDefinition, null))
-                    .supportsConfirmationHitl != true
-            ) {
+            if (resolveRuntimeTraits(context).supportsConfirmationHitl != true) {
                 String errorMsg =
                     'ConfirmationThenApproval mode is only supported for interactive chat agents. ' +
                     'Capability "' +
@@ -444,6 +438,16 @@ public with sharing class HITLGatewayService {
             '". Valid values are: None, Confirmation, Approval, ConfirmationThenApproval, ConditionalApproval.';
         System.debug(LoggingLevel.ERROR, debugPrefix + errorMsg);
         return createInvalidConfigDecision(errorMsg);
+    }
+
+    private static InteractionRuntimeModels.TraitSet resolveRuntimeTraits(HITLContext context) {
+        if (context != null && context.executionId != null) {
+            return RuntimeRegistryService.getTraits(context.executionId);
+        }
+
+        AIAgentDefinition__c agentDefinition = context != null ? context.agentDefinition : null;
+        String interactionChannel = RuntimeRegistryService.getInteractionChannel(agentDefinition, null);
+        return RuntimeRegistryService.getTraits(agentDefinition, interactionChannel);
     }
 
     /**
