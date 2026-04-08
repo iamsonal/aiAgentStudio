@@ -120,17 +120,6 @@ That separation is one of the framework's biggest strengths. A conversation is n
 a runtime work item. A transport message is not the same thing as an execution step. Once those
 boundaries are clear, the system becomes much easier to reason about.
 
-## The Mental Model
-
-The right mental model is simple:
-
-a request enters through an entry surface, the system resolves routing and continuity, starts or
-resumes execution, lets runtime strategy and interaction channel shape behavior, runs the LLM and
-tool loop, and then writes the outcome back into durable records.
-
-That is enough for the homepage. If you want the system walkthrough, service map, and diagrams, go
-next to `Runtime Model` and `Architecture`.
-
 ## What You Can Build
 
 <p class="section-lead">
