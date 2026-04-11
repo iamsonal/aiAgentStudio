@@ -11,13 +11,12 @@
  */
 public inherited sharing class AIAgentFrameworkSettings {
     private static AIAgentFrameworkSettings__c settings;
-    private static final Integer FINAL_DEFAULT_MaxConversationTurns = 10;
+    private static final Integer FINAL_DEFAULT_MaxConversationTurns = 5;
     private static final Integer FINAL_DEFAULT_MaxToolRetries = 2;
     private static final Integer FINAL_DEFAULT_BulkConcurrencyLimit = 5;
     private static final Integer FINAL_DEFAULT_BulkFailureThreshold = 5;
     private static final Integer FINAL_DEFAULT_MaxLLMCallsPerTransaction = 2;
     private static final Boolean FINAL_DEFAULT_EnableDecisionStepLogging = true;
-    private static final Boolean FINAL_DEFAULT_ExtendQueueableChainLimit = false;
     private static final Integer FINAL_DEFAULT_MaxContextDeltaItemsPerTurn = 10;
     private static final Integer FINAL_DEFAULT_MaxActiveContextReferences = 50;
     public static AIAgentFrameworkSettings__c getInstance() {
@@ -31,7 +30,6 @@ public inherited sharing class AIAgentFrameworkSettings {
                 settings.BulkConcurrencyLimit__c = FINAL_DEFAULT_BulkConcurrencyLimit;
                 settings.BulkFailureThreshold__c = FINAL_DEFAULT_BulkFailureThreshold;
                 settings.EnableDecisionStepLogging__c = FINAL_DEFAULT_EnableDecisionStepLogging;
-                settings.ExtendQueueableChainLimit__c = FINAL_DEFAULT_ExtendQueueableChainLimit;
                 System.debug(LoggingLevel.WARN, '[AIAgentFrameworkSettings] No Custom Setting record found - using hardcoded default values for all settings');
             } else {
                 // Record exists, fill in missing individual fields with FINAL defaults
@@ -263,19 +261,6 @@ public inherited sharing class AIAgentFrameworkSettings {
      *
      * @return The maximum dependency violations allowed before execution fails.
      */
-    /**
-     * Determines if AsyncOptions should be used to extend queueable chain limits.
-     * Enable this setting in orgs with 5-chain limits (scratch/developer/trial orgs).
-     * Disable in orgs with 50-chain limits (production/sandbox orgs).
-     *
-     * Default is FALSE (assumes production/sandbox with 50-chain limit).
-     *
-     * @return TRUE if AsyncOptions should be configured, FALSE otherwise.
-     */
-    public static Boolean shouldExtendQueueableChainLimit() {
-        return getInstance().ExtendQueueableChainLimit__c == true;
-    }
-
     /**
      * Clears the cached settings instance. Intended for use in test methods only.
      */

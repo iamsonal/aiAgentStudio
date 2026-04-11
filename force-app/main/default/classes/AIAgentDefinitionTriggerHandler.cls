@@ -28,6 +28,7 @@ public with sharing class AIAgentDefinitionTriggerHandler {
         }
 
         for (AIAgentDefinition__c rec : newRecords) {
+            applyResumeModeDefaults(rec);
             enforceErrorRecoveryMode(rec);
 
             if (oldMap == null) {
@@ -90,5 +91,13 @@ public with sharing class AIAgentDefinitionTriggerHandler {
         if (rec.ErrorRecoveryMode__c != 'Autonomous') {
             rec.ErrorRecoveryMode__c.addError('This execution strategy must use Error Recovery Mode = Autonomous.');
         }
+    }
+
+    private static void applyResumeModeDefaults(AIAgentDefinition__c rec) {
+        if (rec == null || String.isNotBlank(rec.ResumeMode__c)) {
+            return;
+        }
+
+        rec.ResumeMode__c = 'LLM First';
     }
 }

@@ -1795,7 +1795,7 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
                 childPayload.executionIdentityProfileDeveloperName = childExecutionIdentity.profileDeveloperName;
                 childPayload.executionIdentityNamedCredential = childExecutionIdentity.namedCredentialDeveloperName;
 
-                System.enqueueJob(new AgentExecutionWorker(childAgentName, childPayload));
+                new AgentJobEnqueuer().enqueueQueueable(new AgentExecutionWorker(childAgentName, childPayload), logPrefix, childAgentDef.Id, true);
 
                 successfullyQueued++;
                 System.debug(

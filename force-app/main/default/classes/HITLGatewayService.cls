@@ -531,10 +531,7 @@ public with sharing class HITLGatewayService {
         );
 
         try {
-            HITLApprovalRouteResolver.ResolvedRoute route = HITLApprovalRouteResolver.resolveForToolApproval(
-                context,
-                pendingAction.InteractionChannel__c
-            );
+            HITLApprovalRouteResolver.ResolvedRoute route = HITLApprovalRouteResolver.resolveForToolApproval(context, pendingAction.InteractionChannel__c);
             applyApprovalRouteSnapshot(pendingAction, route);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, debugPrefix + 'Failed to resolve approval route: ' + e.getMessage());
@@ -611,10 +608,7 @@ public with sharing class HITLGatewayService {
         );
 
         try {
-            HITLApprovalRouteResolver.ResolvedRoute route = HITLApprovalRouteResolver.resolveForToolApproval(
-                context,
-                pendingAction.InteractionChannel__c
-            );
+            HITLApprovalRouteResolver.ResolvedRoute route = HITLApprovalRouteResolver.resolveForToolApproval(context, pendingAction.InteractionChannel__c);
             applyApprovalRouteSnapshot(pendingAction, route);
         } catch (Exception e) {
             System.debug(LoggingLevel.ERROR, debugPrefix + 'Failed to resolve approval route: ' + e.getMessage());
@@ -860,10 +854,7 @@ public with sharing class HITLGatewayService {
         return false;
     }
 
-    private static void applyApprovalRouteSnapshot(
-        PendingHITLAction__c pendingAction,
-        HITLApprovalRouteResolver.ResolvedRoute route
-    ) {
+    private static void applyApprovalRouteSnapshot(PendingHITLAction__c pendingAction, HITLApprovalRouteResolver.ResolvedRoute route) {
         if (pendingAction == null || route == null) {
             return;
         }
@@ -875,11 +866,7 @@ public with sharing class HITLGatewayService {
         pendingAction.ApproverRoutingKey__c = route.approverRoutingKey;
     }
 
-    private static ApprovalSubmissionResult submitPendingActionForApproval(
-        PendingHITLAction__c pendingAction,
-        String comments,
-        String debugPrefix
-    ) {
+    private static ApprovalSubmissionResult submitPendingActionForApproval(PendingHITLAction__c pendingAction, String comments, String debugPrefix) {
         ApprovalSubmissionResult result = new ApprovalSubmissionResult();
         if (pendingAction == null || pendingAction.Id == null) {
             result.errorMessage = 'Pending action must be inserted before approval submission.';
@@ -913,9 +900,7 @@ public with sharing class HITLGatewayService {
         if (!saveResult.isSuccess()) {
             System.debug(
                 LoggingLevel.WARN,
-                debugPrefix +
-                    'Could not update ApprovalProcessInstanceId due to record lock (this is expected): ' +
-                    saveResult.getErrors()[0].getMessage()
+                debugPrefix + 'Could not update ApprovalProcessInstanceId due to record lock (this is expected): ' + saveResult.getErrors()[0].getMessage()
             );
             System.debug(
                 LoggingLevel.INFO,

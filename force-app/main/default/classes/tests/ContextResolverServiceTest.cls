@@ -233,11 +233,7 @@ private class ContextResolverServiceTest {
     @IsTest
     static void testResolve_UsesAgentDefaultChannelBeforeExecutionExists() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
-        AIAgentDefinition__c agent = TestFactory.newAgentDefinition()
-            .withName('Direct Channel Context Agent')
-            .withLLM(llm.Id)
-            .withType('Direct')
-            .save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Direct Channel Context Agent').withLLM(llm.Id).withType('Direct').save();
 
         insert new AgentContextConfig__c(
             AIAgentDefinition__c = agent.Id,

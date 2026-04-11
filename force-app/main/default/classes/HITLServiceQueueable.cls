@@ -107,7 +107,7 @@ public without sharing class HITLServiceQueueable implements Queueable, Database
      * Used when manual resume is triggered and agent requires service user context
      * @param executionId The agent execution ID to resume
      * @param resumeReason The reason for resuming (for logging)
-     * @param retryFailedTool Whether to retry the last failed tool (null = auto-detect)
+     * @param retryFailedTool Whether to retry the last failed tool (null = let runtime choose from ResumeMode__c)
      */
     public HITLServiceQueueable(Id executionId, String resumeReason, Boolean retryFailedTool) {
         this.operationType = HITLServiceQueueable.OperationType.RESUME;

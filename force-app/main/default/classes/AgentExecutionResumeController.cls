@@ -89,13 +89,15 @@ public with sharing class AgentExecutionResumeController {
         System.debug(LoggingLevel.INFO, '[AgentExecutionResumeController] Agent requires service user context. Routing resume via REST API.');
 
         // Enqueue the resume operation to run via REST API in service user context
-        System.enqueueJob(
-            new HITLServiceQueueable(
-                executionId,
-                'Manual resume via UI (service user context)',
-                null // Auto-detect whether to retry failed tool
-            )
-        );
+        new AgentJobEnqueuer()
+            .enqueueQueueable(
+                new HITLServiceQueueable(
+                    executionId,
+                    'Manual resume via UI (service user context)',
+                    null // Let the runtime choose based on ResumeMode__c
+                ),
+                '[AgentExecutionResumeController] '
+            );
 
         return 'Resume initiated for ' + agentName + ' (' + executionId + '). ' + 'Processing in service user context. Check the Storyboard for progress.';
     }

@@ -216,11 +216,7 @@ private class ChannelDeliveryPolicyServiceTest {
                 pendingAction.ApprovalProcessDeveloperName__c,
                 'Draft mode should snapshot the explicit draft-review process'
             );
-            System.assertEquals(
-                'DefaultOutboundDraftReview',
-                pendingAction.ApprovalRouteDeveloperName__c,
-                'Draft mode should snapshot the resolved route'
-            );
+            System.assertEquals('DefaultOutboundDraftReview', pendingAction.ApprovalRouteDeveloperName__c, 'Draft mode should snapshot the resolved route');
         } finally {
             InteractionChannelRegistryService.clearTestAdapters();
             InteractionChannelRegistryService.clearTestChannelTypes();

@@ -104,20 +104,20 @@ private class DirectRuntimeServiceTest {
     }
 
     /**
-     * @description Verifies that in Autonomous mode, determineResumePoint() defaults to LLM_CONTINUE
-     *              when a failed tool exists. The LLM should receive the full history (including
-     *              correctionGuidance) rather than blindly retrying the tool.
+     * @description Verifies that ResumeMode__c = LLM First defaults to LLM_CONTINUE
+     *              when a failed tool exists. The LLM should receive the full history rather than
+     *              blindly retrying the tool.
      */
     @IsTest
-    static void testDetermineResumePoint_AutonomousMode_DefaultsToLLMContinue() {
-        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Resume Strategy LLM Autonomous').save();
+    static void testDetermineResumePoint_LlmFirstResumeMode_DefaultsToLLMContinue() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Resume Strategy LLM First').save();
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Resume_Strategy_Autonomous_Agent').withType('Direct').withLLM(llm.Id).save();
-        // Autonomous is the default — explicitly confirm it is set
-        System.assertEquals(
-            'Autonomous',
-            [SELECT ErrorRecoveryMode__c FROM AIAgentDefinition__c WHERE Id = :agent.Id].ErrorRecoveryMode__c,
-            'Agent should default to Autonomous mode'
-        );
+        agent = [
+            SELECT Id, DeveloperName__c, RuntimeStrategy__c, LLMConfiguration__c, ResumeMode__c
+            FROM AIAgentDefinition__c
+            WHERE Id = :agent.Id
+        ];
+        System.assertEquals('LLM First', agent.ResumeMode__c, 'Agent should default to ResumeMode = LLM First');
 
         AgentCapability__c capability = TestFactory.newCapability()
             .withAgent(agent.Id)
@@ -166,21 +166,26 @@ private class DirectRuntimeServiceTest {
         AgentExecutionService.ExecutionResult result = orchestrator.resume(execution.Id, null);
         Test.stopTest();
 
-        // In Autonomous mode, the orchestrator should route to LLM_CONTINUE (not RETRY_FAILED_TOOL).
+        // In LLM First mode, the orchestrator should route to LLM_CONTINUE (not RETRY_FAILED_TOOL).
         // The execution should not be in Failed state — it should have been handed off to the LLM.
         AgentExecution__c updated = [SELECT ExecutionStatus__c FROM AgentExecution__c WHERE Id = :execution.Id];
-        System.assertNotEquals('Failed', updated.ExecutionStatus__c, 'Autonomous mode resume should not immediately fail — it should route to LLM_CONTINUE');
+        System.assertNotEquals('Failed', updated.ExecutionStatus__c, 'LLM First resume should not immediately fail — it should route to LLM_CONTINUE');
     }
 
     /**
-     * @description Verifies that in Fail Fast mode, determineResumePoint() defaults to RETRY_FAILED_TOOL
-     *              when a failed tool exists. The human-initiated resume explicitly overrides the hard stop.
+     * @description Verifies that ResumeMode__c = Retry Failed Operation defaults to RETRY_FAILED_TOOL
+     *              when a failed tool exists.
      */
     @IsTest
-    static void testDetermineResumePoint_FailFastMode_DefaultsToRetryFailedTool() {
-        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Resume Strategy LLM FailFast').save();
+    static void testDetermineResumePoint_RetryResumeMode_DefaultsToRetryFailedTool() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Resume Strategy LLM Retry').save();
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Resume_Strategy_FailFast_Agent').withType('Direct').withLLM(llm.Id).save();
-        update new AIAgentDefinition__c(Id = agent.Id, ErrorRecoveryMode__c = 'Fail Fast');
+        update new AIAgentDefinition__c(Id = agent.Id, ResumeMode__c = 'Retry Failed Operation');
+        agent = [
+            SELECT Id, DeveloperName__c, RuntimeStrategy__c, LLMConfiguration__c, ResumeMode__c
+            FROM AIAgentDefinition__c
+            WHERE Id = :agent.Id
+        ];
 
         AgentCapability__c capability = TestFactory.newCapability()
             .withAgent(agent.Id)
@@ -237,18 +242,17 @@ private class DirectRuntimeServiceTest {
         AgentExecutionService.ExecutionResult result = orchestrator.resume(execution.Id, null);
         Test.stopTest();
 
-        // Fail Fast mode should have selected RETRY_FAILED_TOOL.
+        // Retry Failed Operation mode should have selected RETRY_FAILED_TOOL.
         // Since the tool succeeded (real data), the execution should not remain Failed.
         AgentExecution__c updated = [SELECT ExecutionStatus__c FROM AgentExecution__c WHERE Id = :execution.Id];
-        System.assertNotEquals('Failed', updated.ExecutionStatus__c, 'Fail Fast mode resume with RETRY_FAILED_TOOL should proceed when the tool succeeds');
+        System.assertNotEquals('Failed', updated.ExecutionStatus__c, 'Retry Failed Operation resume should proceed when the tool succeeds');
     }
 
     @IsTest
     static void testResume_RetryFailedHttpTool_DoesNotPerformDmlBeforeCallout() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Resume HTTP Function LLM').save();
         AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Resume_HTTP_Function_Agent').withType('Direct').withLLM(llm.Id).save();
-        update new AIAgentDefinition__c(Id = agent.Id, ErrorRecoveryMode__c = 'Fail Fast');
-        agent = [SELECT Id, DeveloperName__c, RuntimeStrategy__c, LLMConfiguration__c, ErrorRecoveryMode__c FROM AIAgentDefinition__c WHERE Id = :agent.Id];
+        agent = [SELECT Id, DeveloperName__c, RuntimeStrategy__c, LLMConfiguration__c, ResumeMode__c FROM AIAgentDefinition__c WHERE Id = :agent.Id];
 
         AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).withName('resume_http_function_tool').build();
         capability.ImplementationType__c = 'Standard';
@@ -297,6 +301,7 @@ private class DirectRuntimeServiceTest {
         Test.stopTest();
 
         System.assertEquals(capability.CapabilityName__c, 'resume_http_function_tool', 'Sanity check that the HTTP retry tool was configured');
+        System.assertEquals('LLM First', agent.ResumeMode__c, 'This test relies on explicit retry override beating the default resume mode');
 
         AgentExecution__c updated = [
             SELECT ExecutionStatus__c, FunctionResumeCount__c, LastFunctionResumeTimestamp__c, ErrorMessage__c

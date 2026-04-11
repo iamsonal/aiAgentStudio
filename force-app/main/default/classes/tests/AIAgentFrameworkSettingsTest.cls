@@ -11,12 +11,11 @@ private class AIAgentFrameworkSettingsTest {
         AIAgentFrameworkSettings__c instance = AIAgentFrameworkSettings.getInstance();
 
         System.assertNotEquals(null, instance, 'Should return a settings instance even without a custom setting record');
-        System.assertEquals(10, instance.DefaultMaxConversationTurns__c, 'Default max turns should be 10');
+        System.assertEquals(5, instance.DefaultMaxConversationTurns__c, 'Default max turns should be 5');
         System.assertEquals(2, instance.MaxToolRetries__c, 'Default max retries should be 2');
         System.assertEquals(5, instance.BulkConcurrencyLimit__c, 'Default concurrency should be 5');
         System.assertEquals(5, instance.BulkFailureThreshold__c, 'Default failure threshold should be 5');
         System.assertEquals(true, instance.EnableDecisionStepLogging__c, 'Decision step logging should be enabled by default');
-        System.assertEquals(false, instance.ExtendQueueableChainLimit__c, 'Extend chain limit should be false by default');
         System.assertEquals(null, instance.DefaultHITLExecIdentityProfile__c, 'Default HITL execution identity profile should default to blank');
         System.assertEquals(null, instance.ToolFlowGenLLMConfig__c, 'Tool Flow generation LLM override should default to blank');
     }
@@ -29,7 +28,6 @@ private class AIAgentFrameworkSettingsTest {
             BulkConcurrencyLimit__c = 10,
             BulkFailureThreshold__c = 3,
             EnableDecisionStepLogging__c = false,
-            ExtendQueueableChainLimit__c = true,
             MaxLLMCallsPerTransaction__c = 4
         );
         insert custom;
@@ -54,7 +52,7 @@ private class AIAgentFrameworkSettingsTest {
 
         AIAgentFrameworkSettings__c instance = AIAgentFrameworkSettings.getInstance();
 
-        System.assertEquals(10, instance.DefaultMaxConversationTurns__c, 'Null max turns should default to 10');
+        System.assertEquals(5, instance.DefaultMaxConversationTurns__c, 'Null max turns should default to 5');
         System.assertEquals(2, instance.MaxToolRetries__c, 'Negative retries should default to 2');
         System.assertEquals(5, instance.BulkConcurrencyLimit__c, 'Zero concurrency should default to 5');
         System.assertEquals(5, instance.BulkFailureThreshold__c, 'Negative threshold should default to 5');
@@ -72,7 +70,7 @@ private class AIAgentFrameworkSettingsTest {
     static void testGetDefaultMaxConversationTurns_ReturnsInteger() {
         Integer turns = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
 
-        System.assertEquals(10, turns, 'Default max conversation turns should be 10');
+        System.assertEquals(5, turns, 'Default max conversation turns should be 5');
     }
 
     @IsTest
@@ -159,16 +157,14 @@ private class AIAgentFrameworkSettingsTest {
     @IsTest
     static void testBooleanFlags_ReturnExpectedDefaults() {
         System.assertEquals(true, AIAgentFrameworkSettings.isDecisionStepLoggingEnabled(), 'Decision step logging should default to enabled');
-        System.assertEquals(false, AIAgentFrameworkSettings.shouldExtendQueueableChainLimit(), 'Extend chain limit should default to false');
     }
 
     @IsTest
     static void testBooleanFlags_WithCustomSetting_ReturnsConfiguredValues() {
-        AIAgentFrameworkSettings__c custom = new AIAgentFrameworkSettings__c(EnableDecisionStepLogging__c = false, ExtendQueueableChainLimit__c = true);
+        AIAgentFrameworkSettings__c custom = new AIAgentFrameworkSettings__c(EnableDecisionStepLogging__c = false);
         insert custom;
 
         System.assertEquals(false, AIAgentFrameworkSettings.isDecisionStepLoggingEnabled(), 'Decision step logging should be disabled');
-        System.assertEquals(true, AIAgentFrameworkSettings.shouldExtendQueueableChainLimit(), 'Extend chain limit should be true');
     }
 
     @IsTest

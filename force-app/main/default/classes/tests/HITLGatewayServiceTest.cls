@@ -486,7 +486,11 @@ private class HITLGatewayServiceTest {
             ];
             System.assertEquals(HITLGatewayService.HITL_MODE_APPROVAL, pending.HITLType__c, 'Pending action should be Approval');
             System.assertEquals(ctx.toolCallId, pending.ToolCallId__c, 'Tool call id should match');
-            System.assertEquals(HITLGatewayService.APPROVAL_CATEGORY_TOOL_APPROVAL, pending.ApprovalCategory__c, 'Tool approvals should snapshot their approval category');
+            System.assertEquals(
+                HITLGatewayService.APPROVAL_CATEGORY_TOOL_APPROVAL,
+                pending.ApprovalCategory__c,
+                'Tool approvals should snapshot their approval category'
+            );
             System.assertEquals('Tool_Approval', pending.ApprovalProcessDeveloperName__c, 'Tool approvals should snapshot the explicit process');
             System.assertEquals('DefaultToolApproval', pending.ApprovalRouteDeveloperName__c, 'Tool approvals should snapshot the resolved route');
         } else {
@@ -552,7 +556,11 @@ private class HITLGatewayServiceTest {
                 'Pending action should be ConfirmationThenApproval'
             );
             System.assertEquals(ctx.toolCallId, pending.ToolCallId__c, 'Tool call id should match');
-            System.assertEquals(HITLGatewayService.APPROVAL_CATEGORY_TOOL_APPROVAL, pending.ApprovalCategory__c, 'ConfirmationThenApproval should reuse the tool approval category');
+            System.assertEquals(
+                HITLGatewayService.APPROVAL_CATEGORY_TOOL_APPROVAL,
+                pending.ApprovalCategory__c,
+                'ConfirmationThenApproval should reuse the tool approval category'
+            );
             System.assertEquals('Tool_Approval', pending.ApprovalProcessDeveloperName__c, 'ConfirmationThenApproval should snapshot the explicit process');
             System.assertEquals('DefaultToolApproval', pending.ApprovalRouteDeveloperName__c, 'ConfirmationThenApproval should snapshot the resolved route');
         } else {
