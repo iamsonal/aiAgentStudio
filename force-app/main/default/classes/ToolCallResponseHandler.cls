@@ -2031,6 +2031,11 @@ public inherited sharing class ToolCallResponseHandler implements ILLMResponseHa
         if ((context.currentTurnCount + 1) > maxTurns) {
             String limitErrorMsg = 'Maximum processing cycles (' + maxTurns + ') exceeded.';
             commitContextAnchorsIfNeeded(context, syncResults, logPrefix);
+            context.decisionLogger.log(
+                IDecisionStepLogger.EventType.ERROR,
+                new List<Object>{ 'Maximum Processing Cycles Exceeded', AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED, limitErrorMsg }
+            );
+            context.decisionLogger.commitSteps();
             context.agentStateSvc.failTurn(context.executionId, context.turnIdentifier, limitErrorMsg, AIAgentConstants.ERR_CODE_MAX_TURNS_EXCEEDED, logPrefix);
             publishTransientAssistantMessage(context.executionId, savedAssistantMessageId, assistantMessageContent, logPrefix);
             return OrchestrationService.OUTCOME_FAILED;
