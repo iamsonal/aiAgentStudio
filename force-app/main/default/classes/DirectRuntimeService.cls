@@ -449,10 +449,8 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
 
             // 3. Enqueue AgentExecutionWorker - it implements Database.AllowsCallouts
             // so it can make LLM callouts in a fresh transaction
-            AsyncOptions asyncOptions = new AgentJobEnqueuer().getAsyncOptions(logPrefix);
-            Id jobId = asyncOptions != null
-                ? System.enqueueJob(new AgentExecutionWorker(agentDefinition.DeveloperName__c, workerPayload), asyncOptions)
-                : System.enqueueJob(new AgentExecutionWorker(agentDefinition.DeveloperName__c, workerPayload));
+            Id jobId = new AgentJobEnqueuer()
+                .enqueueQueueable(new AgentExecutionWorker(agentDefinition.DeveloperName__c, workerPayload), logPrefix, agentDefinition.Id);
 
             System.debug(LoggingLevel.INFO, logPrefix + 'Enqueued AgentExecutionWorker for deferred LLM call. Job ID: ' + jobId);
 
@@ -844,23 +842,19 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
         Boolean shouldRetryTool = options?.retryFailedTool;
 
         if (shouldRetryTool == null) {
-            // Auto-detect default strategy respects ErrorRecoveryMode__c:
-            // - Fail Fast: RETRY_FAILED_TOOL — human explicitly overrides a hard stop; direct retry is appropriate.
-            // - Autonomous: LLM_CONTINUE — the LLM already saw the failure and the circuit breaker fired;
-            //   giving it the full conversation history (including correctionGuidance) is more useful than
-            //   a blind tool retry that may hit the circuit breaker again immediately.
-            if ('Fail Fast'.equals(agentDefinition.ErrorRecoveryMode__c)) {
+            if ('Retry Failed Operation'.equals(resolveResumeMode())) {
                 Map<String, Object> failedTool = AgentRuntimeSupport.findLastFailedTool(executionId);
                 shouldRetryTool = (failedTool != null);
                 if (shouldRetryTool) {
                     resumePoint.toolCallId = (String) failedTool.get('toolCallId');
                     resumePoint.toolName = (String) failedTool.get('toolName');
-                    System.debug(LoggingLevel.INFO, logPrefix + 'Auto-detected failed tool (Fail Fast mode): ' + resumePoint.toolName);
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Auto-detected failed tool (ResumeMode=Retry Failed Operation): ' + resumePoint.toolName);
+                } else {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'ResumeMode=Retry Failed Operation but no failed tool found, defaulting to LLM_CONTINUE');
                 }
             } else {
-                // Autonomous mode: default to LLM_CONTINUE
                 shouldRetryTool = false;
-                System.debug(LoggingLevel.INFO, logPrefix + 'Autonomous mode: defaulting to LLM_CONTINUE for informed recovery decision');
+                System.debug(LoggingLevel.INFO, logPrefix + 'ResumeMode=LLM First, defaulting to LLM_CONTINUE for informed recovery decision');
             }
         } else if (shouldRetryTool == true) {
             // Explicit retry - find the failed tool
@@ -889,6 +883,12 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
         return resumePoint;
     }
 
+    private String resolveResumeMode() {
+        Map<String, Object> populatedFields = agentDefinition != null ? agentDefinition.getPopulatedFieldsAsMap() : null;
+        String resumeMode = populatedFields != null ? (String) populatedFields.get('ResumeMode__c') : null;
+        return String.isBlank(resumeMode) ? 'LLM First' : resumeMode;
+    }
+
     /**
      * Executes resume for function executions.
      * Handles both tool retry and LLM continue strategies.
@@ -902,7 +902,7 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
         String logPrefix
     ) {
         if (resumePoint.resumeType == ExecutionResumeModels.ResumeType.RETRY_FAILED_TOOL) {
-            return retryFailedToolForFunction(executionId, execution, newTurnIdentifier, resumePoint, logPrefix);
+            return retryFailedToolForFunction(executionId, execution, newTurnIdentifier, resumePoint, options, logPrefix);
         } else {
             // Update execution with new turn identifier
             AgentExecution__c execUpdate = new AgentExecution__c(Id = executionId, CurrentTurnIdentifier__c = newTurnIdentifier);
@@ -939,6 +939,7 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
         AgentExecution__c execution,
         String newTurnIdentifier,
         ExecutionResumeModels.ResumePoint resumePoint,
+        ExecutionResumeModels.ResumeOptions options,
         String logPrefix
     ) {
         // Find the tool call step to get arguments
@@ -1150,7 +1151,20 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
         }
 
         if (!toolOutcome.isSuccess) {
-            if ('Fail Fast'.equals(agentDefinition.ErrorRecoveryMode__c)) {
+            if (options?.retryFailedTool == true) {
+                AgentStateService explicitRetryStateSvc = new AgentStateService();
+                explicitRetryStateSvc.updateStatus(
+                    executionId,
+                    'Failed',
+                    AIAgentConstants.STATUS_FAILED,
+                    newTurnIdentifier,
+                    'Tool retry failed: ' + toolOutcome.errorMessage
+                );
+                String explicitRetryErrorCode = String.isBlank(toolOutcome.errorCode) ? AIAgentConstants.ERR_CODE_ACTION_EXECUTION : toolOutcome.errorCode;
+                return new AgentExecutionService.ExecutionResult(explicitRetryErrorCode, 'Tool retry failed: ' + toolOutcome.errorMessage);
+            }
+
+            if ('Fail Fast'.equals(resolveErrorRecoveryMode(agentDefinition))) {
                 // Fail Fast mode: halt immediately — consistent with its semantics even on human-initiated retry.
                 AgentStateService agentStateSvc = new AgentStateService();
                 agentStateSvc.updateStatus(
@@ -1353,12 +1367,18 @@ public with sharing class DirectRuntimeService implements IAgentRuntime, IExecut
         Id executionId,
         String logPrefix
     ) {
-        if ('Fail Fast'.equals(agentDef.ErrorRecoveryMode__c)) {
+        if ('Fail Fast'.equals(resolveErrorRecoveryMode(agentDef))) {
             System.debug(LoggingLevel.WARN, logPrefix + 'FAIL FAST mode: halting resume tool execution for "' + capability.CapabilityName__c + '"');
             return true;
         }
 
         return false;
+    }
+
+    private String resolveErrorRecoveryMode(AIAgentDefinition__c agentDef) {
+        Map<String, Object> populatedFields = agentDef != null ? agentDef.getPopulatedFieldsAsMap() : null;
+        String errorRecoveryMode = populatedFields != null ? (String) populatedFields.get('ErrorRecoveryMode__c') : null;
+        return String.isBlank(errorRecoveryMode) ? 'Autonomous' : errorRecoveryMode;
     }
     /**
      * @description

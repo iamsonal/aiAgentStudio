@@ -91,7 +91,7 @@ public with sharing class AgentExecutionDispatcher {
 
                 AgentExecutionService.ExecutionPayload workerPayload = buildWorkerPayload(payload, execution);
 
-                System.enqueueJob(new AgentExecutionWorker(agentName, workerPayload));
+                new AgentJobEnqueuer().enqueueQueueable(new AgentExecutionWorker(agentName, workerPayload), logPrefix, agentDef.Id);
 
                 System.debug(LoggingLevel.DEBUG, logPrefix + 'Enqueued worker ' + (i + 1) + ' for execution ' + execution.Id);
             }
@@ -407,7 +407,7 @@ public with sharing class AgentExecutionDispatcher {
                 payload.executionIdentityProfileDeveloperName = agentExecutions[i].ExecutionIdentityProfileDeveloperName__c;
                 payload.executionIdentityNamedCredential = agentExecutions[i].ExecutionIdentityNamedCredential__c;
 
-                System.enqueueJob(new AgentExecutionWorker(agentName, payload));
+                new AgentJobEnqueuer().enqueueQueueable(new AgentExecutionWorker(agentName, payload), logPrefix);
                 totalWorkersEnqueued++;
             }
         }

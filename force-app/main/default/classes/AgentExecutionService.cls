@@ -172,7 +172,7 @@ global inherited sharing class AgentExecutionService {
         }
 
         // Enqueue the work to be processed in service user context
-        System.enqueueJob(new ServiceUserContextQueueable(stubExecutionId, agentDef.Id, payload));
+        new AgentJobEnqueuer().enqueueQueueable(new ServiceUserContextQueueable(stubExecutionId, agentDef.Id, payload), logPrefix, agentDef.Id);
 
         if (isMultiRecordExecution) {
             return new ExecutionResult(

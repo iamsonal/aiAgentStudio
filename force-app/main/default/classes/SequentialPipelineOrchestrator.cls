@@ -452,7 +452,7 @@ global inherited sharing class SequentialPipelineOrchestrator {
         Integer workerCount = Math.min(AIAgentFrameworkSettings.calculateOptimalWorkerCount(executions.size()), executions.size());
 
         for (Integer i = 0; i < workerCount; i++) {
-            enqueueQueueable(new PipelineExecutionWorker(pipelineDefId, executions[i].Id), logPrefix);
+            enqueueQueueable(new PipelineExecutionWorker(pipelineDefId, executions[i].Id), logPrefix, null);
         }
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Enqueued ' + workerCount + ' PipelineExecutionWorker(s) for ' + executions.size() + ' records');
@@ -555,7 +555,7 @@ global inherited sharing class SequentialPipelineOrchestrator {
         payload.turnIdentifier = turnIdentifier;
         payload.triggerSource = effectiveTriggerSource;
 
-        Id childExecutionId = enqueueChildAgent(firstStep, parentExecutionId, payload, logPrefix, null);
+        Id childExecutionId = enqueueChildAgent(firstStep, parentExecutionId, payload, logPrefix, null, false);
 
         // Persist child execution ID in state so onChildComplete can validate
         state.steps.get(firstStepKey).executionId = String.valueOf(childExecutionId);
@@ -694,7 +694,7 @@ global inherited sharing class SequentialPipelineOrchestrator {
                 System.debug(logPrefix + 'Advancing to: ' + nextStep.agentName);
 
                 AgentExecutionService.ExecutionPayload nextPayload = buildPayloadForNextStep(parentExecutionId, nextStepKey, state, execution);
-                Id nextChildExecId = enqueueChildAgent(nextStep, parentExecutionId, nextPayload, logPrefix, null);
+                Id nextChildExecId = enqueueChildAgent(nextStep, parentExecutionId, nextPayload, logPrefix, null, true);
 
                 // Persist next child execution ID in state for stale-callback validation
                 state.steps.get(nextStepKey).executionId = String.valueOf(nextChildExecId);
@@ -876,15 +876,6 @@ global inherited sharing class SequentialPipelineOrchestrator {
         String newTurnIdentifier = EncodingUtil.convertToHex(Crypto.generateAesKey(128)).left(32);
         update new AgentExecution__c(Id = executionId, CurrentTurnIdentifier__c = newTurnIdentifier);
 
-        // Update child execution turn if exists
-        if (String.isNotBlank(failedChildExecutionId)) {
-            try {
-                update new AgentExecution__c(Id = Id.valueOf(failedChildExecutionId), CurrentTurnIdentifier__c = newTurnIdentifier);
-            } catch (Exception e) {
-                System.debug(logPrefix + 'Could not update child execution turn: ' + e.getMessage());
-            }
-        }
-
         AgentStateService execSvc = new AgentStateService();
         execSvc.updateStatus(
             executionId,
@@ -899,37 +890,49 @@ global inherited sharing class SequentialPipelineOrchestrator {
         decisionLogger.log(IDecisionStepLogger.EventType.AGENT_RESUMED, new List<Object>{ 'pipeline', stepDisplayName });
         decisionLogger.commitSteps();
 
-        // Find step config and enqueue
+        // Find step config and resume child
         PipelineStepConfig stepConfig = findStepConfig(stepToResumeName);
         if (stepConfig == null) {
             throw new PipelineStateException('Step configuration not found: ' + stepToResumeName);
         }
 
-        AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
-        payload.userId = execution.User__c;
-        payload.turnIdentifier = newTurnIdentifier;
-        payload.sourceRecordId = execution.SourceRecordId__c;
-        payload.triggerSource = 'Pipeline';
+        if (String.isNotBlank(failedChildExecutionId)) {
+            AIAgentDefinition__c childAgentDef = AIAgentConfigService.getAgentDefinition(stepConfig.agentDefinitionId);
+            if (childAgentDef == null) {
+                throw new PipelineStateException('Agent definition not found: ' + stepConfig.agentDefinitionId);
+            }
 
-        // Build resume message: previous step output + completed capability context
-        String baseMessage = '';
-        String previousOutput = getPreviousStepOutput(state, stepToResumeName);
-        if (String.isNotBlank(previousOutput)) {
-            baseMessage = 'Previous step output: ' + previousOutput + '\n\n';
-        }
-
-        String resumeContext = buildResumeContext(failedChildExecutionId, logPrefix);
-        if (String.isNotBlank(resumeContext)) {
-            payload.userMessage = resumeContext + '\n\n' + baseMessage + 'Resuming pipeline from step: ' + stepDisplayName;
+            String interactionChannel = RuntimeRegistryService.getInteractionChannel(childAgentDef, Id.valueOf(failedChildExecutionId));
+            IExecutionStrategy childStrategy = ExecutionStrategyRegistryService.resolveStrategy(childAgentDef, interactionChannel);
+            ExecutionResumeModels.ResumeOptions opts = new ExecutionResumeModels.ResumeOptions().withReason('Pipeline child agent resume');
+            childStrategy.resumeExecution(Id.valueOf(failedChildExecutionId), opts, childAgentDef);
         } else {
-            payload.userMessage = baseMessage + 'Resuming pipeline from step: ' + stepDisplayName;
+            AgentExecutionService.ExecutionPayload payload = new AgentExecutionService.ExecutionPayload();
+            payload.userId = execution.User__c;
+            payload.turnIdentifier = newTurnIdentifier;
+            payload.sourceRecordId = execution.SourceRecordId__c;
+            payload.triggerSource = 'Pipeline';
+
+            // Fallback path only when no child execution exists to resume.
+            String baseMessage = '';
+            String previousOutput = getPreviousStepOutput(state, stepToResumeName);
+            if (String.isNotBlank(previousOutput)) {
+                baseMessage = 'Previous step output: ' + previousOutput + '\n\n';
+            }
+
+            String resumeContext = buildResumeContext(failedChildExecutionId, logPrefix);
+            if (String.isNotBlank(resumeContext)) {
+                payload.userMessage = resumeContext + '\n\n' + baseMessage + 'Resuming pipeline from step: ' + stepDisplayName;
+            } else {
+                payload.userMessage = baseMessage + 'Resuming pipeline from step: ' + stepDisplayName;
+            }
+
+            Id resumedChildExecId = enqueueChildAgent(stepConfig, executionId, payload, logPrefix, null, false);
+
+            // Persist child execution ID in state for stale-callback validation
+            stepInfo.executionId = String.valueOf(resumedChildExecId);
+            saveState(executionId, state, stepRecordIds);
         }
-
-        Id resumedChildExecId = enqueueChildAgent(stepConfig, executionId, payload, logPrefix, null);
-
-        // Persist child execution ID in state for stale-callback validation
-        stepInfo.executionId = String.valueOf(resumedChildExecId);
-        saveState(executionId, state, stepRecordIds);
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Pipeline resumed from step: ' + stepDisplayName);
     }
@@ -1162,7 +1165,8 @@ global inherited sharing class SequentialPipelineOrchestrator {
         Id parentExecutionId,
         AgentExecutionService.ExecutionPayload payload,
         String logPrefix,
-        Id existingChildExecId
+        Id existingChildExecId,
+        Boolean treatAsFreshRoot
     ) {
         try {
             String baseTurn = String.isNotBlank(payload.turnIdentifier)
@@ -1198,7 +1202,9 @@ global inherited sharing class SequentialPipelineOrchestrator {
 
             enqueueQueueable(
                 new AgentExecutionWorker(step.agentName, buildWorkerPayload(step, childExecutionId, parentExecutionId, payload, stepScopedTurn)),
-                logPrefix
+                logPrefix,
+                step.agentDefinitionId,
+                treatAsFreshRoot
             );
             System.debug(logPrefix + 'Enqueued child agent for step ' + step.stepOrder + ' (' + step.agentName + ')');
             return childExecutionId;
@@ -1208,12 +1214,12 @@ global inherited sharing class SequentialPipelineOrchestrator {
         }
     }
 
-    private static Id enqueueQueueable(Queueable job, String logPrefix) {
-        AsyncOptions asyncOptions = new AgentJobEnqueuer().getAsyncOptions(logPrefix);
-        if (asyncOptions != null) {
-            return System.enqueueJob(job, asyncOptions);
-        }
-        return System.enqueueJob(job);
+    private static Id enqueueQueueable(Queueable job, String logPrefix, Id agentDefinitionId) {
+        return enqueueQueueable(job, logPrefix, agentDefinitionId, false);
+    }
+
+    private static Id enqueueQueueable(Queueable job, String logPrefix, Id agentDefinitionId, Boolean treatAsFreshRoot) {
+        return new AgentJobEnqueuer().enqueueQueueable(job, logPrefix, agentDefinitionId, treatAsFreshRoot);
     }
 
     private AgentExecutionService.ExecutionPayload buildWorkerPayload(
@@ -1339,7 +1345,7 @@ global inherited sharing class SequentialPipelineOrchestrator {
 
                 AgentExecution__c exec = [SELECT SourceRecordId__c, User__c, CurrentTurnIdentifier__c FROM AgentExecution__c WHERE Id = :executionId LIMIT 1];
                 AgentExecutionService.ExecutionPayload nextPayload = buildPayloadForNextStep(executionId, nextStepKey, state, exec);
-                Id nextChildExecId = enqueueChildAgent(nextStep, executionId, nextPayload, logPrefix, null);
+                Id nextChildExecId = enqueueChildAgent(nextStep, executionId, nextPayload, logPrefix, null, false);
 
                 state.steps.get(nextStepKey).executionId = String.valueOf(nextChildExecId);
                 saveState(executionId, state, stepRecordIds);

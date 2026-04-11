@@ -229,4 +229,33 @@ private class ContextResolverServiceTest {
             ContextResolverService.clearTestProviderOverrides();
         }
     }
+
+    @IsTest
+    static void testResolve_UsesAgentDefaultChannelBeforeExecutionExists() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withName('Direct Channel Context Agent').withLLM(llm.Id).withType('Direct').save();
+
+        insert new AgentContextConfig__c(
+            AIAgentDefinition__c = agent.Id,
+            AdminLabel__c = 'Direct Only Context',
+            ContextDefinition__c = 'User Details Provider',
+            ApplicableChannels__c = 'Direct',
+            Priority__c = 1,
+            FailureMode__c = 'Warn',
+            IsActive__c = true
+        );
+
+        ContextResolverService.setTestProviderOverride('User Details Provider', new TestProvider());
+        try {
+            ContextResolverService resolver = new ContextResolverService();
+            ContextResolverService.ResolutionResult result = resolver.resolve(null, agent.Id, UserInfo.getUserId(), null, 1);
+
+            System.assertEquals(1, result.contextBlocks.size(), 'Direct-only binding should apply on the initial turn for direct agents.');
+            System.assertEquals(1, result.recordsToLoad.size(), 'Direct-only binding should still resolve provider output before an execution row exists.');
+            System.assertEquals(0, result.warnings.size(), 'A matching direct channel should not produce a warning.');
+            System.assertEquals(UserInfo.getUserId(), (Id) result.recordsToLoad[0].get('Id'));
+        } finally {
+            ContextResolverService.clearTestProviderOverrides();
+        }
+    }
 }

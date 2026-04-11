@@ -343,7 +343,7 @@ private class SequentialPipelineOrchestratorTest {
     }
 
     @IsTest
-    static void testResume_FailedStepCreatesNewChildExecution_AndRejectsOldCallback() {
+    static void testResume_FailedStepDelegatesToChildResumeMode() {
         TestFactory.PipelineSetup setup = getPipelineSetup();
         Case testCase = [SELECT Id FROM Case LIMIT 1];
 
@@ -367,6 +367,35 @@ private class SequentialPipelineOrchestratorTest {
             LIMIT 1
         ];
 
+        AgentCapability__c childCapability = TestFactory.newCapability()
+            .withAgent(firstStep.ChildAgent__c)
+            .forGetRecordDetails('Case', new List<String>{ 'Id', 'Subject' })
+            .withName('pipeline_resume_tool')
+            .save();
+        update new AIAgentDefinition__c(Id = firstStep.ChildAgent__c, ResumeMode__c = 'LLM First');
+
+        insert new List<ExecutionStep__c>{
+            new ExecutionStep__c(
+                AgentExecution__c = originalChild.Id,
+                StepType__c = 'ToolCall',
+                StepRole__c = 'Tool',
+                ToolName__c = childCapability.CapabilityName__c,
+                ToolCallId__c = 'call-pipeline-resume-001',
+                ToolArguments__c = '{"recordId":"' + testCase.Id + '"}',
+                TurnCount__c = 1
+            ),
+            new ExecutionStep__c(
+                AgentExecution__c = originalChild.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolName__c = childCapability.CapabilityName__c,
+                ToolCallId__c = 'call-pipeline-resume-001',
+                ToolResult__c = '{"isSuccess":false}',
+                IsError__c = true,
+                TurnCount__c = 1
+            )
+        };
+
         orchestrator.onChildComplete(
             executionId,
             new Map<String, Object>{
@@ -378,7 +407,10 @@ private class SequentialPipelineOrchestratorTest {
             }
         );
 
+        Test.setMock(HttpCalloutMock.class, MockHttpResponses.text('Pipeline resume analysis complete.'));
+        Test.startTest();
         orchestrator.resume(executionId);
+        Test.stopTest();
 
         List<AgentExecution__c> childExecutions = [
             SELECT Id, CurrentTurnIdentifier__c
@@ -386,8 +418,8 @@ private class SequentialPipelineOrchestratorTest {
             WHERE ParentExecution__c = :executionId AND AIAgentDefinition__c = :firstStep.ChildAgent__c
             ORDER BY CreatedDate ASC
         ];
-        System.assertEquals(2, childExecutions.size(), 'Resume should create a fresh child execution instead of reusing the failed one');
-        System.assertNotEquals(originalChild.Id, childExecutions[1].Id, 'Resumed pipeline should track a new child execution id');
+        System.assertEquals(1, childExecutions.size(), 'Resume should reuse the existing failed child execution');
+        System.assertEquals(originalChild.Id, childExecutions[0].Id, 'Resumed pipeline should keep tracking the same child execution');
 
         PipelineRunStep__c resumedStep = [
             SELECT ChildExecution__c, Status__c
@@ -395,8 +427,15 @@ private class SequentialPipelineOrchestratorTest {
             WHERE AgentExecution__c = :executionId AND StepOrder__c = 1
             LIMIT 1
         ];
-        System.assertEquals(childExecutions[1].Id, resumedStep.ChildExecution__c, 'Pipeline state should point at the new child execution');
-        System.assertEquals('in_progress', resumedStep.Status__c, 'Resumed step should be back in progress');
+        System.assertEquals(originalChild.Id, resumedStep.ChildExecution__c, 'Pipeline state should keep pointing at the resumed child execution');
+        System.assertEquals('completed', resumedStep.Status__c, 'LLM First resume should allow the child execution to complete during Test.stopTest()');
+
+        List<ExecutionStep__c> retrySteps = [
+            SELECT Id
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :originalChild.Id AND ToolCallId__c LIKE 'retry_%'
+        ];
+        System.assertEquals(0, retrySteps.size(), 'Pipeline resume should defer to the child ResumeMode instead of forcing a retry');
 
         orchestrator.onChildComplete(
             executionId,
@@ -414,8 +453,12 @@ private class SequentialPipelineOrchestratorTest {
             WHERE AgentExecution__c = :executionId AND StepOrder__c = 1
             LIMIT 1
         ];
-        System.assertEquals(childExecutions[1].Id, afterStaleCallback.ChildExecution__c, 'Stale callback should not overwrite the resumed child execution');
-        System.assertEquals('in_progress', afterStaleCallback.Status__c, 'Stale callback should not advance the resumed step');
+        System.assertEquals(
+            originalChild.Id,
+            afterStaleCallback.ChildExecution__c,
+            'Late completion should still be associated with the resumed child execution'
+        );
+        System.assertEquals('completed', afterStaleCallback.Status__c, 'Completion from the resumed child should advance the step');
     }
 
     // =========================================================================

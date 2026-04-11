@@ -99,6 +99,22 @@ private class AIAgentDefinitionTriggerHandlerTest {
     }
 
     @IsTest
+    static void insert_defaultsBlankResumeModeToLlmFirst() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
+        AIAgentDefinition__c agent = buildAgent(llm.Id, 'Direct', 'Autonomous');
+        agent.ResumeMode__c = null;
+
+        insert agent;
+
+        agent = [
+            SELECT ResumeMode__c
+            FROM AIAgentDefinition__c
+            WHERE Id = :agent.Id
+        ];
+        System.assertEquals('LLM First', agent.ResumeMode__c, 'Agents should default Resume Mode to LLM First when blank');
+    }
+
+    @IsTest
     static void functionAgent_allowsFailFastMode() {
         LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
         AIAgentDefinition__c agent = buildAgent(llm.Id, 'Direct', 'Fail Fast');

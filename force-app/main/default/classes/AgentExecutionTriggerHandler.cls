@@ -304,7 +304,7 @@ public without sharing class AgentExecutionTriggerHandler {
                 chainPayload.executionIdentityNamedCredential = nextExecution.ExecutionIdentityNamedCredential__c;
 
                 try {
-                    System.enqueueJob(new AgentExecutionWorker(agentName, chainPayload));
+                    new AgentJobEnqueuer().enqueueQueueable(new AgentExecutionWorker(agentName, chainPayload), logPrefix);
                     System.debug(
                         LoggingLevel.INFO,
                         logPrefix + 'Batch chain: Enqueued worker for execution ' + nextExecution.Id + ' (BatchId=' + batchId + ')'

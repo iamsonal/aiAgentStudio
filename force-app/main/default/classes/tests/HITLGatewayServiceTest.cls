@@ -99,6 +99,40 @@ private class HITLGatewayServiceTest {
     }
 
     @IsTest
+    static void testEvaluate_ConfirmationInvalidForNonInteractiveExecutionChannel() {
+        AIAgentDefinition__c agent = [
+            SELECT Id, RuntimeStrategy__c, DeveloperName__c
+            FROM AIAgentDefinition__c
+            WHERE DeveloperName__c LIKE 'HITL_Convo_Agent%'
+            LIMIT 1
+        ];
+        AgentCapability__c cap = [
+            SELECT Id, CapabilityName__c, HITLMode__c, RunAsynchronously__c
+            FROM AgentCapability__c
+            WHERE CapabilityName__c = 'hitl_confirm'
+            LIMIT 1
+        ];
+        AgentExecution__c execution = [SELECT Id FROM AgentExecution__c LIMIT 1];
+        update new AgentExecution__c(Id = execution.Id, InteractionChannel__c = RuntimeRegistryService.CHANNEL_EMAIL);
+
+        HITLGatewayService.HITLContext ctx = new HITLGatewayService.HITLContext();
+        ctx.capability = cap;
+        ctx.agentDefinition = agent;
+        ctx.executionId = execution.Id;
+        ctx.turnIdentifier = 'turn-hitl-email-confirm';
+        ctx.toolCallId = 'call-hitl-email-confirm';
+
+        HITLGatewayService.HITLDecision decision = HITLGatewayService.evaluate(ctx);
+
+        System.assertEquals(false, decision.requiresIntervention, 'Invalid config should not require intervention');
+        System.assertEquals(false, decision.isValidConfiguration, 'Confirmation on a non-interactive execution channel should be invalid');
+        System.assert(
+            String.isNotBlank(decision.configurationError) && decision.configurationError.contains('interactive chat agents'),
+            'Error should explain that confirmation requires an interactive chat runtime'
+        );
+    }
+
+    @IsTest
     static void testResolveApproval_ApprovedAndRejected() {
         AIAgentDefinition__c agent = [
             SELECT Id, DeveloperName__c
@@ -452,7 +486,11 @@ private class HITLGatewayServiceTest {
             ];
             System.assertEquals(HITLGatewayService.HITL_MODE_APPROVAL, pending.HITLType__c, 'Pending action should be Approval');
             System.assertEquals(ctx.toolCallId, pending.ToolCallId__c, 'Tool call id should match');
-            System.assertEquals(HITLGatewayService.APPROVAL_CATEGORY_TOOL_APPROVAL, pending.ApprovalCategory__c, 'Tool approvals should snapshot their approval category');
+            System.assertEquals(
+                HITLGatewayService.APPROVAL_CATEGORY_TOOL_APPROVAL,
+                pending.ApprovalCategory__c,
+                'Tool approvals should snapshot their approval category'
+            );
             System.assertEquals('Tool_Approval', pending.ApprovalProcessDeveloperName__c, 'Tool approvals should snapshot the explicit process');
             System.assertEquals('DefaultToolApproval', pending.ApprovalRouteDeveloperName__c, 'Tool approvals should snapshot the resolved route');
         } else {
@@ -518,7 +556,11 @@ private class HITLGatewayServiceTest {
                 'Pending action should be ConfirmationThenApproval'
             );
             System.assertEquals(ctx.toolCallId, pending.ToolCallId__c, 'Tool call id should match');
-            System.assertEquals(HITLGatewayService.APPROVAL_CATEGORY_TOOL_APPROVAL, pending.ApprovalCategory__c, 'ConfirmationThenApproval should reuse the tool approval category');
+            System.assertEquals(
+                HITLGatewayService.APPROVAL_CATEGORY_TOOL_APPROVAL,
+                pending.ApprovalCategory__c,
+                'ConfirmationThenApproval should reuse the tool approval category'
+            );
             System.assertEquals('Tool_Approval', pending.ApprovalProcessDeveloperName__c, 'ConfirmationThenApproval should snapshot the explicit process');
             System.assertEquals('DefaultToolApproval', pending.ApprovalRouteDeveloperName__c, 'ConfirmationThenApproval should snapshot the resolved route');
         } else {
