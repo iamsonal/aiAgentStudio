@@ -1,5 +1,5 @@
 /**
- * @description Comprehensive test data factory for Friday showcasing the strategy-plus-channel runtime.
+ * @description Comprehensive test data factory for Pluto showcasing the strategy-plus-channel runtime.
  *              Creates realistic business scenarios using standard Salesforce objects.
  *
  * **Runtime Examples Created:**
@@ -201,11 +201,11 @@ public with sharing class AgentTestDataFactory {
 
         insert serviceUser;
 
-        // Assign "Friday Service User" permission set if it exists
+        // Assign "Pluto Service User" permission set if it exists
         List<PermissionSet> permSets = [
             SELECT Id, Label
             FROM PermissionSet
-            WHERE Label = 'Friday Service User'
+            WHERE Label = 'Pluto Service User'
             LIMIT 1
         ];
 
@@ -216,7 +216,7 @@ public with sharing class AgentTestDataFactory {
         } else {
             System.debug(
                 LoggingLevel.WARN,
-                '[Service User] ⚠ Service User created but permission set "Friday Service User" not found. Assign it manually: ' +
+                '[Service User] ⚠ Service User created but permission set "Pluto Service User" not found. Assign it manually: ' +
                 serviceUser.Username
             );
         }

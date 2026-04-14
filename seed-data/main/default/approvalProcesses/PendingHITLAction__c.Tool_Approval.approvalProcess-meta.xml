@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ApprovalProcess xmlns="http://soap.sforce.com/2006/04/metadata">
+    <active>true</active>
+    <allowRecall>true</allowRecall>
+    <allowedSubmitters>
+        <type>allInternalUsers</type>
+    </allowedSubmitters>
+    <approvalPageFields>
+        <field>Name</field>
+        <field>ArtifactType__c</field>
+        <field>ApprovalCategory__c</field>
+        <field>ApprovalRouteDeveloperName__c</field>
+        <field>ApprovalProcessDeveloperName__c</field>
+        <field>ApproverRoutingType__c</field>
+        <field>ApproverRoutingKey__c</field>
+        <field>InteractionChannel__c</field>
+        <field>ToolName__c</field>
+        <field>ToolArgumentsJSON__c</field>
+        <field>ConfirmationPrompt__c</field>
+        <field>HITLType__c</field>
+        <field>RequestingUser__c</field>
+        <field>RequestedAt__c</field>
+    </approvalPageFields>
+    <approvalStep>
+        <allowDelegate>true</allowDelegate>
+        <assignedApprover>
+            <approver>
+                <name>Tool_Approval_Queue</name>
+                <type>queue</type>
+            </approver>
+            <whenMultipleApprovers>FirstResponse</whenMultipleApprovers>
+        </assignedApprover>
+        <label>Tool Approval Step</label>
+        <name>Tool_Approval_Step</name>
+    </approvalStep>
+    <description>Approval process for HITL tool executions that require formal approval before resuming the agent run.</description>
+    <enableMobileDeviceAccess>true</enableMobileDeviceAccess>
+    <entryCriteria>
+        <criteriaItems>
+            <field>PendingHITLAction__c.Status__c</field>
+            <operation>equals</operation>
+            <value>Pending</value>
+        </criteriaItems>
+        <criteriaItems>
+            <field>PendingHITLAction__c.ApprovalCategory__c</field>
+            <operation>equals</operation>
+            <value>Tool Approval</value>
+        </criteriaItems>
+        <criteriaItems>
+            <field>PendingHITLAction__c.ApprovalProcessDeveloperName__c</field>
+            <operation>equals</operation>
+            <value>Tool_Approval</value>
+        </criteriaItems>
+    </entryCriteria>
+    <finalApprovalActions>
+        <action>
+            <name>HITL_Status_Approved</name>
+            <type>FieldUpdate</type>
+        </action>
+    </finalApprovalActions>
+    <finalApprovalRecordLock>true</finalApprovalRecordLock>
+    <finalRejectionActions>
+        <action>
+            <name>HITL_Status_Rejected</name>
+            <type>FieldUpdate</type>
+        </action>
+    </finalRejectionActions>
+    <finalRejectionRecordLock>false</finalRejectionRecordLock>
+    <label>Tool Approval</label>
+    <processOrder>1</processOrder>
+    <recordEditability>AdminOrCurrentApprover</recordEditability>
+    <showApprovalHistory>true</showApprovalHistory>
+</ApprovalProcess>

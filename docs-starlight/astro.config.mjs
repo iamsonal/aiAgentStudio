@@ -14,13 +14,13 @@ export default defineConfig({
       enableLog: false
     }),
     starlight({
-      title: 'Friday',
+      title: 'Pluto',
       description:
         'Governed AI agent orchestration for Salesforce with runtime control, security, and extensibility built in.',
       favicon: '/favicon.png',
       logo: {
         src: './public/logo.png',
-        alt: 'Friday'
+        alt: 'Pluto'
       },
       social: {
         github: 'https://github.com/iamsonal/aiAgentStudio'

@@ -2,7 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>EnableDecisionStepLogging__c</fullName>
     <defaultValue>true</defaultValue>
-    <description>Logs agent reasoning steps to AgentDecisionStep__c for storyboard visualization. Requires the Friday Addons package. Org-wide setting.</description>
+    <description>Logs agent reasoning steps to AgentDecisionStep__c for storyboard visualization. Requires the Pluto Addons package. Org-wide setting.</description>
     <externalId>false</externalId>
     <inlineHelpText>Logs agent decisions for storyboard UI. Requires addons package. Disable to reduce data storage. Default: true.</inlineHelpText>
     <label>Enable Decision Step Logging</label>

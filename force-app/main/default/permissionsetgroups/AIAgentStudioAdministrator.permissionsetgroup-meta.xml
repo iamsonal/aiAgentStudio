@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <PermissionSetGroup xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>Full administrative access for Friday. Includes configuration and end user permissions. Assign to admins and developers who need complete access.</description>
+    <description>Full administrative access for Pluto. Includes configuration and end user permissions. Assign to admins and developers who need complete access.</description>
     <hasActivationRequired>false</hasActivationRequired>
-    <label>Friday Administrator</label>
+    <label>Pluto Administrator</label>
     <permissionSets>AIAgentStudioEndUser</permissionSets>
     <permissionSets>AIAgentStudioConfigurator</permissionSets>
     <status>Updated</status>

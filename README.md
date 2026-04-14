@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs-starlight/public/logo.png" alt="Friday Logo" width="150">
+  <img src="docs-starlight/public/logo.png" alt="Pluto Logo" width="150">
 </p>
 
-<h1 align="center">Friday</h1>
+<h1 align="center">Pluto</h1>
 
 <p align="center">
   <strong>Enterprise-Grade AI Platform for Salesforce</strong>
@@ -10,7 +10,11 @@
 
 Build intelligent AI agents powered by Large Language Models that seamlessly integrate with your Salesforce environment. Designed for security, scalability, and ease of use.
 
-Why Friday? Because “Unsupervised Multi-Channel Governance Runtime With Approval Routing” did not look great on the app header.
+Why Pluto? Because the point of this framework is not to be the loudest thing in the system. Its job is to hold the system together.
+
+Pluto felt right because it is compact, memorable, and a little understated, but it still has gravity. That is the role this runtime plays inside Salesforce. It pulls agents, tools, channels, memory, and workflows into one coordinated operating model.
+
+Whether people argue about the label or not, Pluto still does the work. That felt like the right attitude for a production framework.
 
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
 [![Salesforce](https://img.shields.io/badge/Salesforce-API%20v63.0-blue.svg)](https://developer.salesforce.com/)
@@ -47,7 +51,7 @@ See the framework handle governed AI workflows with intelligent filtering, human
 
 ## 💖 Support This Project
 
-Friday is **free and open-source**. If you find it useful, consider supporting ongoing development.
+Pluto is **free and open-source**. If you find it useful, consider supporting ongoing development.
 
 ☕ **[GitHub Sponsors](https://github.com/sponsors/iamsonal)** | **[Buy Me a Coffee](https://buymeacoffee.com/iamsonal)**
 
@@ -55,7 +59,7 @@ Friday is **free and open-source**. If you find it useful, consider supporting o
 
 ## ⚠️ Repository Notice
 
-This repository contains the **core AI Agent Framework only**. The `aiAgentStudioAddons` folder contains proprietary extensions not included in the open-source release.
+This repository contains the **core Pluto framework only**. The `aiAgentStudioAddons` folder contains proprietary extensions not included in the open-source release.
 
 The public package in `force-app` contains the core runtime, while the overall framework experience also includes broader packaged capabilities such as additional agent patterns, providers, actions, workflow composition, and UI features.
 

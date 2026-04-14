@@ -763,7 +763,7 @@
         <readable>true</readable>
     </fieldPermissions>
     <hasActivationRequired>false</hasActivationRequired>
-    <label>Friday Configurator</label>
+    <label>Pluto Configurator</label>
     <license>Salesforce</license>
     <objectPermissions>
         <allowCreate>true</allowCreate>
