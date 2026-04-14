@@ -1,14 +1,15 @@
 ---
 title: Pluto
+template: splash
 description: A governed AI runtime for Salesforce that separates strategy, channels, trust, and extensibility into one operable system.
 ---
 
-import { Aside, Badge, Card, CardGrid, LinkCard, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside, Card, CardGrid, LinkCard, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 <section class="loom-hero">
   <div class="loom-hero__copy">
     <div class="hero-kicker">Built for real Salesforce runtime constraints</div>
-    <h1 class="loom-hero__title">One runtime that holds the whole AI system together.</h1>
+    <h2 class="loom-hero__title">One runtime that holds the whole AI system together.</h2>
     <div class="loom-hero__lead">
       Pluto is a Salesforce-native runtime for AI agents. It brings together prompts, tools,
       context, channels, memory, and governance so the system behaves like a real product
@@ -27,13 +28,6 @@ import { Aside, Badge, Card, CardGrid, LinkCard, Steps, Tabs, TabItem } from '@a
     </div>
   </div>
 </section>
-
-<div class="badge-row badge-row--hero">
-  <Badge text="Core Runtime" variant="success" />
-  <Badge text="Salesforce Native" variant="note" />
-  <Badge text="Governed by Design" variant="tip" />
-  <Badge text="Public Docs" variant="caution" />
-</div>
 
 <Aside type="caution" title="Public Docs Scope">
 These docs focus on the core runtime in `force-app`. The repository also contains addon packages and
@@ -89,6 +83,11 @@ implementations blur together, which makes the runtime easier to operate, extend
   <Card title="Governed by Design" icon="approve-check-circle">
     Trust layers, approval controls, user-mode access, and durable audit records are part of the
     runtime itself, not post-hoc process wrapped around a prompt.
+  </Card>
+  <Card title="Composition That Scales" icon="puzzle">
+    Pipelines and multi-agent flows are treated as explicit composition patterns, so the framework
+    can coordinate specialist agents step by step instead of forcing every workflow into one
+    oversized runtime.
   </Card>
 </CardGrid>
 
