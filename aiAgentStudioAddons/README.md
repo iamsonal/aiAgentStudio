@@ -1,3 +1,3 @@
-# Friday Addons
+# Pluto Addons
 
-Private extensions and customizations for Friday.
+Private extensions and customizations for Pluto.

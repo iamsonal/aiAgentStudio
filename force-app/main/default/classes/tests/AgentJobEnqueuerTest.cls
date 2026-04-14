@@ -3,6 +3,18 @@
  */
 @IsTest
 private class AgentJobEnqueuerTest {
+    private class AsyncOptionsProbeQueueable implements Queueable {
+        public void execute(QueueableContext context) {
+            sawNullAsyncOptionsInQueueable = new AgentJobEnqueuer().getAsyncOptions('[test] ') == null;
+            sawFreshRootAsyncOptionsInQueueable = new AgentJobEnqueuer().getAsyncOptions('[test] ', null, true) != null;
+        }
+    }
+
+    @TestVisible
+    private static Boolean sawNullAsyncOptionsInQueueable = false;
+    @TestVisible
+    private static Boolean sawFreshRootAsyncOptionsInQueueable = false;
+
     @IsTest
     static void testConstructor_NullStateServiceThrows() {
         Boolean threw = false;
@@ -91,5 +103,43 @@ private class AgentJobEnqueuerTest {
             '[test]'
         );
         System.assert(Limits.getQueueableJobs() > beforeJobs, 'Async action should enqueue queueable for Low dispatch');
+    }
+
+    @IsTest
+    static void testGetAsyncOptions_RootQueueableAlwaysReturnsOptions() {
+        AsyncOptions asyncOptions = new AgentJobEnqueuer().getAsyncOptions('[test] ');
+
+        System.assertNotEquals(null, asyncOptions, 'First enqueue should receive AsyncOptions automatically');
+        System.assertEquals(7, asyncOptions.MaximumQueueableStackDepth, 'Default stack depth should use 5 processing cycles plus 2 buffer');
+    }
+
+    @IsTest
+    static void testGetAsyncOptions_QueueableContext_ReturnsNull() {
+        sawNullAsyncOptionsInQueueable = false;
+        sawFreshRootAsyncOptionsInQueueable = false;
+
+        Test.startTest();
+        System.enqueueJob(new AsyncOptionsProbeQueueable());
+        Test.stopTest();
+
+        System.assertEquals(true, sawNullAsyncOptionsInQueueable, 'Chained queueables should not attempt to set AsyncOptions');
+        System.assertEquals(
+            true,
+            sawFreshRootAsyncOptionsInQueueable,
+            'Fresh logical roots should be allowed to initialize AsyncOptions even in queueable-backed transactions'
+        );
+    }
+
+    @IsTest
+    static void testGetAsyncOptions_UsesAgentSpecificMaxProcessingCycles() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition().withLLM(llm.Id).build();
+        agent.MaxProcessingCycles__c = 12;
+        insert agent;
+
+        AsyncOptions asyncOptions = new AgentJobEnqueuer().getAsyncOptions('[test] ', agent.Id);
+
+        System.assertNotEquals(null, asyncOptions, 'Agent-aware root enqueue should receive AsyncOptions');
+        System.assertEquals(14, asyncOptions.MaximumQueueableStackDepth, 'Stack depth should follow agent max cycles plus buffer');
     }
 }

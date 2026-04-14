@@ -929,7 +929,12 @@ public inherited sharing class OrchestrationService {
                 return false;
             }
 
-            System.enqueueJob(new HITLServiceQueueable(execution.Id, turnIdentifier, currentTurnCount, sourceRecordId));
+            new AgentJobEnqueuer()
+                .enqueueQueueable(
+                    new HITLServiceQueueable(execution.Id, turnIdentifier, currentTurnCount, sourceRecordId),
+                    logPrefix,
+                    execution.AIAgentDefinition__c
+                );
             System.debug(LoggingLevel.INFO, logPrefix + 'Queued HITL-resolved follow-up through the shared resume gate.');
             return true;
         } catch (Exception e) {

@@ -74,14 +74,14 @@ public inherited sharing class HITLApprovalRouteResolver {
         if (matches.isEmpty()) {
             throw new RouteResolutionException(
                 'No active HITL approval route matched artifact "' +
-                context.artifactType +
-                '" for channel "' +
-                safeValue(context.interactionChannel) +
-                '", agent "' +
-                safeValue(context.agentDeveloperName) +
-                '", capability developer name "' +
-                safeValue(context.capabilityDeveloperName) +
-                '".'
+                    context.artifactType +
+                    '" for channel "' +
+                    safeValue(context.interactionChannel) +
+                    '", agent "' +
+                    safeValue(context.agentDeveloperName) +
+                    '", capability developer name "' +
+                    safeValue(context.capabilityDeveloperName) +
+                    '".'
             );
         }
 
@@ -90,10 +90,10 @@ public inherited sharing class HITLApprovalRouteResolver {
         if (matches.size() > 1 && winner.hasSamePrecedence(matches[1])) {
             throw new RouteResolutionException(
                 'Ambiguous HITL approval routes matched with the same precedence: "' +
-                winner.route.DeveloperName +
-                '" and "' +
-                matches[1].route.DeveloperName +
-                '".'
+                    winner.route.DeveloperName +
+                    '" and "' +
+                    matches[1].route.DeveloperName +
+                    '".'
             );
         }
 

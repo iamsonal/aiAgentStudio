@@ -315,6 +315,76 @@ private class ChatConversationalRuntimeServiceTest {
     }
 
     @IsTest
+    static void testResume_DefaultLlmFirst_DoesNotRetryFailedTool() {
+        LLMConfiguration__c llm = TestFactory.newLLMConfiguration().withName('Resume Default LLM First').save();
+        AIAgentDefinition__c agent = TestFactory.newAgentDefinition()
+            .withName('Resume_Default_LLM_First_Agent')
+            .withLLM(llm.Id)
+            .withAsyncDispatchType('Low')
+            .save();
+        agent = [
+            SELECT Id, DeveloperName__c, LLMConfiguration__c, ResumeMode__c, AsyncDispatchType__c
+            FROM AIAgentDefinition__c
+            WHERE Id = :agent.Id
+        ];
+
+        AgentCapability__c capability = TestFactory.newCapability().withAgent(agent.Id).forCreateRecord('Account').withName('resume_default_tool').save();
+
+        AgentExecution__c execution = TestFactory.newExecution()
+            .withAgent(agent.Id)
+            .withUser(UserInfo.getUserId())
+            .withExecutionType('Conversational')
+            .withStatus('Failed')
+            .withProcessingStatus(AIAgentConstants.STATUS_FAILED)
+            .withTurnIdentifier('turn-resume-default-001')
+            .save();
+
+        insert new List<ExecutionStep__c>{
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolCall',
+                StepRole__c = 'Assistant',
+                ToolCallId__c = 'call-resume-default-001',
+                ToolName__c = capability.CapabilityName__c,
+                ToolArguments__c = '{}',
+                TurnIdentifier__c = 'turn-resume-default-001',
+                TurnCount__c = 1,
+                Timestamp__c = Datetime.now().addMinutes(-2)
+            ),
+            new ExecutionStep__c(
+                AgentExecution__c = execution.Id,
+                StepType__c = 'ToolResult',
+                StepRole__c = 'Tool',
+                ToolCallId__c = 'call-resume-default-001',
+                ToolName__c = capability.CapabilityName__c,
+                ToolResult__c = '{"isSuccess":false}',
+                IsError__c = true,
+                TurnIdentifier__c = 'turn-resume-default-001',
+                TurnCount__c = 1,
+                Timestamp__c = Datetime.now().addMinutes(-1)
+            )
+        };
+
+        Test.setMock(HttpCalloutMock.class, MockHttpResponses.text('Resume analysis complete.'));
+
+        ChatConversationalRuntimeService orchestrator = new ChatConversationalRuntimeService(agent);
+
+        Test.startTest();
+        AgentExecutionService.ExecutionResult result = orchestrator.resume(execution.Id, null);
+        Test.stopTest();
+
+        System.assertEquals('LLM First', agent.ResumeMode__c, 'Agent should default to ResumeMode = LLM First');
+        System.assertEquals(AIAgentConstants.STATUS_PROCESSING, result.status, 'Resume should hand control back to the LLM');
+
+        List<ExecutionStep__c> retrySteps = [
+            SELECT Id
+            FROM ExecutionStep__c
+            WHERE AgentExecution__c = :execution.Id AND ToolCallId__c LIKE 'retry_%'
+        ];
+        System.assertEquals(0, retrySteps.size(), 'LLM First resume should not create retry tool steps');
+    }
+
+    @IsTest
     static void testEvaluateToolOutcome_ApprovalRequired_CompletesTurn() {
         AIAgentDefinition__c agent = [
             SELECT Id, DeveloperName__c, LLMConfiguration__c

@@ -533,14 +533,20 @@ public inherited sharing class ChatConversationalRuntimeService implements IAgen
         Boolean shouldRetryTool = options?.retryFailedTool;
 
         if (shouldRetryTool == null) {
-            // Auto-detect: check for failed tool
-            Map<String, Object> failedTool = AgentRuntimeSupport.findLastFailedTool(executionId);
-            shouldRetryTool = (failedTool != null);
+            if ('Retry Failed Operation'.equals(resolveResumeMode())) {
+                Map<String, Object> failedTool = AgentRuntimeSupport.findLastFailedTool(executionId);
+                shouldRetryTool = (failedTool != null);
 
-            if (shouldRetryTool) {
-                resumePoint.toolCallId = (String) failedTool.get('toolCallId');
-                resumePoint.toolName = (String) failedTool.get('toolName');
-                System.debug(LoggingLevel.INFO, logPrefix + 'Auto-detected failed tool: ' + resumePoint.toolName);
+                if (shouldRetryTool) {
+                    resumePoint.toolCallId = (String) failedTool.get('toolCallId');
+                    resumePoint.toolName = (String) failedTool.get('toolName');
+                    System.debug(LoggingLevel.INFO, logPrefix + 'Auto-detected failed tool (ResumeMode=Retry Failed Operation): ' + resumePoint.toolName);
+                } else {
+                    System.debug(LoggingLevel.WARN, logPrefix + 'ResumeMode=Retry Failed Operation but no failed tool found, defaulting to LLM_CONTINUE');
+                }
+            } else {
+                shouldRetryTool = false;
+                System.debug(LoggingLevel.INFO, logPrefix + 'ResumeMode=LLM First, defaulting to LLM_CONTINUE');
             }
         } else if (shouldRetryTool == true) {
             // Explicit retry - find the failed tool
@@ -559,6 +565,12 @@ public inherited sharing class ChatConversationalRuntimeService implements IAgen
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Resume strategy: ' + resumePoint.resumeType);
         return resumePoint;
+    }
+
+    private String resolveResumeMode() {
+        Map<String, Object> populatedFields = agentDefinition != null ? agentDefinition.getPopulatedFieldsAsMap() : null;
+        String resumeMode = populatedFields != null ? (String) populatedFields.get('ResumeMode__c') : null;
+        return String.isBlank(resumeMode) ? 'LLM First' : resumeMode;
     }
 
     /**
@@ -832,8 +844,7 @@ public inherited sharing class ChatConversationalRuntimeService implements IAgen
         };
 
         UnifiedAgentQueueable queueable = new UnifiedAgentQueueable(UnifiedAgentQueueable.JOB_TYPE_ITERATIVE, queueablePayload);
-
-        Id jobId = System.enqueueJob(queueable);
+        Id jobId = new AgentJobEnqueuer().enqueueQueueable(queueable, logPrefix, agentDefinition.Id);
         System.debug(LoggingLevel.INFO, logPrefix + 'Enqueued UnifiedAgentQueueable job (Conversational type): ' + jobId + ' for execution: ' + executionId);
     }
 

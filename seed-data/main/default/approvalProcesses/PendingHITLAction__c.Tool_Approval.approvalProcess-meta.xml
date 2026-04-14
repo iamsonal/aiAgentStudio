@@ -8,10 +8,15 @@
     <approvalPageFields>
         <field>Name</field>
         <field>ArtifactType__c</field>
+        <field>ApprovalCategory__c</field>
+        <field>ApprovalRouteDeveloperName__c</field>
+        <field>ApprovalProcessDeveloperName__c</field>
+        <field>ApproverRoutingType__c</field>
+        <field>ApproverRoutingKey__c</field>
         <field>InteractionChannel__c</field>
         <field>ToolName__c</field>
+        <field>ToolArgumentsJSON__c</field>
         <field>ConfirmationPrompt__c</field>
-        <field>ReviewedPayloadJson__c</field>
         <field>HITLType__c</field>
         <field>RequestingUser__c</field>
         <field>RequestedAt__c</field>
@@ -20,21 +25,31 @@
         <allowDelegate>true</allowDelegate>
         <assignedApprover>
             <approver>
-                <name>HITL_Queue</name>
+                <name>Tool_Approval_Queue</name>
                 <type>queue</type>
             </approver>
             <whenMultipleApprovers>FirstResponse</whenMultipleApprovers>
         </assignedApprover>
-        <label>HITL Approval Step</label>
-        <name>HITL_Approval_Step</name>
+        <label>Tool Approval Step</label>
+        <name>Tool_Approval_Step</name>
     </approvalStep>
-    <description>Approval process for AI Agent HITL (Human-in-the-Loop) actions requiring formal approval before execution.</description>
+    <description>Approval process for HITL tool executions that require formal approval before resuming the agent run.</description>
     <enableMobileDeviceAccess>true</enableMobileDeviceAccess>
     <entryCriteria>
         <criteriaItems>
             <field>PendingHITLAction__c.Status__c</field>
             <operation>equals</operation>
             <value>Pending</value>
+        </criteriaItems>
+        <criteriaItems>
+            <field>PendingHITLAction__c.ApprovalCategory__c</field>
+            <operation>equals</operation>
+            <value>Tool Approval</value>
+        </criteriaItems>
+        <criteriaItems>
+            <field>PendingHITLAction__c.ApprovalProcessDeveloperName__c</field>
+            <operation>equals</operation>
+            <value>Tool_Approval</value>
         </criteriaItems>
     </entryCriteria>
     <finalApprovalActions>
@@ -51,7 +66,7 @@
         </action>
     </finalRejectionActions>
     <finalRejectionRecordLock>false</finalRejectionRecordLock>
-    <label>HITL Action Approval</label>
+    <label>Tool Approval</label>
     <processOrder>1</processOrder>
     <recordEditability>AdminOrCurrentApprover</recordEditability>
     <showApprovalHistory>true</showApprovalHistory>

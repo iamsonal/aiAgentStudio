@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in Friday, please report it responsibly.
+If you discover a security vulnerability in Pluto, please report it responsibly.
 
 **Do NOT open a public GitHub issue for security vulnerabilities.**
 
@@ -29,7 +29,7 @@ Instead, please email the maintainer directly or use GitHub's private vulnerabil
 
 ## Security Best Practices
 
-When using Friday, follow these security guidelines:
+When using Pluto, follow these security guidelines:
 
 1. **API Keys**: Never commit API keys to source control. Use Named Credentials.
 2. **Permissions**: Follow least-privilege principles when assigning agent permissions.

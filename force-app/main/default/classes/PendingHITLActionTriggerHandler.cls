@@ -284,7 +284,7 @@ public with sharing class PendingHITLActionTriggerHandler {
 
         if (isOutboundDraftReview(fullAction)) {
             System.debug(LoggingLevel.INFO, logPrefix + 'Enqueueing reviewed reply delivery via REST API');
-            System.enqueueJob(new HITLServiceQueueable(fullAction.Id));
+            new AgentJobEnqueuer().enqueueQueueable(new HITLServiceQueueable(fullAction.Id), logPrefix);
             return;
         }
 
@@ -306,7 +306,7 @@ public with sharing class PendingHITLActionTriggerHandler {
         System.debug(LoggingLevel.INFO, logPrefix + 'Enqueueing tool execution via REST API (Named Credential handles auth)');
         System.debug(LoggingLevel.DEBUG, logPrefix + 'Follow-up LLM call needed: ' + needsFollowUp + ' (Channel: ' + execution.InteractionChannel__c + ')');
 
-        System.enqueueJob(new HITLServiceQueueable(fullAction.Id, needsFollowUp));
+        new AgentJobEnqueuer().enqueueQueueable(new HITLServiceQueueable(fullAction.Id, needsFollowUp), logPrefix);
 
         System.debug(LoggingLevel.INFO, logPrefix + 'Tool execution queued via HITLServiceQueueable');
     }

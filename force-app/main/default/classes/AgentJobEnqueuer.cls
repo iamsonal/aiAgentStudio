@@ -13,6 +13,7 @@ public inherited sharing class AgentJobEnqueuer {
     public class DispatchException extends AIAgentException {
     }
 
+    private static final Integer QUEUEABLE_STACK_BUFFER = 2;
     private final AgentStateService agentStateSvc;
 
     public AgentJobEnqueuer() {
@@ -149,15 +150,7 @@ public inherited sharing class AgentJobEnqueuer {
         String logPrefix
     ) {
         FollowUpLLMEngine queueable = new FollowUpLLMEngine(executionId, userId, agentDefId, turnId, nextTurnCount, finalErrorFlag, recordId);
-
-        // Get AsyncOptions if configured (for scratch/developer orgs)
-        AsyncOptions asyncOptions = getAsyncOptions(logPrefix);
-        Id jobId;
-        if (asyncOptions != null) {
-            jobId = System.enqueueJob(queueable, asyncOptions);
-        } else {
-            jobId = System.enqueueJob(queueable);
-        }
+        Id jobId = enqueueQueueable(queueable, logPrefix, agentDefId);
 
         System.debug(
             LoggingLevel.INFO,
@@ -328,15 +321,7 @@ public inherited sharing class AgentJobEnqueuer {
             turnId,
             currentTurnCount
         );
-
-        // Get AsyncOptions if configured (for scratch/developer orgs)
-        AsyncOptions asyncOptions = getAsyncOptions(logPrefix);
-        Id jobId;
-        if (asyncOptions != null) {
-            jobId = System.enqueueJob(queueable, asyncOptions);
-        } else {
-            jobId = System.enqueueJob(queueable);
-        }
+        Id jobId = enqueueQueueable(queueable, logPrefix, agentDefId);
 
         System.debug(
             LoggingLevel.INFO,
@@ -355,82 +340,73 @@ public inherited sharing class AgentJobEnqueuer {
     }
 
     /**
+     * Enqueues a queueable job and applies AsyncOptions on the first hop in the chain.
+     * Root queueables always receive a stack-depth ceiling sized to the effective
+     * processing-cycle policy so scratch/developer org limits do not undercut runtime behavior.
+     */
+    public Id enqueueQueueable(Queueable job, String logPrefix, Id agentDefId) {
+        return enqueueQueueable(job, logPrefix, agentDefId, false);
+    }
+
+    public Id enqueueQueueable(Queueable job, String logPrefix, Id agentDefId, Boolean treatAsFreshRoot) {
+        AsyncOptions asyncOptions = getAsyncOptions(logPrefix, agentDefId, treatAsFreshRoot);
+        return asyncOptions != null ? System.enqueueJob(job, asyncOptions) : System.enqueueJob(job);
+    }
+
+    public Id enqueueQueueable(Queueable job, String logPrefix) {
+        return enqueueQueueable(job, logPrefix, null);
+    }
+
+    /**
      * Creates AsyncOptions for queueable job enqueueing.
-     * Automatically derives MaximumQueueableStackDepth from MaxProcessingCycles + buffer
+     * Automatically derives MaximumQueueableStackDepth from effective processing cycles + buffer
      * to ensure the platform limit never interferes with the business limit.
      *
      * IMPORTANT: AsyncOptions can only be set on the FIRST job in a chain.
      * You cannot reset MaximumQueueableStackDepth from within a running queueable.
-     * This method checks if max stack depth was already configured in the parent chain.
      *
      * @param logPrefix A logging prefix for debug output.
      * @return AsyncOptions with configured stack depth, or null if already set in parent chain.
      */
     public AsyncOptions getAsyncOptions(String logPrefix) {
-        // TEST CONTEXT GUARD: hasMaxStackDepth() throws error in tests
-        // "hasMaxStackDepth is not allowed outside a Queueable of Finalizer execution"
+        return getAsyncOptions(logPrefix, null, false);
+    }
+
+    public AsyncOptions getAsyncOptions(String logPrefix, Id agentDefId) {
+        return getAsyncOptions(logPrefix, agentDefId, false);
+    }
+
+    public AsyncOptions getAsyncOptions(String logPrefix, Id agentDefId, Boolean treatAsFreshRoot) {
+        Boolean forceFreshRoot = (treatAsFreshRoot == true);
         if (Test.isRunningTest()) {
             // AsyncOptions can only be applied to the first queueable in a chain.
-            // In tests we cannot safely inspect the existing max depth, so the
-            // conservative behavior is to skip AsyncOptions once we are already
-            // executing inside a queueable.
-            if (System.isQueueable()) {
+            // Preserve that runtime rule in tests by skipping AsyncOptions once
+            // execution is already inside a queueable.
+            if (System.isQueueable() && !forceFreshRoot) {
                 System.debug(LoggingLevel.DEBUG, logPrefix + '[AgentJobEnqueuer] TEST MODE: already inside queueable - skipping AsyncOptions reset');
                 return null;
             }
-
-            Integer maxProcessingCycles = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
-            Integer maxStackDepth = maxProcessingCycles + 2; // Buffer for safety
-
-            AsyncOptions asyncOptions = new AsyncOptions();
-            asyncOptions.MaximumQueueableStackDepth = maxStackDepth;
-
-            System.debug(
-                LoggingLevel.INFO,
-                logPrefix +
-                    '[AgentJobEnqueuer] TEST MODE: Setting AsyncOptions with MaximumQueueableStackDepth=' +
-                    maxStackDepth +
-                    ' (derived from MaxProcessingCycles=' +
-                    maxProcessingCycles +
-                    ' + 2 buffer)'
-            );
-
-            return asyncOptions;
         }
 
-        // Check if AsyncOptions should be used (based on custom setting)
-        // Orgs with 50-chain limit (production/sandbox) don't need AsyncOptions
-        // Orgs with 5-chain limit (scratch/developer/trial) need AsyncOptions to extend the limit
-        if (!AIAgentFrameworkSettings.shouldExtendQueueableChainLimit()) {
+        // MaximumQueueableStackDepth must only be set on the first enqueue in a
+        // chain. When this helper is invoked from queueable execution, treat it as
+        // a chained enqueue and skip AsyncOptions rather than probing AsyncInfo,
+        // which can throw in runtime contexts such as trigger work kicked off by a
+        // queueable.
+        if (System.isQueueable() && !forceFreshRoot) {
+            System.debug(LoggingLevel.DEBUG, logPrefix + '[AgentJobEnqueuer] Already in Queueable context - skipping AsyncOptions for chained enqueue');
+            return null;
+        } else if (forceFreshRoot && System.isQueueable()) {
             System.debug(
                 LoggingLevel.DEBUG,
-                logPrefix + '[AgentJobEnqueuer] ExtendQueueableChainLimit disabled - AsyncOptions not needed (org has 50-chain limit)'
+                logPrefix + '[AgentJobEnqueuer] Queueable-backed transaction treated as fresh logical root - applying AsyncOptions'
             );
-            return null;
-        }
-
-        // Check if MaxStackDepth was already configured in parent chain
-        // AsyncInfo.hasMaxStackDepth() can only be called from within a Queueable or Finalizer context
-        // If we're not in a Queueable context, this is the first job in the chain
-        if (System.isQueueable()) {
-            if (AsyncInfo.hasMaxStackDepth()) {
-                System.debug(
-                    LoggingLevel.DEBUG,
-                    logPrefix +
-                        '[AgentJobEnqueuer] MaxStackDepth already configured in parent chain (depth=' +
-                        AsyncInfo.getMaximumQueueableStackDepth() +
-                        ') - skipping AsyncOptions'
-                );
-                return null;
-            }
         } else {
             System.debug(LoggingLevel.DEBUG, logPrefix + '[AgentJobEnqueuer] Not in Queueable context - this is the first job in chain, will set AsyncOptions');
         }
 
-        // Automatically derive stack depth from MaxProcessingCycles + buffer
-        // This ensures the platform limit is always higher than the business limit
-        Integer maxProcessingCycles = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
-        Integer maxStackDepth = maxProcessingCycles + 2; // Buffer for safety
+        Integer maxProcessingCycles = resolveEffectiveMaxProcessingCycles(agentDefId, logPrefix);
+        Integer maxStackDepth = maxProcessingCycles + QUEUEABLE_STACK_BUFFER;
 
         // Set AsyncOptions for the first job in the chain
         AsyncOptions asyncOptions = new AsyncOptions();
@@ -439,14 +415,38 @@ public inherited sharing class AgentJobEnqueuer {
         System.debug(
             LoggingLevel.INFO,
             logPrefix +
-                '[AgentJobEnqueuer] ExtendQueueableChainLimit enabled - Setting AsyncOptions with MaximumQueueableStackDepth=' +
+                '[AgentJobEnqueuer] Setting AsyncOptions with MaximumQueueableStackDepth=' +
                 maxStackDepth +
-                ' (derived from MaxProcessingCycles=' +
+                ' (derived from effective MaxProcessingCycles=' +
                 maxProcessingCycles +
-                ' + 2 buffer)'
+                ' + ' +
+                QUEUEABLE_STACK_BUFFER +
+                ' buffer)'
         );
 
         return asyncOptions;
+    }
+
+    private Integer resolveEffectiveMaxProcessingCycles(Id agentDefId, String logPrefix) {
+        Integer fallbackCycles = AIAgentFrameworkSettings.getDefaultMaxConversationTurns();
+        if (agentDefId == null) {
+            return fallbackCycles;
+        }
+
+        try {
+            AIAgentDefinition__c agentDef = AIAgentConfigService.getAgentDefinition(agentDefId);
+            return AIAgentFrameworkSettings.getMaxProcessingCycles(agentDef);
+        } catch (Exception e) {
+            System.debug(
+                LoggingLevel.WARN,
+                logPrefix +
+                    '[AgentJobEnqueuer] Failed to resolve agent-specific MaxProcessingCycles for ' +
+                    agentDefId +
+                    '. Falling back to org default: ' +
+                    e.getMessage()
+            );
+            return fallbackCycles;
+        }
     }
 
     /**

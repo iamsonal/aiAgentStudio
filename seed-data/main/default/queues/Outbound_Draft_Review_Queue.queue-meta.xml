@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Queue xmlns="http://soap.sforce.com/2006/04/metadata">
     <doesSendEmailToMembers>false</doesSendEmailToMembers>
-    <name>HITL Queue</name>
+    <name>Outbound Draft Review Queue</name>
     <queueSobject>
         <sobjectType>PendingHITLAction__c</sobjectType>
     </queueSobject>

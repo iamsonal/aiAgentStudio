@@ -87,6 +87,7 @@ public inherited sharing class AIAgentConfigService {
         'PromptSafetyFailureMode__c',
         // Error handling
         'ErrorRecoveryMode__c',
+        'ResumeMode__c',
         // Confidence tracking
         'EnableConfidenceTracking__c',
         'MinConfidenceThreshold__c',
